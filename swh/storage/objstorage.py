@@ -25,7 +25,7 @@ def _obj_dir(obj_id, root_dir, depth):
 
     """
     if len(obj_id) < depth * 2:
-        raise ValueError('object id %s is too short for slicing at depth %d'
+        raise ValueError('object id "%s" is too short for slicing at depth %d'
                          % (obj_id, depth))
 
     # compute [depth] substrings of [obj_id], each of length 2, starting from
@@ -106,7 +106,7 @@ class ObjStorage:
 
         """
         if not os.path.isdir(root):
-            raise ValueError('obj storage root dir %s is not a directory'
+            raise ValueError('obj storage root "%s" is not a directory'
                              % root)
 
         self._root_dir = root
