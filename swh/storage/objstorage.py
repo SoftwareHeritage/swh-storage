@@ -3,17 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import gzip
 import os
 import shutil
 import tempfile
 
 from contextlib import contextmanager
-from gzip import GzipFile
 
 from swh.core import hashutil
 
 
 ID_HASH_ALGO = 'sha1_git'
+GZIP_BUFSIZ = 1048576
 
 
 class ObjStorageError(Exception):
@@ -21,6 +22,14 @@ class ObjStorageError(Exception):
 
 
 class DuplicateObjError(ObjStorageError):
+    pass
+
+
+class ObjNotFoundError(ObjStorageError):
+    pass
+
+
+class ObjIntegrityError(ObjStorageError):
     pass
 
 
@@ -73,7 +82,7 @@ def new_obj_file(obj_id, root_dir, depth):
     path = os.path.join(dir, obj_id)
     tmp_path = path + '.tmp'
     with open(tmp_path, 'wb') as f:
-        with GzipFile(fileobj=f) as f:
+        with gzip.GzipFile(fileobj=f) as f:
             yield f
     os.rename(tmp_path, path)
 
@@ -124,6 +133,14 @@ class ObjStorage:
         if not os.path.isdir(self._temp_dir):
             os.makedirs(self._temp_dir)
 
+    def __obj_dir(self, obj_id):
+        """_obj_dir wrapper using this storage configuration"""
+        return _obj_dir(obj_id, self._root_dir, self._depth)
+
+    def __obj_path(self, obj_id):
+        """_obj_path wrapper using this storage configuration"""
+        return _obj_path(obj_id, self._root_dir, self._depth)
+
     def has(self, obj_id):
         """check whether a given object id is present in the storage or not
 
@@ -171,7 +188,7 @@ class ObjStorage:
             (tmp, tmp_path) = tempfile.mkstemp(dir=self._temp_dir)
             try:
                 t = os.fdopen(tmp, 'wb')
-                tz = GzipFile(fileobj=t)
+                tz = gzip.GzipFile(fileobj=t)
                 sums = hashutil._hash_file_obj(f, length,
                                                algorithms=[ID_HASH_ALGO],
                                                chunk_cb=lambda b: tz.write(b))
@@ -182,7 +199,7 @@ class ObjStorage:
                 if not clobber and self.has(obj_id):
                     raise DuplicateObjError(obj_id)
 
-                dir = _obj_dir(obj_id, self._root_dir, self._depth)
+                dir = self.__obj_dir(obj_id)
                 if not os.path.isdir(dir):
                     os.makedirs(dir)
                 path = os.path.join(dir, obj_id)
@@ -199,3 +216,32 @@ class ObjStorage:
                               root_dir=self._root_dir,
                               depth=self._depth) as obj:
                 shutil.copyfileobj(f, obj)
+
+    def check(self, obj_id):
+        """integrity check for a given object
+
+        verify that the file object is in place (i.e., has(obj_id)==True), and
+        that the gzipped content matches the object id
+
+        raise exceptions: ObjNotFoundError, ObjIntegrityError
+
+        """
+        if not self.has(obj_id):
+            raise ObjNotFoundError(obj_id)
+
+        try:
+            with gzip.open(self.__obj_path(obj_id)) as f:
+                length = 0
+                while True:  # first pass on gzipped content to read length :(
+                    chunk = f.read(GZIP_BUFSIZ)
+                    length += len(chunk)
+                    if not chunk:
+                        break
+                f.rewind()
+                checksums = hashutil._hash_file_obj(f, length,
+                                                    algorithms=[ID_HASH_ALGO])
+                actual_obj_id = checksums[ID_HASH_ALGO]
+                if obj_id != actual_obj_id:
+                    raise ObjIntegrityError(obj_id, actual_obj_id)
+        except OSError:
+            raise ObjIntegrityError(obj_id)
