@@ -1,7 +1,13 @@
-PKGNAME = swh.$(shell basename `pwd` | sed 's/.*-//')
+BASENAME := $(shell basename `pwd` | sed 's/.*-//')
+
+PKGNAME = swh.$(BASENAME)
+PKGDIR = swh/$(BASENAME)
+EXTRA_DIRS := $(shell test -d bin && echo bin)
 
 NOSE = nosetests3
 NOSEFLAGS = -v
+FLAKE = flake8
+FLAKEFLAGS =
 
 all:
 
@@ -12,3 +18,7 @@ test:
 .PHONY: coverage
 coverage:
 	$(NOSE) $(NOSEFLAGS) --with-coverage --cover-package $(PKGNAME)
+
+.PHONY: coverage
+check:
+	$(FLAKE) $(FLAKEFLAGS) $(PKGDIR) $(EXTRA_DIRS)
