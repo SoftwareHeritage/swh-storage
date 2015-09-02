@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import gzip
 import os
 import shutil
 import tempfile
@@ -27,19 +28,23 @@ class Hashlib(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
 
+    def assertGzipContains(self, gzip_path, content):
+        self.assertEqual(gzip.open(gzip_path, 'rb').read(), content)
+
     @istest
     def add_bytes_w_id(self):
         obj_path = os.path.join(self.tmpdir, self.obj_relpath)
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         self.assertTrue(os.path.isfile(obj_path))
-        self.assertEqual(open(obj_path, 'rb').read(), self.content)
+        self.assertEqual(gzip.open(obj_path, 'rb').read(), self.content)
+        self.assertGzipContains(obj_path, self.content)
 
     @istest
     def add_bytes_wo_id(self):
         obj_path = os.path.join(self.tmpdir, self.obj_relpath)
         self.storage.add_bytes(self.content)
         self.assertTrue(os.path.isfile(obj_path))
-        self.assertEqual(open(obj_path, 'rb').read(), self.content)
+        self.assertGzipContains(obj_path, self.content)
 
     @istest
     def add_file_w_id(self):
@@ -48,7 +53,7 @@ class Hashlib(unittest.TestCase):
                               len(self.content),
                               obj_id=self.obj_id)
         self.assertTrue(os.path.isfile(obj_path))
-        self.assertEqual(open(obj_path, 'rb').read(), self.content)
+        self.assertGzipContains(obj_path, self.content)
 
     @istest
     def add_file_wo_id(self):
@@ -56,4 +61,4 @@ class Hashlib(unittest.TestCase):
         self.storage.add_file(BytesIO(self.content),
                               len(self.content))
         self.assertTrue(os.path.isfile(obj_path))
-        self.assertEqual(open(obj_path, 'rb').read(), self.content)
+        self.assertGzipContains(obj_path, self.content)

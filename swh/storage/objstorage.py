@@ -8,6 +8,7 @@ import shutil
 import tempfile
 
 from contextlib import contextmanager
+from gzip import GzipFile
 
 from swh.core import hashutil
 
@@ -48,7 +49,8 @@ def new_obj_file(obj_id, root_dir, depth):
     """context manager for adding new object files to the object storage. It yiels
     a file-like object open for writing (bytes). During writing data are
     written to a temporary file, which is atomically renamed to the right file
-    name after closing.
+    name after closing. This context manager also takes care of (gzip)
+    compressing the data on the fly.
 
     Sample usage:
 
@@ -63,8 +65,8 @@ def new_obj_file(obj_id, root_dir, depth):
     path = os.path.join(dir, obj_id)
     tmp_path = path + '.tmp'
     with open(tmp_path, 'wb') as f:
-        yield f
-
+        with GzipFile(fileobj=f) as f:
+            yield f
     os.rename(tmp_path, path)
 
 
@@ -146,11 +148,13 @@ class ObjStorage:
             # mv temp file into place
             (tmp, tmp_path) = tempfile.mkstemp(dir=self._temp_dir)
             try:
-                tmp = os.fdopen(tmp, 'wb')
+                t = os.fdopen(tmp, 'wb')
+                tz = GzipFile(fileobj=t)
                 sums = hashutil._hash_file_obj(f, length,
                                                algorithms=[ID_HASH_ALGO],
-                                               chunk_cb=lambda b: tmp.write(b))
-                tmp.close()
+                                               chunk_cb=lambda b: tz.write(b))
+                tz.close()
+                t.close()
 
                 obj_id = sums[ID_HASH_ALGO]
                 dir = _obj_dir(obj_id, self._root_dir, self._depth)
