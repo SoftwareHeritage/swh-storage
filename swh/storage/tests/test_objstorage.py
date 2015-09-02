@@ -109,3 +109,22 @@ class TestObjStorage(unittest.TestCase):
             f.write(b'unexpected content')
         with self.assertRaises(objstorage.ObjIntegrityError):
             self.storage.check(self.obj_id)
+
+    @istest
+    def get_bytes(self):
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        self.assertEqual(self.storage.get_bytes(self.obj_id),
+                         self.content)
+
+    @istest
+    def get_file_path(self):
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        path = self.storage._get_file_path(self.obj_id)
+        self.assertEqual(os.path.basename(path), self.obj_id)
+        self.assertEqual(gzip.open(path, 'rb').read(), self.content)
+
+    @istest
+    def get_missing(self):
+        with self.assertRaises(objstorage.ObjNotFoundError):
+            with self.storage.get_file_obj(self.missing_obj_id) as f:
+                f.read()

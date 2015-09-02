@@ -218,6 +218,49 @@ class ObjStorage:
                                  depth=self._depth) as obj:
                 shutil.copyfileobj(f, obj)
 
+    @contextmanager
+    def get_file_obj(self, obj_id):
+        """context manager that yields a file-like object opened on the content of a
+        given object. The returned file is open for reading, in binary mode
+
+        Sample usage:
+
+           with objstorage.get_file_obj(obj_id) as f:
+               do_something(f.read())
+
+        raises ObjNotFoundError if the requested object is missing
+
+        """
+        if not self.has(obj_id):
+            raise ObjNotFoundError(obj_id)
+
+        path = self.__obj_path(obj_id)
+        with gzip.GzipFile(path, 'rb') as f:
+            yield f
+
+    def get_bytes(self, obj_id):
+        """return the content of a given object as bytes
+
+        raises ObjNotFoundError if the requested object is missing
+
+        """
+        with self.get_file_obj(obj_id) as f:
+            return f.read()
+
+    def _get_file_path(self, obj_id):
+        """return the path of a given object available in the file storage
+
+        note that the path point to a gzip-compressed file, so you need
+        gzip.open(), or equivalent, to get the actual object content
+
+        raises ObjNotFoundError if the requested object is missing
+
+        """
+        if not self.has(obj_id):
+            raise ObjNotFoundError(obj_id)
+
+        return self.__obj_path(obj_id)
+
     def check(self, obj_id):
         """integrity check for a given object
 
