@@ -19,13 +19,18 @@ class TestObjStorage(unittest.TestCase):
 
     def setUp(self):
         self.content = b'42\n'
+
         # self.obj_id = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'  # sha1
         self.obj_id = 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'  # sha1_git
         self.obj_steps = [self.obj_id[0:2], self.obj_id[2:4], self.obj_id[4:6]]
         self.obj_relpath = os.path.join(*(self.obj_steps + [self.obj_id]))
+
         self.tmpdir = tempfile.mkdtemp()
         self.obj_path = os.path.join(self.tmpdir, self.obj_relpath)
+
         self.storage = objstorage.ObjStorage(root=self.tmpdir, depth=3)
+
+        self.missing_obj_id = 'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15'
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -74,8 +79,7 @@ class TestObjStorage(unittest.TestCase):
     def has(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         self.assertTrue(self.storage.has(self.obj_id))
-        self.assertFalse(self.storage.has(
-            'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15'))
+        self.assertFalse(self.storage.has(self.missing_obj_id))
 
     @istest
     def check_ok(self):
