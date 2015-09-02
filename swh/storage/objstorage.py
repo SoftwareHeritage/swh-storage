@@ -20,19 +20,27 @@ GZIP_BUFSIZ = 1048576
 
 
 class ObjStorageError(Exception):
-    pass
+
+    def __str__(self):
+        return 'storage error on object: %s' % self.args
 
 
 class DuplicateObjError(ObjStorageError):
-    pass
+
+    def __str__(self):
+        return 'duplicate object: %s' % self.args
 
 
 class ObjNotFoundError(ObjStorageError):
-    pass
+
+    def __str__(self):
+        return 'object not found: %s' % self.args
 
 
 class ObjIntegrityError(ObjStorageError):
-    pass
+
+    def __str__(self):
+        return 'corrupt object: %s' % self.args
 
 
 def _obj_dir(obj_id, root_dir, depth):
@@ -292,6 +300,6 @@ class ObjStorage:
                                                     algorithms=[ID_HASH_ALGO])
                 actual_obj_id = checksums[ID_HASH_ALGO]
                 if obj_id != actual_obj_id:
-                    raise ObjIntegrityError(obj_id, actual_obj_id)
+                    raise ObjIntegrityError(obj_id)
         except OSError:
             raise ObjIntegrityError(obj_id)
