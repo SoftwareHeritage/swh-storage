@@ -13,7 +13,9 @@ from contextlib import contextmanager
 from swh.core import hashutil
 
 
+# ID_HASH_ALGO = 'sha1'
 ID_HASH_ALGO = 'sha1_git'
+
 GZIP_BUFSIZ = 1048576
 
 
@@ -231,13 +233,19 @@ class ObjStorage:
 
         try:
             with gzip.open(self.__obj_path(obj_id)) as f:
-                length = 0
-                while True:  # first pass on gzipped content to read length :(
-                    chunk = f.read(GZIP_BUFSIZ)
-                    length += len(chunk)
-                    if not chunk:
-                        break
-                f.rewind()
+                length = None
+                if ID_HASH_ALGO.endswith('_git'):
+                    # if the hashing algorithm is git-like, we need to know the
+                    # content size to hash on the fly. Do a first pass here to
+                    # compute the size
+                    length = 0
+                    while True:
+                        chunk = f.read(GZIP_BUFSIZ)
+                        length += len(chunk)
+                        if not chunk:
+                            break
+                    f.rewind()
+
                 checksums = hashutil._hash_file_obj(f, length,
                                                     algorithms=[ID_HASH_ALGO])
                 actual_obj_id = checksums[ID_HASH_ALGO]
