@@ -99,6 +99,16 @@ def _write_obj_file(obj_id, root_dir, depth):
 class ObjStorage:
     """high-level API to manipulate the Software Heritage object storage
 
+    Conceptually, the object storage offers 4 methods:
+
+    - add()   to add a new object, returning an object id
+    - has()   to check if an object is present, by object id
+    - get()   to retrieve the content of an object, by object id
+    - check() to check the integrity of an object, by object id
+
+    Variants of the above methods are implemented by this class, depending on
+    how the content of an object is specified (bytes, file-like object, etc.).
+
     On disk, an object storage is a directory tree containing files named after
     their object IDs. An object ID is a checksum of its content, depending on
     the value of the ID_HASH_ALGO constant (see hashutil for its meaning).
