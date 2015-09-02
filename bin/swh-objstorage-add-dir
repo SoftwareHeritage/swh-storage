@@ -5,10 +5,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
 import os
 import sys
 
-from swh.storage.objstorage import ObjStorage
+from swh.storage import objstorage
 
 if __name__ == '__main__':
     try:
@@ -18,10 +19,19 @@ if __name__ == '__main__':
         print("Usage: swh-objstorage-add-dir OBJ_STORAGE_DIR DATA_DIR")
         sys.exit(1)
 
-    objs = ObjStorage(root_dir)
+    logging.basicConfig(level=logging.INFO)
 
+    objs = objstorage.ObjStorage(root_dir)
+
+    dups = 0
     for root, _dirs, files in os.walk(dirname):
         for name in files:
             path = os.path.join(root, name)
             with open(path, 'rb') as f:
-                objs.add_file(f, length=os.path.getsize(path))
+                try:
+                    objs.add_file(f, length=os.path.getsize(path))
+                except objstorage.DuplicateObjError:
+                    dups += 1
+
+    if dups:
+        logging.info('skipped %d duplicate(s) file(s)' % dups)
