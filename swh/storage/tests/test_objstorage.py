@@ -57,28 +57,29 @@ class TestObjStorage(unittest.TestCase):
 
     @istest
     def add_noclobber(self):
-        self.storage.add_bytes(self.content)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
         with self.assertRaises(objstorage.DuplicateObjError):
             self.storage.add_bytes(self.content)
 
     @istest
     def add_clobber(self):
-        self.storage.add_bytes(self.content)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
         try:
-            self.storage.add_bytes(self.content, clobber=True)
+            self.storage.add_bytes(self.content, obj_id=self.obj_id,
+                                   clobber=True)
         except:
             self.fail('clobbering failed')
 
     @istest
     def has(self):
-        self.storage.add_bytes(self.content)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
         self.assertTrue(self.storage.has(self.obj_id))
         self.assertFalse(self.storage.has(
             'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15'))
 
     @istest
     def check_ok(self):
-        self.storage.add_bytes(self.content)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
         try:
             self.storage.check(self.obj_id)
         except:
@@ -91,7 +92,7 @@ class TestObjStorage(unittest.TestCase):
 
     @istest
     def check_not_gzip(self):
-        self.storage.add_bytes(self.content)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
         with open(self.obj_path, 'ab') as f:  # add trailing garbage
             f.write(b'garbage')
         with self.assertRaises(objstorage.ObjIntegrityError):
@@ -99,7 +100,7 @@ class TestObjStorage(unittest.TestCase):
 
     @istest
     def check_id_mismatch(self):
-        self.storage.add_bytes(self.content)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
         with gzip.open(self.obj_path, 'wb') as f:  # replace gzipped content
             f.write(b'unexpected content')
         with self.assertRaises(objstorage.ObjIntegrityError):
