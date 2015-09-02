@@ -1,0 +1,30 @@
+#!/usr/bin/python3
+
+# Copyright (C) 2015  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+import logging
+import os
+import sys
+
+from swh.storage import objstorage
+
+if __name__ == '__main__':
+    try:
+        root_dir = sys.argv[1]
+    except IndexError:
+        print("Usage: swh-objstorage-add-dir OBJ_STORAGE_DIR")
+        sys.exit(1)
+
+    logging.basicConfig(level=logging.INFO)
+
+    objs = objstorage.ObjStorage(root_dir)
+
+    for root, _dirs, files in os.walk(root_dir):
+        for name in files:
+            try:
+                objs.check(name)
+            except objstorage.ObjStorageError as err:
+                logging.error(err)
