@@ -16,6 +16,14 @@ from swh.core import hashutil
 ID_HASH_ALGO = 'sha1_git'
 
 
+class ObjStorageError(Exception):
+    pass
+
+
+class DuplicateObjError(ObjStorageError):
+    pass
+
+
 def _obj_dir(obj_id, root_dir, depth):
     """compute the directory (up to, but excluding the actual object file name) of
     an object carrying a given object id, to be sliced at a given depth, and
@@ -116,12 +124,23 @@ class ObjStorage:
         if not os.path.isdir(self._temp_dir):
             os.makedirs(self._temp_dir)
 
-    def add_bytes(self, bytes, obj_id=None):
+    def has(self, obj_id):
+        """check whether a given object id is present in the storage or not
+
+        return a boolean
+
+        """
+        return os.path.exists(_obj_path(obj_id, self._root_dir, self._depth))
+
+    def add_bytes(self, bytes, obj_id=None, clobber=False):
         """add a new object to the object storage, return its identifier
 
         obj_id, if given, should be the checksums of bytes as computed by
         ID_HASH_ALGO. When given, obj_id will be trusted to match bytes. If
         missing, obj_id will be computed on the fly.
+
+        if obj_id is already present, the DuplicateObjError exception will be
+        raised unless clobber=True is passed
 
         """
         if obj_id is None:
@@ -130,12 +149,15 @@ class ObjStorage:
             h.update(bytes)
             obj_id = h.hexdigest()
 
+        if not clobber and self.has(obj_id):
+            raise DuplicateObjError(obj_id)
+
         with new_obj_file(obj_id,
                           root_dir=self._root_dir,
                           depth=self._depth) as f:
             f.write(bytes)
 
-    def add_file(self, f, length, obj_id=None):
+    def add_file(self, f, length, obj_id=None, clobber=False):
         """similar to add_bytes, but add the content of file-like object f to the
         object storage
 
@@ -157,6 +179,9 @@ class ObjStorage:
                 t.close()
 
                 obj_id = sums[ID_HASH_ALGO]
+                if not clobber and self.has(obj_id):
+                    raise DuplicateObjError(obj_id)
+
                 dir = _obj_dir(obj_id, self._root_dir, self._depth)
                 if not os.path.isdir(dir):
                     os.makedirs(dir)
@@ -167,6 +192,9 @@ class ObjStorage:
                     os.unlink(tmp_path)
         else:
             # known object id: write to .new file, rename
+            if not clobber and self.has(obj_id):
+                raise DuplicateObjError(obj_id)
+
             with new_obj_file(obj_id,
                               root_dir=self._root_dir,
                               depth=self._depth) as obj:

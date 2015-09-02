@@ -12,7 +12,7 @@ import unittest
 from io import BytesIO
 from nose.tools import istest
 
-from swh.storage.objstorage import ObjStorage
+from swh.storage.objstorage import ObjStorage, DuplicateObjError
 
 
 class Hashlib(unittest.TestCase):
@@ -62,3 +62,24 @@ class Hashlib(unittest.TestCase):
                               len(self.content))
         self.assertTrue(os.path.isfile(obj_path))
         self.assertGzipContains(obj_path, self.content)
+
+    @istest
+    def add_noclobber(self):
+        self.storage.add_bytes(self.content)
+        with self.assertRaises(DuplicateObjError):
+            self.storage.add_bytes(self.content)
+
+    @istest
+    def add_clobber(self):
+        self.storage.add_bytes(self.content)
+        try:
+            self.storage.add_bytes(self.content, clobber=True)
+        except:
+            self.fail('unexpected exception when clobbering')
+
+    @istest
+    def has(self):
+        self.storage.add_bytes(self.content)
+        self.assertTrue(self.storage.has(self.obj_id))
+        self.assertFalse(self.storage.has(
+            'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15'))
