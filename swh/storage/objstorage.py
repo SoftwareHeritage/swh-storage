@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-
 import os
 import shutil
 import tempfile
@@ -70,8 +69,30 @@ def new_obj_file(obj_id, root_dir, depth):
 
 
 class ObjStorage:
-
     """high-level API to manipulate the Software Heritage object storage
+
+    On disk, an object storage is a directory tree containing files named after
+    their object IDs. An object ID is a salted sha1 checksums, salted in the
+    same way of Git blob objects, i.e., prefixing the string "blob
+    CONTENT_LENGTH\0" to the actual content, and computing the sha1 of the
+    obtained data.
+
+    To avoid directories that contain too many files, the object storage has a
+    given depth (default: 3). Each depth level consumes two characters of the
+    object id. So for instance a file with (git) SHA1 of
+    34973274ccef6ab4dfaaf86599792fa9c3fe4689 will be stored in an object
+    storage configured at depth 3 at
+    34/97/32/34973274ccef6ab4dfaaf86599792fa9c3fe4689.
+
+    The actual files in the storage are stored in gzipped compressed format.
+
+    Each file can hence be self-verified (on the shell) with something like:
+
+    actual_id=34973274ccef6ab4dfaaf86599792fa9c3fe4689
+    expected_id=$(zcat $filename | sha1sum | cut -f 1 -d' ')
+    if [ $actual_id != $expected_id ] ; then
+       echo "AYEEE, invalid object $actual_id /o\"
+    fi
 
     """
 
