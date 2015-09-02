@@ -64,16 +64,16 @@ def _obj_path(obj_id, root_dir, depth):
 
 
 @contextmanager
-def new_obj_file(obj_id, root_dir, depth):
-    """context manager for adding new object files to the object storage. It yiels
-    a file-like object open for writing (bytes). During writing data are
-    written to a temporary file, which is atomically renamed to the right file
-    name after closing. This context manager also takes care of (gzip)
-    compressing the data on the fly.
+def _write_obj_file(obj_id, root_dir, depth):
+    """context manager for writing object files to the object storage. It yiels a
+    file-like object open for writing (bytes). During writing data are written
+    to a temporary file, which is atomically renamed to the right file name
+    after closing. This context manager also takes care of (gzip) compressing
+    the data on the fly.
 
     Sample usage:
 
-    with new_obj_file(obj_id, root_dir, depth) as f:
+    with _write_obj_file(obj_id, root_dir, depth) as f:
         f.write(obj_data)
 
     """
@@ -83,9 +83,8 @@ def new_obj_file(obj_id, root_dir, depth):
 
     path = os.path.join(dir, obj_id)
     tmp_path = path + '.tmp'
-    with open(tmp_path, 'wb') as f:
-        with gzip.GzipFile(fileobj=f) as f:
-            yield f
+    with gzip.GzipFile(tmp_path, 'wb') as f:
+        yield f
     os.rename(tmp_path, path)
 
 
@@ -171,9 +170,9 @@ class ObjStorage:
         if not clobber and self.has(obj_id):
             raise DuplicateObjError(obj_id)
 
-        with new_obj_file(obj_id,
-                          root_dir=self._root_dir,
-                          depth=self._depth) as f:
+        with _write_obj_file(obj_id,
+                             root_dir=self._root_dir,
+                             depth=self._depth) as f:
             f.write(bytes)
 
     def add_file(self, f, length, obj_id=None, clobber=False):
@@ -214,9 +213,9 @@ class ObjStorage:
             if not clobber and self.has(obj_id):
                 raise DuplicateObjError(obj_id)
 
-            with new_obj_file(obj_id,
-                              root_dir=self._root_dir,
-                              depth=self._depth) as obj:
+            with _write_obj_file(obj_id,
+                                 root_dir=self._root_dir,
+                                 depth=self._depth) as obj:
                 shutil.copyfileobj(f, obj)
 
     def check(self, obj_id):
