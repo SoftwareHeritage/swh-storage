@@ -100,10 +100,8 @@ class ObjStorage:
     """high-level API to manipulate the Software Heritage object storage
 
     On disk, an object storage is a directory tree containing files named after
-    their object IDs. An object ID is a salted sha1 checksums, salted in the
-    same way of Git blob objects, i.e., prefixing the string "blob
-    CONTENT_LENGTH\0" to the actual content, and computing the sha1 of the
-    obtained data.
+    their object IDs. An object ID is a checksum of its content, depending on
+    the value of the ID_HASH_ALGO constant (see hashutil for its meaning).
 
     To avoid directories that contain too many files, the object storage has a
     given depth (default: 3). Each depth level consumes two characters of the
