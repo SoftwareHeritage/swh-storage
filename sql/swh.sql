@@ -234,13 +234,15 @@ create table revision
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
 (
-  id          sha1_git references revision(id), -- deferrable,
-  parent_id   sha1_git references revision(id), -- deferrable,
-  primary key (id, parent_id)
+  id           sha1_git references revision(id),
+  parent_id    sha1_git,
+  parent_rank  int not null default 0,
+    -- parent position in merge commits, 0-based
+  primary key (id, parent_id),
+  unique (id, parent_rank)
   -- TODO: note: if we use FK for parent_id here, we lose the ability to
   -- represent the fact that a commit points to another commit that does not
   -- exist in the revision table
-  -- `deferrable` -> checked only at the transaction's end
 );
 
 -- The content of software origins is indexed starting from top-level pointers
