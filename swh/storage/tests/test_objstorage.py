@@ -63,7 +63,7 @@ class TestObjStorage(unittest.TestCase):
     @istest
     def add_noclobber(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
-        with self.assertRaises(objstorage.DuplicateObjError):
+        with self.assertRaises(objstorage.Error):
             self.storage.add_bytes(self.content)
 
     @istest
@@ -91,7 +91,7 @@ class TestObjStorage(unittest.TestCase):
 
     @istest
     def check_missing(self):
-        with self.assertRaises(objstorage.ObjNotFoundError):
+        with self.assertRaises(objstorage.Error):
             self.storage.check(self.obj_id)
 
     @istest
@@ -99,7 +99,7 @@ class TestObjStorage(unittest.TestCase):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         with open(self.obj_path, 'ab') as f:  # add trailing garbage
             f.write(b'garbage')
-        with self.assertRaises(objstorage.ObjIntegrityError):
+        with self.assertRaises(objstorage.Error):
             self.storage.check(self.obj_id)
 
     @istest
@@ -107,7 +107,7 @@ class TestObjStorage(unittest.TestCase):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         with gzip.open(self.obj_path, 'wb') as f:  # replace gzipped content
             f.write(b'unexpected content')
-        with self.assertRaises(objstorage.ObjIntegrityError):
+        with self.assertRaises(objstorage.Error):
             self.storage.check(self.obj_id)
 
     @istest
@@ -125,6 +125,6 @@ class TestObjStorage(unittest.TestCase):
 
     @istest
     def get_missing(self):
-        with self.assertRaises(objstorage.ObjNotFoundError):
+        with self.assertRaises(objstorage.Error):
             with self.storage.get_file_obj(self.missing_obj_id) as f:
                 f.read()

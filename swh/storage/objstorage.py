@@ -19,28 +19,22 @@ ID_HASH_ALGO = 'sha1'
 GZIP_BUFSIZ = 1048576
 
 
-class ObjStorageError(Exception):
+class Error(Exception):
 
     def __str__(self):
         return 'storage error on object: %s' % self.args
 
 
-class DuplicateObjError(ObjStorageError):
+class DuplicateObjError(Error):
 
     def __str__(self):
         return 'duplicate object: %s' % self.args
 
 
-class ObjNotFoundError(ObjStorageError):
+class ObjNotFoundError(Error):
 
     def __str__(self):
         return 'object not found: %s' % self.args
-
-
-class ObjIntegrityError(ObjStorageError):
-
-    def __str__(self):
-        return 'corrupt object: %s' % self.args
 
 
 def _obj_dir(obj_id, root_dir, depth):
@@ -308,6 +302,7 @@ class ObjStorage:
                                                     algorithms=[ID_HASH_ALGO])
                 actual_obj_id = checksums[ID_HASH_ALGO]
                 if obj_id != actual_obj_id:
-                    raise ObjIntegrityError(obj_id)
+                    raise Error('corrupt object %s should have id %s' %
+                                (obj_id, actual_obj_id))
         except OSError:
-            raise ObjIntegrityError(obj_id)
+            raise Error('corrupt object %s is not a gzip file' % obj_id)
