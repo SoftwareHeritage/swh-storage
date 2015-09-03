@@ -22,7 +22,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(8, now(), 'Work In Progress');
+      values(9, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as text;
@@ -210,6 +210,8 @@ create table person
   email  text
 );
 
+create type revision_type as enum ('git', 'tar', 'dsc');
+
 -- A snapshot of a software project at a specific point in time.
 --
 -- Synonyms/mappings:
@@ -225,6 +227,7 @@ create table revision
   -- parent_ids   sha1_git[],  -- either this or the revision_history table
                                -- note: no FK allowed from arrays to columns
   date       timestamptz,
+  type       revision_type not null,
   directory  sha1_git,  -- file-system tree
   message    text,
   author     bigint references person(id),
