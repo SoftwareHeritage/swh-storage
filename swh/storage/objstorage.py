@@ -38,11 +38,14 @@ class ObjNotFoundError(Error):
 
 
 def _obj_dir(obj_id, root_dir, depth):
-    """compute the directory (up to, but excluding the actual object file name) of
-    an object carrying a given object id, to be sliced at a given depth, and
-    rooted at root_dir
+    """compute the storage directory of an object
 
-    see also: _obj_path
+    Args:
+        obj_id: object id
+        root_dir: object storage root directory
+        depth: slicing depth of object IDs in the storage
+
+    see also: `_obj_path`
 
     """
     if len(obj_id) < depth * 2:
@@ -58,7 +61,7 @@ def _obj_dir(obj_id, root_dir, depth):
 
 
 def _obj_path(obj_id, root_dir, depth):
-    """similar to obj_dir, but also include the actual object file name in the
+    """similar to `obj_dir`, but also include the actual object file name in the
     returned path
 
     """
@@ -67,11 +70,14 @@ def _obj_path(obj_id, root_dir, depth):
 
 @contextmanager
 def _write_obj_file(obj_id, root_dir, depth):
-    """context manager for writing object files to the object storage. It yiels a
-    file-like object open for writing (bytes). During writing data are written
-    to a temporary file, which is atomically renamed to the right file name
-    after closing. This context manager also takes care of (gzip) compressing
-    the data on the fly.
+    """context manager for writing object files to the object storage
+
+    During writing data are written to a temporary file, which is atomically
+    renamed to the right file name after closing. This context manager also
+    takes care of (gzip) compressing the data on the fly.
+
+    Yields:
+        a file-like object open for writing bytes
 
     Sample usage:
 
@@ -129,8 +135,9 @@ class ObjStorage:
     def __init__(self, root, depth=3):
         """create a proxy object to the object storage
 
-        - root is the root directory of the object storage
-        - depth is the directory slicing depth applied to object IDs
+        Args:
+            root: object storage root directory
+            depth: slicing depth of object IDs in the storage
 
         """
         if not os.path.isdir(root):
@@ -155,20 +162,26 @@ class ObjStorage:
     def has(self, obj_id):
         """check whether a given object id is present in the storage or not
 
-        return a boolean
+        Return:
+            True iff the object id is present in the storage
 
         """
         return os.path.exists(_obj_path(obj_id, self._root_dir, self._depth))
 
     def add_bytes(self, bytes, obj_id=None, clobber=False):
-        """add a new object to the object storage, return its identifier
+        """add a new object to the object storage
 
-        obj_id, if given, should be the checksums of bytes as computed by
-        ID_HASH_ALGO. When given, obj_id will be trusted to match bytes. If
-        missing, obj_id will be computed on the fly.
+        Args:
+            bytes: content of the object to be added to the storage
+            obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
+                given, obj_id will be trusted to match bytes. If missing,
+                obj_id will be computed on the fly.
+            clobber (boolean): whether overwriting objects in the storage is
+                allowed or not
 
-        if obj_id is already present, the DuplicateObjError exception will be
-        raised unless clobber=True is passed
+        Raises:
+            DuplicateObjError: if obj_id is already present in the storage,
+            unless clobber is True
 
         """
         if obj_id is None:
@@ -186,7 +199,7 @@ class ObjStorage:
             f.write(bytes)
 
     def add_file(self, f, length, obj_id=None, clobber=False):
-        """similar to add_bytes, but add the content of file-like object f to the
+        """similar to `add_bytes`, but add the content of file-like object f to the
         object storage
 
         add_file will read the file content only once, and avoid storing all of
@@ -230,15 +243,21 @@ class ObjStorage:
 
     @contextmanager
     def get_file_obj(self, obj_id):
-        """context manager that yields a file-like object opened on the content of a
-        given object. The returned file is open for reading, in binary mode
+        """context manager to read the content of an object
+
+        Args:
+            obj_id: object id
+
+        Yields:
+            a file-like object open for reading (bytes)
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing
 
         Sample usage:
 
            with objstorage.get_file_obj(obj_id) as f:
                do_something(f.read())
-
-        raises ObjNotFoundError if the requested object is missing
 
         """
         if not self.has(obj_id):
@@ -249,21 +268,35 @@ class ObjStorage:
             yield f
 
     def get_bytes(self, obj_id):
-        """return the content of a given object as bytes
+        """retrieve the content of a given object
 
-        raises ObjNotFoundError if the requested object is missing
+        Args:
+            obj_id: object id
+
+        Returns:
+            the content of the requested objects as bytes
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing
 
         """
         with self.get_file_obj(obj_id) as f:
             return f.read()
 
     def _get_file_path(self, obj_id):
-        """return the path of a given object available in the file storage
+        """retrieve the path of a given object in the objects storage
 
-        note that the path point to a gzip-compressed file, so you need
-        gzip.open(), or equivalent, to get the actual object content
+        Note that the path point to a gzip-compressed file, so you need
+        gzip.open() or equivalent to get the actual object content.
 
-        raises ObjNotFoundError if the requested object is missing
+        Args:
+            obj_id: object id
+
+        Returns:
+            a file path pointing into the object storage
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing
 
         """
         if not self.has(obj_id):
@@ -274,10 +307,15 @@ class ObjStorage:
     def check(self, obj_id):
         """integrity check for a given object
 
-        verify that the file object is in place (i.e., has(obj_id)==True), and
-        that the gzipped content matches the object id
+        verify that the file object is in place (i.e., `has(obj_id)==True`),
+        and that the gzipped content matches the object id
 
-        raise exceptions: ObjNotFoundError, ObjIntegrityError
+        Args:
+            obj_id: object id
+
+        Raises:
+            ObjNotFoundError: if the requested object is missing
+            Error: if the requested object is corrupt
 
         """
         if not self.has(obj_id):
