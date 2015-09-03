@@ -243,9 +243,6 @@ create table revision_history
     -- parent position in merge commits, 0-based
   primary key (id, parent_id),
   unique (id, parent_rank)
-  -- TODO: note: if we use FK for parent_id here, we lose the ability to
-  -- represent the fact that a commit points to another commit that does not
-  -- exist in the revision table
 );
 
 -- The content of software origins is indexed starting from top-level pointers
@@ -277,12 +274,6 @@ create table occurrence_history
   -- `validity`.
   primary key (origin, reference, revision, authority, validity)
 );
-
--- TODO do we still need this table?
--- create table reference
--- (
---   sha1         sha1_git primary key
--- );
 
 -- Materialized view of occurrence_history, storing the *current* value of each
 -- reference, as last seen by SWH.
