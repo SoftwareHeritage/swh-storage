@@ -268,7 +268,9 @@ create table occurrence_history
 		      authority with =,
                       validity with &&),
   -- unicity exclusion constraint on lines where the same value is found for
-  -- `origin`, `reference`, `revision` and overlapping values for `validity`.
+  -- `origin`, `reference`, `revision`, `authority` and overlapping values for
+  -- `validity`.
+  primary key (origin, reference, revision, authority, validity)
 );
 
 -- TODO do we still need this table?
