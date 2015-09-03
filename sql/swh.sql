@@ -246,43 +246,41 @@ create table revision_history
 );
 
 -- The content of software origins is indexed starting from top-level pointers
--- called "references". Every time we fetch some origin we store in this table
--- where the references pointed to at fetch time.
+-- called "branches". Every time we fetch some origin we store in this table
+-- where the branches pointed to at fetch time.
 --
 -- Synonyms/mappings:
 -- * git: ref (in the "git update-ref" sense)
--- * TODO what is the ref equivalent for other VCS?
--- * TODO what is the ref equivalent for tarballs?
 create table occurrence_history
 (
-  origin       bigint references origin(id),
-  reference    text,  -- ref name, e.g., "master"
-  revision     sha1_git references revision(id),  -- ref target, e.g., commit id
-  authority    bigint references organization(id) not null,
+  origin     bigint references origin(id),
+  branch     text,  -- e.g., "master" (for VCS), or "sid" (for Debian)
+  revision   sha1_git references revision(id),  -- ref target, e.g., commit id
+  authority  bigint references organization(id) not null,
                       -- who is claiming to have seen the occurrence.
                       -- Note: SWH is such an authority, and has an entry in
 		      -- the organization table.
-  validity     tstzrange,  -- The time validity of this table entry. If the upper
-                           -- bound is missing, the entry is still valid.
+  validity   tstzrange,  -- The time validity of this table entry. If the upper
+                         -- bound is missing, the entry is still valid.
   exclude using gist (origin with =,
-                      reference with =,
+                      branch with =,
                       revision with =,
 		      authority with =,
                       validity with &&),
   -- unicity exclusion constraint on lines where the same value is found for
   -- `origin`, `reference`, `revision`, `authority` and overlapping values for
   -- `validity`.
-  primary key (origin, reference, revision, authority, validity)
+  primary key (origin, branch, revision, authority, validity)
 );
 
 -- Materialized view of occurrence_history, storing the *current* value of each
--- reference, as last seen by SWH.
+-- branch, as last seen by SWH.
 create table occurrence
 (
-  origin     bigint references origin(id),
-  reference  text,
-  revision   sha1_git references revision(id),
-  primary key(origin, reference, revision)
+  origin    bigint references origin(id),
+  branch    text,
+  revision  sha1_git references revision(id),
+  primary key(origin, branch, revision)
 );
 
 -- A "memorable" point in the development history of a project.
@@ -297,7 +295,7 @@ create table release
   date      timestamptz,
   name      text,
   comment   text,
-  author     bigint references person(id)
+  author    bigint references person(id)
 );
 
 
