@@ -2,6 +2,7 @@
 
 DBNAME = softwareheritage-dev
 SQL = swh.sql
+SQL_DATA = swh-data.sql
 DOCDIR = autodoc
 
 
@@ -16,6 +17,11 @@ createdb: createdb-stamp
 createdb-stamp: $(SQL)
 	dropdb --if-exists $(DBNAME)
 	createdb $(DBNAME)
+	touch $@
+
+filldb: filldb-stamp
+filldb-stamp: createdb-stamp initdb-stamp $(SQL_DATA)
+	psql $(DBNAME) < $(SQL_DATA)
 	touch $@
 
 dropdb:

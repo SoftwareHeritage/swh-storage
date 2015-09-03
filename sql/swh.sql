@@ -256,12 +256,17 @@ create table occurrence_history
   origin       bigint references origin(id),
   reference    text,  -- ref name, e.g., "master"
   revision     sha1_git references revision(id),  -- ref target, e.g., commit id
+  authority    bigint references organization(id) not null,
+                      -- who is claiming to have seen the occurrence.
+                      -- Note: SWH is such an authority, and has an entry in
+		      -- the organization table.
   validity     tstzrange,  -- The time validity of this table entry. If the upper
                            -- bound is missing, the entry is still valid.
   exclude using gist (origin with =,
                       reference with =,
                       revision with =,
-                      validity with &&)
+		      authority with =,
+                      validity with &&),
   -- unicity exclusion constraint on lines where the same value is found for
   -- `origin`, `reference`, `revision` and overlapping values for `validity`.
 );
@@ -273,7 +278,7 @@ create table occurrence_history
 -- );
 
 -- Materialized view of occurrence_history, storing the *current* value of each
--- reference.
+-- reference, as last seen by SWH.
 create table occurrence
 (
   origin     bigint references origin(id),
