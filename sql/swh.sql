@@ -223,9 +223,9 @@ create table revision
 (
   id         sha1_git primary key,
   -- parent_ids   sha1_git[],  -- either this or the revision_history table
-                                    -- note: no FK allowed from arrays to columns
+                               -- note: no FK allowed from arrays to columns
   date       timestamptz,
-  directory  sha1_git references directory(id),  -- file-system tree
+  directory  sha1_git,  -- file-system tree
   message    text,
   author     bigint references person(id),
   committer  bigint references person(id)
