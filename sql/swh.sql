@@ -44,12 +44,14 @@ create type content_status as enum ('absent', 'visible', 'hidden');
 -- content collisions not knowingly.
 create table content
 (
-  id      sha1_git primary key,
-  sha1    sha1   not null,
-  sha256  sha256 not null,
-  length  bigint not null,
-  status  content_status not null
+  sha1      sha1 primary key,
+  sha1_git  sha1_git not null,
+  sha256    sha256 not null,
+  length    bigint not null,
+  status    content_status not null
 );
+
+create unique index on content(sha1_git);
 
 -- An organization (or part thereof) that might be in charge of running
 -- software projects. Examples: Debian, GNU, GitHub, Apache, The Linux
@@ -184,7 +186,7 @@ create table directory_list_dir
 create table directory_entry_file
 (
   id      bigserial primary key,
-  target  sha1_git references content(id), -- id of target file
+  target  sha1_git, -- id of target file
   name    text,  -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
   atime   timestamptz,  -- time of last access
