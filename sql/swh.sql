@@ -37,6 +37,8 @@ create domain sha256 as text;
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
 
+create type content_status as enum ('absent', 'visible', 'hidden');
+
 -- Checksums about actual file content. Note that the content itself is not
 -- stored in the DB, but on external (key-value) storage. A single checksum is
 -- used as key there, but the other can be used to verify that we do not inject
@@ -46,7 +48,8 @@ create table content
   id      git_object_id primary key,
   sha1    sha1   not null,
   sha256  sha256 not null,
-  length  bigint not null
+  length  bigint not null,
+  status  content_status not null
 );
 
 -- An organization (or part thereof) that might be in charge of running
