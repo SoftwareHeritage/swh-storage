@@ -13,8 +13,8 @@ from contextlib import contextmanager
 from swh.core import hashutil
 
 
-# ID_HASH_ALGO = 'sha1'
-ID_HASH_ALGO = 'sha1_git'
+ID_HASH_ALGO = 'sha1'
+# ID_HASH_ALGO = 'sha1_git'
 
 GZIP_BUFSIZ = 1048576
 

@@ -20,8 +20,8 @@ class TestObjStorage(unittest.TestCase):
     def setUp(self):
         self.content = b'42\n'
 
-        # self.obj_id = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'  # sha1
-        self.obj_id = 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'  # sha1_git
+        self.obj_id = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'  # sha1
+        # self.obj_id = 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'  # sha1_git
         self.obj_steps = [self.obj_id[0:2], self.obj_id[2:4], self.obj_id[4:6]]
         self.obj_relpath = os.path.join(*(self.obj_steps + [self.obj_id]))
 
