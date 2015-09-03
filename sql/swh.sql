@@ -22,14 +22,13 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(7, now(), 'Work In Progress');
-
--- a Git object ID, i.e., a SHA1 checksum
--- TODO rename this to (swh_?)object_id
-create domain git_object_id as text;
+      values(8, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as text;
+
+-- a Git object ID, i.e., a SHA1 checksum
+create domain sha1_git as text;
 
 -- a SHA256 checksum
 create domain sha256 as text;
@@ -45,7 +44,7 @@ create type content_status as enum ('absent', 'visible', 'hidden');
 -- content collisions not knowingly.
 create table content
 (
-  id      git_object_id primary key,
+  id      sha1_git primary key,
   sha1    sha1   not null,
   sha256  sha256 not null,
   length  bigint not null,
@@ -158,14 +157,14 @@ create table project_history
 -- * git: tree
 create table directory
 (
-  id  git_object_id primary key
+  id  sha1_git primary key
 );
 
 -- A directory entry pointing to a sub-directory.
 create table directory_entry_dir
 (
   id      bigserial primary key,
-  target  git_object_id references directory(id), -- id of target directory
+  target  sha1_git references directory(id), -- id of target directory
   name    text,  -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
   atime   timestamptz,  -- time of last access
@@ -176,7 +175,7 @@ create table directory_entry_dir
 -- Mapping between directories and contained sub-directories.
 create table directory_list_dir
 (
-  dir_id     git_object_id references directory(id),
+  dir_id     sha1_git references directory(id),
   entry_id   bigint references directory_entry_dir(id),
   primary key (dir_id, entry_id)
 );
@@ -185,7 +184,7 @@ create table directory_list_dir
 create table directory_entry_file
 (
   id      bigserial primary key,
-  target  git_object_id references content(id), -- id of target file
+  target  sha1_git references content(id), -- id of target file
   name    text,  -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
   atime   timestamptz,  -- time of last access
@@ -196,7 +195,7 @@ create table directory_entry_file
 -- Mapping between directories and contained files.
 create table directory_list_file
 (
-  dir_id     git_object_id references directory(id),
+  dir_id     sha1_git references directory(id),
   entry_id   bigint references directory_entry_file(id),
   primary key (dir_id, entry_id)
 );
@@ -219,21 +218,21 @@ create table person
 -- a file-system tree containing files and directories.
 create table revision
 (
-  id         git_object_id primary key,
-  -- parent_ids   git_object_id[],  -- either this or the revision_history table
+  id         sha1_git primary key,
+  -- parent_ids   sha1_git[],  -- either this or the revision_history table
                                     -- note: no FK allowed from arrays to columns
   date       timestamptz,
-  directory  git_object_id references directory(id),  -- file-system tree
+  directory  sha1_git references directory(id),  -- file-system tree
   message    text,
   author     bigint references person(id),
   committer  bigint references person(id)
 );
 
--- either this table or the git_object_id[] column on the revision table
+-- either this table or the sha1_git[] column on the revision table
 create table revision_history
 (
-  id          git_object_id references revision(id), -- deferrable,
-  parent_id   git_object_id references revision(id), -- deferrable,
+  id          sha1_git references revision(id), -- deferrable,
+  parent_id   sha1_git references revision(id), -- deferrable,
   primary key (id, parent_id)
   -- TODO: note: if we use FK for parent_id here, we lose the ability to
   -- represent the fact that a commit points to another commit that does not
@@ -253,7 +252,7 @@ create table occurrence_history
 (
   origin       bigint references origin(id),
   reference    text,  -- ref name, e.g., "master"
-  revision     git_object_id references revision(id),  -- ref target, e.g., commit id
+  revision     sha1_git references revision(id),  -- ref target, e.g., commit id
   validity     tstzrange,  -- The time validity of this table entry. If the upper
                            -- bound is missing, the entry is still valid.
   exclude using gist (origin with =,
@@ -267,7 +266,7 @@ create table occurrence_history
 -- TODO do we still need this table?
 -- create table reference
 -- (
---   sha1         git_object_id primary key
+--   sha1         sha1_git primary key
 -- );
 
 -- Materialized view of occurrence_history, storing the *current* value of each
@@ -276,7 +275,7 @@ create table occurrence
 (
   origin     bigint references origin(id),
   reference  text,
-  revision   git_object_id references revision(id),
+  revision   sha1_git references revision(id),
   primary key(origin, reference, revision)
 );
 
@@ -287,8 +286,8 @@ create table occurrence
 -- * tarball: the release version number
 create table release
 (
-  id        git_object_id primary key,
-  revision  git_object_id references revision(id),
+  id        sha1_git primary key,
+  revision  sha1_git references revision(id),
   date      timestamptz,
   name      text,
   comment   text,
