@@ -19,6 +19,8 @@ test:
 coverage:
 	$(NOSE) $(NOSEFLAGS) --with-coverage --cover-package $(PKGNAME)
 
-.PHONY: coverage
+.PHONY: check
 check:
 	$(FLAKE) $(FLAKEFLAGS) $(PKGDIR) $(EXTRA_DIRS)
+
+-include Makefile.local
