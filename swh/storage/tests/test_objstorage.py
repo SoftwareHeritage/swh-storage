@@ -132,3 +132,15 @@ class TestObjStorage(unittest.TestCase):
         with self.assertRaises(objstorage.Error):
             with self.storage.get_file_obj(self.missing_obj_id) as f:
                 f.read()
+
+    @istest
+    def iter(self):
+        self.assertEqual(list(iter(self.storage)), [])
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        self.assertEqual(list(iter(self.storage)), [self.obj_id])
+
+    @istest
+    def len(self):
+        self.assertEqual(len(self.storage), 0)
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        self.assertEqual(len(self.storage), 1)

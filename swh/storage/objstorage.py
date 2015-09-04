@@ -348,3 +348,36 @@ class ObjStorage:
                                 (obj_id, actual_obj_id))
         except OSError:
             raise Error('corrupt object %s is not a gzip file' % obj_id)
+
+    def __iter__(self):
+        """iterate over the object identifiers currently available in the storage
+
+        Warning: with the current implementation of the object storage, this
+        method will walk the filesystem to list objects, meaning that listing
+        all objects will be very slow for large storages. You almost certainly
+        don't want to use this method in production.
+
+        Return:
+            iterator over object IDs
+
+        """
+        def obj_iterator():
+            # XXX hackish: it does not verify that the depth of found files
+            # matches the slicing depth of the storage
+            for root, _dirs, files in os.walk(self._root_dir):
+                for f in files:
+                    yield f
+
+        return obj_iterator()
+
+    def __len__(self):
+        """compute the number of objects available in the storage
+
+        Warning: this currently uses `__iter__`, its warning about bad
+        performances applies
+
+        Return:
+            number of objects contained in the storage
+
+        """
+        return sum(1 for i in self)
