@@ -2,17 +2,9 @@
 --- Software Heritage Data Model
 ---
 
-begin;
-
-
-create extension if not exists btree_gist;
-
-
 -- drop schema if exists swh cascade;
 -- create schema swh;
-
 -- set search_path to swh;
-
 
 create table dbversion
 (
@@ -297,6 +289,3 @@ create table release
   comment   text,
   author    bigint references person(id)
 );
-
-
-commit;
