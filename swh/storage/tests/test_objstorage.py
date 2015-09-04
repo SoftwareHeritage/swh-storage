@@ -76,10 +76,10 @@ class TestObjStorage(unittest.TestCase):
             self.fail('clobbering failed')
 
     @istest
-    def has(self):
+    def contains(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
-        self.assertTrue(self.storage.has(self.obj_id))
-        self.assertFalse(self.storage.has(self.missing_obj_id))
+        self.assertTrue(self.obj_id in self.storage)
+        self.assertFalse(self.missing_obj_id in self.storage)
 
     @istest
     def check_ok(self):

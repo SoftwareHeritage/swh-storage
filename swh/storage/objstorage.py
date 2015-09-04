@@ -101,10 +101,10 @@ class ObjStorage:
 
     Conceptually, the object storage offers 4 methods:
 
-    - add()   to add a new object, returning an object id
-    - has()   to check if an object is present, by object id
-    - get()   to retrieve the content of an object, by object id
-    - check() to check the integrity of an object, by object id
+    - add()           add a new object, returning an object id
+    - __contains__()  check if an object is present, by object id
+    - get()           retrieve the content of an object, by object id
+    - check()         check the integrity of an object, by object id
 
     Variants of the above methods are implemented by this class, depending on
     how the content of an object is specified (bytes, file-like object, etc.).
@@ -159,7 +159,7 @@ class ObjStorage:
         """_obj_path wrapper using this storage configuration"""
         return _obj_path(obj_id, self._root_dir, self._depth)
 
-    def has(self, obj_id):
+    def __contains__(self, obj_id):
         """check whether a given object id is present in the storage or not
 
         Return:
@@ -190,7 +190,7 @@ class ObjStorage:
             h.update(bytes)
             obj_id = h.hexdigest()
 
-        if not clobber and self.has(obj_id):
+        if not clobber and obj_id in self:
             raise DuplicateObjError(obj_id)
 
         with _write_obj_file(obj_id,
@@ -220,7 +220,7 @@ class ObjStorage:
                 t.close()
 
                 obj_id = sums[ID_HASH_ALGO]
-                if not clobber and self.has(obj_id):
+                if not clobber and obj_id in self:
                     raise DuplicateObjError(obj_id)
 
                 dir = self.__obj_dir(obj_id)
@@ -233,7 +233,7 @@ class ObjStorage:
                     os.unlink(tmp_path)
         else:
             # known object id: write to .new file, rename
-            if not clobber and self.has(obj_id):
+            if not clobber and obj_id in self:
                 raise DuplicateObjError(obj_id)
 
             with _write_obj_file(obj_id,
@@ -260,7 +260,7 @@ class ObjStorage:
                do_something(f.read())
 
         """
-        if not self.has(obj_id):
+        if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
         path = self.__obj_path(obj_id)
@@ -299,7 +299,7 @@ class ObjStorage:
             ObjNotFoundError: if the requested object is missing
 
         """
-        if not self.has(obj_id):
+        if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
         return self.__obj_path(obj_id)
@@ -307,8 +307,8 @@ class ObjStorage:
     def check(self, obj_id):
         """integrity check for a given object
 
-        verify that the file object is in place (i.e., `has(obj_id)==True`),
-        and that the gzipped content matches the object id
+        verify that the file object is in place, and that the gzipped content
+        matches the object id
 
         Args:
             obj_id: object id
@@ -318,7 +318,7 @@ class ObjStorage:
             Error: if the requested object is corrupt
 
         """
-        if not self.has(obj_id):
+        if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
         try:
