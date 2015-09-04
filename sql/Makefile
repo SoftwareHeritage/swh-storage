@@ -1,41 +1,43 @@
 # Depends: postgresql-client, postgresql-autodoc
 
 DBNAME = softwareheritage-dev
-SQL = swh.sql
-SQL_DATA = swh-data.sql
 DOCDIR = autodoc
+
+SQL_INIT   = swh-init.sql
+SQL_SCHEMA = swh-schema.sql
+SQL_DATA   = swh-data.sql
+SQLS = $(SQL_INIT) $(SQL_SCHEMA) $(SQL_DATA)
+
+PSQL_BIN = psql
+PSQL_FLAGS = --single-transaction --echo-all
+PSQL = $(PSQL_BIN) $(PSQL_FLAGS)
 
 
 all:
 
-initdb: initdb-stamp
-initdb-stamp: createdb-stamp $(SQL)
-	psql $(DBNAME) < $(SQL)
-	touch $@
-
 createdb: createdb-stamp
-createdb-stamp: $(SQL)
-	dropdb --if-exists $(DBNAME)
+createdb-stamp: $(SQL_INIT)
 	createdb $(DBNAME)
 	touch $@
 
 filldb: filldb-stamp
-filldb-stamp: createdb-stamp initdb-stamp $(SQL_DATA)
-	psql $(DBNAME) < $(SQL_DATA)
+filldb-stamp: createdb-stamp
+	cat $(SQLS) | $(PSQL) $(DBNAME)
 	touch $@
 
 dropdb:
 	dropdb $(DBNAME)
 
 doc: doc-stamp
-doc-stamp: initdb-stamp $(SQL)
+doc-stamp: filldb-stamp
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/swh
 	dot -T pdf $(DOCDIR)/swh.dot > $(DOCDIR)/swh.pdf
 	touch $@
 
-
 clean:
 	rm -rf *-stamp $(DOCDIR)/
+
+distclean: clean dropdb
 
 .PHONY: all initdb createdb dropdb doc clean
