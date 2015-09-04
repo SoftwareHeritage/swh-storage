@@ -198,6 +198,8 @@ class ObjStorage:
                              depth=self._depth) as f:
             f.write(bytes)
 
+        return obj_id
+
     def add_file(self, f, length, obj_id=None, clobber=False):
         """similar to `add_bytes`, but add the content of file-like object f to the
         object storage
@@ -240,6 +242,8 @@ class ObjStorage:
                                  root_dir=self._root_dir,
                                  depth=self._depth) as obj:
                 shutil.copyfileobj(f, obj)
+
+        return obj_id
 
     @contextmanager
     def get_file_obj(self, obj_id):

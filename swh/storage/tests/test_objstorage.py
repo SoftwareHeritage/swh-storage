@@ -40,24 +40,28 @@ class TestObjStorage(unittest.TestCase):
 
     @istest
     def add_bytes_w_id(self):
-        self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        r = self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        self.assertEqual(r, self.obj_id)
         self.assertGzipContains(self.obj_path, self.content)
 
     @istest
     def add_bytes_wo_id(self):
-        self.storage.add_bytes(self.content)
+        r = self.storage.add_bytes(self.content)
+        self.assertEqual(r, self.obj_id)
         self.assertGzipContains(self.obj_path, self.content)
 
     @istest
     def add_file_w_id(self):
-        self.storage.add_file(BytesIO(self.content),
-                              len(self.content),
-                              obj_id=self.obj_id)
+        r = self.storage.add_file(BytesIO(self.content),
+                                  len(self.content),
+                                  obj_id=self.obj_id)
+        self.assertEqual(r, self.obj_id)
         self.assertGzipContains(self.obj_path, self.content)
 
     @istest
     def add_file_wo_id(self):
-        self.storage.add_file(BytesIO(self.content), len(self.content))
+        r = self.storage.add_file(BytesIO(self.content), len(self.content))
+        self.assertEqual(r, self.obj_id)
         self.assertGzipContains(self.obj_path, self.content)
 
     @istest
