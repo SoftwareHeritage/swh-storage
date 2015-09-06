@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(9, now(), 'Work In Progress');
+      values(10, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as text;
@@ -40,6 +40,8 @@ create table content
   sha1_git  sha1_git not null,
   sha256    sha256 not null,
   length    bigint not null,
+  ctime     timestamptz  default now(),
+            -- creation time, i.e. time of (first) injection into the storage
   status    content_status not null
 );
 
