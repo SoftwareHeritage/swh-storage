@@ -253,13 +253,13 @@ create table occurrence_history
   authority  bigint references organization(id) not null,
                       -- who is claiming to have seen the occurrence.
                       -- Note: SWH is such an authority, and has an entry in
-		      -- the organization table.
+                      -- the organization table.
   validity   tstzrange,  -- The time validity of this table entry. If the upper
                          -- bound is missing, the entry is still valid.
   exclude using gist (origin with =,
                       branch with =,
                       revision with =,
-		      authority with =,
+                      authority with =,
                       validity with &&),
   -- unicity exclusion constraint on lines where the same value is found for
   -- `origin`, `reference`, `revision`, `authority` and overlapping values for
