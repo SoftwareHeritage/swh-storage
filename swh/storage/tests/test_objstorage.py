@@ -65,21 +65,6 @@ class TestObjStorage(unittest.TestCase):
         self.assertGzipContains(self.obj_path, self.content)
 
     @istest
-    def add_noclobber(self):
-        self.storage.add_bytes(self.content, obj_id=self.obj_id)
-        with self.assertRaises(objstorage.Error):
-            self.storage.add_bytes(self.content)
-
-    @istest
-    def add_clobber(self):
-        self.storage.add_bytes(self.content, obj_id=self.obj_id)
-        try:
-            self.storage.add_bytes(self.content, obj_id=self.obj_id,
-                                   clobber=True)
-        except:
-            self.fail('clobbering failed')
-
-    @istest
     def contains(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         self.assertTrue(self.obj_id in self.storage)

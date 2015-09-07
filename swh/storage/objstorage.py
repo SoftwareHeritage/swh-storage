@@ -25,12 +25,6 @@ class Error(Exception):
         return 'storage error on object: %s' % self.args
 
 
-class DuplicateObjError(Error):
-
-    def __str__(self):
-        return 'duplicate object: %s' % self.args
-
-
 class ObjNotFoundError(Error):
 
     def __str__(self):
@@ -168,7 +162,7 @@ class ObjStorage:
         """
         return os.path.exists(_obj_path(obj_id, self._root_dir, self._depth))
 
-    def add_bytes(self, bytes, obj_id=None, clobber=False):
+    def add_bytes(self, bytes, obj_id=None):
         """add a new object to the object storage
 
         Args:
@@ -176,12 +170,6 @@ class ObjStorage:
             obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
                 given, obj_id will be trusted to match bytes. If missing,
                 obj_id will be computed on the fly.
-            clobber (boolean): whether overwriting objects in the storage is
-                allowed or not
-
-        Raises:
-            DuplicateObjError: if obj_id is already present in the storage,
-            unless clobber is True
 
         """
         if obj_id is None:
@@ -190,9 +178,10 @@ class ObjStorage:
             h.update(bytes)
             obj_id = h.hexdigest()
 
-        if not clobber and obj_id in self:
-            raise DuplicateObjError(obj_id)
+        if obj_id in self:
+            return obj_id
 
+        # object is either absent, or present but overwrite is requested
         with _write_obj_file(obj_id,
                              root_dir=self._root_dir,
                              depth=self._depth) as f:
@@ -200,7 +189,7 @@ class ObjStorage:
 
         return obj_id
 
-    def add_file(self, f, length, obj_id=None, clobber=False):
+    def add_file(self, f, length, obj_id=None):
         """similar to `add_bytes`, but add the content of file-like object f to the
         object storage
 
@@ -222,8 +211,8 @@ class ObjStorage:
                 t.close()
 
                 obj_id = sums[ID_HASH_ALGO]
-                if not clobber and obj_id in self:
-                    raise DuplicateObjError(obj_id)
+                if obj_id in self:
+                    return obj_id
 
                 dir = self.__obj_dir(obj_id)
                 if not os.path.isdir(dir):
@@ -235,8 +224,8 @@ class ObjStorage:
                     os.unlink(tmp_path)
         else:
             # known object id: write to .new file, rename
-            if not clobber and obj_id in self:
-                raise DuplicateObjError(obj_id)
+            if obj_id in self:
+                return obj_id
 
             with _write_obj_file(obj_id,
                                  root_dir=self._root_dir,
@@ -346,7 +335,8 @@ class ObjStorage:
                 if obj_id != actual_obj_id:
                     raise Error('corrupt object %s should have id %s' %
                                 (obj_id, actual_obj_id))
-        except OSError:
+        except (OSError, IOError):
+            # IOError is for compatibility with older python versions
             raise Error('corrupt object %s is not a gzip file' % obj_id)
 
     def __iter__(self):
