@@ -1,20 +1,20 @@
 
--- create a temporary table isomorphic to the content table
+-- create the temporary table tmp_content, with all file metadata fields of the
+-- content table (i.e., all checksums + length)
 --
 -- Args:
 --     tbl: name of the temporary table to be created
-create or replace function swh_content_mktemp(tbl text)
+create or replace function swh_content_mktemp()
     returns void
     language plpgsql
 as $$
 begin
-    execute format('
-            create temporary table %I (
-		sha1      sha1,
-                sha1_git  sha1_git,
-		sha256    sha256,
-		length    bigint
-	    )', tbl);
+    create temporary table tmp_content (
+	sha1      sha1,
+	sha1_git  sha1_git,
+	sha256    sha256,
+	length    bigint)
+	on commit drop;
     return;
 end
 $$;
@@ -30,42 +30,29 @@ create type content_signature as (
 );
 
 
--- check which entries of a given table are missing from the content table
+-- check which entries of tmp_content are missing from content
 --
--- operates in bulk: entries should first be COPY-ed to a temporary table; then
--- the name of the temporary table should be passed to this function
---
--- See swh_content_mktemp()
---
--- Args:
---     tbl: name of the table containing the rows to be checked
-create or replace function swh_content_missing(tbl regclass)
+-- operates in bulk: 0. swh_content_mktemp(), 1. COPY to tmp_content,
+-- 2. call this function
+create or replace function swh_content_missing()
     returns setof content_signature
     language plpgsql
 as $$
 begin
-    return query execute format('
-            select sha1, sha1_git, sha256 from %I
-	    except
-	    select sha1, sha1_git, sha256 from content
-	    ', tbl);
+    return query
+	select sha1, sha1_git, sha256 from tmp_content
+	except
+	select sha1, sha1_git, sha256 from content;
     return;
 end
 $$;
 
 
--- Add entries to the content table, reading from a given table. Skip entries
--- that are already present.
+-- add tmp_content entries to content, skipping duplicates
 --
--- operates in bulk: entries should first be COPY-ed to a temporary table; then
--- the name of the temporary table should be passed to this function
---
--- See swh_content_mktemp()
---
--- Args:
---     tbl: name of the table containing the rows to be added
+-- operates in bulk: 0. swh_content_mktemp(), 1. COPY to tmp_content,
+-- 2. call this function
 create or replace function swh_content_add(
-        tbl regclass,
         status content_status default 'visible')
     returns void
     language plpgsql
@@ -73,13 +60,11 @@ as $$
 declare
     rows bigint;
 begin
-    execute format('
-            insert into content (sha1, sha1_git, sha256, length, status)
-            select sha1, sha1_git, sha256, length, %L
-            from %I
-	    where (sha1, sha1_git, sha256) in
-	        (select * from swh_content_missing(''%I''))
-            ', status, tbl, tbl);
+    insert into content (sha1, sha1_git, sha256, length, status)
+	select sha1, sha1_git, sha256, length, status
+	from tmp_content
+	where (sha1, sha1_git, sha256) in
+	    (select * from swh_content_missing());
 	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
 	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
 	    -- the extra swh_content_missing() query here.

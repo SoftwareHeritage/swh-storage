@@ -9,7 +9,7 @@ import tempfile
 from .db import Db
 from .objstorage import ObjStorage
 
-TMP_TABLE = 'tmp'
+TMP_CONTENT_TABLE = 'tmp_content'
 
 
 class Storage():
@@ -47,7 +47,7 @@ class Storage():
         """
         with self.db.cursor() as c:
             # create temporary table for metadata injection
-            c.execute("SELECT swh_content_mktemp(%s)", (TMP_TABLE,))
+            c.execute('SELECT swh_content_mktemp()')
 
             with tempfile.TemporaryFile('w+') as f:
                 # prepare tempfile for metadata COPY + add content data to
@@ -63,10 +63,10 @@ class Storage():
 
                 # COPY metadata to temporary table
                 f.seek(0)
-                c.copy_from(f, TMP_TABLE,
+                c.copy_from(f, TMP_CONTENT_TABLE,
                             columns=('sha1', 'sha1_git', 'sha256', 'length'))
 
             # move metadata in place and save
-            c.execute("SELECT swh_content_add(%s)", (TMP_TABLE,))
+            c.execute('SELECT swh_content_add()')
 
         self.db.commit()
