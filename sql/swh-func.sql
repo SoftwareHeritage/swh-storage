@@ -61,7 +61,7 @@ declare
     rows bigint;
 begin
     insert into content (sha1, sha1_git, sha256, length, status)
-	select sha1, sha1_git, sha256, length, status
+	select distinct sha1, sha1_git, sha256, length, status
 	from tmp_content
 	where (sha1, sha1_git, sha256) in
 	    (select * from swh_content_missing());

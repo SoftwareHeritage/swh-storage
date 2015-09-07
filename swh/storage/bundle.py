@@ -30,11 +30,9 @@ class Storage():
     def add_content(self, content):
         """Add content blobs to the storage
 
-        Note: the caller is responsible to ensure that no duplicates are
-        present in content; if they are, they will result in integrity failures
-        at the DB level. In case of DB errors object might have already been
-        written to the object storage and will not be removed; since addition
-        to the object storage is idempotent, that should not be a problem.
+        Note: in case of DB errors, objects might have already been added to
+        the object storage and will not be removed. Since addition to the
+        object storage is idempotent, that should not be a problem.
 
         Args:
             content: iterable of dictionaries representing individual pieces of
