@@ -1,0 +1,39 @@
+#!/usr/bin/python3
+
+# Copyright (C) 2015  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
+import logging
+import os
+import sys
+
+from swh import storage
+from swh.core.hashutil import _hash_fname
+
+if __name__ == '__main__':
+    try:
+        db_connstring = sys.argv[1]
+        obj_root = sys.argv[2]
+        dirname = sys.argv[3]
+    except IndexError:
+        print('Usage: swh-storage-add-dir' +
+              ' DB_CONNSTRING OBJ_STORAGE_DIR DATA_DIR')
+        print('Example: swh-storage-add-dir "dbname=swh user=foo"' +
+              ' /srv/softwareheritage/objects /usr/src/linux-4.2')
+        sys.exit(1)
+
+    logging.basicConfig(level=logging.INFO)
+
+    storage = storage.Storage(db_connstring, obj_root)
+
+    def list_content():
+        for root, _dirs, files in os.walk(dirname):
+            for name in files:
+                path = os.path.join(root, name)
+                cont = _hash_fname(path)
+                cont['data'] = open(path, 'rb').read()
+                yield cont
+
+    storage.add_content(list_content())
