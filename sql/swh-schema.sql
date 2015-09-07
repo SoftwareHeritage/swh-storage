@@ -46,6 +46,7 @@ create table content
 );
 
 create unique index on content(sha1_git);
+-- create unique index on content(sha256);
 
 -- An organization (or part thereof) that might be in charge of running
 -- software projects. Examples: Debian, GNU, GitHub, Apache, The Linux
