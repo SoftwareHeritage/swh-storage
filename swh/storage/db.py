@@ -11,13 +11,17 @@ class Db:
 
     """
 
-    def __init__(self, connstring):
+    def __init__(self, conn):
         """create a DB proxy, connecting to the DB
 
         Args:
-            connstring: libpq connection string
+            conn: either a libpq connection string, or an established psycopg2
+                connection to the SWH DB
         """
-        self.conn = psycopg2.connect(connstring)
+        if isinstance(conn, psycopg2.extensions.connection):
+            self.conn = conn
+        else:
+            self.conn = psycopg2.connect(conn)
 
     def cursor(self):
         return self.conn.cursor()

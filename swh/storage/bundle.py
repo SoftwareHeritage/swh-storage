@@ -17,14 +17,15 @@ class Storage():
 
     """
 
-    def __init__(self, db_connstring, obj_root):
+    def __init__(self, db_conn, obj_root):
         """
         Args:
-            db_connstring: libpq connection string to reach the SWH db
+            db_conn: either a libpq connection string, or an already
+                established psycopg2 connection to the SWH DB
             obj_root: path to the root of the object storage
 
         """
-        self.db = Db(db_connstring)
+        self.db = Db(db_conn)
         self.objstorage = ObjStorage(obj_root)
 
     def add_content(self, content):
