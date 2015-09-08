@@ -29,6 +29,10 @@ filldb-stamp: createdb-stamp
 dropdb:
 	dropdb $(DBNAME)
 
+dumpdb: swh.dump
+swh.dump: filldb-stamp
+	pg_dump -Fc $(DBNAME) > $@
+
 doc: doc-stamp
 doc-stamp: filldb-stamp
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
@@ -40,5 +44,6 @@ clean:
 	rm -rf *-stamp $(DOCDIR)/
 
 distclean: clean dropdb
+	rm -f swh.dump
 
 .PHONY: all initdb createdb dropdb doc clean
