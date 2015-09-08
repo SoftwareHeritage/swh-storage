@@ -5,29 +5,79 @@
 
 import psycopg2
 
+from contextlib import contextmanager
+
+TMP_CONTENT_TABLE = 'tmp_content'
+
 
 class Db:
-    """DB proxy
+    """Proxy to the SWH DB, with wrappers around stored procedures
 
     """
 
-    def __init__(self, conn):
-        """create a DB proxy, connecting to the DB
+    @classmethod
+    def connect(cls, *args, **kwargs):
+        """factory method to create a DB proxy
+
+        Accepts all arguments of psycopg2.connect; only some specific
+        possibilities are reported below.
 
         Args:
-            conn: either a libpq connection string, or an established psycopg2
-                connection to the SWH DB
+            connstring: libpq2 connection string
+
         """
-        if isinstance(conn, psycopg2.extensions.connection):
-            self.conn = conn
+        conn = psycopg2.connect(*args, **kwargs)
+        return cls(conn)
+
+    def _cursor(self, cur_arg):
+        """get a cursor: from cur_arg if given, or a fresh one otherwise
+
+        meant to avoid boilerplate if/then/else in methods that proxy stored
+        procedures
+
+        """
+        if cur_arg is not None:
+            return cur_arg
+        # elif self.cur is not None:
+        #     return self.cur
         else:
-            self.conn = psycopg2.connect(conn)
+            return self.conn.cursor()
 
-    def cursor(self):
-        return self.conn.cursor()
+    def __init__(self, conn):
+        """create a DB proxy
 
-    def commit(self):
-        return self.conn.commit()
+        Args:
+            conn: psycopg2 connection to the SWH DB
 
-    def rollback(self):
-        return self.conn.rollback()
+        """
+        self.conn = conn
+
+    @contextmanager
+    def transaction(self):
+        """context manager to execute within a DB transaction
+
+        Yields:
+            a psycopg2 cursor
+
+        """
+        with self.conn.cursor() as cur:
+            try:
+                yield cur
+                self.conn.commit()
+            except:
+                if not self.conn.closed:
+                    self.conn.rollback()
+                raise
+
+    # @stored_procedure('swh_content_mktemp')
+    def content_mktemp(self, cur=None):
+        self._cursor(cur).execute('SELECT swh_content_mktemp()')
+
+    def content_copy_to_temp(self, fileobj, cur=None):
+        self._cursor(cur) \
+            .copy_from(fileobj, TMP_CONTENT_TABLE,
+                       columns=('sha1', 'sha1_git', 'sha256', 'length'))
+
+    # @stored_procedure('swh_content_add')
+    def content_add_from_temp(self, cur):
+        self._cursor(cur).execute('SELECT swh_content_add()')
