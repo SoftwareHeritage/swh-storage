@@ -11,6 +11,23 @@ from .db import Db
 from .objstorage import ObjStorage
 
 
+def db_transaction(meth):
+    """decorator to execute Storage methods within DB transactions
+
+    Decorated methods will have access to the following attributes:
+        self.cur: psycopg2 DB cursor
+
+    """
+    def _meth(self, *args, **kwargs):
+        with self.db.transaction() as cur:
+            try:
+                self.cur = cur
+                meth(self, *args, **kwargs)
+            finally:
+                self.cur = None
+    return _meth
+
+
 class Storage():
     """SWH storage proxy, encompassing DB and object storage
 
@@ -30,6 +47,7 @@ class Storage():
 
         self.objstorage = ObjStorage(obj_root)
 
+    @db_transaction
     def add_content(self, content):
         """Add content blobs to the storage
 
@@ -46,27 +64,26 @@ class Storage():
                   checksum
 
         """
-        db = self.db
-        with db.transaction() as cur:
-            # create temporary table for metadata injection
-            db.content_mktemp(cur)
+        (db, cur) = (self.db, self.cur)
+        # create temporary table for metadata injection
+        db.content_mktemp(cur)
 
-            with tempfile.TemporaryFile('w+') as f:
-                # prepare tempfile for metadata COPY + add content data to
-                # object storage
-                for cont in content:
-                    cont['length'] = len(cont['data'])
-                    line = '\t'.join([cont['sha1'], cont['sha1_git'],
-                                      cont['sha256'], str(len(cont['data']))])\
-                        + '\n'
-                    f.write(line)
-                    self.objstorage.add_bytes(cont['data'],
-                                              obj_id=cont['sha1'])
+        with tempfile.TemporaryFile('w+') as f:
+            # prepare tempfile for metadata COPY + add content data to
+            # object storage
+            for cont in content:
+                cont['length'] = len(cont['data'])
+                line = '\t'.join([cont['sha1'], cont['sha1_git'],
+                                  cont['sha256'], str(len(cont['data']))])\
+                    + '\n'
+                f.write(line)
+                self.objstorage.add_bytes(cont['data'],
+                                          obj_id=cont['sha1'])
 
-                # COPY metadata to temporary table
-                f.seek(0)
-                db.content_copy_to_temp(f, cur)
+            # COPY metadata to temporary table
+            f.seek(0)
+            db.content_copy_to_temp(f, cur)
 
-            # move metadata in place
-            db.content_add_from_temp(cur)
-            db.conn.commit()
+        # move metadata in place
+        db.content_add_from_temp(cur)
+        db.conn.commit()
