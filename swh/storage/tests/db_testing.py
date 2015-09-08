@@ -123,17 +123,17 @@ class DbTestFixture():
     @classmethod
     def setUpClass(cls):
         db_create(cls)
-        super()
+        super().setUpClass()
 
     def setUp(self):
         db_connect(self)
-        super()
+        super().setUp()
 
     def tearDown(self):
-        super()
+        super().tearDown()
         db_close(self)
 
     @classmethod
     def tearDownClass(cls):
-        super()
+        super().tearDownClass()
         db_destroy(cls)
