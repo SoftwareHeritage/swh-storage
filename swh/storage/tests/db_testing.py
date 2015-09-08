@@ -72,8 +72,9 @@ def db_close(test_subj):
     context: tearDown
 
     """
-    test_subj.conn.rollback()
-    test_subj.conn.close()
+    if not test_subj.conn.closed:
+        test_subj.conn.rollback()
+        test_subj.conn.close()
 
 
 class DbTestFixture():
