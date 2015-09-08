@@ -10,6 +10,22 @@ from contextlib import contextmanager
 TMP_CONTENT_TABLE = 'tmp_content'
 
 
+def stored_procedure(stored_proc):
+    """decorator to execute remote stored procedure, specified as argument
+
+    Generally, the body of the decorated function should be empty. If it is
+    not, the stored procedure will be executed first; the function body then.
+
+    """
+    def wrap(meth):
+        def _meth(self, *args, **kwargs):
+            cur = kwargs.get('cur', None)
+            self._cursor(cur).execute('SELECT %s()' % stored_proc)
+            meth(self, *args, **kwargs)
+        return _meth
+    return wrap
+
+
 class Db:
     """Proxy to the SWH DB, with wrappers around stored procedures
 
@@ -69,15 +85,13 @@ class Db:
                     self.conn.rollback()
                 raise
 
-    # @stored_procedure('swh_content_mktemp')
-    def content_mktemp(self, cur=None):
-        self._cursor(cur).execute('SELECT swh_content_mktemp()')
+    @stored_procedure('swh_content_mktemp')
+    def content_mktemp(self, cur=None): pass
 
     def content_copy_to_temp(self, fileobj, cur=None):
         self._cursor(cur) \
             .copy_from(fileobj, TMP_CONTENT_TABLE,
                        columns=('sha1', 'sha1_git', 'sha256', 'length'))
 
-    # @stored_procedure('swh_content_add')
-    def content_add_from_temp(self, cur):
-        self._cursor(cur).execute('SELECT swh_content_add()')
+    @stored_procedure('swh_content_add')
+    def content_add_from_temp(self, cur=None): pass
