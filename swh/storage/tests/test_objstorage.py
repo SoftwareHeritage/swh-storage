@@ -67,8 +67,8 @@ class TestObjStorage(unittest.TestCase):
     @istest
     def contains(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
-        self.assertTrue(self.obj_id in self.storage)
-        self.assertFalse(self.missing_obj_id in self.storage)
+        self.assertIn(self.obj_id, self.storage)
+        self.assertNotIn(self.missing_obj_id, self.storage)
 
     @istest
     def check_ok(self):
