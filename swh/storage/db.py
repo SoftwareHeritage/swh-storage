@@ -85,8 +85,8 @@ class Db:
                     self.conn.rollback()
                 raise
 
-    @stored_procedure('swh_content_mktemp')
-    def content_mktemp(self, cur=None): pass
+    def mktemp(self, tblname, cur=None):
+        self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
 
     def content_copy_to_temp(self, fileobj, cur=None):
         self._cursor(cur) \

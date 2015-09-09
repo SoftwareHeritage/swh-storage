@@ -28,7 +28,7 @@ class TestDb(DbTestFixture, unittest.TestCase):
     def add_content(self):
         cur = self.cursor
         sha1 = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'
-        self.db.content_mktemp(cur)
+        self.db.mktemp('content', cur)
         self.db.content_copy_to_temp(StringIO(
             sha1 + '\t'
             'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd\t'

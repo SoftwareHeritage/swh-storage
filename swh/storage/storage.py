@@ -66,7 +66,7 @@ class Storage():
         """
         (db, cur) = (self.db, self.cur)
         # create temporary table for metadata injection
-        db.content_mktemp(cur)
+        db.mktemp('content', cur)
 
         with tempfile.TemporaryFile('w+') as f:
             # prepare tempfile for metadata COPY + add content data to
