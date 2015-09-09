@@ -42,7 +42,7 @@ create table content
   length    bigint not null,
   ctime     timestamptz not null default now(),
             -- creation time, i.e. time of (first) injection into the storage
-  status    content_status not null
+  status    content_status not null default 'visible'
 );
 
 create unique index on content(sha1_git);
