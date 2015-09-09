@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import psycopg2
+import tempfile
 
 from contextlib import contextmanager
 
@@ -88,10 +89,15 @@ class Db:
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
 
-    def content_copy_to_temp(self, fileobj, cur=None):
-        self._cursor(cur) \
-            .copy_from(fileobj, TMP_CONTENT_TABLE,
-                       columns=('sha1', 'sha1_git', 'sha256', 'length'))
+    def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
+        with tempfile.TemporaryFile('w+') as f:
+            for d in items:
+                if item_cb is not None:
+                    item_cb(d)
+                line = '\t'.join([str(d[k]) for k in columns]) + '\n'
+                f.write(line)
+            f.seek(0)
+            self._cursor(cur).copy_from(f, tblname, columns=columns)
 
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass

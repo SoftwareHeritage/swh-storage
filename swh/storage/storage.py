@@ -59,6 +59,7 @@ class Storage():
             content: iterable of dictionaries representing individual pieces of
                 content to add. Each dictionary has the following keys:
                 - data (bytes): the actual content
+                - length (int): content length
                 - one key for each checksum algorithm in
                   swh.core.hashutil(ALGORITHMS), mapped to the corresponding
                   checksum
@@ -68,21 +69,12 @@ class Storage():
         # create temporary table for metadata injection
         db.mktemp('content', cur)
 
-        with tempfile.TemporaryFile('w+') as f:
-            # prepare tempfile for metadata COPY + add content data to
-            # object storage
-            for cont in content:
-                cont['length'] = len(cont['data'])
-                line = '\t'.join([cont['sha1'], cont['sha1_git'],
-                                  cont['sha256'], str(len(cont['data']))])\
-                    + '\n'
-                f.write(line)
-                self.objstorage.add_bytes(cont['data'],
-                                          obj_id=cont['sha1'])
+        def add_to_objstorage(cont):
+            self.objstorage.add_bytes(cont['data'], obj_id=cont['sha1'])
 
-            # COPY metadata to temporary table
-            f.seek(0)
-            db.content_copy_to_temp(f, cur)
+        db.copy_to(content, 'tmp_content',
+                   ['sha1', 'sha1_git', 'sha256', 'length'],
+                   cur, item_cb=add_to_objstorage)
 
         # move metadata in place
         db.content_add_from_temp(cur)

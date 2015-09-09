@@ -5,7 +5,6 @@
 
 import unittest
 
-from io import StringIO
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
@@ -29,11 +28,15 @@ class TestDb(DbTestFixture, unittest.TestCase):
         cur = self.cursor
         sha1 = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'
         self.db.mktemp('content', cur)
-        self.db.content_copy_to_temp(StringIO(
-            sha1 + '\t'
-            'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd\t'
-            '673650f936cb3b0a2f93ce09d81be10748b1b203'
-            'c19e8176b4eefc1964a0cf3a\t' '3\n'), cur)
+        self.db.copy_to([{
+            'sha1': sha1,
+            'sha1_git': 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd',
+            'sha256': '673650f936cb3b0a2f93ce09d81be10748b1b203'
+            'c19e8176b4eefc1964a0cf3a',
+            'length': 3}],
+                        'tmp_content',
+                        ['sha1', 'sha1_git', 'sha256', 'length'],
+                        cur)
         self.db.content_add_from_temp(cur)
         self.cursor.execute('SELECT sha1 FROM content WHERE sha1 = %s',
                             (sha1,))
