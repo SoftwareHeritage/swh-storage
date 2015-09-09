@@ -40,7 +40,7 @@ create table content
   sha1_git  sha1_git not null,
   sha256    sha256 not null,
   length    bigint not null,
-  ctime     timestamptz  default now(),
+  ctime     timestamptz not null default now(),
             -- creation time, i.e. time of (first) injection into the storage
   status    content_status not null
 );
