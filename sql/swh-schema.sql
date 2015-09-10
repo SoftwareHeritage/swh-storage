@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(10, now(), 'Work In Progress');
+      values(11, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as text;
@@ -218,15 +218,16 @@ create type revision_type as enum ('git', 'tar', 'dsc');
 -- a file-system tree containing files and directories.
 create table revision
 (
-  id         sha1_git primary key,
+  id             sha1_git primary key,
   -- parent_ids   sha1_git[],  -- either this or the revision_history table
                                -- note: no FK allowed from arrays to columns
-  date       timestamptz,
-  type       revision_type not null,
-  directory  sha1_git,  -- file-system tree
-  message    text,
-  author     bigint references person(id),
-  committer  bigint references person(id)
+  date           timestamptz,
+  committer_date timestamptz,
+  type           revision_type not null,
+  directory      sha1_git,  -- file-system tree
+  message        text,
+  author         bigint references person(id),
+  committer      bigint references person(id)
 );
 
 -- either this table or the sha1_git[] column on the revision table
