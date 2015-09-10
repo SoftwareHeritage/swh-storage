@@ -68,7 +68,7 @@ create table organization
 );
 
 -- Log of all organization listings (i.e., organization crawling) that have
--- been done int he past, or are still ongoing. Similar to fetch_history, but
+-- been done in the past, or are still ongoing. Similar to fetch_history, but
 -- for organizations.
 create table list_history
 (
