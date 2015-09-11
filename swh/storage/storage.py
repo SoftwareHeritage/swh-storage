@@ -61,7 +61,7 @@ class Storage():
                 - data (bytes): the actual content
                 - length (int): content length
                 - one key for each checksum algorithm in
-                  swh.core.hashutil(ALGORITHMS), mapped to the corresponding
+                  swh.core.hashutil.ALGORITHMS, mapped to the corresponding
                   checksum
 
         """
