@@ -79,3 +79,93 @@ class Storage():
         # move metadata in place
         db.content_add_from_temp(cur)
         db.conn.commit()
+
+    def content_missing(self, content):
+        """List content missing from storage
+
+        Args:
+            content: iterable of dictionaries containing one key for
+            each checksum algorithm in swh.core.hashutil.ALGORITHMS,
+            mapped to the corresponding checksum, and a length key
+            mapped to the content length.
+
+        Returns:
+            a list of sha1s missing from the storage
+
+        Raises:
+            TODO: an exception when we get a hash collision.
+
+        """
+        pass
+
+    def directory_add(self, directories):
+        """Add directories to the storage
+
+        Args:
+            directories: iterable of dictionaries representing the
+                individual directories to add. Each dict has the following keys:
+                - id (sha1_git): the id of the directory to add
+                - entries (list): list of dicts for each entry in the directory.
+                    Each dict has the following keys:
+                    - name (bytes)
+                    - type (one of 'file', 'dir', 'rev'):
+                        type of the directory entry (file, directory, revision)
+                    - id (sha1_git): id of the object pointed at by the directory entry
+                    - perms (int): entry permissions
+                    - atime (datetime.DateTime): entry access time
+                    - ctime (datetime.DateTime): entry creation time
+                    - mtime (datetime.DateTime): entry modification time
+        """
+        pass
+
+    def directory_missing(self, directories):
+        """List directories missing from storage
+
+        Args: an iterable of directory ids
+        Returns: a list of missing directory ids
+        """
+        pass
+
+    def revision_add(self, revisions):
+        """Add revisions to the storage
+
+        Args:
+        """
+        pass
+
+    def revision_missing(self, s):
+        """List revisions missing from storage
+
+        Args: an iterable of revision ids
+        Returns: a list of missing revision ids
+        """
+        pass
+
+    def release_add(self, releases):
+        """Add releases to the storage
+
+        Args:
+        """
+        pass
+
+    def release_missing(self, releases):
+        """List releases missing from storage
+
+        Args: an iterable of release ids
+        Returns: a list of missing release ids
+        """
+        pass
+
+    def occurence_add(self, occurences):
+        """Add occurences to the storage
+
+        Args:
+        """
+        pass
+
+    def origin_add(self, origins):
+        """Add origins to the storage
+
+        Args:
+        """
+        pass
