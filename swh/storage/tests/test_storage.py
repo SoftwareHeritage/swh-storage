@@ -27,7 +27,7 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         super().tearDown()
 
     @istest
-    def add_content(self):
+    def content_add(self):
         cont = {
             'data': b'42\n',
             'length': 3,
@@ -35,7 +35,7 @@ class TestStorage(DbTestFixture, unittest.TestCase):
             'sha1_git': 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd',
             'sha256': '673650f936cb3b0a2f93ce09d81be10748b1b203c19e8176b4eefc1964a0cf3a'  # NOQA
         }
-        self.storage.add_content([cont])
+        self.storage.content_add([cont])
         self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
                             ' FROM content WHERE sha1 = %s',

@@ -48,7 +48,7 @@ class Storage():
         self.objstorage = ObjStorage(obj_root)
 
     @db_transaction
-    def add_content(self, content):
+    def content_add(self, content):
         """Add content blobs to the storage
 
         Note: in case of DB errors, objects might have already been added to
