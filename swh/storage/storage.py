@@ -5,7 +5,6 @@
 
 
 import psycopg2
-import tempfile
 
 from .db import Db
 from .objstorage import ObjStorage
@@ -102,15 +101,16 @@ class Storage():
         """Add directories to the storage
 
         Args:
-            directories: iterable of dictionaries representing the
-                individual directories to add. Each dict has the following keys:
+            directories: iterable of dictionaries representing the individual
+                directories to add. Each dict has the following keys:
                 - id (sha1_git): the id of the directory to add
-                - entries (list): list of dicts for each entry in the directory.
-                    Each dict has the following keys:
+                - entries (list): list of dicts for each entry in the
+                    directory.  Each dict has the following keys:
                     - name (bytes)
                     - type (one of 'file', 'dir', 'rev'):
                         type of the directory entry (file, directory, revision)
-                    - id (sha1_git): id of the object pointed at by the directory entry
+                    - id (sha1_git): id of the object pointed at by the
+                          directory entry
                     - perms (int): entry permissions
                     - atime (datetime.DateTime): entry access time
                     - ctime (datetime.DateTime): entry creation time
