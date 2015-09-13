@@ -1,0 +1,58 @@
+subgraph cluster_meta {
+	label = "Meta";
+	dbversion;
+}
+
+subgraph cluster_content {
+	label = "Content";
+	content;
+}
+
+subgraph cluster_directory {
+	label = "Directories";
+	directory;
+	directory_entry_dir;
+	directory_entry_file;
+	directory_list_dir;
+	directory_list_file;
+}
+
+directory_entry_file -> content;
+
+subgraph cluster_revision {
+	label = "Revisions";
+	revision;
+	revision_history;
+	person;
+}
+
+revision -> directory;
+
+subgraph cluster_release {
+	label = "Releases";
+	release;
+}
+
+subgraph cluster_occurrences {
+	label = "Occurrences";
+	occurrence;
+	occurrence_history;
+}
+
+subgraph cluster_origins {
+	label = "Origins";
+	origin;
+	fetch_history;
+}
+
+subgraph cluster_projects {
+	label = "Projects";
+	project;
+	project_history;
+}
+
+subgraph cluster_organization {
+	label = "Organizations";
+	organization;
+	list_history;
+}

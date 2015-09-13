@@ -37,6 +37,7 @@ doc: doc-stamp
 doc-stamp: filldb-stamp
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/swh
+	bin/dot_add_content $(DOCDIR)/swh.dot clusters.dot
 	dot -T pdf $(DOCDIR)/swh.dot > $(DOCDIR)/swh.pdf
 	touch $@
 
