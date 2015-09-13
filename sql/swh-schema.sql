@@ -25,6 +25,10 @@ create domain sha1_git as bytea;
 -- a SHA256 checksum
 create domain sha256 as bytea;
 
+-- UNIX path (absolute, relative, individual path component, etc.)
+-- TODO should this be bytea or similar to avoid encoding/decoding issues?
+create domain unix_path as text;
+
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
 
@@ -162,8 +166,8 @@ create table directory_entry_dir
 (
   id      bigserial primary key,
   target  sha1_git references directory(id) deferrable initially deferred,
-                 -- id of target directory
-  name    text,  -- path name, relative to containing dir
+                        -- id of target directory
+  name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
   atime   timestamptz,  -- time of last access
   mtime   timestamptz,  -- time of last modification
@@ -182,8 +186,8 @@ create table directory_list_dir
 create table directory_entry_file
 (
   id      bigserial primary key,
-  target  sha1_git, -- id of target file
-  name    text,  -- path name, relative to containing dir
+  target  sha1_git,     -- id of target file
+  name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
   atime   timestamptz,  -- time of last access
   mtime   timestamptz,  -- time of last modification
