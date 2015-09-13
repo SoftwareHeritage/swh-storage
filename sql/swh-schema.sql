@@ -14,16 +14,16 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(11, now(), 'Work In Progress');
+      values(12, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
-create domain sha1 as text;
+create domain sha1 as bytea;
 
 -- a Git object ID, i.e., a SHA1 checksum
-create domain sha1_git as text;
+create domain sha1_git as bytea;
 
 -- a SHA256 checksum
-create domain sha256 as text;
+create domain sha256 as bytea;
 
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
