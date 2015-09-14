@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 
+import functools
 import psycopg2
 
 from .db import Db
@@ -17,11 +18,12 @@ def db_transaction(meth):
         self.cur: psycopg2 DB cursor
 
     """
+    @functools.wraps(meth)
     def _meth(self, *args, **kwargs):
         with self.db.transaction() as cur:
             try:
                 self.cur = cur
-                meth(self, *args, **kwargs)
+                return meth(self, *args, **kwargs)
             finally:
                 self.cur = None
     return _meth
