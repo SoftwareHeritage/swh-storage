@@ -13,11 +13,14 @@ subgraph cluster_directory {
 	directory;
 	directory_entry_dir;
 	directory_entry_file;
+	directory_entry_rev;
 	directory_list_dir;
 	directory_list_file;
+	directory_list_rev;
 }
 
 directory_entry_file -> content;
+directory_entry_rev -> revision;
 
 subgraph cluster_revision {
 	label = "Revisions";
