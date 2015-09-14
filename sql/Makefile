@@ -27,7 +27,7 @@ filldb-stamp: createdb-stamp
 	touch $@
 
 dropdb:
-	dropdb $(DBNAME)
+	-dropdb $(DBNAME)
 
 dumpdb: swh.dump
 swh.dump: filldb-stamp
