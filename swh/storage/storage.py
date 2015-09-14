@@ -81,6 +81,7 @@ class Storage():
         db.content_add_from_temp(cur)
         db.conn.commit()
 
+    @db_transaction
     def content_missing(self, content):
         """List content missing from storage
 
@@ -91,13 +92,22 @@ class Storage():
             mapped to the content length.
 
         Returns:
-            a list of sha1s missing from the storage
+            an iterable of sha1s missing from the storage
 
         Raises:
             TODO: an exception when we get a hash collision.
 
         """
-        pass
+        (db, cur) = (self.db, self.cur)
+        # Create temporary table for metadata injection
+        db.mktemp('content', cur)
+
+        db.copy_to(content, 'tmp_content',
+                   ['sha1', 'sha1_git', 'sha256', 'length'],
+                   cur)
+
+        for obj in db.content_missing_from_temp(cur):
+            yield obj[0].tobytes()
 
     def directory_add(self, directories):
         """Add directories to the storage

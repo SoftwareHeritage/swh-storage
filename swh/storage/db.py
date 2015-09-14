@@ -109,3 +109,11 @@ class Db:
 
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
+
+    def content_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT sha1, sha1_git, sha256
+                       FROM swh_content_missing()""")
+
+        yield from cur

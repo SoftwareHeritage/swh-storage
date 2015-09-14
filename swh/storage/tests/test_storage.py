@@ -35,6 +35,30 @@ class TestStorage(DbTestFixture, unittest.TestCase):
                 '48b1b203c19e8176b4eefc1964a0cf3a'),
         }
 
+        self.cont2 = {
+            'data': b'4242\n',
+            'length': 5,
+            'sha1': hex_to_hash(
+                '61c2b3a30496d329e21af70dd2d7e097046d07b7'),
+            'sha1_git': hex_to_hash(
+                '36fade77193cb6d2bd826161a0979d64c28ab4fa'),
+            'sha256': hex_to_hash(
+                '859f0b154fdb2d630f45e1ecae4a8629'
+                '15435e663248bb8461d914696fc047cd'),
+        }
+
+        self.missing_cont = {
+            'data': b'missing\n',
+            'length': 8,
+            'sha1': hex_to_hash(
+                'f9c24e2abb82063a3ba2c44efd2d3c797f28ac90'),
+            'sha1_git': hex_to_hash(
+                '33e45d56f88993aae6a0198013efa80716fd8919'),
+            'sha256': hex_to_hash(
+                '6bbd052ab054ef222c1c87be60cd191a'
+                'ddedd24cc882d1f5f7f7be61dc61bb3a'),
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
@@ -54,3 +78,12 @@ class TestStorage(DbTestFixture, unittest.TestCase):
              datum[3], datum[4]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible'))
+
+    @istest
+    def content_missing(self):
+        cont2 = self.cont2
+        missing_cont = self.missing_cont
+        self.storage.content_add([cont2])
+        gen = self.storage.content_missing([cont2, missing_cont])
+
+        self.assertEqual(list(gen), [missing_cont['sha1']])
