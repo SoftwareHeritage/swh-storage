@@ -17,13 +17,13 @@ insert into dbversion(version, release, description)
       values(13, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
-create domain sha1 as bytea;
+create domain sha1 as bytea check (length(value) = 20);
 
 -- a Git object ID, i.e., a SHA1 checksum
-create domain sha1_git as bytea;
+create domain sha1_git as bytea check (length(value) = 20);
 
 -- a SHA256 checksum
-create domain sha256 as bytea;
+create domain sha256 as bytea check (length(value) = 32);
 
 -- UNIX path (absolute, relative, individual path component, etc.)
 -- TODO should this be bytea or similar to avoid encoding/decoding issues?
