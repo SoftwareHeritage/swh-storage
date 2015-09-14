@@ -156,8 +156,8 @@ class Storage():
         """
         pass
 
-    def occurence_add(self, occurences):
-        """Add occurences to the storage
+    def occurrence_add(self, occurrences):
+        """Add occurrences to the storage
 
         Args:
         """
