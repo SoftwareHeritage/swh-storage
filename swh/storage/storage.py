@@ -130,13 +130,21 @@ class Storage():
         """
         pass
 
+    @db_transaction
     def directory_missing(self, directories):
         """List directories missing from storage
 
         Args: an iterable of directory ids
         Returns: a list of missing directory ids
         """
-        pass
+        (db, cur) = (self.db, self.cur)
+        # Create temporary table for metadata injection
+        db.mktemp('directory', cur)
+
+        db.copy_to(directories, 'tmp_directory', ['id'], cur)
+
+        for obj in db.directory_missing_from_temp(cur):
+            yield obj[0].tobytes()
 
     def revision_add(self, revisions):
         """Add revisions to the storage

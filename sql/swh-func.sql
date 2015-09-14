@@ -69,3 +69,21 @@ begin
     return;
 end
 $$;
+
+
+-- check which entries of tmp_directory are missing from directory
+--
+-- operates in bulk: 0. swh_mktemp(directory), 1. COPY to tmp_directory,
+-- 2. call this function
+create or replace function swh_directory_missing()
+    returns setof sha1_git
+    language plpgsql
+as $$
+begin
+    return query
+	select id from tmp_directory
+	except
+	select id from directory;
+    return;
+end
+$$;

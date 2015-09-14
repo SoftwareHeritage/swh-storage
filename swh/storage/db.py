@@ -117,3 +117,10 @@ class Db:
                        FROM swh_content_missing()""")
 
         yield from cur
+
+    def directory_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("SELECT id FROM swh_directory_missing()")
+
+        yield from cur
