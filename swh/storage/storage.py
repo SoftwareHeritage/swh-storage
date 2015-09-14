@@ -86,10 +86,10 @@ class Storage():
         """List content missing from storage
 
         Args:
-            content: iterable of dictionaries containing one key for
-            each checksum algorithm in swh.core.hashutil.ALGORITHMS,
-            mapped to the corresponding checksum, and a length key
-            mapped to the content length.
+            content: iterable of dictionaries containing one key for each
+                checksum algorithm in swh.core.hashutil.ALGORITHMS, mapped to
+                the corresponding checksum, and a length key mapped to the
+                content length.
 
         Returns:
             an iterable of sha1s missing from the storage
