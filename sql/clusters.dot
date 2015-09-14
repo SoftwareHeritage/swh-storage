@@ -19,17 +19,12 @@ subgraph cluster_directory {
 	directory_list_rev;
 }
 
-directory_entry_file -> content;
-directory_entry_rev -> revision;
-
 subgraph cluster_revision {
 	label = "Revisions";
 	revision;
 	revision_history;
 	person;
 }
-
-revision -> directory;
 
 subgraph cluster_release {
 	label = "Releases";
@@ -58,4 +53,12 @@ subgraph cluster_organization {
 	label = "Organizations";
 	organization;
 	list_history;
+}
+
+{
+	edge [style = dashed];
+
+	directory_entry_file -> content;
+	directory_entry_rev -> revision;
+	revision -> directory;
 }
