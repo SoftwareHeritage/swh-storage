@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import binascii
 import functools
 import psycopg2
 import tempfile
@@ -92,11 +93,16 @@ class Db:
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
 
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
+        def escape(data):
+            if isinstance(data, bytes):
+                return '\\\\x%s' % binascii.hexlify(data).decode('ascii')
+            else:
+                return str(data)
         with tempfile.TemporaryFile('w+') as f:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
-                line = '\t'.join([str(d[k]) for k in columns]) + '\n'
+                line = '\t'.join([escape(d[k]) for k in columns]) + '\n'
                 f.write(line)
             f.seek(0)
             self._cursor(cur).copy_from(f, tblname, columns=columns)
