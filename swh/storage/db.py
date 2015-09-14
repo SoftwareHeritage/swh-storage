@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import functools
 import psycopg2
 import tempfile
 
@@ -19,6 +20,7 @@ def stored_procedure(stored_proc):
 
     """
     def wrap(meth):
+        @functools.wraps(meth)
         def _meth(self, *args, **kwargs):
             cur = kwargs.get('cur', None)
             self._cursor(cur).execute('SELECT %s()' % stored_proc)
