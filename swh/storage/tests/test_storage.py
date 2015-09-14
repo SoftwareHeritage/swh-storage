@@ -59,6 +59,30 @@ class TestStorage(DbTestFixture, unittest.TestCase):
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
         }
 
+        self.dir = {
+            'id': b'12345678901234567890',
+            'entries': [
+                {
+                    'name': 'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                    'atime': None,
+                    'ctime': None,
+                    'mtime': None,
+                },
+                {
+                    'name': 'bar',
+                    'type': 'dir',
+                    'target': b'12345678901234567890',
+                    'perms': 0o2000,
+                    'atime': None,
+                    'ctime': None,
+                    'mtime': None,
+                },
+            ],
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
@@ -87,3 +111,22 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         gen = self.storage.content_missing([cont2, missing_cont])
 
         self.assertEqual(list(gen), [missing_cont['sha1']])
+
+    @istest
+    def directory_add(self):
+        self.storage.directory_add([self.dir])
+
+        with self.storage.db.transaction() as cur:
+            cur.execute('SELECT * FROM directory_entry_file')
+            print(list(cur))
+            cur.execute('SELECT * FROM directory_list_file')
+            print(list(cur))
+            cur.execute('SELECT * FROM directory')
+            print(list(cur))
+            cur.execute('SELECT * FROM directory_entry_dir')
+            print(list(cur))
+            cur.execute('SELECT * FROM directory_list_dir')
+            print(list(cur))
+
+        self.assertEqual([],
+                         list(self.storage.directory_missing([self.dir['id']])))

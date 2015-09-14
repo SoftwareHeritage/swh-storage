@@ -92,8 +92,14 @@ class Db:
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
 
+    def mktemp_dir_entry(self, entry_type, cur=None):
+        self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
+                                  (('directory_entry_%s' % entry_type),))
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
+            if data is None:
+                return '\\N'
             if isinstance(data, bytes):
                 return '\\\\x%s' % binascii.hexlify(data).decode('ascii')
             else:

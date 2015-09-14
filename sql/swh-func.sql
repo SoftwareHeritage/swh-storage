@@ -18,6 +18,25 @@ begin
 end
 $$;
 
+-- create a temporary table for directory entries called tmp_directory_entry_TBLNAME, mimicking existing table
+-- directory_entry_TBLNAME with an extra dir_id (sha1_git) column
+--
+-- Args:
+--     tblname: name of the table to mimick
+create or replace function swh_mktemp_dir_entry(tblname regclass)
+    returns void
+    language plpgsql
+as $$
+begin
+    execute format('
+	create temporary table tmp_%I
+	    (like %I including defaults, dir_id sha1_git)
+	    on commit drop; alter table tmp_%I alter id set default nextval(''%I_id_seq'');
+	', tblname, tblname, tblname, tblname);
+    return;
+end
+$$;
+
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
@@ -76,7 +95,7 @@ $$;
 -- operates in bulk: 0. swh_mktemp(directory), 1. COPY to tmp_directory,
 -- 2. call this function
 create or replace function swh_directory_missing()
-    returns setof sha1_git
+    returns setof directory
     language plpgsql
 as $$
 begin
@@ -84,6 +103,66 @@ begin
 	select id from tmp_directory
 	except
 	select id from directory;
+    return;
+end
+$$;
+
+-- Add directory_entry_dir entries
+create or replace function swh_directory_entry_dir_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    with inserted_entries as (
+        insert into directory_entry_dir (
+            target, perms, atime, mtime, ctime, name
+        )
+        select t.target, t.perms, t.atime, t.mtime, t.ctime, t.name
+        from tmp_directory_entry_dir t
+        returning id, target, perms, atime, mtime, ctime, name
+    ) insert into directory_list_dir (entry_id, dir_id)
+      select i.id, t.dir_id from tmp_directory_entry_dir t left join inserted_entries i on
+      t.target = i.target and t.perms = i.perms and coalesce(t.atime, '-infinity') = coalesce(i.atime, '-infinity') and coalesce(t.ctime, '-infinity') = coalesce(i.ctime, '-infinity') and coalesce(t.mtime, '-infinity') = coalesce(i.mtime, '-infinity') and t.name = i.name;
+    return;
+end
+$$;
+
+-- Add directory_entry_file entries
+create or replace function swh_directory_entry_file_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    with inserted_entries as (
+        insert into directory_entry_file (
+            target, perms, atime, mtime, ctime, name
+        )
+        select t.target, t.perms, t.atime, t.mtime, t.ctime, t.name
+        from tmp_directory_entry_file t
+        returning id, target, perms, atime, mtime, ctime, name
+    ) insert into directory_list_file (entry_id, dir_id)
+      select i.id, t.dir_id from tmp_directory_entry_file t left join inserted_entries i on
+      t.target = i.target and t.perms = i.perms and coalesce(t.atime, '-infinity') = coalesce(i.atime, '-infinity') and coalesce(t.ctime, '-infinity') = coalesce(i.ctime, '-infinity') and coalesce(t.mtime, '-infinity') = coalesce(i.mtime, '-infinity') and t.name = i.name;
+    return;
+end
+$$;
+
+-- Add directory_entry_rev entries
+create or replace function swh_directory_entry_rev_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    with inserted_entries as (
+        insert into directory_entry_rev (
+            target, perms, atime, mtime, ctime, name
+        )
+        select t.target, t.perms, t.atime, t.mtime, t.ctime, t.name
+        from tmp_directory_entry_rev t
+        returning id, target, perms, atime, mtime, ctime, name
+    ) insert into directory_list_rev (entry_id, dir_id)
+      select i.id, t.dir_id from tmp_directory_entry_rev t left join inserted_entries i on
+      t.target = i.target and t.perms = i.perms and coalesce(t.atime, '-infinity') = coalesce(i.atime, '-infinity') and coalesce(t.ctime, '-infinity') = coalesce(i.ctime, '-infinity') and coalesce(t.mtime, '-infinity') = coalesce(i.mtime, '-infinity') and t.name = i.name;
     return;
 end
 $$;

@@ -5,7 +5,10 @@
 
 
 import functools
+import itertools
 import psycopg2
+
+from collections import defaultdict
 
 from .db import Db
 from .objstorage import ObjStorage
@@ -67,6 +70,7 @@ class Storage():
 
         """
         (db, cur) = (self.db, self.cur)
+
         # create temporary table for metadata injection
         db.mktemp('content', cur)
 
@@ -121,14 +125,52 @@ class Storage():
                     - name (bytes)
                     - type (one of 'file', 'dir', 'rev'):
                         type of the directory entry (file, directory, revision)
-                    - id (sha1_git): id of the object pointed at by the
+                    - target (sha1_git): id of the object pointed at by the
                           directory entry
                     - perms (int): entry permissions
                     - atime (datetime.DateTime): entry access time
                     - ctime (datetime.DateTime): entry creation time
                     - mtime (datetime.DateTime): entry modification time
         """
-        pass
+        dirs = set()
+        dir_entries = {
+            'file': defaultdict(list),
+            'dir': defaultdict(list),
+            'rev': defaultdict(list),
+        }
+
+        for cur_dir in directories:
+            dir_id = cur_dir['id']
+            dirs.add(dir_id)
+            for entry in cur_dir['entries']:
+                entry['dir_id'] = dir_id
+                dir_entries[entry['type']][dir_id].append(entry)
+
+        dirs_missing = set(self.directory_missing(dirs))
+        if not dirs_missing:
+            return
+
+        db = self.db
+        with db.transaction() as cur:
+            db.copy_to(({'id': dir} for dir in dirs), 'directory', ['id'], cur)
+            for entry_type, entry_list in dir_entries.items():
+                entries = itertools.chain.from_iterable(
+                    entries_for_dir
+                    for dir_id, entries_for_dir
+                    in entry_list.items()
+                    if dir_id in dirs_missing)
+
+                db.mktemp_dir_entry(entry_type)
+
+                db.copy_to(
+                    entries,
+                    'tmp_directory_entry_%s' % entry_type,
+                    ['target', 'name', 'perms', 'atime',
+                     'mtime', 'ctime', 'dir_id'],
+                    cur,
+                )
+
+                cur.execute('SELECT swh_directory_entry_%s_add()' % entry_type)
 
     @db_transaction
     def directory_missing(self, directories):
@@ -138,10 +180,11 @@ class Storage():
         Returns: a list of missing directory ids
         """
         (db, cur) = (self.db, self.cur)
+
         # Create temporary table for metadata injection
         db.mktemp('directory', cur)
 
-        db.copy_to(directories, 'tmp_directory', ['id'], cur)
+        db.copy_to(({'id': dir} for dir in directories), 'tmp_directory', ['id'], cur)
 
         for obj in db.directory_missing_from_temp(cur):
             yield obj[0].tobytes()
