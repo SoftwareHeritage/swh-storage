@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(12, now(), 'Work In Progress');
+      values(13, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea;
@@ -152,7 +152,8 @@ create table project_history
 -- To list the contents of a directory:
 -- 1. list the contained directory_entry_dir using table directory_list_dir
 -- 2. list the contained directory_entry_file using table directory_list_file
--- 3. UNION
+-- 3. list the contained directory_entry_rev using table directory_list_rev
+-- 4. UNION
 --
 -- Synonyms/mappings:
 -- * git: tree
@@ -200,6 +201,26 @@ create table directory_list_file
   dir_id     sha1_git references directory(id),
   entry_id   bigint references directory_entry_file(id),
   primary key (dir_id, entry_id)
+);
+
+-- A directory entry pointing to a revision.
+create table directory_entry_rev
+(
+  id      bigserial primary key,
+  target  sha1_git,     -- id of target revision
+  name    unix_path,    -- path name, relative to containing dir
+  perms   file_perms,   -- unix-like permissions
+  atime   timestamptz,  -- time of last access
+  mtime   timestamptz,  -- time of last modification
+  ctime   timestamptz   -- time of last status change
+);
+
+-- Mapping between directories and contained files.
+create table directory_list_rev
+(
+  rev_id     sha1_git,
+  entry_id   bigint references directory_entry_rev(id),
+  primary key (rev_id, entry_id)
 );
 
 create table person
