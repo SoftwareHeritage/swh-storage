@@ -133,7 +133,7 @@ class Storage():
         """
         pass
 
-    def revision_missing(self, s):
+    def revision_missing(self, revisions):
         """List revisions missing from storage
 
         Args: an iterable of revision ids
