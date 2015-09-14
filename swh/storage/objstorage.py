@@ -31,39 +31,39 @@ class ObjNotFoundError(Error):
         return 'object not found: %s' % self.args
 
 
-def _obj_dir(obj_id, root_dir, depth):
+def _obj_dir(hex_obj_id, root_dir, depth):
     """compute the storage directory of an object
 
     Args:
-        obj_id: object id
+        hex_obj_id: object id as hexlified string
         root_dir: object storage root directory
         depth: slicing depth of object IDs in the storage
 
     see also: `_obj_path`
 
     """
-    if len(obj_id) < depth * 2:
+    if len(hex_obj_id) < depth * 2:
         raise ValueError('object id "%s" is too short for slicing at depth %d'
-                         % (obj_id, depth))
+                         % (hex_obj_id, depth))
 
     # compute [depth] substrings of [obj_id], each of length 2, starting from
     # the beginning
-    id_steps = [obj_id[i*2:i*2+2] for i in range(0, depth)]
+    id_steps = [hex_obj_id[i*2:i*2+2] for i in range(0, depth)]
     steps = [root_dir] + id_steps
 
     return os.path.join(*steps)
 
 
-def _obj_path(obj_id, root_dir, depth):
+def _obj_path(hex_obj_id, root_dir, depth):
     """similar to `obj_dir`, but also include the actual object file name in the
     returned path
 
     """
-    return os.path.join(_obj_dir(obj_id, root_dir, depth), obj_id)
+    return os.path.join(_obj_dir(hex_obj_id, root_dir, depth), hex_obj_id)
 
 
 @contextmanager
-def _write_obj_file(obj_id, root_dir, depth):
+def _write_obj_file(hex_obj_id, root_dir, depth):
     """context manager for writing object files to the object storage
 
     During writing data are written to a temporary file, which is atomically
@@ -75,15 +75,15 @@ def _write_obj_file(obj_id, root_dir, depth):
 
     Sample usage:
 
-    with _write_obj_file(obj_id, root_dir, depth) as f:
+    with _write_obj_file(hex_obj_id, root_dir, depth) as f:
         f.write(obj_data)
 
     """
-    dir = _obj_dir(obj_id, root_dir, depth)
+    dir = _obj_dir(hex_obj_id, root_dir, depth)
     if not os.path.isdir(dir):
         os.makedirs(dir)
 
-    path = os.path.join(dir, obj_id)
+    path = os.path.join(dir, hex_obj_id)
     tmp_path = path + '.tmp'
     with gzip.GzipFile(tmp_path, 'wb') as f:
         yield f
@@ -145,13 +145,13 @@ class ObjStorage:
         if not os.path.isdir(self._temp_dir):
             os.makedirs(self._temp_dir)
 
-    def __obj_dir(self, obj_id):
+    def __obj_dir(self, hex_obj_id):
         """_obj_dir wrapper using this storage configuration"""
-        return _obj_dir(obj_id, self._root_dir, self._depth)
+        return _obj_dir(hex_obj_id, self._root_dir, self._depth)
 
-    def __obj_path(self, obj_id):
+    def __obj_path(self, hex_obj_id):
         """_obj_path wrapper using this storage configuration"""
-        return _obj_path(obj_id, self._root_dir, self._depth)
+        return _obj_path(hex_obj_id, self._root_dir, self._depth)
 
     def __contains__(self, obj_id):
         """check whether a given object id is present in the storage or not
@@ -160,7 +160,10 @@ class ObjStorage:
             True iff the object id is present in the storage
 
         """
-        return os.path.exists(_obj_path(obj_id, self._root_dir, self._depth))
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+
+        return os.path.exists(_obj_path(hex_obj_id, self._root_dir,
+                                        self._depth))
 
     def add_bytes(self, bytes, obj_id=None):
         """add a new object to the object storage
@@ -176,13 +179,15 @@ class ObjStorage:
             # missing checksum, compute it in memory and write to file
             h = hashutil._new_hash(ID_HASH_ALGO, len(bytes))
             h.update(bytes)
-            obj_id = h.hexdigest()
+            obj_id = h.digest()
 
         if obj_id in self:
             return obj_id
 
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+
         # object is either absent, or present but overwrite is requested
-        with _write_obj_file(obj_id,
+        with _write_obj_file(hex_obj_id,
                              root_dir=self._root_dir,
                              depth=self._depth) as f:
             f.write(bytes)
@@ -214,10 +219,12 @@ class ObjStorage:
                 if obj_id in self:
                     return obj_id
 
-                dir = self.__obj_dir(obj_id)
+                hex_obj_id = hashutil.hash_to_hex(obj_id)
+
+                dir = self.__obj_dir(hex_obj_id)
                 if not os.path.isdir(dir):
                     os.makedirs(dir)
-                path = os.path.join(dir, obj_id)
+                path = os.path.join(dir, hex_obj_id)
                 os.rename(tmp_path, path)
             finally:
                 if os.path.exists(tmp_path):
@@ -227,7 +234,9 @@ class ObjStorage:
             if obj_id in self:
                 return obj_id
 
-            with _write_obj_file(obj_id,
+            hex_obj_id = hashutil.hash_to_hex(obj_id)
+
+            with _write_obj_file(hex_obj_id,
                                  root_dir=self._root_dir,
                                  depth=self._depth) as obj:
                 shutil.copyfileobj(f, obj)
@@ -256,7 +265,9 @@ class ObjStorage:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
-        path = self.__obj_path(obj_id)
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+
+        path = self.__obj_path(hex_obj_id)
         with gzip.GzipFile(path, 'rb') as f:
             yield f
 
@@ -295,7 +306,9 @@ class ObjStorage:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
-        return self.__obj_path(obj_id)
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+
+        return self.__obj_path(hex_obj_id)
 
     def check(self, obj_id):
         """integrity check for a given object
@@ -314,8 +327,10 @@ class ObjStorage:
         if obj_id not in self:
             raise ObjNotFoundError(obj_id)
 
+        hex_obj_id = hashutil.hash_to_hex(obj_id)
+
         try:
-            with gzip.open(self.__obj_path(obj_id)) as f:
+            with gzip.open(self.__obj_path(hex_obj_id)) as f:
                 length = None
                 if ID_HASH_ALGO.endswith('_git'):
                     # if the hashing algorithm is git-like, we need to know the
@@ -356,7 +371,7 @@ class ObjStorage:
             # matches the slicing depth of the storage
             for root, _dirs, files in os.walk(self._root_dir):
                 for f in files:
-                    yield f
+                    yield bytes.fromhex(f)
 
         return obj_iterator()
 

@@ -11,6 +11,7 @@ from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from .db_testing import DbTestFixture
+from swh.core import hashutil
 from swh.storage import Storage
 
 
@@ -31,15 +32,22 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         cont = {
             'data': b'42\n',
             'length': 3,
-            'sha1': '34973274ccef6ab4dfaaf86599792fa9c3fe4689',
-            'sha1_git': 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd',
-            'sha256': '673650f936cb3b0a2f93ce09d81be10748b1b203c19e8176b4eefc1964a0cf3a'  # NOQA
+            'sha1': hashutil.hex_to_hash(
+                '34973274ccef6ab4dfaaf86599792fa9c3fe4689'),
+            'sha1_git': hashutil.hex_to_hash(
+                'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'),
+            'sha256': hashutil.hex_to_hash(
+                '673650f936cb3b0a2f93ce09d81be107'
+                '48b1b203c19e8176b4eefc1964a0cf3a')
         }
         self.storage.content_add([cont])
         self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
                             ' FROM content WHERE sha1 = %s',
                             (cont['sha1'],))
-        self.assertEqual(self.cursor.fetchone(),
-                         (cont['sha1'], cont['sha1_git'], cont['sha256'],
-                          cont['length'], 'visible'))
+        datum = self.cursor.fetchone()
+        self.assertEqual(
+            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+             datum[3], datum[4]),
+            (cont['sha1'], cont['sha1_git'], cont['sha256'],
+             cont['length'], 'visible'))

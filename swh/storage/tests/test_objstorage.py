@@ -12,6 +12,7 @@ import unittest
 from io import BytesIO
 from nose.tools import istest
 
+from swh.core import hashutil
 from swh.storage import objstorage
 
 
@@ -20,22 +21,29 @@ class TestObjStorage(unittest.TestCase):
     def setUp(self):
         self.content = b'42\n'
 
-        self.obj_id = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'  # sha1
-        # self.obj_id = 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'  # sha1_git
-        self.obj_steps = [self.obj_id[0:2], self.obj_id[2:4], self.obj_id[4:6]]
-        self.obj_relpath = os.path.join(*(self.obj_steps + [self.obj_id]))
+        # sha1
+        self.hex_obj_id = '34973274ccef6ab4dfaaf86599792fa9c3fe4689'
+
+        # sha1_git
+        # self.hex_obj_id = 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'
+
+        self.obj_id = hashutil.hex_to_hash(self.hex_obj_id)
+        self.obj_steps = [self.hex_obj_id[0:2], self.hex_obj_id[2:4],
+                          self.hex_obj_id[4:6]]
+        self.obj_relpath = os.path.join(*(self.obj_steps + [self.hex_obj_id]))
 
         self.tmpdir = tempfile.mkdtemp()
         self.obj_path = os.path.join(self.tmpdir, self.obj_relpath)
 
         self.storage = objstorage.ObjStorage(root=self.tmpdir, depth=3)
 
-        self.missing_obj_id = 'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15'
+        self.missing_obj_id = hashutil.hex_to_hash(
+            'f1d2d2f924e986ac86fdf7b36c94bcdf32beec15')
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
 
-    def assertGzipContains(self, gzip_path, content):
+    def assertGzipContains(self, gzip_path, content):  # noqa
         self.assertEqual(gzip.open(gzip_path, 'rb').read(), content)
 
     @istest
@@ -109,7 +117,7 @@ class TestObjStorage(unittest.TestCase):
     def get_file_path(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         path = self.storage._get_file_path(self.obj_id)
-        self.assertEqual(os.path.basename(path), self.obj_id)
+        self.assertEqual(os.path.basename(path), self.hex_obj_id)
         self.assertEqual(gzip.open(path, 'rb').read(), self.content)
 
     @istest
