@@ -11,7 +11,7 @@ from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from .db_testing import DbTestFixture
-from swh.core import hashutil
+from swh.core.hashutil import hex_to_hash
 from swh.storage import Storage
 
 
@@ -23,23 +23,26 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         self.objroot = tempfile.mkdtemp()
         self.storage = Storage(self.conn, self.objroot)
 
+        self.cont = {
+            'data': b'42\n',
+            'length': 3,
+            'sha1': hex_to_hash(
+                '34973274ccef6ab4dfaaf86599792fa9c3fe4689'),
+            'sha1_git': hex_to_hash(
+                'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'),
+            'sha256': hex_to_hash(
+                '673650f936cb3b0a2f93ce09d81be107'
+                '48b1b203c19e8176b4eefc1964a0cf3a'),
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
 
     @istest
     def content_add(self):
-        cont = {
-            'data': b'42\n',
-            'length': 3,
-            'sha1': hashutil.hex_to_hash(
-                '34973274ccef6ab4dfaaf86599792fa9c3fe4689'),
-            'sha1_git': hashutil.hex_to_hash(
-                'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'),
-            'sha256': hashutil.hex_to_hash(
-                '673650f936cb3b0a2f93ce09d81be107'
-                '48b1b203c19e8176b4eefc1964a0cf3a')
-        }
+        cont = self.cont
+
         self.storage.content_add([cont])
         self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
