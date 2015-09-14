@@ -95,7 +95,6 @@ create table list_history
 create table origin
 (
   id         bigserial primary key,
-  parent_id  bigint references origin(id),  -- TODO for nested tarballs (?)
   type       text, -- TODO use an enum here (?)
   url        text not null
 );
