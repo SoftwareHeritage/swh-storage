@@ -218,9 +218,9 @@ create table directory_entry_rev
 -- Mapping between directories and contained files.
 create table directory_list_rev
 (
-  rev_id     sha1_git,
+  dir_id     sha1_git references directory(id),
   entry_id   bigint references directory_entry_rev(id),
-  primary key (rev_id, entry_id)
+  primary key (dir_id, entry_id)
 );
 
 create table person
