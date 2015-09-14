@@ -13,5 +13,5 @@ If you do want to run DB-related tests, you should:
 - ensure that your user is authorized to create and drop DBs, and in particular
   DBs named "softwareheritage-test" and "softwareheritage-dev"
 
-- run `make -C sql/ dumpdb` from the top-level dir of this module to ensure you
-  have the local dump that is loaded for testing purposes
+- ensure that you have the storage testdata repository checked out in
+  ../swh-storage-testdata

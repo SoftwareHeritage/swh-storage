@@ -10,8 +10,8 @@ import subprocess
 
 TEST_DB_NAME = 'softwareheritage-test'
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-SQL_DIR = os.path.join(TEST_DIR, '../../../sql')
-TEST_DB_DUMP = os.path.join(SQL_DIR, 'swh.dump')
+TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
+TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
 
 
 def pg_restore(dbname, dumpfile):
