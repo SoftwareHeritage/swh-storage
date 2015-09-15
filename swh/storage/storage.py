@@ -17,18 +17,26 @@ from .objstorage import ObjStorage
 def db_transaction(meth):
     """decorator to execute Storage methods within DB transactions
 
-    Decorated methods will have access to the following attributes:
-        self.cur: psycopg2 DB cursor
+    The decorated method must accept a `cur` keyword argument
+    """
+    @functools.wraps(meth)
+    def _meth(self, *args, **kwargs):
+        with self.db.transaction() as cur:
+            return meth(self, *args, cur=cur, **kwargs)
+    return _meth
+
+
+def db_transaction_generator(meth):
+    """decorator to execute Storage methods within DB transactions, while
+    returning a generator
+
+    The decorated method must accept a `cur` keyword argument
 
     """
     @functools.wraps(meth)
     def _meth(self, *args, **kwargs):
         with self.db.transaction() as cur:
-            try:
-                self.cur = cur
-                return meth(self, *args, **kwargs)
-            finally:
-                self.cur = None
+            yield from meth(self, *args, cur=cur, **kwargs)
     return _meth
 
 
@@ -52,7 +60,7 @@ class Storage():
         self.objstorage = ObjStorage(obj_root)
 
     @db_transaction
-    def content_add(self, content):
+    def content_add(self, content, cur):
         """Add content blobs to the storage
 
         Note: in case of DB errors, objects might have already been added to
@@ -69,7 +77,7 @@ class Storage():
                   checksum
 
         """
-        (db, cur) = (self.db, self.cur)
+        db = self.db
 
         # create temporary table for metadata injection
         db.mktemp('content', cur)
@@ -85,8 +93,8 @@ class Storage():
         db.content_add_from_temp(cur)
         db.conn.commit()
 
-    @db_transaction
-    def content_missing(self, content):
+    @db_transaction_generator
+    def content_missing(self, content, cur):
         """List content missing from storage
 
         Args:
@@ -102,7 +110,8 @@ class Storage():
             TODO: an exception when we get a hash collision.
 
         """
-        (db, cur) = (self.db, self.cur)
+        db = self.db
+
         # Create temporary table for metadata injection
         db.mktemp('content', cur)
 
@@ -172,14 +181,14 @@ class Storage():
 
                 cur.execute('SELECT swh_directory_entry_%s_add()' % entry_type)
 
-    @db_transaction
-    def directory_missing(self, directories):
+    @db_transaction_generator
+    def directory_missing(self, directories, cur):
         """List directories missing from storage
 
         Args: an iterable of directory ids
         Returns: a list of missing directory ids
         """
-        (db, cur) = (self.db, self.cur)
+        db = self.db
 
         # Create temporary table for metadata injection
         db.mktemp('directory', cur)
