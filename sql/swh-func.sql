@@ -209,3 +209,47 @@ begin
     return;
 end
 $$;
+
+-- a directory listing entry with all the metadata
+--
+-- can be used to list a directory, and retrieve all the data in one go.
+create type directory_entry as
+(
+  dir_id  sha1_git,     -- id of the parent directory
+  type    text,         -- type of entry (one of 'dir', 'file', 'rev')
+  target  sha1_git,     -- id of target
+  name    unix_path,    -- path name, relative to containing dir
+  perms   file_perms,   -- unix-like permissions
+  atime   timestamptz,  -- time of last access
+  mtime   timestamptz,  -- time of last modification
+  ctime   timestamptz   -- time of last status change
+);
+
+-- List a single level of directory walked_dir_id
+create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
+    returns setof directory_entry
+    language plpgsql
+as $$
+begin
+    return query (
+        select dir_id, 'dir' as type, target, name, perms, atime, mtime, ctime
+	from directory_list_dir l
+	left join directory_entry_dir d
+	on l.entry_id = d.id
+	where l.dir_id = walked_dir_id
+    union
+        select dir_id, 'file' as type, target, name, perms, atime, mtime, ctime
+	from directory_list_file l
+	left join directory_entry_file d
+	on l.entry_id = d.id
+	where l.dir_id = walked_dir_id
+    union
+        select dir_id, 'rev' as type, target, name, perms, atime, mtime, ctime
+	from directory_list_rev l
+	left join directory_entry_rev d
+	on l.entry_id = d.id
+	where l.dir_id = walked_dir_id
+    ) order by name;
+    return;
+end
+$$;
