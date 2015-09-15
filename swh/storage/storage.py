@@ -193,7 +193,9 @@ class Storage():
         # Create temporary table for metadata injection
         db.mktemp('directory', cur)
 
-        db.copy_to(({'id': dir} for dir in directories), 'tmp_directory', ['id'], cur)
+        directories_dicts = ({'id': dir} for dir in directories)
+
+        db.copy_to(directories_dicts, 'tmp_directory', ['id'], cur)
 
         for obj in db.directory_missing_from_temp(cur):
             yield obj[0]
