@@ -174,6 +174,8 @@ create table directory_entry_dir
   ctime   timestamptz   -- time of last status change
 );
 
+create unique index on directory_entry_dir(target, name, perms, atime, mtime, ctime);
+
 -- Mapping between directories and contained sub-directories.
 create table directory_list_dir
 (
@@ -194,6 +196,8 @@ create table directory_entry_file
   ctime   timestamptz   -- time of last status change
 );
 
+create unique index on directory_entry_file(target, name, perms, atime, mtime, ctime);
+
 -- Mapping between directories and contained files.
 create table directory_list_file
 (
@@ -213,6 +217,8 @@ create table directory_entry_rev
   mtime   timestamptz,  -- time of last modification
   ctime   timestamptz   -- time of last status change
 );
+
+create unique index on directory_entry_rev(target, name, perms, atime, mtime, ctime);
 
 -- Mapping between directories and contained files.
 create table directory_list_rev
