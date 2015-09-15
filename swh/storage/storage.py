@@ -161,7 +161,8 @@ class Storage():
 
         db = self.db
         with db.transaction() as cur:
-            db.copy_to(({'id': dir} for dir in dirs), 'directory', ['id'], cur)
+            dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
+            db.copy_to(dirs_missing_dict, 'directory', ['id'], cur)
             for entry_type, entry_list in dir_entries.items():
                 entries = itertools.chain.from_iterable(
                     entries_for_dir
