@@ -30,6 +30,23 @@ def stored_procedure(stored_proc):
     return wrap
 
 
+def entry_to_bytes(entry):
+    """Convert an entry coming from the database to bytes"""
+    if isinstance(entry, memoryview):
+        return entry.tobytes()
+    return entry
+
+
+def line_to_bytes(line):
+    """Convert a line coming from the database to bytes"""
+    return line.__class__(entry_to_bytes(entry) for entry in line)
+
+
+def cursor_to_bytes(cursor):
+    """Yield all the data from a cursor as bytes"""
+    yield from (line_to_bytes(line) for line in cursor)
+
+
 class Db:
     """Proxy to the SWH DB, with wrappers around stored procedures
 
@@ -122,11 +139,11 @@ class Db:
         cur.execute("""SELECT sha1, sha1_git, sha256
                        FROM swh_content_missing()""")
 
-        yield from cur
+        yield from cursor_to_bytes(cur)
 
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
         cur.execute("SELECT id FROM swh_directory_missing()")
 
-        yield from cur
+        yield from cursor_to_bytes(cur)

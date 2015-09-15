@@ -111,7 +111,7 @@ class Storage():
                    cur)
 
         for obj in db.content_missing_from_temp(cur):
-            yield obj[0].tobytes()
+            yield obj[0]
 
     def directory_add(self, directories):
         """Add directories to the storage
@@ -187,7 +187,7 @@ class Storage():
         db.copy_to(({'id': dir} for dir in directories), 'tmp_directory', ['id'], cur)
 
         for obj in db.directory_missing_from_temp(cur):
-            yield obj[0].tobytes()
+            yield obj[0]
 
     def revision_add(self, revisions):
         """Add revisions to the storage
