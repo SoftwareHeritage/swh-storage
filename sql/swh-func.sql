@@ -18,8 +18,11 @@ begin
 end
 $$;
 
--- create a temporary table for directory entries called tmp_directory_entry_TBLNAME, mimicking existing table
--- directory_entry_TBLNAME with an extra dir_id (sha1_git) column
+-- create a temporary table for directory entries called tmp_TBLNAME,
+-- mimicking existing table TBLNAME with an extra dir_id (sha1_git)
+-- column, and dropping the id column.
+--
+-- This is used to create the tmp_directory_entry_<foo> tables.
 --
 -- Args:
 --     tblname: name of the table to mimick
@@ -31,7 +34,8 @@ begin
     execute format('
 	create temporary table tmp_%I
 	    (like %I including defaults, dir_id sha1_git)
-	    on commit drop; alter table tmp_%I alter id set default nextval(''%I_id_seq'');
+	    on commit drop;
+        alter table tmp_%I drop column id;
 	', tblname, tblname, tblname, tblname);
     return;
 end
@@ -107,62 +111,101 @@ begin
 end
 $$;
 
--- Add directory_entry_dir entries
+-- Add tmp_directory_entry_dir entries to directory_entry_dir and
+-- directory_list_dir, skipping duplicates in directory_entry_dir.
+--
+-- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_dir'), 1 COPY to
+-- tmp_directory_entry_dir, 2. call this function
 create or replace function swh_directory_entry_dir_add()
     returns void
     language plpgsql
 as $$
 begin
-    with inserted_entries as (
-        insert into directory_entry_dir (
-            target, perms, atime, mtime, ctime, name
-        )
-        select t.target, t.perms, t.atime, t.mtime, t.ctime, t.name
-        from tmp_directory_entry_dir t
-        returning id, target, perms, atime, mtime, ctime, name
-    ) insert into directory_list_dir (entry_id, dir_id)
-      select i.id, t.dir_id from tmp_directory_entry_dir t left join inserted_entries i on
-      t.target = i.target and t.perms = i.perms and coalesce(t.atime, '-infinity') = coalesce(i.atime, '-infinity') and coalesce(t.ctime, '-infinity') = coalesce(i.ctime, '-infinity') and coalesce(t.mtime, '-infinity') = coalesce(i.mtime, '-infinity') and t.name = i.name;
+    insert into directory_entry_dir (target, name, perms, atime, mtime, ctime)
+    select t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_dir t
+    where not exists (
+    select 1
+    from directory_entry_dir i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime);
+
+    insert into directory_list_dir (entry_id, dir_id)
+    select i.id, t.dir_id
+    from tmp_directory_entry_dir t
+    inner join directory_entry_dir i
+    on t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime;
     return;
 end
 $$;
 
--- Add directory_entry_file entries
+-- Add tmp_directory_entry_file entries to directory_entry_file and
+-- directory_list_file, skipping duplicates in directory_entry_file.
+--
+-- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_file'), 1 COPY to
+-- tmp_directory_entry_file, 2. call this function
 create or replace function swh_directory_entry_file_add()
     returns void
     language plpgsql
 as $$
 begin
-    with inserted_entries as (
-        insert into directory_entry_file (
-            target, perms, atime, mtime, ctime, name
-        )
-        select t.target, t.perms, t.atime, t.mtime, t.ctime, t.name
-        from tmp_directory_entry_file t
-        returning id, target, perms, atime, mtime, ctime, name
-    ) insert into directory_list_file (entry_id, dir_id)
-      select i.id, t.dir_id from tmp_directory_entry_file t left join inserted_entries i on
-      t.target = i.target and t.perms = i.perms and coalesce(t.atime, '-infinity') = coalesce(i.atime, '-infinity') and coalesce(t.ctime, '-infinity') = coalesce(i.ctime, '-infinity') and coalesce(t.mtime, '-infinity') = coalesce(i.mtime, '-infinity') and t.name = i.name;
+    insert into directory_entry_file (target, name, perms, atime, mtime, ctime)
+    select t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_file t
+    where not exists (
+    select 1
+    from directory_entry_file i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime);
+
+    insert into directory_list_file (entry_id, dir_id)
+    select i.id, t.dir_id
+    from tmp_directory_entry_file t
+    inner join directory_entry_file i
+    on t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime;
     return;
 end
 $$;
 
--- Add directory_entry_rev entries
+-- Add tmp_directory_entry_rev entries to directory_entry_rev and
+-- directory_list_rev, skipping duplicates in directory_entry_rev.
+--
+-- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_rev'), 1 COPY to
+-- tmp_directory_entry_rev, 2. call this function
 create or replace function swh_directory_entry_rev_add()
     returns void
     language plpgsql
 as $$
 begin
-    with inserted_entries as (
-        insert into directory_entry_rev (
-            target, perms, atime, mtime, ctime, name
-        )
-        select t.target, t.perms, t.atime, t.mtime, t.ctime, t.name
-        from tmp_directory_entry_rev t
-        returning id, target, perms, atime, mtime, ctime, name
-    ) insert into directory_list_rev (entry_id, dir_id)
-      select i.id, t.dir_id from tmp_directory_entry_rev t left join inserted_entries i on
-      t.target = i.target and t.perms = i.perms and coalesce(t.atime, '-infinity') = coalesce(i.atime, '-infinity') and coalesce(t.ctime, '-infinity') = coalesce(i.ctime, '-infinity') and coalesce(t.mtime, '-infinity') = coalesce(i.mtime, '-infinity') and t.name = i.name;
+    insert into directory_entry_rev (target, name, perms, atime, mtime, ctime)
+    select t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_rev t
+    where not exists (
+    select 1
+    from directory_entry_rev i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime);
+
+    insert into directory_list_rev (entry_id, dir_id)
+    select i.id, t.dir_id
+    from tmp_directory_entry_rev t
+    inner join directory_entry_rev i
+    on t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime;
     return;
 end
 $$;
