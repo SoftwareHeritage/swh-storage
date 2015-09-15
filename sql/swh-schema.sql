@@ -165,7 +165,7 @@ create table directory
 create table directory_entry_dir
 (
   id      bigserial primary key,
-  target  sha1_git references directory(id) deferrable initially deferred,
+  target  sha1_git, -- references directory(id) deferrable initially deferred,
                         -- id of target directory
   name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
