@@ -114,19 +114,20 @@ class TestStorage(DbTestFixture, unittest.TestCase):
 
     @istest
     def directory_add(self):
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
         self.storage.directory_add([self.dir])
 
-        with self.storage.db.transaction() as cur:
-            cur.execute('SELECT * FROM directory_entry_file')
-            print(list(cur))
-            cur.execute('SELECT * FROM directory_list_file')
-            print(list(cur))
-            cur.execute('SELECT * FROM directory')
-            print(list(cur))
-            cur.execute('SELECT * FROM directory_entry_dir')
-            print(list(cur))
-            cur.execute('SELECT * FROM directory_list_dir')
-            print(list(cur))
+        stored_data = list(self.storage.directory_get(self.dir['id']))
 
-        self.assertEqual([],
-                         list(self.storage.directory_missing([self.dir['id']])))
+        data_to_store = [
+            (self.dir['id'], ent['type'], ent['target'], ent['name'],
+             ent['perms'], ent['atime'], ent['ctime'], ent['mtime'])
+            for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
+        ]
+
+        self.assertEqual(data_to_store, stored_data)
+
+        after_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([], after_missing)

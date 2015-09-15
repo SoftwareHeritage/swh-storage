@@ -200,6 +200,10 @@ class Storage():
         for obj in db.directory_missing_from_temp(cur):
             yield obj[0]
 
+    def directory_get(self, directory):
+        """Get the entries for one directory"""
+        yield from self.db.directory_walk_one(directory)
+
     def revision_add(self, revisions):
         """Add revisions to the storage
 

@@ -147,3 +147,10 @@ class Db:
         cur.execute("SELECT id FROM swh_directory_missing()")
 
         yield from cursor_to_bytes(cur)
+
+    def directory_walk_one(self, directory, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute('select * from swh_directory_walk_one(%s)', (directory,))
+
+        yield from cursor_to_bytes(cur)
