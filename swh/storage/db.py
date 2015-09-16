@@ -157,3 +157,10 @@ class Db:
         cur.execute('select * from swh_directory_walk_one(%s)', (directory,))
 
         yield from cursor_to_bytes(cur)
+
+    def revision_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("SELECT id FROM swh_revision_missing() as r(id)")
+
+        yield from cursor_to_bytes(cur)

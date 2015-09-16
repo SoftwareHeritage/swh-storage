@@ -274,3 +274,17 @@ begin
     return;
 end
 $$;
+
+-- List missing revisions from tmp_revision
+create or replace function swh_revision_missing()
+    returns setof sha1_git
+    language plpgsql
+as $$
+begin
+    return query
+        select id from tmp_revision
+	except
+	select id from revision;
+    return;
+end
+$$;
