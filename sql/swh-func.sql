@@ -338,8 +338,8 @@ as $$
 begin
     perform swh_person_add_from_revision();
 
-    insert into revision (id, date, committer_date, type, directory, message, author, committer)
-    select t.id, t.date, t.committer_date, t.type, t.directory, t.message, a.id, c.id
+    insert into revision (id, date, date_offset, committer_date, committer_date_offset, type, directory, message, author, committer)
+    select t.id, t.date, t.date_offset, t.committer_date, t.committer_date_offset, t.type, t.directory, t.message, a.id, c.id
     from tmp_revision t
     left join person a on a.name = t.author_name and a.email = t.author_email
     left join person c on c.name = t.committer_name and c.email = t.committer_email;
