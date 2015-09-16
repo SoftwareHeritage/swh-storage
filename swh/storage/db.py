@@ -128,7 +128,7 @@ class Db:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
-                line = '\t'.join([escape(d[k]) for k in columns]) + '\n'
+                line = '\t'.join([escape(d.get(k)) for k in columns]) + '\n'
                 f.write(line)
             f.seek(0)
             self._cursor(cur).copy_from(f, tblname, columns=columns)
