@@ -213,8 +213,12 @@ class Storage():
                 revisions to add. Each dict has the following keys:
                 - id (sha1_git): id of the revision to add
                 - date (datetime.DateTime): date the revision was written
+                - date_offset (int): offset from UTC in minutes the revision
+                    was written
                 - committer_date (datetime.DateTime): date the revision got
                     added to the origin
+                - committer_date_offset (int): offset from UTC in minutes the
+                    revision was added to the origin
                 - type (one of 'git', 'tar'): type of the revision added
                 - directory (sha1_git): the directory the revision points at
                 - message (bytes): the message associated with the revision
@@ -246,7 +250,8 @@ class Storage():
                                   if revision['id'] in revisions_missing)
 
             db.copy_to(revisions_filtered, 'tmp_revision',
-                       ['id', 'date', 'committer_date', 'type', 'directory',
+                       ['id', 'date', 'date_offset', 'committer_date',
+                        'committer_date_offset', 'type', 'directory',
                         'message', 'author_name', 'author_email',
                         'committer_name', 'committer_email'],
                        cur)

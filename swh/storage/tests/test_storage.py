@@ -93,7 +93,9 @@ class TestStorage(DbTestFixture, unittest.TestCase):
             'committer_email': 'stefano@example.com',
             'parents': [b'01234567890123456789'],
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
+            'date_offset': 120,
             'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0),
+            'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir['id'],
         }

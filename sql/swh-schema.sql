@@ -250,14 +250,16 @@ create type revision_type as enum ('git', 'tar', 'dsc');
 -- a file-system tree containing files and directories.
 create table revision
 (
-  id             sha1_git primary key,
-  date           timestamptz,
-  committer_date timestamptz,
-  type           revision_type not null,
-  directory      sha1_git,  -- file-system tree
-  message        text,
-  author         bigint references person(id),
-  committer      bigint references person(id)
+  id                    sha1_git primary key,
+  date                  timestamptz,
+  date_offset           smallint,
+  committer_date        timestamptz,
+  committer_date_offset smallint,
+  type                  revision_type not null,
+  directory             sha1_git,  -- file-system tree
+  message               text,
+  author                bigint references person(id),
+  committer             bigint references person(id)
 );
 
 -- either this table or the sha1_git[] column on the revision table
@@ -316,10 +318,11 @@ create table occurrence
 -- * tarball: the release version number
 create table release
 (
-  id        sha1_git primary key,
-  revision  sha1_git references revision(id),
-  date      timestamptz,
-  name      text,
-  comment   text,
-  author    bigint references person(id)
+  id          sha1_git primary key,
+  revision    sha1_git references revision(id),
+  date        timestamptz,
+  date_offset smallint,
+  name        text,
+  comment     text,
+  author      bigint references person(id)
 );
