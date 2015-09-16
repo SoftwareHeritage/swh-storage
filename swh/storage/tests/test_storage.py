@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import shutil
 import tempfile
 import unittest
@@ -59,6 +60,44 @@ class TestStorage(DbTestFixture, unittest.TestCase):
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
         }
 
+        self.dir = {
+            'id': b'12345678901234567890',
+            'entries': [
+                {
+                    'name': 'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                    'atime': None,
+                    'ctime': None,
+                    'mtime': None,
+                },
+                {
+                    'name': 'bar',
+                    'type': 'dir',
+                    'target': b'12345678901234567890',
+                    'perms': 0o2000,
+                    'atime': None,
+                    'ctime': None,
+                    'mtime': None,
+                },
+            ],
+        }
+
+        self.revision = {
+            'id': b'56789012345678901234',
+            'message': 'hello',
+            'author_name': 'Nicolas Dandrimont',
+            'author_email': 'nicolas@example.com',
+            'committer_name': 'Stefano Zacchiroli',
+            'committer_email': 'stefano@example.com',
+            'parents': [b'01234567890123456789'],
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
+            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0),
+            'type': 'git',
+            'directory': self.dir['id'],
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
@@ -87,3 +126,33 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         gen = self.storage.content_missing([cont2, missing_cont])
 
         self.assertEqual(list(gen), [missing_cont['sha1']])
+
+    @istest
+    def directory_add(self):
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
+        self.storage.directory_add([self.dir])
+
+        stored_data = list(self.storage.directory_get(self.dir['id']))
+
+        data_to_store = [
+            (self.dir['id'], ent['type'], ent['target'], ent['name'],
+             ent['perms'], ent['atime'], ent['ctime'], ent['mtime'])
+            for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
+        ]
+
+        self.assertEqual(data_to_store, stored_data)
+
+        after_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([], after_missing)
+
+    @istest
+    def revision_add(self):
+        init_missing = self.storage.revision_missing([self.revision['id']])
+        self.assertEqual([self.revision['id']], list(init_missing))
+
+        self.storage.revision_add([self.revision])
+
+        end_missing = self.storage.revision_missing([self.revision['id']])
+        self.assertEqual([], list(end_missing))

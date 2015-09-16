@@ -30,6 +30,23 @@ def stored_procedure(stored_proc):
     return wrap
 
 
+def entry_to_bytes(entry):
+    """Convert an entry coming from the database to bytes"""
+    if isinstance(entry, memoryview):
+        return entry.tobytes()
+    return entry
+
+
+def line_to_bytes(line):
+    """Convert a line coming from the database to bytes"""
+    return line.__class__(entry_to_bytes(entry) for entry in line)
+
+
+def cursor_to_bytes(cursor):
+    """Yield all the data from a cursor as bytes"""
+    yield from (line_to_bytes(line) for line in cursor)
+
+
 class Db:
     """Proxy to the SWH DB, with wrappers around stored procedures
 
@@ -92,8 +109,17 @@ class Db:
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
 
+    def mktemp_dir_entry(self, entry_type, cur=None):
+        self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
+                                  (('directory_entry_%s' % entry_type),))
+
+    @stored_procedure('swh_mktemp_revision')
+    def mktemp_revision(self, cur=None): pass
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
+            if data is None:
+                return '\\N'
             if isinstance(data, bytes):
                 return '\\\\x%s' % binascii.hexlify(data).decode('ascii')
             else:
@@ -102,7 +128,7 @@ class Db:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
-                line = '\t'.join([escape(d[k]) for k in columns]) + '\n'
+                line = '\t'.join([escape(d.get(k)) for k in columns]) + '\n'
                 f.write(line)
             f.seek(0)
             self._cursor(cur).copy_from(f, tblname, columns=columns)
@@ -110,17 +136,34 @@ class Db:
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
 
+    @stored_procedure('swh_revision_add')
+    def revision_add_from_temp(self, cur=None): pass
+
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
         cur.execute("""SELECT sha1, sha1_git, sha256
                        FROM swh_content_missing()""")
 
-        yield from cur
+        yield from cursor_to_bytes(cur)
 
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
         cur.execute("SELECT id FROM swh_directory_missing()")
 
-        yield from cur
+        yield from cursor_to_bytes(cur)
+
+    def directory_walk_one(self, directory, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute('select * from swh_directory_walk_one(%s)', (directory,))
+
+        yield from cursor_to_bytes(cur)
+
+    def revision_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("SELECT id FROM swh_revision_missing() as r(id)")
+
+        yield from cursor_to_bytes(cur)

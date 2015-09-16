@@ -165,7 +165,7 @@ create table directory
 create table directory_entry_dir
 (
   id      bigserial primary key,
-  target  sha1_git references directory(id) deferrable initially deferred,
+  target  sha1_git, -- references directory(id) deferrable initially deferred,
                         -- id of target directory
   name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
@@ -173,6 +173,8 @@ create table directory_entry_dir
   mtime   timestamptz,  -- time of last modification
   ctime   timestamptz   -- time of last status change
 );
+
+create unique index on directory_entry_dir(target, name, perms, atime, mtime, ctime);
 
 -- Mapping between directories and contained sub-directories.
 create table directory_list_dir
@@ -194,6 +196,8 @@ create table directory_entry_file
   ctime   timestamptz   -- time of last status change
 );
 
+create unique index on directory_entry_file(target, name, perms, atime, mtime, ctime);
+
 -- Mapping between directories and contained files.
 create table directory_list_file
 (
@@ -214,6 +218,8 @@ create table directory_entry_rev
   ctime   timestamptz   -- time of last status change
 );
 
+create unique index on directory_entry_rev(target, name, perms, atime, mtime, ctime);
+
 -- Mapping between directories and contained files.
 create table directory_list_rev
 (
@@ -225,9 +231,11 @@ create table directory_list_rev
 create table person
 (
   id     bigserial primary key,
-  name   text,
-  email  text
+  name   text not null default '',
+  email  text not null default ''
 );
+
+create unique index on person(name, email);
 
 create type revision_type as enum ('git', 'tar', 'dsc');
 
@@ -243,8 +251,6 @@ create type revision_type as enum ('git', 'tar', 'dsc');
 create table revision
 (
   id             sha1_git primary key,
-  -- parent_ids   sha1_git[],  -- either this or the revision_history table
-                               -- note: no FK allowed from arrays to columns
   date           timestamptz,
   committer_date timestamptz,
   type           revision_type not null,

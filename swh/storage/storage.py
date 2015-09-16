@@ -5,7 +5,10 @@
 
 
 import functools
+import itertools
 import psycopg2
+
+from collections import defaultdict
 
 from .db import Db
 from .objstorage import ObjStorage
@@ -14,18 +17,26 @@ from .objstorage import ObjStorage
 def db_transaction(meth):
     """decorator to execute Storage methods within DB transactions
 
-    Decorated methods will have access to the following attributes:
-        self.cur: psycopg2 DB cursor
+    The decorated method must accept a `cur` keyword argument
+    """
+    @functools.wraps(meth)
+    def _meth(self, *args, **kwargs):
+        with self.db.transaction() as cur:
+            return meth(self, *args, cur=cur, **kwargs)
+    return _meth
+
+
+def db_transaction_generator(meth):
+    """decorator to execute Storage methods within DB transactions, while
+    returning a generator
+
+    The decorated method must accept a `cur` keyword argument
 
     """
     @functools.wraps(meth)
     def _meth(self, *args, **kwargs):
         with self.db.transaction() as cur:
-            try:
-                self.cur = cur
-                return meth(self, *args, **kwargs)
-            finally:
-                self.cur = None
+            yield from meth(self, *args, cur=cur, **kwargs)
     return _meth
 
 
@@ -49,7 +60,7 @@ class Storage():
         self.objstorage = ObjStorage(obj_root)
 
     @db_transaction
-    def content_add(self, content):
+    def content_add(self, content, cur):
         """Add content blobs to the storage
 
         Note: in case of DB errors, objects might have already been added to
@@ -66,7 +77,8 @@ class Storage():
                   checksum
 
         """
-        (db, cur) = (self.db, self.cur)
+        db = self.db
+
         # create temporary table for metadata injection
         db.mktemp('content', cur)
 
@@ -81,8 +93,8 @@ class Storage():
         db.content_add_from_temp(cur)
         db.conn.commit()
 
-    @db_transaction
-    def content_missing(self, content):
+    @db_transaction_generator
+    def content_missing(self, content, cur):
         """List content missing from storage
 
         Args:
@@ -98,7 +110,8 @@ class Storage():
             TODO: an exception when we get a hash collision.
 
         """
-        (db, cur) = (self.db, self.cur)
+        db = self.db
+
         # Create temporary table for metadata injection
         db.mktemp('content', cur)
 
@@ -107,7 +120,7 @@ class Storage():
                    cur)
 
         for obj in db.content_missing_from_temp(cur):
-            yield obj[0].tobytes()
+            yield obj[0]
 
     def directory_add(self, directories):
         """Add directories to the storage
@@ -121,30 +134,76 @@ class Storage():
                     - name (bytes)
                     - type (one of 'file', 'dir', 'rev'):
                         type of the directory entry (file, directory, revision)
-                    - id (sha1_git): id of the object pointed at by the
+                    - target (sha1_git): id of the object pointed at by the
                           directory entry
                     - perms (int): entry permissions
                     - atime (datetime.DateTime): entry access time
                     - ctime (datetime.DateTime): entry creation time
                     - mtime (datetime.DateTime): entry modification time
         """
-        pass
+        dirs = set()
+        dir_entries = {
+            'file': defaultdict(list),
+            'dir': defaultdict(list),
+            'rev': defaultdict(list),
+        }
 
-    @db_transaction
-    def directory_missing(self, directories):
+        for cur_dir in directories:
+            dir_id = cur_dir['id']
+            dirs.add(dir_id)
+            for entry in cur_dir['entries']:
+                entry['dir_id'] = dir_id
+                dir_entries[entry['type']][dir_id].append(entry)
+
+        dirs_missing = set(self.directory_missing(dirs))
+        if not dirs_missing:
+            return
+
+        db = self.db
+        with db.transaction() as cur:
+            dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
+            db.copy_to(dirs_missing_dict, 'directory', ['id'], cur)
+            for entry_type, entry_list in dir_entries.items():
+                entries = itertools.chain.from_iterable(
+                    entries_for_dir
+                    for dir_id, entries_for_dir
+                    in entry_list.items()
+                    if dir_id in dirs_missing)
+
+                db.mktemp_dir_entry(entry_type)
+
+                db.copy_to(
+                    entries,
+                    'tmp_directory_entry_%s' % entry_type,
+                    ['target', 'name', 'perms', 'atime',
+                     'mtime', 'ctime', 'dir_id'],
+                    cur,
+                )
+
+                cur.execute('SELECT swh_directory_entry_%s_add()' % entry_type)
+
+    @db_transaction_generator
+    def directory_missing(self, directories, cur):
         """List directories missing from storage
 
         Args: an iterable of directory ids
         Returns: a list of missing directory ids
         """
-        (db, cur) = (self.db, self.cur)
+        db = self.db
+
         # Create temporary table for metadata injection
         db.mktemp('directory', cur)
 
-        db.copy_to(directories, 'tmp_directory', ['id'], cur)
+        directories_dicts = ({'id': dir} for dir in directories)
+
+        db.copy_to(directories_dicts, 'tmp_directory', ['id'], cur)
 
         for obj in db.directory_missing_from_temp(cur):
-            yield obj[0].tobytes()
+            yield obj[0]
+
+    def directory_get(self, directory):
+        """Get the entries for one directory"""
+        yield from self.db.directory_walk_one(directory)
 
     def revision_add(self, revisions):
         """Add revisions to the storage
@@ -154,8 +213,8 @@ class Storage():
                 revisions to add. Each dict has the following keys:
                 - id (sha1_git): id of the revision to add
                 - date (datetime.DateTime): date the revision was written
-                - commit_date (datetime.DateTime): date the revision got added
-                    to the origin
+                - committer_date (datetime.DateTime): date the revision got
+                    added to the origin
                 - type (one of 'git', 'tar'): type of the revision added
                 - directory (sha1_git): the directory the revision points at
                 - message (bytes): the message associated with the revision
@@ -165,15 +224,59 @@ class Storage():
                 - committer_email (bytes): the email of the revision committer
                 - parents (list of sha1_git): the parents of this revision
         """
-        pass
+        db = self.db
 
-    def revision_missing(self, revisions):
+        parents = {}
+
+        for revision in revisions:
+            id = revision['id']
+            cur_parents = enumerate(revision.get('parents', []))
+            parents[id] = [{
+                'id': id,
+                'parent_id': parent,
+                'parent_rank': i
+            } for i, parent in cur_parents]
+
+        revisions_missing = list(self.revision_missing(parents.keys()))
+
+        with db.transaction() as cur:
+            db.mktemp_revision(cur)
+
+            revisions_filtered = (revision for revision in revisions
+                                  if revision['id'] in revisions_missing)
+
+            db.copy_to(revisions_filtered, 'tmp_revision',
+                       ['id', 'date', 'committer_date', 'type', 'directory',
+                        'message', 'author_name', 'author_email',
+                        'committer_name', 'committer_email'],
+                       cur)
+
+            db.revision_add_from_temp(cur)
+
+            parents_filtered = itertools.chain.from_iterable(
+                parents[id] for id in revisions_missing)
+
+            db.copy_to(parents_filtered, 'revision_history',
+                       ['id', 'parent_id', 'parent_rank'], cur)
+
+    @db_transaction_generator
+    def revision_missing(self, revisions, cur):
         """List revisions missing from storage
 
         Args: an iterable of revision ids
         Returns: a list of missing revision ids
         """
-        pass
+        db = self.db
+
+        # Create temporary table for metadata injection
+        db.mktemp('revision', cur)
+
+        revisions_dicts = ({'id': dir, 'type': 'git'} for dir in revisions)
+
+        db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
+
+        for obj in db.revision_missing_from_temp(cur):
+            yield obj[0]
 
     def release_add(self, releases):
         """Add releases to the storage
