@@ -213,8 +213,8 @@ class Storage():
                 revisions to add. Each dict has the following keys:
                 - id (sha1_git): id of the revision to add
                 - date (datetime.DateTime): date the revision was written
-                - commit_date (datetime.DateTime): date the revision got added
-                    to the origin
+                - committer_date (datetime.DateTime): date the revision got
+                    added to the origin
                 - type (one of 'git', 'tar'): type of the revision added
                 - directory (sha1_git): the directory the revision points at
                 - message (bytes): the message associated with the revision
@@ -224,7 +224,40 @@ class Storage():
                 - committer_email (bytes): the email of the revision committer
                 - parents (list of sha1_git): the parents of this revision
         """
-        pass
+        db = self.db
+
+        parents = {}
+
+        for revision in revisions:
+            id = revision['id']
+            cur_parents = enumerate(revision.get('parents', []))
+            parents[id] = [{
+                'id': id,
+                'parent_id': parent,
+                'parent_rank': i
+            } for i, parent in cur_parents]
+
+        revisions_missing = list(self.revision_missing(parents.keys()))
+
+        with db.transaction() as cur:
+            db.mktemp_revision(cur)
+
+            revisions_filtered = (revision for revision in revisions
+                                  if revision['id'] in revisions_missing)
+
+            db.copy_to(revisions_filtered, 'tmp_revision',
+                       ['id', 'date', 'committer_date', 'type', 'directory',
+                        'message', 'author_name', 'author_email',
+                        'committer_name', 'committer_email'],
+                       cur)
+
+            db.revision_add_from_temp(cur)
+
+            parents_filtered = itertools.chain.from_iterable(
+                parents[id] for id in revisions_missing)
+
+            db.copy_to(parents_filtered, 'revision_history',
+                       ['id', 'parent_id', 'parent_rank'], cur)
 
     @db_transaction_generator
     def revision_missing(self, revisions, cur):

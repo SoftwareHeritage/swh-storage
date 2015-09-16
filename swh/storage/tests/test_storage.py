@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import shutil
 import tempfile
 import unittest
@@ -83,6 +84,20 @@ class TestStorage(DbTestFixture, unittest.TestCase):
             ],
         }
 
+        self.revision = {
+            'id': b'56789012345678901234',
+            'message': 'hello',
+            'author_name': 'Nicolas Dandrimont',
+            'author_email': 'nicolas@example.com',
+            'committer_name': 'Stefano Zacchiroli',
+            'committer_email': 'stefano@example.com',
+            'parents': [b'01234567890123456789'],
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
+            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0),
+            'type': 'git',
+            'directory': self.dir['id'],
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
@@ -131,3 +146,13 @@ class TestStorage(DbTestFixture, unittest.TestCase):
 
         after_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([], after_missing)
+
+    @istest
+    def revision_add(self):
+        init_missing = self.storage.revision_missing([self.revision['id']])
+        self.assertEqual([self.revision['id']], list(init_missing))
+
+        self.storage.revision_add([self.revision])
+
+        end_missing = self.storage.revision_missing([self.revision['id']])
+        self.assertEqual([], list(end_missing))

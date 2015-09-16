@@ -288,3 +288,42 @@ begin
     return;
 end
 $$;
+
+
+-- Create entries in person from tmp_revision
+create or replace function swh_person_add_from_revision()
+    returns void
+    language plpgsql
+as $$
+begin
+    with t as (
+        select author_name as name, author_email as email from tmp_revision
+    union
+        select committer_name as name, committer_email as email from tmp_revision
+    ) insert into person (name, email)
+    select distinct name, email from t
+    where not exists (
+        select 1
+	from person p
+	where t.name = p.name and t.email = p.email
+    );
+    return;
+end
+$$;
+
+-- Create entries in revision from tmp_revision
+create or replace function swh_revision_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    perform swh_person_add_from_revision();
+
+    insert into revision (id, date, committer_date, type, directory, message, author, committer)
+    select t.id, t.date, t.committer_date, t.type, t.directory, t.message, a.id, c.id
+    from tmp_revision t
+    left join person a on a.name = t.author_name and a.email = t.author_email
+    left join person c on c.name = t.committer_name and c.email = t.committer_email;
+    return;
+end
+$$;
