@@ -113,6 +113,9 @@ class Db:
         self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
                                   (('directory_entry_%s' % entry_type),))
 
+    @stored_procedure('swh_mktemp_revision')
+    def mktemp_revision(self, cur=None): pass
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:

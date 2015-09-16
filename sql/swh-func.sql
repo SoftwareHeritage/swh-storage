@@ -41,6 +41,27 @@ begin
 end
 $$;
 
+-- create a temporary table for revisions called tmp_revisions,
+-- mimicking existing table revision, replacing the foreign keys to
+-- people with an email and name field
+--
+create or replace function swh_mktemp_revision()
+    returns void
+    language plpgsql
+as $$
+begin
+    create temporary table tmp_revision (
+        like revision including defaults,
+        author_name text not null default '',
+        author_email text not null default '',
+        committer_name text not null default '',
+        committer_email text not null default ''
+    ) on commit drop;
+    alter table tmp_revision drop column author;
+    alter table tmp_revision drop column committer;
+    return;
+end
+$$;
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
