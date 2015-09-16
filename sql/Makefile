@@ -33,13 +33,15 @@ dumpdb: swh.dump
 swh.dump: filldb-stamp
 	pg_dump -Fc $(DBNAME) > $@
 
-doc: doc-stamp
-doc-stamp: filldb-stamp
+doc: autodoc-stamp $(DOCDIR)/swh.pdf
+autodoc-stamp: filldb-stamp
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/swh
+	touch $@
+
+$(DOCDIR)/swh.pdf: clusters.dot autodoc-stamp
 	bin/dot_add_content $(DOCDIR)/swh.dot clusters.dot
 	dot -T pdf $(DOCDIR)/swh.dot > $(DOCDIR)/swh.pdf
-	touch $@
 
 clean:
 	rm -rf *-stamp $(DOCDIR)/
