@@ -231,9 +231,11 @@ create table directory_list_rev
 create table person
 (
   id     bigserial primary key,
-  name   text,
-  email  text
+  name   text not null default '',
+  email  text not null default ''
 );
+
+create unique index on person(name, email);
 
 create type revision_type as enum ('git', 'tar', 'dsc');
 
