@@ -251,8 +251,6 @@ create type revision_type as enum ('git', 'tar', 'dsc');
 create table revision
 (
   id             sha1_git primary key,
-  -- parent_ids   sha1_git[],  -- either this or the revision_history table
-                               -- note: no FK allowed from arrays to columns
   date           timestamptz,
   committer_date timestamptz,
   type           revision_type not null,
