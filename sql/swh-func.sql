@@ -63,6 +63,25 @@ begin
 end
 $$;
 
+-- create a temporary table for releases called tmp_release,
+-- mimicking existing table release, replacing the foreign keys to
+-- people with an email and name field
+--
+create or replace function swh_mktemp_release()
+    returns void
+    language plpgsql
+as $$
+begin
+    create temporary table tmp_release (
+        like release including defaults,
+        author_name text not null default '',
+        author_email text not null default ''
+    ) on commit drop;
+    alter table tmp_release drop column author;
+    return;
+end
+$$;
+
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection

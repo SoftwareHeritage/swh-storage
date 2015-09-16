@@ -116,6 +116,9 @@ class Db:
     @stored_procedure('swh_mktemp_revision')
     def mktemp_revision(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_release')
+    def mktemp_release(self, cur=None): pass
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:
