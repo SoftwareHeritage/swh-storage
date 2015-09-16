@@ -1,64 +1,72 @@
-subgraph cluster_meta {
-	label = "Meta";
-	dbversion;
-}
 
-subgraph cluster_content {
-	label = "Content";
-	content;
-}
+subgraph "logical_grouping" {
+	style = rounded;
+	bgcolor = gray95;
+	color = gray;
+	
+	subgraph cluster_meta {
+		label = <<b>meta</b>>;
+		dbversion;
+	}
 
-subgraph cluster_directory {
-	label = "Directories";
-	directory;
-	directory_entry_dir;
-	directory_entry_file;
-	directory_entry_rev;
-	directory_list_dir;
-	directory_list_file;
-	directory_list_rev;
-}
+	subgraph cluster_content {
+		label = <<b>content</b>>;
+		content;
+	}
 
-subgraph cluster_revision {
-	label = "Revisions";
-	revision;
-	revision_history;
-	person;
-}
+	subgraph cluster_directory {
+		label = <<b>directories</b>>;
+		directory;
+		directory_entry_dir;
+		directory_entry_file;
+		directory_entry_rev;
+		directory_list_dir;
+		directory_list_file;
+		directory_list_rev;
+	}
 
-subgraph cluster_release {
-	label = "Releases";
-	release;
-}
+	subgraph cluster_revision {
+		label = <<b>revisions</b>>;
+		revision;
+		revision_history;
+		person;
+	}
 
-subgraph cluster_occurrences {
-	label = "Occurrences";
-	occurrence;
-	occurrence_history;
-}
+	subgraph cluster_release {
+		label = <<b>releases</b>>;
+		release;
+	}
 
-subgraph cluster_origins {
-	label = "Origins";
-	origin;
-	fetch_history;
-}
+	subgraph cluster_occurrences {
+		label = <<b>occurrences</b>>;
+		occurrence;
+		occurrence_history;
+	}
 
-subgraph cluster_projects {
-	label = "Projects";
-	project;
-	project_history;
-}
+	subgraph cluster_origins {
+		label = <<b>origins</b>>;
+		origin;
+		fetch_history;
+	}
 
-subgraph cluster_organization {
-	label = "Organizations";
-	organization;
-	list_history;
-}
+	subgraph cluster_projects {
+		label = <<b>projects</b>>;
+		project;
+		project_history;
+	}
 
-{
-	edge [style = dashed];
+	subgraph cluster_organization {
+		label = <<b>organizations</b>>;
+		organization;
+		list_history;
+	}
 
-	directory_entry_file -> content;
-	directory_entry_rev -> revision;
-	revision -> directory;
+	{
+		edge [style = dashed];
+
+		directory_entry_file -> content;
+		directory_entry_rev -> revision;
+		revision -> directory;
+	}
+
 }

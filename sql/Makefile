@@ -37,10 +37,11 @@ doc: autodoc-stamp $(DOCDIR)/swh.pdf
 autodoc-stamp: filldb-stamp
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/swh
+	cp -a $(DOCDIR)/swh.dot $(DOCDIR)/swh.dot.orig
 	touch $@
 
 $(DOCDIR)/swh.pdf: clusters.dot autodoc-stamp
-	bin/dot_add_content $(DOCDIR)/swh.dot clusters.dot
+	bin/dot_add_content $(DOCDIR)/swh.dot.orig clusters.dot > $(DOCDIR)/swh.dot
 	dot -T pdf $(DOCDIR)/swh.dot > $(DOCDIR)/swh.pdf
 
 clean:

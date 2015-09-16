@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Depends: moreutils
-
 DOT_FILE="$1"
 DOT_EXTRA="$2"
 if [ -z "$DOT_FILE" -o -z "$DOT_EXTRA" ] ; then
@@ -9,12 +7,6 @@ if [ -z "$DOT_FILE" -o -z "$DOT_EXTRA" ] ; then
     exit 1
 fi
 
-if ! [ -x $(which sponge) ] ; then
-    echo "Can't find sponge. Please: apt-get install moreutils"
-    exit 1
-fi
-
-(head -n -1 "$DOT_FILE" ;
- cat "$DOT_EXTRA" ;
- echo "}") \
-    | sponge "$DOT_FILE"
+head -n -1 "$DOT_FILE"  # all of $DOT_FILE but last line
+cat "$DOT_EXTRA"
+echo "}"
