@@ -226,13 +226,24 @@ class Storage():
         """
         pass
 
-    def revision_missing(self, revisions):
+    @db_transaction_generator
+    def revision_missing(self, revisions, cur):
         """List revisions missing from storage
 
         Args: an iterable of revision ids
         Returns: a list of missing revision ids
         """
-        pass
+        db = self.db
+
+        # Create temporary table for metadata injection
+        db.mktemp('revision', cur)
+
+        revisions_dicts = ({'id': dir, 'type': 'git'} for dir in revisions)
+
+        db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
+
+        for obj in db.revision_missing_from_temp(cur):
+            yield obj[0]
 
     def release_add(self, releases):
         """Add releases to the storage
