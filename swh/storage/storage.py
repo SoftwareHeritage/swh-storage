@@ -303,13 +303,25 @@ class Storage():
         """
         pass
 
-    def release_missing(self, releases):
+    @db_transaction_generator
+    def release_missing(self, releases, cur=None):
         """List releases missing from storage
 
         Args: an iterable of release ids
         Returns: a list of missing release ids
         """
-        pass
+        db = self.db
+
+        # Create temporary table for metadata injection
+        db.mktemp('release', cur)
+
+        releases_dicts = ({'id': rel} for rel in releases)
+
+        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
+
+        for obj in db.release_missing_from_temp(cur):
+            yield obj[0]
+
 
     def occurrence_add(self, occurrences):
         """Add occurrences to the storage

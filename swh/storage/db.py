@@ -177,3 +177,10 @@ class Db:
         cur.execute("SELECT id FROM swh_revision_missing() as r(id)")
 
         yield from cursor_to_bytes(cur)
+
+    def release_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("SELECT id FROM swh_release_missing() as r(id)")
+
+        yield from cursor_to_bytes(cur)
