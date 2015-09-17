@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import binascii
+import csv
 import functools
 import psycopg2
 import tempfile
@@ -122,19 +123,22 @@ class Db:
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:
-                return '\\N'
+                return None
             if isinstance(data, bytes):
-                return '\\\\x%s' % binascii.hexlify(data).decode('ascii')
+                return '\\x%s' % binascii.hexlify(data).decode('ascii')
             else:
                 return str(data)
         with tempfile.TemporaryFile('w+') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"',
+                                quoting=csv.QUOTE_MINIMAL)
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
-                line = '\t'.join([escape(d.get(k)) for k in columns]) + '\n'
-                f.write(line)
+                line = [escape(d.get(k)) for k in columns]
+                writer.writerow(line)
             f.seek(0)
-            self._cursor(cur).copy_from(f, tblname, columns=columns)
+            self._cursor(cur).copy_expert("COPY %s (%s) FROM STDIN CSV" % (
+                tblname, ", ".join(columns)), f)
 
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
