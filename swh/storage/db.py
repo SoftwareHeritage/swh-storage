@@ -142,6 +142,9 @@ class Db:
     @stored_procedure('swh_revision_add')
     def revision_add_from_temp(self, cur=None): pass
 
+    @stored_procedure('swh_release_add')
+    def release_add_from_temp(self, cur=None): pass
+
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 

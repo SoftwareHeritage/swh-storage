@@ -346,3 +346,38 @@ begin
     return;
 end
 $$;
+
+-- Create entries in person from tmp_release
+create or replace function swh_person_add_from_release()
+    returns void
+    language plpgsql
+as $$
+begin
+    with t as (
+        select distinct author_name as name, author_email as email from tmp_release
+    ) insert into person (name, email)
+    select name, email from t
+    where not exists (
+        select 1
+	from person p
+	where t.name = p.name and t.email = p.email
+    );
+    return;
+end
+$$;
+
+-- Create entries in release from tmp_release
+create or replace function swh_release_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    perform swh_person_add_from_release();
+
+    insert into release (id, revision, date, date_offset, name, comment, author)
+    select t.id, t.revision, t.date, t.date_offset, t.name, t.comment, a.id
+    from tmp_release t
+    left join person a on a.name = t.author_name and a.email = t.author_email;
+    return;
+end
+$$;
