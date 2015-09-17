@@ -100,6 +100,11 @@ class TestStorage(DbTestFixture, unittest.TestCase):
             'directory': self.dir['id'],
         }
 
+        self.origin = {
+            'url': 'file:///dev/null',
+            'type': 'git',
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
@@ -158,3 +163,9 @@ class TestStorage(DbTestFixture, unittest.TestCase):
 
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
+
+    @istest
+    def origin_add(self):
+        self.assertIsNone(self.storage.origin_get(self.origin))
+        id = self.storage.origin_add_one(self.origin)
+        self.assertEqual(self.storage.origin_get(self.origin), id)

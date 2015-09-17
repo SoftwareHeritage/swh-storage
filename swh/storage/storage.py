@@ -359,13 +359,44 @@ class Storage():
         """
         pass
 
-    def origin_add(self, origins):
-        """Add origins to the storage
+    @db_transaction
+    def origin_get(self, origin, cur=None):
+        """Return the id of the given origin
 
         Args:
-            origins: iterable of dictionaries representing the individual
-                origins to add. Each dict has the following keys:
+            origin: dictionary representing the individual
+                origin to find. This dict has the following keys:
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
+
+        Returns:
+            the id of the queried origin
         """
-        pass
+        query = "select id from origin where type=%s and url=%s"
+
+        cur.execute(query, (origin['type'], origin['url']))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        else:
+            return data[0]
+
+    @db_transaction
+    def origin_add_one(self, origin, cur=None):
+        """Add origin to the storage
+
+        Args:
+            origin: dictionary representing the individual
+                origin to add. This dict has the following keys:
+                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
+                - url (bytes): the url the origin points to
+
+        Returns:
+            the id of the added origin
+        """
+        query = "insert into origin (type, url) values (%s, %s) returning id"
+
+        cur.execute(query, (origin['type'], origin['url']))
+
+        return cur.fetchone()[0]
