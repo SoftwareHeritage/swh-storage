@@ -105,6 +105,18 @@ class TestStorage(DbTestFixture, unittest.TestCase):
             'type': 'git',
         }
 
+        self.origin2 = {
+            'url': 'file:///dev/zero',
+            'type': 'git',
+        }
+
+        self.occurrence = {
+            'branch': 'master',
+            'revision': b'67890123456789012345',
+            'authority': 1,
+            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
         super().tearDown()
@@ -169,3 +181,14 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
         self.assertEqual(self.storage.origin_get(self.origin), id)
+
+    @istest
+    def occurrence_add(self):
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        revision = self.revision.copy()
+        revision['id'] = self.occurrence['revision']
+        self.storage.revision_add([revision])
+
+        self.occurrence['origin'] = origin_id
+        self.storage.occurrence_add([self.occurrence])

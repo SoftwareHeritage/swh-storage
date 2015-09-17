@@ -342,8 +342,8 @@ class Storage():
         for obj in db.release_missing_from_temp(cur):
             yield obj[0]
 
-
-    def occurrence_add(self, occurrences):
+    @db_transaction
+    def occurrence_add(self, occurrences, cur=None):
         """Add occurrences to the storage
 
         Args:
@@ -351,13 +351,25 @@ class Storage():
                 occurrences to add. Each dict has the following keys:
                 - origin (int): id of the origin corresponding to the
                     occurrence
-                - reference (bytes): the reference name of the occurrence
+                - branch (str): the reference name of the occurrence
                 - revision (sha1_git): the id of the revision pointed to by
                     the occurrence
-                - date (datetime.DateTime): the validity date for the given
+                - authority (int): id of the authority giving the validity
+                - validity (datetime.DateTime): the validity date for the given
                     occurrence
         """
-        pass
+        db = self.db
+
+        processed = []
+        for occurrence in occurrences:
+            occ = occurrence.copy()
+            occ['validity'] = '[%s,infinity)' % str(occ['validity'])
+            processed.append(occ)
+
+        # XXX: will fail on second execution
+        db.copy_to(processed, 'occurrence_history',
+                   ['origin', 'branch', 'revision', 'authority', 'validity'],
+                   cur)
 
     @db_transaction
     def origin_get(self, origin, cur=None):
