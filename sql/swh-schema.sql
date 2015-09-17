@@ -275,8 +275,7 @@ create table revision_history
   parent_id    sha1_git,
   parent_rank  int not null default 0,
     -- parent position in merge commits, 0-based
-  primary key (id, parent_id),
-  unique (id, parent_rank)
+  primary key (id, parent_rank)
 );
 
 -- The content of software origins is indexed starting from top-level pointers
