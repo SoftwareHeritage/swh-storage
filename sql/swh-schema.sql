@@ -175,6 +175,8 @@ create table directory_entry_dir
 );
 
 create unique index on directory_entry_dir(target, name, perms, atime, mtime, ctime);
+create unique index on directory_entry_dir(target, name, perms)
+       where atime is null and mtime is null and ctime is null;
 
 -- Mapping between directories and contained sub-directories.
 create table directory_list_dir
@@ -197,6 +199,8 @@ create table directory_entry_file
 );
 
 create unique index on directory_entry_file(target, name, perms, atime, mtime, ctime);
+create unique index on directory_entry_file(target, name, perms)
+       where atime is null and mtime is null and ctime is null;
 
 -- Mapping between directories and contained files.
 create table directory_list_file
@@ -219,6 +223,8 @@ create table directory_entry_rev
 );
 
 create unique index on directory_entry_rev(target, name, perms, atime, mtime, ctime);
+create unique index on directory_entry_rev(target, name, perms)
+       where atime is null and mtime is null and ctime is null;
 
 -- Mapping between directories and contained files.
 create table directory_list_rev
