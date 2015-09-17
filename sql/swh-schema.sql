@@ -288,7 +288,7 @@ create table occurrence_history
 (
   origin     bigint references origin(id),
   branch     text,  -- e.g., "master" (for VCS), or "sid" (for Debian)
-  revision   sha1_git references revision(id),  -- ref target, e.g., commit id
+  revision   sha1_git,  -- ref target, e.g., commit id
   authority  bigint references organization(id) not null,
                       -- who is claiming to have seen the occurrence.
                       -- Note: SWH is such an authority, and has an entry in
@@ -312,7 +312,7 @@ create table occurrence
 (
   origin    bigint references origin(id),
   branch    text,
-  revision  sha1_git references revision(id),
+  revision  sha1_git,
   primary key(origin, branch, revision)
 );
 
@@ -324,7 +324,7 @@ create table occurrence
 create table release
 (
   id          sha1_git primary key,
-  revision    sha1_git references revision(id),
+  revision    sha1_git,
   date        timestamptz,
   date_offset smallint,
   name        text,
