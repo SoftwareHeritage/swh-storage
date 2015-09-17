@@ -243,6 +243,9 @@ class Storage():
 
         revisions_missing = list(self.revision_missing(parents.keys()))
 
+        if not revisions_missing:
+            return
+
         with db.transaction() as cur:
             db.mktemp_revision(cur)
 
