@@ -123,19 +123,20 @@ class Db:
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:
-                return None
+                return ''
             if isinstance(data, bytes):
                 return '\\x%s' % binascii.hexlify(data).decode('ascii')
+            elif isinstance(data, str):
+                return '"%s"' % data.replace('"', '""')
             else:
                 return str(data)
-        with tempfile.TemporaryFile('w+', newline='') as f:
-            writer = csv.writer(f, delimiter=',', quotechar='"',
-                                quoting=csv.QUOTE_ALL)
+        with tempfile.TemporaryFile('w+') as f:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
                 line = [escape(d.get(k)) for k in columns]
-                writer.writerow(line)
+                f.write(','.join(line))
+                f.write('\n')
             f.seek(0)
             self._cursor(cur).copy_expert("COPY %s (%s) FROM STDIN CSV" % (
                 tblname, ", ".join(columns)), f)
