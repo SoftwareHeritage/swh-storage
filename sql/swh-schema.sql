@@ -263,7 +263,7 @@ create table revision
   committer_date_offset smallint,
   type                  revision_type not null,
   directory             sha1_git,  -- file-system tree
-  message               text,
+  message               bytea,
   author                bigint references person(id),
   committer             bigint references person(id)
 );
@@ -329,6 +329,6 @@ create table release
   date        timestamptz,
   date_offset smallint,
   name        text,
-  comment     text,
+  comment     bytea,
   author      bigint references person(id)
 );
