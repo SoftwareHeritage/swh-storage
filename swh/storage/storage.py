@@ -296,12 +296,32 @@ class Storage():
                 - revision (sha1_git): id of the revision the release points
                     to
                 - date (datetime.DateTime): the date the release was made
+                - date_offset (int): offset from UTC in minutes the release was
+                    made
                 - name (bytes): the name of the release
                 - comment (bytes): the comment associated with the release
                 - author_name (bytes): the name of the release author
                 - author_email (bytes): the email of the release author
         """
-        pass
+        db = self.db
+
+        release_ids = set(release['id'] for release in releases)
+        releases_missing = list(self.release_missing(release_ids))
+
+        if not releases_missing:
+            return
+
+        with db.transaction() as cur:
+            db.mktemp_release(cur)
+
+            releases_filtered = (release for release in releases
+                                 if release['id'] in releases_missing)
+
+            db.copy_to(releases_filtered, 'tmp_release',
+                       ['id', 'revision', 'date', 'date_offset', 'name',
+                        'comment', 'author_name', 'author_email'], cur)
+
+            db.release_add_from_temp(cur)
 
     @db_transaction_generator
     def release_missing(self, releases, cur=None):
