@@ -180,8 +180,8 @@ create unique index on directory_entry_dir(target, name, perms, atime, mtime, ct
 create table directory_list_dir
 (
   dir_id     sha1_git references directory(id),
-  entry_id   bigint references directory_entry_dir(id),
-  primary key (dir_id, entry_id)
+  entry_ids  bigint[],
+  primary key (dir_id)
 );
 
 -- A directory entry pointing to a file.
@@ -202,8 +202,8 @@ create unique index on directory_entry_file(target, name, perms, atime, mtime, c
 create table directory_list_file
 (
   dir_id     sha1_git references directory(id),
-  entry_id   bigint references directory_entry_file(id),
-  primary key (dir_id, entry_id)
+  entry_ids  bigint[],
+  primary key (dir_id)
 );
 
 -- A directory entry pointing to a revision.
@@ -224,8 +224,8 @@ create unique index on directory_entry_rev(target, name, perms, atime, mtime, ct
 create table directory_list_rev
 (
   dir_id     sha1_git references directory(id),
-  entry_id   bigint references directory_entry_rev(id),
-  primary key (dir_id, entry_id)
+  entry_ids  bigint[],
+  primary key (dir_id)
 );
 
 create table person

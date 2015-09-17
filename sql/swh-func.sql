@@ -172,14 +172,15 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_dir (entry_id, dir_id)
-    select i.id, t.dir_id
+    insert into directory_list_dir (dir_id, entry_ids)
+    select t.dir_id, array_agg(i.id)
     from tmp_directory_entry_dir t
     inner join directory_entry_dir i
     on t.target = i.target and t.name = i.name and t.perms = i.perms and
        t.atime is not distinct from i.atime and
        t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime;
+       t.ctime is not distinct from i.ctime
+    group by t.dir_id;
     return;
 end
 $$;
@@ -205,14 +206,15 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_file (entry_id, dir_id)
-    select i.id, t.dir_id
+    insert into directory_list_file (dir_id, entry_ids)
+    select t.dir_id, array_agg(i.id)
     from tmp_directory_entry_file t
     inner join directory_entry_file i
     on t.target = i.target and t.name = i.name and t.perms = i.perms and
        t.atime is not distinct from i.atime and
        t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime;
+       t.ctime is not distinct from i.ctime
+    group by t.dir_id;
     return;
 end
 $$;
@@ -238,14 +240,15 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_rev (entry_id, dir_id)
-    select i.id, t.dir_id
+    insert into directory_list_rev (dir_id, entry_ids)
+    select t.dir_id, array_agg(i.id)
     from tmp_directory_entry_rev t
     inner join directory_entry_rev i
     on t.target = i.target and t.name = i.name and t.perms = i.perms and
        t.atime is not distinct from i.atime and
        t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime;
+       t.ctime is not distinct from i.ctime
+    group by t.dir_id;
     return;
 end
 $$;
@@ -272,23 +275,23 @@ create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
 as $$
 begin
     return query (
-        select dir_id, 'dir' as type, target, name, perms, atime, mtime, ctime
-	from directory_list_dir l
+        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_dir where dir_id = walked_dir_id)
+	select dir_id, 'dir' as type, target, name, perms, atime, mtime, ctime
+	from l
 	left join directory_entry_dir d
-	on l.entry_id = d.id
-	where l.dir_id = walked_dir_id
+	on l.entry_id = d.id)
     union
+        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_file where dir_id = walked_dir_id)
         select dir_id, 'file' as type, target, name, perms, atime, mtime, ctime
-	from directory_list_file l
+	from l
 	left join directory_entry_file d
-	on l.entry_id = d.id
-	where l.dir_id = walked_dir_id
+	on l.entry_id = d.id)
     union
+        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_rev where dir_id = walked_dir_id)
         select dir_id, 'rev' as type, target, name, perms, atime, mtime, ctime
-	from directory_list_rev l
+	from l
 	left join directory_entry_rev d
-	on l.entry_id = d.id
-	where l.dir_id = walked_dir_id
+	on l.entry_id = d.id)
     ) order by name;
     return;
 end
