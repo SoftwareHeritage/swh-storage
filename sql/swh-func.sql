@@ -162,7 +162,7 @@ create or replace function swh_directory_entry_dir_add()
 as $$
 begin
     insert into directory_entry_dir (target, name, perms, atime, mtime, ctime)
-    select t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
     from tmp_directory_entry_dir t
     where not exists (
     select 1
@@ -195,7 +195,7 @@ create or replace function swh_directory_entry_file_add()
 as $$
 begin
     insert into directory_entry_file (target, name, perms, atime, mtime, ctime)
-    select t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
     from tmp_directory_entry_file t
     where not exists (
     select 1
@@ -228,7 +228,7 @@ create or replace function swh_directory_entry_rev_add()
 as $$
 begin
     insert into directory_entry_rev (target, name, perms, atime, mtime, ctime)
-    select t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
     from tmp_directory_entry_rev t
     where not exists (
     select 1
