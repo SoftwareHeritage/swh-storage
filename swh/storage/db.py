@@ -128,9 +128,9 @@ class Db:
                 return '\\x%s' % binascii.hexlify(data).decode('ascii')
             else:
                 return str(data)
-        with tempfile.TemporaryFile('w+') as f:
+        with tempfile.TemporaryFile('w+', newline='') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"',
-                                quoting=csv.QUOTE_MINIMAL)
+                                quoting=csv.QUOTE_ALL)
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
