@@ -92,8 +92,8 @@ class Storage():
 
             content_filtered = sorted((
                 cont for cont in content
-                if cont['sha1_git'] not in missing_content),
-                key=itemgetter('sha1_git'))
+                if cont['sha1'] in missing_content),
+                key=itemgetter('sha1'))
 
             db.copy_to(content_filtered, 'tmp_content',
                        ['sha1', 'sha1_git', 'sha256', 'length'],
@@ -103,7 +103,7 @@ class Storage():
             db.content_add_from_temp(cur)
 
     @db_transaction_generator
-    def content_missing(self, content, cur):
+    def content_missing(self, content, key_hash='sha1', cur=None):
         """List content missing from storage
 
         Args:
@@ -111,9 +111,10 @@ class Storage():
                 checksum algorithm in swh.core.hashutil.ALGORITHMS, mapped to
                 the corresponding checksum, and a length key mapped to the
                 content length.
+            key_hash: the name of the hash used as key (default: 'sha1')
 
         Returns:
-            an iterable of sha1s missing from the storage
+            an iterable of `key_hash`es missing from the storage
 
         Raises:
             TODO: an exception when we get a hash collision.
@@ -121,15 +122,20 @@ class Storage():
         """
         db = self.db
 
+        keys = ['sha1', 'sha1_git', 'sha256']
+
+        if key_hash not in keys:
+            raise ValueError("key_hash should be one of %s" % keys)
+
+        key_hash_idx = keys.index(key_hash)
+
         # Create temporary table for metadata injection
         db.mktemp('content', cur)
 
-        db.copy_to(content, 'tmp_content',
-                   ['sha1', 'sha1_git', 'sha256', 'length'],
-                   cur)
+        db.copy_to(content, 'tmp_content', keys + ['length'], cur)
 
         for obj in db.content_missing_from_temp(cur):
-            yield obj[0]
+            yield obj[key_hash_idx]
 
     def directory_add(self, directories):
         """Add directories to the storage
