@@ -92,8 +92,8 @@ class Storage():
 
             content_filtered = sorted((
                 cont for cont in content
-                if cont['sha1_git'] not in missing_content),
-                key=itemgetter('sha1_git'))
+                if cont['sha1'] not in missing_content),
+                key=itemgetter('sha1'))
 
             db.copy_to(content_filtered, 'tmp_content',
                        ['sha1', 'sha1_git', 'sha256', 'length'],
