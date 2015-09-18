@@ -92,7 +92,7 @@ class Storage():
 
             content_filtered = sorted((
                 cont for cont in content
-                if cont['sha1'] not in missing_content),
+                if cont['sha1'] in missing_content),
                 key=itemgetter('sha1'))
 
             db.copy_to(content_filtered, 'tmp_content',
