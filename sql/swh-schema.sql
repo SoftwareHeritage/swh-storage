@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(13, now(), 'Work In Progress');
+      values(14, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -175,6 +175,8 @@ create table directory_entry_dir
 );
 
 create unique index on directory_entry_dir(target, name, perms, atime, mtime, ctime);
+create unique index on directory_entry_dir(target, name, perms)
+       where atime is null and mtime is null and ctime is null;
 
 -- Mapping between directories and contained sub-directories.
 create table directory_list_dir
@@ -197,6 +199,8 @@ create table directory_entry_file
 );
 
 create unique index on directory_entry_file(target, name, perms, atime, mtime, ctime);
+create unique index on directory_entry_file(target, name, perms)
+       where atime is null and mtime is null and ctime is null;
 
 -- Mapping between directories and contained files.
 create table directory_list_file
@@ -219,6 +223,8 @@ create table directory_entry_rev
 );
 
 create unique index on directory_entry_rev(target, name, perms, atime, mtime, ctime);
+create unique index on directory_entry_rev(target, name, perms)
+       where atime is null and mtime is null and ctime is null;
 
 -- Mapping between directories and contained files.
 create table directory_list_rev
@@ -257,7 +263,7 @@ create table revision
   committer_date_offset smallint,
   type                  revision_type not null,
   directory             sha1_git,  -- file-system tree
-  message               text,
+  message               bytea,
   author                bigint references person(id),
   committer             bigint references person(id)
 );
@@ -269,8 +275,7 @@ create table revision_history
   parent_id    sha1_git,
   parent_rank  int not null default 0,
     -- parent position in merge commits, 0-based
-  primary key (id, parent_id),
-  unique (id, parent_rank)
+  primary key (id, parent_rank)
 );
 
 -- The content of software origins is indexed starting from top-level pointers
@@ -283,7 +288,7 @@ create table occurrence_history
 (
   origin     bigint references origin(id),
   branch     text,  -- e.g., "master" (for VCS), or "sid" (for Debian)
-  revision   sha1_git references revision(id),  -- ref target, e.g., commit id
+  revision   sha1_git,  -- ref target, e.g., commit id
   authority  bigint references organization(id) not null,
                       -- who is claiming to have seen the occurrence.
                       -- Note: SWH is such an authority, and has an entry in
@@ -307,7 +312,7 @@ create table occurrence
 (
   origin    bigint references origin(id),
   branch    text,
-  revision  sha1_git references revision(id),
+  revision  sha1_git,
   primary key(origin, branch, revision)
 );
 
@@ -319,10 +324,10 @@ create table occurrence
 create table release
 (
   id          sha1_git primary key,
-  revision    sha1_git references revision(id),
+  revision    sha1_git,
   date        timestamptz,
   date_offset smallint,
   name        text,
-  comment     text,
+  comment     bytea,
   author      bigint references person(id)
 );

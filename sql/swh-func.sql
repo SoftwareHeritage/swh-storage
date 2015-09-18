@@ -350,6 +350,20 @@ begin
 end
 $$;
 
+-- List missing releases from tmp_release
+create or replace function swh_release_missing()
+    returns setof sha1_git
+    language plpgsql
+as $$
+begin
+    return query
+        select id from tmp_release
+	except
+	select id from release;
+    return;
+end
+$$;
+
 -- Create entries in person from tmp_release
 create or replace function swh_person_add_from_release()
     returns void

@@ -123,19 +123,20 @@ class Db:
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:
-                return None
+                return ''
             if isinstance(data, bytes):
                 return '\\x%s' % binascii.hexlify(data).decode('ascii')
+            elif isinstance(data, str):
+                return '"%s"' % data.replace('"', '""')
             else:
                 return str(data)
         with tempfile.TemporaryFile('w+') as f:
-            writer = csv.writer(f, delimiter=',', quotechar='"',
-                                quoting=csv.QUOTE_MINIMAL)
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
                 line = [escape(d.get(k)) for k in columns]
-                writer.writerow(line)
+                f.write(','.join(line))
+                f.write('\n')
             f.seek(0)
             self._cursor(cur).copy_expert("COPY %s (%s) FROM STDIN CSV" % (
                 tblname, ", ".join(columns)), f)
@@ -175,5 +176,12 @@ class Db:
         cur = self._cursor(cur)
 
         cur.execute("SELECT id FROM swh_revision_missing() as r(id)")
+
+        yield from cursor_to_bytes(cur)
+
+    def release_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("SELECT id FROM swh_release_missing() as r(id)")
 
         yield from cursor_to_bytes(cur)

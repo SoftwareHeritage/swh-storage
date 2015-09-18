@@ -243,6 +243,9 @@ class Storage():
 
         revisions_missing = list(self.revision_missing(parents.keys()))
 
+        if not revisions_missing:
+            return
+
         with db.transaction() as cur:
             db.mktemp_revision(cur)
 
@@ -293,22 +296,54 @@ class Storage():
                 - revision (sha1_git): id of the revision the release points
                     to
                 - date (datetime.DateTime): the date the release was made
+                - date_offset (int): offset from UTC in minutes the release was
+                    made
                 - name (bytes): the name of the release
                 - comment (bytes): the comment associated with the release
                 - author_name (bytes): the name of the release author
                 - author_email (bytes): the email of the release author
         """
-        pass
+        db = self.db
 
-    def release_missing(self, releases):
+        release_ids = set(release['id'] for release in releases)
+        releases_missing = list(self.release_missing(release_ids))
+
+        if not releases_missing:
+            return
+
+        with db.transaction() as cur:
+            db.mktemp_release(cur)
+
+            releases_filtered = (release for release in releases
+                                 if release['id'] in releases_missing)
+
+            db.copy_to(releases_filtered, 'tmp_release',
+                       ['id', 'revision', 'date', 'date_offset', 'name',
+                        'comment', 'author_name', 'author_email'], cur)
+
+            db.release_add_from_temp(cur)
+
+    @db_transaction_generator
+    def release_missing(self, releases, cur=None):
         """List releases missing from storage
 
         Args: an iterable of release ids
         Returns: a list of missing release ids
         """
-        pass
+        db = self.db
 
-    def occurrence_add(self, occurrences):
+        # Create temporary table for metadata injection
+        db.mktemp('release', cur)
+
+        releases_dicts = ({'id': rel} for rel in releases)
+
+        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
+
+        for obj in db.release_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction
+    def occurrence_add(self, occurrences, cur=None):
         """Add occurrences to the storage
 
         Args:
@@ -316,21 +351,64 @@ class Storage():
                 occurrences to add. Each dict has the following keys:
                 - origin (int): id of the origin corresponding to the
                     occurrence
-                - reference (bytes): the reference name of the occurrence
+                - branch (str): the reference name of the occurrence
                 - revision (sha1_git): the id of the revision pointed to by
                     the occurrence
-                - date (datetime.DateTime): the validity date for the given
+                - authority (int): id of the authority giving the validity
+                - validity (datetime.DateTime): the validity date for the given
                     occurrence
         """
-        pass
+        db = self.db
 
-    def origin_add(self, origins):
-        """Add origins to the storage
+        processed = []
+        for occurrence in occurrences:
+            occ = occurrence.copy()
+            occ['validity'] = '[%s,infinity)' % str(occ['validity'])
+            processed.append(occ)
+
+        # XXX: will fail on second execution
+        db.copy_to(processed, 'occurrence_history',
+                   ['origin', 'branch', 'revision', 'authority', 'validity'],
+                   cur)
+
+    @db_transaction
+    def origin_get(self, origin, cur=None):
+        """Return the id of the given origin
 
         Args:
-            origins: iterable of dictionaries representing the individual
-                origins to add. Each dict has the following keys:
+            origin: dictionary representing the individual
+                origin to find. This dict has the following keys:
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
+
+        Returns:
+            the id of the queried origin
         """
-        pass
+        query = "select id from origin where type=%s and url=%s"
+
+        cur.execute(query, (origin['type'], origin['url']))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        else:
+            return data[0]
+
+    @db_transaction
+    def origin_add_one(self, origin, cur=None):
+        """Add origin to the storage
+
+        Args:
+            origin: dictionary representing the individual
+                origin to add. This dict has the following keys:
+                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
+                - url (bytes): the url the origin points to
+
+        Returns:
+            the id of the added origin
+        """
+        query = "insert into origin (type, url) values (%s, %s) returning id"
+
+        cur.execute(query, (origin['type'], origin['url']))
+
+        return cur.fetchone()[0]
