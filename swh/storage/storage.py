@@ -9,6 +9,7 @@ import itertools
 import psycopg2
 
 from collections import defaultdict
+from operator import itemgetter
 
 from .db import Db
 from .objstorage import ObjStorage
@@ -59,8 +60,7 @@ class Storage():
 
         self.objstorage = ObjStorage(obj_root)
 
-    @db_transaction
-    def content_add(self, content, cur):
+    def content_add(self, content):
         """Add content blobs to the storage
 
         Note: in case of DB errors, objects might have already been added to
@@ -79,19 +79,28 @@ class Storage():
         """
         db = self.db
 
-        # create temporary table for metadata injection
-        db.mktemp('content', cur)
+        missing_content = set(self.content_missing(content))
+        if not missing_content:
+            return
 
-        def add_to_objstorage(cont):
-            self.objstorage.add_bytes(cont['data'], obj_id=cont['sha1'])
+        with db.transaction() as cur:
+            # create temporary table for metadata injection
+            db.mktemp('content', cur)
 
-        db.copy_to(content, 'tmp_content',
-                   ['sha1', 'sha1_git', 'sha256', 'length'],
-                   cur, item_cb=add_to_objstorage)
+            def add_to_objstorage(cont):
+                self.objstorage.add_bytes(cont['data'], obj_id=cont['sha1'])
 
-        # move metadata in place
-        db.content_add_from_temp(cur)
-        db.conn.commit()
+            content_filtered = sorted((
+                cont for cont in content
+                if cont['sha1_git'] not in missing_content),
+                key=itemgetter('sha1_git'))
+
+            db.copy_to(content_filtered, 'tmp_content',
+                       ['sha1', 'sha1_git', 'sha256', 'length'],
+                       cur, item_cb=add_to_objstorage)
+
+            # move metadata in place
+            db.content_add_from_temp(cur)
 
     @db_transaction_generator
     def content_missing(self, content, cur):
