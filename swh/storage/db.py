@@ -138,8 +138,8 @@ class Db:
                 f.write(','.join(line))
                 f.write('\n')
             f.seek(0)
-            self._cursor(cur).copy_expert("COPY %s (%s) FROM STDIN CSV" % (
-                tblname, ", ".join(columns)), f)
+            self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
+                tblname, ', '.join(columns)), f)
 
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
@@ -161,7 +161,7 @@ class Db:
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("SELECT id FROM swh_directory_missing()")
+        cur.execute('SELECT id FROM swh_directory_missing()')
 
         yield from cursor_to_bytes(cur)
 
@@ -175,13 +175,13 @@ class Db:
     def revision_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("SELECT id FROM swh_revision_missing() as r(id)")
+        cur.execute('SELECT id FROM swh_revision_missing() as r(id)')
 
         yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("SELECT id FROM swh_release_missing() as r(id)")
+        cur.execute('SELECT id FROM swh_release_missing() as r(id)')
 
         yield from cursor_to_bytes(cur)
