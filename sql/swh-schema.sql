@@ -186,6 +186,8 @@ create table directory_list_dir
   primary key (dir_id)
 );
 
+create index on directory_list_dir using gin (entry_ids);
+
 -- A directory entry pointing to a file.
 create table directory_entry_file
 (
@@ -210,6 +212,8 @@ create table directory_list_file
   primary key (dir_id)
 );
 
+create index on directory_list_file using gin (entry_ids);
+
 -- A directory entry pointing to a revision.
 create table directory_entry_rev
 (
@@ -233,6 +237,8 @@ create table directory_list_rev
   entry_ids  bigint[],
   primary key (dir_id)
 );
+
+create index on directory_list_rev using gin (entry_ids);
 
 create table person
 (
