@@ -168,7 +168,7 @@ class Db:
     def directory_walk_one(self, directory, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute('select * from swh_directory_walk_one(%s)', (directory,))
+        cur.execute('SELECT * FROM swh_directory_walk_one(%s)', (directory,))
 
         yield from cursor_to_bytes(cur)
 
