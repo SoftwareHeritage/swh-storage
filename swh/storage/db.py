@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import binascii
-import csv
 import functools
 import psycopg2
 import tempfile
