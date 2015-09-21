@@ -126,7 +126,8 @@ class TestStorage(DbTestFixture, unittest.TestCase):
         cont = self.cont
 
         self.storage.content_add([cont])
-        self.assertIn(cont['sha1'], self.storage.objstorage)
+        if hasattr(self.storage, 'objstorage'):
+            self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
                             ' FROM content WHERE sha1 = %s',
                             (cont['sha1'],))
