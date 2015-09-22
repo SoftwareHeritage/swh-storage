@@ -1,0 +1,13 @@
+# A test server should be running for tests
+
+Sample configuration (e.g. ~/.config/swh/storage.ini):
+
+    [main]
+    db=dbname=softwareheritage-dev
+    storage_base=/tmp/swh/storage/
+
+Note: `storage_base` entry referenced should exist.
+
+# Start
+
+python3 -m swh/storage/api.py ~/.config/swh/storage.ini
