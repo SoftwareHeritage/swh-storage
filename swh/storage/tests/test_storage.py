@@ -17,7 +17,7 @@ from swh.storage import Storage
 
 
 @attr('db')
-class TestStorage(DbTestFixture, unittest.TestCase):
+class AbstractTestStorage(DbTestFixture):
 
     def setUp(self):
         super().setUp()
@@ -193,3 +193,7 @@ class TestStorage(DbTestFixture, unittest.TestCase):
 
         self.occurrence['origin'] = origin_id
         self.storage.occurrence_add([self.occurrence])
+
+
+class TestStorage(AbstractTestStorage, unittest.TestCase):
+    pass

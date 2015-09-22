@@ -3,19 +3,20 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from .test_storage import TestStorage
 import multiprocessing
 import socket
 import time
 import unittest
 from urllib.request import urlopen
 
+from .test_storage import AbstractTestStorage
 
 from swh.storage.remote_storage import RemoteStorage
 from swh.storage.api import app
 
 
-class TestRemoteStorage(TestStorage):
+class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
+
     def setUp(self):
         super().setUp()
 
