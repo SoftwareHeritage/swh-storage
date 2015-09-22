@@ -64,6 +64,7 @@ subgraph "logical_grouping" {
 	{
 		edge [style = dashed];
 
+		"directory_entry_dir":rtcol2 -> "directory":ltcol1;
 		"directory_entry_file":rtcol2 -> "content":ltcol1;
 		"directory_entry_rev":rtcol2 -> "revision":ltcol1;
 		"directory_list_dir":rtcol2 -> "directory_entry_dir":ltcol1;
