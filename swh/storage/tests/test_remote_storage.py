@@ -16,6 +16,12 @@ from swh.storage.api import app
 
 
 class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
+    """Test the remote storage API.
+
+    This class doesn't define any tests as we want identical
+    functionality between local and remote storage. All the tests are
+    therefore defined in AbstractTestStorage.
+    """
 
     def setUp(self):
         super().setUp()
@@ -32,14 +38,13 @@ class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
         return 'http://127.0.0.1:%d/' % self.port
 
     def start_server(self):
+        """Spawn the API server using multiprocessing"""
         self.process = None
 
+        # WSGI app configuration
         self.app = app
         self.app.config['db'] = 'dbname=%s' % self.dbname
         self.app.config['storage_base'] = self.objroot
-
-        def worker(app, port):
-            return app.run(port=port, use_reloader=False)
 
         # Get an available port number
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,12 +52,16 @@ class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
         self.port = sock.getsockname()[1]
         sock.close()
 
+        # We need a worker function for multiprocessing
+        def worker(app, port):
+            return app.run(port=port, use_reloader=False)
+
         self.process = multiprocessing.Process(
             target=worker, args=(self.app, self.port)
         )
-
         self.process.start()
 
+        # Wait max. 5 seconds for server to spawn
         i = 0
         while i < 20:
             try:
@@ -64,5 +73,6 @@ class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
                 break
 
     def stop_server(self):
+        """Terminate the API server"""
         if self.process:
             self.process.terminate()

@@ -18,7 +18,17 @@ from swh.storage import Storage
 
 @attr('db')
 class AbstractTestStorage(DbTestFixture):
+    """Base class for Storage testing.
 
+    This class is used as-is to test local storage (see TestStorage
+    below) and remote storage (see TestRemoteStorage in
+    test_remote_storage.py.
+
+    We need to have the two classes inherit from this base class
+    separately to avoid nosetests running the tests from the base
+    class twice.
+
+    """
     def setUp(self):
         super().setUp()
         self.objroot = tempfile.mkdtemp()
@@ -196,4 +206,5 @@ class AbstractTestStorage(DbTestFixture):
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
+    """Test the local storage"""
     pass
