@@ -5,14 +5,22 @@
 
 import json
 
-from flask import Flask, Response, abort, g, request
+from flask import Flask, Request, Response, abort, g, request
 
 from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
 from swh.storage import Storage
 
+
+class BytesRequest(Request):
+    """Request with proper escaping of arbitrary byte sequences."""
+    encoding = 'utf-8'
+    encoding_errors = 'surrogateescape'
+
+
 app = Flask(__name__)
 app.json_encoder = SWHJSONEncoder
 app.json_decoder = SWHJSONDecoder
+app.request_class = BytesRequest
 
 
 def jsonify(data):
@@ -54,7 +62,8 @@ def directory_add():
 
 @app.route('/directory', methods=['GET'])
 def directory_get():
-    return jsonify(g.storage.directory_get(request.args['directory']))
+    dir = request.args['directory'].encode('utf-8', 'surrogateescape')
+    return jsonify(g.storage.directory_get(dir))
 
 
 @app.route('/revision/add', methods=['POST'])

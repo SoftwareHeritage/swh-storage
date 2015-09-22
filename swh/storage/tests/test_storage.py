@@ -71,7 +71,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.dir = {
-            'id': b'12345678901234567890',
+            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
             'entries': [
                 {
                     'name': 'foo',
