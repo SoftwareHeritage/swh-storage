@@ -53,6 +53,11 @@ def content_missing():
     return jsonify(g.storage.content_missing(**request.json))
 
 
+@app.route('/content/present', methods=['POST'])
+def content_present():
+    return jsonify(g.storage.content_present(**request.json))
+
+
 @app.route('/content/add', methods=['POST'])
 def content_add():
     json_data = request.files['metadata'].read().decode('utf-8')

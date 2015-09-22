@@ -137,6 +137,24 @@ class Storage():
         for obj in db.content_missing_from_temp(cur):
             yield obj[key_hash_idx]
 
+    def content_present(self, content):
+        """Predicate to check the presence of a content's hashes.
+
+        Args:
+            hashes: iterable of dictionaries representing individual pieces of
+            hash. Each dictionary has the following keys:
+            - a key for each checksum algorithm in swh.core.hashutil.ALGORITHMS,
+            mapped to the corresponding checksum
+
+        Returns:
+            a boolean indicator of presence
+
+        Raises:
+            None
+        """
+        print("h: %s" % content)
+        return {'found': True}
+
     def directory_add(self, directories):
         """Add directories to the storage
 

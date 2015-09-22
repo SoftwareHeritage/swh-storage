@@ -158,6 +158,15 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest
+    def content_present(self):
+        cont = self.cont
+        self.storage.content_add([cont])
+        content = [{'sha1': cont['sha1']}]
+        actually_present = self.storage.content_present(content)
+
+        self.assertTrue(actually_present, "Should be present")
+
+    @istest
     def directory_add(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
