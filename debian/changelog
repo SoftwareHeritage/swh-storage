@@ -1,0 +1,7 @@
+swh-storage (0.0.1-1~swh1) unstable-swh; urgency=medium
+
+  * Initial release
+  * swh.storage.api: Properly escape arbitrary byte sequences in
+    arguments
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 22 Sep 2015 17:02:34 +0200
