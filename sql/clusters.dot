@@ -81,7 +81,9 @@ subgraph "logical_grouping" {
 		"directory_list_dir":rtcol2 -> "directory_entry_dir":ltcol1;
 		"directory_list_file":rtcol2 -> "directory_entry_file":ltcol1;
 		"directory_list_rev":rtcol2 -> "directory_entry_rev":ltcol1;
+		"release":rtcol2 -> "revision":ltcol1;
 		"revision":rtcol7 -> "directory":ltcol1;
+		"revision_history":rtcol2 -> "revision":ltcol1;
 	}
 
 }
