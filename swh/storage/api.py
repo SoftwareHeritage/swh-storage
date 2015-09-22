@@ -27,6 +27,11 @@ def before_request():
     g.storage = Storage(app.config['db'], app.config['storage_base'])
 
 
+@app.route('/')
+def index():
+    return 'Hello'
+
+
 @app.route('/content/missing', methods=['POST'])
 def content_missing():
     return jsonify(g.storage.content_missing(**request.json))
