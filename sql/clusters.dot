@@ -76,7 +76,7 @@ subgraph "logical_grouping" {
 		# "rtcolN" identifies the N-th row in a table, as a source
 		# "ltcolN" identifies the N-th row in a table, as a destination
 		"directory_entry_dir":rtcol2 -> "directory":ltcol1;
-		"directory_entry_file":rtcol2 -> "content":ltcol1;
+		"directory_entry_file":rtcol2 -> "content":ltcol2;
 		"directory_entry_rev":rtcol2 -> "revision":ltcol1;
 		"directory_list_dir":rtcol2 -> "directory_entry_dir":ltcol1;
 		"directory_list_file":rtcol2 -> "directory_entry_file":ltcol1;
