@@ -1,0 +1,6 @@
+include Makefile
+include Makefile.local
+include README.db_testing
+include requirements.txt
+include version.txt
+recursive-include sql *

@@ -3,3 +3,6 @@
 *~
 .coverage
 __pycache__
+dist
+*.egg-info
+version.txt
