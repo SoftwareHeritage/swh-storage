@@ -300,6 +300,9 @@ end
 $$;
 
 -- List all revision IDs starting from a given revision, going back in time
+--
+-- TODO ordering: should be breadth-first right now (what do we want?)
+-- TODO ordering: ORDER BY parent_rank somewhere?
 create or replace function swh_revision_list(root_revision sha1_git)
     returns setof sha1_git
     language plpgsql
