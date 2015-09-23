@@ -60,6 +60,7 @@ def content_add():
         file_id = hash_to_hex(file_data['sha1'])
         file = request.files[file_id]
         file_data['data'] = file.read()
+        file.close()
     return jsonify(g.storage.content_add(content=metadata))
 
 
