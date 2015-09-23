@@ -9,6 +9,7 @@ from flask import Flask, Request, Response, abort, g, request
 
 from swh.core import config
 from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
+from swh.core.hashutil import hash_to_hex
 from swh.storage import Storage
 
 DEFAULT_CONFIG = {
@@ -53,7 +54,13 @@ def content_missing():
 
 @app.route('/content/add', methods=['POST'])
 def content_add():
-    return jsonify(g.storage.content_add(**request.json))
+    json_data = request.files['metadata'].read().decode('utf-8')
+    metadata = json.loads(json_data, cls=SWHJSONDecoder)['content']
+    for file_data in metadata:
+        file_id = hash_to_hex(file_data['sha1'])
+        file = request.files[file_id]
+        file_data['data'] = file.read()
+    return jsonify(g.storage.content_add(content=metadata))
 
 
 @app.route('/directory/missing', methods=['POST'])
