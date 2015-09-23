@@ -119,21 +119,22 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    def escape(self, data):
+        if data is None:
+            return ''
+        if isinstance(data, bytes):
+            return '\\x%s' % binascii.hexlify(data).decode('ascii')
+        elif isinstance(data, str):
+            return '"%s"' % data.replace('"', '""')
+        else:
+            return str(data)
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
-        def escape(data):
-            if data is None:
-                return ''
-            if isinstance(data, bytes):
-                return '\\x%s' % binascii.hexlify(data).decode('ascii')
-            elif isinstance(data, str):
-                return '"%s"' % data.replace('"', '""')
-            else:
-                return str(data)
         with tempfile.TemporaryFile('w+') as f:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
-                line = [escape(d.get(k)) for k in columns]
+                line = [self.escape(d.get(k)) for k in columns]
                 f.write(','.join(line))
                 f.write('\n')
             f.seek(0)
@@ -154,6 +155,15 @@ class Db:
 
         cur.execute("""SELECT sha1, sha1_git, sha256
                        FROM swh_content_missing()""")
+
+        yield from cursor_to_bytes(cur)
+
+    def content_present(self, column_key, hash, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("""SELECT %s
+                       FROM content
+                       WHERE %s='%s'
+                       LIMIT 1""" % (column_key, column_key, self.escape(hash)))
 
         yield from cursor_to_bytes(cur)
 

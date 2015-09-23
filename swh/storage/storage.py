@@ -137,7 +137,8 @@ class Storage():
         for obj in db.content_missing_from_temp(cur):
             yield obj[key_hash_idx]
 
-    def content_present(self, content):
+    @db_transaction
+    def content_present(self, content, cur=None):
         """Predicate to check the presence of a content's hashes.
 
         Args:
@@ -152,8 +153,26 @@ class Storage():
         Raises:
             None
         """
-        print("h: %s" % content)
-        return {'found': True}
+        db = self.db
+
+        # filter out the checksums
+        if 'sha1' in content:
+            column_key = 'sha1'
+        elif 'sha256' in content:
+            column_key = 'sha256'
+        else:
+            return None
+
+        # cannot use the copy mechanism because of constraints
+        # print('content: %s, column: %s' % (content, column_key))
+
+        # db.mktemp('content', cur)
+        # db.copy_to([content], 'tmp_content', column_key, cur)
+
+        # format the output
+        found_hashes = list(db.content_present(column_key, content[column_key], cur))
+
+        return {'found': len(found_hashes) > 0}
 
     def directory_add(self, directories):
         """Add directories to the storage

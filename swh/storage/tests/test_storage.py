@@ -159,12 +159,33 @@ class AbstractTestStorage(DbTestFixture):
 
     @istest
     def content_present(self):
+        ### with something to find
+        # given
         cont = self.cont
         self.storage.content_add([cont])
-        content = [{'sha1': cont['sha1']}]
-        actually_present = self.storage.content_present(content)
 
-        self.assertTrue(actually_present, "Should be present")
+        # when
+        actually_present = self.storage.content_present({'sha1': cont['sha1']})
+
+        # then
+        self.assertEquals(actually_present, {'found': True}, "Should be present")
+
+        ### with something that does not exist
+        # given
+        missing_cont = self.missing_cont
+
+        # when
+        actually_present = self.storage.content_present(
+            {'sha256': missing_cont['sha256']})
+
+        # then
+        self.assertEquals(actually_present, {'found': False}, "Should not be present")
+
+        ### with bad input
+        actually_present = self.storage.content_present({})
+
+        # then
+        self.assertEquals(actually_present, None, "Problem in input so should be None.")
 
     @istest
     def directory_add(self):
