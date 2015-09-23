@@ -253,13 +253,15 @@ begin
 end
 $$;
 
+create type directory_entry_type as enum('file', 'dir', 'rev');
+
 -- a directory listing entry with all the metadata
 --
 -- can be used to list a directory, and retrieve all the data in one go.
 create type directory_entry as
 (
   dir_id  sha1_git,     -- id of the parent directory
-  type    text,         -- type of entry (one of 'dir', 'file', 'rev')
+  type    directory_entry_type,  -- type of entry
   target  sha1_git,     -- id of target
   name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
@@ -276,19 +278,19 @@ as $$
 begin
     return query (
         (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_dir where dir_id = walked_dir_id)
-	select dir_id, 'dir' as type, target, name, perms, atime, mtime, ctime
+	select dir_id, 'dir'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
 	from l
 	left join directory_entry_dir d
 	on l.entry_id = d.id)
     union
         (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_file where dir_id = walked_dir_id)
-        select dir_id, 'file' as type, target, name, perms, atime, mtime, ctime
+        select dir_id, 'file'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
 	from l
 	left join directory_entry_file d
 	on l.entry_id = d.id)
     union
         (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_rev where dir_id = walked_dir_id)
-        select dir_id, 'rev' as type, target, name, perms, atime, mtime, ctime
+        select dir_id, 'rev'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
 	from l
 	left join directory_entry_rev d
 	on l.entry_id = d.id)
