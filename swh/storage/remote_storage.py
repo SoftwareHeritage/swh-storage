@@ -31,7 +31,7 @@ class RemoteStorage():
 
     def post_files(self, endpoint, data, files):
         raw_data = json.dumps(data, cls=SWHJSONEncoder)
-        files['data'] = raw_data
+        files['metadata'] = raw_data
         response = requests.post(
             self.url(endpoint),
             files=files,
