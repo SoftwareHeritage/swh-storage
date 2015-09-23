@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import json
+import logging
 
 from flask import Flask, Request, Response, abort, g, request
 
@@ -132,6 +133,10 @@ def run_from_webserver(environ, start_response):
     config_path = '/etc/softwareheritage/storage/storage.ini'
 
     app.config.update(config.read(config_path, DEFAULT_CONFIG))
+
+    handler = logging.StreamHandler()
+    app.logger.addHandler(handler)
+
     return app(environ, start_response)
 
 
