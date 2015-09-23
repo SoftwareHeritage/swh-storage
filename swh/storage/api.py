@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import json
+import logging
 
 from flask import Flask, Request, Response, abort, g, request
 
@@ -60,6 +61,7 @@ def content_add():
         file_id = hash_to_hex(file_data['sha1'])
         file = request.files[file_id]
         file_data['data'] = file.read()
+        file.close()
     return jsonify(g.storage.content_add(content=metadata))
 
 
@@ -131,6 +133,10 @@ def run_from_webserver(environ, start_response):
     config_path = '/etc/softwareheritage/storage/storage.ini'
 
     app.config.update(config.read(config_path, DEFAULT_CONFIG))
+
+    handler = logging.StreamHandler()
+    app.logger.addHandler(handler)
+
     return app(environ, start_response)
 
 
