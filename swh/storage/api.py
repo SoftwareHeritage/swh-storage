@@ -7,8 +7,15 @@ import json
 
 from flask import Flask, Request, Response, abort, g, request
 
+from swh.core import config
 from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
+from swh.core.hashutil import hash_to_hex
 from swh.storage import Storage
+
+DEFAULT_CONFIG = {
+    'db': ('str', 'dbname=softwareheritage-dev'),
+    'storage_base': ('str', '/tmp/swh-storage/test'),
+}
 
 
 class BytesRequest(Request):
@@ -47,7 +54,13 @@ def content_missing():
 
 @app.route('/content/add', methods=['POST'])
 def content_add():
-    return jsonify(g.storage.content_add(**request.json))
+    json_data = request.files['metadata'].read().decode('utf-8')
+    metadata = json.loads(json_data, cls=SWHJSONDecoder)['content']
+    for file_data in metadata:
+        file_id = hash_to_hex(file_data['sha1'])
+        file = request.files[file_id]
+        file_data['data'] = file.read()
+    return jsonify(g.storage.content_add(content=metadata))
 
 
 @app.route('/directory/missing', methods=['POST'])
@@ -111,15 +124,18 @@ def origin_get():
 def origin_add_one():
     return jsonify(g.storage.origin_add_one(**request.json))
 
+
+def run_from_webserver(environ, start_response):
+    """Run the WSGI app from the webserver, loading the configuration."""
+
+    config_path = '/etc/softwareheritage/storage/storage.ini'
+
+    app.config.update(config.read(config_path, DEFAULT_CONFIG))
+    return app(environ, start_response)
+
+
 if __name__ == '__main__':
     import sys
-
-    from swh.core import config
-
-    DEFAULT_CONFIG = {
-        'db': ('str', 'dbname=softwareheritage-dev'),
-        'storage_base': ('str', '/tmp/swh-storage/test'),
-    }
 
     app.config.update(config.read(sys.argv[1], DEFAULT_CONFIG))
     app.run(debug=True)

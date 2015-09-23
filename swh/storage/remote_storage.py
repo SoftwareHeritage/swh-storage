@@ -7,6 +7,7 @@ import json
 
 import requests
 
+from swh.core.hashutil import hash_to_hex
 from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
 
 
@@ -28,6 +29,16 @@ class RemoteStorage():
 
         return response.json(cls=SWHJSONDecoder)
 
+    def post_files(self, endpoint, data, files):
+        raw_data = json.dumps(data, cls=SWHJSONEncoder)
+        files['metadata'] = raw_data
+        response = requests.post(
+            self.url(endpoint),
+            files=files,
+        )
+
+        return response.json(cls=SWHJSONDecoder)
+
     def get(self, endpoint, data):
         response = requests.get(
             self.url(endpoint),
@@ -40,7 +51,11 @@ class RemoteStorage():
             return response.json(cls=SWHJSONDecoder)
 
     def content_add(self, content):
-        return self.post('content/add', {'content': content})
+        files = {}
+        for file in content:
+            file_id = hash_to_hex(file['sha1'])
+            files[file_id] = file.pop('data')
+        return self.post_files('content/add', {'content': content}, files)
 
     def content_missing(self, content, key_hash='sha1'):
         return self.post('content/missing', {'content': content,
