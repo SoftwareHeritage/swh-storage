@@ -564,9 +564,38 @@ $$;
 
 -- Occurrence of some content in a given context
 create type content_occurrence as (
-    sha1	 sha1,
     origin_type	 text,
     origin_url	 text,
+    branch	 text,
     revision_id	 sha1_git,
     path	 unix_path
 );
+
+-- Roughly equivalent to: content_find_directory + revision_find_occurrence
+create or replace function swh_content_find_occurrence(content_id sha1)
+    returns content_occurrence
+    language plpgsql
+as $$
+declare
+    dir content_dir;
+    rev sha1_git;
+    occ occurrence%ROWTYPE;
+    coc content_occurrence;
+begin
+    -- each step could fail if no results are found, and that's OK
+    select * from swh_content_find_directory(content_id)     -- look up directory
+	into strict dir;
+    select id from revision where directory = dir.directory  -- look up revision
+	limit 1
+	into strict rev;
+    select * from swh_revision_find_occurrence(rev)	     -- look up occurrence
+	into strict occ;
+
+    select origin.type, origin.url, occ.branch, rev, dir.path
+    from origin
+    where origin.id = occ.origin
+    into strict coc;
+
+    return coc;
+end
+$$;
