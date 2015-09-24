@@ -460,3 +460,106 @@ begin
     return;
 end
 $$;
+
+-- Absolute path: directory reference + complete path relative to it
+create type content_dir as (
+    directory  sha1_git,
+    path       unix_path
+);
+
+-- Find the containing directory of a given content, specified by sha1
+-- (note: *not* sha1_git).
+--
+-- Return a pair (dir_it, path) where path is a UNIX path that, from the
+-- directory root, reach down to a file with the desired content.
+--
+-- In case of multiple paths (i.e., pretty much always), an arbitrary one is
+-- chosen.
+create or replace function swh_content_find_directory(content_id sha1)
+    returns content_dir
+    language plpgsql
+as $$
+declare
+    d content_dir;
+begin
+    with recursive path as (
+	-- Recursively build a path from the requested content to a root
+	-- directory. Each iteration returns a pair (dir_id, filename) where
+	-- filename is relative to dir_id. Stops when no parent directory can
+	-- be found.
+	(select dir.id as dir_id, dir_entry_f.name as name, 0 as depth
+	 from directory_entry_file as dir_entry_f
+	 join content on content.sha1_git = dir_entry_f.target
+	 join directory_list_file as ls_f on ls_f.entry_ids @> array[dir_entry_f.id]
+	 join directory as dir on ls_f.dir_id = dir.id
+	 where content.sha1 = content_id
+	 limit 1)
+	union all
+	(select dir.id as dir_id,
+		(dir_entry_d.name || '/' || path.name)::unix_path as name,
+		path.depth + 1
+	 from path
+	 join directory_entry_dir as dir_entry_d on dir_entry_d.target = path.dir_id
+	 join directory_list_dir as ls_d on ls_d.entry_ids @> array[dir_entry_d.id]
+	 join directory as dir on ls_d.dir_id = dir.id
+	 limit 1)
+    )
+    select dir_id, name from path order by depth desc limit 1
+    into strict d;
+
+    return d;
+end
+$$;
+
+-- Walk the revision history starting from a given revision, until a matching
+-- occurrence is found. Return all occurrence information.
+create or replace function swh_revision_find_occurrence(revision_id sha1_git)
+    returns occurrence
+    language plpgsql
+as $$
+declare
+    occ occurrence%ROWTYPE;
+    rev sha1_git;
+begin
+    select origin, branch, revision
+    from occurrence_history as occ_hist
+    where occ_hist.revision = revision_id
+    order by upper(occ_hist.validity)
+    limit 1
+    into occ;
+
+    if not found then
+	with recursive revlog as (
+	    (select revision_id as rev_id, 0 as depth)
+	    union all
+	    (select hist.parent_id as rev_id, revlog.depth + 1
+	     from revlog
+	     join revision_history as hist on hist.id = revlog.rev_id
+	     and not exists(select 1 from occurrence_history
+			    where revision = hist.parent_id)
+	     limit 1)
+	)
+	select rev_id from revlog order by depth desc limit 1
+	into strict rev;
+
+	select origin, branch, revision
+	from revision_history as rev_hist, occurrence_history as occ_hist
+	where rev_hist.id = rev
+	and occ_hist.revision = rev_hist.parent_id
+	order by upper(occ_hist.validity)
+	limit 1
+	into occ;
+    end if;
+
+    return occ;
+end
+$$;
+
+-- Occurrence of some content in a given context
+create type content_occurrence as (
+    sha1	 sha1,
+    origin_type	 text,
+    origin_url	 text,
+    revision_id	 sha1_git,
+    path	 unix_path
+);
