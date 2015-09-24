@@ -151,7 +151,8 @@ class Storage():
             a boolean indicator of presence
 
         Raises:
-            None
+            ValueError in case the key of the dictionary is not sha1 nor sha256
+
         """
         db = self.db
 
@@ -161,18 +162,14 @@ class Storage():
         elif 'sha256' in content:
             column_key = 'sha256'
         else:
-            return None
-
-        # cannot use the copy mechanism because of constraints
-        # print('content: %s, column: %s' % (content, column_key))
-
-        # db.mktemp('content', cur)
-        # db.copy_to([content], 'tmp_content', column_key, cur)
+            raise ValueError('Key must be one of sha1, sha256.')
 
         # format the output
-        found_hashes = list(db.content_present(column_key, content[column_key], cur))
+        found_hashes = db.content_present(column_key,
+                                          content[column_key],
+                                          cur)
 
-        return {'found': len(found_hashes) > 0}
+        return len(list(found_hashes)) > 0
 
     def directory_add(self, directories):
         """Add directories to the storage
