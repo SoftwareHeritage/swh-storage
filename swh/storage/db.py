@@ -160,10 +160,12 @@ class Db:
 
     def content_present(self, column_key, hash, cur=None):
         cur = self._cursor(cur)
-        cur.execute("""SELECT %s
-                       FROM content
-                       WHERE %s='%s'
-                       LIMIT 1""" % (column_key, column_key, self.escape(hash)))
+
+        escaped_query = """SELECT {0}
+                           FROM content
+                           WHERE {0}='%s'
+                           LIMIT 1""".format(column_key)
+        cur.execute(escaped_query % (self.escape(hash), ))
 
         yield from cursor_to_bytes(cur)
 
