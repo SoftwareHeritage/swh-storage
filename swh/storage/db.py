@@ -119,22 +119,21 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
-    def escape(self, data):
-        if data is None:
-            return ''
-        if isinstance(data, bytes):
-            return '\\x%s' % binascii.hexlify(data).decode('ascii')
-        elif isinstance(data, str):
-            return '"%s"' % data.replace('"', '""')
-        else:
-            return str(data)
-
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
+        def escape(data):
+            if data is None:
+                return ''
+            if isinstance(data, bytes):
+                return '\\x%s' % binascii.hexlify(data).decode('ascii')
+            elif isinstance(data, str):
+                return '"%s"' % data.replace('"', '""')
+            else:
+                return str(data)
         with tempfile.TemporaryFile('w+') as f:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
-                line = [self.escape(d.get(k)) for k in columns]
+                line = [escape(d.get(k)) for k in columns]
                 f.write(','.join(line))
                 f.write('\n')
             f.seek(0)
@@ -163,9 +162,9 @@ class Db:
 
         escaped_query = """SELECT {0}
                            FROM content
-                           WHERE {0}='%s'
+                           WHERE {0}=%s
                            LIMIT 1""".format(column_key)
-        cur.execute(escaped_query % (self.escape(hash), ))
+        cur.execute(escaped_query, (hash, ))
 
         yield from cursor_to_bytes(cur)
 
