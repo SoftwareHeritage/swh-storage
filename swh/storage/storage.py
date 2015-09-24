@@ -456,8 +456,16 @@ class Storage():
         Returns:
             the id of the added origin
         """
-        query = "insert into origin (type, url) values (%s, %s) returning id"
+        query = "select id from origin where type=%s and url=%s"
 
         cur.execute(query, (origin['type'], origin['url']))
 
+        data = cur.fetchone()
+        if data:
+            return data[0]
+
+        insert = """insert into origin (type, url) values (%s, %s)
+                    returning id"""
+
+        cur.execute(insert, (origin['type'], origin['url']))
         return cur.fetchone()[0]
