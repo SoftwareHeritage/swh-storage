@@ -454,7 +454,8 @@ class Storage():
                 - url (bytes): the url the origin points to
 
         Returns:
-            the id of the added origin
+            the id of the added origin, or of the identical one that already
+            exists.
         """
         query = "select id from origin where type=%s and url=%s"
 
