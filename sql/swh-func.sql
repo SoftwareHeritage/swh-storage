@@ -521,14 +521,19 @@ declare
     occ occurrence%ROWTYPE;
     rev sha1_git;
 begin
+    -- first check to see if revision_id is already pointed by an occurrence
     select origin, branch, revision
     from occurrence_history as occ_hist
     where occ_hist.revision = revision_id
-    order by upper(occ_hist.validity)
+    order by upper(occ_hist.validity)  -- TODO filter by authority?
     limit 1
     into occ;
 
+    -- no occurrence point to revision_id, walk up the history
     if not found then
+        -- recursively walk the history, stopping immediately before a revision
+        -- pointed to by an occurrence.
+	-- TODO find a nicer way to stop at, but *including*, that revision
 	with recursive revlog as (
 	    (select revision_id as rev_id, 0 as depth)
 	    union all
@@ -542,13 +547,15 @@ begin
 	select rev_id from revlog order by depth desc limit 1
 	into strict rev;
 
+	-- as we stopped before a pointed by revision, look it up again and
+	-- return its data
 	select origin, branch, revision
 	from revision_history as rev_hist, occurrence_history as occ_hist
 	where rev_hist.id = rev
 	and occ_hist.revision = rev_hist.parent_id
-	order by upper(occ_hist.validity)
+	order by upper(occ_hist.validity)  -- TODO filter by authority?
 	limit 1
-	into occ;
+	into strict occ;  -- will fail if no occurrence is found, and that's OK
     end if;
 
     return occ;
