@@ -137,6 +137,40 @@ class Storage():
         for obj in db.content_missing_from_temp(cur):
             yield obj[key_hash_idx]
 
+    @db_transaction
+    def content_present(self, content, cur=None):
+        """Predicate to check the presence of a content's hashes.
+
+        Args:
+            hashes: iterable of dictionaries representing individual pieces of
+            hash. Each dictionary has the following keys:
+            - a key for each checksum algorithm in swh.core.hashutil.ALGORITHMS,
+            mapped to the corresponding checksum
+
+        Returns:
+            a boolean indicator of presence
+
+        Raises:
+            ValueError in case the key of the dictionary is not sha1 nor sha256
+
+        """
+        db = self.db
+
+        # filter out the checksums
+        if 'sha1' in content:
+            column_key = 'sha1'
+        elif 'sha256' in content:
+            column_key = 'sha256'
+        else:
+            raise ValueError('Key must be one of sha1, sha256.')
+
+        # format the output
+        found_hashes = db.content_present(column_key,
+                                          content[column_key],
+                                          cur)
+
+        return len(list(found_hashes)) > 0
+
     def directory_add(self, directories):
         """Add directories to the storage
 
@@ -420,10 +454,19 @@ class Storage():
                 - url (bytes): the url the origin points to
 
         Returns:
-            the id of the added origin
+            the id of the added origin, or of the identical one that already
+            exists.
         """
-        query = "insert into origin (type, url) values (%s, %s) returning id"
+        query = "select id from origin where type=%s and url=%s"
 
         cur.execute(query, (origin['type'], origin['url']))
 
+        data = cur.fetchone()
+        if data:
+            return data[0]
+
+        insert = """insert into origin (type, url) values (%s, %s)
+                    returning id"""
+
+        cur.execute(insert, (origin['type'], origin['url']))
         return cur.fetchone()[0]

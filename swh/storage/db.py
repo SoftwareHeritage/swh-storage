@@ -157,6 +157,17 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    def content_present(self, column_key, hash, cur=None):
+        cur = self._cursor(cur)
+
+        escaped_query = """SELECT {0}
+                           FROM content
+                           WHERE {0}=%s
+                           LIMIT 1""".format(column_key)
+        cur.execute(escaped_query, (hash, ))
+
+        yield from cursor_to_bytes(cur)
+
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 

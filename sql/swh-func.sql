@@ -253,13 +253,15 @@ begin
 end
 $$;
 
+create type directory_entry_type as enum('file', 'dir', 'rev');
+
 -- a directory listing entry with all the metadata
 --
 -- can be used to list a directory, and retrieve all the data in one go.
 create type directory_entry as
 (
   dir_id  sha1_git,     -- id of the parent directory
-  type    text,         -- type of entry (one of 'dir', 'file', 'rev')
+  type    directory_entry_type,  -- type of entry
   target  sha1_git,     -- id of target
   name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
@@ -276,23 +278,83 @@ as $$
 begin
     return query (
         (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_dir where dir_id = walked_dir_id)
-	select dir_id, 'dir' as type, target, name, perms, atime, mtime, ctime
+	select dir_id, 'dir'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
 	from l
 	left join directory_entry_dir d
 	on l.entry_id = d.id)
     union
         (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_file where dir_id = walked_dir_id)
-        select dir_id, 'file' as type, target, name, perms, atime, mtime, ctime
+        select dir_id, 'file'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
 	from l
 	left join directory_entry_file d
 	on l.entry_id = d.id)
     union
         (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_rev where dir_id = walked_dir_id)
-        select dir_id, 'rev' as type, target, name, perms, atime, mtime, ctime
+        select dir_id, 'rev'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
 	from l
 	left join directory_entry_rev d
 	on l.entry_id = d.id)
     ) order by name;
+    return;
+end
+$$;
+
+-- List all revision IDs starting from a given revision, going back in time
+--
+-- TODO ordering: should be breadth-first right now (what do we want?)
+-- TODO ordering: ORDER BY parent_rank somewhere?
+create or replace function swh_revision_list(root_revision sha1_git)
+    returns setof sha1_git
+    language plpgsql
+as $$
+begin
+    return query
+	with recursive rev_list(id) as (
+	    (select id from revision where id = root_revision)
+	    union
+	    (select parent_id
+	     from revision_history as h
+	     join rev_list on h.id = rev_list.id)
+	)
+	select * from rev_list;
+    return;
+end
+$$;
+
+-- Detailed entry in a revision log
+create type revision_log_entry as
+(
+  id                     sha1_git,
+  date                   timestamptz,
+  date_offset            smallint,
+  committer_date         timestamptz,
+  committer_date_offset  smallint,
+  type                   revision_type,
+  directory              sha1_git,
+  message                bytea,
+  author_name            text,
+  author_email           text,
+  committer_name         text,
+  committer_email        text
+);
+
+-- "git style" revision log. Similar to swh_revision_list(), but returning all
+-- information associated to each revision, and expanding authors/committers
+create or replace function swh_revision_log(root_revision sha1_git)
+    returns setof revision_log_entry
+    language plpgsql
+as $$
+begin
+    return query
+        select revision.id, date, date_offset,
+	    committer_date, committer_date_offset,
+	    type, directory, message,
+	    author.name as author_name, author.email as author_email,
+	    committer.name as committer_name, committer.email as committer_email
+	from swh_revision_list(root_revision) as rev_list
+	join revision on revision.id = rev_list
+	join person as author on revision.author = author.id
+	join person as committer on revision.committer = committer.id;
     return;
 end
 $$;

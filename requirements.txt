@@ -6,3 +6,6 @@ requests
 
 # remote storage API server
 flask
+
+# Internal dependencies
+swh.core
