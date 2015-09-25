@@ -571,7 +571,11 @@ create type content_occurrence as (
     path	 unix_path
 );
 
--- Roughly equivalent to: content_find_directory + revision_find_occurrence
+-- Given the sha1 of some content, look up an occurrence that points to a
+-- revision, which in turns reference (transitively) a tree containing the
+-- content. Answer the question: "where/when did SWH see a given content"?
+-- Return information about an arbitrary occurrence/revision/tree, with no
+-- ordering guarantee whatsoever.
 create or replace function swh_content_find_occurrence(content_id sha1)
     returns content_occurrence
     language plpgsql
