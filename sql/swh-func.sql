@@ -277,23 +277,32 @@ create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
 as $$
 begin
     return query (
-        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_dir where dir_id = walked_dir_id)
-	select dir_id, 'dir'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
+        (with l as
+	     (select dir_id, unnest(entry_ids) as entry_id
+	      from directory_list_dir
+	      where dir_id = walked_dir_id)
+	select dir_id, 'dir'::directory_entry_type as type,
+	       target, name, perms, atime, mtime, ctime
 	from l
-	left join directory_entry_dir d
-	on l.entry_id = d.id)
+	left join directory_entry_dir d on l.entry_id = d.id)
     union
-        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_file where dir_id = walked_dir_id)
-        select dir_id, 'file'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
+        (with l as
+	     (select dir_id, unnest(entry_ids) as entry_id
+	      from directory_list_file
+	      where dir_id = walked_dir_id)
+        select dir_id, 'file'::directory_entry_type as type,
+	       target, name, perms, atime, mtime, ctime
 	from l
-	left join directory_entry_file d
-	on l.entry_id = d.id)
+	left join directory_entry_file d on l.entry_id = d.id)
     union
-        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_rev where dir_id = walked_dir_id)
-        select dir_id, 'rev'::directory_entry_type as type, target, name, perms, atime, mtime, ctime
+        (with l as
+	     (select dir_id, unnest(entry_ids) as entry_id
+	      from directory_list_rev
+	      where dir_id = walked_dir_id)
+        select dir_id, 'rev'::directory_entry_type as type,
+	       target, name, perms, atime, mtime, ctime
 	from l
-	left join directory_entry_rev d
-	on l.entry_id = d.id)
+	left join directory_entry_rev d on l.entry_id = d.id)
     ) order by name;
     return;
 end
