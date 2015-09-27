@@ -34,3 +34,33 @@ create index on directory using gin (rev_entries);
 drop table directory_list_dir;
 drop table directory_list_file;
 drop table directory_list_rev;
+
+create or replace function swh_content_find_directory(content_id sha1)
+    returns content_dir
+    language plpgsql
+as $$
+declare
+    d content_dir;
+begin
+    with recursive path as (
+	(select dir.id as dir_id, dir_entry_f.name as name, 0 as depth
+	 from directory_entry_file as dir_entry_f
+	 join content on content.sha1_git = dir_entry_f.target
+	 join directory as dir on dir.file_entries @> array[dir_entry_f.id]
+	 where content.sha1 = content_id
+	 limit 1)
+	union all
+	(select dir.id as dir_id,
+		(dir_entry_d.name || '/' || path.name)::unix_path as name,
+		path.depth + 1
+	 from path
+	 join directory_entry_dir as dir_entry_d on dir_entry_d.target = path.dir_id
+	 join directory as dir on dir.dir_entries @> array[dir_entry_d.id]
+	 limit 1)
+    )
+    select dir_id, name from path order by depth desc limit 1
+    into strict d;
+
+    return d;
+end
+$$;

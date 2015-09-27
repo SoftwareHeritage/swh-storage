@@ -583,8 +583,7 @@ begin
 	(select dir.id as dir_id, dir_entry_f.name as name, 0 as depth
 	 from directory_entry_file as dir_entry_f
 	 join content on content.sha1_git = dir_entry_f.target
-	 join directory_list_file as ls_f on ls_f.entry_ids @> array[dir_entry_f.id]
-	 join directory as dir on ls_f.dir_id = dir.id
+	 join directory as dir on dir.file_entries @> array[dir_entry_f.id]
 	 where content.sha1 = content_id
 	 limit 1)
 	union all
@@ -593,8 +592,7 @@ begin
 		path.depth + 1
 	 from path
 	 join directory_entry_dir as dir_entry_d on dir_entry_d.target = path.dir_id
-	 join directory_list_dir as ls_d on ls_d.entry_ids @> array[dir_entry_d.id]
-	 join directory as dir on ls_d.dir_id = dir.id
+	 join directory as dir on dir.dir_entries @> array[dir_entry_d.id]
 	 limit 1)
     )
     select dir_id, name from path order by depth desc limit 1
