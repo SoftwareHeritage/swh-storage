@@ -110,6 +110,49 @@ end
 $$;
 
 
+-- Look up content based on one or several different checksums. Return all
+-- content information if the content is found; a NULL row otherwise.
+--
+-- At least one checksum should be not NULL. If several are not NULL, they will
+-- be AND-ed together in the lookup query.
+--
+-- Note: this function is meant to be used to look up individual contents
+-- (e.g., for the web app), for batch lookup of missing content (e.g., to be
+-- added) see swh_content_missing
+create or replace function swh_content_find(
+    sha1      sha1     default NULL,
+    sha1_git  sha1_git default NULL,
+    sha256    sha256   default NULL
+)
+    returns content
+    language plpgsql
+as $$
+declare
+    con content;
+    filters text[] := array[] :: text[];  -- AND-clauses used to filter content
+    q text;
+begin
+    if sha1 is not null then
+        filters := filters || format('sha1 = %L', sha1);
+    end if;
+    if sha1_git is not null then
+        filters := filters || format('sha1_git = %L', sha1_git);
+    end if;
+    if sha256 is not null then
+        filters := filters || format('sha256 = %L', sha256);
+    end if;
+
+    if cardinality(filters) = 0 then
+        return null;
+    else
+        q = format('select * from content where %s',
+	        array_to_string(filters, ' and '));
+        execute q into con;
+	return con;
+    end if;
+end
+$$;
+
 -- add tmp_content entries to content, skipping duplicates
 --
 -- operates in bulk: 0. swh_mktemp(content), 1. COPY to tmp_content,
