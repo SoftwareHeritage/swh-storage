@@ -35,6 +35,38 @@ drop table directory_list_dir;
 drop table directory_list_file;
 drop table directory_list_rev;
 
+create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
+    returns setof directory_entry
+    language plpgsql
+as $$
+begin
+    return query
+        with dir as (
+	    select id as dir_id, dir_entries, file_entries, rev_entries
+	    from directory
+	    where id = walked_dir_id),
+	ls_d as (select dir_id, unnest(dir_entries) as entry_id from dir),
+	ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
+	ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
+	(select dir_id, 'dir'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_d
+	 left join directory_entry_dir d on ls_d.entry_id = d.id)
+        union
+        (select dir_id, 'file'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_f
+	 left join directory_entry_file d on ls_f.entry_id = d.id)
+        union
+        (select dir_id, 'rev'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_r
+	 left join directory_entry_rev d on ls_r.entry_id = d.id)
+        order by name;
+    return;
+end
+$$;
+
 create or replace function swh_content_find_directory(content_id sha1)
     returns content_dir
     language plpgsql
