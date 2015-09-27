@@ -360,34 +360,29 @@ create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     language plpgsql
 as $$
 begin
-    return query (
-        (with l as
-	     (select dir_id, unnest(entry_ids) as entry_id
-	      from directory_list_dir
-	      where dir_id = walked_dir_id)
-	select dir_id, 'dir'::directory_entry_type as type,
-	       target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_dir d on l.entry_id = d.id)
-    union
-        (with l as
-	     (select dir_id, unnest(entry_ids) as entry_id
-	      from directory_list_file
-	      where dir_id = walked_dir_id)
-        select dir_id, 'file'::directory_entry_type as type,
-	       target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_file d on l.entry_id = d.id)
-    union
-        (with l as
-	     (select dir_id, unnest(entry_ids) as entry_id
-	      from directory_list_rev
-	      where dir_id = walked_dir_id)
-        select dir_id, 'rev'::directory_entry_type as type,
-	       target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_rev d on l.entry_id = d.id)
-    ) order by name;
+    return query
+        with dir as (
+	    select id as dir_id, dir_entries, file_entries, rev_entries
+	    from directory
+	    where id = walked_dir_id),
+	ls_d as (select dir_id, unnest(dir_entries) as entry_id from dir),
+	ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
+	ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
+	(select dir_id, 'dir'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_d
+	 left join directory_entry_dir d on ls_d.entry_id = d.id)
+        union
+        (select dir_id, 'file'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_f
+	 left join directory_entry_file d on ls_f.entry_id = d.id)
+        union
+        (select dir_id, 'rev'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_r
+	 left join directory_entry_rev d on ls_r.entry_id = d.id)
+        order by name;
     return;
 end
 $$;
