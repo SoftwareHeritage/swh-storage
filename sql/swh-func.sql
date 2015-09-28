@@ -236,7 +236,7 @@ end
 $$;
 
 -- Add tmp_directory_entry_dir entries to directory_entry_dir and
--- directory_list_dir, skipping duplicates in directory_entry_dir.
+-- directory, skipping duplicates in directory_entry_dir.
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_dir'), 1 COPY to
 -- tmp_directory_entry_dir, 2. call this function
@@ -281,7 +281,7 @@ end
 $$;
 
 -- Add tmp_directory_entry_file entries to directory_entry_file and
--- directory_list_file, skipping duplicates in directory_entry_file.
+-- directory, skipping duplicates in directory_entry_file.
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_file'), 1 COPY to
 -- tmp_directory_entry_file, 2. call this function
@@ -326,7 +326,7 @@ end
 $$;
 
 -- Add tmp_directory_entry_rev entries to directory_entry_rev and
--- directory_list_rev, skipping duplicates in directory_entry_rev.
+-- directory, skipping duplicates in directory_entry_rev.
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_rev'), 1 COPY to
 -- tmp_directory_entry_rev, 2. call this function
