@@ -52,6 +52,29 @@ create table content
 create unique index on content(sha1_git);
 -- create unique index on content(sha256);
 
+-- Content we have seen but skipped for some reason. This table is
+-- separate from the content table as we might not have the sha1
+-- checksum of that data (for instance when we inject git
+-- repositories, objects that are too big will be skipped here, and we
+-- will only know their sha1_git). message contains the reason the
+-- content was skipped.
+create table skipped_content
+(
+  sha1      sha1,
+  sha1_git  sha1_git,
+  sha256    sha256,
+  length    bigint not null,
+  ctime     timestamptz not null default now(),
+  status    content_status not null default 'absent',
+  message   text not null,
+  primary key (sha1, sha1_git, sha256)
+);
+
+-- those indexes support multiple NULL values.
+create unique index on skipped_content(sha1);
+create unique index on skipped_content(sha1_git);
+create unique index on skipped_content(sha256);
+
 -- An organization (or part thereof) that might be in charge of running
 -- software projects. Examples: Debian, GNU, GitHub, Apache, The Linux
 -- Foundation. The data model is hierarchical (via parent_id) and might store
