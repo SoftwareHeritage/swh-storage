@@ -143,6 +143,9 @@ class Db:
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
 
+    @stored_procedure('swh_skipped_content_add')
+    def skipped_content_add_from_temp(self, cur=None): pass
+
     @stored_procedure('swh_revision_add')
     def revision_add_from_temp(self, cur=None): pass
 
@@ -154,6 +157,14 @@ class Db:
 
         cur.execute("""SELECT sha1, sha1_git, sha256
                        FROM swh_content_missing()""")
+
+        yield from cursor_to_bytes(cur)
+
+    def skipped_content_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT sha1, sha1_git, sha256
+                       FROM swh_skipped_content_missing()""")
 
         yield from cursor_to_bytes(cur)
 
