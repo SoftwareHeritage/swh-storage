@@ -35,6 +35,111 @@ drop table directory_list_dir;
 drop table directory_list_file;
 drop table directory_list_rev;
 
+create or replace function swh_directory_entry_dir_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into directory_entry_dir (target, name, perms, atime, mtime, ctime)
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_dir t
+    where not exists (
+    select 1
+    from directory_entry_dir i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime);
+
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_dir t
+	inner join directory_entry_dir i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set dir_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
+    return;
+end
+$$;
+
+create or replace function swh_directory_entry_file_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into directory_entry_file (target, name, perms, atime, mtime, ctime)
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_file t
+    where not exists (
+    select 1
+    from directory_entry_file i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime);
+
+    with new_entries as (
+	select t.dir_id, array_agg(i.id)
+	from tmp_directory_entry_file t
+	inner join directory_entry_file i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set file_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
+    return;
+end
+$$;
+
+create or replace function swh_directory_entry_rev_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into directory_entry_rev (target, name, perms, atime, mtime, ctime)
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_rev t
+    where not exists (
+    select 1
+    from directory_entry_rev i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime);
+
+    with new_entries as (
+	select t.dir_id, array_agg(i.id)
+	from tmp_directory_entry_rev t
+	inner join directory_entry_rev i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set rev_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
+    return;
+end
+$$;
+
 create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     returns setof directory_entry
     language plpgsql
