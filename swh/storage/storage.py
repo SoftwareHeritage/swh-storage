@@ -77,6 +77,8 @@ class Storage():
                   checksum
                 - status (str): one of visible, hidden, absent
                 - reason (str): if status = absent, the reason why
+                - origin (int): if status = absent, the origin we saw the
+                  content in
 
         """
         db = self.db
@@ -118,7 +120,7 @@ class Storage():
                 db.mktemp('skipped_content', cur)
                 db.copy_to(content_without_data, 'tmp_skipped_content',
                            ['sha1', 'sha1_git', 'sha256', 'length',
-                            'reason', 'status'], cur)
+                            'reason', 'status', 'origin'], cur)
 
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)
