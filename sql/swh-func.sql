@@ -182,8 +182,6 @@ create or replace function swh_content_add()
     returns void
     language plpgsql
 as $$
-declare
-    rows bigint;
 begin
     insert into content (sha1, sha1_git, sha256, length, status)
 	select distinct sha1, sha1_git, sha256, length, status
