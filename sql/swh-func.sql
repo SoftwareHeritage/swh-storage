@@ -205,8 +205,8 @@ create or replace function swh_skipped_content_add()
     language plpgsql
 as $$
 begin
-    insert into skipped_content (sha1, sha1_git, sha256, length, status, reason)
-	select distinct sha1, sha1_git, sha256, length, status, reason
+    insert into skipped_content (sha1, sha1_git, sha256, length, status, reason, origin)
+	select distinct sha1, sha1_git, sha256, length, status, reason, origin
 	from tmp_skipped_content
 	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in
 	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '') from swh_skipped_content_missing());
