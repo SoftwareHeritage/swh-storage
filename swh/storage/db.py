@@ -182,7 +182,7 @@ class Db:
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute('SELECT id FROM swh_directory_missing()')
+        cur.execute('SELECT * FROM swh_directory_missing()')
 
         yield from cursor_to_bytes(cur)
 

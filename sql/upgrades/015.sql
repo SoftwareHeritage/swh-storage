@@ -35,6 +35,19 @@ drop table directory_list_dir;
 drop table directory_list_file;
 drop table directory_list_rev;
 
+create or replace function swh_directory_missing()
+    returns setof sha1_git
+    language plpgsql
+as $$
+begin
+    return query
+	select id from tmp_directory
+	except
+	select id from directory;
+    return;
+end
+$$;
+
 create or replace function swh_directory_entry_dir_add()
     returns void
     language plpgsql
@@ -87,7 +100,7 @@ begin
        t.ctime is not distinct from i.ctime);
 
     with new_entries as (
-	select t.dir_id, array_agg(i.id)
+	select t.dir_id, array_agg(i.id) as entries
 	from tmp_directory_entry_file t
 	inner join directory_entry_file i
 	on t.target = i.target and t.name = i.name and t.perms = i.perms and
@@ -122,7 +135,7 @@ begin
        t.ctime is not distinct from i.ctime);
 
     with new_entries as (
-	select t.dir_id, array_agg(i.id)
+	select t.dir_id, array_agg(i.id) as entries
 	from tmp_directory_entry_rev t
 	inner join directory_entry_rev i
 	on t.target = i.target and t.name = i.name and t.perms = i.perms and

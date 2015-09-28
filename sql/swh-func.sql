@@ -223,7 +223,7 @@ $$;
 -- operates in bulk: 0. swh_mktemp(directory), 1. COPY to tmp_directory,
 -- 2. call this function
 create or replace function swh_directory_missing()
-    returns setof directory
+    returns setof sha1_git
     language plpgsql
 as $$
 begin
@@ -307,7 +307,7 @@ begin
        t.ctime is not distinct from i.ctime);
 
     with new_entries as (
-	select t.dir_id, array_agg(i.id)
+	select t.dir_id, array_agg(i.id) as entries
 	from tmp_directory_entry_file t
 	inner join directory_entry_file i
 	on t.target = i.target and t.name = i.name and t.perms = i.perms and
@@ -352,7 +352,7 @@ begin
        t.ctime is not distinct from i.ctime);
 
     with new_entries as (
-	select t.dir_id, array_agg(i.id)
+	select t.dir_id, array_agg(i.id) as entries
 	from tmp_directory_entry_rev t
 	inner join directory_entry_rev i
 	on t.target = i.target and t.name = i.name and t.perms = i.perms and
