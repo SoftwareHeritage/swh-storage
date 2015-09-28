@@ -34,6 +34,19 @@ create domain file_perms as int;
 
 create type content_status as enum ('absent', 'visible', 'hidden');
 
+-- An origin is a place, identified by an URL, where software can be found. We
+-- support different kinds of origins, e.g., git and other VCS repositories,
+-- web pages that list tarballs URLs (e.g., http://www.kernel.org), indirect
+-- tarball URLs (e.g., http://www.example.org/latest.tar.gz), etc. The key
+-- feature of an origin is that it can be *fetched* (wget, git clone, svn
+-- checkout, etc.) to retrieve all the contained software.
+create table origin
+(
+  id         bigserial primary key,
+  type       text, -- TODO use an enum here (?)
+  url        text not null
+);
+
 -- Checksums about actual file content. Note that the content itself is not
 -- stored in the DB, but on external (key-value) storage. A single checksum is
 -- used as key there, but the other can be used to verify that we do not inject
@@ -56,8 +69,9 @@ create unique index on content(sha256);
 -- separate from the content table as we might not have the sha1
 -- checksum of that data (for instance when we inject git
 -- repositories, objects that are too big will be skipped here, and we
--- will only know their sha1_git). message contains the reason the
--- content was skipped.
+-- will only know their sha1_git). 'reason' contains the reason the
+-- content was skipped. origin is a nullable column allowing to find
+-- out which origin contains that skipped content.
 create table skipped_content
 (
   sha1      sha1,
@@ -66,8 +80,9 @@ create table skipped_content
   length    bigint not null,
   ctime     timestamptz not null default now(),
   status    content_status not null default 'absent',
-  message   text not null,
-  primary key (sha1, sha1_git, sha256)
+  reason    text not null,
+  origin    bigint references origin(id),
+  unique (sha1, sha1_git, sha256)
 );
 
 -- those indexes support multiple NULL values.
@@ -107,19 +122,6 @@ create table list_history
   stdout       text,
   stderr       text,
   duration     interval  -- fetch duration of NULL if still ongoing
-);
-
--- An origin is a place, identified by an URL, where software can be found. We
--- support different kinds of origins, e.g., git and other VCS repositories,
--- web pages that list tarballs URLs (e.g., http://www.kernel.org), indirect
--- tarball URLs (e.g., http://www.example.org/latest.tar.gz), etc. The key
--- feature of an origin is that it can be *fetched* (wget, git clone, svn
--- checkout, etc.) to retrieve all the contained software.
-create table origin
-(
-  id         bigserial primary key,
-  type       text, -- TODO use an enum here (?)
-  url        text not null
 );
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the

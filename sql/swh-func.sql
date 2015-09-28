@@ -110,6 +110,27 @@ end
 $$;
 
 
+-- check which entries of tmp_skipped_content are missing from skipped_content
+--
+-- operates in bulk: 0. swh_mktemp(skipped_content), 1. COPY to tmp_skipped_content,
+-- 2. call this function
+create or replace function swh_skipped_content_missing()
+    returns setof content_signature
+    language plpgsql
+as $$
+begin
+    return query
+	select sha1, sha1_git, sha256 from tmp_skipped_content
+	where not exists
+	(select 1 from skipped_content s where
+	    sha1 is not distinct from s.sha1 and
+	    sha1_git is not distinct from s.sha1_git and
+	    sha256 is not distinct from s.sha256);
+    return;
+end
+$$;
+
+
 -- Look up content based on one or several different checksums. Return all
 -- content information if the content is found; a NULL row otherwise.
 --
@@ -169,6 +190,28 @@ begin
 	from tmp_content
 	where (sha1, sha1_git, sha256) in
 	    (select * from swh_content_missing());
+	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
+	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
+	    -- the extra swh_content_missing() query here.
+    return;
+end
+$$;
+
+
+-- add tmp_skipped_content entries to skipped_content, skipping duplicates
+--
+-- operates in bulk: 0. swh_mktemp(skipped_content), 1. COPY to tmp_skipped_content,
+-- 2. call this function
+create or replace function swh_skipped_content_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into skipped_content (sha1, sha1_git, sha256, length, status, reason)
+	select distinct sha1, sha1_git, sha256, length, status, reason
+	from tmp_skipped_content
+	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in
+	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '') from swh_skipped_content_missing());
 	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
 	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
 	    -- the extra swh_content_missing() query here.
