@@ -243,6 +243,8 @@ $$;
 --
 -- Assumption: this function is used in the same transaction that inserts the
 -- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_dir_add()
     returns void
     language plpgsql
@@ -286,6 +288,8 @@ $$;
 --
 -- Assumption: this function is used in the same transaction that inserts the
 -- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_file_add()
     returns void
     language plpgsql
@@ -329,6 +333,8 @@ $$;
 --
 -- Assumption: this function is used in the same transaction that inserts the
 -- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_rev_add()
     returns void
     language plpgsql
