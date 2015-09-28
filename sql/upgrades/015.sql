@@ -3,6 +3,10 @@
 -- to_version: 15
 -- description: merge directory_list_* tables into directory
 
+
+insert into dbversion(version, release, description)
+      values(15, now(), 'Work In Progress');
+
 alter table directory
     add column dir_entries  bigint[],
     add column file_entries bigint[],
