@@ -63,10 +63,11 @@ def content_add():
     json_data = request.files['metadata'].read().decode('utf-8')
     metadata = json.loads(json_data, cls=SWHJSONDecoder)['content']
     for file_data in metadata:
-        file_id = hash_to_hex(file_data['sha1'])
-        file = request.files[file_id]
-        file_data['data'] = file.read()
-        file.close()
+        if file_data.get('status', 'visible') == 'visible':
+            file_id = hash_to_hex(file_data['sha1'])
+            file = request.files[file_id]
+            file_data['data'] = file.read()
+            file.close()
     return jsonify(g.storage.content_add(content=metadata))
 
 

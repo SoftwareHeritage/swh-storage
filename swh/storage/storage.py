@@ -71,36 +71,57 @@ class Storage():
             content: iterable of dictionaries representing individual pieces of
                 content to add. Each dictionary has the following keys:
                 - data (bytes): the actual content
-                - length (int): content length
+                - length (int): content length (default: -1)
                 - one key for each checksum algorithm in
                   swh.core.hashutil.ALGORITHMS, mapped to the corresponding
                   checksum
+                - status (str): one of visible, hidden, absent
+                - reason (str): if status = absent, the reason why
 
         """
         db = self.db
 
-        missing_content = set(self.content_missing(content))
-        if not missing_content:
-            return
+        content_by_status = defaultdict(list)
+        for d in content:
+            if 'status' not in d:
+                d['status'] = 'visible'
+            if 'length' not in d:
+                d['length'] = -1
+            content_by_status[d['status']].append(d)
+
+        content_with_data = content_by_status['visible']
+        content_without_data = content_by_status['absent']
+
+        missing_content = set(self.content_missing(content_with_data))
+        missing_skipped = set(self.skipped_content_missing(content_without_data))
 
         with db.transaction() as cur:
-            # create temporary table for metadata injection
-            db.mktemp('content', cur)
+            if missing_content:
+                # create temporary table for metadata injection
+                db.mktemp('content', cur)
 
-            def add_to_objstorage(cont):
-                self.objstorage.add_bytes(cont['data'], obj_id=cont['sha1'])
+                def add_to_objstorage(cont):
+                    self.objstorage.add_bytes(cont['data'],
+                                              obj_id=cont['sha1'])
 
-            content_filtered = sorted((
-                cont for cont in content
-                if cont['sha1'] in missing_content),
-                key=itemgetter('sha1'))
+                content_filtered = (cont for cont in content_with_data
+                                    if cont['sha1'] in missing_content)
 
-            db.copy_to(content_filtered, 'tmp_content',
-                       ['sha1', 'sha1_git', 'sha256', 'length'],
-                       cur, item_cb=add_to_objstorage)
+                db.copy_to(content_filtered, 'tmp_content',
+                           ['sha1', 'sha1_git', 'sha256', 'length', 'status'],
+                           cur, item_cb=add_to_objstorage)
 
-            # move metadata in place
-            db.content_add_from_temp(cur)
+                # move metadata in place
+                db.content_add_from_temp(cur)
+
+            if content_without_data:
+                db.mktemp('skipped_content', cur)
+                db.copy_to(content_without_data, 'tmp_skipped_content',
+                           ['sha1', 'sha1_git', 'sha256', 'length',
+                            'reason', 'status'], cur)
+
+                # move metadata in place
+                db.skipped_content_add_from_temp(cur)
 
     @db_transaction_generator
     def content_missing(self, content, key_hash='sha1', cur=None):
@@ -136,6 +157,27 @@ class Storage():
 
         for obj in db.content_missing_from_temp(cur):
             yield obj[key_hash_idx]
+
+    @db_transaction_generator
+    def skipped_content_missing(self, content, cur=None):
+        """List skipped_content missing from storage
+
+        Args:
+            content: iterable of dictionaries containing the data for each
+                checksum algorithm.
+
+        Returns:
+            an iterable of signatures missing from the storage
+        """
+        keys = ['sha1', 'sha1_git', 'sha256']
+
+        db = self.db
+
+        db.mktemp('skipped_content', cur)
+        db.copy_to(content, 'tmp_skipped_content',
+                   keys + ['length', 'reason'], cur)
+
+        yield from db.skipped_content_missing_from_temp(cur)
 
     @db_transaction
     def content_present(self, content, cur=None):

@@ -53,6 +53,8 @@ class RemoteStorage():
     def content_add(self, content):
         files = {}
         for file in content:
+            if file.get('status', 'visible') != 'visible':
+                continue
             file_id = hash_to_hex(file['sha1'])
             files[file_id] = file.pop('data')
         return self.post_files('content/add', {'content': content}, files)
