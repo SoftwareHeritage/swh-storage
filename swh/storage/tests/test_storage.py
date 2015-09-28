@@ -82,7 +82,7 @@ class AbstractTestStorage(DbTestFixture):
             'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
             'entries': [
                 {
-                    'name': 'foo',
+                    'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
                     'perms': 0o644,
@@ -91,7 +91,7 @@ class AbstractTestStorage(DbTestFixture):
                     'mtime': None,
                 },
                 {
-                    'name': 'bar',
+                    'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
                     'perms': 0o2000,

@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(15, now(), 'Work In Progress');
+      values(16, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -26,8 +26,7 @@ create domain sha1_git as bytea check (length(value) = 20);
 create domain sha256 as bytea check (length(value) = 32);
 
 -- UNIX path (absolute, relative, individual path component, etc.)
--- TODO should this be bytea or similar to avoid encoding/decoding issues?
-create domain unix_path as text;
+create domain unix_path as bytea;
 
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
