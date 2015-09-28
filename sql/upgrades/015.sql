@@ -39,6 +39,8 @@ drop table directory_list_dir;
 drop table directory_list_file;
 drop table directory_list_rev;
 
+drop function swh_directory_missing();
+
 create or replace function swh_directory_missing()
     returns setof sha1_git
     language plpgsql
