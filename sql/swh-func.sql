@@ -240,6 +240,9 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_dir'), 1 COPY to
 -- tmp_directory_entry_dir, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
 create or replace function swh_directory_entry_dir_add()
     returns void
     language plpgsql
@@ -256,15 +259,21 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_dir (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_dir t
-    inner join directory_entry_dir i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_dir t
+	inner join directory_entry_dir i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set dir_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
@@ -274,6 +283,9 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_file'), 1 COPY to
 -- tmp_directory_entry_file, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
 create or replace function swh_directory_entry_file_add()
     returns void
     language plpgsql
@@ -290,15 +302,21 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_file (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_file t
-    inner join directory_entry_file i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id)
+	from tmp_directory_entry_file t
+	inner join directory_entry_file i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set file_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
@@ -308,6 +326,9 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_rev'), 1 COPY to
 -- tmp_directory_entry_rev, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
 create or replace function swh_directory_entry_rev_add()
     returns void
     language plpgsql
@@ -324,15 +345,21 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_rev (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_rev t
-    inner join directory_entry_rev i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id)
+	from tmp_directory_entry_rev t
+	inner join directory_entry_rev i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set rev_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
