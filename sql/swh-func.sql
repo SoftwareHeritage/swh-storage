@@ -240,6 +240,11 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_dir'), 1 COPY to
 -- tmp_directory_entry_dir, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_dir_add()
     returns void
     language plpgsql
@@ -256,15 +261,21 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_dir (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_dir t
-    inner join directory_entry_dir i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_dir t
+	inner join directory_entry_dir i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set dir_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
@@ -274,6 +285,11 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_file'), 1 COPY to
 -- tmp_directory_entry_file, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_file_add()
     returns void
     language plpgsql
@@ -290,15 +306,21 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_file (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_file t
-    inner join directory_entry_file i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id)
+	from tmp_directory_entry_file t
+	inner join directory_entry_file i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set file_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
@@ -308,6 +330,11 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_rev'), 1 COPY to
 -- tmp_directory_entry_rev, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_rev_add()
     returns void
     language plpgsql
@@ -324,15 +351,21 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_rev (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_rev t
-    inner join directory_entry_rev i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id)
+	from tmp_directory_entry_rev t
+	inner join directory_entry_rev i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set rev_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
@@ -360,34 +393,29 @@ create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     language plpgsql
 as $$
 begin
-    return query (
-        (with l as
-	     (select dir_id, unnest(entry_ids) as entry_id
-	      from directory_list_dir
-	      where dir_id = walked_dir_id)
-	select dir_id, 'dir'::directory_entry_type as type,
-	       target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_dir d on l.entry_id = d.id)
-    union
-        (with l as
-	     (select dir_id, unnest(entry_ids) as entry_id
-	      from directory_list_file
-	      where dir_id = walked_dir_id)
-        select dir_id, 'file'::directory_entry_type as type,
-	       target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_file d on l.entry_id = d.id)
-    union
-        (with l as
-	     (select dir_id, unnest(entry_ids) as entry_id
-	      from directory_list_rev
-	      where dir_id = walked_dir_id)
-        select dir_id, 'rev'::directory_entry_type as type,
-	       target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_rev d on l.entry_id = d.id)
-    ) order by name;
+    return query
+        with dir as (
+	    select id as dir_id, dir_entries, file_entries, rev_entries
+	    from directory
+	    where id = walked_dir_id),
+	ls_d as (select dir_id, unnest(dir_entries) as entry_id from dir),
+	ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
+	ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
+	(select dir_id, 'dir'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_d
+	 left join directory_entry_dir d on ls_d.entry_id = d.id)
+        union
+        (select dir_id, 'file'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_f
+	 left join directory_entry_file d on ls_f.entry_id = d.id)
+        union
+        (select dir_id, 'rev'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_r
+	 left join directory_entry_rev d on ls_r.entry_id = d.id)
+        order by name;
     return;
 end
 $$;
@@ -583,8 +611,7 @@ begin
 	(select dir.id as dir_id, dir_entry_f.name as name, 0 as depth
 	 from directory_entry_file as dir_entry_f
 	 join content on content.sha1_git = dir_entry_f.target
-	 join directory_list_file as ls_f on ls_f.entry_ids @> array[dir_entry_f.id]
-	 join directory as dir on ls_f.dir_id = dir.id
+	 join directory as dir on dir.file_entries @> array[dir_entry_f.id]
 	 where content.sha1 = content_id
 	 limit 1)
 	union all
@@ -593,8 +620,7 @@ begin
 		path.depth + 1
 	 from path
 	 join directory_entry_dir as dir_entry_d on dir_entry_d.target = path.dir_id
-	 join directory_list_dir as ls_d on ls_d.entry_ids @> array[dir_entry_d.id]
-	 join directory as dir on ls_d.dir_id = dir.id
+	 join directory as dir on dir.dir_entries @> array[dir_entry_d.id]
 	 limit 1)
     )
     select dir_id, name from path order by depth desc limit 1
