@@ -95,7 +95,9 @@ class Storage():
         content_without_data = content_by_status['absent']
 
         missing_content = set(self.content_missing(content_with_data))
-        missing_skipped = set(self.skipped_content_missing(content_without_data))
+        missing_skipped = set(
+            sha1_git for sha1, sha1_git, sha256
+            in self.skipped_content_missing(content_without_data))
 
         with db.transaction() as cur:
             if missing_content:
@@ -116,9 +118,11 @@ class Storage():
                 # move metadata in place
                 db.content_add_from_temp(cur)
 
-            if content_without_data:
+            if missing_skipped:
+                missing_filtered = (cont for cont in content_without_data
+                                    if cont['sha1_git'] in missing_skipped)
                 db.mktemp('skipped_content', cur)
-                db.copy_to(content_without_data, 'tmp_skipped_content',
+                db.copy_to(missing_filtered, 'tmp_skipped_content',
                            ['sha1', 'sha1_git', 'sha256', 'length',
                             'reason', 'status', 'origin'], cur)
 
