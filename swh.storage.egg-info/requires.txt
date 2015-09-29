@@ -1,5 +1,5 @@
 flask
 psycopg2
 requests
-swh.core
+swh.core>=0.0.5
 vcversioner
