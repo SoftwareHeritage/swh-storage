@@ -8,7 +8,7 @@ import unittest
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from .db_testing import DbTestFixture
+from swh.core.tests.db_testing import DbTestFixture
 from swh.core.hashutil import hex_to_hash
 from swh.storage.db import Db
 
