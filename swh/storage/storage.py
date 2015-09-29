@@ -192,7 +192,7 @@ class Storage():
 
     @db_transaction
     def content_find(self, content, cur=None):
-        """Predicate to check the presence of a content's hashes.
+        """Find a content hash in db.
 
         Args:
             content: a dictionary entry representing one content hash.
@@ -200,10 +200,12 @@ class Storage():
             The value mapped to the corresponding checksum.
 
         Returns:
-            a boolean indicator of presence
+            a triplet (sha1, sha1_git, sha256) if the content exist
+            or None otherwise.
 
         Raises:
-            ValueError in case the key of the dictionary is not sha1 nor sha256
+            ValueError in case the key of the dictionary is not sha1, sha1_git
+            nor sha256.
 
         """
         db = self.db
@@ -221,16 +223,28 @@ class Storage():
                                      sha256=content.get('sha256'),
                                      cur=cur)
 
-        if len(found_hash) > 0:
-            return found_hash != (None, None, None)
-        return False
+        return None if found_hash == (None, None, None) else found_hash
 
+    @db_transaction
+    def content_exist(self, content, cur=None):
+        """Predicate to check the presence of a content's hashes.
+
+        Args:
+            content: a dictionary entry representing one content hash.
+            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The value mapped to the corresponding checksum.
 
         Returns:
             a boolean indicator of presence
 
         Raises:
-            ValueError in case the key of the dictionary is not sha1 nor sha256
+            ValueError in case the key of the dictionary is not sha1, sha1_git
+            nor sha256.
+
+        """
+        return self.content_find(content) is not None
+
+    @db_transaction
 
         """
         db = self.db
