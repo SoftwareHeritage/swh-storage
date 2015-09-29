@@ -9,8 +9,7 @@ import logging
 from flask import Flask, Request, Response, abort, g, request
 
 from swh.core import config
-from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
-from swh.core.hashutil import hash_to_hex
+from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
 from swh.storage import Storage
 
 DEFAULT_CONFIG = {
@@ -26,16 +25,29 @@ class BytesRequest(Request):
 
 
 app = Flask(__name__)
-app.json_encoder = SWHJSONEncoder
-app.json_decoder = SWHJSONDecoder
 app.request_class = BytesRequest
 
 
-def jsonify(data):
+def encode_data(data):
     return Response(
-        json.dumps(data, cls=SWHJSONEncoder),
-        mimetype='application/json',
+        msgpack_dumps(data),
+        mimetype='application/x-msgpack',
     )
+
+
+def decode_request(request):
+    content_type = request.mimetype
+    data = request.get_data()
+
+    if content_type == 'application/x-msgpack':
+        r = msgpack_loads(data)
+    elif content_type == 'application/json':
+        r = json.loads(data, cls=SWHJSONDecoder)
+    else:
+        raise ValueError('Wrong content type `%s` for API request'
+                         % content_type)
+
+    return r
 
 
 @app.before_request
@@ -50,66 +62,58 @@ def index():
 
 @app.route('/content/missing', methods=['POST'])
 def content_missing():
-    return jsonify(g.storage.content_missing(**request.json))
+    return encode_data(g.storage.content_missing(**decode_request(request)))
 
 
 @app.route('/content/present', methods=['POST'])
 def content_find():
-    return jsonify(g.storage.content_find(**request.json))
+    return encode_data(g.storage.content_find(**decode_request(request)))
 
 
 @app.route('/content/add', methods=['POST'])
 def content_add():
-    json_data = request.files['metadata'].read().decode('utf-8')
-    metadata = json.loads(json_data, cls=SWHJSONDecoder)['content']
-    for file_data in metadata:
-        if file_data.get('status', 'visible') == 'visible':
-            file_id = hash_to_hex(file_data['sha1'])
-            file = request.files[file_id]
-            file_data['data'] = file.read()
-            file.close()
-    return jsonify(g.storage.content_add(content=metadata))
+    return encode_data(g.storage.content_add(**decode_request(request)))
 
 
 @app.route('/directory/missing', methods=['POST'])
 def directory_missing():
-    return jsonify(g.storage.directory_missing(**request.json))
+    return encode_data(g.storage.directory_missing(**decode_request(request)))
 
 
 @app.route('/directory/add', methods=['POST'])
 def directory_add():
-    return jsonify(g.storage.directory_add(**request.json))
+    return encode_data(g.storage.directory_add(**decode_request(request)))
 
 
 @app.route('/directory', methods=['GET'])
 def directory_get():
     dir = request.args['directory'].encode('utf-8', 'surrogateescape')
-    return jsonify(g.storage.directory_get(dir))
+    return encode_data(g.storage.directory_get(dir))
 
 
 @app.route('/revision/add', methods=['POST'])
 def revision_add():
-    return jsonify(g.storage.revision_add(**request.json))
+    return encode_data(g.storage.revision_add(**decode_request(request)))
 
 
 @app.route('/revision/missing', methods=['POST'])
 def revision_missing():
-    return jsonify(g.storage.revision_missing(**request.json))
+    return encode_data(g.storage.revision_missing(**decode_request(request)))
 
 
 @app.route('/release/add', methods=['POST'])
 def release_add():
-    return jsonify(g.storage.release_add(**request.json))
+    return encode_data(g.storage.release_add(**decode_request(request)))
 
 
 @app.route('/release/missing', methods=['POST'])
 def release_missing():
-    return jsonify(g.storage.release_missing(**request.json))
+    return encode_data(g.storage.release_missing(**decode_request(request)))
 
 
 @app.route('/occurrence/add', methods=['POST'])
 def occurrence_add():
-    return jsonify(g.storage.occurrence_add(**request.json))
+    return encode_data(g.storage.occurrence_add(**decode_request(request)))
 
 
 @app.route('/origin', methods=['GET'])
@@ -125,12 +129,12 @@ def origin_get():
         abort(404)
     else:
         origin['id'] = id
-        return jsonify(origin)
+        return encode_data(origin)
 
 
 @app.route('/origin', methods=['POST'])
 def origin_add_one():
-    return jsonify(g.storage.origin_add_one(**request.json))
+    return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
 def run_from_webserver(environ, start_response):

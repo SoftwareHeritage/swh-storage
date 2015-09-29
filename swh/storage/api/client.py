@@ -3,12 +3,27 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import json
-
 import requests
 
-from swh.core.hashutil import hash_to_hex
-from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
+from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
+
+
+def encode_data(data):
+    return msgpack_dumps(data)
+
+
+def decode_response(response):
+    content_type = response.headers['content-type']
+
+    if content_type.startswith('application/x-msgpack'):
+        r = msgpack_loads(response.content)
+    elif content_type.startswith('application/json'):
+        r = response.json(cls=SWHJSONDecoder)
+    else:
+        raise ValueError('Wrong content type `%s` for API response'
+                         % content_type)
+
+    return r
 
 
 class RemoteStorage():
@@ -20,24 +35,13 @@ class RemoteStorage():
         return '%s%s' % (self.base_url, endpoint)
 
     def post(self, endpoint, data):
-        raw_data = json.dumps(data, cls=SWHJSONEncoder)
         response = requests.post(
             self.url(endpoint),
-            data=raw_data,
-            headers={'content-type': 'application/json; charset=utf8'},
+            data=encode_data(data),
+            headers={'content-type': 'application/x-msgpack'},
         )
 
-        return response.json(cls=SWHJSONDecoder)
-
-    def post_files(self, endpoint, data, files):
-        raw_data = json.dumps(data, cls=SWHJSONEncoder)
-        files['metadata'] = raw_data
-        response = requests.post(
-            self.url(endpoint),
-            files=files,
-        )
-
-        return response.json(cls=SWHJSONDecoder)
+        return decode_response(response)
 
     def get(self, endpoint, data):
         response = requests.get(
@@ -48,16 +52,10 @@ class RemoteStorage():
         if response.status_code == 404:
             return None
         else:
-            return response.json(cls=SWHJSONDecoder)
+            return decode_response(response)
 
     def content_add(self, content):
-        files = {}
-        for file in content:
-            if file.get('status', 'visible') != 'visible':
-                continue
-            file_id = hash_to_hex(file['sha1'])
-            files[file_id] = file.pop('data')
-        return self.post_files('content/add', {'content': content}, files)
+        return self.post('content/add', {'content': content})
 
     def content_missing(self, content, key_hash='sha1'):
         return self.post('content/missing', {'content': content,
