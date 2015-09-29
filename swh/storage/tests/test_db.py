@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import unittest
 
 from nose.tools import istest
@@ -13,8 +14,14 @@ from swh.core.hashutil import hex_to_hash
 from swh.storage.db import Db
 
 
+TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
+
+
 @attr('db')
 class TestDb(DbTestFixture, unittest.TestCase):
+
+    TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
 
     def setUp(self):
         super().setUp()

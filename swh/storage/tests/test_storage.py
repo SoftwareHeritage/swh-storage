@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import datetime
+import os
 import shutil
 import tempfile
 import unittest
@@ -14,6 +15,10 @@ from nose.plugins.attrib import attr
 from swh.core.tests.db_testing import DbTestFixture
 from swh.core.hashutil import hex_to_hash
 from swh.storage import Storage
+
+
+TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
 
 
 @attr('db')
@@ -29,6 +34,8 @@ class AbstractTestStorage(DbTestFixture):
     class twice.
 
     """
+    TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
+
     def setUp(self):
         super().setUp()
         self.objroot = tempfile.mkdtemp()
