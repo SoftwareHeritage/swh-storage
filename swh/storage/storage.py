@@ -14,6 +14,11 @@ from operator import itemgetter
 from .db import Db
 from .objstorage import ObjStorage
 
+from swh.core.hashutil import ALGORITHMS
+
+
+SWH_HASH_KEYS = ALGORITHMS
+
 
 def db_transaction(meth):
     """decorator to execute Storage methods within DB transactions
@@ -204,14 +209,11 @@ class Storage():
         """
         db = self.db
 
-        # filter out the checksums
-        keys = ['sha1', 'sha1_git', 'sha256']
-
         if content == {}:
             raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         for key in content.keys():
-            if key not in keys:
+            if key not in SWH_HASH_KEYS:
                 raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         # format the output
