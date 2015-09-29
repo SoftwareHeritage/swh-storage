@@ -110,6 +110,21 @@ class AbstractTestStorage(DbTestFixture):
             ],
         }
 
+        self.dir2 = {
+            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa95',
+            'entries': [
+                {
+                    'name': b'oof',
+                    'type': 'file',
+                    'target': self.cont2['sha1_git'],
+                    'perms': 0o644,
+                    'atime': None,
+                    'ctime': None,
+                    'mtime': None,
+                }
+            ],
+        }
+
         self.revision = {
             'id': b'56789012345678901234',
             'message': 'hello',
@@ -126,6 +141,22 @@ class AbstractTestStorage(DbTestFixture):
             'directory': self.dir['id'],
         }
 
+        self.revision2 = {
+            'id': b'87659012345678904321',
+            'message': 'hello',
+            'author_name': 'Roberto Dicosmo',
+            'author_email': 'roberto@example.com',
+            'committer_name': 'tony',
+            'committer_email': 'ar@dumont.fr',
+            'parents': [b'01234567890123456789'],
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
+            'date_offset': 120,
+            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0),
+            'committer_date_offset': -120,
+            'type': 'git',
+            'directory': self.dir2['id'],
+        }
+
         self.origin = {
             'url': 'file:///dev/null',
             'type': 'git',
@@ -139,6 +170,13 @@ class AbstractTestStorage(DbTestFixture):
         self.occurrence = {
             'branch': 'master',
             'revision': b'67890123456789012345',
+            'authority': 1,
+            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
+        }
+
+        self.occurrence2 = {
+            'branch': 'master',
+            'revision': self.revision2['id'],
             'authority': 1,
             'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
         }
@@ -318,6 +356,83 @@ class AbstractTestStorage(DbTestFixture):
 
         self.occurrence['origin'] = origin_id
         self.storage.occurrence_add([self.occurrence])
+
+    @istest
+    def content_find_occurrence_with_present_content(self):
+        # 1. with something to find
+        # given
+        self.storage.content_add([self.cont2])
+        self.storage.directory_add([self.dir2])  # point to self.cont
+        self.storage.revision_add([self.revision2])  # points to self.dir
+        origin_id = self.storage.origin_add_one(self.origin2)
+        occurrence = self.occurrence2
+        occurrence.update({'origin': origin_id})
+        self.storage.occurrence_add([occurrence])
+
+        # when
+        occ = self.storage.content_find_occurrence(
+            {'sha1': self.cont2['sha1']})
+
+        # then
+        self.assertEquals(occ[0], self.origin2['type'])
+        self.assertEquals(occ[1], self.origin2['url'])
+        self.assertEquals(occ[2], self.occurrence2['branch'])
+        self.assertEquals(occ[3], self.revision2['id'])
+        self.assertEquals(occ[4], self.dir2['entries'][0]['name'])
+
+        occ2 = self.storage.content_find_occurrence(
+            {'sha1_git': self.cont2['sha1_git']})
+
+        self.assertEquals(occ2[0], self.origin2['type'])
+        self.assertEquals(occ2[1], self.origin2['url'])
+        self.assertEquals(occ2[2], self.occurrence2['branch'])
+        self.assertEquals(occ2[3], self.revision2['id'])
+        self.assertEquals(occ2[4], self.dir2['entries'][0]['name'])
+
+        occ3 = self.storage.content_find_occurrence(
+            {'sha256': self.cont2['sha256']})
+
+        self.assertEquals(occ3[0], self.origin2['type'])
+        self.assertEquals(occ3[1], self.origin2['url'])
+        self.assertEquals(occ3[2], self.occurrence2['branch'])
+        self.assertEquals(occ3[3], self.revision2['id'])
+        self.assertEquals(occ3[4], self.dir2['entries'][0]['name'])
+
+    @istest
+    def content_find_occurrence_with_non_present_content(self):
+        # 1. with something that does not exist
+        missing_cont = self.missing_cont
+
+        occ = self.storage.content_find_occurrence(
+            {'sha1': missing_cont['sha1']})
+
+        self.assertEquals(occ, None,
+                          "Content does not exist so no occurrence")
+
+        # 2. with something that does not exist
+        occ = self.storage.content_find_occurrence(
+            {'sha1_git': missing_cont['sha1_git']})
+
+        self.assertEquals(occ, None,
+                          "Content does not exist so no occurrence")
+
+        # 3. with something that does not exist
+        occ = self.storage.content_find_occurrence(
+            {'sha256': missing_cont['sha256']})
+
+        self.assertEquals(occ, None,
+                          "Content does not exist so no occurrence")
+
+    @istest
+    def content_find_occurrence_bad_input(self):
+        # 1. with bad input
+        with self.assertRaises(ValueError):
+            self.storage.content_find_occurrence({})  # empty is bad
+
+        # 2. with bad input
+        with self.assertRaises(ValueError):
+            self.storage.content_find_occurrence(
+                {'unknown-sha1': 'something'})  # not the right key
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):

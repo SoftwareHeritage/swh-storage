@@ -245,26 +245,35 @@ class Storage():
         return self.content_find(content) is not None
 
     @db_transaction
+    def content_find_occurrence(self, content, cur=None):
+        """Find the content's occurrence.
+
+        Args:
+            content: a dictionary entry representing one content hash.
+            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The value mapped to the corresponding checksum.
+
+        Returns:
+            The occurrence of the content.
+
+        Raises:
+            ValueError in case the key of the dictionary is not sha1, sha1_git
+            nor sha256.
 
         """
         db = self.db
 
-        if content == {}:
-            raise ValueError('Key must be one of sha1, git_sha1, sha256.')
+        c = self.content_find(content)
 
-        for key in content.keys():
-            if key not in SWH_HASH_KEYS:
-                raise ValueError('Key must be one of sha1, git_sha1, sha256.')
+        if c is None:
+            return None
 
-        # format the output
-        found_hash = db.content_find(sha1=content.get('sha1'),
-                                     sha1_git=content.get('sha1_git'),
-                                     sha256=content.get('sha256'),
-                                     cur=cur)
+        sha1, _, _ = c
+        print("sha1: ", sha1)
+        found_occ = db.content_find_occurrence(sha1, cur=cur)
 
-        if len(found_hash) > 0:
-            return found_hash != (None, None, None)
-        return False
+        print("found occ: ", found_occ)
+        return found_occ
 
     def directory_add(self, directories):
         """Add directories to the storage
