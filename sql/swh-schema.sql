@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(14, now(), 'Work In Progress');
+      values(16, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -26,13 +26,25 @@ create domain sha1_git as bytea check (length(value) = 20);
 create domain sha256 as bytea check (length(value) = 32);
 
 -- UNIX path (absolute, relative, individual path component, etc.)
--- TODO should this be bytea or similar to avoid encoding/decoding issues?
-create domain unix_path as text;
+create domain unix_path as bytea;
 
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
 
 create type content_status as enum ('absent', 'visible', 'hidden');
+
+-- An origin is a place, identified by an URL, where software can be found. We
+-- support different kinds of origins, e.g., git and other VCS repositories,
+-- web pages that list tarballs URLs (e.g., http://www.kernel.org), indirect
+-- tarball URLs (e.g., http://www.example.org/latest.tar.gz), etc. The key
+-- feature of an origin is that it can be *fetched* (wget, git clone, svn
+-- checkout, etc.) to retrieve all the contained software.
+create table origin
+(
+  id         bigserial primary key,
+  type       text, -- TODO use an enum here (?)
+  url        text not null
+);
 
 -- Checksums about actual file content. Note that the content itself is not
 -- stored in the DB, but on external (key-value) storage. A single checksum is
@@ -50,7 +62,32 @@ create table content
 );
 
 create unique index on content(sha1_git);
--- create unique index on content(sha256);
+create unique index on content(sha256);
+
+-- Content we have seen but skipped for some reason. This table is
+-- separate from the content table as we might not have the sha1
+-- checksum of that data (for instance when we inject git
+-- repositories, objects that are too big will be skipped here, and we
+-- will only know their sha1_git). 'reason' contains the reason the
+-- content was skipped. origin is a nullable column allowing to find
+-- out which origin contains that skipped content.
+create table skipped_content
+(
+  sha1      sha1,
+  sha1_git  sha1_git,
+  sha256    sha256,
+  length    bigint not null,
+  ctime     timestamptz not null default now(),
+  status    content_status not null default 'absent',
+  reason    text not null,
+  origin    bigint references origin(id),
+  unique (sha1, sha1_git, sha256)
+);
+
+-- those indexes support multiple NULL values.
+create unique index on skipped_content(sha1);
+create unique index on skipped_content(sha1_git);
+create unique index on skipped_content(sha256);
 
 -- An organization (or part thereof) that might be in charge of running
 -- software projects. Examples: Debian, GNU, GitHub, Apache, The Linux
@@ -84,19 +121,6 @@ create table list_history
   stdout       text,
   stderr       text,
   duration     interval  -- fetch duration of NULL if still ongoing
-);
-
--- An origin is a place, identified by an URL, where software can be found. We
--- support different kinds of origins, e.g., git and other VCS repositories,
--- web pages that list tarballs URLs (e.g., http://www.kernel.org), indirect
--- tarball URLs (e.g., http://www.example.org/latest.tar.gz), etc. The key
--- feature of an origin is that it can be *fetched* (wget, git clone, svn
--- checkout, etc.) to retrieve all the contained software.
-create table origin
-(
-  id         bigserial primary key,
-  type       text, -- TODO use an enum here (?)
-  url        text not null
 );
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the
@@ -149,17 +173,24 @@ create table project_history
 -- tables: directory_entry_{dir,file}).
 --
 -- To list the contents of a directory:
--- 1. list the contained directory_entry_dir using table directory_list_dir
--- 2. list the contained directory_entry_file using table directory_list_file
--- 3. list the contained directory_entry_rev using table directory_list_rev
+-- 1. list the contained directory_entry_dir using array dir_entries
+-- 2. list the contained directory_entry_file using array file_entries
+-- 3. list the contained directory_entry_rev using array rev_entries
 -- 4. UNION
 --
 -- Synonyms/mappings:
 -- * git: tree
 create table directory
 (
-  id  sha1_git primary key
+  id            sha1_git primary key,
+  dir_entries   bigint[],  -- sub-directories, reference directory_entry_dir
+  file_entries  bigint[],  -- contained files, reference directory_entry_file
+  rev_entries   bigint[]   -- mounted revisions, reference directory_entry_rev
 );
+
+create index on directory using gin (dir_entries);
+create index on directory using gin (file_entries);
+create index on directory using gin (rev_entries);
 
 -- A directory entry pointing to a sub-directory.
 create table directory_entry_dir
@@ -178,16 +209,6 @@ create unique index on directory_entry_dir(target, name, perms, atime, mtime, ct
 create unique index on directory_entry_dir(target, name, perms)
        where atime is null and mtime is null and ctime is null;
 
--- Mapping between directories and contained sub-directories.
-create table directory_list_dir
-(
-  dir_id     sha1_git references directory(id),
-  entry_ids  bigint[],
-  primary key (dir_id)
-);
-
-create index on directory_list_dir using gin (entry_ids);
-
 -- A directory entry pointing to a file.
 create table directory_entry_file
 (
@@ -204,16 +225,6 @@ create unique index on directory_entry_file(target, name, perms, atime, mtime, c
 create unique index on directory_entry_file(target, name, perms)
        where atime is null and mtime is null and ctime is null;
 
--- Mapping between directories and contained files.
-create table directory_list_file
-(
-  dir_id     sha1_git references directory(id),
-  entry_ids  bigint[],
-  primary key (dir_id)
-);
-
-create index on directory_list_file using gin (entry_ids);
-
 -- A directory entry pointing to a revision.
 create table directory_entry_rev
 (
@@ -229,16 +240,6 @@ create table directory_entry_rev
 create unique index on directory_entry_rev(target, name, perms, atime, mtime, ctime);
 create unique index on directory_entry_rev(target, name, perms)
        where atime is null and mtime is null and ctime is null;
-
--- Mapping between directories and contained files.
-create table directory_list_rev
-(
-  dir_id     sha1_git references directory(id),
-  entry_ids  bigint[],
-  primary key (dir_id)
-);
-
-create index on directory_list_rev using gin (entry_ids);
 
 create table person
 (
