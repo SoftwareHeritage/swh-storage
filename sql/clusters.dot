@@ -12,6 +12,7 @@ subgraph "logical_grouping" {
 	subgraph cluster_content {
 		label = <<b>content</b>>;
 		content;
+		skipped_content;
 	}
 
 	subgraph cluster_directory {
@@ -20,18 +21,6 @@ subgraph "logical_grouping" {
 		directory_entry_dir;
 		directory_entry_file;
 		directory_entry_rev;
-		directory_list_dir;
-		directory_list_file;
-		directory_list_rev;
-
-		{rank=same;
-			directory_list_dir
-			directory_list_file
-			directory_list_rev}
-		{rank=same;
-			directory_entry_dir
-			directory_entry_file
-			directory_entry_rev}
 	}
 
 	subgraph cluster_revision {
@@ -77,10 +66,13 @@ subgraph "logical_grouping" {
 		# "ltcolN" identifies the N-th row in a table, as a destination
 		"directory_entry_dir":rtcol2 -> "directory":ltcol1;
 		"directory_entry_file":rtcol2 -> "content":ltcol2;
+		"directory_entry_file":rtcol2 -> "skipped_content":ltcol2;
 		"directory_entry_rev":rtcol2 -> "revision":ltcol1;
-		"directory_list_dir":rtcol2 -> "directory_entry_dir":ltcol1;
-		"directory_list_file":rtcol2 -> "directory_entry_file":ltcol1;
-		"directory_list_rev":rtcol2 -> "directory_entry_rev":ltcol1;
+		"directory":rtcol2 -> "directory_entry_dir":ltcol1;
+		"directory":rtcol3 -> "directory_entry_file":ltcol1;
+		"directory":rtcol4 -> "directory_entry_rev":ltcol1;
+		"occurrence":rtcol3 -> "revision":ltcol1;
+		"occurrence_history":rtcol3 -> "revision":ltcol1;
 		"release":rtcol2 -> "revision":ltcol1;
 		"revision":rtcol7 -> "directory":ltcol1;
 		"revision_history":rtcol2 -> "revision":ltcol1;

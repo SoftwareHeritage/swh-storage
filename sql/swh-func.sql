@@ -110,6 +110,70 @@ end
 $$;
 
 
+-- check which entries of tmp_skipped_content are missing from skipped_content
+--
+-- operates in bulk: 0. swh_mktemp(skipped_content), 1. COPY to tmp_skipped_content,
+-- 2. call this function
+create or replace function swh_skipped_content_missing()
+    returns setof content_signature
+    language plpgsql
+as $$
+begin
+    return query
+	select sha1, sha1_git, sha256 from tmp_skipped_content
+	where not exists
+	(select 1 from skipped_content s where
+	    sha1 is not distinct from s.sha1 and
+	    sha1_git is not distinct from s.sha1_git and
+	    sha256 is not distinct from s.sha256);
+    return;
+end
+$$;
+
+
+-- Look up content based on one or several different checksums. Return all
+-- content information if the content is found; a NULL row otherwise.
+--
+-- At least one checksum should be not NULL. If several are not NULL, they will
+-- be AND-ed together in the lookup query.
+--
+-- Note: this function is meant to be used to look up individual contents
+-- (e.g., for the web app), for batch lookup of missing content (e.g., to be
+-- added) see swh_content_missing
+create or replace function swh_content_find(
+    sha1      sha1     default NULL,
+    sha1_git  sha1_git default NULL,
+    sha256    sha256   default NULL
+)
+    returns content
+    language plpgsql
+as $$
+declare
+    con content;
+    filters text[] := array[] :: text[];  -- AND-clauses used to filter content
+    q text;
+begin
+    if sha1 is not null then
+        filters := filters || format('sha1 = %L', sha1);
+    end if;
+    if sha1_git is not null then
+        filters := filters || format('sha1_git = %L', sha1_git);
+    end if;
+    if sha256 is not null then
+        filters := filters || format('sha256 = %L', sha256);
+    end if;
+
+    if cardinality(filters) = 0 then
+        return null;
+    else
+        q = format('select * from content where %s',
+	        array_to_string(filters, ' and '));
+        execute q into con;
+	return con;
+    end if;
+end
+$$;
+
 -- add tmp_content entries to content, skipping duplicates
 --
 -- operates in bulk: 0. swh_mktemp(content), 1. COPY to tmp_content,
@@ -118,8 +182,6 @@ create or replace function swh_content_add()
     returns void
     language plpgsql
 as $$
-declare
-    rows bigint;
 begin
     insert into content (sha1, sha1_git, sha256, length, status)
 	select distinct sha1, sha1_git, sha256, length, status
@@ -134,12 +196,34 @@ end
 $$;
 
 
+-- add tmp_skipped_content entries to skipped_content, skipping duplicates
+--
+-- operates in bulk: 0. swh_mktemp(skipped_content), 1. COPY to tmp_skipped_content,
+-- 2. call this function
+create or replace function swh_skipped_content_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into skipped_content (sha1, sha1_git, sha256, length, status, reason, origin)
+	select distinct sha1, sha1_git, sha256, length, status, reason, origin
+	from tmp_skipped_content
+	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in
+	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '') from swh_skipped_content_missing());
+	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
+	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
+	    -- the extra swh_content_missing() query here.
+    return;
+end
+$$;
+
+
 -- check which entries of tmp_directory are missing from directory
 --
 -- operates in bulk: 0. swh_mktemp(directory), 1. COPY to tmp_directory,
 -- 2. call this function
 create or replace function swh_directory_missing()
-    returns setof directory
+    returns setof sha1_git
     language plpgsql
 as $$
 begin
@@ -152,10 +236,15 @@ end
 $$;
 
 -- Add tmp_directory_entry_dir entries to directory_entry_dir and
--- directory_list_dir, skipping duplicates in directory_entry_dir.
+-- directory, skipping duplicates in directory_entry_dir.
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_dir'), 1 COPY to
 -- tmp_directory_entry_dir, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_dir_add()
     returns void
     language plpgsql
@@ -172,24 +261,35 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_dir (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_dir t
-    inner join directory_entry_dir i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_dir t
+	inner join directory_entry_dir i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set dir_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
 
 -- Add tmp_directory_entry_file entries to directory_entry_file and
--- directory_list_file, skipping duplicates in directory_entry_file.
+-- directory, skipping duplicates in directory_entry_file.
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_file'), 1 COPY to
 -- tmp_directory_entry_file, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_file_add()
     returns void
     language plpgsql
@@ -206,24 +306,35 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_file (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_file t
-    inner join directory_entry_file i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_file t
+	inner join directory_entry_file i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set file_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
 
 -- Add tmp_directory_entry_rev entries to directory_entry_rev and
--- directory_list_rev, skipping duplicates in directory_entry_rev.
+-- directory, skipping duplicates in directory_entry_rev.
 --
 -- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_rev'), 1 COPY to
 -- tmp_directory_entry_rev, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+--
+-- TODO: refactor with other swh_directory_entry_*_add functions
 create or replace function swh_directory_entry_rev_add()
     returns void
     language plpgsql
@@ -240,18 +351,26 @@ begin
        t.mtime is not distinct from i.mtime and
        t.ctime is not distinct from i.ctime);
 
-    insert into directory_list_rev (dir_id, entry_ids)
-    select t.dir_id, array_agg(i.id)
-    from tmp_directory_entry_rev t
-    inner join directory_entry_rev i
-    on t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime
-    group by t.dir_id;
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_rev t
+	inner join directory_entry_rev i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set rev_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id;
+
     return;
 end
 $$;
+
+create type directory_entry_type as enum('file', 'dir', 'rev');
 
 -- a directory listing entry with all the metadata
 --
@@ -259,7 +378,7 @@ $$;
 create type directory_entry as
 (
   dir_id  sha1_git,     -- id of the parent directory
-  type    text,         -- type of entry (one of 'dir', 'file', 'rev')
+  type    directory_entry_type,  -- type of entry
   target  sha1_git,     -- id of target
   name    unix_path,    -- path name, relative to containing dir
   perms   file_perms,   -- unix-like permissions
@@ -274,25 +393,89 @@ create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     language plpgsql
 as $$
 begin
-    return query (
-        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_dir where dir_id = walked_dir_id)
-	select dir_id, 'dir' as type, target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_dir d
-	on l.entry_id = d.id)
-    union
-        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_file where dir_id = walked_dir_id)
-        select dir_id, 'file' as type, target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_file d
-	on l.entry_id = d.id)
-    union
-        (with l as (select dir_id, unnest(entry_ids) as entry_id from directory_list_rev where dir_id = walked_dir_id)
-        select dir_id, 'rev' as type, target, name, perms, atime, mtime, ctime
-	from l
-	left join directory_entry_rev d
-	on l.entry_id = d.id)
-    ) order by name;
+    return query
+        with dir as (
+	    select id as dir_id, dir_entries, file_entries, rev_entries
+	    from directory
+	    where id = walked_dir_id),
+	ls_d as (select dir_id, unnest(dir_entries) as entry_id from dir),
+	ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
+	ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
+	(select dir_id, 'dir'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_d
+	 left join directory_entry_dir d on ls_d.entry_id = d.id)
+        union
+        (select dir_id, 'file'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_f
+	 left join directory_entry_file d on ls_f.entry_id = d.id)
+        union
+        (select dir_id, 'rev'::directory_entry_type as type,
+	        target, name, perms, atime, mtime, ctime
+	 from ls_r
+	 left join directory_entry_rev d on ls_r.entry_id = d.id)
+        order by name;
+    return;
+end
+$$;
+
+-- List all revision IDs starting from a given revision, going back in time
+--
+-- TODO ordering: should be breadth-first right now (what do we want?)
+-- TODO ordering: ORDER BY parent_rank somewhere?
+create or replace function swh_revision_list(root_revision sha1_git)
+    returns setof sha1_git
+    language plpgsql
+as $$
+begin
+    return query
+	with recursive rev_list(id) as (
+	    (select id from revision where id = root_revision)
+	    union
+	    (select parent_id
+	     from revision_history as h
+	     join rev_list on h.id = rev_list.id)
+	)
+	select * from rev_list;
+    return;
+end
+$$;
+
+-- Detailed entry in a revision log
+create type revision_log_entry as
+(
+  id                     sha1_git,
+  date                   timestamptz,
+  date_offset            smallint,
+  committer_date         timestamptz,
+  committer_date_offset  smallint,
+  type                   revision_type,
+  directory              sha1_git,
+  message                bytea,
+  author_name            text,
+  author_email           text,
+  committer_name         text,
+  committer_email        text
+);
+
+-- "git style" revision log. Similar to swh_revision_list(), but returning all
+-- information associated to each revision, and expanding authors/committers
+create or replace function swh_revision_log(root_revision sha1_git)
+    returns setof revision_log_entry
+    language plpgsql
+as $$
+begin
+    return query
+        select revision.id, date, date_offset,
+	    committer_date, committer_date_offset,
+	    type, directory, message,
+	    author.name as author_name, author.email as author_email,
+	    committer.name as committer_name, committer.email as committer_email
+	from swh_revision_list(root_revision) as rev_list
+	join revision on revision.id = rev_list
+	join person as author on revision.author = author.id
+	join person as committer on revision.committer = committer.id;
     return;
 end
 $$;
@@ -396,5 +579,146 @@ begin
     from tmp_release t
     left join person a on a.name = t.author_name and a.email = t.author_email;
     return;
+end
+$$;
+
+-- Absolute path: directory reference + complete path relative to it
+create type content_dir as (
+    directory  sha1_git,
+    path       unix_path
+);
+
+-- Find the containing directory of a given content, specified by sha1
+-- (note: *not* sha1_git).
+--
+-- Return a pair (dir_it, path) where path is a UNIX path that, from the
+-- directory root, reach down to a file with the desired content.
+--
+-- In case of multiple paths (i.e., pretty much always), an arbitrary one is
+-- chosen.
+create or replace function swh_content_find_directory(content_id sha1)
+    returns content_dir
+    language plpgsql
+as $$
+declare
+    d content_dir;
+begin
+    with recursive path as (
+	-- Recursively build a path from the requested content to a root
+	-- directory. Each iteration returns a pair (dir_id, filename) where
+	-- filename is relative to dir_id. Stops when no parent directory can
+	-- be found.
+	(select dir.id as dir_id, dir_entry_f.name as name, 0 as depth
+	 from directory_entry_file as dir_entry_f
+	 join content on content.sha1_git = dir_entry_f.target
+	 join directory as dir on dir.file_entries @> array[dir_entry_f.id]
+	 where content.sha1 = content_id
+	 limit 1)
+	union all
+	(select dir.id as dir_id,
+		(dir_entry_d.name || '/' || path.name)::unix_path as name,
+		path.depth + 1
+	 from path
+	 join directory_entry_dir as dir_entry_d on dir_entry_d.target = path.dir_id
+	 join directory as dir on dir.dir_entries @> array[dir_entry_d.id]
+	 limit 1)
+    )
+    select dir_id, name from path order by depth desc limit 1
+    into strict d;
+
+    return d;
+end
+$$;
+
+-- Walk the revision history starting from a given revision, until a matching
+-- occurrence is found. Return all occurrence information.
+create or replace function swh_revision_find_occurrence(revision_id sha1_git)
+    returns occurrence
+    language plpgsql
+as $$
+declare
+    occ occurrence%ROWTYPE;
+    rev sha1_git;
+begin
+    -- first check to see if revision_id is already pointed by an occurrence
+    select origin, branch, revision
+    from occurrence_history as occ_hist
+    where occ_hist.revision = revision_id
+    order by upper(occ_hist.validity)  -- TODO filter by authority?
+    limit 1
+    into occ;
+
+    -- no occurrence point to revision_id, walk up the history
+    if not found then
+        -- recursively walk the history, stopping immediately before a revision
+        -- pointed to by an occurrence.
+	-- TODO find a nicer way to stop at, but *including*, that revision
+	with recursive revlog as (
+	    (select revision_id as rev_id, 0 as depth)
+	    union all
+	    (select hist.parent_id as rev_id, revlog.depth + 1
+	     from revlog
+	     join revision_history as hist on hist.id = revlog.rev_id
+	     and not exists(select 1 from occurrence_history
+			    where revision = hist.parent_id)
+	     limit 1)
+	)
+	select rev_id from revlog order by depth desc limit 1
+	into strict rev;
+
+	-- as we stopped before a pointed by revision, look it up again and
+	-- return its data
+	select origin, branch, revision
+	from revision_history as rev_hist, occurrence_history as occ_hist
+	where rev_hist.id = rev
+	and occ_hist.revision = rev_hist.parent_id
+	order by upper(occ_hist.validity)  -- TODO filter by authority?
+	limit 1
+	into strict occ;  -- will fail if no occurrence is found, and that's OK
+    end if;
+
+    return occ;
+end
+$$;
+
+-- Occurrence of some content in a given context
+create type content_occurrence as (
+    origin_type	 text,
+    origin_url	 text,
+    branch	 text,
+    revision_id	 sha1_git,
+    path	 unix_path
+);
+
+-- Given the sha1 of some content, look up an occurrence that points to a
+-- revision, which in turns reference (transitively) a tree containing the
+-- content. Answer the question: "where/when did SWH see a given content"?
+-- Return information about an arbitrary occurrence/revision/tree, with no
+-- ordering guarantee whatsoever.
+create or replace function swh_content_find_occurrence(content_id sha1)
+    returns content_occurrence
+    language plpgsql
+as $$
+declare
+    dir content_dir;
+    rev sha1_git;
+    occ occurrence%ROWTYPE;
+    coc content_occurrence;
+begin
+    -- each step could fail if no results are found, and that's OK
+    select * from swh_content_find_directory(content_id)     -- look up directory
+	into strict dir;
+    select id from revision where directory = dir.directory  -- look up revision
+	limit 1
+	into strict rev;
+    select * from swh_revision_find_occurrence(rev)	     -- look up occurrence
+	into strict occ;
+
+    select origin.type, origin.url, occ.branch, rev, dir.path
+    from origin
+    where origin.id = occ.origin
+    into strict coc;
+
+    return coc;
 end
 $$;

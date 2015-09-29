@@ -3,11 +3,29 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import json
+import pickle
 
 import requests
 
-from swh.core.json import SWHJSONDecoder, SWHJSONEncoder
+from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
+
+
+def encode_data(data):
+    return msgpack_dumps(data)
+
+
+def decode_response(response):
+    content_type = response.headers['content-type']
+
+    if content_type.startswith('application/x-msgpack'):
+        r = msgpack_loads(response.content)
+    elif content_type.startswith('application/json'):
+        r = response.json(cls=SWHJSONDecoder)
+    else:
+        raise ValueError('Wrong content type `%s` for API response'
+                         % content_type)
+
+    return r
 
 
 class RemoteStorage():
@@ -19,14 +37,18 @@ class RemoteStorage():
         return '%s%s' % (self.base_url, endpoint)
 
     def post(self, endpoint, data):
-        raw_data = json.dumps(data, cls=SWHJSONEncoder)
         response = requests.post(
             self.url(endpoint),
-            data=raw_data,
-            headers={'content-type': 'application/json; charset=utf8'},
+            data=encode_data(data),
+            headers={'content-type': 'application/x-msgpack'},
         )
 
-        return response.json(cls=SWHJSONDecoder)
+        # XXX: this breaks language-independence and should be
+        # replaced by proper unserialization
+        if response.status_code == 400:
+            raise pickle.loads(decode_response(response))
+
+        return decode_response(response)
 
     def get(self, endpoint, data):
         response = requests.get(
@@ -37,7 +59,7 @@ class RemoteStorage():
         if response.status_code == 404:
             return None
         else:
-            return response.json(cls=SWHJSONDecoder)
+            return decode_response(response)
 
     def content_add(self, content):
         return self.post('content/add', {'content': content})
@@ -45,6 +67,9 @@ class RemoteStorage():
     def content_missing(self, content, key_hash='sha1'):
         return self.post('content/missing', {'content': content,
                                              'key_hash': key_hash})
+
+    def content_find(self, content):
+        return self.post('content/present', {'content': content})
 
     def directory_add(self, directories):
         return self.post('directory/add', {'directories': directories})

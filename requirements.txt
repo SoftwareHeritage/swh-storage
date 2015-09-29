@@ -1,1 +1,11 @@
 psycopg2
+vcversioner
+
+# remote storage API client
+requests
+
+# remote storage API server
+flask
+
+# Internal dependencies
+swh.core

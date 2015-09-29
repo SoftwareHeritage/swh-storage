@@ -70,11 +70,19 @@ class AbstractTestStorage(DbTestFixture):
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
         }
 
+        self.skipped_cont = {
+            'length': 1024 * 1024 * 200,
+            'sha1_git': hex_to_hash(
+                '33e45d56f88993aae6a0198013efa80716fd8920'),
+            'reason': 'Content too long',
+            'status': 'absent',
+        }
+
         self.dir = {
             'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
             'entries': [
                 {
-                    'name': 'foo',
+                    'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
                     'perms': 0o644,
@@ -83,7 +91,7 @@ class AbstractTestStorage(DbTestFixture):
                     'mtime': None,
                 },
                 {
-                    'name': 'bar',
+                    'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
                     'perms': 0o2000,
@@ -149,6 +157,23 @@ class AbstractTestStorage(DbTestFixture):
              cont['length'], 'visible'))
 
     @istest
+    def skipped_content_add(self):
+        cont = self.skipped_cont
+
+        self.storage.content_add([self.skipped_cont])
+
+        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status,'
+                            'reason FROM skipped_content WHERE sha1_git = %s',
+                            (cont['sha1_git'],))
+
+        datum = self.cursor.fetchone()
+        self.assertEqual(
+            (datum[0], datum[1].tobytes(), datum[2],
+             datum[3], datum[4], datum[5]),
+            (None, cont['sha1_git'], None,
+             cont['length'], 'absent', 'Content too long'))
+
+    @istest
     def content_missing(self):
         cont2 = self.cont2
         missing_cont = self.missing_cont
@@ -156,6 +181,75 @@ class AbstractTestStorage(DbTestFixture):
         gen = self.storage.content_missing([cont2, missing_cont])
 
         self.assertEqual(list(gen), [missing_cont['sha1']])
+
+    @istest
+    def content_find_with_present_content(self):
+        # 1. with something to find
+        cont = self.cont
+        self.storage.content_add([cont])
+
+        actually_present = self.storage.content_find({'sha1': cont['sha1']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+        # 2. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1_git': cont['sha1_git']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+        # 3. with something to find
+        actually_present = self.storage.content_find(
+            {'sha256': cont['sha256']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+        # 4. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1': cont['sha1'],
+             'sha1_git': cont['sha1_git'],
+             'sha256': cont['sha256']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+    @istest
+    def content_find_with_non_present_content(self):
+        # 1. with something that does not exist
+        missing_cont = self.missing_cont
+
+        actually_present = self.storage.content_find(
+            {'sha1': missing_cont['sha1']})
+
+        self.assertEquals(actually_present, False, "Should be missing")
+
+        # 2. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha1_git': missing_cont['sha1_git']})
+
+        self.assertEquals(actually_present, False, "Should be missing")
+
+        # 3. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha256': missing_cont['sha256']})
+
+        self.assertEquals(actually_present, False, "Should be missing")
+
+    @istest
+    def content_find_bad_input(self):
+        # 1. with bad input
+        with self.assertRaises(ValueError) as cm:
+            self.storage.content_find({})  # empty is bad
+
+        self.assertEqual(cm.exception.args,
+                         ('Key must be one of sha1, git_sha1, sha256.',))
+
+        # 2. with bad input
+        with self.assertRaises(ValueError) as cm:
+            self.storage.content_find(
+                {'unknown-sha1': 'something'})  # not the right key
+
+        self.assertEqual(cm.exception.args,
+                         ('Key must be one of sha1, git_sha1, sha256.',))
 
     @istest
     def directory_add(self):

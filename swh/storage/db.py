@@ -143,6 +143,9 @@ class Db:
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
 
+    @stored_procedure('swh_skipped_content_add')
+    def skipped_content_add_from_temp(self, cur=None): pass
+
     @stored_procedure('swh_revision_add')
     def revision_add_from_temp(self, cur=None): pass
 
@@ -157,10 +160,39 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    def skipped_content_missing_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT sha1, sha1_git, sha256
+                       FROM swh_skipped_content_missing()""")
+
+        yield from cursor_to_bytes(cur)
+
+    def content_find(self, sha1=None, sha1_git=None, sha256=None, cur=None):
+        """Find the content optionally on a combination of the following
+        checksums sha1, sha1_git or sha256.
+
+        Args:
+            sha1: sha1 content
+            git_sha1: the sha1 computed `a la git` sha1 of the content
+            sha256: sha256 content
+
+        Returns:
+            The content if found or null.
+
+        """
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT sha1, sha1_git, sha256
+                       FROM swh_content_find(%s, %s, %s)
+                       LIMIT 1""", (sha1, sha1_git, sha256))
+
+        yield from cursor_to_bytes(cur)
+
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute('SELECT id FROM swh_directory_missing()')
+        cur.execute('SELECT * FROM swh_directory_missing()')
 
         yield from cursor_to_bytes(cur)
 
