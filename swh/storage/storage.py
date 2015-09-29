@@ -186,13 +186,13 @@ class Storage():
         yield from db.skipped_content_missing_from_temp(cur)
 
     @db_transaction
-    def content_present(self, content, cur=None):
+    def content_find(self, content, cur=None):
         """Predicate to check the presence of a content's hashes.
 
         Args:
             hashes: iterable of dictionaries representing individual pieces of
             hash. Each dictionary has the following keys:
-            - a key for each checksum algorithm in swh.core.hashutil.ALGORITHMS,
+            - a key for each checksum algorithm in swh.core.hashutil.ALGORITHMS
             mapped to the corresponding checksum
 
         Returns:
@@ -205,19 +205,25 @@ class Storage():
         db = self.db
 
         # filter out the checksums
-        if 'sha1' in content:
-            column_key = 'sha1'
-        elif 'sha256' in content:
-            column_key = 'sha256'
-        else:
-            raise ValueError('Key must be one of sha1, sha256.')
+        keys = ['sha1', 'sha1_git', 'sha256']
+
+        if content == {}:
+            raise ValueError('Key must be one of sha1, git_sha1, sha256.')
+
+        for key in content.keys():
+            if key not in keys:
+                raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         # format the output
-        found_hashes = db.content_present(column_key,
-                                          content[column_key],
-                                          cur)
+        found_hashes = db.content_find(sha1=content.get('sha1'),
+                                       sha1_git=content.get('sha1_git'),
+                                       sha256=content.get('sha256'),
+                                       cur=cur)
 
-        return len(list(found_hashes)) > 0
+        hashes = list(found_hashes)
+        if len(hashes) > 0:
+            return hashes[0] != (None, None, None)
+        return False
 
     def directory_add(self, directories):
         """Add directories to the storage

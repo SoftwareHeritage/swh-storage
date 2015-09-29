@@ -54,8 +54,8 @@ def content_missing():
 
 
 @app.route('/content/present', methods=['POST'])
-def content_present():
-    return jsonify(g.storage.content_present(**request.json))
+def content_find():
+    return jsonify(g.storage.content_find(**request.json))
 
 
 @app.route('/content/add', methods=['POST'])

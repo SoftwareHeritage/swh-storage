@@ -168,14 +168,24 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
-    def content_present(self, column_key, hash, cur=None):
+    def content_find(self, sha1=None, sha1_git=None, sha256=None, cur=None):
+        """Find the content optionally on a combination of the following
+        checksums sha1, sha1_git or sha256.
+
+        Args:
+            sha1: sha1 content
+            git_sha1: the sha1 computed `a la git` sha1 of the content
+            sha256: sha256 content
+
+        Returns:
+            The content if found or null.
+
+        """
         cur = self._cursor(cur)
 
-        escaped_query = """SELECT {0}
-                           FROM content
-                           WHERE {0}=%s
-                           LIMIT 1""".format(column_key)
-        cur.execute(escaped_query, (hash, ))
+        cur.execute("""SELECT sha1, sha1_git, sha256
+                       FROM swh_content_find(%s, %s, %s)
+                       LIMIT 1""", (sha1, sha1_git, sha256))
 
         yield from cursor_to_bytes(cur)
 

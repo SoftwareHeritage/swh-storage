@@ -183,30 +183,67 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest
-    def content_present(self):
-        ### with something to find
+    def content_find_with_present_content(self):
+        # 1. with something to find
         cont = self.cont
         self.storage.content_add([cont])
 
-        actually_present = self.storage.content_present({'sha1': cont['sha1']})
+        actually_present = self.storage.content_find({'sha1': cont['sha1']})
 
         self.assertEquals(actually_present, True, "Should be present")
 
-        ### with something that does not exist
+        # 2. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1_git': cont['sha1_git']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+        # 3. with something to find
+        actually_present = self.storage.content_find(
+            {'sha256': cont['sha256']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+        # 4. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1': cont['sha1'],
+             'sha1_git': cont['sha1_git'],
+             'sha256': cont['sha256']})
+
+        self.assertEquals(actually_present, True, "Should be present")
+
+    @istest
+    def content_find_with_non_present_content(self):
+        # 1. with something that does not exist
         missing_cont = self.missing_cont
 
-        actually_present = self.storage.content_present(
+        actually_present = self.storage.content_find(
+            {'sha1': missing_cont['sha1']})
+
+        self.assertEquals(actually_present, False, "Should be missing")
+
+        # 2. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha1_git': missing_cont['sha1_git']})
+
+        self.assertEquals(actually_present, False, "Should be missing")
+
+        # 3. with something that does not exist
+        actually_present = self.storage.content_find(
             {'sha256': missing_cont['sha256']})
 
         self.assertEquals(actually_present, False, "Should be missing")
 
-        ### 1. with bad input
+    @istest
+    def content_find_bad_input(self):
+        # 1. with bad input
         with self.assertRaises(ValueError):
-            self.storage.content_present({})
+            self.storage.content_find({})  # empty is bad
 
-        ### 2. with bad input
+        # 2. with bad input
         with self.assertRaises(ValueError):
-            self.storage.content_present({'sha-bla': '123'})  # only sha1 and sha256
+            self.storage.content_find(
+                {'unknown-sha1': 'something'})  # not the right key
 
     @istest
     def directory_add(self):
