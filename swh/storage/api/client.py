@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import pickle
+
 import requests
 
 from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
@@ -40,6 +42,11 @@ class RemoteStorage():
             data=encode_data(data),
             headers={'content-type': 'application/x-msgpack'},
         )
+
+        # XXX: this breaks language-independence and should be
+        # replaced by proper unserialization
+        if response.status_code == 400:
+            raise pickle.loads(decode_response(response))
 
         return decode_response(response)
 

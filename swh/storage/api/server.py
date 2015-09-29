@@ -5,6 +5,7 @@
 
 import json
 import logging
+import pickle
 
 from flask import Flask, Request, Response, abort, g, request
 
@@ -48,6 +49,15 @@ def decode_request(request):
                          % content_type)
 
     return r
+
+
+@app.errorhandler(Exception)
+def error_handler(exception):
+    # XXX: this breaks language-independence and should be
+    # replaced by proper serialization of errors
+    response = encode_data(pickle.dumps(exception))
+    response.status_code = 400
+    return response
 
 
 @app.before_request

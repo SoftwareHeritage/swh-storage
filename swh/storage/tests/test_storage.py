@@ -237,13 +237,19 @@ class AbstractTestStorage(DbTestFixture):
     @istest
     def content_find_bad_input(self):
         # 1. with bad input
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as cm:
             self.storage.content_find({})  # empty is bad
 
+        self.assertEqual(cm.exception.args,
+                         ('Key must be one of sha1, git_sha1, sha256.',))
+
         # 2. with bad input
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as cm:
             self.storage.content_find(
                 {'unknown-sha1': 'something'})  # not the right key
+
+        self.assertEqual(cm.exception.args,
+                         ('Key must be one of sha1, git_sha1, sha256.',))
 
     @istest
     def directory_add(self):
