@@ -223,7 +223,7 @@ class Storage():
                                      sha256=content.get('sha256'),
                                      cur=cur)
 
-        return None if found_hash == (None, None, None) else found_hash
+        return found_hash
 
     @db_transaction
     def content_exist(self, content, cur=None):

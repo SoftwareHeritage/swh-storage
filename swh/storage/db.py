@@ -178,7 +178,7 @@ class Db:
             sha256: sha256 content
 
         Returns:
-            The content if found or null.
+            The triplet (sha1, sha1_git, sha256) if found or None.
 
         """
         cur = self._cursor(cur)
@@ -187,7 +187,8 @@ class Db:
                        FROM swh_content_find(%s, %s, %s)
                        LIMIT 1""", (sha1, sha1_git, sha256))
 
-        return line_to_bytes(cur.fetchone())
+        content = line_to_bytes(cur.fetchone())
+        return None if content == (None, None, None) else content
 
     def content_find_occurrence(self, sha1):
         """Find one content's occurrence.
