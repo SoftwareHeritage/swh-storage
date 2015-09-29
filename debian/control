@@ -5,10 +5,10 @@ Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python,
                python3-all,
-	       python3-flask,
+               python3-flask,
                python3-nose,
                python3-psycopg2,
-	       python3-requests,
+               python3-requests,
                python3-setuptools,
                python3-swh.core,
                python3-vcversioner
