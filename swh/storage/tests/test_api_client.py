@@ -11,8 +11,8 @@ from urllib.request import urlopen
 
 from .test_storage import AbstractTestStorage
 
-from swh.storage.remote_storage import RemoteStorage
-from swh.storage.api import app
+from swh.storage.api.client import RemoteStorage
+from swh.storage.api.server import app
 
 
 class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
