@@ -5,17 +5,17 @@ Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python,
                python3-all,
-	       python3-flask,
+               python3-flask,
                python3-nose,
                python3-psycopg2,
-	       python3-requests,
+               python3-requests,
                python3-setuptools,
-               python3-swh.core,
+               python3-swh.core (>= 0.0.6~),
                python3-vcversioner
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DCORE/
 
 Package: python3-swh.storage
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}, python3-swh.core (>= 0.0.5~)
+Depends: python3-swh.core (>= 0.0.6~), ${misc:Depends}, ${python3:Depends}
 Description: Software Heritage storage utilities
