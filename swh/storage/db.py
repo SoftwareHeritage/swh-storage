@@ -189,6 +189,17 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    def content_find_occurrence(self, sha1):
+        """Find one content's occurrence.
+
+        Args:
+            sha1: sha1 content
+
+        Returns:
+            One occurrence for that particular sha1
+        """
+        pass
+
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
