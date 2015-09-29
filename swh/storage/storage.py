@@ -195,10 +195,36 @@ class Storage():
         """Predicate to check the presence of a content's hashes.
 
         Args:
-            hashes: iterable of dictionaries representing individual pieces of
-            hash. Each dictionary has the following keys:
-            - a key for each checksum algorithm in swh.core.hashutil.ALGORITHMS
-            mapped to the corresponding checksum
+            content: a dictionary entry representing one content hash.
+            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The value mapped to the corresponding checksum.
+
+        Returns:
+            a boolean indicator of presence
+
+        Raises:
+            ValueError in case the key of the dictionary is not sha1 nor sha256
+
+        """
+        db = self.db
+
+        if content == {}:
+            raise ValueError('Key must be one of %s.' % SWH_HASH_KEYS)
+
+        for key in content.keys():
+            if key not in SWH_HASH_KEYS:
+                raise ValueError('Key must be one of %s.' % SWH_HASH_KEYS)
+
+        # format the output
+        found_hash = db.content_find(sha1=content.get('sha1'),
+                                     sha1_git=content.get('sha1_git'),
+                                     sha256=content.get('sha256'),
+                                     cur=cur)
+
+        if len(found_hash) > 0:
+            return found_hash != (None, None, None)
+        return False
+
 
         Returns:
             a boolean indicator of presence
@@ -217,14 +243,13 @@ class Storage():
                 raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         # format the output
-        found_hashes = db.content_find(sha1=content.get('sha1'),
-                                       sha1_git=content.get('sha1_git'),
-                                       sha256=content.get('sha256'),
-                                       cur=cur)
+        found_hash = db.content_find(sha1=content.get('sha1'),
+                                     sha1_git=content.get('sha1_git'),
+                                     sha256=content.get('sha256'),
+                                     cur=cur)
 
-        hashes = list(found_hashes)
-        if len(hashes) > 0:
-            return hashes[0] != (None, None, None)
+        if len(found_hash) > 0:
+            return found_hash != (None, None, None)
         return False
 
     def directory_add(self, directories):
