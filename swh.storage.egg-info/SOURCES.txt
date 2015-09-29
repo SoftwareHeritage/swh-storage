@@ -40,7 +40,6 @@ swh/storage/api/__init__.py
 swh/storage/api/client.py
 swh/storage/api/server.py
 swh/storage/tests/__init__.py
-swh/storage/tests/db_testing.py
 swh/storage/tests/test_api_client.py
 swh/storage/tests/test_db.py
 swh/storage/tests/test_objstorage.py
