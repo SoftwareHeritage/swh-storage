@@ -17,5 +17,5 @@ Homepage: https://forge.softwareheritage.org/diffusion/DCORE/
 
 Package: python3-swh.storage
 Architecture: all
-Depends: ${misc:Depends}, ${python3:Depends}
+Depends: ${misc:Depends}, ${python3:Depends}, python3-swh.core (>= 0.0.5~)
 Description: Software Heritage storage utilities
