@@ -257,142 +257,55 @@ begin
 end
 $$;
 
--- Add tmp_directory_entry_dir entries to directory_entry_dir and
--- directory, skipping duplicates in directory_entry_dir.
---
--- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_dir'), 1 COPY to
--- tmp_directory_entry_dir, 2. call this function
---
--- Assumption: this function is used in the same transaction that inserts the
--- context directory in table "directory".
---
--- TODO: refactor with other swh_directory_entry_*_add functions
-create or replace function swh_directory_entry_dir_add()
-    returns void
-    language plpgsql
-as $$
-begin
-    insert into directory_entry_dir (target, name, perms, atime, mtime, ctime)
-    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
-    from tmp_directory_entry_dir t
-    where not exists (
-    select 1
-    from directory_entry_dir i
-    where t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime);
-
-    with new_entries as (
-	select t.dir_id, array_agg(i.id) as entries
-	from tmp_directory_entry_dir t
-	inner join directory_entry_dir i
-	on t.target = i.target and t.name = i.name and t.perms = i.perms and
-	   t.atime is not distinct from i.atime and
-	   t.mtime is not distinct from i.mtime and
-	   t.ctime is not distinct from i.ctime
-	group by t.dir_id
-    )
-    update directory as d
-    set dir_entries = new_entries.entries
-    from new_entries
-    where d.id = new_entries.dir_id;
-
-    return;
-end
-$$;
-
--- Add tmp_directory_entry_file entries to directory_entry_file and
--- directory, skipping duplicates in directory_entry_file.
---
--- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_file'), 1 COPY to
--- tmp_directory_entry_file, 2. call this function
---
--- Assumption: this function is used in the same transaction that inserts the
--- context directory in table "directory".
---
--- TODO: refactor with other swh_directory_entry_*_add functions
-create or replace function swh_directory_entry_file_add()
-    returns void
-    language plpgsql
-as $$
-begin
-    insert into directory_entry_file (target, name, perms, atime, mtime, ctime)
-    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
-    from tmp_directory_entry_file t
-    where not exists (
-    select 1
-    from directory_entry_file i
-    where t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime);
-
-    with new_entries as (
-	select t.dir_id, array_agg(i.id) as entries
-	from tmp_directory_entry_file t
-	inner join directory_entry_file i
-	on t.target = i.target and t.name = i.name and t.perms = i.perms and
-	   t.atime is not distinct from i.atime and
-	   t.mtime is not distinct from i.mtime and
-	   t.ctime is not distinct from i.ctime
-	group by t.dir_id
-    )
-    update directory as d
-    set file_entries = new_entries.entries
-    from new_entries
-    where d.id = new_entries.dir_id;
-
-    return;
-end
-$$;
-
--- Add tmp_directory_entry_rev entries to directory_entry_rev and
--- directory, skipping duplicates in directory_entry_rev.
---
--- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_rev'), 1 COPY to
--- tmp_directory_entry_rev, 2. call this function
---
--- Assumption: this function is used in the same transaction that inserts the
--- context directory in table "directory".
---
--- TODO: refactor with other swh_directory_entry_*_add functions
-create or replace function swh_directory_entry_rev_add()
-    returns void
-    language plpgsql
-as $$
-begin
-    insert into directory_entry_rev (target, name, perms, atime, mtime, ctime)
-    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
-    from tmp_directory_entry_rev t
-    where not exists (
-    select 1
-    from directory_entry_rev i
-    where t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime);
-
-    with new_entries as (
-	select t.dir_id, array_agg(i.id) as entries
-	from tmp_directory_entry_rev t
-	inner join directory_entry_rev i
-	on t.target = i.target and t.name = i.name and t.perms = i.perms and
-	   t.atime is not distinct from i.atime and
-	   t.mtime is not distinct from i.mtime and
-	   t.ctime is not distinct from i.ctime
-	group by t.dir_id
-    )
-    update directory as d
-    set rev_entries = new_entries.entries
-    from new_entries
-    where d.id = new_entries.dir_id;
-
-    return;
-end
-$$;
-
 create type directory_entry_type as enum('file', 'dir', 'rev');
+
+-- Add tmp_directory_entry_* entries to directory_entry_* and directory,
+-- skipping duplicates in directory_entry_*.  This is a generic function that
+-- works on all kind of directory entries.
+--
+-- operates in bulk: 0. swh_mktemp_dir_entry('directory_entry_*'), 1 COPY to
+-- tmp_directory_entry_*, 2. call this function
+--
+-- Assumption: this function is used in the same transaction that inserts the
+-- context directory in table "directory".
+create or replace function swh_directory_entry_add(typ directory_entry_type)
+    returns void
+    language plpgsql
+as $$
+begin
+    execute format('
+    insert into directory_entry_%1$s (target, name, perms, atime, mtime, ctime)
+    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    from tmp_directory_entry_%1$s t
+    where not exists (
+    select 1
+    from directory_entry_%1$s i
+    where t.target = i.target and t.name = i.name and t.perms = i.perms and
+       t.atime is not distinct from i.atime and
+       t.mtime is not distinct from i.mtime and
+       t.ctime is not distinct from i.ctime)
+   ', typ);
+
+    execute format('
+    with new_entries as (
+	select t.dir_id, array_agg(i.id) as entries
+	from tmp_directory_entry_%1$s t
+	inner join directory_entry_%1$s i
+	on t.target = i.target and t.name = i.name and t.perms = i.perms and
+	   t.atime is not distinct from i.atime and
+	   t.mtime is not distinct from i.mtime and
+	   t.ctime is not distinct from i.ctime
+	group by t.dir_id
+    )
+    update directory as d
+    set %1$s_entries = new_entries.entries
+    from new_entries
+    where d.id = new_entries.dir_id
+    ', typ);
+
+    return;
+end
+$$;
 
 -- a directory listing entry with all the metadata
 --

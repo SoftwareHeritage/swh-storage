@@ -337,7 +337,8 @@ class Storage():
                     cur,
                 )
 
-                cur.execute('SELECT swh_directory_entry_%s_add()' % entry_type)
+                cur.execute('SELECT swh_directory_entry_add(%s)',
+                            (entry_type,))
 
     @db_transaction_generator
     def directory_missing(self, directories, cur):
