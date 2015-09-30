@@ -200,9 +200,6 @@ class Db:
         Returns:
             One occurrence for that particular sha1
 
-        Raises:
-            psycopg2.InternalError in case of data is not found (for the moment)
-
         """
         cur = self._cursor(cur)
 
