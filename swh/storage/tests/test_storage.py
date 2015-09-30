@@ -374,29 +374,29 @@ class AbstractTestStorage(DbTestFixture):
             {'sha1': self.cont2['sha1']})
 
         # then
-        self.assertEquals(occ[0], self.origin2['type'])
-        self.assertEquals(occ[1], self.origin2['url'])
-        self.assertEquals(occ[2], self.occurrence2['branch'])
-        self.assertEquals(occ[3], self.revision2['id'])
-        self.assertEquals(occ[4], self.dir2['entries'][0]['name'])
+        self.assertEquals(occ['origin_type'], self.origin2['type'])
+        self.assertEquals(occ['origin_url'], self.origin2['url'])
+        self.assertEquals(occ['branch'], self.occurrence2['branch'])
+        self.assertEquals(occ['revision'], self.revision2['id'])
+        self.assertEquals(occ['path'], self.dir2['entries'][0]['name'])
 
         occ2 = self.storage.content_find_occurrence(
             {'sha1_git': self.cont2['sha1_git']})
 
-        self.assertEquals(occ2[0], self.origin2['type'])
-        self.assertEquals(occ2[1], self.origin2['url'])
-        self.assertEquals(occ2[2], self.occurrence2['branch'])
-        self.assertEquals(occ2[3], self.revision2['id'])
-        self.assertEquals(occ2[4], self.dir2['entries'][0]['name'])
+        self.assertEquals(occ2['origin_type'], self.origin2['type'])
+        self.assertEquals(occ2['origin_url'], self.origin2['url'])
+        self.assertEquals(occ2['branch'], self.occurrence2['branch'])
+        self.assertEquals(occ2['revision'], self.revision2['id'])
+        self.assertEquals(occ2['path'], self.dir2['entries'][0]['name'])
 
         occ3 = self.storage.content_find_occurrence(
             {'sha256': self.cont2['sha256']})
 
-        self.assertEquals(occ3[0], self.origin2['type'])
-        self.assertEquals(occ3[1], self.origin2['url'])
-        self.assertEquals(occ3[2], self.occurrence2['branch'])
-        self.assertEquals(occ3[3], self.revision2['id'])
-        self.assertEquals(occ3[4], self.dir2['entries'][0]['name'])
+        self.assertEquals(occ3['origin_type'], self.origin2['type'])
+        self.assertEquals(occ3['origin_url'], self.origin2['url'])
+        self.assertEquals(occ3['branch'], self.occurrence2['branch'])
+        self.assertEquals(occ3['revision'], self.revision2['id'])
+        self.assertEquals(occ3['path'], self.dir2['entries'][0]['name'])
 
     @istest
     def content_find_occurrence_with_non_present_content(self):

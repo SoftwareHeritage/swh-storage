@@ -211,11 +211,11 @@ class Storage():
         db = self.db
 
         if content == {}:
-            raise ValueError('Key must be one of %s.' % SWH_HASH_KEYS)
+            raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         for key in content.keys():
             if key not in SWH_HASH_KEYS:
-                raise ValueError('Key must be one of %s.' % SWH_HASH_KEYS)
+                raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         # format the output
         found_hash = db.content_find(sha1=content.get('sha1'),
@@ -269,11 +269,16 @@ class Storage():
             return None
 
         sha1, _, _ = c
-        print("sha1: ", sha1)
+
         found_occ = db.content_find_occurrence(sha1, cur=cur)
 
-        print("found occ: ", found_occ)
-        return found_occ
+        if found_occ is None:
+            return None
+        return {'origin_type': found_occ[0],
+                'origin_url': found_occ[1],
+                'branch': found_occ[2],
+                'revision': found_occ[3],
+                'path': found_occ[4]}
 
     def directory_add(self, directories):
         """Add directories to the storage
