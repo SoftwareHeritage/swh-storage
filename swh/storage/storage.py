@@ -9,7 +9,6 @@ import itertools
 import psycopg2
 
 from collections import defaultdict
-from operator import itemgetter
 
 from .db import Db
 from .objstorage import ObjStorage
