@@ -527,7 +527,8 @@ create type content_dir as (
 -- (note: *not* sha1_git).
 --
 -- Return a pair (dir_it, path) where path is a UNIX path that, from the
--- directory root, reach down to a file with the desired content.
+-- directory root, reach down to a file with the desired content. Return NULL
+-- if no match is found.
 --
 -- In case of multiple paths (i.e., pretty much always), an arbitrary one is
 -- chosen.
@@ -559,14 +560,15 @@ begin
 	 limit 1)
     )
     select dir_id, name from path order by depth desc limit 1
-    into strict d;
+    into d;
 
-    return d;
+    return d;  -- might be NULL
 end
 $$;
 
 -- Walk the revision history starting from a given revision, until a matching
--- occurrence is found. Return all occurrence information.
+-- occurrence is found. Return all occurrence information if one is found, NULL
+-- otherwise.
 create or replace function swh_revision_find_occurrence(revision_id sha1_git)
     returns occurrence
     language plpgsql
@@ -599,7 +601,8 @@ begin
 	     limit 1)
 	)
 	select rev_id from revlog order by depth desc limit 1
-	into strict rev;
+	into rev;
+	if not found then return null; end if;
 
 	-- as we stopped before a pointed by revision, look it up again and
 	-- return its data
@@ -609,10 +612,10 @@ begin
 	and occ_hist.revision = rev_hist.parent_id
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
 	limit 1
-	into strict occ;  -- will fail if no occurrence is found, and that's OK
+	into occ;
     end if;
 
-    return occ;
+    return occ;  -- might be NULL
 end
 $$;
 
@@ -628,8 +631,8 @@ create type content_occurrence as (
 -- Given the sha1 of some content, look up an occurrence that points to a
 -- revision, which in turns reference (transitively) a tree containing the
 -- content. Answer the question: "where/when did SWH see a given content"?
--- Return information about an arbitrary occurrence/revision/tree, with no
--- ordering guarantee whatsoever.
+-- Return information about an arbitrary occurrence/revision/tree if one is
+-- found, NULL otherwise.
 create or replace function swh_content_find_occurrence(content_id sha1)
     returns content_occurrence
     language plpgsql
@@ -642,18 +645,23 @@ declare
 begin
     -- each step could fail if no results are found, and that's OK
     select * from swh_content_find_directory(content_id)     -- look up directory
-	into strict dir;
+	into dir;
+    if not found then return null; end if;
+
     select id from revision where directory = dir.directory  -- look up revision
 	limit 1
-	into strict rev;
+	into rev;
+    if not found then return null; end if;
+
     select * from swh_revision_find_occurrence(rev)	     -- look up occurrence
-	into strict occ;
+	into occ;
+    if not found then return null; end if;
 
     select origin.type, origin.url, occ.branch, rev, dir.path
     from origin
     where origin.id = occ.origin
-    into strict coc;
+    into coc;
 
-    return coc;
+    return coc;  -- might be NULL
 end
 $$;
