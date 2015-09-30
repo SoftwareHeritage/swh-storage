@@ -18,6 +18,7 @@ begin
 end
 $$;
 
+
 -- create a temporary table for directory entries called tmp_TBLNAME,
 -- mimicking existing table TBLNAME with an extra dir_id (sha1_git)
 -- column, and dropping the id column.
@@ -41,15 +42,15 @@ begin
 end
 $$;
 
+
 -- create a temporary table for revisions called tmp_revisions,
 -- mimicking existing table revision, replacing the foreign keys to
 -- people with an email and name field
 --
 create or replace function swh_mktemp_revision()
     returns void
-    language plpgsql
+    language sql
 as $$
-begin
     create temporary table tmp_revision (
         like revision including defaults,
         author_name text not null default '',
@@ -59,9 +60,8 @@ begin
     ) on commit drop;
     alter table tmp_revision drop column author;
     alter table tmp_revision drop column committer;
-    return;
-end
 $$;
+
 
 -- create a temporary table for releases called tmp_release,
 -- mimicking existing table release, replacing the foreign keys to
@@ -69,18 +69,16 @@ $$;
 --
 create or replace function swh_mktemp_release()
     returns void
-    language plpgsql
+    language sql
 as $$
-begin
     create temporary table tmp_release (
         like release including defaults,
         author_name text not null default '',
         author_email text not null default ''
     ) on commit drop;
     alter table tmp_release drop column author;
-    return;
-end
 $$;
+
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
@@ -196,6 +194,7 @@ begin
 end
 $$;
 
+
 -- add tmp_content entries to content, skipping duplicates
 --
 -- operates in bulk: 0. swh_mktemp(content), 1. COPY to tmp_content,
@@ -257,7 +256,9 @@ begin
 end
 $$;
 
+
 create type directory_entry_type as enum('file', 'dir', 'rev');
+
 
 -- Add tmp_directory_entry_* entries to directory_entry_* and directory,
 -- skipping duplicates in directory_entry_*.  This is a generic function that
@@ -307,6 +308,7 @@ begin
 end
 $$;
 
+
 -- a directory listing entry with all the metadata
 --
 -- can be used to list a directory, and retrieve all the data in one go.
@@ -322,38 +324,36 @@ create type directory_entry as
   ctime   timestamptz   -- time of last status change
 );
 
+
 -- List a single level of directory walked_dir_id
 create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     returns setof directory_entry
-    language plpgsql
+    language sql
 as $$
-begin
-    return query
-        with dir as (
-	    select id as dir_id, dir_entries, file_entries, rev_entries
-	    from directory
-	    where id = walked_dir_id),
-	ls_d as (select dir_id, unnest(dir_entries) as entry_id from dir),
-	ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
-	ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
-	(select dir_id, 'dir'::directory_entry_type as type,
-	        target, name, perms, atime, mtime, ctime
-	 from ls_d
-	 left join directory_entry_dir d on ls_d.entry_id = d.id)
-        union
-        (select dir_id, 'file'::directory_entry_type as type,
-	        target, name, perms, atime, mtime, ctime
-	 from ls_f
-	 left join directory_entry_file d on ls_f.entry_id = d.id)
-        union
-        (select dir_id, 'rev'::directory_entry_type as type,
-	        target, name, perms, atime, mtime, ctime
-	 from ls_r
-	 left join directory_entry_rev d on ls_r.entry_id = d.id)
-        order by name;
-    return;
-end
+    with dir as (
+	select id as dir_id, dir_entries, file_entries, rev_entries
+	from directory
+	where id = walked_dir_id),
+    ls_d as (select dir_id, unnest(dir_entries) as entry_id from dir),
+    ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
+    ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
+    (select dir_id, 'dir'::directory_entry_type as type,
+	    target, name, perms, atime, mtime, ctime
+     from ls_d
+     left join directory_entry_dir d on ls_d.entry_id = d.id)
+    union
+    (select dir_id, 'file'::directory_entry_type as type,
+	    target, name, perms, atime, mtime, ctime
+     from ls_f
+     left join directory_entry_file d on ls_f.entry_id = d.id)
+    union
+    (select dir_id, 'rev'::directory_entry_type as type,
+	    target, name, perms, atime, mtime, ctime
+     from ls_r
+     left join directory_entry_rev d on ls_r.entry_id = d.id)
+    order by name;
 $$;
+
 
 -- List all revision IDs starting from a given revision, going back in time
 --
@@ -361,21 +361,18 @@ $$;
 -- TODO ordering: ORDER BY parent_rank somewhere?
 create or replace function swh_revision_list(root_revision sha1_git)
     returns setof sha1_git
-    language plpgsql
+    language sql
 as $$
-begin
-    return query
-	with recursive rev_list(id) as (
-	    (select id from revision where id = root_revision)
-	    union
-	    (select parent_id
-	     from revision_history as h
-	     join rev_list on h.id = rev_list.id)
-	)
-	select * from rev_list;
-    return;
-end
+    with recursive rev_list(id) as (
+	(select id from revision where id = root_revision)
+	union
+	(select parent_id
+	 from revision_history as h
+	 join rev_list on h.id = rev_list.id)
+    )
+    select * from rev_list;
 $$;
+
 
 -- Detailed entry in a revision log
 create type revision_log_entry as
@@ -394,26 +391,24 @@ create type revision_log_entry as
   committer_email        text
 );
 
+
 -- "git style" revision log. Similar to swh_revision_list(), but returning all
 -- information associated to each revision, and expanding authors/committers
 create or replace function swh_revision_log(root_revision sha1_git)
     returns setof revision_log_entry
-    language plpgsql
+    language sql
 as $$
-begin
-    return query
-        select revision.id, date, date_offset,
-	    committer_date, committer_date_offset,
-	    type, directory, message,
-	    author.name as author_name, author.email as author_email,
-	    committer.name as committer_name, committer.email as committer_email
-	from swh_revision_list(root_revision) as rev_list
-	join revision on revision.id = rev_list
-	join person as author on revision.author = author.id
-	join person as committer on revision.committer = committer.id;
-    return;
-end
+    select revision.id, date, date_offset,
+	committer_date, committer_date_offset,
+	type, directory, message,
+	author.name as author_name, author.email as author_email,
+	committer.name as committer_name, committer.email as committer_email
+    from swh_revision_list(root_revision) as rev_list
+    join revision on revision.id = rev_list
+    join person as author on revision.author = author.id
+    join person as committer on revision.committer = committer.id;
 $$;
+
 
 -- List missing revisions from tmp_revision
 create or replace function swh_revision_missing()
@@ -451,6 +446,7 @@ begin
 end
 $$;
 
+
 -- Create entries in revision from tmp_revision
 create or replace function swh_revision_add()
     returns void
@@ -468,6 +464,7 @@ begin
 end
 $$;
 
+
 -- List missing releases from tmp_release
 create or replace function swh_release_missing()
     returns setof sha1_git
@@ -481,6 +478,7 @@ begin
     return;
 end
 $$;
+
 
 -- Create entries in person from tmp_release
 create or replace function swh_person_add_from_release()
@@ -501,6 +499,7 @@ begin
 end
 $$;
 
+
 -- Create entries in release from tmp_release
 create or replace function swh_release_add()
     returns void
@@ -517,11 +516,13 @@ begin
 end
 $$;
 
+
 -- Absolute path: directory reference + complete path relative to it
 create type content_dir as (
     directory  sha1_git,
     path       unix_path
 );
+
 
 -- Find the containing directory of a given content, specified by sha1
 -- (note: *not* sha1_git).
@@ -534,11 +535,8 @@ create type content_dir as (
 -- chosen.
 create or replace function swh_content_find_directory(content_id sha1)
     returns content_dir
-    language plpgsql
+    language sql
 as $$
-declare
-    d content_dir;
-begin
     with recursive path as (
 	-- Recursively build a path from the requested content to a root
 	-- directory. Each iteration returns a pair (dir_id, filename) where
@@ -559,12 +557,9 @@ begin
 	 join directory as dir on dir.dir_entries @> array[dir_entry_d.id]
 	 limit 1)
     )
-    select dir_id, name from path order by depth desc limit 1
-    into d;
-
-    return d;  -- might be NULL
-end
+    select dir_id, name from path order by depth desc limit 1;
 $$;
+
 
 -- Walk the revision history starting from a given revision, until a matching
 -- occurrence is found. Return all occurrence information if one is found, NULL
@@ -619,6 +614,7 @@ begin
 end
 $$;
 
+
 -- Occurrence of some content in a given context
 create type content_occurrence as (
     origin_type	 text,
@@ -627,6 +623,7 @@ create type content_occurrence as (
     revision_id	 sha1_git,
     path	 unix_path
 );
+
 
 -- Given the sha1 of some content, look up an occurrence that points to a
 -- revision, which in turns reference (transitively) a tree containing the
