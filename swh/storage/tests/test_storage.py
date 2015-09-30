@@ -5,6 +5,7 @@
 
 import datetime
 import os
+import psycopg2
 import shutil
 import tempfile
 import unittest
@@ -162,6 +163,19 @@ class AbstractTestStorage(DbTestFixture):
              datum[3], datum[4]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible'))
+
+    @istest
+    def content_add_collision(self):
+        cont1 = self.cont
+
+        # create (corrupted) content with same sha1{,_git} but != sha256
+        cont1b = cont1.copy()
+        sha256_array = bytearray(cont1b['sha256'])
+        sha256_array[0] += 1
+        cont1b['sha256'] = bytes(sha256_array)
+
+        with self.assertRaises(psycopg2.IntegrityError):
+            self.storage.content_add([cont1, cont1b])
 
     @istest
     def skipped_content_add(self):
