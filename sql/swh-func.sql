@@ -101,10 +101,32 @@ create or replace function swh_content_missing()
     language plpgsql
 as $$
 begin
+    -- This query is critical for (single-algorithm) hash collision detection,
+    -- so we cannot rely only on the fact that a single hash (e.g., sha1) is
+    -- missing from the table content to conclude that a given content is
+    -- missing. Ideally, we would want to (try to) add to content all entries
+    -- in tmp_content that, when considering all columns together, are missing
+    -- from content.
+    --
+    -- But doing that naively would require a *compound* index on all checksum
+    -- columns; that index would not be significantly smaller than the content
+    -- table itself, and therefore won't be used. Therefore we union together
+    -- all contents that differ on at least one column from what is already
+    -- available. If there is a collision on some (but not all) columns, the
+    -- relevant tmp_content entry will be included in the set of content to be
+    -- added, causing a downstream violation of unicity constraint.
     return query
-	select sha1, sha1_git, sha256 from tmp_content
-	except
-	select sha1, sha1_git, sha256 from content;
+	(select sha1, sha1_git, sha256 from tmp_content as tmp
+	 where not exists
+	     (select 1 from content as c where c.sha1 = tmp.sha1))
+	union
+	(select sha1, sha1_git, sha256 from tmp_content as tmp
+	 where not exists
+	     (select 1 from content as c where c.sha1_git = tmp.sha1_git))
+	union
+	(select sha1, sha1_git, sha256 from tmp_content as tmp
+	 where not exists
+	     (select 1 from content as c where c.sha256 = tmp.sha256));
     return;
 end
 $$;
