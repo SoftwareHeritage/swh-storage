@@ -84,9 +84,12 @@ def _write_obj_file(hex_obj_id, root_dir, depth):
         os.makedirs(dir)
 
     path = os.path.join(dir, hex_obj_id)
-    tmp_path = path + '.tmp'
-    with gzip.GzipFile(tmp_path, 'wb') as f:
+    (tmp, tmp_path) = tempfile.mkstemp(suffix='.tmp', prefix='hex_obj_id.',
+                                       dir=dir)
+    tmp_f = os.fdopen(tmp, 'wb')
+    with gzip.GzipFile(filename=tmp_path, fileobj=tmp_f) as f:
         yield f
+    tmp_f.close()
     os.rename(tmp_path, path)
 
 
