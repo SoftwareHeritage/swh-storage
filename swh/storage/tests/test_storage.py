@@ -94,18 +94,12 @@ class AbstractTestStorage(DbTestFixture):
                     'type': 'file',
                     'target': self.cont['sha1_git'],
                     'perms': 0o644,
-                    'atime': None,
-                    'ctime': None,
-                    'mtime': None,
                 },
                 {
                     'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
                     'perms': 0o2000,
-                    'atime': None,
-                    'ctime': None,
-                    'mtime': None,
                 },
             ],
         }
@@ -118,9 +112,6 @@ class AbstractTestStorage(DbTestFixture):
                     'type': 'file',
                     'target': self.cont2['sha1_git'],
                     'perms': 0o644,
-                    'atime': None,
-                    'ctime': None,
-                    'mtime': None,
                 }
             ],
         }
@@ -321,7 +312,7 @@ class AbstractTestStorage(DbTestFixture):
 
         data_to_store = [
             (self.dir['id'], ent['type'], ent['target'], ent['name'],
-             ent['perms'], ent['atime'], ent['ctime'], ent['mtime'])
+             ent['perms'])
             for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
         ]
 

@@ -275,16 +275,13 @@ create or replace function swh_directory_entry_add(typ directory_entry_type)
 as $$
 begin
     execute format('
-    insert into directory_entry_%1$s (target, name, perms, atime, mtime, ctime)
-    select distinct t.target, t.name, t.perms, t.atime, t.mtime, t.ctime
+    insert into directory_entry_%1$s (target, name, perms)
+    select distinct t.target, t.name, t.perms
     from tmp_directory_entry_%1$s t
     where not exists (
     select 1
     from directory_entry_%1$s i
-    where t.target = i.target and t.name = i.name and t.perms = i.perms and
-       t.atime is not distinct from i.atime and
-       t.mtime is not distinct from i.mtime and
-       t.ctime is not distinct from i.ctime)
+    where t.target = i.target and t.name = i.name and t.perms = i.perms)
    ', typ);
 
     execute format('
@@ -292,10 +289,7 @@ begin
 	select t.dir_id, array_agg(i.id) as entries
 	from tmp_directory_entry_%1$s t
 	inner join directory_entry_%1$s i
-	on t.target = i.target and t.name = i.name and t.perms = i.perms and
-	   t.atime is not distinct from i.atime and
-	   t.mtime is not distinct from i.mtime and
-	   t.ctime is not distinct from i.ctime
+	using (target, name, perms)
 	group by t.dir_id
     )
     update directory as d
@@ -318,10 +312,7 @@ create type directory_entry as
   type    directory_entry_type,  -- type of entry
   target  sha1_git,     -- id of target
   name    unix_path,    -- path name, relative to containing dir
-  perms   file_perms,   -- unix-like permissions
-  atime   timestamptz,  -- time of last access
-  mtime   timestamptz,  -- time of last modification
-  ctime   timestamptz   -- time of last status change
+  perms   file_perms    -- unix-like permissions
 );
 
 
@@ -338,17 +329,17 @@ as $$
     ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
     ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
     (select dir_id, 'dir'::directory_entry_type as type,
-	    target, name, perms, atime, mtime, ctime
+	    target, name, perms
      from ls_d
      left join directory_entry_dir d on ls_d.entry_id = d.id)
     union
     (select dir_id, 'file'::directory_entry_type as type,
-	    target, name, perms, atime, mtime, ctime
+	    target, name, perms
      from ls_f
      left join directory_entry_file d on ls_f.entry_id = d.id)
     union
     (select dir_id, 'rev'::directory_entry_type as type,
-	    target, name, perms, atime, mtime, ctime
+	    target, name, perms
      from ls_r
      left join directory_entry_rev d on ls_r.entry_id = d.id)
     order by name;

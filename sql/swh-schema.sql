@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(17, now(), 'Work In Progress');
+      values(18, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -196,50 +196,34 @@ create index on directory using gin (rev_entries);
 create table directory_entry_dir
 (
   id      bigserial primary key,
-  target  sha1_git, -- references directory(id) deferrable initially deferred,
-                        -- id of target directory
-  name    unix_path,    -- path name, relative to containing dir
-  perms   file_perms,   -- unix-like permissions
-  atime   timestamptz,  -- time of last access
-  mtime   timestamptz,  -- time of last modification
-  ctime   timestamptz   -- time of last status change
+  target  sha1_git,   -- id of target directory
+  name    unix_path,  -- path name, relative to containing dir
+  perms   file_perms  -- unix-like permissions
 );
 
-create unique index on directory_entry_dir(target, name, perms, atime, mtime, ctime);
-create unique index on directory_entry_dir(target, name, perms)
-       where atime is null and mtime is null and ctime is null;
+create unique index on directory_entry_dir(target, name, perms);
 
 -- A directory entry pointing to a file.
 create table directory_entry_file
 (
   id      bigserial primary key,
-  target  sha1_git,     -- id of target file
-  name    unix_path,    -- path name, relative to containing dir
-  perms   file_perms,   -- unix-like permissions
-  atime   timestamptz,  -- time of last access
-  mtime   timestamptz,  -- time of last modification
-  ctime   timestamptz   -- time of last status change
+  target  sha1_git,   -- id of target file
+  name    unix_path,  -- path name, relative to containing dir
+  perms   file_perms  -- unix-like permissions
 );
 
-create unique index on directory_entry_file(target, name, perms, atime, mtime, ctime);
-create unique index on directory_entry_file(target, name, perms)
-       where atime is null and mtime is null and ctime is null;
+create unique index on directory_entry_file(target, name, perms);
 
 -- A directory entry pointing to a revision.
 create table directory_entry_rev
 (
   id      bigserial primary key,
-  target  sha1_git,     -- id of target revision
-  name    unix_path,    -- path name, relative to containing dir
-  perms   file_perms,   -- unix-like permissions
-  atime   timestamptz,  -- time of last access
-  mtime   timestamptz,  -- time of last modification
-  ctime   timestamptz   -- time of last status change
+  target  sha1_git,   -- id of target revision
+  name    unix_path,  -- path name, relative to containing dir
+  perms   file_perms  -- unix-like permissions
 );
 
-create unique index on directory_entry_rev(target, name, perms, atime, mtime, ctime);
-create unique index on directory_entry_rev(target, name, perms)
-       where atime is null and mtime is null and ctime is null;
+create unique index on directory_entry_rev(target, name, perms);
 
 create table person
 (
