@@ -178,7 +178,7 @@ class Db:
             sha256: sha256 content
 
         Returns:
-            The content if found or null.
+            The triplet (sha1, sha1_git, sha256) if found or None.
 
         """
         cur = self._cursor(cur)
@@ -187,7 +187,28 @@ class Db:
                        FROM swh_content_find(%s, %s, %s)
                        LIMIT 1""", (sha1, sha1_git, sha256))
 
-        yield from cursor_to_bytes(cur)
+        content = line_to_bytes(cur.fetchone())
+        return None if content == (None, None, None) else content
+
+    def content_find_occurrence(self, sha1, cur=None):
+        """Find one content's occurrence.
+
+        Args:
+            sha1: sha1 content
+            cur: cursor to use
+
+        Returns:
+            One occurrence for that particular sha1
+
+        """
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT *
+                       FROM swh_content_find_occurrence(%s)
+                       LIMIT 1""",
+                    (sha1, ))
+
+        return line_to_bytes(cur.fetchone())
 
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
