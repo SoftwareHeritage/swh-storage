@@ -294,9 +294,6 @@ class Storage():
                     - target (sha1_git): id of the object pointed at by the
                           directory entry
                     - perms (int): entry permissions
-                    - atime (datetime.DateTime): entry access time
-                    - ctime (datetime.DateTime): entry creation time
-                    - mtime (datetime.DateTime): entry modification time
         """
         dirs = set()
         dir_entries = {
@@ -332,8 +329,7 @@ class Storage():
                 db.copy_to(
                     entries,
                     'tmp_directory_entry_%s' % entry_type,
-                    ['target', 'name', 'perms', 'atime',
-                     'mtime', 'ctime', 'dir_id'],
+                    ['target', 'name', 'perms', 'dir_id'],
                     cur,
                 )
 
