@@ -9,10 +9,14 @@ import itertools
 import psycopg2
 
 from collections import defaultdict
-from operator import itemgetter
 
 from .db import Db
 from .objstorage import ObjStorage
+
+from swh.core.hashutil import ALGORITHMS
+
+
+SWH_HASH_KEYS = ALGORITHMS
 
 
 def db_transaction(meth):
@@ -187,43 +191,93 @@ class Storage():
 
     @db_transaction
     def content_find(self, content, cur=None):
-        """Predicate to check the presence of a content's hashes.
+        """Find a content hash in db.
 
         Args:
-            hashes: iterable of dictionaries representing individual pieces of
-            hash. Each dictionary has the following keys:
-            - a key for each checksum algorithm in swh.core.hashutil.ALGORITHMS
-            mapped to the corresponding checksum
+            content: a dictionary entry representing one content hash.
+            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The value mapped to the corresponding checksum.
 
         Returns:
-            a boolean indicator of presence
+            a triplet (sha1, sha1_git, sha256) if the content exist
+            or None otherwise.
 
         Raises:
-            ValueError in case the key of the dictionary is not sha1 nor sha256
+            ValueError in case the key of the dictionary is not sha1, sha1_git
+            nor sha256.
 
         """
         db = self.db
-
-        # filter out the checksums
-        keys = ['sha1', 'sha1_git', 'sha256']
 
         if content == {}:
             raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         for key in content.keys():
-            if key not in keys:
+            if key not in SWH_HASH_KEYS:
                 raise ValueError('Key must be one of sha1, git_sha1, sha256.')
 
         # format the output
-        found_hashes = db.content_find(sha1=content.get('sha1'),
-                                       sha1_git=content.get('sha1_git'),
-                                       sha256=content.get('sha256'),
-                                       cur=cur)
+        found_hash = db.content_find(sha1=content.get('sha1'),
+                                     sha1_git=content.get('sha1_git'),
+                                     sha256=content.get('sha256'),
+                                     cur=cur)
 
-        hashes = list(found_hashes)
-        if len(hashes) > 0:
-            return hashes[0] != (None, None, None)
-        return False
+        return found_hash
+
+    @db_transaction
+    def content_exist(self, content, cur=None):
+        """Predicate to check the presence of a content's hashes.
+
+        Args:
+            content: a dictionary entry representing one content hash.
+            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The value mapped to the corresponding checksum.
+
+        Returns:
+            a boolean indicator of presence
+
+        Raises:
+            ValueError in case the key of the dictionary is not sha1, sha1_git
+            nor sha256.
+
+        """
+        return self.content_find(content) is not None
+
+    @db_transaction
+    def content_find_occurrence(self, content, cur=None):
+        """Find the content's occurrence.
+
+        Args:
+            content: a dictionary entry representing one content hash.
+            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The value mapped to the corresponding checksum.
+
+        Returns:
+            The occurrence of the content.
+
+        Raises:
+            ValueError in case the key of the dictionary is not sha1, sha1_git
+            nor sha256.
+
+        """
+        db = self.db
+
+        c = self.content_find(content)
+
+        if c is None:
+            return None
+
+        sha1, _, _ = c
+
+        found_occ = db.content_find_occurrence(sha1, cur=cur)
+
+        if found_occ is None:
+            return None
+        return {'origin_type': found_occ[0],
+                'origin_url': found_occ[1],
+                'branch': found_occ[2],
+                'revision': found_occ[3],
+                'path': found_occ[4]}
 
     def directory_add(self, directories):
         """Add directories to the storage
@@ -283,7 +337,8 @@ class Storage():
                     cur,
                 )
 
-                cur.execute('SELECT swh_directory_entry_%s_add()' % entry_type)
+                cur.execute('SELECT swh_directory_entry_add(%s)',
+                            (entry_type,))
 
     @db_transaction_generator
     def directory_missing(self, directories, cur):
