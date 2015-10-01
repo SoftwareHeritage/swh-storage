@@ -68,8 +68,11 @@ class RemoteStorage():
         return self.post('content/missing', {'content': content,
                                              'key_hash': key_hash})
 
-    def content_find(self, content):
+    def content_exist(self, content):
         return self.post('content/present', {'content': content})
+
+    def content_find_occurrence(self, content):
+        return self.post('content/occurrence', {'content': content})
 
     def directory_add(self, directories):
         return self.post('directory/add', {'directories': directories})

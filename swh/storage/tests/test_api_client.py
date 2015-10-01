@@ -9,8 +9,7 @@ import time
 import unittest
 from urllib.request import urlopen
 
-from .test_storage import AbstractTestStorage
-
+from swh.storage.tests.test_storage import AbstractTestStorage
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
 
