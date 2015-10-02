@@ -250,8 +250,9 @@ as $$
 begin
     return query
 	select id from tmp_directory
-	except
-	select id from directory;
+	where not exists (
+	    select 1 from directory d
+	    where d.id = id);
     return;
 end
 $$;
@@ -409,8 +410,9 @@ as $$
 begin
     return query
         select id from tmp_revision
-	except
-	select id from revision;
+	where not exists (
+	    select 1 from revision r
+	    where r.id = id);
     return;
 end
 $$;
@@ -464,8 +466,9 @@ as $$
 begin
     return query
         select id from tmp_release
-	except
-	select id from release;
+	where not exists (
+	select 1 from release r
+	where r.id = id);
     return;
 end
 $$;
