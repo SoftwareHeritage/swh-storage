@@ -16,9 +16,6 @@ from .objstorage import ObjStorage
 from swh.core.hashutil import ALGORITHMS
 
 
-SWH_HASH_KEYS = ALGORITHMS
-
-
 def db_transaction(meth):
     """decorator to execute Storage methods within DB transactions
 
@@ -194,9 +191,9 @@ class Storage():
         """Find a content hash in db.
 
         Args:
-            content: a dictionary entry representing one content hash.
-            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
-            The value mapped to the corresponding checksum.
+            content: a dictionary representing one content hash, mapping
+                checksum algorithm names (see swh.core.hashutil.ALGORITHMS) to
+                checksum values
 
         Returns:
             a triplet (sha1, sha1_git, sha256) if the content exist
@@ -209,12 +206,9 @@ class Storage():
         """
         db = self.db
 
-        if content == {}:
-            raise ValueError('Key must be one of sha1, git_sha1, sha256.')
-
-        for key in content.keys():
-            if key not in SWH_HASH_KEYS:
-                raise ValueError('Key must be one of sha1, git_sha1, sha256.')
+        if not content or not set(content.keys()).intersection(ALGORITHMS):
+            raise ValueError('content keys must contain at least one of: '
+                             'sha1, sha1_git, sha256')
 
         # format the output
         found_hash = db.content_find(sha1=content.get('sha1'),
