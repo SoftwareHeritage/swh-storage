@@ -170,14 +170,16 @@ class AbstractTestStorage(DbTestFixture):
             'branch': 'master',
             'revision': b'67890123456789012345',
             'authority': 1,
-            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
+            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                          tzinfo=datetime.timezone.utc),
         }
 
         self.occurrence2 = {
             'branch': 'master',
             'revision': self.revision2['id'],
             'authority': 1,
-            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
+            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                          tzinfo=datetime.timezone.utc),
         }
 
     def tearDown(self):
@@ -366,8 +368,42 @@ class AbstractTestStorage(DbTestFixture):
         revision['id'] = self.occurrence['revision']
         self.storage.revision_add([revision])
 
-        self.occurrence['origin'] = origin_id
-        self.storage.occurrence_add([self.occurrence])
+        occur = self.occurrence
+        occur['origin'] = origin_id
+        self.storage.occurrence_add([occur])
+        self.storage.occurrence_add([occur])
+
+        test_query = '''select origin, branch, revision, authority, validity
+                        from occurrence_history
+                        order by origin, validity'''
+
+        self.cursor.execute(test_query)
+        ret = self.cursor.fetchall()
+        self.assertEqual(len(ret), 1)
+        self.assertEqual((ret[0][0], ret[0][1], ret[0][2].tobytes(),
+                          ret[0][3]), (occur['origin'],
+                                       occur['branch'], occur['revision'],
+                                       occur['authority']))
+
+        self.assertEqual(ret[0][4].lower, occur['validity'])
+        self.assertEqual(ret[0][4].lower_inc, True)
+        self.assertEqual(ret[0][4].upper, datetime.datetime.max)
+
+        orig_validity = occur['validity']
+        occur['validity'] += datetime.timedelta(hours=10)
+        self.storage.occurrence_add([occur])
+
+        self.cursor.execute(test_query)
+        ret = self.cursor.fetchall()
+        self.assertEqual(len(ret), 2)
+        self.assertEqual(ret[0][4].lower, orig_validity)
+        self.assertEqual(ret[0][4].lower_inc, True)
+        self.assertEqual(ret[0][4].upper, occur['validity'])
+        self.assertEqual(ret[0][4].upper_inc, False)
+        self.assertEqual(ret[1][4].lower, occur['validity'])
+        self.assertEqual(ret[1][4].lower_inc, True)
+        self.assertEqual(ret[1][4].upper, datetime.datetime.max)
+
 
     @istest
     def content_find_occurrence_with_present_content(self):

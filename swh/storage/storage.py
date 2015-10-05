@@ -4,11 +4,13 @@
 # See top-level LICENSE file for more information
 
 
+import datetime
 import functools
 import itertools
-import psycopg2
 
 from collections import defaultdict
+import psycopg2
+from psycopg2.extras import DateTimeTZRange
 
 from .db import Db
 from .objstorage import ObjStorage
@@ -510,14 +512,18 @@ class Storage():
 
         processed = []
         for occurrence in occurrences:
-            occ = occurrence.copy()
-            occ['validity'] = '[%s,infinity)' % str(occ['validity'])
-            processed.append(occ)
+            validity = occurrence['validity']
+            if isinstance(validity, datetime.datetime):
+                occurrence = occurrence.copy()
+                occurrence['validity'] = DateTimeTZRange(lower=validity)
+            processed.append(occurrence)
 
-        # XXX: will fail on second execution
-        db.copy_to(processed, 'occurrence_history',
+        db.mktemp('occurrence_history', cur)
+        db.copy_to(processed, 'tmp_occurrence_history',
                    ['origin', 'branch', 'revision', 'authority', 'validity'],
                    cur)
+
+        db.occurrence_history_add_from_temp(cur)
 
     @db_transaction
     def origin_get(self, origin, cur=None):
