@@ -424,13 +424,13 @@ class AbstractTestStorage(DbTestFixture):
         # 1. with bad input
         with self.assertRaises(ValueError) as cm:
             self.storage.content_find_occurrence({})  # empty is bad
-        self.assertIn('content keys', cm.exception.args)
+        self.assertIn('content keys', cm.exception.args[0])
 
         # 2. with bad input
         with self.assertRaises(ValueError) as cm:
             self.storage.content_find_occurrence(
                 {'unknown-sha1': 'something'})  # not the right key
-        self.assertIn('content keys', cm.exception.args)
+        self.assertIn('content keys', cm.exception.args[0])
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
