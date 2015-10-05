@@ -174,6 +174,17 @@ class AbstractTestStorage(DbTestFixture):
 
     def tearDown(self):
         shutil.rmtree(self.objroot)
+
+        self.cursor.execute("""SELECT table_name FROM information_schema.tables
+                               WHERE table_schema = %s""", ('public',))
+
+        tables = set(table for (table,) in self.cursor.fetchall())
+        tables -= {'dbversion', 'organization'}
+
+        for table in tables:
+            self.cursor.execute('truncate table %s cascade' % table)
+        self.conn.commit()
+
         super().tearDown()
 
     @istest
