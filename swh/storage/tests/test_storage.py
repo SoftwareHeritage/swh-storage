@@ -86,6 +86,14 @@ class AbstractTestStorage(DbTestFixture):
             'status': 'absent',
         }
 
+        self.skipped_cont2 = {
+            'length': 1024 * 1024 * 300,
+            'sha1_git': hex_to_hash(
+                '33e45d56f88993aae6a0198013efa80716fd8921'),
+            'reason': 'Content too long',
+            'status': 'absent',
+        }
+
         self.dir = {
             'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
             'entries': [
@@ -220,12 +228,13 @@ class AbstractTestStorage(DbTestFixture):
     @istest
     def skipped_content_add(self):
         cont = self.skipped_cont
+        cont2 = self.skipped_cont2
 
-        self.storage.content_add([self.skipped_cont])
+        self.storage.content_add([cont])
+        self.storage.content_add([cont2])
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status,'
-                            'reason FROM skipped_content WHERE sha1_git = %s',
-                            (cont['sha1_git'],))
+                            'reason FROM skipped_content ORDER BY sha1_git')
 
         datum = self.cursor.fetchone()
         self.assertEqual(
@@ -233,6 +242,13 @@ class AbstractTestStorage(DbTestFixture):
              datum[3], datum[4], datum[5]),
             (None, cont['sha1_git'], None,
              cont['length'], 'absent', 'Content too long'))
+
+        datum2 = self.cursor.fetchone()
+        self.assertEqual(
+            (datum2[0], datum2[1].tobytes(), datum2[2],
+             datum2[3], datum2[4], datum2[5]),
+            (None, cont2['sha1_git'], None,
+             cont2['length'], 'absent', 'Content too long'))
 
     @istest
     def content_missing(self):

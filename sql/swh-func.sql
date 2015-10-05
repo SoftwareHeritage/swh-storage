@@ -140,12 +140,12 @@ create or replace function swh_skipped_content_missing()
 as $$
 begin
     return query
-	select sha1, sha1_git, sha256 from tmp_skipped_content
+	select sha1, sha1_git, sha256 from tmp_skipped_content t
 	where not exists
 	(select 1 from skipped_content s where
-	    sha1 is not distinct from s.sha1 and
-	    sha1_git is not distinct from s.sha1_git and
-	    sha256 is not distinct from s.sha256);
+	    s.sha1 is not distinct from t.sha1 and
+	    s.sha1_git is not distinct from t.sha1_git and
+	    s.sha256 is not distinct from t.sha256);
     return;
 end
 $$;
@@ -249,10 +249,10 @@ create or replace function swh_directory_missing()
 as $$
 begin
     return query
-	select id from tmp_directory
+	select id from tmp_directory t
 	where not exists (
 	    select 1 from directory d
-	    where d.id = id);
+	    where d.id = t.id);
     return;
 end
 $$;
@@ -409,10 +409,10 @@ create or replace function swh_revision_missing()
 as $$
 begin
     return query
-        select id from tmp_revision
+        select id from tmp_revision t
 	where not exists (
 	    select 1 from revision r
-	    where r.id = id);
+	    where r.id = t.id);
     return;
 end
 $$;
@@ -465,10 +465,10 @@ create or replace function swh_release_missing()
 as $$
 begin
     return query
-        select id from tmp_release
+        select id from tmp_release t
 	where not exists (
 	select 1 from release r
-	where r.id = id);
+	where r.id = t.id);
     return;
 end
 $$;
