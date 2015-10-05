@@ -4,11 +4,12 @@
 # See top-level LICENSE file for more information
 
 
+from collections import defaultdict
 import datetime
 import functools
 import itertools
 
-from collections import defaultdict
+import dateutil.parser
 import psycopg2
 from psycopg2.extras import DateTimeTZRange
 
@@ -513,9 +514,12 @@ class Storage():
         processed = []
         for occurrence in occurrences:
             validity = occurrence['validity']
+            if isinstance(validity, str):
+                validity = dateutil.parser.parse(validity)
             if isinstance(validity, datetime.datetime):
                 occurrence = occurrence.copy()
                 occurrence['validity'] = DateTimeTZRange(lower=validity)
+
             processed.append(occurrence)
 
         db.mktemp('occurrence_history', cur)
