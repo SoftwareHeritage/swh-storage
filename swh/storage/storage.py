@@ -206,7 +206,7 @@ class Storage():
         """
         db = self.db
 
-        if not content or not set(content.keys()).intersection(ALGORITHMS):
+        if not set(content).intersection(ALGORITHMS):
             raise ValueError('content keys must contain at least one of: '
                              'sha1, sha1_git, sha256')
 
