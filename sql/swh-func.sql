@@ -53,10 +53,10 @@ create or replace function swh_mktemp_revision()
 as $$
     create temporary table tmp_revision (
         like revision including defaults,
-        author_name text not null default '',
-        author_email text not null default '',
-        committer_name text not null default '',
-        committer_email text not null default ''
+        author_name bytea not null default '',
+        author_email bytea not null default '',
+        committer_name bytea not null default '',
+        committer_email bytea not null default ''
     ) on commit drop;
     alter table tmp_revision drop column author;
     alter table tmp_revision drop column committer;
@@ -73,8 +73,8 @@ create or replace function swh_mktemp_release()
 as $$
     create temporary table tmp_release (
         like release including defaults,
-        author_name text not null default '',
-        author_email text not null default ''
+        author_name bytea not null default '',
+        author_email bytea not null default ''
     ) on commit drop;
     alter table tmp_release drop column author;
 $$;
@@ -140,12 +140,12 @@ create or replace function swh_skipped_content_missing()
 as $$
 begin
     return query
-	select sha1, sha1_git, sha256 from tmp_skipped_content
+	select sha1, sha1_git, sha256 from tmp_skipped_content t
 	where not exists
 	(select 1 from skipped_content s where
-	    sha1 is not distinct from s.sha1 and
-	    sha1_git is not distinct from s.sha1_git and
-	    sha256 is not distinct from s.sha256);
+	    s.sha1 is not distinct from t.sha1 and
+	    s.sha1_git is not distinct from t.sha1_git and
+	    s.sha256 is not distinct from t.sha256);
     return;
 end
 $$;
@@ -249,9 +249,10 @@ create or replace function swh_directory_missing()
 as $$
 begin
     return query
-	select id from tmp_directory
-	except
-	select id from directory;
+	select id from tmp_directory t
+	where not exists (
+	    select 1 from directory d
+	    where d.id = t.id);
     return;
 end
 $$;
@@ -376,10 +377,10 @@ create type revision_log_entry as
   type                   revision_type,
   directory              sha1_git,
   message                bytea,
-  author_name            text,
-  author_email           text,
-  committer_name         text,
-  committer_email        text
+  author_name            bytea,
+  author_email           bytea,
+  committer_name         bytea,
+  committer_email        bytea
 );
 
 
@@ -408,9 +409,10 @@ create or replace function swh_revision_missing()
 as $$
 begin
     return query
-        select id from tmp_revision
-	except
-	select id from revision;
+        select id from tmp_revision t
+	where not exists (
+	    select 1 from revision r
+	    where r.id = t.id);
     return;
 end
 $$;
@@ -463,9 +465,10 @@ create or replace function swh_release_missing()
 as $$
 begin
     return query
-        select id from tmp_release
-	except
-	select id from release;
+        select id from tmp_release t
+	where not exists (
+	select 1 from release r
+	where r.id = t.id);
     return;
 end
 $$;
@@ -503,6 +506,44 @@ begin
     select t.id, t.revision, t.date, t.date_offset, t.name, t.comment, a.id
     from tmp_release t
     left join person a on a.name = t.author_name and a.email = t.author_email;
+    return;
+end
+$$;
+
+-- add tmp_occurrence_history entries to occurrence_history
+--
+-- operates in bulk: 0. swh_mktemp(occurrence_history), 1. COPY to tmp_occurrence_history,
+-- 2. call this function
+create or replace function swh_occurrence_history_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    -- Update intervals we have the data to update
+    with new_intervals as (
+        select t.origin, t.branch, t.authority, t.validity,
+	       o.validity - t.validity as new_validity
+	from tmp_occurrence_history t
+        left join occurrence_history o
+        using (origin, branch, authority)
+	where o.origin is not null),
+    -- do not update intervals if they would become empty (perfect overlap)
+    to_update as (
+        select * from new_intervals
+	where not isempty(new_validity))
+    update occurrence_history o set validity = t.new_validity
+    from to_update t
+    where o.origin = t.origin and o.branch = t.branch and o.authority = t.authority;
+
+    -- Now only insert intervals that aren't already present
+    insert into occurrence_history (origin, branch, revision, authority, validity)
+	select distinct origin, branch, revision, authority, validity
+	from tmp_occurrence_history t
+	where not exists (
+	    select 1 from occurrence_history o
+	    where o.origin = t.origin and o.branch = t.branch and
+	          o.authority = t.authority and o.revision = t.revision and
+		  o.validity = t.validity);
     return;
 end
 $$;

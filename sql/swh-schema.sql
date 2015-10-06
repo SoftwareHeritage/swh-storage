@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(18, now(), 'Work In Progress');
+      values(22, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -228,8 +228,8 @@ create unique index on directory_entry_rev(target, name, perms);
 create table person
 (
   id     bigserial primary key,
-  name   text not null default '',
-  email  text not null default ''
+  name   bytea not null default '',
+  email  bytea not null default ''
 );
 
 create unique index on person(name, email);

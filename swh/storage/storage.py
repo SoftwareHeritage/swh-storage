@@ -4,19 +4,19 @@
 # See top-level LICENSE file for more information
 
 
+from collections import defaultdict
+import datetime
 import functools
 import itertools
-import psycopg2
 
-from collections import defaultdict
+import dateutil.parser
+import psycopg2
+from psycopg2.extras import DateTimeTZRange
 
 from .db import Db
 from .objstorage import ObjStorage
 
 from swh.core.hashutil import ALGORITHMS
-
-
-SWH_HASH_KEYS = ALGORITHMS
 
 
 def db_transaction(meth):
@@ -194,9 +194,9 @@ class Storage():
         """Find a content hash in db.
 
         Args:
-            content: a dictionary entry representing one content hash.
-            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
-            The value mapped to the corresponding checksum.
+            content: a dictionary representing one content hash, mapping
+                checksum algorithm names (see swh.core.hashutil.ALGORITHMS) to
+                checksum values
 
         Returns:
             a triplet (sha1, sha1_git, sha256) if the content exist
@@ -209,12 +209,9 @@ class Storage():
         """
         db = self.db
 
-        if content == {}:
-            raise ValueError('Key must be one of sha1, git_sha1, sha256.')
-
-        for key in content.keys():
-            if key not in SWH_HASH_KEYS:
-                raise ValueError('Key must be one of sha1, git_sha1, sha256.')
+        if not set(content).intersection(ALGORITHMS):
+            raise ValueError('content keys must contain at least one of: '
+                             'sha1, sha1_git, sha256')
 
         # format the output
         found_hash = db.content_find(sha1=content.get('sha1'),
@@ -516,14 +513,21 @@ class Storage():
 
         processed = []
         for occurrence in occurrences:
-            occ = occurrence.copy()
-            occ['validity'] = '[%s,infinity)' % str(occ['validity'])
-            processed.append(occ)
+            validity = occurrence['validity']
+            if isinstance(validity, str):
+                validity = dateutil.parser.parse(validity)
+            if isinstance(validity, datetime.datetime):
+                occurrence = occurrence.copy()
+                occurrence['validity'] = DateTimeTZRange(lower=validity)
 
-        # XXX: will fail on second execution
-        db.copy_to(processed, 'occurrence_history',
+            processed.append(occurrence)
+
+        db.mktemp('occurrence_history', cur)
+        db.copy_to(processed, 'tmp_occurrence_history',
                    ['origin', 'branch', 'revision', 'authority', 'validity'],
                    cur)
+
+        db.occurrence_history_add_from_temp(cur)
 
     @db_transaction
     def origin_get(self, origin, cur=None):
