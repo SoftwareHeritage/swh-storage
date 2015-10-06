@@ -1,3 +1,9 @@
+swh-storage (0.0.10-1~swh1) unstable-swh; urgency=medium
+
+  * Prepare deployment of swh.storage v0.0.10
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 06 Oct 2015 17:37:00 +0200
+
 swh-storage (0.0.9-1~swh1) unstable-swh; urgency=medium
 
   * Prepare deployment of swh.storage v0.0.9
