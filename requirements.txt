@@ -1,3 +1,4 @@
+dateutil
 psycopg2
 vcversioner
 

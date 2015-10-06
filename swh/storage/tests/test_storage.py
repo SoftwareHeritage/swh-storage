@@ -86,6 +86,14 @@ class AbstractTestStorage(DbTestFixture):
             'status': 'absent',
         }
 
+        self.skipped_cont2 = {
+            'length': 1024 * 1024 * 300,
+            'sha1_git': hex_to_hash(
+                '33e45d56f88993aae6a0198013efa80716fd8921'),
+            'reason': 'Content too long',
+            'status': 'absent',
+        }
+
         self.dir = {
             'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
             'entries': [
@@ -121,7 +129,7 @@ class AbstractTestStorage(DbTestFixture):
             'message': 'hello',
             'author_name': 'Nicolas Dandrimont',
             'author_email': 'nicolas@example.com',
-            'committer_name': 'Stefano Zacchiroli',
+            'committer_name': b'St\xc3fano Zacchiroli',
             'committer_email': 'stefano@example.com',
             'parents': [b'01234567890123456789'],
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
@@ -162,18 +170,31 @@ class AbstractTestStorage(DbTestFixture):
             'branch': 'master',
             'revision': b'67890123456789012345',
             'authority': 1,
-            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
+            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                          tzinfo=datetime.timezone.utc),
         }
 
         self.occurrence2 = {
             'branch': 'master',
             'revision': self.revision2['id'],
             'authority': 1,
-            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0),
+            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                          tzinfo=datetime.timezone.utc),
         }
 
     def tearDown(self):
         shutil.rmtree(self.objroot)
+
+        self.cursor.execute("""SELECT table_name FROM information_schema.tables
+                               WHERE table_schema = %s""", ('public',))
+
+        tables = set(table for (table,) in self.cursor.fetchall())
+        tables -= {'dbversion', 'organization'}
+
+        for table in tables:
+            self.cursor.execute('truncate table %s cascade' % table)
+        self.conn.commit()
+
         super().tearDown()
 
     @istest
@@ -209,12 +230,13 @@ class AbstractTestStorage(DbTestFixture):
     @istest
     def skipped_content_add(self):
         cont = self.skipped_cont
+        cont2 = self.skipped_cont2
 
-        self.storage.content_add([self.skipped_cont])
+        self.storage.content_add([cont])
+        self.storage.content_add([cont2])
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status,'
-                            'reason FROM skipped_content WHERE sha1_git = %s',
-                            (cont['sha1_git'],))
+                            'reason FROM skipped_content ORDER BY sha1_git')
 
         datum = self.cursor.fetchone()
         self.assertEqual(
@@ -222,6 +244,13 @@ class AbstractTestStorage(DbTestFixture):
              datum[3], datum[4], datum[5]),
             (None, cont['sha1_git'], None,
              cont['length'], 'absent', 'Content too long'))
+
+        datum2 = self.cursor.fetchone()
+        self.assertEqual(
+            (datum2[0], datum2[1].tobytes(), datum2[2],
+             datum2[3], datum2[4], datum2[5]),
+            (None, cont2['sha1_git'], None,
+             cont2['length'], 'absent', 'Content too long'))
 
     @istest
     def content_missing(self):
@@ -287,19 +316,13 @@ class AbstractTestStorage(DbTestFixture):
     @istest
     def content_exist_bad_input(self):
         # 1. with bad input
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(ValueError):
             self.storage.content_exist({})  # empty is bad
 
-        self.assertEqual(cm.exception.args,
-                         ('Key must be one of sha1, git_sha1, sha256.',))
-
         # 2. with bad input
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(ValueError):
             self.storage.content_exist(
                 {'unknown-sha1': 'something'})  # not the right key
-
-        self.assertEqual(cm.exception.args,
-                         ('Key must be one of sha1, git_sha1, sha256.',))
 
     @istest
     def directory_add(self):
@@ -345,8 +368,42 @@ class AbstractTestStorage(DbTestFixture):
         revision['id'] = self.occurrence['revision']
         self.storage.revision_add([revision])
 
-        self.occurrence['origin'] = origin_id
-        self.storage.occurrence_add([self.occurrence])
+        occur = self.occurrence
+        occur['origin'] = origin_id
+        self.storage.occurrence_add([occur])
+        self.storage.occurrence_add([occur])
+
+        test_query = '''select origin, branch, revision, authority, validity
+                        from occurrence_history
+                        order by origin, validity'''
+
+        self.cursor.execute(test_query)
+        ret = self.cursor.fetchall()
+        self.assertEqual(len(ret), 1)
+        self.assertEqual((ret[0][0], ret[0][1], ret[0][2].tobytes(),
+                          ret[0][3]), (occur['origin'],
+                                       occur['branch'], occur['revision'],
+                                       occur['authority']))
+
+        self.assertEqual(ret[0][4].lower, occur['validity'])
+        self.assertEqual(ret[0][4].lower_inc, True)
+        self.assertEqual(ret[0][4].upper, datetime.datetime.max)
+
+        orig_validity = occur['validity']
+        occur['validity'] += datetime.timedelta(hours=10)
+        self.storage.occurrence_add([occur])
+
+        self.cursor.execute(test_query)
+        ret = self.cursor.fetchall()
+        self.assertEqual(len(ret), 2)
+        self.assertEqual(ret[0][4].lower, orig_validity)
+        self.assertEqual(ret[0][4].lower_inc, True)
+        self.assertEqual(ret[0][4].upper, occur['validity'])
+        self.assertEqual(ret[0][4].upper_inc, False)
+        self.assertEqual(ret[1][4].lower, occur['validity'])
+        self.assertEqual(ret[1][4].lower_inc, True)
+        self.assertEqual(ret[1][4].upper, datetime.datetime.max)
+
 
     @istest
     def content_find_occurrence_with_present_content(self):
@@ -417,13 +474,15 @@ class AbstractTestStorage(DbTestFixture):
     @istest
     def content_find_occurrence_bad_input(self):
         # 1. with bad input
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as cm:
             self.storage.content_find_occurrence({})  # empty is bad
+        self.assertIn('content keys', cm.exception.args[0])
 
         # 2. with bad input
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as cm:
             self.storage.content_find_occurrence(
                 {'unknown-sha1': 'something'})  # not the right key
+        self.assertIn('content keys', cm.exception.args[0])
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
