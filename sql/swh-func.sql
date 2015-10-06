@@ -53,10 +53,10 @@ create or replace function swh_mktemp_revision()
 as $$
     create temporary table tmp_revision (
         like revision including defaults,
-        author_name text not null default '',
-        author_email text not null default '',
-        committer_name text not null default '',
-        committer_email text not null default ''
+        author_name bytea not null default '',
+        author_email bytea not null default '',
+        committer_name bytea not null default '',
+        committer_email bytea not null default ''
     ) on commit drop;
     alter table tmp_revision drop column author;
     alter table tmp_revision drop column committer;
@@ -73,8 +73,8 @@ create or replace function swh_mktemp_release()
 as $$
     create temporary table tmp_release (
         like release including defaults,
-        author_name text not null default '',
-        author_email text not null default ''
+        author_name bytea not null default '',
+        author_email bytea not null default ''
     ) on commit drop;
     alter table tmp_release drop column author;
 $$;
@@ -377,10 +377,10 @@ create type revision_log_entry as
   type                   revision_type,
   directory              sha1_git,
   message                bytea,
-  author_name            text,
-  author_email           text,
-  committer_name         text,
-  committer_email        text
+  author_name            bytea,
+  author_email           bytea,
+  committer_name         bytea,
+  committer_email        bytea
 );
 
 

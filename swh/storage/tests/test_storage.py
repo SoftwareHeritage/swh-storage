@@ -129,7 +129,7 @@ class AbstractTestStorage(DbTestFixture):
             'message': 'hello',
             'author_name': 'Nicolas Dandrimont',
             'author_email': 'nicolas@example.com',
-            'committer_name': 'Stefano Zacchiroli',
+            'committer_name': b'St\xc3fano Zacchiroli',
             'committer_email': 'stefano@example.com',
             'parents': [b'01234567890123456789'],
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
