@@ -35,6 +35,8 @@ def entry_to_bytes(entry):
     """Convert an entry coming from the database to bytes"""
     if isinstance(entry, memoryview):
         return entry.tobytes()
+    if isinstance(entry, list):
+        return [entry_to_bytes(value) for value in entry]
     return entry
 
 
