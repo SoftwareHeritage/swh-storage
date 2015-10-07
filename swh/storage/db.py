@@ -253,6 +253,13 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    def revision_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute('SELECT * FROM swh_revision_get()')
+
+        yield from cursor_to_bytes(cur)
+
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 

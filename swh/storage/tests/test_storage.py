@@ -359,6 +359,17 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
+    def revision_get(self):
+        self.storage.revision_add([self.revision])
+
+        get = list(self.storage.revision_get([self.revision['id'],
+                                              self.revision2['id']]))
+
+        self.assertEqual(len(get), 2)
+        self.assertEqual(self.revision, get[0])
+        self.assertEqual(None, get[1])
+
+    @istest
     def origin_add(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
