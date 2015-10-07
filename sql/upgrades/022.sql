@@ -7,10 +7,12 @@ insert into dbversion(version, release, description)
       values(22, now(), 'Work In Progress');
 
 ALTER TABLE person
-	ALTER COLUMN name TYPE bytea using convert_to(name, 'utf-8'),
-	ALTER COLUMN name SET DEFAULT '\x'::bytea,
-	ALTER COLUMN email TYPE bytea using convert_to(email, 'utf-8'),
-	ALTER COLUMN email SET DEFAULT '\x'::bytea;
+        ALTER COLUMN name DROP DEFAULT,
+        ALTER COLUMN name TYPE bytea using convert_to(name, 'utf-8'),
+        ALTER COLUMN name SET DEFAULT '\x'::bytea,
+        ALTER COLUMN email DROP DEFAULT,
+        ALTER COLUMN email TYPE bytea using convert_to(email, 'utf-8'),
+        ALTER COLUMN email SET DEFAULT '\x'::bytea;
 
 CREATE OR REPLACE FUNCTION swh_mktemp_release() RETURNS void
     LANGUAGE sql
