@@ -404,7 +404,6 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret[1][4].lower_inc, True)
         self.assertEqual(ret[1][4].upper, datetime.datetime.max)
 
-
     @istest
     def content_find_occurrence_with_present_content(self):
         # 1. with something to find
