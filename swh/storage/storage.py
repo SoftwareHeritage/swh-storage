@@ -437,6 +437,36 @@ class Storage():
         for obj in db.revision_missing_from_temp(cur):
             yield obj[0]
 
+    @db_transaction_generator
+    def revision_get(self, revisions, cur):
+        """Get all revisions from storage
+           Args: an iterable of revision ids
+           Returns: an iterable of revisions as dictionaries
+                    (or None if the revision doesn't exist)
+        """
+
+        keys = ('id', 'date', 'date_offset', 'committer_date',
+                'committer_date_offset', 'type', 'directory',
+                'message', 'author_name', 'author_email',
+                'committer_name', 'committer_email', 'parents')
+
+        db = self.db
+
+        # Create temporary table for metadata injection
+        db.mktemp('revision', cur)
+
+        revisions_dicts = ({'id': rev, 'type': 'git'} for rev in revisions)
+
+        db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
+
+        for line in self.db.revision_get_from_temp(cur):
+            data = dict(zip(keys, line))
+            if not data['type']:
+                yield None
+                continue
+
+            yield data
+
     def release_add(self, releases):
         """Add releases to the storage
 

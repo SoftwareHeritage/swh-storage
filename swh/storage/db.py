@@ -35,6 +35,8 @@ def entry_to_bytes(entry):
     """Convert an entry coming from the database to bytes"""
     if isinstance(entry, memoryview):
         return entry.tobytes()
+    if isinstance(entry, list):
+        return [entry_to_bytes(value) for value in entry]
     return entry
 
 
@@ -248,6 +250,13 @@ class Db:
         cur = self._cursor(cur)
 
         cur.execute('SELECT id FROM swh_revision_missing() as r(id)')
+
+        yield from cursor_to_bytes(cur)
+
+    def revision_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute('SELECT * FROM swh_revision_get()')
 
         yield from cursor_to_bytes(cur)
 
