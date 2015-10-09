@@ -126,15 +126,17 @@ class AbstractTestStorage(DbTestFixture):
 
         self.revision = {
             'id': b'56789012345678901234',
-            'message': 'hello',
-            'author_name': 'Nicolas Dandrimont',
-            'author_email': 'nicolas@example.com',
+            'message': b'hello',
+            'author_name': b'Nicolas Dandrimont',
+            'author_email': b'nicolas@example.com',
             'committer_name': b'St\xc3fano Zacchiroli',
-            'committer_email': 'stefano@example.com',
-            'parents': [b'01234567890123456789'],
-            'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
+            'committer_email': b'stefano@example.com',
+            'parents': [b'01234567890123456789', b'23434512345123456789'],
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
             'date_offset': 120,
-            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0),
+            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0,
+                                                tzinfo=datetime.timezone.utc),
             'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir['id'],
@@ -142,15 +144,17 @@ class AbstractTestStorage(DbTestFixture):
 
         self.revision2 = {
             'id': b'87659012345678904321',
-            'message': 'hello',
+            'message': b'hello again',
             'author_name': 'Roberto Dicosmo',
             'author_email': 'roberto@example.com',
             'committer_name': 'tony',
             'committer_email': 'ar@dumont.fr',
             'parents': [b'01234567890123456789'],
-            'date': datetime.datetime(2015, 1, 1, 22, 0, 0),
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
             'date_offset': 120,
-            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0),
+            'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0,
+                                                tzinfo=datetime.timezone.utc),
             'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir2['id'],
@@ -355,6 +359,17 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
+    def revision_get(self):
+        self.storage.revision_add([self.revision])
+
+        get = list(self.storage.revision_get([self.revision['id'],
+                                              self.revision2['id']]))
+
+        self.assertEqual(len(get), 2)
+        self.assertEqual(self.revision, get[0])
+        self.assertEqual(None, get[1])
+
+    @istest
     def origin_add(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
@@ -403,7 +418,6 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret[1][4].lower, occur['validity'])
         self.assertEqual(ret[1][4].lower_inc, True)
         self.assertEqual(ret[1][4].upper, datetime.datetime.max)
-
 
     @istest
     def content_find_occurrence_with_present_content(self):

@@ -5,7 +5,7 @@ subgraph "logical_grouping" {
 	color = gray;
 	
 	subgraph cluster_meta {
-		label = <<b>meta</b>>;
+		label = <<b>meta</b><br /> version: @@VERSION@@>;
 		dbversion;
 	}
 

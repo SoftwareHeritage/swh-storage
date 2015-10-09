@@ -84,6 +84,9 @@ class RemoteStorage():
         return [tuple(entry)
                 for entry in self.get('directory', {'directory': directory})]
 
+    def revision_get(self, revisions):
+        return self.post('revision', {'revisions': revisions})
+
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
 
