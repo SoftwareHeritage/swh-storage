@@ -672,29 +672,11 @@ begin
 
     -- no occurrence point to revision_id, walk up the history
     if not found then
-        -- recursively walk the history, stopping immediately before a revision
-        -- pointed to by an occurrence.
-	-- TODO find a nicer way to stop at, but *including*, that revision
-	with recursive revlog as (
-	    (select revision_id as rev_id, 0 as depth)
-	    union all
-	    (select hist.parent_id as rev_id, revlog.depth + 1
-	     from revlog
-	     join revision_history as hist on hist.id = revlog.rev_id
-	     and not exists(select 1 from occurrence_history
-			    where revision = hist.parent_id)
-	     limit 1)
-	)
-	select rev_id from revlog order by depth desc limit 1
-	into rev;
-	if not found then return null; end if;
-
-	-- as we stopped before a pointed by revision, look it up again and
-	-- return its data
 	select origin, branch, revision
-	from revision_history as rev_hist, occurrence_history as occ_hist
-	where rev_hist.id = rev
-	and occ_hist.revision = rev_hist.parent_id
+	from swh_revision_list_children(revision_id) as rev_list(sha1_git)
+	left join occurrence_history occ_hist
+	on rev_list.sha1_git = occ_hist.revision
+	where occ_hist.origin is not null
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
 	limit 1
 	into occ;
