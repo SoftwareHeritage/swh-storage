@@ -365,6 +365,21 @@ as $$
     select * from rev_list;
 $$;
 
+-- List all the children of a given revision
+create or replace function swh_revision_list_children(root_revision sha1_git)
+    returns setof sha1_git
+    language sql
+as $$
+    with recursive rev_list(id) as (
+	(select id from revision where id = root_revision)
+	union
+	(select h.id
+	 from revision_history as h
+	 join rev_list on h.parent_id = rev_list.id)
+    )
+    select * from rev_list;
+$$;
+
 
 -- Detailed entry in a revision log
 create type revision_log_entry as
