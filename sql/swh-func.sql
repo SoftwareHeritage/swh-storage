@@ -321,6 +321,7 @@ create type directory_entry as
 create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     returns setof directory_entry
     language sql
+    stable
 as $$
     with dir as (
 	select id as dir_id, dir_entries, file_entries, rev_entries
@@ -354,6 +355,7 @@ $$;
 create or replace function swh_revision_list(root_revision sha1_git)
     returns setof sha1_git
     language sql
+    stable
 as $$
     with recursive rev_list(id) as (
 	(select id from revision where id = root_revision)
@@ -369,6 +371,7 @@ $$;
 create or replace function swh_revision_list_children(root_revision sha1_git)
     returns setof sha1_git
     language sql
+    stable
 as $$
     with recursive rev_list(id) as (
 	(select id from revision where id = root_revision)
@@ -404,6 +407,7 @@ create type revision_log_entry as
 create or replace function swh_revision_log(root_revision sha1_git)
     returns setof revision_log_entry
     language sql
+    stable
 as $$
     select revision.id, date, date_offset,
 	committer_date, committer_date_offset,
@@ -626,6 +630,7 @@ create type content_dir as (
 create or replace function swh_content_find_directory(content_id sha1)
     returns content_dir
     language sql
+    stable
 as $$
     with recursive path as (
 	-- Recursively build a path from the requested content to a root
