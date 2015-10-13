@@ -63,6 +63,7 @@ create table content
 
 create unique index on content(sha1_git);
 create unique index on content(sha256);
+create index on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
 
 -- Content we have seen but skipped for some reason. This table is
 -- separate from the content table as we might not have the sha1
