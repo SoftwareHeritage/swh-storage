@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(23, now(), 'Work In Progress');
+      values(24, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -259,6 +259,8 @@ create table revision
   committer             bigint references person(id)
 );
 
+create index on revision(directory);
+
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
 (
@@ -268,6 +270,8 @@ create table revision_history
     -- parent position in merge commits, 0-based
   primary key (id, parent_rank)
 );
+
+create index on revision_history(parent_id);
 
 -- The content of software origins is indexed starting from top-level pointers
 -- called "branches". Every time we fetch some origin we store in this table
@@ -297,6 +301,8 @@ create table occurrence_history
   primary key (origin, branch, revision, authority, validity)
 );
 
+create index on occurrence_history(revision);
+
 -- Materialized view of occurrence_history, storing the *current* value of each
 -- branch, as last seen by SWH.
 create table occurrence
@@ -322,3 +328,5 @@ create table release
   comment     bytea,
   author      bigint references person(id)
 );
+
+create index on release(revision);

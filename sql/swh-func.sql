@@ -321,6 +321,7 @@ create type directory_entry as
 create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     returns setof directory_entry
     language sql
+    stable
 as $$
     with dir as (
 	select id as dir_id, dir_entries, file_entries, rev_entries
@@ -354,6 +355,7 @@ $$;
 create or replace function swh_revision_list(root_revision sha1_git)
     returns setof sha1_git
     language sql
+    stable
 as $$
     with recursive rev_list(id) as (
 	(select id from revision where id = root_revision)
@@ -361,6 +363,22 @@ as $$
 	(select parent_id
 	 from revision_history as h
 	 join rev_list on h.id = rev_list.id)
+    )
+    select * from rev_list;
+$$;
+
+-- List all the children of a given revision
+create or replace function swh_revision_list_children(root_revision sha1_git)
+    returns setof sha1_git
+    language sql
+    stable
+as $$
+    with recursive rev_list(id) as (
+	(select id from revision where id = root_revision)
+	union
+	(select h.id
+	 from revision_history as h
+	 join rev_list on h.parent_id = rev_list.id)
     )
     select * from rev_list;
 $$;
@@ -389,6 +407,7 @@ create type revision_log_entry as
 create or replace function swh_revision_log(root_revision sha1_git)
     returns setof revision_log_entry
     language sql
+    stable
 as $$
     select revision.id, date, date_offset,
 	committer_date, committer_date_offset,
@@ -611,6 +630,7 @@ create type content_dir as (
 create or replace function swh_content_find_directory(content_id sha1)
     returns content_dir
     language sql
+    stable
 as $$
     with recursive path as (
 	-- Recursively build a path from the requested content to a root
@@ -657,29 +677,11 @@ begin
 
     -- no occurrence point to revision_id, walk up the history
     if not found then
-        -- recursively walk the history, stopping immediately before a revision
-        -- pointed to by an occurrence.
-	-- TODO find a nicer way to stop at, but *including*, that revision
-	with recursive revlog as (
-	    (select revision_id as rev_id, 0 as depth)
-	    union all
-	    (select hist.parent_id as rev_id, revlog.depth + 1
-	     from revlog
-	     join revision_history as hist on hist.id = revlog.rev_id
-	     and not exists(select 1 from occurrence_history
-			    where revision = hist.parent_id)
-	     limit 1)
-	)
-	select rev_id from revlog order by depth desc limit 1
-	into rev;
-	if not found then return null; end if;
-
-	-- as we stopped before a pointed by revision, look it up again and
-	-- return its data
 	select origin, branch, revision
-	from revision_history as rev_hist, occurrence_history as occ_hist
-	where rev_hist.id = rev
-	and occ_hist.revision = rev_hist.parent_id
+	from swh_revision_list_children(revision_id) as rev_list(sha1_git)
+	left join occurrence_history occ_hist
+	on rev_list.sha1_git = occ_hist.revision
+	where occ_hist.origin is not null
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
 	limit 1
 	into occ;

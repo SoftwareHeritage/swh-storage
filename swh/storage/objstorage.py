@@ -90,6 +90,7 @@ def _write_obj_file(hex_obj_id, root_dir, depth):
     with gzip.GzipFile(filename=tmp_path, fileobj=tmp_f) as f:
         yield f
     tmp_f.close()
+    os.chmod(tmp_path, 0o644)
     os.rename(tmp_path, path)
 
 
