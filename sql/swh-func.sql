@@ -347,6 +347,23 @@ as $$
     order by name;
 $$;
 
+-- List recursively the content of a directory
+create or replace function swh_directory_walk(walked_dir_id sha1_git)
+    returns setof directory_entry
+    language sql
+    stable
+as $$
+    with recursive entries as (
+        select dir_id, type, target, name, perms
+        from swh_directory_walk_one(walked_dir_id)
+        union all
+        select dir_id, type, target, (dirname || '/' || name)::unix_path as name, perms
+        from (select (swh_directory_walk_one(dirs.target)).*, dirs.name as dirname
+              from (select target, name from entries where type = 'dir') as dirs) as with_parent
+    )
+    select dir_id, type, target, name, perms
+    from entries
+$$;
 
 -- List all revision IDs starting from a given revision, going back in time
 --
