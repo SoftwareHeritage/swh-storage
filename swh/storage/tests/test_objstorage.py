@@ -6,6 +6,7 @@
 import gzip
 import os
 import shutil
+import stat
 import tempfile
 import unittest
 
@@ -90,6 +91,12 @@ class TestObjStorage(unittest.TestCase):
     def check_missing(self):
         with self.assertRaises(objstorage.Error):
             self.storage.check(self.obj_id)
+
+    @istest
+    def check_file_mode(self):
+        self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        stat_res = os.stat(self.obj_path)
+        self.assertEquals(stat.S_IMODE(stat_res.st_mode), 0o644)
 
     @istest
     def check_not_gzip(self):
