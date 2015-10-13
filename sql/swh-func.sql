@@ -318,6 +318,9 @@ create type directory_entry as
 
 
 -- List a single level of directory walked_dir_id
+-- FIXME: order by name is not correct. For git, we need to order by
+-- lexicographic order but as if a trailing / is present in directory
+-- name
 create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     returns setof directory_entry
     language sql
