@@ -234,16 +234,12 @@ class Db:
 
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
-
         cur.execute('SELECT * FROM swh_directory_missing()')
-
         yield from cursor_to_bytes(cur)
 
     def directory_walk_one(self, directory, cur=None):
         cur = self._cursor(cur)
-
         cur.execute('SELECT * FROM swh_directory_walk_one(%s)', (directory,))
-
         yield from cursor_to_bytes(cur)
 
     def revision_missing_from_temp(self, cur=None):
@@ -255,16 +251,12 @@ class Db:
 
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
-
         cur.execute('SELECT * FROM swh_revision_get()')
-
         yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
-
         cur.execute('SELECT id FROM swh_release_missing() as r(id)')
-
         yield from cursor_to_bytes(cur)
 
     def stat_counters(self, cur=None):
