@@ -10,4 +10,4 @@ Note: `storage_base` entry referenced should exist.
 
 # Start
 
-python3 -m swh.storage.api ~/.config/swh/storage.ini
+    python3 -m swh.storage.api.server ~/.config/swh/storage.ini
