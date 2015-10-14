@@ -266,3 +266,8 @@ class Db:
         cur.execute('SELECT id FROM swh_release_missing() as r(id)')
 
         yield from cursor_to_bytes(cur)
+
+    def stat_counters(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('SELECT * FROM swh_stat_counters()')
+        yield from cur

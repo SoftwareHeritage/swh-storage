@@ -609,3 +609,14 @@ class Storage():
 
         cur.execute(insert, (origin['type'], origin['url']))
         return cur.fetchone()[0]
+
+    @db_transaction
+    def stat_counters(self, cur=None):
+        """compute statistics about the number of tuples in various tables
+
+        Returns:
+            a dictionary mapping textual labels (e.g., content) to integer
+            values (e.g., the number of tuples in table content)
+
+        """
+        return {k: v for (k, v) in self.db.stat_counters()}

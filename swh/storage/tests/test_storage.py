@@ -498,6 +498,15 @@ class AbstractTestStorage(DbTestFixture):
                 {'unknown-sha1': 'something'})  # not the right key
         self.assertIn('content keys', cm.exception.args[0])
 
+    @istest
+    def stat_counters(self):
+        expected_keys = ['content', 'directory', 'directory_entry_dir',
+                         'occurrence', 'origin', 'person', 'revision']
+        counters = self.storage.stat_counters()
+
+        self.assertTrue(set(expected_keys) <= set(counters))
+        self.assertIsInstance(counters[expected_keys[0]], int)
+
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
     """Test the local storage"""

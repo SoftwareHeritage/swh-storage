@@ -759,3 +759,39 @@ begin
     return coc;  -- might be NULL
 end
 $$;
+
+-- simple counter mapping a textual label to an integer value
+create type counter as (
+    label  text,
+    value  bigint
+);
+
+-- return statistics abobut the number of tuples in various SWH tables
+--
+-- Note: the returned values are based on postgres internal statistics
+-- (pg_class table), which are only updated daily (by autovacuum) or so
+create or replace function swh_stat_counters()
+    returns setof counter
+    language sql
+    stable
+as $$
+    select relname::text as label, reltuples::bigint as value
+    from pg_class
+    where oid in (
+        'public.content'::regclass,
+        'public.directory'::regclass,
+        'public.directory_entry_dir'::regclass,
+        'public.directory_entry_file'::regclass,
+        'public.directory_entry_rev'::regclass,
+        'public.occurrence'::regclass,
+        'public.occurrence_history'::regclass,
+        'public.origin'::regclass,
+        'public.person'::regclass,
+        'public.project'::regclass,
+        'public.project_history'::regclass,
+        'public.release'::regclass,
+        'public.revision'::regclass,
+        'public.revision_history'::regclass,
+        'public.skipped_content'::regclass
+    );
+$$;
