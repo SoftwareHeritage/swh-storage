@@ -112,3 +112,6 @@ class RemoteStorage():
 
     def origin_add_one(self, origin):
         return self.post('origin', {'origin': origin})
+
+    def stat_counters(self):
+        return self.get('stat/counters')

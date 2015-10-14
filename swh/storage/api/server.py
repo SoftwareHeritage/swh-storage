@@ -158,6 +158,11 @@ def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
+@app.route('/stat/counters', methods=['GET'])
+def stat_counters():
+    return encode_data(g.storage.stat_counters())
+
+
 def run_from_webserver(environ, start_response):
     """Run the WSGI app from the webserver, loading the configuration."""
 
