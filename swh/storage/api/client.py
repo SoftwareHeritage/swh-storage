@@ -50,7 +50,7 @@ class RemoteStorage():
 
         return decode_response(response)
 
-    def get(self, endpoint, data):
+    def get(self, endpoint, data=None):
         response = requests.get(
             self.url(endpoint),
             params=data,
