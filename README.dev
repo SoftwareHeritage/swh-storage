@@ -10,4 +10,10 @@ Note: `storage_base` entry referenced should exist.
 
 # Start
 
+local only:
+
     python3 -m swh.storage.api.server ~/.config/swh/storage.ini
+
+local only but accessible from other machine:
+
+    python3 -m swh.storage.api.server ~/.config/swh/storage.ini 0.0.0.0

@@ -180,4 +180,6 @@ if __name__ == '__main__':
     import sys
 
     app.config.update(config.read(sys.argv[1], DEFAULT_CONFIG))
-    app.run(debug=True)
+
+    host = sys.argv[2] if len(sys.argv) >= 3 else '127.0.0.1'
+    app.run(host, debug=True)
