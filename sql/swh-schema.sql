@@ -257,7 +257,8 @@ create table revision
   directory             sha1_git,  -- file-system tree
   message               bytea,
   author                bigint references person(id),
-  committer             bigint references person(id)
+  committer             bigint references person(id),
+  synthetic             boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
 );
 
 create index on revision(directory);
@@ -327,7 +328,8 @@ create table release
   date_offset smallint,
   name        text,
   comment     bytea,
-  author      bigint references person(id)
+  author      bigint references person(id),
+  synthetic   boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
 );
 
 create index on release(revision);
