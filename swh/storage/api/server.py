@@ -158,6 +158,11 @@ def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
+@app.route('/stat/counters', methods=['GET'])
+def stat_counters():
+    return encode_data(g.storage.stat_counters())
+
+
 def run_from_webserver(environ, start_response):
     """Run the WSGI app from the webserver, loading the configuration."""
 
@@ -175,4 +180,6 @@ if __name__ == '__main__':
     import sys
 
     app.config.update(config.read(sys.argv[1], DEFAULT_CONFIG))
-    app.run(debug=True)
+
+    host = sys.argv[2] if len(sys.argv) >= 3 else '127.0.0.1'
+    app.run(host, debug=True)

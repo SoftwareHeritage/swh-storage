@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(24, now(), 'Work In Progress');
+      values(25, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -63,6 +63,7 @@ create table content
 
 create unique index on content(sha1_git);
 create unique index on content(sha256);
+create index on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
 
 -- Content we have seen but skipped for some reason. This table is
 -- separate from the content table as we might not have the sha1
@@ -256,7 +257,8 @@ create table revision
   directory             sha1_git,  -- file-system tree
   message               bytea,
   author                bigint references person(id),
-  committer             bigint references person(id)
+  committer             bigint references person(id),
+  synthetic             boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
 );
 
 create index on revision(directory);
@@ -326,7 +328,8 @@ create table release
   date_offset smallint,
   name        text,
   comment     bytea,
-  author      bigint references person(id)
+  author      bigint references person(id),
+  synthetic   boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
 );
 
 create index on release(revision);
