@@ -5,5 +5,5 @@ insert into organization(name, description, homepage)
 
 insert into organization(name, description, homepage)
        values('gnu',
-              'GNU''s not Unix!',
+              'GNU is not Unix!',
               'https://gnu.org/');
