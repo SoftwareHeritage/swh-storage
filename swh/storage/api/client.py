@@ -58,6 +58,12 @@ class RemoteStorage():
 
         if response.status_code == 404:
             return None
+
+        # XXX: this breaks language-independence and should be
+        # replaced by proper unserialization
+        if response.status_code == 400:
+            raise pickle.loads(decode_response(response))
+
         else:
             return decode_response(response)
 
