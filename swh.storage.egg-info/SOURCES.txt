@@ -1,4 +1,6 @@
 .gitignore
+AUTHORS
+LICENSE
 MANIFEST.in
 Makefile
 Makefile.local
