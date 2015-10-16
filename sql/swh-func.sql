@@ -766,7 +766,7 @@ create type counter as (
     value  bigint
 );
 
--- return statistics abobut the number of tuples in various SWH tables
+-- return statistics about the number of tuples in various SWH tables
 --
 -- Note: the returned values are based on postgres internal statistics
 -- (pg_class table), which are only updated daily (by autovacuum) or so
