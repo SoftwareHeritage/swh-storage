@@ -50,7 +50,7 @@ class RemoteStorage():
 
         return decode_response(response)
 
-    def get(self, endpoint, data):
+    def get(self, endpoint, data=None):
         response = requests.get(
             self.url(endpoint),
             params=data,
@@ -58,6 +58,12 @@ class RemoteStorage():
 
         if response.status_code == 404:
             return None
+
+        # XXX: this breaks language-independence and should be
+        # replaced by proper unserialization
+        if response.status_code == 400:
+            raise pickle.loads(decode_response(response))
+
         else:
             return decode_response(response)
 
@@ -112,3 +118,6 @@ class RemoteStorage():
 
     def origin_add_one(self, origin):
         return self.post('origin', {'origin': origin})
+
+    def stat_counters(self):
+        return self.get('stat/counters')

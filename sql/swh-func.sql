@@ -318,6 +318,9 @@ create type directory_entry as
 
 
 -- List a single level of directory walked_dir_id
+-- FIXME: order by name is not correct. For git, we need to order by
+-- lexicographic order but as if a trailing / is present in directory
+-- name
 create or replace function swh_directory_walk_one(walked_dir_id sha1_git)
     returns setof directory_entry
     language sql
@@ -347,6 +350,23 @@ as $$
     order by name;
 $$;
 
+-- List recursively the content of a directory
+create or replace function swh_directory_walk(walked_dir_id sha1_git)
+    returns setof directory_entry
+    language sql
+    stable
+as $$
+    with recursive entries as (
+        select dir_id, type, target, name, perms
+        from swh_directory_walk_one(walked_dir_id)
+        union all
+        select dir_id, type, target, (dirname || '/' || name)::unix_path as name, perms
+        from (select (swh_directory_walk_one(dirs.target)).*, dirs.name as dirname
+              from (select target, name from entries where type = 'dir') as dirs) as with_parent
+    )
+    select dir_id, type, target, name, perms
+    from entries
+$$;
 
 -- List all revision IDs starting from a given revision, going back in time
 --
@@ -398,7 +418,8 @@ create type revision_log_entry as
   author_name            bytea,
   author_email           bytea,
   committer_name         bytea,
-  committer_email        bytea
+  committer_email        bytea,
+  synthetic              boolean
 );
 
 
@@ -413,7 +434,8 @@ as $$
 	committer_date, committer_date_offset,
 	type, directory, message,
 	author.name as author_name, author.email as author_email,
-	committer.name as committer_name, committer.email as committer_email
+	committer.name as committer_name, committer.email as committer_email,
+        revision.synthetic
     from swh_revision_list(root_revision) as rev_list
     join revision on revision.id = rev_list
     join person as author on revision.author = author.id
@@ -435,6 +457,7 @@ create type revision_entry as
   author_email           bytea,
   committer_name         bytea,
   committer_email        bytea,
+  synthetic              boolean,
   parents                bytea[]
 );
 
@@ -449,7 +472,7 @@ begin
         select t.id, r.date, r.date_offset,
                r.committer_date, r.committer_date_offset,
                r.type, r.directory, r.message,
-               a.name, a.email, c.name, c.email,
+               a.name, a.email, c.name, c.email, r.synthetic,
 	       array_agg(rh.parent_id::bytea order by rh.parent_rank)
                    as parents
         from tmp_revision t
@@ -459,7 +482,7 @@ begin
         left join revision_history rh on rh.id = r.id
         group by t.id, a.name, a.email, r.date, r.date_offset,
                c.name, c.email, r.committer_date, r.committer_date_offset,
-               r.type, r.directory, r.message;
+               r.type, r.directory, r.message, r.synthetic;
     return;
 end
 $$;
@@ -510,8 +533,8 @@ as $$
 begin
     perform swh_person_add_from_revision();
 
-    insert into revision (id, date, date_offset, committer_date, committer_date_offset, type, directory, message, author, committer)
-    select t.id, t.date, t.date_offset, t.committer_date, t.committer_date_offset, t.type, t.directory, t.message, a.id, c.id
+    insert into revision (id, date, date_offset, committer_date, committer_date_offset, type, directory, message, author, committer, synthetic)
+    select t.id, t.date, t.date_offset, t.committer_date, t.committer_date_offset, t.type, t.directory, t.message, a.id, c.id, t.synthetic
     from tmp_revision t
     left join person a on a.name = t.author_name and a.email = t.author_email
     left join person c on c.name = t.committer_name and c.email = t.committer_email;
@@ -564,8 +587,8 @@ as $$
 begin
     perform swh_person_add_from_release();
 
-    insert into release (id, revision, date, date_offset, name, comment, author)
-    select t.id, t.revision, t.date, t.date_offset, t.name, t.comment, a.id
+    insert into release (id, revision, date, date_offset, name, comment, author, synthetic)
+    select t.id, t.revision, t.date, t.date_offset, t.name, t.comment, a.id, t.synthetic
     from tmp_release t
     left join person a on a.name = t.author_name and a.email = t.author_email;
     return;
@@ -738,4 +761,40 @@ begin
 
     return coc;  -- might be NULL
 end
+$$;
+
+-- simple counter mapping a textual label to an integer value
+create type counter as (
+    label  text,
+    value  bigint
+);
+
+-- return statistics about the number of tuples in various SWH tables
+--
+-- Note: the returned values are based on postgres internal statistics
+-- (pg_class table), which are only updated daily (by autovacuum) or so
+create or replace function swh_stat_counters()
+    returns setof counter
+    language sql
+    stable
+as $$
+    select relname::text as label, reltuples::bigint as value
+    from pg_class
+    where oid in (
+        'public.content'::regclass,
+        'public.directory'::regclass,
+        'public.directory_entry_dir'::regclass,
+        'public.directory_entry_file'::regclass,
+        'public.directory_entry_rev'::regclass,
+        'public.occurrence'::regclass,
+        'public.occurrence_history'::regclass,
+        'public.origin'::regclass,
+        'public.person'::regclass,
+        'public.project'::regclass,
+        'public.project_history'::regclass,
+        'public.release'::regclass,
+        'public.revision'::regclass,
+        'public.revision_history'::regclass,
+        'public.skipped_content'::regclass
+    );
 $$;
