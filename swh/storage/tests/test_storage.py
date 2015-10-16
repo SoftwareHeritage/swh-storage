@@ -140,6 +140,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir['id'],
+            'synthetic': False
         }
 
         self.revision2 = {
@@ -158,6 +159,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir2['id'],
+            'synthetic': False
         }
 
         self.origin = {
@@ -184,6 +186,30 @@ class AbstractTestStorage(DbTestFixture):
             'authority': 1,
             'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
                                           tzinfo=datetime.timezone.utc),
+        }
+
+        self.release = {
+            'id': b'87659012345678901234',
+            'name': 'v0.0.1',
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'offset': 120,
+            'author_name': 'olasd',
+            'author_email': 'nic@olasd.fr',
+            'comment': 'synthetic release',
+            'synthetic': True
+        }
+
+        self.release2 = {
+            'id': b'56789012348765901234',
+            'name': 'v0.0.2',
+            'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'offset': 120,
+            'author_name': 'tony',
+            'author_email': 'ar@dumont.fr',
+            'comment': 'v0.0.2\nMisc performance improvments + bug fixes',
+            'synthetic': False
         }
 
     def tearDown(self):
@@ -368,6 +394,19 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(len(get), 2)
         self.assertEqual(self.revision, get[0])
         self.assertEqual(None, get[1])
+
+    @istest
+    def release_add(self):
+        init_missing = self.storage.release_missing([self.release['id'],
+                                                     self.release2['id']])
+        self.assertEqual([self.release['id'], self.release2['id']],
+                         list(init_missing))
+
+        self.storage.release_add([self.release, self.release2])
+
+        end_missing = self.storage.release_missing([self.release['id'],
+                                                    self.release2['id']])
+        self.assertEqual([], list(end_missing))
 
     @istest
     def origin_add(self):

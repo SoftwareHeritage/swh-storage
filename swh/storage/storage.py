@@ -407,7 +407,8 @@ class Storage():
                        ['id', 'date', 'date_offset', 'committer_date',
                         'committer_date_offset', 'type', 'directory',
                         'message', 'author_name', 'author_email',
-                        'committer_name', 'committer_email'],
+                        'committer_name', 'committer_email',
+                        'synthetic'],
                        cur)
 
             db.revision_add_from_temp(cur)
@@ -448,7 +449,8 @@ class Storage():
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
                 'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'parents')
+                'committer_name', 'committer_email', 'synthetic',
+                'parents')
 
         db = self.db
 
@@ -500,7 +502,9 @@ class Storage():
 
             db.copy_to(releases_filtered, 'tmp_release',
                        ['id', 'revision', 'date', 'date_offset', 'name',
-                        'comment', 'author_name', 'author_email'], cur)
+                        'comment', 'author_name', 'author_email',
+                        'synthetic'],
+                       cur)
 
             db.release_add_from_temp(cur)
 
