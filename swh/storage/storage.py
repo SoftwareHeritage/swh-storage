@@ -407,7 +407,8 @@ class Storage():
                        ['id', 'date', 'date_offset', 'committer_date',
                         'committer_date_offset', 'type', 'directory',
                         'message', 'author_name', 'author_email',
-                        'committer_name', 'committer_email'],
+                        'committer_name', 'committer_email',
+                        'synthetic'],
                        cur)
 
             db.revision_add_from_temp(cur)
@@ -448,7 +449,8 @@ class Storage():
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
                 'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'parents')
+                'committer_name', 'committer_email', 'synthetic',
+                'parents')
 
         db = self.db
 
@@ -500,7 +502,9 @@ class Storage():
 
             db.copy_to(releases_filtered, 'tmp_release',
                        ['id', 'revision', 'date', 'date_offset', 'name',
-                        'comment', 'author_name', 'author_email'], cur)
+                        'comment', 'author_name', 'author_email',
+                        'synthetic'],
+                       cur)
 
             db.release_add_from_temp(cur)
 
@@ -609,3 +613,14 @@ class Storage():
 
         cur.execute(insert, (origin['type'], origin['url']))
         return cur.fetchone()[0]
+
+    @db_transaction
+    def stat_counters(self, cur=None):
+        """compute statistics about the number of tuples in various tables
+
+        Returns:
+            a dictionary mapping textual labels (e.g., content) to integer
+            values (e.g., the number of tuples in table content)
+
+        """
+        return {k: v for (k, v) in self.db.stat_counters()}
