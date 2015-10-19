@@ -684,34 +684,16 @@ $$;
 -- otherwise.
 create or replace function swh_revision_find_occurrence(revision_id sha1_git)
     returns occurrence
-    language plpgsql
+    language sql
+    stable
 as $$
-declare
-    occ occurrence%ROWTYPE;
-    rev sha1_git;
-begin
-    -- first check to see if revision_id is already pointed by an occurrence
-    select origin, branch, revision
-    from occurrence_history as occ_hist
-    where occ_hist.revision = revision_id
-    order by upper(occ_hist.validity)  -- TODO filter by authority?
-    limit 1
-    into occ;
-
-    -- no occurrence point to revision_id, walk up the history
-    if not found then
 	select origin, branch, revision
 	from swh_revision_list_children(revision_id) as rev_list(sha1_git)
 	left join occurrence_history occ_hist
 	on rev_list.sha1_git = occ_hist.revision
 	where occ_hist.origin is not null
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
-	limit 1
-	into occ;
-    end if;
-
-    return occ;  -- might be NULL
-end
+	limit 1;
 $$;
 
 
