@@ -84,7 +84,7 @@ def _write_obj_file(hex_obj_id, root_dir, depth):
     """
     dir = _obj_dir(hex_obj_id, root_dir, depth)
     if not os.path.isdir(dir):
-        os.makedirs(dir, DIR_MODE, exists_ok=True)
+        os.makedirs(dir, DIR_MODE, exist_ok=True)
 
     path = os.path.join(dir, hex_obj_id)
     (tmp, tmp_path) = tempfile.mkstemp(suffix='.tmp', prefix='hex_obj_id.',
@@ -150,7 +150,7 @@ class ObjStorage:
 
         self._temp_dir = os.path.join(root, 'tmp')
         if not os.path.isdir(self._temp_dir):
-            os.makedirs(self._temp_dir, DIR_MODE, exists_ok=True)
+            os.makedirs(self._temp_dir, DIR_MODE, exist_ok=True)
 
     def __obj_dir(self, hex_obj_id):
         """_obj_dir wrapper using this storage configuration"""
@@ -230,7 +230,7 @@ class ObjStorage:
 
                 dir = self.__obj_dir(hex_obj_id)
                 if not os.path.isdir(dir):
-                    os.makedirs(dir, DIR_MODE, exists_ok=True)
+                    os.makedirs(dir, DIR_MODE, exist_ok=True)
                 path = os.path.join(dir, hex_obj_id)
 
                 os.chmod(tmp_path, FILE_MODE)
