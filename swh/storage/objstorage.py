@@ -18,6 +18,8 @@ ID_HASH_ALGO = 'sha1'
 
 GZIP_BUFSIZ = 1048576
 
+FILE_MODE = 0o644
+
 
 class Error(Exception):
 
@@ -90,7 +92,7 @@ def _write_obj_file(hex_obj_id, root_dir, depth):
     with gzip.GzipFile(filename=tmp_path, fileobj=tmp_f) as f:
         yield f
     tmp_f.close()
-    os.chmod(tmp_path, 0o644)
+    os.chmod(tmp_path, FILE_MODE)
     os.rename(tmp_path, path)
 
 
@@ -229,6 +231,8 @@ class ObjStorage:
                 if not os.path.isdir(dir):
                     os.makedirs(dir)
                 path = os.path.join(dir, hex_obj_id)
+
+                os.chmod(tmp_path, FILE_MODE)
                 os.rename(tmp_path, path)
             finally:
                 if os.path.exists(tmp_path):
