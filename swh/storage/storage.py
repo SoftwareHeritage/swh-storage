@@ -539,7 +539,7 @@ class Storage():
                 - branch (str): the reference name of the occurrence
                 - revision (sha1_git): the id of the revision pointed to by
                     the occurrence
-                - authority (int): id of the authority giving the validity
+                - authority (uuid): id of the authority giving the validity
                 - validity (datetime.DateTime): the validity date for the given
                     occurrence
         """

@@ -176,7 +176,7 @@ class AbstractTestStorage(DbTestFixture):
         self.occurrence = {
             'branch': 'master',
             'revision': b'67890123456789012345',
-            'authority': 1,
+            'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
             'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
                                           tzinfo=datetime.timezone.utc),
         }
@@ -184,7 +184,7 @@ class AbstractTestStorage(DbTestFixture):
         self.occurrence2 = {
             'branch': 'master',
             'revision': self.revision2['id'],
-            'authority': 1,
+            'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
             'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
                                           tzinfo=datetime.timezone.utc),
         }
@@ -237,7 +237,7 @@ class AbstractTestStorage(DbTestFixture):
                                WHERE table_schema = %s""", ('public',))
 
         tables = set(table for (table,) in self.cursor.fetchall())
-        tables -= {'dbversion', 'organization'}
+        tables -= {'dbversion', 'entity', 'entity_history', 'listable_entity'}
 
         for table in tables:
             self.cursor.execute('truncate table %s cascade' % table)

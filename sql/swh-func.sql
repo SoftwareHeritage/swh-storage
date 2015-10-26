@@ -745,6 +745,55 @@ begin
 end
 $$;
 
+
+create or replace function swh_update_entity_from_entity_history()
+    returns trigger
+    language plpgsql
+as $$
+begin
+    with all_entities as (
+      select uuid, parent, name, type, description, homepage, active,
+             generated, lister, lister_metadata, doap, last_seen, last_id
+      from (
+          select row_number() over (partition by uuid order by unnest(validity) desc) as row,
+	         id as last_id, uuid, parent, name, type, description, homepage, active,
+		 generated, lister, lister_metadata, doap,
+	         unnest(validity) as last_seen
+          from entity_history
+      ) as latest_entities
+      where latest_entities.row = 1
+    ),
+    updated_uuids as (
+      update entity set
+        parent = all_entities.parent,
+        name = all_entities.name,
+	type = all_entities.type,
+	description = all_entities.description,
+	homepage = all_entities.homepage,
+	active = all_entities.active,
+	generated = all_entities.generated,
+	lister = all_entities.lister,
+	lister_metadata = all_entities.lister_metadata,
+	doap = all_entities.doap,
+	last_seen = all_entities.last_seen,
+        last_id = all_entities.last_id
+      from all_entities
+      where entity.uuid = all_entities.uuid
+      returning entity.uuid
+    )
+    insert into entity
+    (select * from all_entities
+     where uuid not in (select uuid from updated_uuids));
+    return null;
+end
+$$;
+
+create trigger update_entity
+  after insert or update or delete or truncate
+  on entity_history
+  for each statement
+  execute procedure swh_update_entity_from_entity_history();
+
 -- simple counter mapping a textual label to an integer value
 create type counter as (
     label  text,
@@ -772,8 +821,8 @@ as $$
         'public.occurrence_history'::regclass,
         'public.origin'::regclass,
         'public.person'::regclass,
-        'public.project'::regclass,
-        'public.project_history'::regclass,
+        'public.entity'::regclass,
+        'public.entity_history'::regclass,
         'public.release'::regclass,
         'public.revision'::regclass,
         'public.revision_history'::regclass,
