@@ -31,6 +31,14 @@ def stored_procedure(stored_proc):
     return wrap
 
 
+def jsonize(value):
+    """Convert a value to a psycopg2 JSON object if necessary"""
+    if isinstance(value, dict):
+        return psycopg2.extras.Json(value)
+
+    return value
+
+
 def entry_to_bytes(entry):
     """Convert an entry coming from the database to bytes"""
     if isinstance(entry, memoryview):
@@ -263,3 +271,49 @@ class Db:
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_stat_counters()')
         yield from cur
+
+    fetch_history_cols = ['origin', 'date', 'status', 'result', 'stdout',
+                          'stderr', 'duration']
+
+    def create_fetch_history(self, fetch_history, cur=None):
+        """Create a fetch_history entry with the data in fetch_history"""
+        cur = self._cursor(cur)
+        query = '''INSERT INTO fetch_history (%s)
+                   VALUES (%s) RETURNING id''' % (
+            ','.join(self.fetch_history_cols),
+            ','.join(['%s'] * len(self.fetch_history_cols))
+        )
+        cur.execute(query, [fetch_history.get(col) for col in
+                            self.fetch_history_cols])
+
+        return cur.fetchone()[0]
+
+    def get_fetch_history(self, fetch_history_id, cur=None):
+        """Get a fetch_history entry with the given id"""
+        cur = self._cursor(cur)
+        query = '''SELECT %s FROM fetch_history WHERE id=%%s''' % (
+            ', '.join(self.fetch_history_cols),
+        )
+        cur.execute(query, (fetch_history_id,))
+
+        data = cur.fetchone()
+
+        if not data:
+            return None
+
+        ret = {'id': fetch_history_id}
+        for i, col in enumerate(self.fetch_history_cols):
+            ret[col] = data[i]
+
+        return ret
+
+    def update_fetch_history(self, fetch_history, cur=None):
+        """Update the fetch_history entry from the data in fetch_history"""
+        cur = self._cursor(cur)
+        query = '''UPDATE fetch_history
+                   SET %s
+                   WHERE id=%%s''' % (
+            ','.join('%s=%%s' % col for col in self.fetch_history_cols)
+        )
+        cur.execute(query, [jsonize(fetch_history.get(col)) for col in
+                            self.fetch_history_cols + ['id']])
