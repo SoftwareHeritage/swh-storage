@@ -312,8 +312,12 @@ class Storage():
 
         db = self.db
         with db.transaction() as cur:
+            # Copy directory ids
             dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
-            db.copy_to(dirs_missing_dict, 'directory', ['id'], cur)
+            db.mktemp('directory', cur)
+            db.copy_to(dirs_missing_dict, 'tmp_directory', ['id'], cur)
+
+            # Copy entries
             for entry_type, entry_list in dir_entries.items():
                 entries = itertools.chain.from_iterable(
                     entries_for_dir
@@ -330,8 +334,8 @@ class Storage():
                     cur,
                 )
 
-                cur.execute('SELECT swh_directory_entry_add(%s)',
-                            (entry_type,))
+            # Do the final copy
+            db.directory_add_from_temp(cur)
 
     @db_transaction_generator
     def directory_missing(self, directories, cur):

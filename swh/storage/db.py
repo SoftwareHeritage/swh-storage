@@ -170,6 +170,9 @@ class Db:
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
 
+    @stored_procedure('swh_directory_add')
+    def directory_add_from_temp(self, cur=None): pass
+
     @stored_procedure('swh_skipped_content_add')
     def skipped_content_add_from_temp(self, cur=None): pass
 

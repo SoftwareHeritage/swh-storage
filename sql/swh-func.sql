@@ -293,7 +293,7 @@ begin
 	using (target, name, perms)
 	group by t.dir_id
     )
-    update directory as d
+    update tmp_directory as d
     set %1$s_entries = new_entries.entries
     from new_entries
     where d.id = new_entries.dir_id
@@ -303,6 +303,32 @@ begin
 end
 $$;
 
+-- Insert the data from tmp_directory, tmp_directory_entry_file,
+-- tmp_directory_entry_dir, tmp_directory_entry_rev into their final
+-- tables.
+--
+-- Prerequisites:
+--  directory ids in tmp_directory
+--  entries in tmp_directory_entry_{file,dir,rev}
+--
+create or replace function swh_directory_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    perform swh_directory_entry_add('file');
+    perform swh_directory_entry_add('dir');
+    perform swh_directory_entry_add('rev');
+
+    insert into directory
+    select * from tmp_directory t
+    where not exists (
+        select 1 from directory d
+	where d.id = t.id);
+
+    return;
+end
+$$;
 
 -- a directory listing entry with all the metadata
 --
