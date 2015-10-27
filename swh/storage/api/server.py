@@ -158,6 +158,23 @@ def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
+@app.route('/fetch_history', methods=['GET'])
+def fetch_history_get():
+    return encode_data(g.storage.fetch_history_get(request.args['id']))
+
+
+@app.route('/fetch_history/start', methods=['POST'])
+def fetch_history_start():
+    return encode_data(
+        g.storage.fetch_history_start(**decode_request(request)))
+
+
+@app.route('/fetch_history/end', methods=['POST'])
+def fetch_history_end():
+    return encode_data(
+        g.storage.fetch_history_end(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())
