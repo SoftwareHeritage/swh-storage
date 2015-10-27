@@ -1,3 +1,12 @@
+swh-storage (0.0.15-1~swh1) unstable-swh; urgency=medium
+
+  * Prepare deployment of swh.storage v0.0.15
+  * Allow population of fetch_history
+  * Update organizations / projects as entities
+  * Use schema v028 for directory addition
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 27 Oct 2015 11:43:39 +0100
+
 swh-storage (0.0.14-1~swh1) unstable-swh; urgency=medium
 
   * Prepare swh.storage v0.0.14 deployment
