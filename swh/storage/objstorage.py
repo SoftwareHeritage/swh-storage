@@ -18,6 +18,9 @@ ID_HASH_ALGO = 'sha1'
 
 GZIP_BUFSIZ = 1048576
 
+DIR_MODE = 0o755
+FILE_MODE = 0o644
+
 
 class Error(Exception):
 
@@ -81,7 +84,7 @@ def _write_obj_file(hex_obj_id, root_dir, depth):
     """
     dir = _obj_dir(hex_obj_id, root_dir, depth)
     if not os.path.isdir(dir):
-        os.makedirs(dir)
+        os.makedirs(dir, DIR_MODE, exist_ok=True)
 
     path = os.path.join(dir, hex_obj_id)
     (tmp, tmp_path) = tempfile.mkstemp(suffix='.tmp', prefix='hex_obj_id.',
@@ -90,7 +93,7 @@ def _write_obj_file(hex_obj_id, root_dir, depth):
     with gzip.GzipFile(filename=tmp_path, fileobj=tmp_f) as f:
         yield f
     tmp_f.close()
-    os.chmod(tmp_path, 0o644)
+    os.chmod(tmp_path, FILE_MODE)
     os.rename(tmp_path, path)
 
 
@@ -147,7 +150,7 @@ class ObjStorage:
 
         self._temp_dir = os.path.join(root, 'tmp')
         if not os.path.isdir(self._temp_dir):
-            os.makedirs(self._temp_dir)
+            os.makedirs(self._temp_dir, DIR_MODE, exist_ok=True)
 
     def __obj_dir(self, hex_obj_id):
         """_obj_dir wrapper using this storage configuration"""
@@ -227,8 +230,10 @@ class ObjStorage:
 
                 dir = self.__obj_dir(hex_obj_id)
                 if not os.path.isdir(dir):
-                    os.makedirs(dir)
+                    os.makedirs(dir, DIR_MODE, exist_ok=True)
                 path = os.path.join(dir, hex_obj_id)
+
+                os.chmod(tmp_path, FILE_MODE)
                 os.rename(tmp_path, path)
             finally:
                 if os.path.exists(tmp_path):

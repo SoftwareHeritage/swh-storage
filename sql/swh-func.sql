@@ -293,7 +293,7 @@ begin
 	using (target, name, perms)
 	group by t.dir_id
     )
-    update directory as d
+    update tmp_directory as d
     set %1$s_entries = new_entries.entries
     from new_entries
     where d.id = new_entries.dir_id
@@ -303,6 +303,32 @@ begin
 end
 $$;
 
+-- Insert the data from tmp_directory, tmp_directory_entry_file,
+-- tmp_directory_entry_dir, tmp_directory_entry_rev into their final
+-- tables.
+--
+-- Prerequisites:
+--  directory ids in tmp_directory
+--  entries in tmp_directory_entry_{file,dir,rev}
+--
+create or replace function swh_directory_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    perform swh_directory_entry_add('file');
+    perform swh_directory_entry_add('dir');
+    perform swh_directory_entry_add('rev');
+
+    insert into directory
+    select * from tmp_directory t
+    where not exists (
+        select 1 from directory d
+	where d.id = t.id);
+
+    return;
+end
+$$;
 
 -- a directory listing entry with all the metadata
 --
@@ -684,34 +710,16 @@ $$;
 -- otherwise.
 create or replace function swh_revision_find_occurrence(revision_id sha1_git)
     returns occurrence
-    language plpgsql
+    language sql
+    stable
 as $$
-declare
-    occ occurrence%ROWTYPE;
-    rev sha1_git;
-begin
-    -- first check to see if revision_id is already pointed by an occurrence
-    select origin, branch, revision
-    from occurrence_history as occ_hist
-    where occ_hist.revision = revision_id
-    order by upper(occ_hist.validity)  -- TODO filter by authority?
-    limit 1
-    into occ;
-
-    -- no occurrence point to revision_id, walk up the history
-    if not found then
 	select origin, branch, revision
 	from swh_revision_list_children(revision_id) as rev_list(sha1_git)
 	left join occurrence_history occ_hist
 	on rev_list.sha1_git = occ_hist.revision
 	where occ_hist.origin is not null
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
-	limit 1
-	into occ;
-    end if;
-
-    return occ;  -- might be NULL
-end
+	limit 1;
 $$;
 
 
@@ -763,6 +771,55 @@ begin
 end
 $$;
 
+
+create or replace function swh_update_entity_from_entity_history()
+    returns trigger
+    language plpgsql
+as $$
+begin
+    with all_entities as (
+      select uuid, parent, name, type, description, homepage, active,
+             generated, lister, lister_metadata, doap, last_seen, last_id
+      from (
+          select row_number() over (partition by uuid order by unnest(validity) desc) as row,
+	         id as last_id, uuid, parent, name, type, description, homepage, active,
+		 generated, lister, lister_metadata, doap,
+	         unnest(validity) as last_seen
+          from entity_history
+      ) as latest_entities
+      where latest_entities.row = 1
+    ),
+    updated_uuids as (
+      update entity set
+        parent = all_entities.parent,
+        name = all_entities.name,
+	type = all_entities.type,
+	description = all_entities.description,
+	homepage = all_entities.homepage,
+	active = all_entities.active,
+	generated = all_entities.generated,
+	lister = all_entities.lister,
+	lister_metadata = all_entities.lister_metadata,
+	doap = all_entities.doap,
+	last_seen = all_entities.last_seen,
+        last_id = all_entities.last_id
+      from all_entities
+      where entity.uuid = all_entities.uuid
+      returning entity.uuid
+    )
+    insert into entity
+    (select * from all_entities
+     where uuid not in (select uuid from updated_uuids));
+    return null;
+end
+$$;
+
+create trigger update_entity
+  after insert or update or delete or truncate
+  on entity_history
+  for each statement
+  execute procedure swh_update_entity_from_entity_history();
+
 -- simple counter mapping a textual label to an integer value
 create type counter as (
     label  text,
@@ -790,8 +847,8 @@ as $$
         'public.occurrence_history'::regclass,
         'public.origin'::regclass,
         'public.person'::regclass,
-        'public.project'::regclass,
-        'public.project_history'::regclass,
+        'public.entity'::regclass,
+        'public.entity_history'::regclass,
         'public.release'::regclass,
         'public.revision'::regclass,
         'public.revision_history'::regclass,

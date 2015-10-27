@@ -312,8 +312,12 @@ class Storage():
 
         db = self.db
         with db.transaction() as cur:
+            # Copy directory ids
             dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
-            db.copy_to(dirs_missing_dict, 'directory', ['id'], cur)
+            db.mktemp('directory', cur)
+            db.copy_to(dirs_missing_dict, 'tmp_directory', ['id'], cur)
+
+            # Copy entries
             for entry_type, entry_list in dir_entries.items():
                 entries = itertools.chain.from_iterable(
                     entries_for_dir
@@ -330,8 +334,8 @@ class Storage():
                     cur,
                 )
 
-                cur.execute('SELECT swh_directory_entry_add(%s)',
-                            (entry_type,))
+            # Do the final copy
+            db.directory_add_from_temp(cur)
 
     @db_transaction_generator
     def directory_missing(self, directories, cur):
@@ -539,7 +543,7 @@ class Storage():
                 - branch (str): the reference name of the occurrence
                 - revision (sha1_git): the id of the revision pointed to by
                     the occurrence
-                - authority (int): id of the authority giving the validity
+                - authority (uuid): id of the authority giving the validity
                 - validity (datetime.DateTime): the validity date for the given
                     occurrence
         """
@@ -613,6 +617,41 @@ class Storage():
 
         cur.execute(insert, (origin['type'], origin['url']))
         return cur.fetchone()[0]
+
+    @db_transaction
+    def fetch_history_start(self, origin_id, cur=None):
+        """Add an entry for origin origin_id in fetch_history. Returns the id
+        of the added fetch_history entry
+        """
+        fetch_history = {
+            'origin': origin_id,
+            'date': datetime.datetime.now(tz=datetime.timezone.utc),
+        }
+
+        return self.db.create_fetch_history(fetch_history, cur)
+
+    @db_transaction
+    def fetch_history_end(self, fetch_history_id, data, cur=None):
+        """Close the fetch_history entry with id `fetch_history_id`, replacing
+           its data with `data`.
+        """
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        fetch_history = self.db.get_fetch_history(fetch_history_id, cur)
+
+        if not fetch_history:
+            raise ValueError('No fetch_history with id %d' % fetch_history_id)
+
+        fetch_history['duration'] = now - fetch_history['date']
+
+        fetch_history.update(data)
+
+        self.db.update_fetch_history(fetch_history, cur)
+
+    @db_transaction
+    def fetch_history_get(self, fetch_history_id, cur=None):
+        """Get the fetch_history entry with id `fetch_history_id`.
+        """
+        return self.db.get_fetch_history(fetch_history_id, cur)
 
     @db_transaction
     def stat_counters(self, cur=None):
