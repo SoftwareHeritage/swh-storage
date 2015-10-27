@@ -47,15 +47,12 @@ subgraph "logical_grouping" {
 		fetch_history;
 	}
 
-	subgraph cluster_projects {
-		label = <<b>projects</b>>;
-		project;
-		project_history;
-	}
-
-	subgraph cluster_organization {
-		label = <<b>organizations</b>>;
-		organization;
+	subgraph cluster_entity {
+		label = <<b>entities</b>>;
+		entity;
+		entity_history;
+		entity_equivalence;
+		listable_entity;
 		list_history;
 	}
 
@@ -76,6 +73,8 @@ subgraph "logical_grouping" {
 		"release":rtcol2 -> "revision":ltcol1;
 		"revision":rtcol7 -> "directory":ltcol1;
 		"revision_history":rtcol2 -> "revision":ltcol1;
+		"entity_history":rtcol3 -> "entity_history":ltcol2;
+		"entity_history":rtcol10 -> "listable_entity":ltcol1;
 	}
 
 }

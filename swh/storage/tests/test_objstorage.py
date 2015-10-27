@@ -34,6 +34,10 @@ class TestObjStorage(unittest.TestCase):
         self.obj_relpath = os.path.join(*(self.obj_steps + [self.hex_obj_id]))
 
         self.tmpdir = tempfile.mkdtemp()
+        self.obj_dirs = [
+            os.path.join(self.tmpdir, *self.obj_steps[:i])
+            for i in range(1, len(self.obj_steps))
+        ]
         self.obj_path = os.path.join(self.tmpdir, self.obj_relpath)
 
         self.storage = objstorage.ObjStorage(root=self.tmpdir, depth=3)
@@ -93,10 +97,16 @@ class TestObjStorage(unittest.TestCase):
             self.storage.check(self.obj_id)
 
     @istest
-    def check_file_mode(self):
+    def check_file_and_dirs_mode(self):
+        old_umask = os.umask(0)
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
+        for dir in self.obj_dirs:
+            stat_dir = os.stat(dir)
+            self.assertEquals(stat.S_IMODE(stat_dir.st_mode),
+                              objstorage.DIR_MODE)
         stat_res = os.stat(self.obj_path)
-        self.assertEquals(stat.S_IMODE(stat_res.st_mode), 0o644)
+        self.assertEquals(stat.S_IMODE(stat_res.st_mode), objstorage.FILE_MODE)
+        os.umask(old_umask)
 
     @istest
     def check_not_gzip(self):
