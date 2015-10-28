@@ -333,6 +333,7 @@ create table revision
   message               bytea,
   author                bigint references person(id),
   committer             bigint references person(id),
+  metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
   synthetic             boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
 );
 

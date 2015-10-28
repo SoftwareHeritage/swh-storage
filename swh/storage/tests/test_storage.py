@@ -9,6 +9,7 @@ import psycopg2
 import shutil
 import tempfile
 import unittest
+
 from unittest.mock import patch
 
 from nose.tools import istest
@@ -40,6 +41,7 @@ class AbstractTestStorage(DbTestFixture):
 
     def setUp(self):
         super().setUp()
+        self.maxDiff = None
         self.objroot = tempfile.mkdtemp()
         self.storage = Storage(self.conn, self.objroot)
 
@@ -141,7 +143,10 @@ class AbstractTestStorage(DbTestFixture):
             'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir['id'],
-            'synthetic': False
+            'metadata': {'checksums': {'sha1': 'tarball-sha1',
+                                       'sha256': 'tarball-sha256'},
+                         'signed-off-by': 'some-dude'},
+            'synthetic': True
         }
 
         self.revision2 = {
@@ -160,6 +165,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer_date_offset': -120,
             'type': 'git',
             'directory': self.dir2['id'],
+            'metadata': None,
             'synthetic': False
         }
 
@@ -410,8 +416,8 @@ class AbstractTestStorage(DbTestFixture):
                                               self.revision2['id']]))
 
         self.assertEqual(len(get), 2)
-        self.assertEqual(self.revision, get[0])
-        self.assertEqual(None, get[1])
+        self.assertEqual(get[0], self.revision)
+        self.assertEqual(get[1], None)
 
     @istest
     def release_add(self):
