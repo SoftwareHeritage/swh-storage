@@ -1,3 +1,11 @@
+swh-storage (0.0.16-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.16
+  * Add metadata column in revision (db version 29)
+  * cache http connection for remote storage client
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 29 Oct 2015 10:29:00 +0100
+
 swh-storage (0.0.15-1~swh1) unstable-swh; urgency=medium
 
   * Prepare deployment of swh.storage v0.0.15
