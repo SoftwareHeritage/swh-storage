@@ -1,8 +1,10 @@
-swh-storage (0.0.15-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.16-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.16
+  * Add metadata column in revision (db version 29)
+  * cache http connection for remote storage client
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 27 Oct 2015 11:43:39 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 29 Oct 2015 10:29:00 +0100
 
 swh-storage (0.0.15-1~swh1) unstable-swh; urgency=medium
 

@@ -32,12 +32,13 @@ class RemoteStorage():
     """Proxy to a remote storage API"""
     def __init__(self, base_url):
         self.base_url = base_url
+        self.session = requests.Session()
 
     def url(self, endpoint):
         return '%s%s' % (self.base_url, endpoint)
 
     def post(self, endpoint, data):
-        response = requests.post(
+        response = self.session.post(
             self.url(endpoint),
             data=encode_data(data),
             headers={'content-type': 'application/x-msgpack'},
@@ -51,7 +52,7 @@ class RemoteStorage():
         return decode_response(response)
 
     def get(self, endpoint, data=None):
-        response = requests.get(
+        response = self.session.get(
             self.url(endpoint),
             params=data,
         )

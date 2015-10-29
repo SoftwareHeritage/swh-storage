@@ -381,6 +381,9 @@ class Storage():
                 - author_email (bytes): the email of the revision author
                 - committer_name (bytes): the name of the revision committer
                 - committer_email (bytes): the email of the revision committer
+                - metadata (jsonb): extra information as dictionary
+                - synthetic (bool): revision's nature (tarball, directory
+                    creates synthetic revision)
                 - parents (list of sha1_git): the parents of this revision
         """
         db = self.db
@@ -389,6 +392,7 @@ class Storage():
 
         for revision in revisions:
             id = revision['id']
+
             cur_parents = enumerate(revision.get('parents', []))
             parents[id] = [{
                 'id': id,
@@ -411,7 +415,7 @@ class Storage():
                        ['id', 'date', 'date_offset', 'committer_date',
                         'committer_date_offset', 'type', 'directory',
                         'message', 'author_name', 'author_email',
-                        'committer_name', 'committer_email',
+                        'committer_name', 'committer_email', 'metadata',
                         'synthetic'],
                        cur)
 
@@ -453,8 +457,8 @@ class Storage():
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
                 'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'synthetic',
-                'parents')
+                'committer_name', 'committer_email', 'metadata',
+                'synthetic', 'parents')
 
         db = self.db
 

@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(28, now(), 'Work In Progress');
+      values(29, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -333,6 +333,7 @@ create table revision
   message               bytea,
   author                bigint references person(id),
   committer             bigint references person(id),
+  metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
   synthetic             boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
 );
 
