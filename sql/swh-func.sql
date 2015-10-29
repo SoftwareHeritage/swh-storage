@@ -1,4 +1,3 @@
-
 -- create a temporary table called tmp_TBLNAME, mimicking existing table
 -- TBLNAME
 --
@@ -445,6 +444,7 @@ create type revision_log_entry as
   author_email           bytea,
   committer_name         bytea,
   committer_email        bytea,
+  metadata               jsonb,
   synthetic              boolean
 );
 
@@ -461,7 +461,7 @@ as $$
 	type, directory, message,
 	author.name as author_name, author.email as author_email,
 	committer.name as committer_name, committer.email as committer_email,
-        revision.synthetic
+        revision.metadata, revision.synthetic
     from swh_revision_list(root_revision) as rev_list
     join revision on revision.id = rev_list
     join person as author on revision.author = author.id
@@ -483,6 +483,7 @@ create type revision_entry as
   author_email           bytea,
   committer_name         bytea,
   committer_email        bytea,
+  metadata               jsonb,
   synthetic              boolean,
   parents                bytea[]
 );
@@ -498,7 +499,7 @@ begin
         select t.id, r.date, r.date_offset,
                r.committer_date, r.committer_date_offset,
                r.type, r.directory, r.message,
-               a.name, a.email, c.name, c.email, r.synthetic,
+               a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
 	       array_agg(rh.parent_id::bytea order by rh.parent_rank)
                    as parents
         from tmp_revision t
@@ -508,7 +509,7 @@ begin
         left join revision_history rh on rh.id = r.id
         group by t.id, a.name, a.email, r.date, r.date_offset,
                c.name, c.email, r.committer_date, r.committer_date_offset,
-               r.type, r.directory, r.message, r.synthetic;
+               r.type, r.directory, r.message, r.metadata, r.synthetic;
     return;
 end
 $$;
@@ -559,8 +560,8 @@ as $$
 begin
     perform swh_person_add_from_revision();
 
-    insert into revision (id, date, date_offset, committer_date, committer_date_offset, type, directory, message, author, committer, synthetic)
-    select t.id, t.date, t.date_offset, t.committer_date, t.committer_date_offset, t.type, t.directory, t.message, a.id, c.id, t.synthetic
+    insert into revision (id, date, date_offset, committer_date, committer_date_offset, type, directory, message, author, committer, metadata, synthetic)
+    select t.id, t.date, t.date_offset, t.committer_date, t.committer_date_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic
     from tmp_revision t
     left join person a on a.name = t.author_name and a.email = t.author_email
     left join person c on c.name = t.committer_name and c.email = t.committer_email;
