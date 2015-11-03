@@ -78,6 +78,29 @@ as $$
     alter table tmp_release drop column author;
 $$;
 
+-- create a temporary table for entity_history, sans id
+create or replace function swh_mktemp_entity_history()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_entity_history (
+        like entity_history including defaults);
+    alter table tmp_entity_history drop column id;
+$$;
+
+-- create a temporary table for entities called tmp_entity_lister,
+-- with only the columns necessary for retrieving the uuid of a listed
+-- entity.
+create or replace function swh_mktemp_entity_lister()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_entity_lister (
+        id bigint,
+        lister uuid,
+	lister_metadata jsonb
+    );
+$$;
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
@@ -772,6 +795,23 @@ begin
 end
 $$;
 
+-- Create entries in entity_history from tmp_entity_history
+--
+-- TODO: do something smarter to compress the entries if the data
+-- didn't change.
+create or replace function swh_entity_history_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into entity_history (
+        uuid, parent, name, type, description, homepage, active, generated,
+	lister, lister_metadata, doap, validity
+    ) select * from tmp_entity_history;
+    return;
+end
+$$;
+
 
 create or replace function swh_update_entity_from_entity_history()
     returns trigger
@@ -820,6 +860,40 @@ create trigger update_entity
   on entity_history
   for each statement
   execute procedure swh_update_entity_from_entity_history();
+
+-- map an id of tmp_entity_lister to a full entity
+create type entity_id as (
+    id               bigint,
+    uuid             uuid,
+    parent           uuid,
+    name             text,
+    type             entity_type,
+    description      text,
+    homepage         text,
+    active           boolean,
+    generated        boolean,
+    lister           uuid,
+    lister_metadata  jsonb,
+    doap             jsonb,
+    last_seen        timestamptz,
+    last_id          bigint
+);
+
+-- find out the uuid of the entries of entity with the metadata
+-- contained in tmp_entity_lister
+create or replace function swh_entity_from_tmp_entity_lister()
+    returns setof entity_id
+    language plpgsql
+as $$
+begin
+  return query
+    select t.id, e.*
+    from tmp_entity_lister t
+    left join entity e
+    on t.lister = e.lister AND e.lister_metadata @> t.lister_metadata;
+  return;
+end
+$$;
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (
