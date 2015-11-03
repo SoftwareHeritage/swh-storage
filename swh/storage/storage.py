@@ -658,6 +658,79 @@ class Storage():
         return self.db.get_fetch_history(fetch_history_id, cur)
 
     @db_transaction
+    def entity_add(self, entities, cur=None):
+        """Add the given entitites to the database (in entity_history).
+
+        Args:
+            - entities: iterable of dictionaries containing the following keys:
+                - uuid (uuid): id of the entity
+                - parent (uuid): id of the parent entity
+                - name (str): name of the entity
+                - type (str): type of entity (one of 'organization',
+                    'group_of_entities', 'hosting', 'group_of_persons',
+                    'person', 'project')
+                - description (str, optional): description of the entity
+                - homepage (str): url of the entity's homepage
+                - active (bool): whether the entity is active
+                - generated (bool): whether the entity was generated
+                - lister (uuid): the uuid of the generating entity
+                - lister_metadata (dict): lister-specific entity metadata
+                - doap (dict): DOAP data for the entity
+                - validity (datetime.DateTime array): timestamps at which we
+                    listed the entity.
+        """
+        db = self.db
+
+        cols = list(db.entity_history_cols)
+        cols.remove('id')
+
+        db.mktemp_entity_history()
+        db.copy_to(entities, 'tmp_entity_history', cols, cur)
+        db.entity_history_add_from_temp()
+
+    @db_transaction_generator
+    def entity_get_from_lister_metadata(self, entities, cur=None):
+        """Fetch entities from the database, matching with the lister and
+           associated metadata.
+
+        Args:
+            - entities: iterable of dictionaries containing the following keys:
+                - lister (uuid): uuid of the lister
+                - lister_metadata (dict): subset of the lister metadata used
+                  for matching the entity
+
+        Returns:
+            A generator of fetched entities with all their attributes. If no
+            match was found, the returned entity's uuid is None.
+        """
+
+        db = self.db
+
+        db.mktemp_entity_lister(cur)
+
+        mapped_entities = []
+        for i, entity in enumerate(entities):
+            mapped_entity = entity.copy()
+            mapped_entity['id'] = i
+            mapped_entities.append(mapped_entity)
+
+        db.copy_to(mapped_entities, 'tmp_entity_lister',
+                   ['id', 'lister', 'lister_metadata'], cur)
+
+        cur.execute('''select id, %s
+                       from swh_entity_from_tmp_entity_lister()
+                       order by id''' %
+                    ','.join(db.entity_cols))
+
+        for id, *entity_vals in cur:
+            returned_entity = entities[id].copy()
+            fetched_entity = dict(zip(db.entity_cols, entity_vals))
+            returned_entity['uuid'] = fetched_entity['uuid']
+            if fetched_entity['uuid']:
+                returned_entity.update(fetched_entity)
+            yield returned_entity
+
+    @db_transaction
     def stat_counters(self, cur=None):
         """compute statistics about the number of tuples in various tables
 
