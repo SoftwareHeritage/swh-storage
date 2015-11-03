@@ -145,6 +145,8 @@ class Db:
                 return escape(data.isoformat())
             elif isinstance(data, dict):
                 return escape(json.dumps(data))
+            elif isinstance(data, list):
+                return escape("{%s}" % ','.join(escape(d) for d in data))
             elif isinstance(data, psycopg2.extras.Range):
                 # We escape twice here too, so that we make sure
                 # everything gets passed to copy properly
