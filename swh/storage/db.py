@@ -131,6 +131,9 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_entity_lister')
+    def mktemp_entity_lister(self, cur=None): pass
+
     @stored_procedure('swh_mktemp_entity_history')
     def mktemp_entity_history(self, cur=None): pass
 

@@ -632,6 +632,22 @@ class AbstractTestStorage(DbTestFixture):
     def entity_get_from_lister_metadata(self):
         self.storage.entity_add([self.entity1])
 
+        fetched_entities = list(
+            self.storage.entity_get_from_lister_metadata(
+                [self.entity1_query, self.entity2_query]))
+
+        # Entity 1 should have full metadata, with last_seen/last_id instead
+        # of validity
+        entity1 = self.entity1.copy()
+        entity1['last_seen'] = entity1['validity'][0]
+        del fetched_entities[0]['last_id']
+        del entity1['validity']
+        # Entity 2 should have no metadata
+        entity2 = self.entity2_query.copy()
+        entity2['uuid'] = None
+
+        self.assertEquals(fetched_entities, [entity1, entity2])
+
     @istest
     def stat_counters(self):
         expected_keys = ['content', 'directory', 'directory_entry_dir',

@@ -181,6 +181,12 @@ def entity_add():
         g.storage.entity_add(**decode_request(request)))
 
 
+@app.route('/entity/from_lister_metadata', methods=['POST'])
+def entity_from_lister_metadata():
+    return encode_data(
+        g.storage.entity_get_from_lister_metadata(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())
