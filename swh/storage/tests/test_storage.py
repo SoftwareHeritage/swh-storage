@@ -236,6 +236,70 @@ class AbstractTestStorage(DbTestFixture):
             'stderr': 'blablabla',
         }
 
+        self.entity1 = {
+            'uuid': 'f96a7ec1-0058-4920-90cc-7327e4b5a4bf',
+            # GitHub users
+            'parent': 'ad6df473-c1d2-4f40-bc58-2b091d4a750e',
+            'name': 'github:user:olasd',
+            'type': 'person',
+            'description': 'Nicolas Dandrimont',
+            'homepage': 'http://example.com',
+            'active': True,
+            'generated': True,
+            # swh.lister.github
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister_metadata': {
+                'id': 12877,
+                'type': 'user',
+                'last_activity': '2015-11-03',
+            },
+            'doap': None,
+            'validity': [
+                datetime.datetime(2015, 11, 3, 11, 0, 0,
+                                  tzinfo=datetime.timezone.utc),
+            ]
+        }
+
+        self.entity1_query = {
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister_metadata': {
+                'id': 12877,
+                'type': 'user',
+            },
+        }
+
+        self.entity2 = {
+            'uuid': '3903d075-32d6-46d4-9e29-0aef3612c4eb',
+            # GitHub users
+            'parent': 'ad6df473-c1d2-4f40-bc58-2b091d4a750e',
+            'name': 'github:user:zacchiro',
+            'type': 'person',
+            'description': 'Stefano Zacchiroli',
+            'homepage': 'http://example.com',
+            'active': True,
+            'generated': True,
+            # swh.lister.github
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister_metadata': {
+                'id': 216766,
+                'type': 'user',
+                'last_activity': '2015-11-03',
+            },
+            'doap': None,
+            'validity': [
+                datetime.datetime(2015, 11, 3, 11, 0, 0,
+                                  tzinfo=datetime.timezone.utc),
+            ]
+        }
+
+        self.entity2_query = {
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister_metadata': {
+                'id': 216766,
+                'type': 'user',
+            },
+        }
+
     def tearDown(self):
         shutil.rmtree(self.objroot)
 
@@ -247,6 +311,9 @@ class AbstractTestStorage(DbTestFixture):
 
         for table in tables:
             self.cursor.execute('truncate table %s cascade' % table)
+
+        self.cursor.execute('delete from entity where generated=true')
+        self.cursor.execute('delete from entity_history where generated=true')
         self.conn.commit()
 
         super().tearDown()
@@ -560,6 +627,10 @@ class AbstractTestStorage(DbTestFixture):
             self.storage.content_find_occurrence(
                 {'unknown-sha1': 'something'})  # not the right key
         self.assertIn('content keys', cm.exception.args[0])
+
+    @istest
+    def entity_get_from_lister_metadata(self):
+        self.storage.entity_add([self.entity1])
 
     @istest
     def stat_counters(self):

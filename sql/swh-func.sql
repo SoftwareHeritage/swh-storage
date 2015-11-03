@@ -78,6 +78,16 @@ as $$
     alter table tmp_release drop column author;
 $$;
 
+-- create a temporary table for entity_history, sans id
+create or replace function swh_mktemp_entity_history()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_entity_history (
+        like entity_history including defaults);
+    alter table tmp_entity_history drop column id;
+$$;
+
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
@@ -769,6 +779,23 @@ begin
     into coc;
 
     return coc;  -- might be NULL
+end
+$$;
+
+-- Create entries in entity_history from tmp_entity_history
+--
+-- TODO: do something smarter to compress the entries if the data
+-- didn't change.
+create or replace function swh_entity_history_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into entity_history (
+        uuid, parent, name, type, description, homepage, active, generated,
+	lister, lister_metadata, doap, validity
+    ) select * from tmp_entity_history;
+    return;
 end
 $$;
 

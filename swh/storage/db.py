@@ -131,6 +131,9 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_entity_history')
+    def mktemp_entity_history(self, cur=None): pass
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:
@@ -189,6 +192,9 @@ class Db:
 
     @stored_procedure('swh_occurrence_history_add')
     def occurrence_history_add_from_temp(self, cur=None): pass
+
+    @stored_procedure('swh_entity_history_add')
+    def entity_history_add_from_temp(self, cur=None): pass
 
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -325,3 +331,11 @@ class Db:
         )
         cur.execute(query, [jsonize(fetch_history.get(col)) for col in
                             self.fetch_history_cols + ['id']])
+
+    base_entity_cols = ['uuid', 'parent', 'name', 'type',
+                        'description', 'homepage', 'active',
+                        'generated', 'lister', 'lister_metadata',
+                        'doap']
+
+    entity_cols = base_entity_cols + ['last_seen', 'last_id']
+    entity_history_cols = base_entity_cols + ['id', 'validity']

@@ -131,5 +131,8 @@ class RemoteStorage():
     def fetch_history_get(self, fetch_history_id):
         return self.get('fetch_history', {'id': fetch_history_id})
 
+    def entity_add(self, entities):
+        return self.post('entity/add', {'entities': entities})
+
     def stat_counters(self):
         return self.get('stat/counters')
