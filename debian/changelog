@@ -1,3 +1,10 @@
+swh-storage (0.0.17-1~swh1) unstable-swh; urgency=medium
+
+  * Prepare deployment of swh.storage v0.0.17
+  * Add some entity related entry points
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 03 Nov 2015 16:40:59 +0100
+
 swh-storage (0.0.16-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.16
