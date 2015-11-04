@@ -104,7 +104,8 @@ def directory_add():
 @app.route('/directory', methods=['GET'])
 def directory_get():
     dir = request.args['directory'].encode('utf-8', 'surrogateescape')
-    return encode_data(g.storage.directory_get(dir))
+    rec = request.args.get('recursive', False)
+    return encode_data(g.storage.directory_get(dir, recursive=rec))
 
 
 @app.route('/revision/add', methods=['POST'])

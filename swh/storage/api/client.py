@@ -87,9 +87,9 @@ class RemoteStorage():
     def directory_missing(self, directories):
         return self.post('directory/missing', {'directories': directories})
 
-    def directory_get(self, directory):
-        return [tuple(entry)
-                for entry in self.get('directory', {'directory': directory})]
+    def directory_get(self, directory, recursive=False):
+        return self.get('directory', {'directory': directory,
+                                      'recursive': recursive})
 
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})

@@ -356,9 +356,24 @@ class Storage():
         for obj in db.directory_missing_from_temp(cur):
             yield obj[0]
 
-    def directory_get(self, directory):
-        """Get the entries for one directory"""
-        yield from self.db.directory_walk_one(directory)
+    @db_transaction_generator
+    def directory_get(self, directory, recursive=False, cur=None):
+        """Get entries for one directory.
+
+        Args:
+            - directory: the directory to list entries from.
+            - recursive: if flag on, this list recursively from this directory.
+
+        Returns:
+            List of entries for such directory.
+
+        """
+        db = self.db
+
+        if recursive:
+            yield from db.directory_walk(directory)
+        else:
+            yield from db.directory_walk_one(directory)
 
     def revision_add(self, revisions):
         """Add revisions to the storage
