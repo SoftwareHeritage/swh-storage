@@ -416,6 +416,47 @@ as $$
     from entries
 $$;
 
+-- a directory listing entry with all metadata (including content)
+--
+-- can be used to list a directory, and retrieve all the data in one go.
+create type directory_entry_and_content as
+(
+    dir_id   sha1_git,     -- id of the parent directory
+    type     directory_entry_type,  -- type of entry
+    target   sha1_git,     -- id of target
+    name     unix_path,    -- path name, relative to containing dir
+    perms    file_perms,   -- unix-like permissions
+    status   text,         -- visible or absent
+    sha1     sha1,         -- content if sha1 if type is not dir
+    sha1_git sha1_git,     -- content's sha1 git if type is not dir
+    sha256   sha256        -- content's sha256 if type is not dir
+);
+
+create or replace function swh_directory_walk_with_content(walked_dir_id sha1_git)
+    returns setof directory_entry_and_content
+    language sql
+    stable
+as $$
+    with ls as (
+    select name, perms, type, dir_id, target
+        from swh_directory_walk(walked_dir_id)
+    )
+    select s.dir_id, s.type, s.target, s.name, s.perms, NULL::text,
+           NULL::sha1, NULL::sha1_git, NULL::sha256
+    from ls s
+    where s.type='dir'
+    union
+    select s.dir_id, s.type, s.target, s.name, s.perms, 'visible' as status,
+           c.sha1, c.sha1_git, c.sha256
+    from ls s
+    inner join content c on (s.target = c.sha1_git and s.type ='file')
+    union
+    select s.dir_id, s.type, s.target, s.name, s.perms, 'absent' as status,
+           c.sha1, c.sha1_git, c.sha256
+    from ls s
+    inner join skipped_content c on (s.target = c.sha1_git and s.type = 'file')
+$$;
+
 -- List all revision IDs starting from a given revision, going back in time
 --
 -- TODO ordering: should be breadth-first right now (what do we want?)

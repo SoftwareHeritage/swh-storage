@@ -371,9 +371,15 @@ class Storage():
         db = self.db
 
         if recursive:
-            yield from db.directory_walk(directory)
+            keys = ['dir_id', 'type', 'target', 'name', 'perms', 'status',
+                    'sha1', 'sha1_git', 'sha256']
+            res_gen = db.directory_walk(directory)
         else:
-            yield from db.directory_walk_one(directory)
+            keys = ['dir_id', 'type', 'target', 'name', 'perms']
+            res_gen = db.directory_walk_one(directory)
+
+        for line in res_gen:
+            yield dict(zip(keys, line))
 
     def revision_add(self, revisions):
         """Add revisions to the storage
