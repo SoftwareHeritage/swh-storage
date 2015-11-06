@@ -91,6 +91,11 @@ def content_add():
     return encode_data(g.storage.content_add(**decode_request(request)))
 
 
+@app.route('/content/data', methods=['POST'])
+def content_get():
+    return encode_data(g.storage.content_get(**decode_request(request)))
+
+
 @app.route('/directory/missing', methods=['POST'])
 def directory_missing():
     return encode_data(g.storage.directory_missing(**decode_request(request)))

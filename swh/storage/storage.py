@@ -18,6 +18,9 @@ from .objstorage import ObjStorage
 
 from swh.core.hashutil import ALGORITHMS
 
+# Max block size of contents to return
+BULK_BLOCK_CONTENT_LEN_MAX = 10000
+
 
 def db_transaction(meth):
     """decorator to execute Storage methods within DB transactions
@@ -132,6 +135,31 @@ class Storage():
 
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)
+
+    def content_get(self, content):
+        """Retrieve in bulk contents and their data.
+
+        Args:
+            content: iterables of contents as dict.
+            keys:
+            - sha1, status
+
+        Returns:
+            Generates streams of contents as dict with their raw data.
+
+        Raises:
+            ValueError in case of too much contents are required.
+            cf. BULK_BLOCK_CONTENT_LEN_MAX
+
+        """
+        # FIXME: Improve on server module to slice the result
+        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
+            raise ValueError(
+                "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
+
+        for obj_id in content:
+            data = self.objstorage.get_bytes(obj_id)
+            yield {'sha1': obj_id, 'data': data}
 
     @db_transaction_generator
     def content_missing(self, content, key_hash='sha1', cur=None):
