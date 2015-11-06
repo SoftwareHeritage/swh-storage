@@ -454,9 +454,13 @@ class AbstractTestStorage(DbTestFixture):
 
         stored_data = list(self.storage.directory_get(self.dir['id']))
 
-        data_to_store = [
-            (self.dir['id'], ent['type'], ent['target'], ent['name'],
-             ent['perms'])
+        data_to_store = [{
+                 'dir_id': self.dir['id'],
+                 'type': ent['type'],
+                 'target': ent['target'],
+                 'name': ent['name'],
+                 'perms': ent['perms'],
+            }
             for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
         ]
 
