@@ -460,6 +460,10 @@ class AbstractTestStorage(DbTestFixture):
                  'target': ent['target'],
                  'name': ent['name'],
                  'perms': ent['perms'],
+                 'status': None,
+                 'sha1': None,
+                 'sha1_git': None,
+                 'sha256': None,
             }
             for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
         ]

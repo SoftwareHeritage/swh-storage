@@ -397,13 +397,12 @@ class Storage():
 
         """
         db = self.db
+        keys = ['dir_id', 'type', 'target', 'name', 'perms', 'status',
+                'sha1', 'sha1_git', 'sha256']
 
         if recursive:
-            keys = ['dir_id', 'type', 'target', 'name', 'perms', 'status',
-                    'sha1', 'sha1_git', 'sha256']
             res_gen = db.directory_walk(directory)
         else:
-            keys = ['dir_id', 'type', 'target', 'name', 'perms']
             res_gen = db.directory_walk_one(directory)
 
         for line in res_gen:

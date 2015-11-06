@@ -269,10 +269,7 @@ class Db:
 
     def directory_walk(self, directory, cur=None):
         cur = self._cursor(cur)
-        query = """SELECT *
-                   FROM swh_directory_walk_with_content(%s)
-                """
-        cur.execute(query, (directory,))
+        cur.execute('SELECT * FROM swh_directory_walk(%s)', (directory,))
         yield from cursor_to_bytes(cur)
 
     def revision_missing_from_temp(self, cur=None):
