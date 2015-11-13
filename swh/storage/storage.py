@@ -625,14 +625,39 @@ class Storage():
 
         Args:
             origin: dictionary representing the individual
-                origin to find. This dict has the following keys:
+                origin to find.
+                This dict has either the keys type and url:
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
+                either the id:
+                - id: the origin id
 
         Returns:
-            the id of the queried origin
+            the origin dict with the keys:
+            - id: origin's id
+            - type: origin's type
+            - url: origin's url
+            - lister: lister's uuid
+            - project: project's uuid (FIXME, retrieve this information)
+
+        Raises:
+            ValueError if the keys does not match (url and type) nor id.
+
         """
-        return self.db.origin_get_id(origin['type'], origin['url'])
+        db = self.db
+
+        keys = ['id', 'type', 'url', 'lister', 'project']
+
+        if 'type' in origin and 'url' in origin:  # lookup per type and url
+            ori = db.origin_get_with(origin['type'], origin['url'], cur)
+        elif 'id' in origin:  # lookup per id
+            ori = db.origin_get(origin['id'], cur)
+        else:
+            raise ValueError('Origin must have either id or (type and url).')
+
+        if ori:
+            return dict(zip(keys, ori))
+        return None
 
     @db_transaction
     def origin_add_one(self, origin, cur=None):
@@ -647,20 +672,15 @@ class Storage():
         Returns:
             the id of the added origin, or of the identical one that already
             exists.
+
         """
-        query = "select id from origin where type=%s and url=%s"
+        db = self.db
 
-        cur.execute(query, (origin['type'], origin['url']))
-
-        data = cur.fetchone()
+        data = db.origin_get_with(origin['type'], origin['url'], cur)
         if data:
-            return data[0]
+            return data['id']
 
-        insert = """insert into origin (type, url) values (%s, %s)
-                    returning id"""
-
-        cur.execute(insert, (origin['type'], origin['url']))
-        return cur.fetchone()[0]
+        return db.origin_add(origin['type'], origin['url'], cur)
 
     @db_transaction
     def fetch_history_start(self, origin_id, cur=None):

@@ -146,17 +146,17 @@ def occurrence_add():
 @app.route('/origin', methods=['GET'])
 def origin_get():
     origin = {
-        'type': request.args['type'],
-        'url': request.args['url'],
+        'type': request.args.get('type'),
+        'url': request.args.get('url'),
+        'id': request.args.get('id')
     }
 
-    id = g.storage.origin_get(origin)
+    ori = g.storage.origin_get(origin)
 
-    if not id:
+    if not ori:
         abort(404)
     else:
-        origin['id'] = id
-        return encode_data(origin)
+        return encode_data(ori)
 
 
 @app.route('/origin', methods=['POST'])

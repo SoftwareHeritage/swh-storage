@@ -113,12 +113,7 @@ class RemoteStorage():
         return self.post('occurrence/add', {'occurrences': occurrences})
 
     def origin_get(self, origin):
-        origin = self.get('origin', origin)
-
-        if not origin:
-            return None
-        else:
-            return origin['id']
+        return self.get('origin', origin)
 
     def origin_add_one(self, origin):
         return self.post('origin', {'origin': origin})

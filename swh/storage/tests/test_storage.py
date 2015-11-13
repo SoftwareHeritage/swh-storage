@@ -509,9 +509,33 @@ class AbstractTestStorage(DbTestFixture):
 
     @istest
     def origin_add(self):
+        origin0 = self.storage.origin_get(self.origin)
+        self.assertIsNone(origin0)
+
+        id = self.storage.origin_add_one(self.origin)
+
+        actual_origin = self.storage.origin_get({'url': self.origin['url'],
+                                                 'type': self.origin['type']})
+        self.assertEqual(actual_origin['id'], id)
+
+    @istest
+    def origin_get(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
-        self.assertEqual(self.storage.origin_get(self.origin), id)
+
+        # lookup per type and url (returns id)
+        actual_origin0 = self.storage.origin_get({'url': self.origin['url'],
+                                                  'type': self.origin['type']})
+        self.assertEqual(actual_origin0['id'], id)
+
+        # lookup per id (returns dict)
+        # actual_origin1 = self.storage.origin_get({'id': id})
+
+        # self.assertEqual(actual_origin1, {'id': id,
+        #                                   'type': self.origin['type'],
+        #                                   'url': self.origin['url'],
+        #                                   'lister': None,
+        #                                   'project': None})
 
     @istest
     def occurrence_add(self):

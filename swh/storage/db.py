@@ -348,16 +348,38 @@ class Db:
     entity_cols = base_entity_cols + ['last_seen', 'last_id']
     entity_history_cols = base_entity_cols + ['id', 'validity']
 
-    def origin_get_id(self, type, url, cur=None):
+    def origin_add(self, type, url, cur=None):
+        """Insert a new origin and return the new identifier."""
+        insert = """INSERT INTO origin (type, url) values (%s, %s)
+                    RETURNING id"""
+
+        cur.execute(insert, (type, url))
+        return cur.fetchone()[0]
+
+    def origin_get_with(self, type, url, cur=None):
         """Retrieve the origin id from its type and url if found."""
         cur = self._cursor(cur)
 
-        query = "select id from origin where type=%s and url=%s"
+        query = """SELECT id, type, url, lister, project
+                   FROM origin
+                   WHERE type=%s AND url=%s"""
 
         cur.execute(query, (type, url))
-
         data = cur.fetchone()
-        if not data:
-            return None
-        else:
-            return data[0]
+        if data:
+            return line_to_bytes(data)
+        return None
+
+    def origin_get(self, id, cur=None):
+        """Retrieve the origin per its identifier.
+
+        """
+        cur = self._cursor(cur)
+
+        query = "SELECT id, type, url, lister, project FROM origin WHERE id=%s"
+
+        cur.execute(query, (id,))
+        data = cur.fetchone()
+        if data:
+            return line_to_bytes(data)
+        return None
