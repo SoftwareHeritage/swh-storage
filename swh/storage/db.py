@@ -347,3 +347,17 @@ class Db:
 
     entity_cols = base_entity_cols + ['last_seen', 'last_id']
     entity_history_cols = base_entity_cols + ['id', 'validity']
+
+    def origin_get_id(self, type, url, cur=None):
+        """Retrieve the origin id from its type and url if found."""
+        cur = self._cursor(cur)
+
+        query = "select id from origin where type=%s and url=%s"
+
+        cur.execute(query, (type, url))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        else:
+            return data[0]

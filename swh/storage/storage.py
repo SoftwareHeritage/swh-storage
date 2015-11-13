@@ -632,15 +632,7 @@ class Storage():
         Returns:
             the id of the queried origin
         """
-        query = "select id from origin where type=%s and url=%s"
-
-        cur.execute(query, (origin['type'], origin['url']))
-
-        data = cur.fetchone()
-        if not data:
-            return None
-        else:
-            return data[0]
+        return self.db.origin_get_id(origin['type'], origin['url'])
 
     @db_transaction
     def origin_add_one(self, origin, cur=None):
