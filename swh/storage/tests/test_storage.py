@@ -529,13 +529,13 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_origin0['id'], id)
 
         # lookup per id (returns dict)
-        # actual_origin1 = self.storage.origin_get({'id': id})
+        actual_origin1 = self.storage.origin_get({'id': id})
 
-        # self.assertEqual(actual_origin1, {'id': id,
-        #                                   'type': self.origin['type'],
-        #                                   'url': self.origin['url'],
-        #                                   'lister': None,
-        #                                   'project': None})
+        self.assertEqual(actual_origin1, {'id': id,
+                                          'type': self.origin['type'],
+                                          'url': self.origin['url'],
+                                          'lister': None,
+                                          'project': None})
 
     @istest
     def occurrence_add(self):

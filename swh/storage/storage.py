@@ -648,11 +648,12 @@ class Storage():
 
         keys = ['id', 'type', 'url', 'lister', 'project']
 
-        if 'type' in origin and 'url' in origin:  # lookup per type and url
+        origin_id = origin.get('id')
+        if origin_id:  # check lookup per id first
+            ori = db.origin_get(origin_id, cur)
+        elif 'type' in origin and 'url' in origin:  # or lookup per type, url
             ori = db.origin_get_with(origin['type'], origin['url'], cur)
-        elif 'id' in origin:  # lookup per id
-            ori = db.origin_get(origin['id'], cur)
-        else:
+        else:  # unsupported lookup
             raise ValueError('Origin must have either id or (type and url).')
 
         if ori:
