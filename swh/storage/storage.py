@@ -583,6 +583,33 @@ class Storage():
         for obj in db.release_missing_from_temp(cur):
             yield obj[0]
 
+    @db_transaction_generator
+    def release_get(self, releases, cur=None):
+        """Given a list of sha1, return the releases's information
+
+        Args:
+            releases: list of sha1s
+
+        Returns:
+            Generates the list of releases dict with the following keys:
+            - id: origin's id
+            - revision: origin's type
+            - url: origin's url
+            - lister: lister's uuid
+            - project: project's uuid (FIXME, retrieve this information)
+
+        Raises:
+            ValueError if the keys does not match (url and type) nor id.
+
+        """
+        db = self.db
+
+        keys = ['id', 'revision', 'date', 'date_offset', 'name', 'comment',
+                'author', 'synthetic']
+
+        for release in db.release_get(releases, cur):
+            yield dict(zip(keys, release))
+
     @db_transaction
     def occurrence_add(self, occurrences, cur=None):
         """Add occurrences to the storage

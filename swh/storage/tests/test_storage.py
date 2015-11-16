@@ -508,6 +508,53 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
+    def release_get(self):
+        # given
+        self.storage.release_add([self.release, self.release2])
+
+        # when
+        actual_releases = self.storage.release_get([self.release['id'],
+                                                    self.release2['id']])
+
+        # The author depends on the previous tests, so we remove it and only
+        # checks the value exists
+        tampered_with_releases = list(actual_releases)
+        self.assertEquals(2, len(tampered_with_releases))
+
+        release0 = tampered_with_releases[0]
+        release1 = tampered_with_releases[1]
+
+        author0 = release0.pop('author')
+        self.assertIsNotNone(author0)
+        author1 = release1.pop('author')
+        self.assertIsNotNone(author1)
+
+        # then
+        expected_release0 = {
+            'id': b'87659012345678901234',
+            'revision': None,
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'date_offset': None,
+            'name': 'v0.0.1',
+            'comment': b'synthetic release',
+            'synthetic': True,
+        }
+        expected_release1 = {
+            'id': b'56789012348765901234',
+            'revision': None,
+            'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'date_offset': None,
+            'name': 'v0.0.2',
+            'comment': b'v0.0.2\nMisc performance improvments + bug fixes',
+            'synthetic': False,
+        }
+
+        self.assertEquals([expected_release0, expected_release1],
+                          [release0, release1])
+
+    @istest
     def origin_add(self):
         origin0 = self.storage.origin_get(self.origin)
         self.assertIsNone(origin0)

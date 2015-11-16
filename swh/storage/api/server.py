@@ -133,6 +133,11 @@ def release_add():
     return encode_data(g.storage.release_add(**decode_request(request)))
 
 
+@app.route('/release', methods=['POST'])
+def release_get():
+    return encode_data(g.storage.release_get(**decode_request(request)))
+
+
 @app.route('/release/missing', methods=['POST'])
 def release_missing():
     return encode_data(g.storage.release_missing(**decode_request(request)))

@@ -106,6 +106,9 @@ class RemoteStorage():
     def release_add(self, releases):
         return self.post('release/add', {'releases': releases})
 
+    def release_get(self, releases):
+        return self.post('release', {'releases': releases})
+
     def release_missing(self, releases):
         return self.post('release/missing', {'releases': releases})
 
