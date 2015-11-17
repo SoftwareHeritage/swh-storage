@@ -140,12 +140,12 @@ class Storage():
         """Retrieve in bulk contents and their data.
 
         Args:
-            content: iterables of contents as dict.
-            keys:
-            - sha1, status
+            content: iterables of sha1
 
         Returns:
-            Generates streams of contents as dict with their raw data.
+            Generates streams of contents as dict with their raw data:
+            - sha1: sha1's content
+            - data: bytes data of the content
 
         Raises:
             ValueError in case of too much contents are required.
