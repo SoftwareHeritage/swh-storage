@@ -768,3 +768,55 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
         expected_fetch_history['duration'] = self.fetch_history_duration
 
         self.assertEqual(expected_fetch_history, fetch_history)
+
+    @istest
+    def content_find_with_present_content(self):
+        # 1. with something to find
+        cont = self.cont
+        self.storage.content_add([cont])
+
+        actually_present = self.storage.content_find({'sha1': cont['sha1']})
+
+        self.assertTrue(actually_present)
+
+        # 2. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1_git': cont['sha1_git']})
+
+        self.assertTrue(actually_present)
+
+        # 3. with something to find
+        actually_present = self.storage.content_find(
+            {'sha256': cont['sha256']})
+
+        self.assertTrue(actually_present)
+
+        # 4. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1': cont['sha1'],
+             'sha1_git': cont['sha1_git'],
+             'sha256': cont['sha256']})
+
+        self.assertTrue(actually_present)
+
+    @istest
+    def content_find_with_non_present_content(self):
+        # 1. with something that does not exist
+        missing_cont = self.missing_cont
+
+        actually_present = self.storage.content_find(
+            {'sha1': missing_cont['sha1']})
+
+        self.assertIsNone(actually_present)
+
+        # 2. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha1_git': missing_cont['sha1_git']})
+
+        self.assertIsNone(actually_present)
+
+        # 3. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha256': missing_cont['sha256']})
+
+        self.assertIsNone(actually_present)

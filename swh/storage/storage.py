@@ -242,12 +242,10 @@ class Storage():
                              'sha1, sha1_git, sha256')
 
         # format the output
-        found_hash = db.content_find(sha1=content.get('sha1'),
-                                     sha1_git=content.get('sha1_git'),
-                                     sha256=content.get('sha256'),
-                                     cur=cur)
-
-        return found_hash
+        return db.content_find(sha1=content.get('sha1'),
+                               sha1_git=content.get('sha1_git'),
+                               sha256=content.get('sha256'),
+                               cur=cur)
 
     @db_transaction
     def content_exist(self, content, cur=None):
@@ -289,7 +287,7 @@ class Storage():
 
         c = self.content_find(content)
 
-        if c is None:
+        if not c:
             return None
 
         sha1, _, _ = c
@@ -298,11 +296,8 @@ class Storage():
 
         if found_occ is None:
             return None
-        return {'origin_type': found_occ[0],
-                'origin_url': found_occ[1],
-                'branch': found_occ[2],
-                'revision': found_occ[3],
-                'path': found_occ[4]}
+        keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
+        return dict(zip(keys, found_occ))
 
     def directory_add(self, directories):
         """Add directories to the storage
