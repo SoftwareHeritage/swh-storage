@@ -17,6 +17,7 @@ from .db import Db
 from .objstorage import ObjStorage
 
 from swh.core.hashutil import ALGORITHMS
+from swh.storage.objstorage import ObjNotFoundError
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -158,7 +159,12 @@ class Storage():
                 "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
 
         for obj_id in content:
-            data = self.objstorage.get_bytes(obj_id)
+            try:
+                data = self.objstorage.get_bytes(obj_id)
+            except ObjNotFoundError:
+                yield None
+                continue
+
             yield {'sha1': obj_id, 'data': data}
 
     @db_transaction_generator
