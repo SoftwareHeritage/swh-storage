@@ -706,7 +706,7 @@ class Storage():
 
         data = db.origin_get_with(origin['type'], origin['url'], cur)
         if data:
-            return data['id']
+            return data[0]
 
         return db.origin_add(origin['type'], origin['url'], cur)
 

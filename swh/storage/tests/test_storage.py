@@ -555,7 +555,7 @@ class AbstractTestStorage(DbTestFixture):
                           [release0, release1])
 
     @istest
-    def origin_add(self):
+    def origin_add_one(self):
         origin0 = self.storage.origin_get(self.origin)
         self.assertIsNone(origin0)
 
@@ -564,6 +564,10 @@ class AbstractTestStorage(DbTestFixture):
         actual_origin = self.storage.origin_get({'url': self.origin['url'],
                                                  'type': self.origin['type']})
         self.assertEqual(actual_origin['id'], id)
+
+        id2 = self.storage.origin_add_one(self.origin)
+
+        self.assertEqual(id, id2)
 
     @istest
     def origin_get(self):
