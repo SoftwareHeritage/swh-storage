@@ -75,6 +75,9 @@ class RemoteStorage():
         return self.post('content/missing', {'content': content,
                                              'key_hash': key_hash})
 
+    def content_get(self, content):
+        return self.post('content/data', {'content': content})
+
     def content_exist(self, content):
         return self.post('content/present', {'content': content})
 
@@ -87,9 +90,9 @@ class RemoteStorage():
     def directory_missing(self, directories):
         return self.post('directory/missing', {'directories': directories})
 
-    def directory_get(self, directory):
-        return [tuple(entry)
-                for entry in self.get('directory', {'directory': directory})]
+    def directory_get(self, directory, recursive=False):
+        return self.get('directory', {'directory': directory,
+                                      'recursive': recursive})
 
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
@@ -103,6 +106,9 @@ class RemoteStorage():
     def release_add(self, releases):
         return self.post('release/add', {'releases': releases})
 
+    def release_get(self, releases):
+        return self.post('release', {'releases': releases})
+
     def release_missing(self, releases):
         return self.post('release/missing', {'releases': releases})
 
@@ -110,12 +116,7 @@ class RemoteStorage():
         return self.post('occurrence/add', {'occurrences': occurrences})
 
     def origin_get(self, origin):
-        origin = self.get('origin', origin)
-
-        if not origin:
-            return None
-        else:
-            return origin['id']
+        return self.get('origin', origin)
 
     def origin_add_one(self, origin):
         return self.post('origin', {'origin': origin})

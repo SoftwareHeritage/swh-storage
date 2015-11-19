@@ -357,11 +357,15 @@ $$;
 -- can be used to list a directory, and retrieve all the data in one go.
 create type directory_entry as
 (
-  dir_id  sha1_git,     -- id of the parent directory
-  type    directory_entry_type,  -- type of entry
-  target  sha1_git,     -- id of target
-  name    unix_path,    -- path name, relative to containing dir
-  perms   file_perms    -- unix-like permissions
+  dir_id   sha1_git,     -- id of the parent directory
+  type     directory_entry_type,  -- type of entry
+  target   sha1_git,     -- id of target
+  name     unix_path,    -- path name, relative to containing dir
+  perms    file_perms,   -- unix-like permissions
+  status   content_status,  -- visible or absent
+  sha1     sha1,            -- content if sha1 if type is not dir
+  sha1_git sha1_git,        -- content's sha1 git if type is not dir
+  sha256   sha256           -- content's sha256 if type is not dir
 );
 
 
@@ -382,19 +386,23 @@ as $$
     ls_f as (select dir_id, unnest(file_entries) as entry_id from dir),
     ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
     (select dir_id, 'dir'::directory_entry_type as type,
-	    target, name, perms
+            e.target, e.name, e.perms, NULL::content_status,
+            NULL::sha1, NULL::sha1_git, NULL::sha256
      from ls_d
-     left join directory_entry_dir d on ls_d.entry_id = d.id)
+     left join directory_entry_dir e on ls_d.entry_id = e.id)
     union
     (select dir_id, 'file'::directory_entry_type as type,
-	    target, name, perms
+            e.target, e.name, e.perms, c.status,
+            c.sha1, c.sha1_git, c.sha256
      from ls_f
-     left join directory_entry_file d on ls_f.entry_id = d.id)
+     left join directory_entry_file e on ls_f.entry_id = e.id
+     left join content c on e.target = c.sha1_git)
     union
     (select dir_id, 'rev'::directory_entry_type as type,
-	    target, name, perms
+            e.target, e.name, e.perms, NULL::content_status,
+            NULL::sha1, NULL::sha1_git, NULL::sha256
      from ls_r
-     left join directory_entry_rev d on ls_r.entry_id = d.id)
+     left join directory_entry_rev e on ls_r.entry_id = e.id)
     order by name;
 $$;
 
@@ -405,14 +413,16 @@ create or replace function swh_directory_walk(walked_dir_id sha1_git)
     stable
 as $$
     with recursive entries as (
-        select dir_id, type, target, name, perms
+        select dir_id, type, target, name, perms, status, sha1, sha1_git,
+               sha256
         from swh_directory_walk_one(walked_dir_id)
         union all
-        select dir_id, type, target, (dirname || '/' || name)::unix_path as name, perms
+        select dir_id, type, target, (dirname || '/' || name)::unix_path as name,
+               perms, status, sha1, sha1_git, sha256
         from (select (swh_directory_walk_one(dirs.target)).*, dirs.name as dirname
               from (select target, name from entries where type = 'dir') as dirs) as with_parent
     )
-    select dir_id, type, target, name, perms
+    select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
     from entries
 $$;
 
