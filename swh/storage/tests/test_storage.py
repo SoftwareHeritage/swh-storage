@@ -516,13 +516,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_releases = self.storage.release_get([self.release['id'],
                                                     self.release2['id']])
 
-        # The author depends on the previous tests, so we remove it and only
-        # checks the value exists
-        tampered_with_releases = list(actual_releases)
-        self.assertEquals(2, len(tampered_with_releases))
-
-        release0 = tampered_with_releases[0]
-        release1 = tampered_with_releases[1]
+        actual_releases = list(actual_releases)
 
         # then
         expected_release0 = {
@@ -551,7 +545,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.assertEquals([expected_release0, expected_release1],
-                          [release0, release1])
+                          [actual_releases[0], actual_releases[1]])
 
     @istest
     def origin_add_one(self):
