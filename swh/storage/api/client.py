@@ -121,6 +121,9 @@ class RemoteStorage():
     def origin_add_one(self, origin):
         return self.post('origin', {'origin': origin})
 
+    def person_get(self, person):
+        return self.get('person', person)
+
     def fetch_history_start(self, origin_id):
         return self.post('fetch_history/start', {'origin_id': origin_id})
 

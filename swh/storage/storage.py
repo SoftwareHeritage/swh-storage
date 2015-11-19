@@ -696,6 +696,43 @@ class Storage():
         return None
 
     @db_transaction
+    def _person_add(self, person, cur=None):
+        """Add a person in storage.
+
+        BEWARE: Internal function for now.
+        Do not do anything fancy in case a person already exists.
+        Please adapt code if more checks are needed.
+
+        Args:
+            person dictionary with keys name and email.
+
+        Returns:
+            Id of the new person.
+
+        """
+        db = self.db
+
+        return db.person_add(person['name'], person['email'])
+
+    @db_transaction_generator
+    def person_get(self, person, cur=None):
+        """Return the persons identified by their ids.
+
+        Args:
+            person: array of ids.
+
+        Returns:
+            The array of persons corresponding of the ids.
+
+        """
+        db = self.db
+
+        keys = ['id', 'name', 'email']
+
+        for person in db.person_get(person):
+            yield dict(zip(keys, person))
+
+    @db_transaction
     def origin_add_one(self, origin, cur=None):
         """Add origin to the storage
 

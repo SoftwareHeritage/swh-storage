@@ -813,3 +813,22 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
             {'sha256': missing_cont['sha256']})
 
         self.assertIsNone(actually_present)
+
+    @istest
+    def person_get(self):
+        # given
+        person0 = {'name': b'bob', 'email': b'alice@bob'}
+        id0 = self.storage._person_add(person0)
+        person1 = {'name': b'tony', 'email': b'tony@bob'}
+        id1 = self.storage._person_add(person1)
+
+        # when
+        actual_persons = self.storage.person_get([id0, id1])
+
+        # given (person injection through release for example)
+        self.assertEqual(list(actual_persons), [{'id': id0,
+                                                 'name': person0['name'],
+                                                 'email': person0['email']},
+                                                {'id': id1,
+                                                 'name': person1['name'],
+                                                 'email': person1['email']}])

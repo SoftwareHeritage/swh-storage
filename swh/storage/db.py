@@ -387,6 +387,33 @@ class Db:
             return line_to_bytes(data)
         return None
 
+    def person_add(self, name, email, cur=None):
+        """Add a person identified by its name and email.
+
+        Returns:
+            The new person's id
+
+        """
+        cur = self._cursor(cur)
+
+        query_new_person = '''INSERT INTO person(name, email)
+                              VALUES (%s, %s)
+                              RETURNING id'''
+        cur.execute(query_new_person, (name, email))
+        return cur.fetchone()[0]
+
+    def person_get(self, ids, cur=None):
+        """Retrieve the persons identified by the list of ids.
+
+        """
+        cur = self._cursor(cur)
+
+        query = """SELECT id, name, email
+                   FROM person
+                   WHERE id IN %s"""
+        cur.execute(query, (tuple(ids),))
+        yield from cursor_to_bytes(cur)
+
     def release_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_release_get()')

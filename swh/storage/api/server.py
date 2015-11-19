@@ -169,6 +169,11 @@ def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
+@app.route('/person', methods=['GET'])
+def person_get():
+    return encode_data(g.storage.person_get(**decode_request(request)))
+
+
 @app.route('/fetch_history', methods=['GET'])
 def fetch_history_get():
     return encode_data(g.storage.fetch_history_get(request.args['id']))
