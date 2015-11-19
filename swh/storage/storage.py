@@ -606,9 +606,15 @@ class Storage():
         db = self.db
 
         keys = ['id', 'revision', 'date', 'date_offset', 'name', 'comment',
-                'author', 'synthetic']
+                'synthetic', 'author_name', 'author_email']
 
-        for release in db.release_get(releases, cur):
+        db.mktemp_release_get(cur)
+
+        releases_dicts = ({'id': rel} for rel in releases)
+
+        db.copy_to(releases_dicts, 'tmp_release_get', ['id'], cur)
+
+        for release in db.release_get_from_temp(cur):
             yield dict(zip(keys, release))
 
     @db_transaction

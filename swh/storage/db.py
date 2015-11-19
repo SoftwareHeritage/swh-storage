@@ -131,6 +131,9 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_release_get')
+    def mktemp_release_get(self, cur=None): pass
+
     @stored_procedure('swh_mktemp_entity_lister')
     def mktemp_entity_lister(self, cur=None): pass
 
@@ -384,28 +387,7 @@ class Db:
             return line_to_bytes(data)
         return None
 
-    def release_get(self, sha1s, cur=None):
-        """Retrieve the releases from their sha1.
-
-        Args:
-            - sha1s: sha1s (as bytes) list
-
-        Yields:
-            Releases as tuples id, revision, date, date_offset, name, comment,
-            author, synthetic
-
-        """
-        def escape(data):
-            if isinstance(data, bytes):
-                return '\\x%s' % binascii.hexlify(data).decode('ascii')
-            return data
-
+    def release_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
-
-        query = """SELECT id, revision, date, date_offset, name, comment,
-                          author, synthetic
-                   FROM release
-                   WHERE id IN %s"""
-        cur.execute(query, (tuple(map(escape, sha1s)), ))
-
+        cur.execute('SELECT * FROM swh_release_get()')
         yield from cursor_to_bytes(cur)

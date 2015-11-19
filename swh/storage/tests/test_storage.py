@@ -524,11 +524,6 @@ class AbstractTestStorage(DbTestFixture):
         release0 = tampered_with_releases[0]
         release1 = tampered_with_releases[1]
 
-        author0 = release0.pop('author')
-        self.assertIsNotNone(author0)
-        author1 = release1.pop('author')
-        self.assertIsNotNone(author1)
-
         # then
         expected_release0 = {
             'id': b'87659012345678901234',
@@ -539,6 +534,8 @@ class AbstractTestStorage(DbTestFixture):
             'name': 'v0.0.1',
             'comment': b'synthetic release',
             'synthetic': True,
+            'author_name': self.release['author_name'].encode('utf-8'),
+            'author_email': self.release['author_email'].encode('utf-8'),
         }
         expected_release1 = {
             'id': b'56789012348765901234',
@@ -549,6 +546,8 @@ class AbstractTestStorage(DbTestFixture):
             'name': 'v0.0.2',
             'comment': b'v0.0.2\nMisc performance improvments + bug fixes',
             'synthetic': False,
+            'author_name': self.release2['author_name'].encode('utf-8'),
+            'author_email': self.release2['author_email'].encode('utf-8'),
         }
 
         self.assertEquals([expected_release0, expected_release1],
