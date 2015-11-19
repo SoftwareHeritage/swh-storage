@@ -267,6 +267,11 @@ class Db:
         cur.execute('SELECT * FROM swh_directory_walk_one(%s)', (directory,))
         yield from cursor_to_bytes(cur)
 
+    def directory_walk(self, directory, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('SELECT * FROM swh_directory_walk(%s)', (directory,))
+        yield from cursor_to_bytes(cur)
+
     def revision_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
@@ -342,3 +347,65 @@ class Db:
 
     entity_cols = base_entity_cols + ['last_seen', 'last_id']
     entity_history_cols = base_entity_cols + ['id', 'validity']
+
+    def origin_add(self, type, url, cur=None):
+        """Insert a new origin and return the new identifier."""
+        insert = """INSERT INTO origin (type, url) values (%s, %s)
+                    RETURNING id"""
+
+        cur.execute(insert, (type, url))
+        return cur.fetchone()[0]
+
+    def origin_get_with(self, type, url, cur=None):
+        """Retrieve the origin id from its type and url if found."""
+        cur = self._cursor(cur)
+
+        query = """SELECT id, type, url, lister, project
+                   FROM origin
+                   WHERE type=%s AND url=%s"""
+
+        cur.execute(query, (type, url))
+        data = cur.fetchone()
+        if data:
+            return line_to_bytes(data)
+        return None
+
+    def origin_get(self, id, cur=None):
+        """Retrieve the origin per its identifier.
+
+        """
+        cur = self._cursor(cur)
+
+        query = "SELECT id, type, url, lister, project FROM origin WHERE id=%s"
+
+        cur.execute(query, (id,))
+        data = cur.fetchone()
+        if data:
+            return line_to_bytes(data)
+        return None
+
+    def release_get(self, sha1s, cur=None):
+        """Retrieve the releases from their sha1.
+
+        Args:
+            - sha1s: sha1s (as bytes) list
+
+        Yields:
+            Releases as tuples id, revision, date, date_offset, name, comment,
+            author, synthetic
+
+        """
+        def escape(data):
+            if isinstance(data, bytes):
+                return '\\x%s' % binascii.hexlify(data).decode('ascii')
+            return data
+
+        cur = self._cursor(cur)
+
+        query = """SELECT id, revision, date, date_offset, name, comment,
+                          author, synthetic
+                   FROM release
+                   WHERE id IN %s"""
+        cur.execute(query, (tuple(map(escape, sha1s)), ))
+
+        yield from cursor_to_bytes(cur)

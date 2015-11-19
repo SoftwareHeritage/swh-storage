@@ -454,9 +454,17 @@ class AbstractTestStorage(DbTestFixture):
 
         stored_data = list(self.storage.directory_get(self.dir['id']))
 
-        data_to_store = [
-            (self.dir['id'], ent['type'], ent['target'], ent['name'],
-             ent['perms'])
+        data_to_store = [{
+                 'dir_id': self.dir['id'],
+                 'type': ent['type'],
+                 'target': ent['target'],
+                 'name': ent['name'],
+                 'perms': ent['perms'],
+                 'status': None,
+                 'sha1': None,
+                 'sha1_git': None,
+                 'sha256': None,
+            }
             for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
         ]
 
@@ -500,10 +508,85 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
-    def origin_add(self):
+    def release_get(self):
+        # given
+        self.storage.release_add([self.release, self.release2])
+
+        # when
+        actual_releases = self.storage.release_get([self.release['id'],
+                                                    self.release2['id']])
+
+        # The author depends on the previous tests, so we remove it and only
+        # checks the value exists
+        tampered_with_releases = list(actual_releases)
+        self.assertEquals(2, len(tampered_with_releases))
+
+        release0 = tampered_with_releases[0]
+        release1 = tampered_with_releases[1]
+
+        author0 = release0.pop('author')
+        self.assertIsNotNone(author0)
+        author1 = release1.pop('author')
+        self.assertIsNotNone(author1)
+
+        # then
+        expected_release0 = {
+            'id': b'87659012345678901234',
+            'revision': None,
+            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'date_offset': None,
+            'name': 'v0.0.1',
+            'comment': b'synthetic release',
+            'synthetic': True,
+        }
+        expected_release1 = {
+            'id': b'56789012348765901234',
+            'revision': None,
+            'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'date_offset': None,
+            'name': 'v0.0.2',
+            'comment': b'v0.0.2\nMisc performance improvments + bug fixes',
+            'synthetic': False,
+        }
+
+        self.assertEquals([expected_release0, expected_release1],
+                          [release0, release1])
+
+    @istest
+    def origin_add_one(self):
+        origin0 = self.storage.origin_get(self.origin)
+        self.assertIsNone(origin0)
+
+        id = self.storage.origin_add_one(self.origin)
+
+        actual_origin = self.storage.origin_get({'url': self.origin['url'],
+                                                 'type': self.origin['type']})
+        self.assertEqual(actual_origin['id'], id)
+
+        id2 = self.storage.origin_add_one(self.origin)
+
+        self.assertEqual(id, id2)
+
+    @istest
+    def origin_get(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
-        self.assertEqual(self.storage.origin_get(self.origin), id)
+
+        # lookup per type and url (returns id)
+        actual_origin0 = self.storage.origin_get({'url': self.origin['url'],
+                                                  'type': self.origin['type']})
+        self.assertEqual(actual_origin0['id'], id)
+
+        # lookup per id (returns dict)
+        actual_origin1 = self.storage.origin_get({'id': id})
+
+        self.assertEqual(actual_origin1, {'id': id,
+                                          'type': self.origin['type'],
+                                          'url': self.origin['url'],
+                                          'lister': None,
+                                          'project': None})
 
     @istest
     def occurrence_add(self):
@@ -685,3 +768,55 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
         expected_fetch_history['duration'] = self.fetch_history_duration
 
         self.assertEqual(expected_fetch_history, fetch_history)
+
+    @istest
+    def content_find_with_present_content(self):
+        # 1. with something to find
+        cont = self.cont
+        self.storage.content_add([cont])
+
+        actually_present = self.storage.content_find({'sha1': cont['sha1']})
+
+        self.assertTrue(actually_present)
+
+        # 2. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1_git': cont['sha1_git']})
+
+        self.assertTrue(actually_present)
+
+        # 3. with something to find
+        actually_present = self.storage.content_find(
+            {'sha256': cont['sha256']})
+
+        self.assertTrue(actually_present)
+
+        # 4. with something to find
+        actually_present = self.storage.content_find(
+            {'sha1': cont['sha1'],
+             'sha1_git': cont['sha1_git'],
+             'sha256': cont['sha256']})
+
+        self.assertTrue(actually_present)
+
+    @istest
+    def content_find_with_non_present_content(self):
+        # 1. with something that does not exist
+        missing_cont = self.missing_cont
+
+        actually_present = self.storage.content_find(
+            {'sha1': missing_cont['sha1']})
+
+        self.assertIsNone(actually_present)
+
+        # 2. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha1_git': missing_cont['sha1_git']})
+
+        self.assertIsNone(actually_present)
+
+        # 3. with something that does not exist
+        actually_present = self.storage.content_find(
+            {'sha256': missing_cont['sha256']})
+
+        self.assertIsNone(actually_present)

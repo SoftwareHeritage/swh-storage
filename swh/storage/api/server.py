@@ -91,6 +91,11 @@ def content_add():
     return encode_data(g.storage.content_add(**decode_request(request)))
 
 
+@app.route('/content/data', methods=['POST'])
+def content_get():
+    return encode_data(g.storage.content_get(**decode_request(request)))
+
+
 @app.route('/directory/missing', methods=['POST'])
 def directory_missing():
     return encode_data(g.storage.directory_missing(**decode_request(request)))
@@ -104,7 +109,8 @@ def directory_add():
 @app.route('/directory', methods=['GET'])
 def directory_get():
     dir = request.args['directory'].encode('utf-8', 'surrogateescape')
-    return encode_data(g.storage.directory_get(dir))
+    rec = json.loads(request.args.get('recursive', 'False').lower())
+    return encode_data(g.storage.directory_get(dir, recursive=rec))
 
 
 @app.route('/revision/add', methods=['POST'])
@@ -127,6 +133,11 @@ def release_add():
     return encode_data(g.storage.release_add(**decode_request(request)))
 
 
+@app.route('/release', methods=['POST'])
+def release_get():
+    return encode_data(g.storage.release_get(**decode_request(request)))
+
+
 @app.route('/release/missing', methods=['POST'])
 def release_missing():
     return encode_data(g.storage.release_missing(**decode_request(request)))
@@ -140,17 +151,17 @@ def occurrence_add():
 @app.route('/origin', methods=['GET'])
 def origin_get():
     origin = {
-        'type': request.args['type'],
-        'url': request.args['url'],
+        'type': request.args.get('type'),
+        'url': request.args.get('url'),
+        'id': request.args.get('id')
     }
 
-    id = g.storage.origin_get(origin)
+    ori = g.storage.origin_get(origin)
 
-    if not id:
+    if not ori:
         abort(404)
     else:
-        origin['id'] = id
-        return encode_data(origin)
+        return encode_data(ori)
 
 
 @app.route('/origin', methods=['POST'])
