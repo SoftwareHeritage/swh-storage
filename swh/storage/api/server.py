@@ -169,7 +169,7 @@ def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
-@app.route('/person', methods=['GET'])
+@app.route('/person', methods=['POST'])
 def person_get():
     return encode_data(g.storage.person_get(**decode_request(request)))
 
