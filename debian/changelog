@@ -1,8 +1,12 @@
-swh-storage (0.0.17-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.18-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.18
+  * Improve origin_get to permit retrieval per id
+  * Update directory_get implementation (add join from
+  * directory_entry_file to content)
+  * Open release_get : [sha1] -> [Release]
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 03 Nov 2015 16:41:00 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 19 Nov 2015 11:18:35 +0100
 
 swh-storage (0.0.17-1~swh1) unstable-swh; urgency=medium
 

@@ -17,6 +17,10 @@ from .db import Db
 from .objstorage import ObjStorage
 
 from swh.core.hashutil import ALGORITHMS
+from swh.storage.objstorage import ObjNotFoundError
+
+# Max block size of contents to return
+BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 
 def db_transaction(meth):
@@ -133,6 +137,36 @@ class Storage():
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)
 
+    def content_get(self, content):
+        """Retrieve in bulk contents and their data.
+
+        Args:
+            content: iterables of sha1
+
+        Returns:
+            Generates streams of contents as dict with their raw data:
+            - sha1: sha1's content
+            - data: bytes data of the content
+
+        Raises:
+            ValueError in case of too much contents are required.
+            cf. BULK_BLOCK_CONTENT_LEN_MAX
+
+        """
+        # FIXME: Improve on server module to slice the result
+        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
+            raise ValueError(
+                "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
+
+        for obj_id in content:
+            try:
+                data = self.objstorage.get_bytes(obj_id)
+            except ObjNotFoundError:
+                yield None
+                continue
+
+            yield {'sha1': obj_id, 'data': data}
+
     @db_transaction_generator
     def content_missing(self, content, key_hash='sha1', cur=None):
         """List content missing from storage
@@ -214,12 +248,10 @@ class Storage():
                              'sha1, sha1_git, sha256')
 
         # format the output
-        found_hash = db.content_find(sha1=content.get('sha1'),
-                                     sha1_git=content.get('sha1_git'),
-                                     sha256=content.get('sha256'),
-                                     cur=cur)
-
-        return found_hash
+        return db.content_find(sha1=content.get('sha1'),
+                               sha1_git=content.get('sha1_git'),
+                               sha256=content.get('sha256'),
+                               cur=cur)
 
     @db_transaction
     def content_exist(self, content, cur=None):
@@ -261,7 +293,7 @@ class Storage():
 
         c = self.content_find(content)
 
-        if c is None:
+        if not c:
             return None
 
         sha1, _, _ = c
@@ -270,11 +302,8 @@ class Storage():
 
         if found_occ is None:
             return None
-        return {'origin_type': found_occ[0],
-                'origin_url': found_occ[1],
-                'branch': found_occ[2],
-                'revision': found_occ[3],
-                'path': found_occ[4]}
+        keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
+        return dict(zip(keys, found_occ))
 
     def directory_add(self, directories):
         """Add directories to the storage
@@ -356,9 +385,29 @@ class Storage():
         for obj in db.directory_missing_from_temp(cur):
             yield obj[0]
 
-    def directory_get(self, directory):
-        """Get the entries for one directory"""
-        yield from self.db.directory_walk_one(directory)
+    @db_transaction_generator
+    def directory_get(self, directory, recursive=False, cur=None):
+        """Get entries for one directory.
+
+        Args:
+            - directory: the directory to list entries from.
+            - recursive: if flag on, this list recursively from this directory.
+
+        Returns:
+            List of entries for such directory.
+
+        """
+        db = self.db
+        keys = ['dir_id', 'type', 'target', 'name', 'perms', 'status',
+                'sha1', 'sha1_git', 'sha256']
+
+        if recursive:
+            res_gen = db.directory_walk(directory)
+        else:
+            res_gen = db.directory_walk_one(directory)
+
+        for line in res_gen:
+            yield dict(zip(keys, line))
 
     def revision_add(self, revisions):
         """Add revisions to the storage
@@ -535,6 +584,33 @@ class Storage():
         for obj in db.release_missing_from_temp(cur):
             yield obj[0]
 
+    @db_transaction_generator
+    def release_get(self, releases, cur=None):
+        """Given a list of sha1, return the releases's information
+
+        Args:
+            releases: list of sha1s
+
+        Returns:
+            Generates the list of releases dict with the following keys:
+            - id: origin's id
+            - revision: origin's type
+            - url: origin's url
+            - lister: lister's uuid
+            - project: project's uuid (FIXME, retrieve this information)
+
+        Raises:
+            ValueError if the keys does not match (url and type) nor id.
+
+        """
+        db = self.db
+
+        keys = ['id', 'revision', 'date', 'date_offset', 'name', 'comment',
+                'author', 'synthetic']
+
+        for release in db.release_get(releases, cur):
+            yield dict(zip(keys, release))
+
     @db_transaction
     def occurrence_add(self, occurrences, cur=None):
         """Add occurrences to the storage
@@ -577,22 +653,40 @@ class Storage():
 
         Args:
             origin: dictionary representing the individual
-                origin to find. This dict has the following keys:
+                origin to find.
+                This dict has either the keys type and url:
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
+                either the id:
+                - id: the origin id
 
         Returns:
-            the id of the queried origin
+            the origin dict with the keys:
+            - id: origin's id
+            - type: origin's type
+            - url: origin's url
+            - lister: lister's uuid
+            - project: project's uuid (FIXME, retrieve this information)
+
+        Raises:
+            ValueError if the keys does not match (url and type) nor id.
+
         """
-        query = "select id from origin where type=%s and url=%s"
+        db = self.db
 
-        cur.execute(query, (origin['type'], origin['url']))
+        keys = ['id', 'type', 'url', 'lister', 'project']
 
-        data = cur.fetchone()
-        if not data:
-            return None
-        else:
-            return data[0]
+        origin_id = origin.get('id')
+        if origin_id:  # check lookup per id first
+            ori = db.origin_get(origin_id, cur)
+        elif 'type' in origin and 'url' in origin:  # or lookup per type, url
+            ori = db.origin_get_with(origin['type'], origin['url'], cur)
+        else:  # unsupported lookup
+            raise ValueError('Origin must have either id or (type and url).')
+
+        if ori:
+            return dict(zip(keys, ori))
+        return None
 
     @db_transaction
     def origin_add_one(self, origin, cur=None):
@@ -607,20 +701,15 @@ class Storage():
         Returns:
             the id of the added origin, or of the identical one that already
             exists.
+
         """
-        query = "select id from origin where type=%s and url=%s"
+        db = self.db
 
-        cur.execute(query, (origin['type'], origin['url']))
-
-        data = cur.fetchone()
+        data = db.origin_get_with(origin['type'], origin['url'], cur)
         if data:
             return data[0]
 
-        insert = """insert into origin (type, url) values (%s, %s)
-                    returning id"""
-
-        cur.execute(insert, (origin['type'], origin['url']))
-        return cur.fetchone()[0]
+        return db.origin_add(origin['type'], origin['url'], cur)
 
     @db_transaction
     def fetch_history_start(self, origin_id, cur=None):
