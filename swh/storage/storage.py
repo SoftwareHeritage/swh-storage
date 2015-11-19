@@ -655,7 +655,8 @@ class Storage():
 
     @db_transaction
     def origin_get(self, origin, cur=None):
-        """Return the id of the given origin
+        """Return the origin either identified by its id or its tuple
+        (type, url).
 
         Args:
             origin: dictionary representing the individual
