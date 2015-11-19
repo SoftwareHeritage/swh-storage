@@ -7,7 +7,7 @@ import json
 import logging
 import pickle
 
-from flask import Flask, Request, Response, abort, g, request
+from flask import Flask, Request, Response, g, request
 
 from swh.core import config
 from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
@@ -148,23 +148,12 @@ def occurrence_add():
     return encode_data(g.storage.occurrence_add(**decode_request(request)))
 
 
-@app.route('/origin', methods=['GET'])
+@app.route('/origin/get', methods=['POST'])
 def origin_get():
-    origin = {
-        'type': request.args.get('type'),
-        'url': request.args.get('url'),
-        'id': request.args.get('id')
-    }
-
-    ori = g.storage.origin_get(origin)
-
-    if not ori:
-        abort(404)
-    else:
-        return encode_data(ori)
+    return encode_data(g.storage.origin_get(**decode_request(request)))
 
 
-@app.route('/origin', methods=['POST'])
+@app.route('/origin/add', methods=['POST'])
 def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
