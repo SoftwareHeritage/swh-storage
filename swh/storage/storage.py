@@ -524,6 +524,9 @@ class Storage():
                 yield None
                 continue
 
+            if 'parents' in data:
+                data['parents'] = list(filter(lambda x: x, data['parents']))
+
             yield data
 
     def release_add(self, releases):

@@ -169,6 +169,26 @@ class AbstractTestStorage(DbTestFixture):
             'synthetic': False
         }
 
+        self.revision3 = {
+            'id': b'87659012345678904321',
+            'message': b'a simple revision with no parents this time',
+            'author_name': 'Roberto Dicosmo',
+            'author_email': 'roberto@example.com',
+            'committer_name': 'tony',
+            'committer_email': 'ar@dumont.fr',
+            'parents': [],
+            'date': datetime.datetime(2015, 10, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'date_offset': 120,
+            'committer_date': datetime.datetime(2015, 10, 2, 22, 0, 0,
+                                                tzinfo=datetime.timezone.utc),
+            'committer_date_offset': -120,
+            'type': 'git',
+            'directory': self.dir2['id'],
+            'metadata': None,
+            'synthetic': True
+        }
+
         self.origin = {
             'url': 'file:///dev/null',
             'type': 'git',
@@ -493,6 +513,15 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(len(get), 2)
         self.assertEqual(get[0], self.revision)
         self.assertEqual(get[1], None)
+
+    @istest
+    def revision_get_no_parents(self):
+        self.storage.revision_add([self.revision3])
+
+        get = list(self.storage.revision_get([self.revision3['id']]))
+
+        self.assertEqual(len(get), 1)
+        self.assertEqual(get[0]['parents'], [])  # no parents on this one
 
     @istest
     def release_add(self):
