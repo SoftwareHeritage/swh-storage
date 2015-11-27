@@ -247,30 +247,14 @@ class Storage():
             raise ValueError('content keys must contain at least one of: '
                              'sha1, sha1_git, sha256')
 
-        # format the output
-        return db.content_find(sha1=content.get('sha1'),
-                               sha1_git=content.get('sha1_git'),
-                               sha256=content.get('sha256'),
-                               cur=cur)
-
-    @db_transaction
-    def content_exist(self, content, cur=None):
-        """Predicate to check the presence of a content's hashes.
-
-        Args:
-            content: a dictionary entry representing one content hash.
-            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
-            The value mapped to the corresponding checksum.
-
-        Returns:
-            a boolean indicator of presence
-
-        Raises:
-            ValueError in case the key of the dictionary is not sha1, sha1_git
-            nor sha256.
-
-        """
-        return self.content_find(content) is not None
+        c = db.content_find(sha1=content.get('sha1'),
+                            sha1_git=content.get('sha1_git'),
+                            sha256=content.get('sha256'),
+                            cur=cur)
+        if c:
+            keys = ['sha1', 'sha1_git', 'sha256', 'length', 'ctime', 'status']
+            return dict(zip(keys, c))
+        return None
 
     @db_transaction
     def content_find_occurrence(self, content, cur=None):
@@ -296,14 +280,13 @@ class Storage():
         if not c:
             return None
 
-        sha1, _, _ = c
+        sha1 = c['sha1']
 
         found_occ = db.content_find_occurrence(sha1, cur=cur)
-
-        if found_occ is None:
-            return None
-        keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
-        return dict(zip(keys, found_occ))
+        if found_occ:
+            keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
+            return dict(zip(keys, found_occ))
+        return None
 
     def directory_add(self, directories):
         """Add directories to the storage
@@ -524,6 +507,9 @@ class Storage():
                 yield None
                 continue
 
+            if 'parents' in data:
+                data['parents'] = list(filter(lambda x: x, data['parents']))
+
             yield data
 
     def release_add(self, releases):
@@ -606,9 +592,15 @@ class Storage():
         db = self.db
 
         keys = ['id', 'revision', 'date', 'date_offset', 'name', 'comment',
-                'author', 'synthetic']
+                'synthetic', 'author_name', 'author_email']
 
-        for release in db.release_get(releases, cur):
+        db.mktemp_release_get(cur)
+
+        releases_dicts = ({'id': rel} for rel in releases)
+
+        db.copy_to(releases_dicts, 'tmp_release_get', ['id'], cur)
+
+        for release in db.release_get_from_temp(cur):
             yield dict(zip(keys, release))
 
     @db_transaction
@@ -649,7 +641,8 @@ class Storage():
 
     @db_transaction
     def origin_get(self, origin, cur=None):
-        """Return the id of the given origin
+        """Return the origin either identified by its id or its tuple
+        (type, url).
 
         Args:
             origin: dictionary representing the individual
@@ -687,6 +680,43 @@ class Storage():
         if ori:
             return dict(zip(keys, ori))
         return None
+
+    @db_transaction
+    def _person_add(self, person, cur=None):
+        """Add a person in storage.
+
+        BEWARE: Internal function for now.
+        Do not do anything fancy in case a person already exists.
+        Please adapt code if more checks are needed.
+
+        Args:
+            person dictionary with keys name and email.
+
+        Returns:
+            Id of the new person.
+
+        """
+        db = self.db
+
+        return db.person_add(person['name'], person['email'])
+
+    @db_transaction_generator
+    def person_get(self, person, cur=None):
+        """Return the persons identified by their ids.
+
+        Args:
+            person: array of ids.
+
+        Returns:
+            The array of persons corresponding of the ids.
+
+        """
+        db = self.db
+
+        keys = ['id', 'name', 'email']
+
+        for person in db.person_get(person):
+            yield dict(zip(keys, person))
 
     @db_transaction
     def origin_add_one(self, origin, cur=None):

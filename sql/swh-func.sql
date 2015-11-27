@@ -78,6 +78,15 @@ as $$
     alter table tmp_release drop column author;
 $$;
 
+create or replace function swh_mktemp_release_get()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_release_get(
+      id sha1_git primary key
+    ) on commit drop;
+$$;
+
 -- create a temporary table for entity_history, sans id
 create or replace function swh_mktemp_entity_history()
     returns void
@@ -562,6 +571,35 @@ begin
 end
 $$;
 
+-- Detailed entry for a release
+create type release_entry as
+(
+  id          sha1_git,
+  revision    sha1_git,
+  date        timestamptz,
+  date_offset smallint,
+  name        text,
+  comment     bytea,
+  synthetic   boolean,
+  author_name bytea,
+  author_email bytea
+);
+
+-- Detailed entry for release
+create or replace function swh_release_get()
+    returns setof release_entry
+    language plpgsql
+as $$
+begin
+    return query
+        select r.id, r.revision, r.date, r.date_offset, r.name, r.comment,
+               r.synthetic, p.name as author_name, p.email as author_email
+        from tmp_release_get t
+        inner join release r on t.id = r.id
+        inner join person p on p.id = r.author;
+    return;
+end
+$$;
 
 -- Create entries in person from tmp_revision
 create or replace function swh_person_add_from_revision()

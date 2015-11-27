@@ -78,7 +78,7 @@ class RemoteStorage():
     def content_get(self, content):
         return self.post('content/data', {'content': content})
 
-    def content_exist(self, content):
+    def content_find(self, content):
         return self.post('content/present', {'content': content})
 
     def content_find_occurrence(self, content):
@@ -116,10 +116,13 @@ class RemoteStorage():
         return self.post('occurrence/add', {'occurrences': occurrences})
 
     def origin_get(self, origin):
-        return self.get('origin', origin)
+        return self.post('origin/get', {'origin': origin})
 
     def origin_add_one(self, origin):
-        return self.post('origin', {'origin': origin})
+        return self.post('origin/add', {'origin': origin})
+
+    def person_get(self, person):
+        return self.post('person', {'person': person})
 
     def fetch_history_start(self, origin_id):
         return self.post('fetch_history/start', {'origin_id': origin_id})
