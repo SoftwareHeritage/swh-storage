@@ -254,25 +254,6 @@ class Storage():
                                cur=cur)
 
     @db_transaction
-    def content_exist(self, content, cur=None):
-        """Predicate to check the presence of a content's hashes.
-
-        Args:
-            content: a dictionary entry representing one content hash.
-            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
-            The value mapped to the corresponding checksum.
-
-        Returns:
-            a boolean indicator of presence
-
-        Raises:
-            ValueError in case the key of the dictionary is not sha1, sha1_git
-            nor sha256.
-
-        """
-        return self.content_find(content) is not None
-
-    @db_transaction
     def content_find_occurrence(self, content, cur=None):
         """Find the content's occurrence.
 

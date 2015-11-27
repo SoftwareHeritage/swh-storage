@@ -78,7 +78,7 @@ class RemoteStorage():
     def content_get(self, content):
         return self.post('content/data', {'content': content})
 
-    def content_exist(self, content):
+    def content_find(self, content):
         return self.post('content/present', {'content': content})
 
     def content_find_occurrence(self, content):
