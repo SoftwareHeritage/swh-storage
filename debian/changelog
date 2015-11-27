@@ -1,3 +1,15 @@
+swh-storage (0.0.19-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.19
+  * Improve directory listing with content data
+  * Open person_get
+  * Open release_get data reading
+  * Improve origin_get api
+  * Effort to unify api output on dict (for read)
+  * Migrate backend to 032
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 27 Nov 2015 13:33:34 +0100
+
 swh-storage (0.0.18-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.18
