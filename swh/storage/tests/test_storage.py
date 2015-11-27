@@ -736,19 +736,40 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
 
         actually_present = self.storage.content_find({'sha1': cont['sha1']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
         # 2. with something to find
         actually_present = self.storage.content_find(
             {'sha1_git': cont['sha1_git']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
         # 3. with something to find
         actually_present = self.storage.content_find(
             {'sha256': cont['sha256']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
         # 4. with something to find
         actually_present = self.storage.content_find(
@@ -756,7 +777,14 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
              'sha1_git': cont['sha1_git'],
              'sha256': cont['sha256']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
     @istest
     def content_find_with_non_present_content(self):

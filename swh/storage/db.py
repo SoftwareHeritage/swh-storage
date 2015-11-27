@@ -233,12 +233,15 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256
+        cur.execute("""SELECT sha1, sha1_git, sha256, length, ctime, status
                        FROM swh_content_find(%s, %s, %s)
                        LIMIT 1""", (sha1, sha1_git, sha256))
 
         content = line_to_bytes(cur.fetchone())
-        return None if content == (None, None, None) else content
+        if set(content) == {None}:
+            return None
+        else:
+            return content
 
     def content_find_occurrence(self, sha1, cur=None):
         """Find one content's occurrence.

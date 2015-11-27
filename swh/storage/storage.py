@@ -247,11 +247,14 @@ class Storage():
             raise ValueError('content keys must contain at least one of: '
                              'sha1, sha1_git, sha256')
 
-        # format the output
-        return db.content_find(sha1=content.get('sha1'),
-                               sha1_git=content.get('sha1_git'),
-                               sha256=content.get('sha256'),
-                               cur=cur)
+        c = db.content_find(sha1=content.get('sha1'),
+                            sha1_git=content.get('sha1_git'),
+                            sha256=content.get('sha256'),
+                            cur=cur)
+        if c:
+            keys = ['sha1', 'sha1_git', 'sha256', 'length', 'ctime', 'status']
+            return dict(zip(keys, c))
+        return None
 
     @db_transaction
     def content_find_occurrence(self, content, cur=None):
@@ -277,14 +280,13 @@ class Storage():
         if not c:
             return None
 
-        sha1, _, _ = c
+        sha1 = c['sha1']
 
         found_occ = db.content_find_occurrence(sha1, cur=cur)
-
-        if found_occ is None:
-            return None
-        keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
-        return dict(zip(keys, found_occ))
+        if found_occ:
+            keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
+            return dict(zip(keys, found_occ))
+        return None
 
     def directory_add(self, directories):
         """Add directories to the storage
