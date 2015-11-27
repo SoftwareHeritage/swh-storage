@@ -169,6 +169,26 @@ class AbstractTestStorage(DbTestFixture):
             'synthetic': False
         }
 
+        self.revision3 = {
+            'id': b'87659012345678904321',
+            'message': b'a simple revision with no parents this time',
+            'author_name': 'Roberto Dicosmo',
+            'author_email': 'roberto@example.com',
+            'committer_name': 'tony',
+            'committer_email': 'ar@dumont.fr',
+            'parents': [],
+            'date': datetime.datetime(2015, 10, 1, 22, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'date_offset': 120,
+            'committer_date': datetime.datetime(2015, 10, 2, 22, 0, 0,
+                                                tzinfo=datetime.timezone.utc),
+            'committer_date_offset': -120,
+            'type': 'git',
+            'directory': self.dir2['id'],
+            'metadata': None,
+            'synthetic': True
+        }
+
         self.origin = {
             'url': 'file:///dev/null',
             'type': 'git',
@@ -383,69 +403,6 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest
-    def content_exist_with_present_content(self):
-        # 1. with something to find
-        cont = self.cont
-        self.storage.content_add([cont])
-
-        actually_present = self.storage.content_exist({'sha1': cont['sha1']})
-
-        self.assertEquals(actually_present, True, "Should be present")
-
-        # 2. with something to find
-        actually_present = self.storage.content_exist(
-            {'sha1_git': cont['sha1_git']})
-
-        self.assertEquals(actually_present, True, "Should be present")
-
-        # 3. with something to find
-        actually_present = self.storage.content_exist(
-            {'sha256': cont['sha256']})
-
-        self.assertEquals(actually_present, True, "Should be present")
-
-        # 4. with something to find
-        actually_present = self.storage.content_exist(
-            {'sha1': cont['sha1'],
-             'sha1_git': cont['sha1_git'],
-             'sha256': cont['sha256']})
-
-        self.assertEquals(actually_present, True, "Should be present")
-
-    @istest
-    def content_exist_with_non_present_content(self):
-        # 1. with something that does not exist
-        missing_cont = self.missing_cont
-
-        actually_present = self.storage.content_exist(
-            {'sha1': missing_cont['sha1']})
-
-        self.assertEquals(actually_present, False, "Should be missing")
-
-        # 2. with something that does not exist
-        actually_present = self.storage.content_exist(
-            {'sha1_git': missing_cont['sha1_git']})
-
-        self.assertEquals(actually_present, False, "Should be missing")
-
-        # 3. with something that does not exist
-        actually_present = self.storage.content_exist(
-            {'sha256': missing_cont['sha256']})
-
-        self.assertEquals(actually_present, False, "Should be missing")
-
-    @istest
-    def content_exist_bad_input(self):
-        # 1. with bad input
-        with self.assertRaises(ValueError):
-            self.storage.content_exist({})  # empty is bad
-
-        # 2. with bad input
-        with self.assertRaises(ValueError):
-            self.storage.content_exist(
-                {'unknown-sha1': 'something'})  # not the right key
-
-    @istest
     def directory_add(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
@@ -495,6 +452,15 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(get[1], None)
 
     @istest
+    def revision_get_no_parents(self):
+        self.storage.revision_add([self.revision3])
+
+        get = list(self.storage.revision_get([self.revision3['id']]))
+
+        self.assertEqual(len(get), 1)
+        self.assertEqual(get[0]['parents'], [])  # no parents on this one
+
+    @istest
     def release_add(self):
         init_missing = self.storage.release_missing([self.release['id'],
                                                      self.release2['id']])
@@ -516,18 +482,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_releases = self.storage.release_get([self.release['id'],
                                                     self.release2['id']])
 
-        # The author depends on the previous tests, so we remove it and only
-        # checks the value exists
-        tampered_with_releases = list(actual_releases)
-        self.assertEquals(2, len(tampered_with_releases))
-
-        release0 = tampered_with_releases[0]
-        release1 = tampered_with_releases[1]
-
-        author0 = release0.pop('author')
-        self.assertIsNotNone(author0)
-        author1 = release1.pop('author')
-        self.assertIsNotNone(author1)
+        actual_releases = list(actual_releases)
 
         # then
         expected_release0 = {
@@ -539,6 +494,8 @@ class AbstractTestStorage(DbTestFixture):
             'name': 'v0.0.1',
             'comment': b'synthetic release',
             'synthetic': True,
+            'author_name': self.release['author_name'].encode('utf-8'),
+            'author_email': self.release['author_email'].encode('utf-8'),
         }
         expected_release1 = {
             'id': b'56789012348765901234',
@@ -549,10 +506,12 @@ class AbstractTestStorage(DbTestFixture):
             'name': 'v0.0.2',
             'comment': b'v0.0.2\nMisc performance improvments + bug fixes',
             'synthetic': False,
+            'author_name': self.release2['author_name'].encode('utf-8'),
+            'author_email': self.release2['author_email'].encode('utf-8'),
         }
 
         self.assertEquals([expected_release0, expected_release1],
-                          [release0, release1])
+                          [actual_releases[0], actual_releases[1]])
 
     @istest
     def origin_add_one(self):
@@ -777,19 +736,40 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
 
         actually_present = self.storage.content_find({'sha1': cont['sha1']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
         # 2. with something to find
         actually_present = self.storage.content_find(
             {'sha1_git': cont['sha1_git']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
         # 3. with something to find
         actually_present = self.storage.content_find(
             {'sha256': cont['sha256']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
         # 4. with something to find
         actually_present = self.storage.content_find(
@@ -797,7 +777,14 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
              'sha1_git': cont['sha1_git'],
              'sha256': cont['sha256']})
 
-        self.assertTrue(actually_present)
+        actually_present.pop('ctime')
+        self.assertEqual(actually_present, {
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
     @istest
     def content_find_with_non_present_content(self):
@@ -820,3 +807,33 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
             {'sha256': missing_cont['sha256']})
 
         self.assertIsNone(actually_present)
+
+    @istest
+    def content_find_bad_input(self):
+        # 1. with bad input
+        with self.assertRaises(ValueError):
+            self.storage.content_find({})  # empty is bad
+
+        # 2. with bad input
+        with self.assertRaises(ValueError):
+            self.storage.content_find(
+                {'unknown-sha1': 'something'})  # not the right key
+
+    @istest
+    def person_get(self):
+        # given
+        person0 = {'name': b'bob', 'email': b'alice@bob'}
+        id0 = self.storage._person_add(person0)
+        person1 = {'name': b'tony', 'email': b'tony@bob'}
+        id1 = self.storage._person_add(person1)
+
+        # when
+        actual_persons = self.storage.person_get([id0, id1])
+
+        # given (person injection through release for example)
+        self.assertEqual(list(actual_persons), [{'id': id0,
+                                                 'name': person0['name'],
+                                                 'email': person0['email']},
+                                                {'id': id1,
+                                                 'name': person1['name'],
+                                                 'email': person1['email']}])

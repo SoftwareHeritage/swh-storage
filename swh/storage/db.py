@@ -131,6 +131,9 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_release_get')
+    def mktemp_release_get(self, cur=None): pass
+
     @stored_procedure('swh_mktemp_entity_lister')
     def mktemp_entity_lister(self, cur=None): pass
 
@@ -230,12 +233,15 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256
+        cur.execute("""SELECT sha1, sha1_git, sha256, length, ctime, status
                        FROM swh_content_find(%s, %s, %s)
                        LIMIT 1""", (sha1, sha1_git, sha256))
 
         content = line_to_bytes(cur.fetchone())
-        return None if content == (None, None, None) else content
+        if set(content) == {None}:
+            return None
+        else:
+            return content
 
     def content_find_occurrence(self, sha1, cur=None):
         """Find one content's occurrence.
@@ -384,28 +390,34 @@ class Db:
             return line_to_bytes(data)
         return None
 
-    def release_get(self, sha1s, cur=None):
-        """Retrieve the releases from their sha1.
+    def person_add(self, name, email, cur=None):
+        """Add a person identified by its name and email.
 
-        Args:
-            - sha1s: sha1s (as bytes) list
-
-        Yields:
-            Releases as tuples id, revision, date, date_offset, name, comment,
-            author, synthetic
+        Returns:
+            The new person's id
 
         """
-        def escape(data):
-            if isinstance(data, bytes):
-                return '\\x%s' % binascii.hexlify(data).decode('ascii')
-            return data
-
         cur = self._cursor(cur)
 
-        query = """SELECT id, revision, date, date_offset, name, comment,
-                          author, synthetic
-                   FROM release
-                   WHERE id IN %s"""
-        cur.execute(query, (tuple(map(escape, sha1s)), ))
+        query_new_person = '''INSERT INTO person(name, email)
+                              VALUES (%s, %s)
+                              RETURNING id'''
+        cur.execute(query_new_person, (name, email))
+        return cur.fetchone()[0]
 
+    def person_get(self, ids, cur=None):
+        """Retrieve the persons identified by the list of ids.
+
+        """
+        cur = self._cursor(cur)
+
+        query = """SELECT id, name, email
+                   FROM person
+                   WHERE id IN %s"""
+        cur.execute(query, (tuple(ids),))
+        yield from cursor_to_bytes(cur)
+
+    def release_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('SELECT * FROM swh_release_get()')
         yield from cursor_to_bytes(cur)
