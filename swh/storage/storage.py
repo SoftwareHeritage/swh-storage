@@ -13,6 +13,7 @@ import dateutil.parser
 import psycopg2
 from psycopg2.extras import DateTimeTZRange
 
+from .converters import revision_to_db, db_to_revision
 from .db import Db
 from .objstorage import ObjStorage
 
@@ -420,19 +421,8 @@ class Storage():
         """
         db = self.db
 
-        parents = {}
-
-        for revision in revisions:
-            id = revision['id']
-
-            cur_parents = enumerate(revision.get('parents', []))
-            parents[id] = [{
-                'id': id,
-                'parent_id': parent,
-                'parent_rank': i
-            } for i, parent in cur_parents]
-
-        revisions_missing = list(self.revision_missing(parents.keys()))
+        revisions_missing = set(self.revision_missing(
+            set(revision['id'] for revision in revisions)))
 
         if not revisions_missing:
             return
@@ -440,21 +430,22 @@ class Storage():
         with db.transaction() as cur:
             db.mktemp_revision(cur)
 
-            revisions_filtered = (revision for revision in revisions
-                                  if revision['id'] in revisions_missing)
+            revisions_filtered = (
+                revision_to_db(revision) for revision in revisions
+                if revision['id'] in revisions_missing)
 
-            db.copy_to(revisions_filtered, 'tmp_revision',
-                       ['id', 'date', 'date_offset', 'committer_date',
-                        'committer_date_offset', 'type', 'directory',
-                        'message', 'author_name', 'author_email',
-                        'committer_name', 'committer_email', 'metadata',
-                        'synthetic'],
-                       cur)
+            parents_filtered = []
+
+            db.copy_to(
+                revisions_filtered, 'tmp_revision',
+                ['id', 'date', 'date_offset', 'committer_date',
+                 'committer_date_offset', 'type', 'directory', 'message',
+                 'author_name', 'author_email', 'committer_name',
+                 'committer_email', 'metadata', 'synthetic'],
+                cur,
+                lambda rev: parents_filtered.extend(rev['parents']))
 
             db.revision_add_from_temp(cur)
-
-            parents_filtered = itertools.chain.from_iterable(
-                parents[id] for id in revisions_missing)
 
             db.copy_to(parents_filtered, 'revision_history',
                        ['id', 'parent_id', 'parent_rank'], cur)
@@ -502,14 +493,10 @@ class Storage():
         db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
 
         for line in self.db.revision_get_from_temp(cur):
-            data = dict(zip(keys, line))
+            data = db_to_revision(dict(zip(keys, line)))
             if not data['type']:
                 yield None
                 continue
-
-            if 'parents' in data:
-                data['parents'] = list(filter(lambda x: x, data['parents']))
-
             yield data
 
     def release_add(self, releases):
