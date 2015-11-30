@@ -13,12 +13,11 @@ import dateutil.parser
 import psycopg2
 from psycopg2.extras import DateTimeTZRange
 
-from .converters import revision_to_db, db_to_revision
+from . import converters
 from .db import Db
-from .objstorage import ObjStorage
+from .objstorage import ObjNotFoundError, ObjStorage
 
 from swh.core.hashutil import ALGORITHMS
-from swh.storage.objstorage import ObjNotFoundError
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -431,7 +430,7 @@ class Storage():
             db.mktemp_revision(cur)
 
             revisions_filtered = (
-                revision_to_db(revision) for revision in revisions
+                converters.revision_to_db(revision) for revision in revisions
                 if revision['id'] in revisions_missing)
 
             parents_filtered = []
@@ -493,7 +492,7 @@ class Storage():
         db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
 
         for line in self.db.revision_get_from_temp(cur):
-            data = db_to_revision(dict(zip(keys, line)))
+            data = converters.db_to_revision(dict(zip(keys, line)))
             if not data['type']:
                 yield None
                 continue
