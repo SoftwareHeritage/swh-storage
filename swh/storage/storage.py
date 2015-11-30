@@ -518,7 +518,7 @@ class Storage():
         db = self.db
 
         release_ids = set(release['id'] for release in releases)
-        releases_missing = list(self.release_missing(release_ids))
+        releases_missing = set(self.release_missing(release_ids))
 
         if not releases_missing:
             return
@@ -526,8 +526,10 @@ class Storage():
         with db.transaction() as cur:
             db.mktemp_release(cur)
 
-            releases_filtered = (release for release in releases
-                                 if release['id'] in releases_missing)
+            releases_filtered = (
+                converters.release_to_db(release) for release in releases
+                if release['id'] in releases_missing
+            )
 
             db.copy_to(releases_filtered, 'tmp_release',
                        ['id', 'revision', 'date', 'date_offset', 'name',
@@ -587,7 +589,7 @@ class Storage():
         db.copy_to(releases_dicts, 'tmp_release_get', ['id'], cur)
 
         for release in db.release_get_from_temp(cur):
-            yield dict(zip(keys, release))
+            yield converters.db_to_release(dict(zip(keys, release)))
 
     @db_transaction
     def occurrence_add(self, occurrences, cur=None):

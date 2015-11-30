@@ -167,3 +167,46 @@ def db_to_revision(db_revision):
         'synthetic': db_revision['synthetic'],
         'parents': parents,
     }
+
+
+def release_to_db(release):
+    """Convert a swh-model release to its database representation.
+    """
+
+    author = author_to_db(release['author'])
+    date = date_to_db(release['date'])
+
+    return {
+        'id': release['id'],
+        'author_name': author['name'],
+        'author_email': author['email'],
+        'date': date['timestamp'],
+        'date_offset': date['offset'],
+        'name': release['name'],
+        'revision': release['target'],
+        'comment': release['message'],
+        'synthetic': release['synthetic'],
+    }
+
+
+def db_to_release(db_release):
+    """Convert a database representation of a release to its swh-model
+    representation.
+    """
+
+    author = db_to_author(
+        db_release['author_name'],
+        db_release['author_email'],
+    )
+    date = db_to_date(db_release['date'], db_release['date_offset'])
+
+    return {
+        'author': author,
+        'date': date,
+        'id': db_release['id'],
+        'name': db_release['name'],
+        'message': db_release['comment'],
+        'synthetic': db_release['synthetic'],
+        'target': db_release['revision'],
+        'target_type': 'revision',
+    }

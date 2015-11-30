@@ -228,23 +228,29 @@ class AbstractTestStorage(DbTestFixture):
             'id': b'87659012345678901234',
             'name': 'v0.0.1',
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'offset': 120,
-            'author_name': 'olasd',
-            'author_email': 'nic@olasd.fr',
-            'comment': 'synthetic release',
-            'synthetic': True
+                                      tzinfo=self.plus_offset),
+            'author': {
+                'name': b'olasd',
+                'email': b'nic@olasd.fr',
+            },
+            'target': b'43210987654321098765',
+            'target_type': 'revision',
+            'message': b'synthetic release',
+            'synthetic': True,
         }
 
         self.release2 = {
             'id': b'56789012348765901234',
             'name': 'v0.0.2',
             'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'offset': 120,
-            'author_name': 'tony',
-            'author_email': 'ar@dumont.fr',
-            'comment': 'v0.0.2\nMisc performance improvments + bug fixes',
+                                      tzinfo=self.minus_offset),
+            'author': {
+                'name': b'tony',
+                'email': b'ar@dumont.fr',
+            },
+            'target': b'432109\xa9765432\xc309\x00765',
+            'target_type': 'revision',
+            'message': b'v0.0.2\nMisc performance improvments + bug fixes',
             'synthetic': False
         }
 
@@ -498,32 +504,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_releases = list(actual_releases)
 
         # then
-        expected_release0 = {
-            'id': b'87659012345678901234',
-            'revision': None,
-            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': None,
-            'name': 'v0.0.1',
-            'comment': b'synthetic release',
-            'synthetic': True,
-            'author_name': self.release['author_name'].encode('utf-8'),
-            'author_email': self.release['author_email'].encode('utf-8'),
-        }
-        expected_release1 = {
-            'id': b'56789012348765901234',
-            'revision': None,
-            'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': None,
-            'name': 'v0.0.2',
-            'comment': b'v0.0.2\nMisc performance improvments + bug fixes',
-            'synthetic': False,
-            'author_name': self.release2['author_name'].encode('utf-8'),
-            'author_email': self.release2['author_email'].encode('utf-8'),
-        }
-
-        self.assertEquals([expected_release0, expected_release1],
+        self.assertEquals([self.release, self.release2],
                           [actual_releases[0], actual_releases[1]])
 
     @istest
