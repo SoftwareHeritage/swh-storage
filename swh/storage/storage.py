@@ -498,6 +498,27 @@ class Storage():
                 continue
             yield data
 
+    @db_transaction_generator
+    def revision_log(self, revisions, cur=None):
+        """Fetch revision entry from the given revisions (root's revision hash).
+
+        """
+        root_revision = revisions
+        print(revisions)
+        db = self.db
+
+        keys = ['id', 'date', 'date_offset', 'committer_date',
+                'committer_date_offset', 'type', 'directory', 'message',
+                'author_name', 'author_email', 'committer_name',
+                'committer_email', 'metadata', 'synthetic']
+
+        for line in db.revision_log(root_revision, cur):
+            data = converters.db_to_revision(dict(zip(keys, line)))
+            if not data['type']:
+                yield None
+                continue
+            yield data
+
     def release_add(self, releases):
         """Add releases to the storage
 

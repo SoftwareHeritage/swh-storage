@@ -150,9 +150,10 @@ def db_to_revision(db_revision):
     )
 
     parents = []
-    for parent in db_revision['parents']:
-        if parent:
-            parents.append(parent)
+    if 'parents' in db_revision:
+        for parent in db_revision['parents']:
+            if parent:
+                parents.append(parent)
 
     return {
         'id': db_revision['id'],

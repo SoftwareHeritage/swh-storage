@@ -177,7 +177,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.revision3 = {
-            'id': b'87659012345678904321',
+            'id': hex_to_hash('7026b7c1a2af56521e951c01ed20f255fa054238'),
             'message': b'a simple revision with no parents this time',
             'author': {
                 'name': b'Roberto Dicosmo',
@@ -196,6 +196,28 @@ class AbstractTestStorage(DbTestFixture):
             'directory': self.dir2['id'],
             'metadata': None,
             'synthetic': True
+        }
+
+        self.revision4 = {
+            'id': hex_to_hash('368a48fe15b7db2383775f97c6b247011b3f14f4'),
+            'message': b'parent of self.revision2',
+            'author': {
+                'name': b'me',
+                'email': b'me@soft.heri',
+            },
+            'date': datetime.datetime(2015, 1, 1, 20, 0, 0,
+                                      tzinfo=self.plus_offset),
+            'committer': {
+                'name': b'committer-dude',
+                'email': b'committer@dude.com',
+            },
+            'committer_date': datetime.datetime(2015, 1, 2, 20, 0, 0,
+                                                tzinfo=self.minus_offset),
+            'parents': [self.revision3['id']],
+            'type': 'git',
+            'directory': self.dir['id'],
+            'metadata': None,
+            'synthetic': False
         }
 
         self.origin = {
@@ -454,6 +476,29 @@ class AbstractTestStorage(DbTestFixture):
 
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
+
+    @istest
+    def revision_log(self):
+        # given
+        # self.revision4 -is-child-of-> self.revision3
+        self.storage.revision_add([self.revision3,
+                                   self.revision4])
+
+        # when
+        actual_result = self.storage.revision_log(self.revision4['id'])
+
+        res = list(actual_result)
+        self.assertEqual(len(res), 2)  # revision4 is a child of revision3
+
+        revision3_copy = self.revision3.copy()
+        revision4_copy = self.revision4.copy()
+
+        # parents property is not returned here
+        revision3_copy['parents'] = []
+        revision4_copy['parents'] = []
+
+        self.assertEquals(res[0], revision4_copy)
+        self.assertEquals(res[1], revision3_copy)
 
     @istest
     def revision_get(self):
