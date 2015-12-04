@@ -504,7 +504,6 @@ class Storage():
 
         """
         root_revision = revisions
-        print(revisions)
         db = self.db
 
         keys = ['id', 'date', 'date_offset', 'committer_date',
