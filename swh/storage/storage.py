@@ -314,7 +314,8 @@ class Storage():
         for cur_dir in directories:
             dir_id = cur_dir['id']
             dirs.add(dir_id)
-            for entry in cur_dir['entries']:
+            for src_entry in cur_dir['entries']:
+                entry = src_entry.copy()
                 entry['dir_id'] = dir_id
                 dir_entries[entry['type']][dir_id].append(entry)
 
