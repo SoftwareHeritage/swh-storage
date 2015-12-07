@@ -123,6 +123,11 @@ def revision_get():
     return encode_data(g.storage.revision_get(**decode_request(request)))
 
 
+@app.route('/revision/log', methods=['POST'])
+def revision_log():
+    return encode_data(g.storage.revision_log(**decode_request(request)))
+
+
 @app.route('/revision/missing', methods=['POST'])
 def revision_missing():
     return encode_data(g.storage.revision_missing(**decode_request(request)))

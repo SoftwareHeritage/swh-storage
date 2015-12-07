@@ -1,8 +1,11 @@
-swh-storage (0.0.19-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.20-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.20
+  * allow numeric timestamps with offset
+  * Open revision_log api
+  * start migration to swh.model
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 27 Nov 2015 13:33:33 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 07 Dec 2015 15:20:36 +0100
 
 swh-storage (0.0.19-1~swh1) unstable-swh; urgency=medium
 
