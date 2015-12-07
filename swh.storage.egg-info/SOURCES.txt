@@ -51,6 +51,7 @@ swh.storage.egg-info/dependency_links.txt
 swh.storage.egg-info/requires.txt
 swh.storage.egg-info/top_level.txt
 swh/storage/__init__.py
+swh/storage/converters.py
 swh/storage/db.py
 swh/storage/objstorage.py
 swh/storage/storage.py
