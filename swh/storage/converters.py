@@ -87,7 +87,11 @@ def date_to_db(date_offset):
         utcoffset = date_offset.utcoffset()
         offset = int(utcoffset.total_seconds()) // 60
     else:
-        timestamp = date_offset['timestamp']
+        if isinstance(date_offset['timestamp'], numbers.Real):
+            timestamp = datetime.datetime.fromtimestamp(
+                date_offset['timestamp'], tz=datetime.timezone.utc)
+        else:
+            timestamp = date_offset['timestamp']
         offset = date_offset['offset']
 
     return {
