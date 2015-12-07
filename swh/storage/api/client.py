@@ -97,6 +97,9 @@ class RemoteStorage():
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
 
+    def revision_log(self, revisions):
+        return self.post('revision/log', {'revisions': revisions})
+
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
 

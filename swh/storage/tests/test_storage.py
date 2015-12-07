@@ -127,20 +127,25 @@ class AbstractTestStorage(DbTestFixture):
             ],
         }
 
+        self.minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
+        self.plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
+
         self.revision = {
             'id': b'56789012345678901234',
             'message': b'hello',
-            'author_name': b'Nicolas Dandrimont',
-            'author_email': b'nicolas@example.com',
-            'committer_name': b'St\xc3fano Zacchiroli',
-            'committer_email': b'stefano@example.com',
-            'parents': [b'01234567890123456789', b'23434512345123456789'],
+            'author': {
+                'name': b'Nicolas Dandrimont',
+                'email': b'nicolas@example.com',
+            },
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': 120,
+                                      tzinfo=self.plus_offset),
+            'committer': {
+                'name': b'St\xc3fano Zacchiroli',
+                'email': b'stefano@example.com',
+            },
             'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0,
-                                                tzinfo=datetime.timezone.utc),
-            'committer_date_offset': -120,
+                                                tzinfo=self.minus_offset),
+            'parents': [b'01234567890123456789', b'23434512345123456789'],
             'type': 'git',
             'directory': self.dir['id'],
             'metadata': {'checksums': {'sha1': 'tarball-sha1',
@@ -152,17 +157,19 @@ class AbstractTestStorage(DbTestFixture):
         self.revision2 = {
             'id': b'87659012345678904321',
             'message': b'hello again',
-            'author_name': 'Roberto Dicosmo',
-            'author_email': 'roberto@example.com',
-            'committer_name': 'tony',
-            'committer_email': 'ar@dumont.fr',
-            'parents': [b'01234567890123456789'],
+            'author': {
+                'name': b'Roberto Dicosmo',
+                'email': b'roberto@example.com',
+            },
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': 120,
+                                      tzinfo=self.plus_offset),
+            'committer': {
+                'name': b'tony',
+                'email': b'ar@dumont.fr',
+            },
             'committer_date': datetime.datetime(2015, 1, 2, 22, 0, 0,
-                                                tzinfo=datetime.timezone.utc),
-            'committer_date_offset': -120,
+                                                tzinfo=self.minus_offset),
+            'parents': [b'01234567890123456789'],
             'type': 'git',
             'directory': self.dir2['id'],
             'metadata': None,
@@ -170,23 +177,47 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.revision3 = {
-            'id': b'87659012345678904321',
+            'id': hex_to_hash('7026b7c1a2af56521e951c01ed20f255fa054238'),
             'message': b'a simple revision with no parents this time',
-            'author_name': 'Roberto Dicosmo',
-            'author_email': 'roberto@example.com',
-            'committer_name': 'tony',
-            'committer_email': 'ar@dumont.fr',
-            'parents': [],
+            'author': {
+                'name': b'Roberto Dicosmo',
+                'email': b'roberto@example.com',
+            },
             'date': datetime.datetime(2015, 10, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': 120,
+                                      tzinfo=self.plus_offset),
+            'committer': {
+                'name': b'tony',
+                'email': b'ar@dumont.fr',
+            },
             'committer_date': datetime.datetime(2015, 10, 2, 22, 0, 0,
-                                                tzinfo=datetime.timezone.utc),
-            'committer_date_offset': -120,
+                                                tzinfo=self.minus_offset),
+            'parents': [],
             'type': 'git',
             'directory': self.dir2['id'],
             'metadata': None,
             'synthetic': True
+        }
+
+        self.revision4 = {
+            'id': hex_to_hash('368a48fe15b7db2383775f97c6b247011b3f14f4'),
+            'message': b'parent of self.revision2',
+            'author': {
+                'name': b'me',
+                'email': b'me@soft.heri',
+            },
+            'date': datetime.datetime(2015, 1, 1, 20, 0, 0,
+                                      tzinfo=self.plus_offset),
+            'committer': {
+                'name': b'committer-dude',
+                'email': b'committer@dude.com',
+            },
+            'committer_date': datetime.datetime(2015, 1, 2, 20, 0, 0,
+                                                tzinfo=self.minus_offset),
+            'parents': [self.revision3['id']],
+            'type': 'git',
+            'directory': self.dir['id'],
+            'metadata': None,
+            'synthetic': False
         }
 
         self.origin = {
@@ -219,23 +250,29 @@ class AbstractTestStorage(DbTestFixture):
             'id': b'87659012345678901234',
             'name': 'v0.0.1',
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'offset': 120,
-            'author_name': 'olasd',
-            'author_email': 'nic@olasd.fr',
-            'comment': 'synthetic release',
-            'synthetic': True
+                                      tzinfo=self.plus_offset),
+            'author': {
+                'name': b'olasd',
+                'email': b'nic@olasd.fr',
+            },
+            'target': b'43210987654321098765',
+            'target_type': 'revision',
+            'message': b'synthetic release',
+            'synthetic': True,
         }
 
         self.release2 = {
             'id': b'56789012348765901234',
             'name': 'v0.0.2',
             'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'offset': 120,
-            'author_name': 'tony',
-            'author_email': 'ar@dumont.fr',
-            'comment': 'v0.0.2\nMisc performance improvments + bug fixes',
+                                      tzinfo=self.minus_offset),
+            'author': {
+                'name': b'tony',
+                'email': b'ar@dumont.fr',
+            },
+            'target': b'432109\xa9765432\xc309\x00765',
+            'target_type': 'revision',
+            'message': b'v0.0.2\nMisc performance improvments + bug fixes',
             'synthetic': False
         }
 
@@ -441,6 +478,29 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
+    def revision_log(self):
+        # given
+        # self.revision4 -is-child-of-> self.revision3
+        self.storage.revision_add([self.revision3,
+                                   self.revision4])
+
+        # when
+        actual_result = self.storage.revision_log(self.revision4['id'])
+
+        res = list(actual_result)
+        self.assertEqual(len(res), 2)  # revision4 is a child of revision3
+
+        revision3_copy = self.revision3.copy()
+        revision4_copy = self.revision4.copy()
+
+        # parents property is not returned here
+        revision3_copy['parents'] = []
+        revision4_copy['parents'] = []
+
+        self.assertEquals(res[0], revision4_copy)
+        self.assertEquals(res[1], revision3_copy)
+
+    @istest
     def revision_get(self):
         self.storage.revision_add([self.revision])
 
@@ -449,6 +509,10 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEqual(len(get), 2)
         self.assertEqual(get[0], self.revision)
+        self.assertEqual(get[0]['date'].utcoffset(),
+                         self.revision['date'].utcoffset())
+        self.assertEqual(get[0]['committer_date'].utcoffset(),
+                         self.revision['committer_date'].utcoffset())
         self.assertEqual(get[1], None)
 
     @istest
@@ -485,32 +549,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_releases = list(actual_releases)
 
         # then
-        expected_release0 = {
-            'id': b'87659012345678901234',
-            'revision': None,
-            'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': None,
-            'name': 'v0.0.1',
-            'comment': b'synthetic release',
-            'synthetic': True,
-            'author_name': self.release['author_name'].encode('utf-8'),
-            'author_email': self.release['author_email'].encode('utf-8'),
-        }
-        expected_release1 = {
-            'id': b'56789012348765901234',
-            'revision': None,
-            'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
-            'date_offset': None,
-            'name': 'v0.0.2',
-            'comment': b'v0.0.2\nMisc performance improvments + bug fixes',
-            'synthetic': False,
-            'author_name': self.release2['author_name'].encode('utf-8'),
-            'author_email': self.release2['author_email'].encode('utf-8'),
-        }
-
-        self.assertEquals([expected_release0, expected_release1],
+        self.assertEquals([self.release, self.release2],
                           [actual_releases[0], actual_releases[1]])
 
     @istest
