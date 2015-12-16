@@ -1,8 +1,10 @@
-swh-storage (0.0.20-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.21-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Prepare release v0.0.21
+  * Protect the storage api client from overflows
+  * Add a get_storage function mapping to local or remote storage
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 07 Dec 2015 15:20:36 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 16 Dec 2015 13:34:46 +0100
 
 swh-storage (0.0.20-1~swh1) unstable-swh; urgency=medium
 
