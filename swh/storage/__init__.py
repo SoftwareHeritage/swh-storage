@@ -18,7 +18,7 @@ def get_storage(storage_class, storage_args):
     """
 
     if storage_class == 'remote_storage':
-        from .storage.api.client import RemoteStorage as Storage
+        from .api.client import RemoteStorage as Storage
     elif storage_class == 'local_storage':
         from .storage import Storage
     else:

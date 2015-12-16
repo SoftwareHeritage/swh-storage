@@ -1,8 +1,9 @@
-swh-storage (0.0.21-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.22-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release v0.0.22
+  * Fix relative import for remote storage
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 16 Dec 2015 13:34:46 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 16 Dec 2015 16:04:48 +0100
 
 swh-storage (0.0.21-1~swh1) unstable-swh; urgency=medium
 
