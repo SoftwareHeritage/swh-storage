@@ -11,7 +11,11 @@ from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
 
 
 def encode_data(data):
-    return msgpack_dumps(data)
+    try:
+        return msgpack_dumps(data)
+    except OverflowError as e:
+        raise ValueError('Limits were reached. Please, check your input.\n' +
+                         str(e))
 
 
 def decode_response(response):
