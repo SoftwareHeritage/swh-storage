@@ -1,3 +1,11 @@
+swh-storage (0.0.21-1~swh1) unstable-swh; urgency=medium
+
+  * Prepare release v0.0.21
+  * Protect the storage api client from overflows
+  * Add a get_storage function mapping to local or remote storage
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 16 Dec 2015 13:34:46 +0100
+
 swh-storage (0.0.20-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.20
