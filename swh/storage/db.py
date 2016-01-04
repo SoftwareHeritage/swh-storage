@@ -290,6 +290,25 @@ class Db:
         cur.execute('SELECT * FROM swh_revision_get()')
         yield from cursor_to_bytes(cur)
 
+    def revision_reachable_from(self, root_sha1_git, sha1_git, cur=None):
+        """Determine if a revision sha1_git is reachable from root_sha1_git.
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT count(*)
+                       FROM swh_revision_list('%s')
+                       WHERE swh_revision_list='%s'
+                    """ % (sha1_git, root_sha1_git))
+        return cur.fetchone()[0] != 0
+
+    def revision_direct_parents_and_children(self, rev_sha1_git, cur=None):
+        """Return the direct parents and children of rev_sha1_git."""
+        cur = self._cursor(cur)
+        cur.execute("""SELECT *
+                       FROM swh_revision_direct_parents_and_children('%s')
+                    """ % (rev_sha1_git, ))
+        for row in cursor_to_bytes(cur):
+            yield row[0]
+
     def revision_log(self, root_revision, cur=None):
         cur = self._cursor(cur)
 

@@ -500,6 +500,32 @@ class Storage():
             yield data
 
     @db_transaction_generator
+    def revision_get_transitive_from(self, root_sha1_git, sha1_git, cur=None):
+        """Get revision parents and children of revision sha1_git
+        which are transitively reachable from root_sha1_git.
+
+        Returns:
+            If sha1_git is not reachable from root_sha1_git, returns None.
+            Otherwise, list of sha1_git revision's first degree parents and
+            children
+
+        """
+        def escape(data):
+            if isinstance(data, bytes):
+                from binascii import hexlify
+                return '\\x%s' % hexlify(data).decode('ascii')
+            return data
+
+        db = self.db
+        root_sha1_git = escape(root_sha1_git)
+        sha1_git = escape(sha1_git)
+
+        reachable_p = db.revision_reachable_from(root_sha1_git, sha1_git)
+        if reachable_p:
+            sha1s = db.revision_direct_parents_and_children(sha1_git)
+            yield from self.revision_get(sha1s)
+
+    @db_transaction_generator
     def revision_log(self, revisions, cur=None):
         """Fetch revision entry from the given revisions (root's revision hash).
 
