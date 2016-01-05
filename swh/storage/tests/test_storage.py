@@ -220,72 +220,6 @@ class AbstractTestStorage(DbTestFixture):
             'synthetic': False
         }
 
-        self.revision5 = {
-            'id': hex_to_hash('555a48fe15b7db2383775f97c6b247011b3f14f4'),
-            'message': b'has revision4 for parent',
-            'author': {
-                'name': b'me',
-                'email': b'me@soft.heri',
-            },
-            'date': datetime.datetime(2015, 1, 1, 20, 0, 0,
-                                      tzinfo=self.plus_offset),
-            'committer': {
-                'name': b'committer-dude',
-                'email': b'committer@dude.com',
-            },
-            'committer_date': datetime.datetime(2015, 1, 2, 20, 0, 0,
-                                                tzinfo=self.minus_offset),
-            'parents': [self.revision4['id']],
-            'type': 'git',
-            'directory': self.dir['id'],
-            'metadata': None,
-            'synthetic': False
-        }
-
-        self.revision6 = {
-            'id': hex_to_hash('666a48fe15b7db2383775f97c6b247011b3f14f4'),
-            'message': b'has revision5 for parent',
-            'author': {
-                'name': b'me',
-                'email': b'me@soft.heri',
-            },
-            'date': datetime.datetime(2015, 1, 1, 20, 0, 0,
-                                      tzinfo=self.plus_offset),
-            'committer': {
-                'name': b'committer-dude',
-                'email': b'committer@dude.com',
-            },
-            'committer_date': datetime.datetime(2015, 1, 2, 20, 0, 0,
-                                                tzinfo=self.minus_offset),
-            'parents': [self.revision5['id']],
-            'type': 'git',
-            'directory': self.dir['id'],
-            'metadata': None,
-            'synthetic': False
-        }
-
-        self.revision7 = {
-            'id': hex_to_hash('777a48fe15b7db2383775f97c6b247011b3f14f4'),
-            'message': b'has no relative',
-            'author': {
-                'name': b'me',
-                'email': b'me@soft.heri',
-            },
-            'date': datetime.datetime(2015, 1, 1, 20, 0, 0,
-                                      tzinfo=self.plus_offset),
-            'committer': {
-                'name': b'committer-dude',
-                'email': b'committer@dude.com',
-            },
-            'committer_date': datetime.datetime(2015, 1, 2, 20, 0, 0,
-                                                tzinfo=self.minus_offset),
-            'parents': [],
-            'type': 'git',
-            'directory': self.dir['id'],
-            'metadata': None,
-            'synthetic': True,
-        }
-
         self.origin = {
             'url': 'file:///dev/null',
             'type': 'git',
@@ -589,31 +523,6 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEqual(len(get), 1)
         self.assertEqual(get[0]['parents'], [])  # no parents on this one
-
-    @istest
-    def revision_get_transitive_from_ko_revision7_not_reachable_from_revision3(
-            self):
-        self.storage.revision_add([self.revision3, self.revision7])
-
-        res = self.storage.revision_get_transitive_from(
-            root_sha1_git=self.revision3['id'],
-            sha1_git=self.revision7['id'])
-
-        self.assertEqual(list(res), [])
-
-    @istest
-    def revision_get_transitive_from_ok_revision5_reachable_from_3(self):
-        self.storage.revision_add([self.revision3, self.revision4,
-                                   self.revision5, self.revision6])
-
-        res = list(self.storage.revision_get_transitive_from(
-            root_sha1_git=self.revision3['id'],
-            sha1_git=self.revision5['id']))
-
-        # revision4 > revision5 > revision6
-        # 1 parent + itself revision5 + 1 children
-        self.assertEqual(len(res), 3)
-        self.assertEqual(res, [self.revision4, self.revision5, self.revision6])
 
     @istest
     def release_add(self):

@@ -471,26 +471,6 @@ as $$
 $$;
 
 
--- List direct parents and children sha1s from a given revision
-create or replace function swh_revision_direct_parents_and_children(root_revision sha1_git)
-    returns setof sha1_git
-    language sql
-    stable
-as $$
-   -- parents first
-          (select parent_id as id
-           from revision_history as h
-           where id = root_revision
-           order by parent_rank)
-    -- current sha1
-    union (select root_revision as id)
-    -- children at last
-    union (select h.id as id
-           from revision_history as h
-           where h.parent_id = root_revision)
-$$;
-
-
 -- Detailed entry in a revision log
 create type revision_log_entry as
 (

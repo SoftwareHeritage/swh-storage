@@ -101,10 +101,6 @@ class RemoteStorage():
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
 
-    def revision_get_transitive_from(self, root_sha1_git, sha1_git):
-        return self.post('revision/from', {'root_sha1_git': root_sha1_git,
-                                           'sha1_git': sha1_git})
-
     def revision_log(self, revisions):
         return self.post('revision/log', {'revisions': revisions})
 
