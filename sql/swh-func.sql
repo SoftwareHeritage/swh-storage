@@ -471,45 +471,6 @@ as $$
 $$;
 
 
--- Detailed entry in a revision log
-create type revision_log_entry as
-(
-  id                     sha1_git,
-  date                   timestamptz,
-  date_offset            smallint,
-  committer_date         timestamptz,
-  committer_date_offset  smallint,
-  type                   revision_type,
-  directory              sha1_git,
-  message                bytea,
-  author_name            bytea,
-  author_email           bytea,
-  committer_name         bytea,
-  committer_email        bytea,
-  metadata               jsonb,
-  synthetic              boolean
-);
-
-
--- "git style" revision log. Similar to swh_revision_list(), but returning all
--- information associated to each revision, and expanding authors/committers
-create or replace function swh_revision_log(root_revision sha1_git)
-    returns setof revision_log_entry
-    language sql
-    stable
-as $$
-    select revision.id, date, date_offset,
-	committer_date, committer_date_offset,
-	type, directory, message,
-	author.name as author_name, author.email as author_email,
-	committer.name as committer_name, committer.email as committer_email,
-        revision.metadata, revision.synthetic
-    from swh_revision_list(root_revision) as rev_list
-    join revision on revision.id = rev_list
-    join person as author on revision.author = author.id
-    join person as committer on revision.committer = committer.id;
-$$;
-
 -- Detailed entry for a revision
 create type revision_entry as
 (
@@ -529,6 +490,29 @@ create type revision_entry as
   synthetic              boolean,
   parents                bytea[]
 );
+
+
+-- "git style" revision log. Similar to swh_revision_list(), but returning all
+-- information associated to each revision, and expanding authors/committers
+create or replace function swh_revision_log(root_revision sha1_git)
+    returns setof revision_entry
+    language sql
+    stable
+as $$
+    select t.id, r.date, r.date_offset,
+           r.committer_date, r.committer_date_offset,
+           r.type, r.directory, r.message,
+           a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
+           array_agg(rh.parent_id::bytea order by rh.parent_rank) as parents
+    from swh_revision_list(root_revision) as t(id)
+    left join revision r on t.id = r.id
+    left join person a on a.id = r.author
+    left join person c on c.id = r.committer
+    left join revision_history rh on rh.id = r.id
+    group by t.id, a.name, a.email, r.date, r.date_offset,
+             c.name, c.email, r.committer_date, r.committer_date_offset,
+             r.type, r.directory, r.message, r.metadata, r.synthetic;
+$$;
 
 
 -- Retrieve revisions from tmp_revision in bulk
