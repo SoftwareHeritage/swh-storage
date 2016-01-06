@@ -439,7 +439,7 @@ $$;
 --
 -- TODO ordering: should be breadth-first right now (what do we want?)
 -- TODO ordering: ORDER BY parent_rank somewhere?
-create or replace function swh_revision_list(root_revision sha1_git)
+create or replace function swh_revision_list(root_revision sha1_git, num_revs bigint default NULL)
     returns table (id sha1_git, parents bytea[])
     language sql
     stable
@@ -453,11 +453,12 @@ as $$
     )
     select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
     left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id;
+    group by rev_list.id
+    limit num_revs;
 $$;
 
 -- List all the children of a given revision
-create or replace function swh_revision_list_children(root_revision sha1_git)
+create or replace function swh_revision_list_children(root_revision sha1_git, num_revs bigint default NULL)
     returns table (id sha1_git, parents bytea[])
     language sql
     stable
@@ -471,7 +472,8 @@ as $$
     )
     select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
     left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id;
+    group by rev_list.id
+    limit num_revs;
 $$;
 
 
@@ -498,7 +500,7 @@ create type revision_entry as
 
 -- "git style" revision log. Similar to swh_revision_list(), but returning all
 -- information associated to each revision, and expanding authors/committers
-create or replace function swh_revision_log(root_revision sha1_git)
+create or replace function swh_revision_log(root_revision sha1_git, num_revs bigint default NULL)
     returns setof revision_entry
     language sql
     stable
@@ -508,7 +510,7 @@ as $$
            r.type, r.directory, r.message,
            a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
            t.parents
-    from swh_revision_list(root_revision) as t
+    from swh_revision_list(root_revision, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
     left join person c on c.id = r.committer;

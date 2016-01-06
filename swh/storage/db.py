@@ -290,16 +290,16 @@ class Db:
         cur.execute('SELECT * FROM swh_revision_get()')
         yield from cursor_to_bytes(cur)
 
-    def revision_log(self, root_revision, cur=None):
+    def revision_log(self, root_revision, limit=None, cur=None):
         cur = self._cursor(cur)
 
         query = """SELECT id, date, date_offset, committer_date,
                           committer_date_offset, type, directory, message,
                           author_name, author_email, committer_name,
                           committer_email, metadata, synthetic, parents
-                   FROM swh_revision_log(%s)
+                   FROM swh_revision_log(%s, %s)
                 """
-        cur.execute(query, (root_revision,))
+        cur.execute(query, (root_revision, limit))
         yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):

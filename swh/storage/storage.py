@@ -500,7 +500,7 @@ class Storage():
             yield data
 
     @db_transaction_generator
-    def revision_log(self, revisions, cur=None):
+    def revision_log(self, revisions, limit=None, cur=None):
         """Fetch revision entry from the given revisions (root's revision hash).
 
         """
@@ -512,7 +512,7 @@ class Storage():
                 'author_name', 'author_email', 'committer_name',
                 'committer_email', 'metadata', 'synthetic', 'parents']
 
-        for line in db.revision_log(root_revision, cur):
+        for line in db.revision_log(root_revision, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
             if not data['type']:
                 yield None
