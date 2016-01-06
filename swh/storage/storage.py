@@ -510,7 +510,7 @@ class Storage():
         keys = ['id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory', 'message',
                 'author_name', 'author_email', 'committer_name',
-                'committer_email', 'metadata', 'synthetic']
+                'committer_email', 'metadata', 'synthetic', 'parents']
 
         for line in db.revision_log(root_revision, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
