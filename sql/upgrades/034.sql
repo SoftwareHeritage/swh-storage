@@ -12,18 +12,6 @@ DROP FUNCTION swh_revision_list_children(root_revision sha1_git);
 
 DROP FUNCTION swh_revision_log(root_revision sha1_git);
 
-CREATE OR REPLACE FUNCTION swh_revision_find_occurrence(revision_id sha1_git) RETURNS occurrence
-    LANGUAGE sql STABLE
-    AS $$
-	select origin, branch, revision
-  from swh_revision_list_children(revision_id) as rev_list
-	left join occurrence_history occ_hist
-  on rev_list.id = occ_hist.revision
-	where occ_hist.origin is not null
-	order by upper(occ_hist.validity)  -- TODO filter by authority?
-	limit 1;
-$$;
-
 CREATE OR REPLACE FUNCTION swh_revision_list(root_revision sha1_git, num_revs bigint = NULL::bigint) RETURNS TABLE(id sha1_git, parents bytea[])
     LANGUAGE sql STABLE
     AS $$
@@ -68,4 +56,16 @@ CREATE OR REPLACE FUNCTION swh_revision_log(root_revision sha1_git, num_revs big
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
     left join person c on c.id = r.committer;
+$$;
+
+CREATE OR REPLACE FUNCTION swh_revision_find_occurrence(revision_id sha1_git) RETURNS occurrence
+    LANGUAGE sql STABLE
+    AS $$
+  select origin, branch, revision
+  from swh_revision_list_children(revision_id) as rev_list
+  left join occurrence_history occ_hist
+  on rev_list.id = occ_hist.revision
+  where occ_hist.origin is not null
+  order by upper(occ_hist.validity)  -- TODO filter by authority?
+  limit 1;
 $$;
