@@ -440,7 +440,7 @@ $$;
 -- TODO ordering: should be breadth-first right now (what do we want?)
 -- TODO ordering: ORDER BY parent_rank somewhere?
 create or replace function swh_revision_list(root_revision sha1_git)
-    returns setof sha1_git
+    returns table (id sha1_git, parents bytea[])
     language sql
     stable
 as $$
@@ -451,12 +451,14 @@ as $$
 	 from revision_history as h
 	 join rev_list on h.id = rev_list.id)
     )
-    select * from rev_list;
+    select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
+    left join revision_history rh on rev_list.id = rh.id
+    group by rev_list.id;
 $$;
 
 -- List all the children of a given revision
 create or replace function swh_revision_list_children(root_revision sha1_git)
-    returns setof sha1_git
+    returns table (id sha1_git, parents bytea[])
     language sql
     stable
 as $$
@@ -467,7 +469,9 @@ as $$
 	 from revision_history as h
 	 join rev_list on h.parent_id = rev_list.id)
     )
-    select * from rev_list;
+    select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
+    left join revision_history rh on rev_list.id = rh.id
+    group by rev_list.id;
 $$;
 
 
@@ -503,15 +507,11 @@ as $$
            r.committer_date, r.committer_date_offset,
            r.type, r.directory, r.message,
            a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
-           array_agg(rh.parent_id::bytea order by rh.parent_rank) as parents
-    from swh_revision_list(root_revision) as t(id)
+           t.parents
+    from swh_revision_list(root_revision) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
-    left join person c on c.id = r.committer
-    left join revision_history rh on rh.id = r.id
-    group by t.id, a.name, a.email, r.date, r.date_offset,
-             c.name, c.email, r.committer_date, r.committer_date_offset,
-             r.type, r.directory, r.message, r.metadata, r.synthetic;
+    left join person c on c.id = r.committer;
 $$;
 
 
@@ -770,9 +770,9 @@ create or replace function swh_revision_find_occurrence(revision_id sha1_git)
     stable
 as $$
 	select origin, branch, revision
-	from swh_revision_list_children(revision_id) as rev_list(sha1_git)
+  from swh_revision_list_children(revision_id) as rev_list
 	left join occurrence_history occ_hist
-	on rev_list.sha1_git = occ_hist.revision
+  on rev_list.id = occ_hist.revision
 	where occ_hist.origin is not null
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
 	limit 1;
