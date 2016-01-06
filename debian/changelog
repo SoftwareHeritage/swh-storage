@@ -1,3 +1,10 @@
+swh-storage (0.0.24-1~swh1) unstable-swh; urgency=medium
+
+  * Prepare swh.storage release v0.0.24
+  * Add a limit argument to revision_log
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 06 Jan 2016 15:12:53 +0100
+
 swh-storage (0.0.23-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.23
