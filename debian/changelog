@@ -1,3 +1,12 @@
+swh-storage (0.0.23-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.23
+  * Protect against overflow, wrapped in ValueError for client
+  * Fix relative path import for remote storage.
+  * api to retrieve revision_log is now 'parents' aware
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 06 Jan 2016 11:30:58 +0100
+
 swh-storage (0.0.22-1~swh1) unstable-swh; urgency=medium
 
   * Release v0.0.22
