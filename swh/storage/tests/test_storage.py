@@ -490,15 +490,8 @@ class AbstractTestStorage(DbTestFixture):
         res = list(actual_result)
         self.assertEqual(len(res), 2)  # revision4 is a child of revision3
 
-        revision3_copy = self.revision3.copy()
-        revision4_copy = self.revision4.copy()
-
-        # parents property is not returned here
-        revision3_copy['parents'] = []
-        revision4_copy['parents'] = []
-
-        self.assertEquals(res[0], revision4_copy)
-        self.assertEquals(res[1], revision3_copy)
+        self.assertEquals(res[0], self.revision4)
+        self.assertEquals(res[1], self.revision3)
 
     @istest
     def revision_get(self):
