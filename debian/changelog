@@ -1,3 +1,12 @@
+swh-storage (0.0.25-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.25
+  * Limit results in swh_revision_list*
+  * Create the package to align the current db production version on
+    https://archive.softwareheritage.org/
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 08 Jan 2016 11:33:08 +0100
+
 swh-storage (0.0.24-1~swh1) unstable-swh; urgency=medium
 
   * Prepare swh.storage release v0.0.24
