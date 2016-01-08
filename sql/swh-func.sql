@@ -444,17 +444,17 @@ create or replace function swh_revision_list(root_revision sha1_git, num_revs bi
     language sql
     stable
 as $$
-    with recursive rev_list(id) as (
+    with recursive full_rev_list(id) as (
 	(select id from revision where id = root_revision)
 	union
 	(select parent_id
 	 from revision_history as h
-	 join rev_list on h.id = rev_list.id)
-    )
+   join full_rev_list on h.id = full_rev_list.id)
+    ),
+    rev_list as (select id from full_rev_list limit num_revs)
     select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
     left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id
-    limit num_revs;
+    group by rev_list.id;
 $$;
 
 -- List all the children of a given revision
@@ -463,17 +463,17 @@ create or replace function swh_revision_list_children(root_revision sha1_git, nu
     language sql
     stable
 as $$
-    with recursive rev_list(id) as (
+    with recursive full_rev_list(id) as (
 	(select id from revision where id = root_revision)
 	union
 	(select h.id
 	 from revision_history as h
-	 join rev_list on h.parent_id = rev_list.id)
-    )
+   join full_rev_list on h.parent_id = full_rev_list.id)
+    ),
+    rev_list as (select id from full_rev_list limit num_revs)
     select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
     left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id
-    limit num_revs;
+    group by rev_list.id;
 $$;
 
 
