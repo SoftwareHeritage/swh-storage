@@ -648,6 +648,32 @@ class Storage():
 
         db.occurrence_history_add_from_temp(cur)
 
+    @db_transaction_generator
+    def revision_get_by(self,
+                        origin_id,
+                        branch_name='refs/heads/master',
+                        timestamp=None,
+                        cur=None):
+        """Given an origin_id, retrieve occurrences' list per given criterions.
+
+        Yields:
+            List of occurrences matching the criterions or None if nothing is
+            found.
+
+        """
+        keys = ('id', 'date', 'date_offset', 'committer_date',
+                'committer_date_offset', 'type', 'directory',
+                'message', 'author_name', 'author_email',
+                'committer_name', 'committer_email', 'metadata',
+                'synthetic', 'parents')
+
+        for line in self.db.revision_get_by(origin_id, branch_name, timestamp):
+            data = converters.db_to_revision(dict(zip(keys, line)))
+            if not data['type']:
+                yield None
+                continue
+            yield data
+
     @db_transaction
     def origin_get(self, origin, cur=None):
         """Return the origin either identified by its id or its tuple

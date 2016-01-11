@@ -433,3 +433,17 @@ class Db:
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_release_get()')
         yield from cursor_to_bytes(cur)
+
+    def revision_get_by(self,
+                        origin_id,
+                        branch_name,
+                        validity,
+                        cur=None):
+        """Retrieve a revision by occurrence criterion.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT *
+                       FROM swh_revision_get_by(%s, %s, %s)""",
+                    (origin_id, branch_name, validity))
+        yield from cursor_to_bytes(cur)

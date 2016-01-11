@@ -531,6 +531,32 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(get[0]['parents'], [])  # no parents on this one
 
     @istest
+    def revision_get_by(self):
+        # given
+        self.storage.content_add([self.cont2])
+        self.storage.directory_add([self.dir2])  # point to self.cont
+        self.storage.revision_add([self.revision2])  # points to self.dir
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        # occurrence2 points to 'revision2' with branch 'master', we
+        # need to point to the right origin
+        occurrence2 = self.occurrence2.copy()
+        occurrence2.update({'origin': origin_id})
+        self.storage.occurrence_add([occurrence2])
+
+        # we want only revision 2
+        expected_revisions = list(self.storage.revision_get(
+            [self.revision2['id']]))
+
+        # when
+        actual_results = list(self.storage.revision_get_by(
+            origin_id,
+            occurrence2['branch'],
+            None))
+
+        self.assertEqual(actual_results[0], expected_revisions[0])
+
+    @istest
     def release_add(self):
         init_missing = self.storage.release_missing([self.release['id'],
                                                      self.release2['id']])
