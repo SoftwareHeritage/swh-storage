@@ -557,6 +557,57 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_results[0], expected_revisions[0])
 
     @istest
+    def revision_get_by_multiple_occurrence(self):
+        # 2 occurrences pointing to 2 different revisions
+        # each occurence have 1 hour delta
+        # the api must return the revision whose occurrence is the nearest.
+
+        # given
+        self.storage.content_add([self.cont2])
+        self.storage.directory_add([self.dir2])
+        self.storage.revision_add([self.revision2, self.revision3])
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        # occurrence2 points to 'revision2' with branch 'master', we
+        # need to point to the right origin
+        occurrence2 = self.occurrence2.copy()
+        occurrence2.update({'origin': origin_id,
+                            'validity': occurrence2['validity']})
+
+        occurrence3 = self.occurrence2.copy()
+        occurrence3.update({'origin': origin_id,
+                            'validity': occurrence3['validity'] +
+                            datetime.timedelta(days=1),
+                            'revision': self.revision3['id']})
+
+        # 2 occurrences on same revision with lower validity date with 1h delta
+        self.storage.occurrence_add([occurrence2])
+        self.storage.occurrence_add([occurrence3])
+
+        # when
+        actual_results0 = list(self.storage.revision_get_by(
+            origin_id,
+            occurrence2['branch'],
+            occurrence2['validity']))
+
+        expected_revisions = list(self.storage.revision_get(
+            [self.revision2['id'],
+             self.revision3['id']]))
+
+        self.assertEquals(len(actual_results0), 1)
+        self.assertEqual(actual_results0[0]['id'], self.revision2['id'])
+        self.assertEqual(actual_results0, [expected_revisions[0]])  # revision2
+
+        # when
+        actual_results1 = list(self.storage.revision_get_by(
+            origin_id,
+            occurrence3['branch'],
+            occurrence3['validity']))
+
+        self.assertEquals(len(actual_results1), 2)
+        self.assertEqual(actual_results1, expected_revisions)
+
+    @istest
     def release_add(self):
         init_missing = self.storage.release_missing([self.release['id'],
                                                      self.release2['id']])

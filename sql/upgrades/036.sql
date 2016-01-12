@@ -6,9 +6,13 @@
 insert into dbversion(version, release, description)
       values(36, now(), 'Work In Progress');
 
-CREATE OR REPLACE FUNCTION swh_occurrence_get_by(origin_id bigint, branch_name text = NULL::text, validity tstzrange = NULL::tstzrange) RETURNS SETOF occurrence_history
-    LANGUAGE plpgsql
-    AS $$
+create or replace function swh_occurrence_get_by(
+       origin_id bigint,
+       branch_name text default NULL,
+       validity text default NULL)
+    returns setof occurrence_history
+    language plpgsql
+as $$
 declare
     filters text[] := array[] :: text[];  -- AND-clauses used to filter content
     q text;
@@ -19,14 +23,17 @@ begin
     if branch_name is not null then
         filters := filters || format('branch = %L', branch_name);
     end if;
-    -- if validity is not null then
-    --     filters := filters || format('validity = %L', validity);
-    -- end if;
+    if validity is not null then
+        filters := filters || format('lower(validity) <= %L and %L <= upper(validity)', validity, validity);
+    end if;
 
     if cardinality(filters) = 0 then
-        RAISE EXCEPTION 'At least one filter amongst (origin_id, branch_name, validity) is needed';
+        raise exception 'At least one filter amongst (origin_id, branch_name, validity) is needed';
     else
-        q = format('select * from occurrence_history where %s',
+        q = format('select * ' ||
+                   'from occurrence_history ' ||
+                   'where %s ' ||
+                   'order by validity desc',
 	        array_to_string(filters, ' and '));
         return query execute q;
     end if;

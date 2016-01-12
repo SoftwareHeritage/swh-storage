@@ -653,6 +653,7 @@ class Storage():
                         origin_id,
                         branch_name='refs/heads/master',
                         timestamp=None,
+                        limit=None,
                         cur=None):
         """Given an origin_id, retrieve occurrences' list per given criterions.
 
@@ -667,7 +668,11 @@ class Storage():
                 'committer_name', 'committer_email', 'metadata',
                 'synthetic', 'parents')
 
-        for line in self.db.revision_get_by(origin_id, branch_name, timestamp):
+        for line in self.db.revision_get_by(origin_id,
+                                            branch_name,
+                                            timestamp,
+                                            limit=limit,
+                                            cur=cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
             if not data['type']:
                 yield None

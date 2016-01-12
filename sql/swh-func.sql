@@ -786,7 +786,7 @@ $$;
 create or replace function swh_occurrence_get_by(
        origin_id bigint,
        branch_name text default NULL,
-       validity tstzrange default NULL)
+       validity text default NULL)
     returns setof occurrence_history
     language plpgsql
 as $$
@@ -800,14 +800,17 @@ begin
     if branch_name is not null then
         filters := filters || format('branch = %L', branch_name);
     end if;
-    -- if validity is not null then
-    --     filters := filters || format('validity = %L', validity);
-    -- end if;
+    if validity is not null then
+        filters := filters || format('lower(validity) <= %L and %L <= upper(validity)', validity, validity);
+    end if;
 
     if cardinality(filters) = 0 then
-        RAISE EXCEPTION 'At least one filter amongst (origin_id, branch_name, validity) is needed';
+        raise exception 'At least one filter amongst (origin_id, branch_name, validity) is needed';
     else
-        q = format('select * from occurrence_history where %s',
+        q = format('select * ' ||
+                   'from occurrence_history ' ||
+                   'where %s ' ||
+                   'order by validity desc',
 	        array_to_string(filters, ' and '));
         return query execute q;
     end if;
@@ -819,7 +822,7 @@ $$;
 create or replace function swh_revision_get_by(
        origin_id bigint,
        branch_name text default NULL,
-       validity tstzrange default NULL)
+       validity text default NULL)
     returns setof revision_entry
     language sql
     stable
