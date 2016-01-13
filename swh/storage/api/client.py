@@ -101,6 +101,12 @@ class RemoteStorage():
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
 
+    def revision_get_by(self, origin_id, branch_name, timestamp, limit=None):
+        return self.post('revision/by', dict(origin_id=origin_id,
+                                             branch_name=branch_name,
+                                             timestamp=timestamp,
+                                             limit=limit))
+
     def revision_log(self, revisions, limit=None):
         return self.post('revision/log', {'revisions': revisions,
                                           'limit': limit})
