@@ -433,3 +433,28 @@ class Db:
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_release_get()')
         yield from cursor_to_bytes(cur)
+
+    def revision_get_by(self,
+                        origin_id,
+                        branch_name,
+                        datetime,
+                        limit=None,
+                        cur=None):
+        """Retrieve a revision by occurrence criterion.
+
+        Args:
+            - origin_id: The origin to look for
+            - branch_name: the branch name to look for
+            - datetime: the lower bound of timerange to look for.
+            - limit: limit number of results to return
+            The upper bound being now.
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT *
+                       FROM swh_revision_get_by(%s, %s, %s)
+                       LIMIT %s""",
+                    (origin_id,
+                     branch_name,
+                     str(datetime) if datetime else None,
+                     limit))
+        yield from cursor_to_bytes(cur)
