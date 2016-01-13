@@ -458,16 +458,20 @@ create or replace function swh_revision_list(root_revision sha1_git, num_revs bi
     stable
 as $$
     with recursive full_rev_list(id) as (
-	(select id from revision where id = root_revision)
-	union
-	(select parent_id
-	 from revision_history as h
-   join full_rev_list on h.id = full_rev_list.id)
+        (select id from revision where id = root_revision)
+        union
+        (select h.parent_id
+         from revision_history as h
+         join full_rev_list on h.id = full_rev_list.id)
     ),
     rev_list as (select id from full_rev_list limit num_revs)
-    select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
-    left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id;
+    select rev_list.id as id,
+           array(select rh.parent_id::bytea
+                 from revision_history rh
+                 where rh.id = rev_list.id
+                 order by rh.parent_rank
+                ) as parent
+    from rev_list;
 $$;
 
 -- List all the children of a given revision
@@ -477,16 +481,20 @@ create or replace function swh_revision_list_children(root_revision sha1_git, nu
     stable
 as $$
     with recursive full_rev_list(id) as (
-	(select id from revision where id = root_revision)
-	union
-	(select h.id
-	 from revision_history as h
-   join full_rev_list on h.parent_id = full_rev_list.id)
+        (select id from revision where id = root_revision)
+        union
+        (select h.id
+         from revision_history as h
+         join full_rev_list on h.parent_id = full_rev_list.id)
     ),
     rev_list as (select id from full_rev_list limit num_revs)
-    select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
-    left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id;
+    select rev_list.id as id,
+           array(select rh.parent_id::bytea
+                 from revision_history rh
+                 where rh.id = rev_list.id
+                 order by rh.parent_rank
+                ) as parent
+    from rev_list;
 $$;
 
 
@@ -541,16 +549,12 @@ begin
                r.committer_date, r.committer_date_offset,
                r.type, r.directory, r.message,
                a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
-	       array_agg(rh.parent_id::bytea order by rh.parent_rank)
+         array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
                    as parents
         from tmp_revision t
         left join revision r on t.id = r.id
         left join person a on a.id = r.author
-        left join person c on c.id = r.committer
-        left join revision_history rh on rh.id = r.id
-        group by t.id, a.name, a.email, r.date, r.date_offset,
-               c.name, c.email, r.committer_date, r.committer_date_offset,
-               r.type, r.directory, r.message, r.metadata, r.synthetic;
+        left join person c on c.id = r.committer;
     return;
 end
 $$;
@@ -844,17 +848,15 @@ as $$
         r.committer_date, r.committer_date_offset,
         r.type, r.directory, r.message,
         a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
-        array_agg(rh.parent_id::bytea order by rh.parent_rank)
-        as parents
+        array(select rh.parent_id::bytea
+            from revision_history rh
+            where rh.id = r.id
+            order by rh.parent_rank
+        ) as parents
     from swh_occurrence_get_by(origin_id, branch_name, validity) as occ
     inner join revision r on occ.revision = r.id
     left join person a on a.id = r.author
-    left join person c on c.id = r.committer
-    left join revision_history rh on rh.id = r.id
-    group by r.id, a.name, a.email, r.date, r.date_offset,
-             c.name, c.email, r.committer_date, r.committer_date_offset,
-             r.type, r.directory, r.message, r.metadata, r.synthetic;
-
+    left join person c on c.id = r.committer;
 $$;
 
 
