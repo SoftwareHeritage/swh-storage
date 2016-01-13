@@ -1,3 +1,12 @@
+swh-storage (0.0.26-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.26
+  * Open revision_get_by to retrieve a revision by occurrence criterion
+    filtering
+  * sql/upgrades/036: add 035→036 upgrade script
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 13 Jan 2016 12:46:44 +0100
+
 swh-storage (0.0.25-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.25
