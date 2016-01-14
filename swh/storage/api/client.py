@@ -157,3 +157,7 @@ class RemoteStorage():
 
     def stat_counters(self):
         return self.get('stat/counters')
+
+    def directory_entry_get_by_path(self, directory, path):
+        return self.post('directory/path', dict(directory=directory,
+                                                path=path))

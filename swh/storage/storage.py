@@ -393,6 +393,30 @@ class Storage():
         for line in res_gen:
             yield dict(zip(keys, line))
 
+    @db_transaction
+    def directory_entry_get_by_path(self, directory, path, cur=None):
+        """Get the directory entry (either file or dir) from directory with
+        path.
+
+        Args:
+            - directory: sha1 of the top level directory
+            - path: the path to lookup from the top level directory
+
+        Returns:
+            The corresponding directory entry if found, None otherwise.
+
+        """
+        db = self.db
+        keys = ('dir_id', 'type', 'target', 'name', 'perms', 'status',
+                'sha1', 'sha1_git', 'sha256')
+
+        if isinstance(path, str):
+            path = path.encode('utf-8')
+
+        res = db.directory_entry_get_by_path(directory, path, cur)
+        if res:
+            return dict(zip(keys, res))
+
     def revision_add(self, revisions):
         """Add revisions to the storage
 

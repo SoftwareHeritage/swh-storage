@@ -127,6 +127,31 @@ class AbstractTestStorage(DbTestFixture):
             ],
         }
 
+        self.dir3 = {
+            'id': hex_to_hash('33e45d56f88993aae6a0198013efa80716fd8921'),
+            'entries': [
+                {
+                    'name': b'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'bar',
+                    'type': 'dir',
+                    'target': b'12345678901234560000',
+                    'perms': 0o2000,
+                },
+                {
+                    'name': b'bar/hello',
+                    'type': 'file',
+                    'target': b'12345678901234567890',
+                    'perms': 0o644,
+                },
+
+            ],
+        }
+
         self.minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
         self.plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
 
@@ -466,6 +491,65 @@ class AbstractTestStorage(DbTestFixture):
 
         after_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([], after_missing)
+
+    @istest
+    def directory_entry_get_by_path(self):
+        # given
+        init_missing = list(self.storage.directory_missing([self.dir3['id']]))
+        self.assertEqual([self.dir3['id']], init_missing)
+
+        self.storage.directory_add([self.dir3])
+
+        expected_entries = [
+            {
+                'dir_id': self.dir3['id'],
+                'name': b'foo',
+                'type': 'file',
+                'target': self.cont['sha1_git'],
+                'sha1': None,
+                'sha1_git': None,
+                'sha256': None,
+                'status': None,
+                'perms': 0o644,
+            },
+            {
+                'dir_id': self.dir3['id'],
+                'name': b'bar',
+                'type': 'dir',
+                'target': b'12345678901234560000',
+                'sha1': None,
+                'sha1_git': None,
+                'sha256': None,
+                'status': None,
+                'perms': 0o2000,
+            },
+            {
+                'dir_id': self.dir3['id'],
+                'name': b'bar/hello',
+                'type': 'file',
+                'target': b'12345678901234567890',
+                'sha1': None,
+                'sha1_git': None,
+                'sha256': None,
+                'status': None,
+                'perms': 0o644,
+            },
+        ]
+
+        # when (all must be found here)
+        for entry, expected_entry in zip(self.dir3['entries'],
+                                         expected_entries):
+            actual_entry = self.storage.directory_entry_get_by_path(
+                self.dir3['id'],
+                entry['name'])
+            self.assertEqual(actual_entry, expected_entry)
+
+        # when (nothing should be found here since self.dir is not persisted.)
+        for entry in self.dir['entries']:
+            actual_entry = self.storage.directory_entry_get_by_path(
+                self.dir['id'],
+                entry['name'])
+            self.assertIsNone(actual_entry)
 
     @istest
     def revision_add(self):
