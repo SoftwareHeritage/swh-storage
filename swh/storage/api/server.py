@@ -106,6 +106,12 @@ def directory_add():
     return encode_data(g.storage.directory_add(**decode_request(request)))
 
 
+@app.route('/directory/path', methods=['POST'])
+def directory_entry_get_by_path():
+    return encode_data(g.storage.directory_entry_get_by_path(
+        **decode_request(request)))
+
+
 @app.route('/directory', methods=['GET'])
 def directory_get():
     dir = request.args['directory'].encode('utf-8', 'surrogateescape')
