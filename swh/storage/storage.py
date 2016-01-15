@@ -8,7 +8,6 @@ from collections import defaultdict
 import datetime
 import functools
 import itertools
-
 import dateutil.parser
 import psycopg2
 from psycopg2.extras import DateTimeTZRange
@@ -394,13 +393,14 @@ class Storage():
             yield dict(zip(keys, line))
 
     @db_transaction
-    def directory_entry_get_by_path(self, directory, path, cur=None):
+    def directory_entry_get_by_path(self, directory, paths, cur=None):
         """Get the directory entry (either file or dir) from directory with
         path.
 
         Args:
             - directory: sha1 of the top level directory
-            - path: the path to lookup from the top level directory
+            - paths: path to lookup from the top level directory. From left
+            (top) to right (bottom).
 
         Returns:
             The corresponding directory entry if found, None otherwise.
@@ -410,10 +410,7 @@ class Storage():
         keys = ('dir_id', 'type', 'target', 'name', 'perms', 'status',
                 'sha1', 'sha1_git', 'sha256')
 
-        if isinstance(path, str):
-            path = path.encode('utf-8')
-
-        res = db.directory_entry_get_by_path(directory, path, cur)
+        res = db.directory_entry_get_by_path(directory, paths, cur)
         if res:
             return dict(zip(keys, res))
 

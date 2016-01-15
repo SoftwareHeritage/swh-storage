@@ -143,7 +143,7 @@ class AbstractTestStorage(DbTestFixture):
                     'perms': 0o2000,
                 },
                 {
-                    'name': b'bar/hello',
+                    'name': b'hello',
                     'type': 'file',
                     'target': b'12345678901234567890',
                     'perms': 0o644,
@@ -525,7 +525,7 @@ class AbstractTestStorage(DbTestFixture):
             },
             {
                 'dir_id': self.dir3['id'],
-                'name': b'bar/hello',
+                'name': b'hello',
                 'type': 'file',
                 'target': b'12345678901234567890',
                 'sha1': None,
@@ -541,14 +541,14 @@ class AbstractTestStorage(DbTestFixture):
                                          expected_entries):
             actual_entry = self.storage.directory_entry_get_by_path(
                 self.dir3['id'],
-                entry['name'])
+                [entry['name']])
             self.assertEqual(actual_entry, expected_entry)
 
         # when (nothing should be found here since self.dir is not persisted.)
         for entry in self.dir['entries']:
             actual_entry = self.storage.directory_entry_get_by_path(
                 self.dir['id'],
-                entry['name'])
+                [entry['name']])
             self.assertIsNone(actual_entry)
 
     @istest

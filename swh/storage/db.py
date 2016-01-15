@@ -459,7 +459,7 @@ class Db:
                      limit))
         yield from cursor_to_bytes(cur)
 
-    def directory_entry_get_by_path(self, directory, path, cur=None):
+    def directory_entry_get_by_path(self, directory, paths, cur=None):
         """Retrieve a directory entry by path.
 
         """
@@ -467,7 +467,7 @@ class Db:
         cur.execute("""SELECT dir_id, type, target, name, perms, status, sha1,
                        sha1_git, sha256
                        FROM swh_find_directory_entry_by_path(%s, %s)""",
-                    (directory, path))
+                    (directory, paths))
 
         data = cur.fetchone()
         if set(data) == {None}:
