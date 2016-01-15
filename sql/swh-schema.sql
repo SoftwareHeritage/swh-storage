@@ -204,6 +204,8 @@ create table origin
   project  uuid references entity(uuid)
 );
 
+create index on origin(type, url);
+
 -- Content we have seen but skipped for some reason. This table is
 -- separate from the content table as we might not have the sha1
 -- checksum of that data (for instance when we inject git
