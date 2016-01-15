@@ -1,8 +1,9 @@
-swh-storage (0.0.27-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.28-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.28
+  * Open entity_get api
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 15 Jan 2016 12:42:48 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 15 Jan 2016 16:37:27 +0100
 
 swh-storage (0.0.27-1~swh1) unstable-swh; urgency=medium
 

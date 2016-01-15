@@ -473,3 +473,15 @@ class Db:
         if set(data) == {None}:
             return None
         return line_to_bytes(data)
+
+    def entity_get(self, uuid, cur=None):
+        """Retrieve the entity and its parent hierarchy chain per uuid.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT uuid, parent, name, type, description, homepage,
+                              active, generated, lister, lister_metadata, doap,
+                              last_seen, last_id
+                       FROM swh_entity_get(%s)""",
+                    (uuid, ))
+        yield from cursor_to_bytes(cur)

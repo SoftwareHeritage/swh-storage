@@ -910,6 +910,23 @@ class Storage():
                 returned_entity.update(fetched_entity)
             yield returned_entity
 
+    @db_transaction_generator
+    def entity_get(self, uuid, cur=None):
+        """Returns the list of entity per its uuid identifier and also its
+        parent hierarchy.
+
+        Args:
+            uuid: entity's identifier
+
+        Returns:
+            List of entities starting with entity with uuid and the parent
+            hierarchy from such entity.
+
+        """
+        db = self.db
+        for entity in db.entity_get(uuid, cur):
+            yield dict(zip(db.entity_cols, entity))
+
     @db_transaction
     def stat_counters(self, cur=None):
         """compute statistics about the number of tuples in various tables
