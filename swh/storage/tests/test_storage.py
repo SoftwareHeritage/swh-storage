@@ -374,6 +374,52 @@ class AbstractTestStorage(DbTestFixture):
             ]
         }
 
+        self.entity3 = {
+            'uuid': '111df473-c1d2-4f40-bc58-2b091d4a7111',
+            # GitHub users
+            'parent': '222df473-c1d2-4f40-bc58-2b091d4a7222',
+            'name': 'github:user:ardumont',
+            'type': 'person',
+            'description': 'Antoine R. Dumont a.k.a tony',
+            'homepage': 'https://ardumont.github.io',
+            'active': True,
+            'generated': True,
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister_metadata': {
+                'id': 666,
+                'type': 'user',
+                'last_activity': '2016-01-15',
+            },
+            'doap': None,
+            'validity': [
+                datetime.datetime(2015, 11, 3, 11, 0, 0,
+                                  tzinfo=datetime.timezone.utc),
+            ]
+        }
+
+        self.entity4 = {
+            'uuid': '222df473-c1d2-4f40-bc58-2b091d4a7222',
+            # GitHub users
+            'parent': None,
+            'name': 'github:user:ToNyX',
+            'type': 'person',
+            'description': 'ToNyX',
+            'homepage': 'https://ToNyX.github.io',
+            'active': True,
+            'generated': True,
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister_metadata': {
+                'id': 999,
+                'type': 'user',
+                'last_activity': '2015-12-24',
+            },
+            'doap': None,
+            'validity': [
+                datetime.datetime(2015, 11, 3, 11, 0, 0,
+                                  tzinfo=datetime.timezone.utc),
+            ]
+        }
+
         self.entity2_query = {
             'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
             'lister_metadata': {
@@ -895,6 +941,38 @@ class AbstractTestStorage(DbTestFixture):
         entity2['uuid'] = None
 
         self.assertEquals(fetched_entities, [entity1, entity2])
+
+    @istest
+    def entity_get(self):
+        # given
+        self.storage.entity_add([self.entity3, self.entity4])
+
+        # when: entity3 -child-of-> entity4
+        actual_entity3 = list(self.storage.entity_get(self.entity3['uuid']))
+
+        self.assertEquals(len(actual_entity3), 2)
+        # remove dynamic data (modified by db)
+        entity3 = self.entity3.copy()
+        entity4 = self.entity4.copy()
+        del entity3['validity']
+        del entity4['validity']
+        del actual_entity3[0]['last_seen']
+        del actual_entity3[0]['last_id']
+        del actual_entity3[1]['last_seen']
+        del actual_entity3[1]['last_id']
+        self.assertEquals(actual_entity3, [entity3, entity4])
+
+        # when: entity4 only child
+        actual_entity4 = list(self.storage.entity_get(self.entity4['uuid']))
+
+        self.assertEquals(len(actual_entity4), 1)
+        # remove dynamic data (modified by db)
+        entity4 = self.entity4.copy()
+        del entity4['validity']
+        del actual_entity4[0]['last_id']
+        del actual_entity4[0]['last_seen']
+
+        self.assertEquals(actual_entity4, [entity4])
 
     @istest
     def stat_counters(self):

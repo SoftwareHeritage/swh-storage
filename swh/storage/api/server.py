@@ -202,6 +202,12 @@ def entity_add():
         g.storage.entity_add(**decode_request(request)))
 
 
+@app.route('/entity/get', methods=['POST'])
+def entity_get():
+    return encode_data(
+        g.storage.entity_get(**decode_request(request)))
+
+
 @app.route('/entity/from_lister_metadata', methods=['POST'])
 def entity_from_lister_metadata():
     return encode_data(
