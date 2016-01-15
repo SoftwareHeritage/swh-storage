@@ -455,7 +455,7 @@ class Db:
                        LIMIT %s""",
                     (origin_id,
                      branch_name,
-                     str(datetime) if datetime else None,
+                     datetime,
                      limit))
         yield from cursor_to_bytes(cur)
 

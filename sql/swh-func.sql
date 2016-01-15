@@ -799,7 +799,7 @@ $$;
 create or replace function swh_occurrence_get_by(
        origin_id bigint,
        branch_name text default NULL,
-       validity text default NULL)
+       validity timestamptz default NULL)
     returns setof occurrence_history
     language plpgsql
 as $$
@@ -814,7 +814,7 @@ begin
         filters := filters || format('branch = %L', branch_name);
     end if;
     if validity is not null then
-        filters := filters || format('lower(validity) <= %L and %L <= upper(validity)', validity, validity);
+        filters := filters || format('validity @> %L::timestamptz', validity);
     end if;
 
     if cardinality(filters) = 0 then
@@ -835,7 +835,7 @@ $$;
 create or replace function swh_revision_get_by(
        origin_id bigint,
        branch_name text default NULL,
-       validity text default NULL)
+       validity timestamptz default NULL)
     returns setof revision_entry
     language sql
     stable

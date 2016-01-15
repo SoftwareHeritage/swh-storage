@@ -688,8 +688,8 @@ class AbstractTestStorage(DbTestFixture):
             occurrence3['branch'],
             occurrence3['validity']))
 
-        self.assertEquals(len(actual_results1), 2)
-        self.assertEqual(actual_results1, expected_revisions)
+        self.assertEquals(len(actual_results1), 1)
+        self.assertEqual(actual_results1, [self.revision3])
 
     @istest
     def release_add(self):
