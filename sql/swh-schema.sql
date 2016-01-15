@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(36, now(), 'Work In Progress');
+      values(39, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -203,6 +203,8 @@ create table origin
   lister   uuid references listable_entity(uuid),
   project  uuid references entity(uuid)
 );
+
+create index on origin(type, url);
 
 -- Content we have seen but skipped for some reason. This table is
 -- separate from the content table as we might not have the sha1

@@ -435,6 +435,61 @@ as $$
     from entries
 $$;
 
+-- Find a directory entry by its path
+create or replace function swh_find_directory_entry_by_path(
+    walked_dir_id sha1_git,
+    dir_or_content_path bytea[])
+    returns directory_entry
+    language plpgsql
+as $$
+declare
+    end_index integer;
+    paths bytea default '';
+    path bytea;
+    res bytea[];
+    r record;
+begin
+    end_index := array_upper(dir_or_content_path, 1);
+    res[1] := walked_dir_id;
+
+    for i in 1..end_index
+    loop
+        path := dir_or_content_path[i];
+        -- concatenate path for patching the name in the result record (if we found it)
+        if i = 1 then
+            paths = path;
+        else
+            paths := paths || '/' || path;  -- concatenate paths
+        end if;
+
+        if i <> end_index then
+            select *
+            from swh_directory_walk_one(res[i] :: sha1_git)
+            where name=path
+            and type = 'dir'
+            limit 1 into r;
+        else
+            select *
+            from swh_directory_walk_one(res[i] :: sha1_git)
+            where name=path
+            limit 1 into r;
+        end if;
+
+        -- find the path
+        if r is null then
+           return null;
+        else
+            -- store the next dir to lookup the next local path from
+            res[i+1] := r.target;
+        end if;
+    end loop;
+
+    -- at this moment, r is the result. Patch its 'name' with the full path before returning it.
+    r.name := paths;
+    return r;
+end
+$$;
+
 -- List all revision IDs starting from a given revision, going back in time
 --
 -- TODO ordering: should be breadth-first right now (what do we want?)
@@ -445,16 +500,20 @@ create or replace function swh_revision_list(root_revision sha1_git, num_revs bi
     stable
 as $$
     with recursive full_rev_list(id) as (
-	(select id from revision where id = root_revision)
-	union
-	(select parent_id
-	 from revision_history as h
-   join full_rev_list on h.id = full_rev_list.id)
+        (select id from revision where id = root_revision)
+        union
+        (select h.parent_id
+         from revision_history as h
+         join full_rev_list on h.id = full_rev_list.id)
     ),
     rev_list as (select id from full_rev_list limit num_revs)
-    select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
-    left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id;
+    select rev_list.id as id,
+           array(select rh.parent_id::bytea
+                 from revision_history rh
+                 where rh.id = rev_list.id
+                 order by rh.parent_rank
+                ) as parent
+    from rev_list;
 $$;
 
 -- List all the children of a given revision
@@ -464,16 +523,20 @@ create or replace function swh_revision_list_children(root_revision sha1_git, nu
     stable
 as $$
     with recursive full_rev_list(id) as (
-	(select id from revision where id = root_revision)
-	union
-	(select h.id
-	 from revision_history as h
-   join full_rev_list on h.parent_id = full_rev_list.id)
+        (select id from revision where id = root_revision)
+        union
+        (select h.id
+         from revision_history as h
+         join full_rev_list on h.parent_id = full_rev_list.id)
     ),
     rev_list as (select id from full_rev_list limit num_revs)
-    select rev_list.id as id, array_agg(rh.parent_id::bytea order by rh.parent_rank) as parent from rev_list
-    left join revision_history rh on rev_list.id = rh.id
-    group by rev_list.id;
+    select rev_list.id as id,
+           array(select rh.parent_id::bytea
+                 from revision_history rh
+                 where rh.id = rev_list.id
+                 order by rh.parent_rank
+                ) as parent
+    from rev_list;
 $$;
 
 
@@ -528,16 +591,12 @@ begin
                r.committer_date, r.committer_date_offset,
                r.type, r.directory, r.message,
                a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
-	       array_agg(rh.parent_id::bytea order by rh.parent_rank)
+         array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
                    as parents
         from tmp_revision t
         left join revision r on t.id = r.id
         left join person a on a.id = r.author
-        left join person c on c.id = r.committer
-        left join revision_history rh on rh.id = r.id
-        group by t.id, a.name, a.email, r.date, r.date_offset,
-               c.name, c.email, r.committer_date, r.committer_date_offset,
-               r.type, r.directory, r.message, r.metadata, r.synthetic;
+        left join person c on c.id = r.committer;
     return;
 end
 $$;
@@ -786,7 +845,7 @@ $$;
 create or replace function swh_occurrence_get_by(
        origin_id bigint,
        branch_name text default NULL,
-       validity text default NULL)
+       validity timestamptz default NULL)
     returns setof occurrence_history
     language plpgsql
 as $$
@@ -801,7 +860,7 @@ begin
         filters := filters || format('branch = %L', branch_name);
     end if;
     if validity is not null then
-        filters := filters || format('lower(validity) <= %L and %L <= upper(validity)', validity, validity);
+        filters := filters || format('validity @> %L::timestamptz', validity);
     end if;
 
     if cardinality(filters) = 0 then
@@ -822,7 +881,7 @@ $$;
 create or replace function swh_revision_get_by(
        origin_id bigint,
        branch_name text default NULL,
-       validity text default NULL)
+       validity timestamptz default NULL)
     returns setof revision_entry
     language sql
     stable
@@ -831,17 +890,15 @@ as $$
         r.committer_date, r.committer_date_offset,
         r.type, r.directory, r.message,
         a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
-        array_agg(rh.parent_id::bytea order by rh.parent_rank)
-        as parents
+        array(select rh.parent_id::bytea
+            from revision_history rh
+            where rh.id = r.id
+            order by rh.parent_rank
+        ) as parents
     from swh_occurrence_get_by(origin_id, branch_name, validity) as occ
     inner join revision r on occ.revision = r.id
     left join person a on a.id = r.author
-    left join person c on c.id = r.committer
-    left join revision_history rh on rh.id = r.id
-    group by r.id, a.name, a.email, r.date, r.date_offset,
-             c.name, c.email, r.committer_date, r.committer_date_offset,
-             r.type, r.directory, r.message, r.metadata, r.synthetic;
-
+    left join person c on c.id = r.committer;
 $$;
 
 

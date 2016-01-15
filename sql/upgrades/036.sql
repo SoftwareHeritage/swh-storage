@@ -6,7 +6,7 @@
 insert into dbversion(version, release, description)
       values(36, now(), 'Work In Progress');
 
-create or replace function swh_occurrence_get_by(
+create function swh_occurrence_get_by(
        origin_id bigint,
        branch_name text default NULL,
        validity text default NULL)
@@ -40,7 +40,7 @@ begin
 end
 $$;
 
-CREATE OR REPLACE FUNCTION swh_revision_get_by(origin_id bigint, branch_name text = NULL::text, validity tstzrange = NULL::tstzrange) RETURNS SETOF revision_entry
+CREATE OR REPLACE FUNCTION swh_revision_get_by(origin_id bigint, branch_name text = NULL::text, validity text = NULL::text) RETURNS SETOF revision_entry
     LANGUAGE sql STABLE
     AS $$
     select r.id, r.date, r.date_offset,
