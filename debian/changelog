@@ -1,3 +1,14 @@
+swh-storage (0.0.27-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.27
+  * Open directory_entry_get_by_path api
+  * Improve get_revision_by api performance
+  * sql/swh-schema: add index on origin(type, url) --> improve origin
+    lookup api
+  * Bump to 039 db version
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 15 Jan 2016 12:42:47 +0100
+
 swh-storage (0.0.26-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.26
