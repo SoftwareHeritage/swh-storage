@@ -369,7 +369,7 @@ class Storage():
             yield obj[0]
 
     @db_transaction_generator
-    def directory_get(self, directory, recursive=False, cur=None):
+    def directory_ls(self, directory, recursive=False, cur=None):
         """Get entries for one directory.
 
         Args:

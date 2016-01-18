@@ -517,7 +517,7 @@ class AbstractTestStorage(DbTestFixture):
 
         self.storage.directory_add([self.dir])
 
-        stored_data = list(self.storage.directory_get(self.dir['id']))
+        stored_data = list(self.storage.directory_ls(self.dir['id']))
 
         data_to_store = [{
                  'dir_id': self.dir['id'],

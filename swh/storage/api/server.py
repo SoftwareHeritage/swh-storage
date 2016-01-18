@@ -112,11 +112,11 @@ def directory_entry_get_by_path():
         **decode_request(request)))
 
 
-@app.route('/directory', methods=['GET'])
-def directory_get():
+@app.route('/directory/ls', methods=['GET'])
+def directory_ls():
     dir = request.args['directory'].encode('utf-8', 'surrogateescape')
     rec = json.loads(request.args.get('recursive', 'False').lower())
-    return encode_data(g.storage.directory_get(dir, recursive=rec))
+    return encode_data(g.storage.directory_ls(dir, recursive=rec))
 
 
 @app.route('/revision/add', methods=['POST'])
