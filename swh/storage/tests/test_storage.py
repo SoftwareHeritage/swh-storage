@@ -511,6 +511,29 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest
+    def directory_get(self):
+        # given
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
+        self.storage.directory_add([self.dir])
+
+        # when
+        actual_dirs = list(self.storage.directory_get([self.dir['id']]))
+
+        self.assertEqual(len(actual_dirs), 1)
+
+        dir0 = actual_dirs[0]
+        self.assertEqual(dir0['id'], self.dir['id'])
+        # ids are generated so non deterministic value
+        self.assertEqual(len(dir0['file_entries']), 1)
+        self.assertEqual(len(dir0['dir_entries']), 1)
+        self.assertIsNone(dir0['rev_entries'])
+
+        after_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([], after_missing)
+
+    @istest
     def directory_add(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)

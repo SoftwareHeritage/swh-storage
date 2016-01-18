@@ -369,6 +369,30 @@ class Storage():
             yield obj[0]
 
     @db_transaction_generator
+    def directory_get(self,
+                      directories,
+                      cur=None):
+        """Get information on directories.
+
+        Args:
+            - directories: an iterable of directory ids
+
+        Returns:
+            List of directories as dict with keys and associated values.
+
+        """
+        db = self.db
+        keys = ('id', 'dir_entries', 'file_entries', 'rev_entries')
+
+        db.mktemp('directory', cur)
+        db.copy_to(({'id': dir_id} for dir_id in directories),
+                   'tmp_directory', ['id'], cur)
+
+        dirs = db.directory_get_from_temp(cur)
+        for line in dirs:
+            yield dict(zip(keys, line))
+
+    @db_transaction_generator
     def directory_ls(self, directory, recursive=False, cur=None):
         """Get entries for one directory.
 

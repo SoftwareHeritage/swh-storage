@@ -263,6 +263,11 @@ class Db:
 
         return line_to_bytes(cur.fetchone())
 
+    def directory_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('SELECT * FROM swh_directory_get()')
+        yield from cursor_to_bytes(cur)
+
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_directory_missing()')

@@ -94,6 +94,9 @@ class RemoteStorage():
     def directory_missing(self, directories):
         return self.post('directory/missing', {'directories': directories})
 
+    def directory_get(self, directories):
+        return self.post('directory', dict(directories=directories))
+
     def directory_ls(self, directory, recursive=False):
         return self.get('directory/ls', {'directory': directory,
                                          'recursive': recursive})
