@@ -730,6 +730,26 @@ class Storage():
                 continue
             yield data
 
+    def release_get_by(self, origin_id, limit=None):
+        """Given an origin id, return all the tag objects pointing to heads of
+        origin_id.
+
+        Args:
+            origin_id: the origin to filter on.
+            limit: None by default
+
+        Yields:
+            List of releases matching the criterions or None if nothing is
+            found.
+
+        """
+        keys = ('id', 'revision', 'date', 'date_offset', 'name', 'comment',
+                'synthetic', 'author_name', 'author_email')
+
+        for line in self.db.release_get_by(origin_id, limit=limit):
+            data = converters.db_to_release(dict(zip(keys, line)))
+            yield data
+
     @db_transaction
     def origin_get(self, origin, cur=None):
         """Return the origin either identified by its id or its tuple

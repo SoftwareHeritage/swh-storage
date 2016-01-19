@@ -301,6 +301,21 @@ class AbstractTestStorage(DbTestFixture):
             'synthetic': False
         }
 
+        self.release3 = {
+            'id': b'87659012345678904321',
+            'name': 'v0.0.2',
+            'date': datetime.datetime(2016, 1, 1, 19, 0, 0,
+                                      tzinfo=self.plus_offset),
+            'author': {
+                'name': b'tony',
+                'email': b'tony@ardumont.fr',
+            },
+            'target': self.revision2['id'],
+            'target_type': 'revision',
+            'message': b'yet another synthetic release',
+            'synthetic': True,
+        }
+
         self.fetch_history_date = datetime.datetime(
             2015, 1, 2, 21, 0, 0,
             tzinfo=datetime.timezone.utc)
@@ -804,6 +819,30 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEquals([self.release, self.release2],
                           [actual_releases[0], actual_releases[1]])
+
+    @istest
+    def release_get_by(self):
+        # given
+        self.storage.revision_add([self.revision2])  # points to self.dir
+        self.storage.release_add([self.release3])
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        # occurrence2 points to 'revision2' with branch 'master', we
+        # need to point to the right origin
+        occurrence2 = self.occurrence2.copy()
+        occurrence2.update({'origin': origin_id})
+        self.storage.occurrence_add([occurrence2])
+
+        # we want only revision 2
+        expected_releases = list(self.storage.release_get(
+            [self.release3['id']]))
+
+        # when
+        actual_results = list(self.storage.release_get_by(
+            occurrence2['origin']))
+
+        # then
+        self.assertEqual(actual_results[0], expected_releases[0])
 
     @istest
     def origin_add_one(self):

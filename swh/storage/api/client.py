@@ -126,6 +126,10 @@ class RemoteStorage():
     def release_get(self, releases):
         return self.post('release', {'releases': releases})
 
+    def release_get_by(self, origin_id, limit=None):
+        return self.post('release/by', dict(origin_id=origin_id,
+                                            limit=limit))
+
     def release_missing(self, releases):
         return self.post('release/missing', {'releases': releases})
 

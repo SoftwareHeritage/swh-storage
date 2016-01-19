@@ -490,3 +490,21 @@ class Db:
                        FROM swh_entity_get(%s)""",
                     (uuid, ))
         yield from cursor_to_bytes(cur)
+
+    def release_get_by(self,
+                       origin_id,
+                       limit=None,
+                       cur=None):
+        """Retrieve a release by occurrence criterion (only origin right now)
+
+        Args:
+            - origin_id: The origin to look for.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT *
+                       FROM swh_release_get_by(%s)
+                       LIMIT %s""",
+                    (origin_id,
+                     limit))
+        yield from cursor_to_bytes(cur)
