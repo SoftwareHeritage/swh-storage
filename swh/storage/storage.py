@@ -696,11 +696,17 @@ class Storage():
     @db_transaction_generator
     def revision_get_by(self,
                         origin_id,
-                        branch_name='refs/heads/master',
+                        branch_name=None,
                         timestamp=None,
                         limit=None,
                         cur=None):
         """Given an origin_id, retrieve occurrences' list per given criterions.
+
+        Args:
+            origin_id: The origin to filter on.
+            branch_name: optional branch name.
+            timestamp:
+            limit:
 
         Yields:
             List of occurrences matching the criterions or None if nothing is

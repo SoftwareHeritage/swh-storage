@@ -709,6 +709,14 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEqual(actual_results[0], expected_revisions[0])
 
+        # when (with no branch filtering, it's still ok)
+        actual_results = list(self.storage.revision_get_by(
+            origin_id,
+            None,
+            None))
+
+        self.assertEqual(actual_results[0], expected_revisions[0])
+
     @istest
     def revision_get_by_multiple_occurrence(self):
         # 2 occurrences pointing to 2 different revisions
@@ -759,6 +767,15 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEquals(len(actual_results1), 1)
         self.assertEqual(actual_results1, [self.revision3])
+
+        # when
+        actual_results1 = list(self.storage.revision_get_by(
+            origin_id,
+            None,
+            None))
+
+        self.assertEquals(len(actual_results1), 2)
+        self.assertEqual(actual_results1, [self.revision3, self.revision2])
 
     @istest
     def release_add(self):
