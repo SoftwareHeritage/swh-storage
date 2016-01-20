@@ -14,7 +14,8 @@ from psycopg2.extras import DateTimeTZRange
 
 from . import converters
 from .db import Db
-from .objstorage import ObjNotFoundError, ObjStorage
+from .objstorage import ObjStorage
+from .exc import ObjNotFoundError, StorageDBError
 
 from swh.core.hashutil import ALGORITHMS
 
@@ -60,10 +61,13 @@ class Storage():
             obj_root: path to the root of the object storage
 
         """
-        if isinstance(db_conn, psycopg2.extensions.connection):
-            self.db = Db(db_conn)
-        else:
-            self.db = Db.connect(db_conn)
+        try:
+            if isinstance(db_conn, psycopg2.extensions.connection):
+                self.db = Db(db_conn)
+            else:
+                self.db = Db.connect(db_conn)
+        except psycopg2.OperationalError as e:
+            raise StorageDBError(e)
 
         self.objstorage = ObjStorage(obj_root)
 
@@ -369,7 +373,31 @@ class Storage():
             yield obj[0]
 
     @db_transaction_generator
-    def directory_get(self, directory, recursive=False, cur=None):
+    def directory_get(self,
+                      directories,
+                      cur=None):
+        """Get information on directories.
+
+        Args:
+            - directories: an iterable of directory ids
+
+        Returns:
+            List of directories as dict with keys and associated values.
+
+        """
+        db = self.db
+        keys = ('id', 'dir_entries', 'file_entries', 'rev_entries')
+
+        db.mktemp('directory', cur)
+        db.copy_to(({'id': dir_id} for dir_id in directories),
+                   'tmp_directory', ['id'], cur)
+
+        dirs = db.directory_get_from_temp(cur)
+        for line in dirs:
+            yield dict(zip(keys, line))
+
+    @db_transaction_generator
+    def directory_ls(self, directory, recursive=False, cur=None):
         """Get entries for one directory.
 
         Args:
@@ -522,10 +550,16 @@ class Storage():
 
     @db_transaction_generator
     def revision_log(self, revisions, limit=None, cur=None):
-        """Fetch revision entry from the given revisions (root's revision hash).
+        """Fetch revision entry from the given root revisions.
+
+        Args:
+            - revisions: array of root revision to lookup
+            - limit: limitation on the output result. Default to null.
+
+        Yields:
+            List of revision log from such revisions root.
 
         """
-        root_revision = revisions
         db = self.db
 
         keys = ['id', 'date', 'date_offset', 'committer_date',
@@ -533,7 +567,26 @@ class Storage():
                 'author_name', 'author_email', 'committer_name',
                 'committer_email', 'metadata', 'synthetic', 'parents']
 
-        for line in db.revision_log(root_revision, limit, cur):
+        for line in db.revision_log(revisions, limit, cur):
+            data = converters.db_to_revision(dict(zip(keys, line)))
+            if not data['type']:
+                yield None
+                continue
+            yield data
+
+    @db_transaction_generator
+    def revision_log_by(self, origin_id, limit=None, cur=None):
+        """Fetch revision entry from the actual origin_id's latest revision.
+
+        """
+        db = self.db
+
+        keys = ('id', 'date', 'date_offset', 'committer_date',
+                'committer_date_offset', 'type', 'directory', 'message',
+                'author_name', 'author_email', 'committer_name',
+                'committer_email', 'metadata', 'synthetic', 'parents')
+
+        for line in db.revision_log_by(origin_id, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
             if not data['type']:
                 yield None
@@ -670,13 +723,39 @@ class Storage():
         db.occurrence_history_add_from_temp(cur)
 
     @db_transaction_generator
+    def occurrence_get(self, origin_id, cur=None):
+        """Retrieve occurrence information per origin_id.
+
+        Args:
+            origin_id: The occurrence's origin.
+
+        Yields:
+            List of occurrences matching criterion.
+
+        """
+        db = self.db
+        for line in db.occurrence_get(origin_id, cur):
+            yield {'origin': line[0],
+                   'branch': line[1],
+                   'revision': line[2],
+                   'authority': line[3],
+                   'validity_lower': line[4].lower,  # always included
+                   'validity_upper': line[4].upper}  # always excluded
+
+    @db_transaction_generator
     def revision_get_by(self,
                         origin_id,
-                        branch_name='refs/heads/master',
+                        branch_name=None,
                         timestamp=None,
                         limit=None,
                         cur=None):
         """Given an origin_id, retrieve occurrences' list per given criterions.
+
+        Args:
+            origin_id: The origin to filter on.
+            branch_name: optional branch name.
+            timestamp:
+            limit:
 
         Yields:
             List of occurrences matching the criterions or None if nothing is
@@ -698,6 +777,26 @@ class Storage():
             if not data['type']:
                 yield None
                 continue
+            yield data
+
+    def release_get_by(self, origin_id, limit=None):
+        """Given an origin id, return all the tag objects pointing to heads of
+        origin_id.
+
+        Args:
+            origin_id: the origin to filter on.
+            limit: None by default
+
+        Yields:
+            List of releases matching the criterions or None if nothing is
+            found.
+
+        """
+        keys = ('id', 'revision', 'date', 'date_offset', 'name', 'comment',
+                'synthetic', 'author_name', 'author_email')
+
+        for line in self.db.release_get_by(origin_id, limit=limit):
+            data = converters.db_to_release(dict(zip(keys, line)))
             yield data
 
     @db_transaction
