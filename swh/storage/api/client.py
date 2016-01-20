@@ -7,7 +7,9 @@ import pickle
 
 import requests
 
+from requests.exceptions import ConnectionError
 from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
+from swh.storage.exc import StorageAPIError
 
 
 def encode_data(data):
@@ -42,11 +44,15 @@ class RemoteStorage():
         return '%s%s' % (self.base_url, endpoint)
 
     def post(self, endpoint, data):
-        response = self.session.post(
-            self.url(endpoint),
-            data=encode_data(data),
-            headers={'content-type': 'application/x-msgpack'},
-        )
+        try:
+            response = self.session.post(
+                self.url(endpoint),
+                data=encode_data(data),
+                headers={'content-type': 'application/x-msgpack'},
+            )
+        except ConnectionError as e:
+            print(str(e))
+            raise StorageAPIError(e)
 
         # XXX: this breaks language-independence and should be
         # replaced by proper unserialization
@@ -56,10 +62,14 @@ class RemoteStorage():
         return decode_response(response)
 
     def get(self, endpoint, data=None):
-        response = self.session.get(
-            self.url(endpoint),
-            params=data,
-        )
+        try:
+            response = self.session.get(
+                self.url(endpoint),
+                params=data,
+            )
+        except ConnectionError as e:
+            print(str(e))
+            raise StorageAPIError(e)
 
         if response.status_code == 404:
             return None

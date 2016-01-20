@@ -16,7 +16,20 @@ class ObjNotFoundError(Error):
         return 'object not found: %s' % self.args
 
 
-class StorageBackendError(Exception):
+class StorageDBError(Exception):
+    """Specific storage db error (connection, erroneous queries, etc...)
+
+    """
 
     def __str__(self):
         return 'An unexpected error occurred in the backend: %s' % self.args
+
+
+class StorageAPIError(Exception):
+    """Specific internal storage api (mainly connection)
+
+    """
+
+    def __str__(self):
+        args = self.args
+        return 'An unexpected error occurred in the api backend: %s' % args

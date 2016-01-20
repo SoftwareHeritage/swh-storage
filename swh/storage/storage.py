@@ -15,7 +15,7 @@ from psycopg2.extras import DateTimeTZRange
 from . import converters
 from .db import Db
 from .objstorage import ObjStorage
-from .exc import ObjNotFoundError, StorageBackendError
+from .exc import ObjNotFoundError, StorageDBError
 
 from swh.core.hashutil import ALGORITHMS
 
@@ -67,7 +67,7 @@ class Storage():
             else:
                 self.db = Db.connect(db_conn)
         except psycopg2.OperationalError as e:
-            raise StorageBackendError(e)
+            raise StorageDBError(e)
 
         self.objstorage = ObjStorage(obj_root)
 
