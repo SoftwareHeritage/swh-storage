@@ -653,7 +653,7 @@ class AbstractTestStorage(DbTestFixture):
                                    self.revision4])
 
         # when
-        actual_result = self.storage.revision_log(self.revision4['id'])
+        actual_result = self.storage.revision_log([self.revision4['id']])
 
         res = list(actual_result)
         self.assertEqual(len(res), 2)  # revision4 is a child of revision3
@@ -667,7 +667,7 @@ class AbstractTestStorage(DbTestFixture):
         # self.revision4 -is-child-of-> self.revision3
         self.storage.revision_add([self.revision3,
                                    self.revision4])
-        actual_result = self.storage.revision_log(self.revision4['id'], 1)
+        actual_result = self.storage.revision_log([self.revision4['id']], 1)
 
         res = list(actual_result)
         self.assertEqual(len(res), 1)

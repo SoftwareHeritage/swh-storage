@@ -546,10 +546,16 @@ class Storage():
 
     @db_transaction_generator
     def revision_log(self, revisions, limit=None, cur=None):
-        """Fetch revision entry from the given revisions (root's revision hash).
+        """Fetch revision entry from the given root revisions.
+
+        Args:
+            - revisions: array of root revision to lookup
+            - limit: limitation on the output result. Default to null.
+
+        Yields:
+            List of revision log from such revisions root.
 
         """
-        root_revision = revisions
         db = self.db
 
         keys = ['id', 'date', 'date_offset', 'committer_date',
@@ -557,7 +563,26 @@ class Storage():
                 'author_name', 'author_email', 'committer_name',
                 'committer_email', 'metadata', 'synthetic', 'parents']
 
-        for line in db.revision_log(root_revision, limit, cur):
+        for line in db.revision_log(revisions, limit, cur):
+            data = converters.db_to_revision(dict(zip(keys, line)))
+            if not data['type']:
+                yield None
+                continue
+            yield data
+
+    @db_transaction_generator
+    def revision_log_by(self, origin_id, limit=None, cur=None):
+        """Fetch revision entry from the actual origin_id's latest revision.
+
+        """
+        db = self.db
+
+        keys = ('id', 'date', 'date_offset', 'committer_date',
+                'committer_date_offset', 'type', 'directory', 'message',
+                'author_name', 'author_email', 'committer_name',
+                'committer_email', 'metadata', 'synthetic', 'parents')
+
+        for line in db.revision_log_by(origin_id, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
             if not data['type']:
                 yield None
