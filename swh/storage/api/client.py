@@ -7,7 +7,9 @@ import pickle
 
 import requests
 
+from requests.exceptions import ConnectionError
 from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
+from swh.storage.exc import StorageAPIError
 
 
 def encode_data(data):
@@ -42,11 +44,15 @@ class RemoteStorage():
         return '%s%s' % (self.base_url, endpoint)
 
     def post(self, endpoint, data):
-        response = self.session.post(
-            self.url(endpoint),
-            data=encode_data(data),
-            headers={'content-type': 'application/x-msgpack'},
-        )
+        try:
+            response = self.session.post(
+                self.url(endpoint),
+                data=encode_data(data),
+                headers={'content-type': 'application/x-msgpack'},
+            )
+        except ConnectionError as e:
+            print(str(e))
+            raise StorageAPIError(e)
 
         # XXX: this breaks language-independence and should be
         # replaced by proper unserialization
@@ -56,10 +62,14 @@ class RemoteStorage():
         return decode_response(response)
 
     def get(self, endpoint, data=None):
-        response = self.session.get(
-            self.url(endpoint),
-            params=data,
-        )
+        try:
+            response = self.session.get(
+                self.url(endpoint),
+                params=data,
+            )
+        except ConnectionError as e:
+            print(str(e))
+            raise StorageAPIError(e)
 
         if response.status_code == 404:
             return None
@@ -94,9 +104,12 @@ class RemoteStorage():
     def directory_missing(self, directories):
         return self.post('directory/missing', {'directories': directories})
 
-    def directory_get(self, directory, recursive=False):
-        return self.get('directory', {'directory': directory,
-                                      'recursive': recursive})
+    def directory_get(self, directories):
+        return self.post('directory', dict(directories=directories))
+
+    def directory_ls(self, directory, recursive=False):
+        return self.get('directory/ls', {'directory': directory,
+                                         'recursive': recursive})
 
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
@@ -123,8 +136,15 @@ class RemoteStorage():
     def release_get(self, releases):
         return self.post('release', {'releases': releases})
 
+    def release_get_by(self, origin_id, limit=None):
+        return self.post('release/by', dict(origin_id=origin_id,
+                                            limit=limit))
+
     def release_missing(self, releases):
         return self.post('release/missing', {'releases': releases})
+
+    def occurrence_get(self, origin_id):
+        return self.post('occurrence', {'origin_id': origin_id})
 
     def occurrence_add(self, occurrences):
         return self.post('occurrence/add', {'occurrences': occurrences})
