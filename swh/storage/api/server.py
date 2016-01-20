@@ -169,6 +169,11 @@ def release_missing():
     return encode_data(g.storage.release_missing(**decode_request(request)))
 
 
+@app.route('/occurrence', methods=['POST'])
+def occurrence_get():
+    return encode_data(g.storage.occurrence_get(**decode_request(request)))
+
+
 @app.route('/occurrence/add', methods=['POST'])
 def occurrence_add():
     return encode_data(g.storage.occurrence_add(**decode_request(request)))

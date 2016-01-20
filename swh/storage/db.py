@@ -218,6 +218,21 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    def occurrence_get(self, origin_id, cur=None):
+        """Retrieve latest occurrence's information by origin_id.
+
+        """
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT origin, branch, revision, authority, validity
+                       FROM occurrence_history
+                       WHERE origin=%s
+                       AND validity @> NOW()::timestamptz
+                    """,
+                    (origin_id, ))
+
+        yield from cursor_to_bytes(cur)
+
     def content_find(self, sha1=None, sha1_git=None, sha256=None, cur=None):
         """Find the content optionally on a combination of the following
         checksums sha1, sha1_git or sha256.

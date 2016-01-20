@@ -923,6 +923,35 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret[1][4].upper, datetime.datetime.max)
 
     @istest
+    def occurrence_get(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        revision = self.revision.copy()
+        revision['id'] = self.occurrence['revision']
+        self.storage.revision_add([revision])
+
+        occur = self.occurrence
+        occur['origin'] = origin_id
+        self.storage.occurrence_add([occur])
+        self.storage.occurrence_add([occur])
+
+        # when
+        actual_occurrence = list(self.storage.occurrence_get(origin_id))
+
+        # then
+        expected_occur = occur.copy()
+        expected_occur.update({
+            'validity_lower': expected_occur['validity'],
+            'validity_upper': datetime.datetime(9999, 12, 31, 23, 59, 59,
+                                                999999)
+        })
+        del expected_occur['validity']
+
+        self.assertEquals(len(actual_occurrence), 1)
+        self.assertEquals(actual_occurrence[0], expected_occur)
+
+    @istest
     def content_find_occurrence_with_present_content(self):
         # 1. with something to find
         # given

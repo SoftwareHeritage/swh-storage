@@ -719,6 +719,26 @@ class Storage():
         db.occurrence_history_add_from_temp(cur)
 
     @db_transaction_generator
+    def occurrence_get(self, origin_id, cur=None):
+        """Retrieve occurrence information per origin_id.
+
+        Args:
+            origin_id: The occurrence's origin.
+
+        Yields:
+            List of occurrences matching criterion.
+
+        """
+        db = self.db
+        for line in db.occurrence_get(origin_id, cur):
+            yield {'origin': line[0],
+                   'branch': line[1],
+                   'revision': line[2],
+                   'authority': line[3],
+                   'validity_lower': line[4].lower,  # always included
+                   'validity_upper': line[4].upper}  # always excluded
+
+    @db_transaction_generator
     def revision_get_by(self,
                         origin_id,
                         branch_name=None,
