@@ -1,3 +1,23 @@
+swh-storage (0.0.29-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.29
+  * New:
+  * Upgrade sql schema to 041→043
+  * Deal with communication downtime between clients and storage
+  * Open occurrence_get(origin_id) to retrieve latest occurrences per
+    origin
+  * Open release_get_by to retrieve a release by origin
+  * Open directory_get to retrieve information on directory by id
+  * Open entity_get to retrieve information on entity + hierarchy from
+    its uuid
+  * Open directory_get that retrieve information on directory per id
+  * Update:
+  * directory_get/directory_ls: Rename to directory_ls
+  * revision_log: update to retrieve logs from multiple root revisions
+  * revision_get_by: branch name filtering is now optional
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 20 Jan 2016 16:15:50 +0100
+
 swh-storage (0.0.28-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.28
