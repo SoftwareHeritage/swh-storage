@@ -96,6 +96,11 @@ def content_get():
     return encode_data(g.storage.content_get(**decode_request(request)))
 
 
+@app.route('/directory', methods=['POST'])
+def directory_get():
+    return encode_data(g.storage.directory_get(**decode_request(request)))
+
+
 @app.route('/directory/missing', methods=['POST'])
 def directory_missing():
     return encode_data(g.storage.directory_missing(**decode_request(request)))
@@ -112,11 +117,11 @@ def directory_entry_get_by_path():
         **decode_request(request)))
 
 
-@app.route('/directory', methods=['GET'])
-def directory_get():
+@app.route('/directory/ls', methods=['GET'])
+def directory_ls():
     dir = request.args['directory'].encode('utf-8', 'surrogateescape')
     rec = json.loads(request.args.get('recursive', 'False').lower())
-    return encode_data(g.storage.directory_get(dir, recursive=rec))
+    return encode_data(g.storage.directory_ls(dir, recursive=rec))
 
 
 @app.route('/revision/add', methods=['POST'])
@@ -154,9 +159,19 @@ def release_get():
     return encode_data(g.storage.release_get(**decode_request(request)))
 
 
+@app.route('/release/by', methods=['POST'])
+def release_get_by():
+    return encode_data(g.storage.release_get_by(**decode_request(request)))
+
+
 @app.route('/release/missing', methods=['POST'])
 def release_missing():
     return encode_data(g.storage.release_missing(**decode_request(request)))
+
+
+@app.route('/occurrence', methods=['POST'])
+def occurrence_get():
+    return encode_data(g.storage.occurrence_get(**decode_request(request)))
 
 
 @app.route('/occurrence/add', methods=['POST'])

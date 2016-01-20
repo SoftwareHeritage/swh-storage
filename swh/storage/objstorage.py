@@ -10,6 +10,7 @@ import tempfile
 
 from contextlib import contextmanager
 
+from .exc import ObjNotFoundError, Error
 from swh.core import hashutil
 
 
@@ -20,18 +21,6 @@ GZIP_BUFSIZ = 1048576
 
 DIR_MODE = 0o755
 FILE_MODE = 0o644
-
-
-class Error(Exception):
-
-    def __str__(self):
-        return 'storage error on object: %s' % self.args
-
-
-class ObjNotFoundError(Error):
-
-    def __str__(self):
-        return 'object not found: %s' % self.args
 
 
 def _obj_dir(hex_obj_id, root_dir, depth):

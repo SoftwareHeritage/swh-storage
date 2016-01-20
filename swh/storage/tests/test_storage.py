@@ -301,6 +301,21 @@ class AbstractTestStorage(DbTestFixture):
             'synthetic': False
         }
 
+        self.release3 = {
+            'id': b'87659012345678904321',
+            'name': 'v0.0.2',
+            'date': datetime.datetime(2016, 1, 1, 19, 0, 0,
+                                      tzinfo=self.plus_offset),
+            'author': {
+                'name': b'tony',
+                'email': b'tony@ardumont.fr',
+            },
+            'target': self.revision2['id'],
+            'target_type': 'revision',
+            'message': b'yet another synthetic release',
+            'synthetic': True,
+        }
+
         self.fetch_history_date = datetime.datetime(
             2015, 1, 2, 21, 0, 0,
             tzinfo=datetime.timezone.utc)
@@ -511,13 +526,36 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest
+    def directory_get(self):
+        # given
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
+        self.storage.directory_add([self.dir])
+
+        # when
+        actual_dirs = list(self.storage.directory_get([self.dir['id']]))
+
+        self.assertEqual(len(actual_dirs), 1)
+
+        dir0 = actual_dirs[0]
+        self.assertEqual(dir0['id'], self.dir['id'])
+        # ids are generated so non deterministic value
+        self.assertEqual(len(dir0['file_entries']), 1)
+        self.assertEqual(len(dir0['dir_entries']), 1)
+        self.assertIsNone(dir0['rev_entries'])
+
+        after_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([], after_missing)
+
+    @istest
     def directory_add(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
 
         self.storage.directory_add([self.dir])
 
-        stored_data = list(self.storage.directory_get(self.dir['id']))
+        stored_data = list(self.storage.directory_ls(self.dir['id']))
 
         data_to_store = [{
                  'dir_id': self.dir['id'],
@@ -615,7 +653,7 @@ class AbstractTestStorage(DbTestFixture):
                                    self.revision4])
 
         # when
-        actual_result = self.storage.revision_log(self.revision4['id'])
+        actual_result = self.storage.revision_log([self.revision4['id']])
 
         res = list(actual_result)
         self.assertEqual(len(res), 2)  # revision4 is a child of revision3
@@ -629,7 +667,7 @@ class AbstractTestStorage(DbTestFixture):
         # self.revision4 -is-child-of-> self.revision3
         self.storage.revision_add([self.revision3,
                                    self.revision4])
-        actual_result = self.storage.revision_log(self.revision4['id'], 1)
+        actual_result = self.storage.revision_log([self.revision4['id']], 1)
 
         res = list(actual_result)
         self.assertEqual(len(res), 1)
@@ -686,6 +724,14 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEqual(actual_results[0], expected_revisions[0])
 
+        # when (with no branch filtering, it's still ok)
+        actual_results = list(self.storage.revision_get_by(
+            origin_id,
+            None,
+            None))
+
+        self.assertEqual(actual_results[0], expected_revisions[0])
+
     @istest
     def revision_get_by_multiple_occurrence(self):
         # 2 occurrences pointing to 2 different revisions
@@ -737,6 +783,15 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(len(actual_results1), 1)
         self.assertEqual(actual_results1, [self.revision3])
 
+        # when
+        actual_results1 = list(self.storage.revision_get_by(
+            origin_id,
+            None,
+            None))
+
+        self.assertEquals(len(actual_results1), 2)
+        self.assertEqual(actual_results1, [self.revision3, self.revision2])
+
     @istest
     def release_add(self):
         init_missing = self.storage.release_missing([self.release['id'],
@@ -764,6 +819,30 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEquals([self.release, self.release2],
                           [actual_releases[0], actual_releases[1]])
+
+    @istest
+    def release_get_by(self):
+        # given
+        self.storage.revision_add([self.revision2])  # points to self.dir
+        self.storage.release_add([self.release3])
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        # occurrence2 points to 'revision2' with branch 'master', we
+        # need to point to the right origin
+        occurrence2 = self.occurrence2.copy()
+        occurrence2.update({'origin': origin_id})
+        self.storage.occurrence_add([occurrence2])
+
+        # we want only revision 2
+        expected_releases = list(self.storage.release_get(
+            [self.release3['id']]))
+
+        # when
+        actual_results = list(self.storage.release_get_by(
+            occurrence2['origin']))
+
+        # then
+        self.assertEqual(actual_results[0], expected_releases[0])
 
     @istest
     def origin_add_one(self):
@@ -842,6 +921,35 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret[1][4].lower, occur['validity'])
         self.assertEqual(ret[1][4].lower_inc, True)
         self.assertEqual(ret[1][4].upper, datetime.datetime.max)
+
+    @istest
+    def occurrence_get(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin2)
+
+        revision = self.revision.copy()
+        revision['id'] = self.occurrence['revision']
+        self.storage.revision_add([revision])
+
+        occur = self.occurrence
+        occur['origin'] = origin_id
+        self.storage.occurrence_add([occur])
+        self.storage.occurrence_add([occur])
+
+        # when
+        actual_occurrence = list(self.storage.occurrence_get(origin_id))
+
+        # then
+        expected_occur = occur.copy()
+        expected_occur.update({
+            'validity_lower': expected_occur['validity'],
+            'validity_upper': datetime.datetime(9999, 12, 31, 23, 59, 59,
+                                                999999)
+        })
+        del expected_occur['validity']
+
+        self.assertEquals(len(actual_occurrence), 1)
+        self.assertEquals(actual_occurrence[0], expected_occur)
 
     @istest
     def content_find_occurrence_with_present_content(self):

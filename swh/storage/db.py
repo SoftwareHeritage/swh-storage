@@ -218,6 +218,21 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    def occurrence_get(self, origin_id, cur=None):
+        """Retrieve latest occurrence's information by origin_id.
+
+        """
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT origin, branch, revision, authority, validity
+                       FROM occurrence_history
+                       WHERE origin=%s
+                       AND validity @> NOW()::timestamptz
+                    """,
+                    (origin_id, ))
+
+        yield from cursor_to_bytes(cur)
+
     def content_find(self, sha1=None, sha1_git=None, sha256=None, cur=None):
         """Find the content optionally on a combination of the following
         checksums sha1, sha1_git or sha256.
@@ -263,6 +278,11 @@ class Db:
 
         return line_to_bytes(cur.fetchone())
 
+    def directory_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('SELECT * FROM swh_directory_get()')
+        yield from cursor_to_bytes(cur)
+
     def directory_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_directory_missing()')
@@ -290,7 +310,7 @@ class Db:
         cur.execute('SELECT * FROM swh_revision_get()')
         yield from cursor_to_bytes(cur)
 
-    def revision_log(self, root_revision, limit=None, cur=None):
+    def revision_log(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
 
         query = """SELECT id, date, date_offset, committer_date,
@@ -299,7 +319,7 @@ class Db:
                           committer_email, metadata, synthetic, parents
                    FROM swh_revision_log(%s, %s)
                 """
-        cur.execute(query, (root_revision, limit))
+        cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):
@@ -484,4 +504,22 @@ class Db:
                               last_seen, last_id
                        FROM swh_entity_get(%s)""",
                     (uuid, ))
+        yield from cursor_to_bytes(cur)
+
+    def release_get_by(self,
+                       origin_id,
+                       limit=None,
+                       cur=None):
+        """Retrieve a release by occurrence criterion (only origin right now)
+
+        Args:
+            - origin_id: The origin to look for.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT *
+                       FROM swh_release_get_by(%s)
+                       LIMIT %s""",
+                    (origin_id,
+                     limit))
         yield from cursor_to_bytes(cur)

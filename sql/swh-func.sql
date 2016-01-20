@@ -289,6 +289,21 @@ end
 $$;
 
 
+-- Retrieve information on directory from temporary table
+create or replace function swh_directory_get()
+    returns setof directory
+    language plpgsql
+as $$
+begin
+    return query
+	select d.id, d.dir_entries, d.file_entries, d.rev_entries
+        from tmp_directory t
+        inner join directory d on t.id = d.id;
+    return;
+end
+$$;
+
+
 create type directory_entry_type as enum('file', 'dir', 'rev');
 
 
@@ -494,13 +509,13 @@ $$;
 --
 -- TODO ordering: should be breadth-first right now (what do we want?)
 -- TODO ordering: ORDER BY parent_rank somewhere?
-create or replace function swh_revision_list(root_revision sha1_git, num_revs bigint default NULL)
+create or replace function swh_revision_list(root_revisions bytea[], num_revs bigint default NULL)
     returns table (id sha1_git, parents bytea[])
     language sql
     stable
 as $$
     with recursive full_rev_list(id) as (
-        (select id from revision where id = root_revision)
+        (select id from revision where id = ANY(root_revisions))
         union
         (select h.parent_id
          from revision_history as h
@@ -517,13 +532,13 @@ as $$
 $$;
 
 -- List all the children of a given revision
-create or replace function swh_revision_list_children(root_revision sha1_git, num_revs bigint default NULL)
+create or replace function swh_revision_list_children(root_revisions bytea[], num_revs bigint default NULL)
     returns table (id sha1_git, parents bytea[])
     language sql
     stable
 as $$
     with recursive full_rev_list(id) as (
-        (select id from revision where id = root_revision)
+        (select id from revision where id = ANY(root_revisions))
         union
         (select h.id
          from revision_history as h
@@ -563,7 +578,7 @@ create type revision_entry as
 
 -- "git style" revision log. Similar to swh_revision_list(), but returning all
 -- information associated to each revision, and expanding authors/committers
-create or replace function swh_revision_log(root_revision sha1_git, num_revs bigint default NULL)
+create or replace function swh_revision_log(root_revisions bytea[], num_revs bigint default NULL)
     returns setof revision_entry
     language sql
     stable
@@ -573,7 +588,7 @@ as $$
            r.type, r.directory, r.message,
            a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
            t.parents
-    from swh_revision_list(root_revision, num_revs) as t
+    from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
     left join person c on c.id = r.committer;
@@ -831,7 +846,7 @@ create or replace function swh_revision_find_occurrence(revision_id sha1_git)
     stable
 as $$
 	select origin, branch, revision
-  from swh_revision_list_children(revision_id) as rev_list
+  from swh_revision_list_children(ARRAY[revision_id] :: bytea[]) as rev_list
 	left join occurrence_history occ_hist
   on rev_list.id = occ_hist.revision
 	where occ_hist.origin is not null
@@ -899,6 +914,22 @@ as $$
     inner join revision r on occ.revision = r.id
     left join person a on a.id = r.author
     left join person c on c.id = r.committer;
+$$;
+
+-- Retrieve a release by occurrence criterion
+create or replace function swh_release_get_by(
+       origin_id bigint)
+    returns setof release_entry
+    language sql
+    stable
+as $$
+   select r.id, r.revision, r.date, r.date_offset,
+        r.name, r.comment, r.synthetic, a.name as author_name,
+        a.email as author_email
+    from release r
+    inner join occurrence_history occ on occ.revision = r.revision
+    left join person a on a.id = r.author
+    where occ.origin = origin_id;
 $$;
 
 
