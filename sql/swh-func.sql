@@ -296,7 +296,7 @@ create or replace function swh_directory_get()
 as $$
 begin
     return query
-	select d.id, d.dir_entries, d.file_entries, d.rev_entries
+	select d.*
         from tmp_directory t
         inner join directory d on t.id = d.id;
     return;
