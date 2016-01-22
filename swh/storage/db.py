@@ -224,7 +224,7 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT origin, branch, revision, authority, validity
+        cur.execute("""SELECT origin, branch, target, target_type, authority, validity
                        FROM occurrence_history
                        WHERE origin=%s
                        AND validity @> NOW()::timestamptz
@@ -271,7 +271,7 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT *
+        cur.execute("""SELECT origin_type, origin_url, branch, target, target_type, path
                        FROM swh_content_find_occurrence(%s)
                        LIMIT 1""",
                     (sha1, ))

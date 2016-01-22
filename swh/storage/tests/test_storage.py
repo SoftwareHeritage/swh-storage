@@ -257,7 +257,8 @@ class AbstractTestStorage(DbTestFixture):
 
         self.occurrence = {
             'branch': 'master',
-            'revision': b'67890123456789012345',
+            'target': b'67890123456789012345',
+            'target_type': 'revision',
             'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
             'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
                                           tzinfo=datetime.timezone.utc),
@@ -265,7 +266,8 @@ class AbstractTestStorage(DbTestFixture):
 
         self.occurrence2 = {
             'branch': 'master',
-            'revision': self.revision2['id'],
+            'target': self.revision2['id'],
+            'target_type': 'revision',
             'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
             'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
                                           tzinfo=datetime.timezone.utc),
@@ -754,7 +756,7 @@ class AbstractTestStorage(DbTestFixture):
         occurrence3.update({'origin': origin_id,
                             'validity': occurrence3['validity'] +
                             datetime.timedelta(days=1),
-                            'revision': self.revision3['id']})
+                            'target': self.revision3['id']})
 
         # 2 occurrences on same revision with lower validity date with 1h delta
         self.storage.occurrence_add([occurrence2])
@@ -883,7 +885,7 @@ class AbstractTestStorage(DbTestFixture):
         origin_id = self.storage.origin_add_one(self.origin2)
 
         revision = self.revision.copy()
-        revision['id'] = self.occurrence['revision']
+        revision['id'] = self.occurrence['target']
         self.storage.revision_add([revision])
 
         occur = self.occurrence
@@ -891,21 +893,21 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.occurrence_add([occur])
         self.storage.occurrence_add([occur])
 
-        test_query = '''select origin, branch, revision, authority, validity
+        test_query = '''select origin, branch, target, target_type, authority, validity
                         from occurrence_history
                         order by origin, validity'''
 
         self.cursor.execute(test_query)
         ret = self.cursor.fetchall()
         self.assertEqual(len(ret), 1)
-        self.assertEqual((ret[0][0], ret[0][1], ret[0][2].tobytes(),
-                          ret[0][3]), (occur['origin'],
-                                       occur['branch'], occur['revision'],
+        self.assertEqual((ret[0][0], ret[0][1], ret[0][2].tobytes(), ret[0][3],
+                          ret[0][4]), (occur['origin'], occur['branch'],
+                                       occur['target'], occur['target_type'],
                                        occur['authority']))
 
-        self.assertEqual(ret[0][4].lower, occur['validity'])
-        self.assertEqual(ret[0][4].lower_inc, True)
-        self.assertEqual(ret[0][4].upper, datetime.datetime.max)
+        self.assertEqual(ret[0][5].lower, occur['validity'])
+        self.assertEqual(ret[0][5].lower_inc, True)
+        self.assertEqual(ret[0][5].upper, datetime.datetime.max)
 
         orig_validity = occur['validity']
         occur['validity'] += datetime.timedelta(hours=10)
@@ -914,13 +916,13 @@ class AbstractTestStorage(DbTestFixture):
         self.cursor.execute(test_query)
         ret = self.cursor.fetchall()
         self.assertEqual(len(ret), 2)
-        self.assertEqual(ret[0][4].lower, orig_validity)
-        self.assertEqual(ret[0][4].lower_inc, True)
-        self.assertEqual(ret[0][4].upper, occur['validity'])
-        self.assertEqual(ret[0][4].upper_inc, False)
-        self.assertEqual(ret[1][4].lower, occur['validity'])
-        self.assertEqual(ret[1][4].lower_inc, True)
-        self.assertEqual(ret[1][4].upper, datetime.datetime.max)
+        self.assertEqual(ret[0][5].lower, orig_validity)
+        self.assertEqual(ret[0][5].lower_inc, True)
+        self.assertEqual(ret[0][5].upper, occur['validity'])
+        self.assertEqual(ret[0][5].upper_inc, False)
+        self.assertEqual(ret[1][5].lower, occur['validity'])
+        self.assertEqual(ret[1][5].lower_inc, True)
+        self.assertEqual(ret[1][5].upper, datetime.datetime.max)
 
     @istest
     def occurrence_get(self):
@@ -928,7 +930,7 @@ class AbstractTestStorage(DbTestFixture):
         origin_id = self.storage.origin_add_one(self.origin2)
 
         revision = self.revision.copy()
-        revision['id'] = self.occurrence['revision']
+        revision['id'] = self.occurrence['target']
         self.storage.revision_add([revision])
 
         occur = self.occurrence
@@ -971,7 +973,8 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(occ['origin_type'], self.origin2['type'])
         self.assertEquals(occ['origin_url'], self.origin2['url'])
         self.assertEquals(occ['branch'], self.occurrence2['branch'])
-        self.assertEquals(occ['revision'], self.revision2['id'])
+        self.assertEquals(occ['target'], self.revision2['id'])
+        self.assertEquals(occ['target_type'], self.occurrence2['target_type'])
         self.assertEquals(occ['path'], self.dir2['entries'][0]['name'])
 
         occ2 = self.storage.content_find_occurrence(
@@ -980,7 +983,8 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(occ2['origin_type'], self.origin2['type'])
         self.assertEquals(occ2['origin_url'], self.origin2['url'])
         self.assertEquals(occ2['branch'], self.occurrence2['branch'])
-        self.assertEquals(occ2['revision'], self.revision2['id'])
+        self.assertEquals(occ2['target'], self.revision2['id'])
+        self.assertEquals(occ2['target_type'], self.occurrence2['target_type'])
         self.assertEquals(occ2['path'], self.dir2['entries'][0]['name'])
 
         occ3 = self.storage.content_find_occurrence(
@@ -989,7 +993,8 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(occ3['origin_type'], self.origin2['type'])
         self.assertEquals(occ3['origin_url'], self.origin2['url'])
         self.assertEquals(occ3['branch'], self.occurrence2['branch'])
-        self.assertEquals(occ3['revision'], self.revision2['id'])
+        self.assertEquals(occ3['target'], self.revision2['id'])
+        self.assertEquals(occ3['target_type'], self.occurrence2['target_type'])
         self.assertEquals(occ3['path'], self.dir2['entries'][0]['name'])
 
     @istest

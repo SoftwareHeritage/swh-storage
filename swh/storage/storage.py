@@ -287,7 +287,8 @@ class Storage():
 
         found_occ = db.content_find_occurrence(sha1, cur=cur)
         if found_occ:
-            keys = ['origin_type', 'origin_url', 'branch', 'revision', 'path']
+            keys = ['origin_type', 'origin_url', 'branch', 'target',
+                    'target_type', 'path']
             return dict(zip(keys, found_occ))
         return None
 
@@ -627,8 +628,8 @@ class Storage():
             )
 
             db.copy_to(releases_filtered, 'tmp_release',
-                       ['id', 'revision', 'date', 'date_offset', 'name',
-                        'comment', 'author_name', 'author_email',
+                       ['id', 'target', 'target_type', 'date', 'date_offset',
+                        'name', 'comment', 'author_name', 'author_email',
                         'synthetic'],
                        cur)
 
@@ -674,8 +675,8 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'revision', 'date', 'date_offset', 'name', 'comment',
-                'synthetic', 'author_name', 'author_email']
+        keys = ['id', 'target', 'target_type', 'date', 'date_offset', 'name',
+                'comment', 'synthetic', 'author_name', 'author_email']
 
         db.mktemp_release_get(cur)
 
@@ -696,8 +697,9 @@ class Storage():
                 - origin (int): id of the origin corresponding to the
                     occurrence
                 - branch (str): the reference name of the occurrence
-                - revision (sha1_git): the id of the revision pointed to by
+                - target (sha1_git): the id of the object pointed to by
                     the occurrence
+                - target_type (str): the type of object pointed to by the occurrence
                 - authority (uuid): id of the authority giving the validity
                 - validity (datetime.DateTime): the validity date for the given
                     occurrence
@@ -717,8 +719,8 @@ class Storage():
 
         db.mktemp('occurrence_history', cur)
         db.copy_to(processed, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'revision', 'authority', 'validity'],
-                   cur)
+                   ['origin', 'branch', 'target', 'target_type', 'authority',
+                    'validity'], cur)
 
         db.occurrence_history_add_from_temp(cur)
 
@@ -737,10 +739,11 @@ class Storage():
         for line in db.occurrence_get(origin_id, cur):
             yield {'origin': line[0],
                    'branch': line[1],
-                   'revision': line[2],
-                   'authority': line[3],
-                   'validity_lower': line[4].lower,  # always included
-                   'validity_upper': line[4].upper}  # always excluded
+                   'target': line[2],
+                   'target_type': line[3],
+                   'authority': line[4],
+                   'validity_lower': line[5].lower,  # always included
+                   'validity_upper': line[5].upper}  # always excluded
 
     @db_transaction_generator
     def revision_get_by(self,
@@ -792,8 +795,8 @@ class Storage():
             found.
 
         """
-        keys = ('id', 'revision', 'date', 'date_offset', 'name', 'comment',
-                'synthetic', 'author_name', 'author_email')
+        keys = ('id', 'target', 'target_type', 'date', 'date_offset', 'name',
+                'comment', 'synthetic', 'author_name', 'author_email')
 
         for line in self.db.release_get_by(origin_id, limit=limit):
             data = converters.db_to_release(dict(zip(keys, line)))

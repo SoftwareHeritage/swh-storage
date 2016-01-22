@@ -635,7 +635,8 @@ $$;
 create type release_entry as
 (
   id          sha1_git,
-  revision    sha1_git,
+  target      sha1_git,
+  target_type object_type,
   date        timestamptz,
   date_offset smallint,
   name        text,
@@ -652,7 +653,7 @@ create or replace function swh_release_get()
 as $$
 begin
     return query
-        select r.id, r.revision, r.date, r.date_offset, r.name, r.comment,
+        select r.id, r.target, r.target_type, r.date, r.date_offset, r.name, r.comment,
                r.synthetic, p.name as author_name, p.email as author_email
         from tmp_release_get t
         inner join release r on t.id = r.id
@@ -745,8 +746,8 @@ as $$
 begin
     perform swh_person_add_from_release();
 
-    insert into release (id, revision, date, date_offset, name, comment, author, synthetic)
-    select t.id, t.revision, t.date, t.date_offset, t.name, t.comment, a.id, t.synthetic
+    insert into release (id, target, target_type, date, date_offset, name, comment, author, synthetic)
+    select t.id, t.target, t.target_type, t.date, t.date_offset, t.name, t.comment, a.id, t.synthetic
     from tmp_release t
     left join person a on a.name = t.author_name and a.email = t.author_email;
     return;
@@ -779,14 +780,14 @@ begin
     where o.origin = t.origin and o.branch = t.branch and o.authority = t.authority;
 
     -- Now only insert intervals that aren't already present
-    insert into occurrence_history (origin, branch, revision, authority, validity)
-	select distinct origin, branch, revision, authority, validity
+    insert into occurrence_history (origin, branch, target, target_type, authority, validity)
+	select distinct origin, branch, target, target_type, authority, validity
 	from tmp_occurrence_history t
 	where not exists (
 	    select 1 from occurrence_history o
 	    where o.origin = t.origin and o.branch = t.branch and
-	          o.authority = t.authority and o.revision = t.revision and
-		  o.validity = t.validity);
+	          o.authority = t.authority and o.target = t.target and
+            o.target_type = t.target_type and o.validity = t.validity);
     return;
 end
 $$;
@@ -845,11 +846,12 @@ create or replace function swh_revision_find_occurrence(revision_id sha1_git)
     language sql
     stable
 as $$
-	select origin, branch, revision
+	select origin, branch, target, target_type
   from swh_revision_list_children(ARRAY[revision_id] :: bytea[]) as rev_list
 	left join occurrence_history occ_hist
-  on rev_list.id = occ_hist.revision
-	where occ_hist.origin is not null
+  on rev_list.id = occ_hist.target
+	where occ_hist.origin is not null and
+        occ_hist.target_type = 'revision'
 	order by upper(occ_hist.validity)  -- TODO filter by authority?
 	limit 1;
 $$;
@@ -911,7 +913,7 @@ as $$
             order by rh.parent_rank
         ) as parents
     from swh_occurrence_get_by(origin_id, branch_name, validity) as occ
-    inner join revision r on occ.revision = r.id
+    inner join revision r on occ.target = r.id
     left join person a on a.id = r.author
     left join person c on c.id = r.committer;
 $$;
@@ -923,13 +925,13 @@ create or replace function swh_release_get_by(
     language sql
     stable
 as $$
-   select r.id, r.revision, r.date, r.date_offset,
+   select r.id, r.target, r.target_type, r.date, r.date_offset,
         r.name, r.comment, r.synthetic, a.name as author_name,
         a.email as author_email
     from release r
-    inner join occurrence_history occ on occ.revision = r.revision
+    inner join occurrence_history occ on occ.target = r.target
     left join person a on a.id = r.author
-    where occ.origin = origin_id;
+    where occ.origin = origin_id and occ.target_type = 'revision' and r.target_type = 'revision';
 $$;
 
 
@@ -938,7 +940,8 @@ create type content_occurrence as (
     origin_type	 text,
     origin_url	 text,
     branch	 text,
-    revision_id	 sha1_git,
+    target	 sha1_git,
+    target_type	 object_type,
     path	 unix_path
 );
 
@@ -972,7 +975,7 @@ begin
 	into occ;
     if not found then return null; end if;
 
-    select origin.type, origin.url, occ.branch, rev, dir.path
+    select origin.type, origin.url, occ.branch, occ.target, occ.target_type, dir.path
     from origin
     where origin.id = occ.origin
     into coc;
