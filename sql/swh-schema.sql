@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(43, now(), 'Work In Progress');
+      values(44, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -45,7 +45,8 @@ create table content
   length    bigint not null,
   ctime     timestamptz not null default now(),
             -- creation time, i.e. time of (first) injection into the storage
-  status    content_status not null default 'visible'
+  status    content_status not null default 'visible',
+  object_id bigserial
 );
 
 create unique index on content(sha1_git);
@@ -223,6 +224,7 @@ create table skipped_content
   status    content_status not null default 'absent',
   reason    text not null,
   origin    bigint references origin(id),
+  object_id bigserial,
   unique (sha1, sha1_git, sha256)
 );
 
@@ -263,7 +265,8 @@ create table directory
   id            sha1_git primary key,
   dir_entries   bigint[],  -- sub-directories, reference directory_entry_dir
   file_entries  bigint[],  -- contained files, reference directory_entry_file
-  rev_entries   bigint[]   -- mounted revisions, reference directory_entry_rev
+  rev_entries   bigint[],  -- mounted revisions, reference directory_entry_rev
+  object_id     bigserial  -- short object identifier
 );
 
 create index on directory using gin (dir_entries);
@@ -336,7 +339,8 @@ create table revision
   author                bigint references person(id),
   committer             bigint references person(id),
   metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
-  synthetic             boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
+  synthetic             boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
+  object_id             bigserial
 );
 
 create index on revision(directory);
@@ -370,6 +374,7 @@ create table occurrence_history
                       -- the organization table.
   validity   tstzrange,  -- The time validity of this table entry. If the upper
                          -- bound is missing, the entry is still valid.
+  object_id  bigserial,  -- short object identifier
   exclude using gist (origin with =,
                       branch with =,
                       revision with =,
@@ -407,7 +412,8 @@ create table release
   name        text,
   comment     bytea,
   author      bigint references person(id),
-  synthetic   boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
+  synthetic   boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
+  object_id   bigserial
 );
 
 create index on release(revision);
