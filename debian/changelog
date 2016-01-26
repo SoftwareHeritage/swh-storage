@@ -1,3 +1,10 @@
+swh-storage (0.0.30-1~swh1) unstable-swh; urgency=medium
+
+  * Prepare swh.storage v0.0.30 release
+  * type-agnostic occurrences and revisions
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 26 Jan 2016 07:36:43 +0100
+
 swh-storage (0.0.29-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.29
