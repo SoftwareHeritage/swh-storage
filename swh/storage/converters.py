@@ -188,7 +188,8 @@ def release_to_db(release):
         'date': date['timestamp'],
         'date_offset': date['offset'],
         'name': release['name'],
-        'revision': release['target'],
+        'target': release['target'],
+        'target_type': release['target_type'],
         'comment': release['message'],
         'synthetic': release['synthetic'],
     }
@@ -212,6 +213,6 @@ def db_to_release(db_release):
         'name': db_release['name'],
         'message': db_release['comment'],
         'synthetic': db_release['synthetic'],
-        'target': db_release['revision'],
-        'target_type': 'revision',
+        'target': db_release['target'],
+        'target_type': db_release['target_type'],
     }
