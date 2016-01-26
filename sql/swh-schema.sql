@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(43, now(), 'Work In Progress');
+      values(46, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -45,7 +45,8 @@ create table content
   length    bigint not null,
   ctime     timestamptz not null default now(),
             -- creation time, i.e. time of (first) injection into the storage
-  status    content_status not null default 'visible'
+  status    content_status not null default 'visible',
+  object_id bigserial
 );
 
 create unique index on content(sha1_git);
@@ -223,6 +224,7 @@ create table skipped_content
   status    content_status not null default 'absent',
   reason    text not null,
   origin    bigint references origin(id),
+  object_id bigserial,
   unique (sha1, sha1_git, sha256)
 );
 
@@ -263,7 +265,8 @@ create table directory
   id            sha1_git primary key,
   dir_entries   bigint[],  -- sub-directories, reference directory_entry_dir
   file_entries  bigint[],  -- contained files, reference directory_entry_file
-  rev_entries   bigint[]   -- mounted revisions, reference directory_entry_rev
+  rev_entries   bigint[],  -- mounted revisions, reference directory_entry_rev
+  object_id     bigserial  -- short object identifier
 );
 
 create index on directory using gin (dir_entries);
@@ -314,6 +317,9 @@ create unique index on person(name, email);
 
 create type revision_type as enum ('git', 'tar', 'dsc');
 
+-- the data object types stored in our data model
+create type object_type as enum ('content', 'directory', 'revision', 'release');
+
 -- A snapshot of a software project at a specific point in time.
 --
 -- Synonyms/mappings:
@@ -336,7 +342,8 @@ create table revision
   author                bigint references person(id),
   committer             bigint references person(id),
   metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
-  synthetic             boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
+  synthetic             boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
+  object_id             bigserial
 );
 
 create index on revision(directory);
@@ -363,25 +370,20 @@ create table occurrence_history
 (
   origin     bigint references origin(id),
   branch     text,  -- e.g., "master" (for VCS), or "sid" (for Debian)
-  revision   sha1_git,  -- ref target, e.g., commit id
+  target     sha1_git,  -- ref target, e.g., commit id
+  target_type object_type, -- ref target type
   authority  uuid references entity(uuid),
                       -- who is claiming to have seen the occurrence.
                       -- Note: SWH is such an authority, and has an entry in
                       -- the organization table.
   validity   tstzrange,  -- The time validity of this table entry. If the upper
                          -- bound is missing, the entry is still valid.
-  exclude using gist (origin with =,
-                      branch with =,
-                      revision with =,
-                      (authority::text) with =,
-                      validity with &&),
-  -- unicity exclusion constraint on lines where the same value is found for
-  -- `origin`, `reference`, `revision`, `authority` and overlapping values for
-  -- `validity`.
-  primary key (origin, branch, revision, authority, validity)
+  object_id  bigserial,  -- short object identifier
+  primary key (object_id)
 );
 
-create index on occurrence_history(revision);
+create index on occurrence_history(target, target_type);
+create index on occurrence_history(origin, branch);
 
 -- Materialized view of occurrence_history, storing the *current* value of each
 -- branch, as last seen by SWH.
@@ -389,8 +391,9 @@ create table occurrence
 (
   origin    bigint references origin(id),
   branch    text,
-  revision  sha1_git,
-  primary key(origin, branch, revision)
+  target    sha1_git,
+  target_type object_type, -- ref target type
+  primary key(origin, branch)
 );
 
 -- A "memorable" point in the development history of a project.
@@ -401,13 +404,15 @@ create table occurrence
 create table release
 (
   id          sha1_git primary key,
-  revision    sha1_git,
+  target      sha1_git,
+  target_type object_type,
   date        timestamptz,
   date_offset smallint,
   name        text,
   comment     bytea,
   author      bigint references person(id),
-  synthetic   boolean not null default false  -- true if synthetic (cf. swh-loader-tar)
+  synthetic   boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
+  object_id   bigserial
 );
 
-create index on release(revision);
+create index on release(target, target_type);
