@@ -131,6 +131,9 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_occurrence_history')
+    def mktemp_occurrence_history(self, cur=None): pass
+
     @stored_procedure('swh_mktemp_release_get')
     def mktemp_release_get(self, cur=None): pass
 
@@ -224,12 +227,13 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT origin, branch, target, target_type, authority, validity
-                       FROM occurrence_history
+        cur.execute("""SELECT origin, branch, target, target_type,
+                              (select max(date) from origin_visit
+                               where origin=%s) as date
+                       FROM occurrence
                        WHERE origin=%s
-                       AND validity @> NOW()::timestamptz
                     """,
-                    (origin_id, ))
+                    (origin_id, origin_id))
 
         yield from cursor_to_bytes(cur)
 
