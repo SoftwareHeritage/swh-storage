@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(46, now(), 'Work In Progress');
+      values(47, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -369,7 +369,7 @@ create index on revision_history(parent_id);
 create table occurrence_history
 (
   origin     bigint references origin(id),
-  branch     text,  -- e.g., "master" (for VCS), or "sid" (for Debian)
+  branch     bytea,  -- e.g., b"master" (for VCS), or b"sid" (for Debian)
   target     sha1_git,  -- ref target, e.g., commit id
   target_type object_type, -- ref target type
   authority  uuid references entity(uuid),
@@ -390,7 +390,7 @@ create index on occurrence_history(origin, branch);
 create table occurrence
 (
   origin    bigint references origin(id),
-  branch    text,
+  branch    bytea,
   target    sha1_git,
   target_type object_type, -- ref target type
   primary key(origin, branch)
@@ -408,7 +408,7 @@ create table release
   target_type object_type,
   date        timestamptz,
   date_offset smallint,
-  name        text,
+  name        bytea,
   comment     bytea,
   author      bigint references person(id),
   synthetic   boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
