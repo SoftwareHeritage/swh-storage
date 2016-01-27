@@ -10,7 +10,7 @@ SQL_DATA   = swh-data.sql
 SQLS = $(SQL_INIT) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_DATA)
 
 PSQL_BIN = psql
-PSQL_FLAGS = --single-transaction --echo-all
+PSQL_FLAGS = --single-transaction --echo-all -X
 PSQL = $(PSQL_BIN) $(PSQL_FLAGS)
 
 
