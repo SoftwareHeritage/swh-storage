@@ -1110,35 +1110,6 @@ class AbstractTestStorage(DbTestFixture):
         self.assertTrue(set(expected_keys) <= set(counters))
         self.assertIsInstance(counters[expected_keys[0]], int)
 
-
-class TestStorage(AbstractTestStorage, unittest.TestCase):
-    """Test the local storage"""
-
-    # Can only be tested with local storage as you can't mock
-    # datetimes for the remote server
-    @istest
-    def fetch_history(self):
-        origin = self.storage.origin_add_one(self.origin)
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = self.fetch_history_date
-            fetch_history_id = self.storage.fetch_history_start(origin)
-            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
-
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = self.fetch_history_end
-            self.storage.fetch_history_end(fetch_history_id,
-                                           self.fetch_history_data)
-
-        fetch_history = self.storage.fetch_history_get(fetch_history_id)
-        expected_fetch_history = self.fetch_history_data.copy()
-
-        expected_fetch_history['id'] = fetch_history_id
-        expected_fetch_history['origin'] = origin
-        expected_fetch_history['date'] = self.fetch_history_date
-        expected_fetch_history['duration'] = self.fetch_history_duration
-
-        self.assertEqual(expected_fetch_history, fetch_history)
-
     @istest
     def content_find_with_present_content(self):
         # 1. with something to find
@@ -1229,6 +1200,35 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
         with self.assertRaises(ValueError):
             self.storage.content_find(
                 {'unknown-sha1': 'something'})  # not the right key
+
+
+class TestStorage(AbstractTestStorage, unittest.TestCase):
+    """Test the local storage"""
+
+    # Can only be tested with local storage as you can't mock
+    # datetimes for the remote server
+    @istest
+    def fetch_history(self):
+        origin = self.storage.origin_add_one(self.origin)
+        with patch('datetime.datetime'):
+            datetime.datetime.now.return_value = self.fetch_history_date
+            fetch_history_id = self.storage.fetch_history_start(origin)
+            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
+
+        with patch('datetime.datetime'):
+            datetime.datetime.now.return_value = self.fetch_history_end
+            self.storage.fetch_history_end(fetch_history_id,
+                                           self.fetch_history_data)
+
+        fetch_history = self.storage.fetch_history_get(fetch_history_id)
+        expected_fetch_history = self.fetch_history_data.copy()
+
+        expected_fetch_history['id'] = fetch_history_id
+        expected_fetch_history['origin'] = origin
+        expected_fetch_history['date'] = self.fetch_history_date
+        expected_fetch_history['duration'] = self.fetch_history_duration
+
+        self.assertEqual(expected_fetch_history, fetch_history)
 
     @istest
     def person_get(self):
