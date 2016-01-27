@@ -7,17 +7,17 @@
 ALTER TABLE release
 ALTER COLUMN name
 SET DATA TYPE bytea
-USING name::bytea;
+USING convert_to(name, 'UTF-8') :: bytea;
 
 ALTER TABLE occurrence
 ALTER COLUMN branch
 SET DATA TYPE bytea
-USING branch::bytea;
+USING convert_to(branch, 'UTF-8') :: bytea;
 
 ALTER TABLE occurrence_history
 ALTER COLUMN branch
 SET DATA TYPE bytea
-USING branch::bytea;
+USING convert_to(branch, 'UTF-8') :: bytea;
 
 ALTER TYPE release_entry
 ALTER ATTRIBUTE name
