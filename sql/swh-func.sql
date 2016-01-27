@@ -639,7 +639,7 @@ create type release_entry as
   target_type object_type,
   date        timestamptz,
   date_offset smallint,
-  name        text,
+  name        bytea,
   comment     bytea,
   synthetic   boolean,
   author_name bytea,
@@ -861,7 +861,7 @@ $$;
 -- branch_name and/or validity range
 create or replace function swh_occurrence_get_by(
        origin_id bigint,
-       branch_name text default NULL,
+       branch_name bytea default NULL,
        validity timestamptz default NULL)
     returns setof occurrence_history
     language plpgsql
@@ -897,7 +897,7 @@ $$;
 -- Retrieve revisions by occurrence criterion filtering
 create or replace function swh_revision_get_by(
        origin_id bigint,
-       branch_name text default NULL,
+       branch_name bytea default NULL,
        validity timestamptz default NULL)
     returns setof revision_entry
     language sql
@@ -939,7 +939,7 @@ $$;
 create type content_occurrence as (
     origin_type	 text,
     origin_url	 text,
-    branch	 text,
+    branch	 bytea,
     target	 sha1_git,
     target_type	 object_type,
     path	 unix_path

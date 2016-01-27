@@ -699,7 +699,8 @@ class Storage():
                 - branch (str): the reference name of the occurrence
                 - target (sha1_git): the id of the object pointed to by
                     the occurrence
-                - target_type (str): the type of object pointed to by the occurrence
+                - target_type (str): the type of object pointed to by the
+                occurrence
                 - authority (uuid): id of the authority giving the validity
                 - validity (datetime.DateTime): the validity date for the given
                     occurrence

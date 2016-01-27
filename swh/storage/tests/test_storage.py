@@ -256,7 +256,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.occurrence = {
-            'branch': 'master',
+            'branch': b'master',
             'target': b'67890123456789012345',
             'target_type': 'revision',
             'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
@@ -265,7 +265,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.occurrence2 = {
-            'branch': 'master',
+            'branch': b'master',
             'target': self.revision2['id'],
             'target_type': 'revision',
             'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
@@ -275,7 +275,7 @@ class AbstractTestStorage(DbTestFixture):
 
         self.release = {
             'id': b'87659012345678901234',
-            'name': 'v0.0.1',
+            'name': b'v0.0.1',
             'date': datetime.datetime(2015, 1, 1, 22, 0, 0,
                                       tzinfo=self.plus_offset),
             'author': {
@@ -290,7 +290,7 @@ class AbstractTestStorage(DbTestFixture):
 
         self.release2 = {
             'id': b'56789012348765901234',
-            'name': 'v0.0.2',
+            'name': b'v0.0.2',
             'date': datetime.datetime(2015, 1, 2, 23, 0, 0,
                                       tzinfo=self.minus_offset),
             'author': {
@@ -305,7 +305,7 @@ class AbstractTestStorage(DbTestFixture):
 
         self.release3 = {
             'id': b'87659012345678904321',
-            'name': 'v0.0.2',
+            'name': b'v0.0.2',
             'date': datetime.datetime(2016, 1, 1, 19, 0, 0,
                                       tzinfo=self.plus_offset),
             'author': {
@@ -900,10 +900,12 @@ class AbstractTestStorage(DbTestFixture):
         self.cursor.execute(test_query)
         ret = self.cursor.fetchall()
         self.assertEqual(len(ret), 1)
-        self.assertEqual((ret[0][0], ret[0][1], ret[0][2].tobytes(), ret[0][3],
-                          ret[0][4]), (occur['origin'], occur['branch'],
-                                       occur['target'], occur['target_type'],
-                                       occur['authority']))
+        self.assertEqual((ret[0][0], ret[0][1].tobytes(),
+                          ret[0][2].tobytes(), ret[0][3],
+                          ret[0][4]),
+                         (occur['origin'], occur['branch'],
+                          occur['target'], occur['target_type'],
+                          occur['authority']))
 
         self.assertEqual(ret[0][5].lower, occur['validity'])
         self.assertEqual(ret[0][5].lower_inc, True)
