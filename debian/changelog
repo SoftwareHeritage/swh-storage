@@ -1,3 +1,11 @@
+swh-storage (0.0.31-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.31
+  * Deal with occurrence_history.branch, occurrence.branch, release.name
+    as bytes
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 27 Jan 2016 15:45:53 +0100
+
 swh-storage (0.0.30-1~swh1) unstable-swh; urgency=medium
 
   * Prepare swh.storage v0.0.30 release
