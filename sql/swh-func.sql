@@ -9,10 +9,11 @@ create or replace function swh_mktemp(tblname regclass)
 as $$
 begin
     execute format('
-	create temporary table tmp_%I
-	    (like %I including defaults)
-	    on commit drop
-	', tblname, tblname);
+	create temporary table tmp_%1$I
+	    (like %1$I including defaults)
+	    on commit drop;
+      alter table tmp_%1$I drop column if exists object_id;
+	', tblname);
     return;
 end
 $$;
@@ -32,11 +33,11 @@ create or replace function swh_mktemp_dir_entry(tblname regclass)
 as $$
 begin
     execute format('
-	create temporary table tmp_%I
-	    (like %I including defaults, dir_id sha1_git)
+	create temporary table tmp_%1$I
+	    (like %1$I including defaults, dir_id sha1_git)
 	    on commit drop;
-        alter table tmp_%I drop column id;
-	', tblname, tblname, tblname, tblname);
+        alter table tmp_%1$I drop column id;
+	', tblname);
     return;
 end
 $$;
@@ -59,6 +60,7 @@ as $$
     ) on commit drop;
     alter table tmp_revision drop column author;
     alter table tmp_revision drop column committer;
+    alter table tmp_revision drop column object_id;
 $$;
 
 
@@ -76,6 +78,7 @@ as $$
         author_email bytea not null default ''
     ) on commit drop;
     alter table tmp_release drop column author;
+    alter table tmp_release drop column object_id;
 $$;
 
 create or replace function swh_mktemp_release_get()
