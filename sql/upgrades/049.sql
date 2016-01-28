@@ -40,7 +40,7 @@ with origins_visited as (
   order by origin, date
 )
   insert into origin_visit (origin, date, visit)
-  select origin, date, row_number() over (partition by origin, date)
+  select origin, date, row_number() over (partition by origin)
   from origins_visited;
 
 ALTER TABLE origin_visit
@@ -55,7 +55,8 @@ CREATE INDEX origin_visit_date_idx ON origin_visit USING btree (date);
 insert into occurrence_history (origin, branch, target, target_type, object_id, visits)
   select ooh.origin, branch, target, target_type, object_id, array[visit]
   from old_occurrence_history ooh
-  left join origin_visit ov on ov.origin = ooh.origin and ov.date = lower(ooh.validity);
+  left join origin_visit ov on ov.origin = ooh.origin and ov.date = lower(ooh.validity)
+  where ov.visit is not null;
 
 ALTER TABLE occurrence_history
   ADD CONSTRAINT occurrence_history_pkey PRIMARY KEY (object_id),
