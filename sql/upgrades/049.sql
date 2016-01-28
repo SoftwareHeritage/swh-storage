@@ -74,7 +74,8 @@ alter table occurrence
 drop index if exists occurrence_target_target_type_idx;
 
 
-create or replace function update_occurrence(origin_id bigint) returns void language sql as $$
+create or replace function update_occurrence_for_origin(origin_id bigint) returns void language sql as $$
+  delete from occurrence where origin = origin_id;
   insert into occurrence (origin, branch, target, target_type)
     select origin, branch, target, target_type from occurrence_history
     where origin = origin_id
@@ -84,9 +85,22 @@ create or replace function update_occurrence(origin_id bigint) returns void lang
            limit 1) = any(visits); 
 $$;
 
-with updates as (select update_occurrence(id) from origin) select null;
+create or replace function update_occurrence() returns void
+  language plpgsql as
+$$
+  declare
+    origin_id origin.id%type;
+  begin
+    for origin_id in
+      select distinct id from origin
+    loop
+      perform update_occurrence_for_origin(origin_id);
+    end loop;
+    return;
+  end;
+$$;
 
-drop function update_occurrence(bigint);
+select update_occurrence();
 
 ALTER TABLE occurrence
   ADD CONSTRAINT occurrence_pkey PRIMARY KEY (origin, branch),
@@ -197,15 +211,7 @@ begin
   for origin_id in
     select distinct origin from tmp_occurrence_history
   loop
-    delete from occurrence where origin = origin_id;
-    insert into occurrence (origin, branch, target, target_type)
-      select origin, branch, target, target_type
-      from occurrence_history
-      where origin = origin_id and
-            (select visit from origin_visit
-             where origin = origin_id
-             order by date desc
-             limit 1) = any(visits);
+    perform update_occurrence_for_origin(origin_id);
   end loop;
 
   return;
