@@ -1,3 +1,15 @@
+swh-storage (0.0.32-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.32
+  * Let the person's id flow
+  * sql/upgrades/051: 050->051 schema change
+  * sql/upgrades/050: 049->050 schema change - Clean up obsolete
+    functions
+  * sql/upgrades/049: Final take for 048->049 schema change.
+  * sql: Use a new schema for occurrences
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 29 Jan 2016 17:44:27 +0100
+
 swh-storage (0.0.31-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.31
