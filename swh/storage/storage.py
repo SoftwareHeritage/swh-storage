@@ -10,7 +10,6 @@ import functools
 import itertools
 import dateutil.parser
 import psycopg2
-from psycopg2.extras import DateTimeTZRange
 
 from . import converters
 from .db import Db
@@ -529,9 +528,9 @@ class Storage():
 
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
-                'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'metadata',
-                'synthetic', 'parents')
+                'message', 'author_id', 'author_name', 'author_email',
+                'committer_id', 'committer_name', 'committer_email',
+                'metadata', 'synthetic', 'parents')
 
         db = self.db
 
@@ -565,8 +564,9 @@ class Storage():
 
         keys = ['id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory', 'message',
-                'author_name', 'author_email', 'committer_name',
-                'committer_email', 'metadata', 'synthetic', 'parents']
+                'author_id', 'author_name', 'author_email', 'committer_id',
+                'committer_name', 'committer_email', 'metadata', 'synthetic',
+                'parents']
 
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
@@ -584,8 +584,9 @@ class Storage():
 
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory', 'message',
-                'author_name', 'author_email', 'committer_name',
-                'committer_email', 'metadata', 'synthetic', 'parents')
+                'author_id', 'author_name', 'author_email', 'committer_id',
+                'committer_name', 'committer_email', 'metadata', 'synthetic',
+                'parents')
 
         for line in db.revision_log_by(origin_id, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
@@ -676,7 +677,8 @@ class Storage():
         db = self.db
 
         keys = ['id', 'target', 'target_type', 'date', 'date_offset', 'name',
-                'comment', 'synthetic', 'author_name', 'author_email']
+                'comment', 'synthetic', 'author_id', 'author_name',
+                'author_email']
 
         db.mktemp_release_get(cur)
 
@@ -700,28 +702,21 @@ class Storage():
                 - target (sha1_git): the id of the object pointed to by
                     the occurrence
                 - target_type (str): the type of object pointed to by the
-                occurrence
-                - authority (uuid): id of the authority giving the validity
-                - validity (datetime.DateTime): the validity date for the given
+                    occurrence
+                - date (datetime.DateTime): the validity date for the given
                     occurrence
         """
         db = self.db
 
         processed = []
         for occurrence in occurrences:
-            validity = occurrence['validity']
-            if isinstance(validity, str):
-                validity = dateutil.parser.parse(validity)
-            if isinstance(validity, datetime.datetime):
-                occurrence = occurrence.copy()
-                occurrence['validity'] = DateTimeTZRange(lower=validity)
-
+            if isinstance(occurrence['date'], str):
+                occurrence['date'] = dateutil.parser.parse(occurrence['date'])
             processed.append(occurrence)
 
-        db.mktemp('occurrence_history', cur)
+        db.mktemp_occurrence_history(cur)
         db.copy_to(processed, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'target', 'target_type', 'authority',
-                    'validity'], cur)
+                   ['origin', 'branch', 'target', 'target_type', 'date'], cur)
 
         db.occurrence_history_add_from_temp(cur)
 
@@ -738,13 +733,12 @@ class Storage():
         """
         db = self.db
         for line in db.occurrence_get(origin_id, cur):
-            yield {'origin': line[0],
-                   'branch': line[1],
-                   'target': line[2],
-                   'target_type': line[3],
-                   'authority': line[4],
-                   'validity_lower': line[5].lower,  # always included
-                   'validity_upper': line[5].upper}  # always excluded
+            yield {
+                'origin': line[0],
+                'branch': line[1],
+                'target': line[2],
+                'target_type': line[3],
+            }
 
     @db_transaction_generator
     def revision_get_by(self,
@@ -768,9 +762,9 @@ class Storage():
         """
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
-                'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'metadata',
-                'synthetic', 'parents')
+                'message', 'author_id', 'author_name', 'author_email',
+                'committer_id', 'committer_name', 'committer_email',
+                'metadata', 'synthetic', 'parents')
 
         for line in self.db.revision_get_by(origin_id,
                                             branch_name,
@@ -797,7 +791,8 @@ class Storage():
 
         """
         keys = ('id', 'target', 'target_type', 'date', 'date_offset', 'name',
-                'comment', 'synthetic', 'author_name', 'author_email')
+                'comment', 'synthetic', 'author_id', 'author_name',
+                'author_email')
 
         for line in self.db.release_get_by(origin_id, limit=limit):
             data = converters.db_to_release(dict(zip(keys, line)))

@@ -8,6 +8,7 @@ import datetime
 import functools
 import json
 import psycopg2
+import psycopg2.extras
 import tempfile
 
 from contextlib import contextmanager
@@ -131,6 +132,9 @@ class Db:
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_occurrence_history')
+    def mktemp_occurrence_history(self, cur=None): pass
+
     @stored_procedure('swh_mktemp_release_get')
     def mktemp_release_get(self, cur=None): pass
 
@@ -224,12 +228,13 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT origin, branch, target, target_type, authority, validity
-                       FROM occurrence_history
+        cur.execute("""SELECT origin, branch, target, target_type,
+                              (select max(date) from origin_visit
+                               where origin=%s) as date
+                       FROM occurrence
                        WHERE origin=%s
-                       AND validity @> NOW()::timestamptz
                     """,
-                    (origin_id, ))
+                    (origin_id, origin_id))
 
         yield from cursor_to_bytes(cur)
 
@@ -316,8 +321,9 @@ class Db:
 
         query = """SELECT id, date, date_offset, committer_date,
                           committer_date_offset, type, directory, message,
-                          author_name, author_email, committer_name,
-                          committer_email, metadata, synthetic, parents
+                          author_id, author_name, author_email, committer_id,
+                          committer_name, committer_email, metadata,
+                          synthetic, parents
                    FROM swh_revision_log(%s, %s)
                 """
         cur.execute(query, (root_revisions, limit))
@@ -471,6 +477,9 @@ class Db:
             The upper bound being now.
         """
         cur = self._cursor(cur)
+        if branch_name and isinstance(branch_name, str):
+            branch_name = branch_name.encode('utf-8')
+
         cur.execute("""SELECT *
                        FROM swh_revision_get_by(%s, %s, %s)
                        LIMIT %s""",
