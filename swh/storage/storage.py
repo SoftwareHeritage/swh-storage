@@ -10,7 +10,6 @@ import functools
 import itertools
 import dateutil.parser
 import psycopg2
-from psycopg2.extras import DateTimeTZRange
 
 from . import converters
 from .db import Db
