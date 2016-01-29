@@ -475,6 +475,9 @@ class Db:
             The upper bound being now.
         """
         cur = self._cursor(cur)
+        if branch_name and isinstance(branch_name, str):
+            branch_name = branch_name.encode('utf-8')
+
         cur.execute("""SELECT *
                        FROM swh_revision_get_by(%s, %s, %s)
                        LIMIT %s""",
