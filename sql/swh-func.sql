@@ -583,8 +583,10 @@ create type revision_entry as
   type                   revision_type,
   directory              sha1_git,
   message                bytea,
+  author_id              bigint,
   author_name            bytea,
   author_email           bytea,
+  committer_id           bigint,
   committer_name         bytea,
   committer_email        bytea,
   metadata               jsonb,
@@ -603,8 +605,9 @@ as $$
     select t.id, r.date, r.date_offset,
            r.committer_date, r.committer_date_offset,
            r.type, r.directory, r.message,
-           a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
-           t.parents
+           a.id, a.name, a.email,
+           c.id, c.name, c.email,
+           r.metadata, r.synthetic, t.parents
     from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
@@ -622,7 +625,7 @@ begin
         select t.id, r.date, r.date_offset,
                r.committer_date, r.committer_date_offset,
                r.type, r.directory, r.message,
-               a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
+               a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
          array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
                    as parents
         from tmp_revision t
@@ -651,15 +654,16 @@ $$;
 -- Detailed entry for a release
 create type release_entry as
 (
-  id          sha1_git,
-  target      sha1_git,
-  target_type object_type,
-  date        timestamptz,
-  date_offset smallint,
-  name        bytea,
-  comment     bytea,
-  synthetic   boolean,
-  author_name bytea,
+  id           sha1_git,
+  target       sha1_git,
+  target_type  object_type,
+  date         timestamptz,
+  date_offset  smallint,
+  name         bytea,
+  comment      bytea,
+  synthetic    boolean,
+  author_id    bigint,
+  author_name  bytea,
   author_email bytea
 );
 
@@ -671,7 +675,7 @@ as $$
 begin
     return query
         select r.id, r.target, r.target_type, r.date, r.date_offset, r.name, r.comment,
-               r.synthetic, p.name as author_name, p.email as author_email
+               r.synthetic, p.id as author_id, p.name as author_name, p.email as author_email
         from tmp_release_get t
         inner join release r on t.id = r.id
         inner join person p on p.id = r.author;
@@ -1008,7 +1012,7 @@ as $$
     select r.id, r.date, r.date_offset,
         r.committer_date, r.committer_date_offset,
         r.type, r.directory, r.message,
-        a.name, a.email, c.name, c.email, r.metadata, r.synthetic,
+        a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
         array(select rh.parent_id::bytea
             from revision_history rh
             where rh.id = r.id
@@ -1028,8 +1032,8 @@ create or replace function swh_release_get_by(
     stable
 as $$
    select r.id, r.target, r.target_type, r.date, r.date_offset,
-        r.name, r.comment, r.synthetic, a.name as author_name,
-        a.email as author_email
+        r.name, r.comment, r.synthetic, a.id as author_id,
+        a.name as author_name, a.email as author_email
     from release r
     inner join occurrence_history occ on occ.target = r.target
     left join person a on a.id = r.author

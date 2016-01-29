@@ -653,13 +653,17 @@ class AbstractTestStorage(DbTestFixture):
                                    self.revision4])
 
         # when
-        actual_result = self.storage.revision_log([self.revision4['id']])
+        actual_results = list(self.storage.revision_log(
+            [self.revision4['id']]))
 
-        res = list(actual_result)
-        self.assertEqual(len(res), 2)  # revision4 is a child of revision3
+        # hack: ids generated
+        for actual_result in actual_results:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
 
-        self.assertEquals(res[0], self.revision4)
-        self.assertEquals(res[1], self.revision3)
+        self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
+        self.assertEquals(actual_results[0], self.revision4)
+        self.assertEquals(actual_results[1], self.revision3)
 
     @istest
     def revision_log_with_limit(self):
@@ -667,27 +671,35 @@ class AbstractTestStorage(DbTestFixture):
         # self.revision4 -is-child-of-> self.revision3
         self.storage.revision_add([self.revision3,
                                    self.revision4])
-        actual_result = self.storage.revision_log([self.revision4['id']], 1)
+        actual_results = list(self.storage.revision_log(
+            [self.revision4['id']], 1))
 
-        res = list(actual_result)
-        self.assertEqual(len(res), 1)
+        # hack: ids generated
+        for actual_result in actual_results:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
 
-        self.assertEquals(res[0], self.revision4)
+        self.assertEqual(len(actual_results), 1)
+        self.assertEquals(actual_results[0], self.revision4)
 
     @istest
     def revision_get(self):
         self.storage.revision_add([self.revision])
 
-        get = list(self.storage.revision_get([self.revision['id'],
-                                              self.revision2['id']]))
+        actual_revisions = list(self.storage.revision_get(
+            [self.revision['id'], self.revision2['id']]))
 
-        self.assertEqual(len(get), 2)
-        self.assertEqual(get[0], self.revision)
-        self.assertEqual(get[0]['date'].utcoffset(),
+        # when
+        del actual_revisions[0]['author']['id']  # hack: ids are generated
+        del actual_revisions[0]['committer']['id']
+
+        self.assertEqual(len(actual_revisions), 2)
+        self.assertEqual(actual_revisions[0], self.revision)
+        self.assertEqual(actual_revisions[0]['date'].utcoffset(),
                          self.revision['date'].utcoffset())
-        self.assertEqual(get[0]['committer_date'].utcoffset(),
+        self.assertEqual(actual_revisions[0]['committer_date'].utcoffset(),
                          self.revision['committer_date'].utcoffset())
-        self.assertEqual(get[1], None)
+        self.assertIsNone(actual_revisions[1])
 
     @istest
     def revision_get_no_parents(self):
@@ -767,44 +779,63 @@ class AbstractTestStorage(DbTestFixture):
             occurrence2['branch'],
             occurrence2['date']))
 
-        self.assertEquals(len(actual_results0), 1)
-        self.assertEqual(actual_results0, [self.revision2])
-
-        # when
-        actual_results0 = list(self.storage.revision_get_by(
-            origin_id,
-            occurrence2['branch'],
-            occurrence2['date'] + dt/3))  # closer to occurrence2
+        # hack: ids are generated
+        del actual_results0[0]['author']['id']
+        del actual_results0[0]['committer']['id']
 
         self.assertEquals(len(actual_results0), 1)
         self.assertEqual(actual_results0, [self.revision2])
-
-        # when
-        actual_results0 = list(self.storage.revision_get_by(
-            origin_id,
-            occurrence2['branch'],
-            occurrence2['date'] + 2*dt/3))  # closer to occurrence3
-
-        self.assertEquals(len(actual_results0), 1)
-        self.assertEqual(actual_results0, [self.revision3])
 
         # when
         actual_results1 = list(self.storage.revision_get_by(
             origin_id,
-            occurrence3['branch'],
-            occurrence3['date']))
+            occurrence2['branch'],
+            occurrence2['date'] + dt/3))  # closer to occurrence2
+
+        # hack: ids are generated
+        del actual_results1[0]['author']['id']
+        del actual_results1[0]['committer']['id']
 
         self.assertEquals(len(actual_results1), 1)
-        self.assertEqual(actual_results1, [self.revision3])
+        self.assertEqual(actual_results1, [self.revision2])
 
         # when
         actual_results2 = list(self.storage.revision_get_by(
             origin_id,
+            occurrence2['branch'],
+            occurrence2['date'] + 2*dt/3))  # closer to occurrence3
+
+        del actual_results2[0]['author']['id']
+        del actual_results2[0]['committer']['id']
+
+        self.assertEquals(len(actual_results2), 1)
+        self.assertEqual(actual_results2, [self.revision3])
+
+        # when
+        actual_results3 = list(self.storage.revision_get_by(
+            origin_id,
+            occurrence3['branch'],
+            occurrence3['date']))
+
+        # hack: ids are generated
+        del actual_results3[0]['author']['id']
+        del actual_results3[0]['committer']['id']
+
+        self.assertEquals(len(actual_results3), 1)
+        self.assertEqual(actual_results3, [self.revision3])
+
+        # when
+        actual_results4 = list(self.storage.revision_get_by(
+            origin_id,
             None,
             None))
 
-        self.assertEquals(len(actual_results2), 2)
-        self.assertCountEqual(actual_results2,
+        for actual_result in actual_results4:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
+
+        self.assertEquals(len(actual_results4), 2)
+        self.assertCountEqual(actual_results4,
                               [self.revision3, self.revision2])
 
     @istest
@@ -826,12 +857,13 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.release_add([self.release, self.release2])
 
         # when
-        actual_releases = self.storage.release_get([self.release['id'],
-                                                    self.release2['id']])
-
-        actual_releases = list(actual_releases)
+        actual_releases = list(self.storage.release_get([self.release['id'],
+                                                         self.release2['id']]))
 
         # then
+        for actual_release in actual_releases:
+            del actual_release['author']['id']  # hack: ids are generated
+
         self.assertEquals([self.release, self.release2],
                           [actual_releases[0], actual_releases[1]])
 

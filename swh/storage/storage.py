@@ -528,9 +528,9 @@ class Storage():
 
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
-                'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'metadata',
-                'synthetic', 'parents')
+                'message', 'author_id', 'author_name', 'author_email',
+                'committer_id', 'committer_name', 'committer_email',
+                'metadata', 'synthetic', 'parents')
 
         db = self.db
 
@@ -564,8 +564,9 @@ class Storage():
 
         keys = ['id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory', 'message',
-                'author_name', 'author_email', 'committer_name',
-                'committer_email', 'metadata', 'synthetic', 'parents']
+                'author_id', 'author_name', 'author_email', 'committer_id',
+                'committer_name', 'committer_email', 'metadata', 'synthetic',
+                'parents']
 
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
@@ -583,8 +584,9 @@ class Storage():
 
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory', 'message',
-                'author_name', 'author_email', 'committer_name',
-                'committer_email', 'metadata', 'synthetic', 'parents')
+                'author_id', 'author_name', 'author_email', 'committer_id',
+                'committer_name', 'committer_email', 'metadata', 'synthetic',
+                'parents')
 
         for line in db.revision_log_by(origin_id, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
@@ -675,7 +677,8 @@ class Storage():
         db = self.db
 
         keys = ['id', 'target', 'target_type', 'date', 'date_offset', 'name',
-                'comment', 'synthetic', 'author_name', 'author_email']
+                'comment', 'synthetic', 'author_id', 'author_name',
+                'author_email']
 
         db.mktemp_release_get(cur)
 
@@ -759,9 +762,9 @@ class Storage():
         """
         keys = ('id', 'date', 'date_offset', 'committer_date',
                 'committer_date_offset', 'type', 'directory',
-                'message', 'author_name', 'author_email',
-                'committer_name', 'committer_email', 'metadata',
-                'synthetic', 'parents')
+                'message', 'author_id', 'author_name', 'author_email',
+                'committer_id', 'committer_name', 'committer_email',
+                'metadata', 'synthetic', 'parents')
 
         for line in self.db.revision_get_by(origin_id,
                                             branch_name,
@@ -788,7 +791,8 @@ class Storage():
 
         """
         keys = ('id', 'target', 'target_type', 'date', 'date_offset', 'name',
-                'comment', 'synthetic', 'author_name', 'author_email')
+                'comment', 'synthetic', 'author_id', 'author_name',
+                'author_email')
 
         for line in self.db.release_get_by(origin_id, limit=limit):
             data = converters.db_to_release(dict(zip(keys, line)))

@@ -321,8 +321,9 @@ class Db:
 
         query = """SELECT id, date, date_offset, committer_date,
                           committer_date_offset, type, directory, message,
-                          author_name, author_email, committer_name,
-                          committer_email, metadata, synthetic, parents
+                          author_id, author_name, author_email, committer_id,
+                          committer_name, committer_email, metadata,
+                          synthetic, parents
                    FROM swh_revision_log(%s, %s)
                 """
         cur.execute(query, (root_revisions, limit))

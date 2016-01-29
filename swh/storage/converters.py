@@ -31,10 +31,11 @@ def author_to_db(author):
     return author
 
 
-def db_to_author(name, email):
+def db_to_author(id, name, email):
     """Convert the DB representation of an author to a swh-model author.
 
     Args:
+        id (long): the author's identifier
         name (bytes): the author's name
         email (bytes): the author's email
 
@@ -43,6 +44,7 @@ def db_to_author(name, email):
     """
 
     return {
+        'id': id,
         'name': name,
         'email': email,
     }
@@ -139,12 +141,14 @@ def db_to_revision(db_revision):
     representation."""
 
     author = db_to_author(
+        db_revision['author_id'],
         db_revision['author_name'],
         db_revision['author_email'],
     )
     date = db_to_date(db_revision['date'], db_revision['date_offset'])
 
     committer = db_to_author(
+        db_revision['committer_id'],
         db_revision['committer_name'],
         db_revision['committer_email'],
     )
@@ -201,6 +205,7 @@ def db_to_release(db_release):
     """
 
     author = db_to_author(
+        db_release['author_id'],
         db_release['author_name'],
         db_release['author_email'],
     )
