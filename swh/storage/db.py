@@ -8,6 +8,7 @@ import datetime
 import functools
 import json
 import psycopg2
+import psycopg2.extras
 import tempfile
 
 from contextlib import contextmanager
