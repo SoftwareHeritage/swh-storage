@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(47, now(), 'Work In Progress');
+      values(51, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -360,6 +360,17 @@ create table revision_history
 
 create index on revision_history(parent_id);
 
+-- The timestamps at which Software Heritage has made a visit of the given origin.
+create table origin_visit
+(
+  origin  bigint not null references origin(id),
+  visit   bigint not null,
+  date    timestamptz not null,
+  primary key (origin, visit)
+);
+
+create index on origin_visit(date);
+
 -- The content of software origins is indexed starting from top-level pointers
 -- called "branches". Every time we fetch some origin we store in this table
 -- where the branches pointed to at fetch time.
@@ -368,17 +379,13 @@ create index on revision_history(parent_id);
 -- * git: ref (in the "git update-ref" sense)
 create table occurrence_history
 (
-  origin     bigint references origin(id),
-  branch     bytea,  -- e.g., b"master" (for VCS), or b"sid" (for Debian)
-  target     sha1_git,  -- ref target, e.g., commit id
-  target_type object_type, -- ref target type
-  authority  uuid references entity(uuid),
-                      -- who is claiming to have seen the occurrence.
-                      -- Note: SWH is such an authority, and has an entry in
-                      -- the organization table.
-  validity   tstzrange,  -- The time validity of this table entry. If the upper
-                         -- bound is missing, the entry is still valid.
-  object_id  bigserial,  -- short object identifier
+  origin       bigint references origin(id),
+  branch       bytea,        -- e.g., b"master" (for VCS), or b"sid" (for Debian)
+  target       sha1_git,     -- ref target, e.g., commit id
+  target_type  object_type,  -- ref target type
+  object_id    bigserial,    -- short object identifier
+  visits       bigint[],     -- the visits where that occurrence was valid. References
+                             -- origin_visit(visit), where o_h.origin = origin_visit.origin.
   primary key (object_id)
 );
 

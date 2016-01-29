@@ -259,18 +259,16 @@ class AbstractTestStorage(DbTestFixture):
             'branch': b'master',
             'target': b'67890123456789012345',
             'target_type': 'revision',
-            'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
-            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
-                                          tzinfo=datetime.timezone.utc),
+            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
         }
 
         self.occurrence2 = {
             'branch': b'master',
             'target': self.revision2['id'],
             'target_type': 'revision',
-            'authority': '5f4d4c51-498a-4e28-88b3-b3e4e8396cba',
-            'validity': datetime.datetime(2015, 1, 1, 23, 0, 0,
-                                          tzinfo=datetime.timezone.utc),
+            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
         }
 
         self.release = {
@@ -655,13 +653,17 @@ class AbstractTestStorage(DbTestFixture):
                                    self.revision4])
 
         # when
-        actual_result = self.storage.revision_log([self.revision4['id']])
+        actual_results = list(self.storage.revision_log(
+            [self.revision4['id']]))
 
-        res = list(actual_result)
-        self.assertEqual(len(res), 2)  # revision4 is a child of revision3
+        # hack: ids generated
+        for actual_result in actual_results:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
 
-        self.assertEquals(res[0], self.revision4)
-        self.assertEquals(res[1], self.revision3)
+        self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
+        self.assertEquals(actual_results[0], self.revision4)
+        self.assertEquals(actual_results[1], self.revision3)
 
     @istest
     def revision_log_with_limit(self):
@@ -669,27 +671,35 @@ class AbstractTestStorage(DbTestFixture):
         # self.revision4 -is-child-of-> self.revision3
         self.storage.revision_add([self.revision3,
                                    self.revision4])
-        actual_result = self.storage.revision_log([self.revision4['id']], 1)
+        actual_results = list(self.storage.revision_log(
+            [self.revision4['id']], 1))
 
-        res = list(actual_result)
-        self.assertEqual(len(res), 1)
+        # hack: ids generated
+        for actual_result in actual_results:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
 
-        self.assertEquals(res[0], self.revision4)
+        self.assertEqual(len(actual_results), 1)
+        self.assertEquals(actual_results[0], self.revision4)
 
     @istest
     def revision_get(self):
         self.storage.revision_add([self.revision])
 
-        get = list(self.storage.revision_get([self.revision['id'],
-                                              self.revision2['id']]))
+        actual_revisions = list(self.storage.revision_get(
+            [self.revision['id'], self.revision2['id']]))
 
-        self.assertEqual(len(get), 2)
-        self.assertEqual(get[0], self.revision)
-        self.assertEqual(get[0]['date'].utcoffset(),
+        # when
+        del actual_revisions[0]['author']['id']  # hack: ids are generated
+        del actual_revisions[0]['committer']['id']
+
+        self.assertEqual(len(actual_revisions), 2)
+        self.assertEqual(actual_revisions[0], self.revision)
+        self.assertEqual(actual_revisions[0]['date'].utcoffset(),
                          self.revision['date'].utcoffset())
-        self.assertEqual(get[0]['committer_date'].utcoffset(),
+        self.assertEqual(actual_revisions[0]['committer_date'].utcoffset(),
                          self.revision['committer_date'].utcoffset())
-        self.assertEqual(get[1], None)
+        self.assertIsNone(actual_revisions[1])
 
     @istest
     def revision_get_no_parents(self):
@@ -750,12 +760,13 @@ class AbstractTestStorage(DbTestFixture):
         # need to point to the right origin
         occurrence2 = self.occurrence2.copy()
         occurrence2.update({'origin': origin_id,
-                            'validity': occurrence2['validity']})
+                            'date': occurrence2['date']})
+
+        dt = datetime.timedelta(days=1)
 
         occurrence3 = self.occurrence2.copy()
         occurrence3.update({'origin': origin_id,
-                            'validity': occurrence3['validity'] +
-                            datetime.timedelta(days=1),
+                            'date': occurrence3['date'] + dt,
                             'target': self.revision3['id']})
 
         # 2 occurrences on same revision with lower validity date with 1h delta
@@ -766,33 +777,66 @@ class AbstractTestStorage(DbTestFixture):
         actual_results0 = list(self.storage.revision_get_by(
             origin_id,
             occurrence2['branch'],
-            occurrence2['validity']))
+            occurrence2['date']))
 
-        expected_revisions = list(self.storage.revision_get(
-            [self.revision2['id'],
-             self.revision3['id']]))
+        # hack: ids are generated
+        del actual_results0[0]['author']['id']
+        del actual_results0[0]['committer']['id']
 
         self.assertEquals(len(actual_results0), 1)
-        self.assertEqual(actual_results0[0]['id'], self.revision2['id'])
-        self.assertEqual(actual_results0, [expected_revisions[0]])  # revision2
+        self.assertEqual(actual_results0, [self.revision2])
 
         # when
         actual_results1 = list(self.storage.revision_get_by(
             origin_id,
-            occurrence3['branch'],
-            occurrence3['validity']))
+            occurrence2['branch'],
+            occurrence2['date'] + dt/3))  # closer to occurrence2
+
+        # hack: ids are generated
+        del actual_results1[0]['author']['id']
+        del actual_results1[0]['committer']['id']
 
         self.assertEquals(len(actual_results1), 1)
-        self.assertEqual(actual_results1, [self.revision3])
+        self.assertEqual(actual_results1, [self.revision2])
 
         # when
-        actual_results1 = list(self.storage.revision_get_by(
+        actual_results2 = list(self.storage.revision_get_by(
+            origin_id,
+            occurrence2['branch'],
+            occurrence2['date'] + 2*dt/3))  # closer to occurrence3
+
+        del actual_results2[0]['author']['id']
+        del actual_results2[0]['committer']['id']
+
+        self.assertEquals(len(actual_results2), 1)
+        self.assertEqual(actual_results2, [self.revision3])
+
+        # when
+        actual_results3 = list(self.storage.revision_get_by(
+            origin_id,
+            occurrence3['branch'],
+            occurrence3['date']))
+
+        # hack: ids are generated
+        del actual_results3[0]['author']['id']
+        del actual_results3[0]['committer']['id']
+
+        self.assertEquals(len(actual_results3), 1)
+        self.assertEqual(actual_results3, [self.revision3])
+
+        # when
+        actual_results4 = list(self.storage.revision_get_by(
             origin_id,
             None,
             None))
 
-        self.assertEquals(len(actual_results1), 2)
-        self.assertEqual(actual_results1, [self.revision3, self.revision2])
+        for actual_result in actual_results4:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
+
+        self.assertEquals(len(actual_results4), 2)
+        self.assertCountEqual(actual_results4,
+                              [self.revision3, self.revision2])
 
     @istest
     def release_add(self):
@@ -813,12 +857,13 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.release_add([self.release, self.release2])
 
         # when
-        actual_releases = self.storage.release_get([self.release['id'],
-                                                    self.release2['id']])
-
-        actual_releases = list(actual_releases)
+        actual_releases = list(self.storage.release_get([self.release['id'],
+                                                         self.release2['id']]))
 
         # then
+        for actual_release in actual_releases:
+            del actual_release['author']['id']  # hack: ids are generated
+
         self.assertEquals([self.release, self.release2],
                           [actual_releases[0], actual_releases[1]])
 
@@ -893,38 +938,42 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.occurrence_add([occur])
         self.storage.occurrence_add([occur])
 
-        test_query = '''select origin, branch, target, target_type, authority, validity
-                        from occurrence_history
-                        order by origin, validity'''
+        test_query = '''
+        with indiv_occurrences as (
+          select origin, branch, target, target_type, unnest(visits) as visit
+          from occurrence_history
+        )
+        select origin, branch, target, target_type, date
+        from indiv_occurrences
+        left join origin_visit using(origin, visit)
+        order by origin, date'''
 
         self.cursor.execute(test_query)
         ret = self.cursor.fetchall()
         self.assertEqual(len(ret), 1)
-        self.assertEqual((ret[0][0], ret[0][1].tobytes(),
-                          ret[0][2].tobytes(), ret[0][3],
-                          ret[0][4]),
-                         (occur['origin'], occur['branch'],
-                          occur['target'], occur['target_type'],
-                          occur['authority']))
+        self.assertEqual(
+            (ret[0][0], ret[0][1].tobytes(), ret[0][2].tobytes(),
+             ret[0][3], ret[0][4]),
+            (occur['origin'], occur['branch'], occur['target'],
+             occur['target_type'], occur['date']))
 
-        self.assertEqual(ret[0][5].lower, occur['validity'])
-        self.assertEqual(ret[0][5].lower_inc, True)
-        self.assertEqual(ret[0][5].upper, datetime.datetime.max)
-
-        orig_validity = occur['validity']
-        occur['validity'] += datetime.timedelta(hours=10)
+        orig_date = occur['date']
+        occur['date'] += datetime.timedelta(hours=10)
         self.storage.occurrence_add([occur])
 
         self.cursor.execute(test_query)
         ret = self.cursor.fetchall()
         self.assertEqual(len(ret), 2)
-        self.assertEqual(ret[0][5].lower, orig_validity)
-        self.assertEqual(ret[0][5].lower_inc, True)
-        self.assertEqual(ret[0][5].upper, occur['validity'])
-        self.assertEqual(ret[0][5].upper_inc, False)
-        self.assertEqual(ret[1][5].lower, occur['validity'])
-        self.assertEqual(ret[1][5].lower_inc, True)
-        self.assertEqual(ret[1][5].upper, datetime.datetime.max)
+        self.assertEqual(
+            (ret[0][0], ret[0][1].tobytes(), ret[0][2].tobytes(),
+             ret[0][3], ret[0][4]),
+            (occur['origin'], occur['branch'], occur['target'],
+             occur['target_type'], orig_date))
+        self.assertEqual(
+            (ret[1][0], ret[1][1].tobytes(), ret[1][2].tobytes(),
+             ret[1][3], ret[1][4]),
+            (occur['origin'], occur['branch'], occur['target'],
+             occur['target_type'], occur['date']))
 
     @istest
     def occurrence_get(self):
@@ -945,12 +994,7 @@ class AbstractTestStorage(DbTestFixture):
 
         # then
         expected_occur = occur.copy()
-        expected_occur.update({
-            'validity_lower': expected_occur['validity'],
-            'validity_upper': datetime.datetime(9999, 12, 31, 23, 59, 59,
-                                                999999)
-        })
-        del expected_occur['validity']
+        del expected_occur['date']
 
         self.assertEquals(len(actual_occurrence), 1)
         self.assertEquals(actual_occurrence[0], expected_occur)
@@ -1098,35 +1142,6 @@ class AbstractTestStorage(DbTestFixture):
         self.assertTrue(set(expected_keys) <= set(counters))
         self.assertIsInstance(counters[expected_keys[0]], int)
 
-
-class TestStorage(AbstractTestStorage, unittest.TestCase):
-    """Test the local storage"""
-
-    # Can only be tested with local storage as you can't mock
-    # datetimes for the remote server
-    @istest
-    def fetch_history(self):
-        origin = self.storage.origin_add_one(self.origin)
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = self.fetch_history_date
-            fetch_history_id = self.storage.fetch_history_start(origin)
-            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
-
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = self.fetch_history_end
-            self.storage.fetch_history_end(fetch_history_id,
-                                           self.fetch_history_data)
-
-        fetch_history = self.storage.fetch_history_get(fetch_history_id)
-        expected_fetch_history = self.fetch_history_data.copy()
-
-        expected_fetch_history['id'] = fetch_history_id
-        expected_fetch_history['origin'] = origin
-        expected_fetch_history['date'] = self.fetch_history_date
-        expected_fetch_history['duration'] = self.fetch_history_duration
-
-        self.assertEqual(expected_fetch_history, fetch_history)
-
     @istest
     def content_find_with_present_content(self):
         # 1. with something to find
@@ -1217,6 +1232,35 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
         with self.assertRaises(ValueError):
             self.storage.content_find(
                 {'unknown-sha1': 'something'})  # not the right key
+
+
+class TestStorage(AbstractTestStorage, unittest.TestCase):
+    """Test the local storage"""
+
+    # Can only be tested with local storage as you can't mock
+    # datetimes for the remote server
+    @istest
+    def fetch_history(self):
+        origin = self.storage.origin_add_one(self.origin)
+        with patch('datetime.datetime'):
+            datetime.datetime.now.return_value = self.fetch_history_date
+            fetch_history_id = self.storage.fetch_history_start(origin)
+            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
+
+        with patch('datetime.datetime'):
+            datetime.datetime.now.return_value = self.fetch_history_end
+            self.storage.fetch_history_end(fetch_history_id,
+                                           self.fetch_history_data)
+
+        fetch_history = self.storage.fetch_history_get(fetch_history_id)
+        expected_fetch_history = self.fetch_history_data.copy()
+
+        expected_fetch_history['id'] = fetch_history_id
+        expected_fetch_history['origin'] = origin
+        expected_fetch_history['date'] = self.fetch_history_date
+        expected_fetch_history['duration'] = self.fetch_history_duration
+
+        self.assertEqual(expected_fetch_history, fetch_history)
 
     @istest
     def person_get(self):

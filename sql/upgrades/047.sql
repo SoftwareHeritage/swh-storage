@@ -3,6 +3,8 @@
 -- to_version: 47
 -- description: Change type from text to bytea for release.name, occurrence.branch and occurrence_history.branch
 
+insert into dbversion(version, release, description) values(47, now(), 'Work In Progress');
+
 -- Update types
 ALTER TABLE release
 ALTER COLUMN name
