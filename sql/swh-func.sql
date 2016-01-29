@@ -984,7 +984,7 @@ begin
     end if;
 
     if cardinality(filters) = 0 then
-        raise exception 'At least one filter amongst (origin_id, branch_name, validity) is needed';
+        raise exception 'At least one filter amongst (origin_id, branch_name, date) is needed';
     else
         q = format('select * ' ||
                    'from occurrence_history ' ||
