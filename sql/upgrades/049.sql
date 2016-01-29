@@ -1,7 +1,7 @@
 -- SWH DB schema upgrade
 -- from_version: 48
 -- to_version: 49
--- description: update the schemata for occurrence and occurrence_history
+-- description: update the schema for occurrence and occurrence_history
 
 insert into dbversion(version, release, description)
       values(49, now(), 'Work In Progress');
