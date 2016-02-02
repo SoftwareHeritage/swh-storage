@@ -682,6 +682,40 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(len(actual_results), 1)
         self.assertEquals(actual_results[0], self.revision4)
 
+    @staticmethod
+    def _short_revision(revision):
+        return [revision['id'], revision['parents']]
+
+    @istest
+    def revision_shortlog(self):
+        # given
+        # self.revision4 -is-child-of-> self.revision3
+        self.storage.revision_add([self.revision3,
+                                   self.revision4])
+
+        # when
+        actual_results = list(self.storage.revision_shortlog(
+            [self.revision4['id']]))
+
+        self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
+        self.assertEquals(list(actual_results[0]),
+                          self._short_revision(self.revision4))
+        self.assertEquals(list(actual_results[1]),
+                          self._short_revision(self.revision3))
+
+    @istest
+    def revision_shortlog_with_limit(self):
+        # given
+        # self.revision4 -is-child-of-> self.revision3
+        self.storage.revision_add([self.revision3,
+                                   self.revision4])
+        actual_results = list(self.storage.revision_shortlog(
+            [self.revision4['id']], 1))
+
+        self.assertEqual(len(actual_results), 1)
+        self.assertEquals(list(actual_results[0]),
+                          self._short_revision(self.revision4))
+
     @istest
     def revision_get(self):
         self.storage.revision_add([self.revision])

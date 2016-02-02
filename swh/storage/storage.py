@@ -576,6 +576,22 @@ class Storage():
             yield data
 
     @db_transaction_generator
+    def revision_shortlog(self, revisions, limit=None, cur=None):
+        """Fetch the shortlog for the given revisions
+
+        Args:
+            revisions: list of root revisions to lookup
+            limit: depth limitation for the output
+
+        Yields:
+            a list of (id, parents) tuples.
+        """
+
+        db = self.db
+
+        yield from db.revision_shortlog(revisions, limit, cur)
+
+    @db_transaction_generator
     def revision_log_by(self, origin_id, limit=None, cur=None):
         """Fetch revision entry from the actual origin_id's latest revision.
 

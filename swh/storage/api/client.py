@@ -124,6 +124,10 @@ class RemoteStorage():
         return self.post('revision/log', {'revisions': revisions,
                                           'limit': limit})
 
+    def revision_shortlog(self, revisions, limit=None):
+        return self.post('revision/shortlog', {'revisions': revisions,
+                                               'limit': limit})
+
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
 

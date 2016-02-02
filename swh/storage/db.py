@@ -329,6 +329,15 @@ class Db:
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
+    def revision_shortlog(self, root_revisions, limit=None, cur=None):
+        cur = self._cursor(cur)
+
+        query = """SELECT id, parents
+                   FROM swh_revision_list(%s, %s)
+                """
+        cur.execute(query, (root_revisions, limit))
+        yield from cursor_to_bytes(cur)
+
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT id FROM swh_release_missing() as r(id)')
