@@ -319,12 +319,22 @@ class Db:
     def revision_log(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
 
-        query = """SELECT id, date, date_offset, committer_date,
-                          committer_date_offset, type, directory, message,
+        query = """SELECT id, date, date_offset, date_neg_utc_offset, committer_date,
+                          committer_date_offset, committer_date_neg_utc_offset,
+                          type, directory, message,
                           author_id, author_name, author_email, committer_id,
                           committer_name, committer_email, metadata,
                           synthetic, parents
                    FROM swh_revision_log(%s, %s)
+                """
+        cur.execute(query, (root_revisions, limit))
+        yield from cursor_to_bytes(cur)
+
+    def revision_shortlog(self, root_revisions, limit=None, cur=None):
+        cur = self._cursor(cur)
+
+        query = """SELECT id, parents
+                   FROM swh_revision_list(%s, %s)
                 """
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)

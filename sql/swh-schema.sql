@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(51, now(), 'Work In Progress');
+      values(52, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -334,8 +334,10 @@ create table revision
   id                    sha1_git primary key,
   date                  timestamptz,
   date_offset           smallint,
+  date_neg_utc_offset   boolean,
   committer_date        timestamptz,
   committer_date_offset smallint,
+  committer_date_neg_utc_offset boolean,
   type                  revision_type not null,
   directory             sha1_git,  -- file-system tree
   message               bytea,
@@ -415,6 +417,7 @@ create table release
   target_type object_type,
   date        timestamptz,
   date_offset smallint,
+  date_neg_utc_offset  boolean,
   name        bytea,
   comment     bytea,
   author      bigint references person(id),

@@ -144,6 +144,11 @@ def revision_log():
     return encode_data(g.storage.revision_log(**decode_request(request)))
 
 
+@app.route('/revision/shortlog', methods=['POST'])
+def revision_shortlog():
+    return encode_data(g.storage.revision_shortlog(**decode_request(request)))
+
+
 @app.route('/revision/missing', methods=['POST'])
 def revision_missing():
     return encode_data(g.storage.revision_missing(**decode_request(request)))
