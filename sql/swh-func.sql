@@ -578,8 +578,10 @@ create type revision_entry as
   id                     sha1_git,
   date                   timestamptz,
   date_offset            smallint,
+  date_neg_utc_offset    boolean,
   committer_date         timestamptz,
   committer_date_offset  smallint,
+  committer_date_neg_utc_offset    boolean,
   type                   revision_type,
   directory              sha1_git,
   message                bytea,
@@ -602,8 +604,8 @@ create or replace function swh_revision_log(root_revisions bytea[], num_revs big
     language sql
     stable
 as $$
-    select t.id, r.date, r.date_offset,
-           r.committer_date, r.committer_date_offset,
+    select t.id, r.date, r.date_offset, r.date_neg_utc_offset,
+           r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
            r.type, r.directory, r.message,
            a.id, a.name, a.email,
            c.id, c.name, c.email,
@@ -622,8 +624,8 @@ create or replace function swh_revision_get()
 as $$
 begin
     return query
-        select t.id, r.date, r.date_offset,
-               r.committer_date, r.committer_date_offset,
+        select t.id, r.date, r.date_offset, r.date_neg_utc_offset,
+               r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
                r.type, r.directory, r.message,
                a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
          array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
@@ -659,6 +661,7 @@ create type release_entry as
   target_type  object_type,
   date         timestamptz,
   date_offset  smallint,
+  date_neg_utc_offset boolean,
   name         bytea,
   comment      bytea,
   synthetic    boolean,
@@ -674,7 +677,7 @@ create or replace function swh_release_get()
 as $$
 begin
     return query
-        select r.id, r.target, r.target_type, r.date, r.date_offset, r.name, r.comment,
+        select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
                r.synthetic, p.id as author_id, p.name as author_name, p.email as author_email
         from tmp_release_get t
         inner join release r on t.id = r.id
@@ -713,8 +716,8 @@ as $$
 begin
     perform swh_person_add_from_revision();
 
-    insert into revision (id, date, date_offset, committer_date, committer_date_offset, type, directory, message, author, committer, metadata, synthetic)
-    select t.id, t.date, t.date_offset, t.committer_date, t.committer_date_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic
+    insert into revision (id, date, date_offset, date_neg_utc_offset, committer_date, committer_date_offset, committer_date_neg_utc_offset, type, directory, message, author, committer, metadata, synthetic)
+    select t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic
     from tmp_revision t
     left join person a on a.name = t.author_name and a.email = t.author_email
     left join person c on c.name = t.committer_name and c.email = t.committer_email;
@@ -767,8 +770,8 @@ as $$
 begin
     perform swh_person_add_from_release();
 
-    insert into release (id, target, target_type, date, date_offset, name, comment, author, synthetic)
-    select t.id, t.target, t.target_type, t.date, t.date_offset, t.name, t.comment, a.id, t.synthetic
+    insert into release (id, target, target_type, date, date_offset, date_neg_utc_offset, name, comment, author, synthetic)
+    select t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.name, t.comment, a.id, t.synthetic
     from tmp_release t
     left join person a on a.name = t.author_name and a.email = t.author_email;
     return;
@@ -1009,8 +1012,8 @@ create or replace function swh_revision_get_by(
     language sql
     stable
 as $$
-    select r.id, r.date, r.date_offset,
-        r.committer_date, r.committer_date_offset,
+    select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
+        r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
         r.type, r.directory, r.message,
         a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
         array(select rh.parent_id::bytea
@@ -1031,7 +1034,7 @@ create or replace function swh_release_get_by(
     language sql
     stable
 as $$
-   select r.id, r.target, r.target_type, r.date, r.date_offset,
+   select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset,
         r.name, r.comment, r.synthetic, a.id as author_id,
         a.name as author_name, a.email as author_email
     from release r

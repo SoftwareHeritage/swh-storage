@@ -319,8 +319,9 @@ class Db:
     def revision_log(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
 
-        query = """SELECT id, date, date_offset, committer_date,
-                          committer_date_offset, type, directory, message,
+        query = """SELECT id, date, date_offset, date_neg_utc_offset, committer_date,
+                          committer_date_offset, committer_date_neg_utc_offset,
+                          type, directory, message,
                           author_id, author_name, author_email, committer_id,
                           committer_name, committer_email, metadata,
                           synthetic, parents

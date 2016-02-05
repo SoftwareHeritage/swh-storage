@@ -452,10 +452,14 @@ class Storage():
                 - date (datetime.DateTime): date the revision was written
                 - date_offset (int): offset from UTC in minutes the revision
                     was written
+                - date_neg_utc_offset (boolean): whether a null date_offset
+                    represents a negative UTC offset
                 - committer_date (datetime.DateTime): date the revision got
                     added to the origin
                 - committer_date_offset (int): offset from UTC in minutes the
                     revision was added to the origin
+                - committer_date_neg_utc_offset (boolean): whether a null
+                    committer_date_offset represents a negative UTC offset
                 - type (one of 'git', 'tar'): type of the revision added
                 - directory (sha1_git): the directory the revision points at
                 - message (bytes): the message associated with the revision
@@ -487,9 +491,10 @@ class Storage():
 
             db.copy_to(
                 revisions_filtered, 'tmp_revision',
-                ['id', 'date', 'date_offset', 'committer_date',
-                 'committer_date_offset', 'type', 'directory', 'message',
-                 'author_name', 'author_email', 'committer_name',
+                ['id', 'date', 'date_offset', 'date_neg_utc_offset',
+                 'committer_date', 'committer_date_offset',
+                 'committer_date_neg_utc_offset', 'type', 'directory',
+                 'message', 'author_name', 'author_email', 'committer_name',
                  'committer_email', 'metadata', 'synthetic'],
                 cur,
                 lambda rev: parents_filtered.extend(rev['parents']))
@@ -526,8 +531,9 @@ class Storage():
                     (or None if the revision doesn't exist)
         """
 
-        keys = ('id', 'date', 'date_offset', 'committer_date',
-                'committer_date_offset', 'type', 'directory',
+        keys = ('id', 'date', 'date_offset', 'date_neg_utc_offset',
+                'committer_date', 'committer_date_offset',
+                'committer_date_neg_utc_offset', 'type', 'directory',
                 'message', 'author_id', 'author_name', 'author_email',
                 'committer_id', 'committer_name', 'committer_email',
                 'metadata', 'synthetic', 'parents')
@@ -562,11 +568,12 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'date', 'date_offset', 'committer_date',
-                'committer_date_offset', 'type', 'directory', 'message',
-                'author_id', 'author_name', 'author_email', 'committer_id',
-                'committer_name', 'committer_email', 'metadata', 'synthetic',
-                'parents']
+        keys = ['id', 'date', 'date_offset', 'date_neg_utc_offset',
+                'committer_date', 'committer_date_offset',
+                'committer_date_neg_utc_offset', 'type', 'directory',
+                'message', 'author_id', 'author_name', 'author_email',
+                'committer_id', 'committer_name', 'committer_email',
+                'metadata', 'synthetic', 'parents']
 
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
@@ -598,11 +605,12 @@ class Storage():
         """
         db = self.db
 
-        keys = ('id', 'date', 'date_offset', 'committer_date',
-                'committer_date_offset', 'type', 'directory', 'message',
-                'author_id', 'author_name', 'author_email', 'committer_id',
-                'committer_name', 'committer_email', 'metadata', 'synthetic',
-                'parents')
+        keys = ('id', 'date', 'date_offset', 'date_neg_utc_offset',
+                'committer_date', 'committer_date_offset',
+                'committer_date_neg_utc_offset', 'type', 'directory',
+                'message', 'author_id', 'author_name', 'author_email',
+                'committer_id', 'committer_name', 'committer_email',
+                'metadata', 'synthetic', 'parents')
 
         for line in db.revision_log_by(origin_id, limit, cur):
             data = converters.db_to_revision(dict(zip(keys, line)))
@@ -623,6 +631,8 @@ class Storage():
                 - date (datetime.DateTime): the date the release was made
                 - date_offset (int): offset from UTC in minutes the release was
                     made
+                - date_neg_utc_offset (boolean): whether a null date_offset
+                    represents a negative UTC offset
                 - name (bytes): the name of the release
                 - comment (bytes): the comment associated with the release
                 - author_name (bytes): the name of the release author
@@ -646,8 +656,8 @@ class Storage():
 
             db.copy_to(releases_filtered, 'tmp_release',
                        ['id', 'target', 'target_type', 'date', 'date_offset',
-                        'name', 'comment', 'author_name', 'author_email',
-                        'synthetic'],
+                        'date_neg_utc_offset', 'name', 'comment',
+                        'author_name', 'author_email', 'synthetic'],
                        cur)
 
             db.release_add_from_temp(cur)
@@ -692,9 +702,9 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'target', 'target_type', 'date', 'date_offset', 'name',
-                'comment', 'synthetic', 'author_id', 'author_name',
-                'author_email']
+        keys = ['id', 'target', 'target_type', 'date', 'date_offset',
+                'date_neg_utc_offset', 'name', 'comment', 'synthetic',
+                'author_id', 'author_name', 'author_email']
 
         db.mktemp_release_get(cur)
 
@@ -776,8 +786,9 @@ class Storage():
             found.
 
         """
-        keys = ('id', 'date', 'date_offset', 'committer_date',
-                'committer_date_offset', 'type', 'directory',
+        keys = ('id', 'date', 'date_offset', 'date_neg_utc_offset',
+                'committer_date', 'committer_date_offset',
+                'committer_date_neg_utc_offset', 'type', 'directory',
                 'message', 'author_id', 'author_name', 'author_email',
                 'committer_id', 'committer_name', 'committer_email',
                 'metadata', 'synthetic', 'parents')
@@ -806,9 +817,9 @@ class Storage():
             found.
 
         """
-        keys = ('id', 'target', 'target_type', 'date', 'date_offset', 'name',
-                'comment', 'synthetic', 'author_id', 'author_name',
-                'author_email')
+        keys = ('id', 'target', 'target_type', 'date', 'date_offset',
+                'date_neg_utc_offset', 'name', 'comment', 'synthetic',
+                'author_id', 'author_name', 'author_email')
 
         for line in self.db.release_get_by(origin_id, limit=limit):
             data = converters.db_to_release(dict(zip(keys, line)))
