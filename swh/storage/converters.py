@@ -15,6 +15,7 @@ DEFAULT_AUTHOR = {
 DEFAULT_DATE = {
     'timestamp': None,
     'offset': 0,
+    'neg_utc_offset': None,
 }
 
 
@@ -50,22 +51,29 @@ def db_to_author(id, name, email):
     }
 
 
-def db_to_date(date, offset):
+def db_to_date(date, offset, neg_utc_offset):
     """Convert the DB representation of a date to a swh-model compatible date.
 
     Args:
         date (datetime.datetime): a date pulled out of the database
         offset (int): an integer number of minutes representing an UTC offset
+        neg_utc_offset (boolean): whether an utc offset is negative
 
     Returns:
-        a datetime.datetime object, using a timezone with the proper offset.
+        a dict with three keys:
+            timestamp: a timestamp from UTC
+            offset: the number of minutes since UTC
+            negative_utc: whether a null UTC offset is negative
     """
 
     if date is None:
         return None
 
-    new_tz = datetime.timezone(datetime.timedelta(minutes=offset))
-    return date.astimezone(tz=new_tz)
+    return {
+        'timestamp': date.timestamp(),
+        'offset': offset,
+        'negative_utc': neg_utc_offset,
+    }
 
 
 def date_to_db(date_offset):
@@ -73,7 +81,11 @@ def date_to_db(date_offset):
 
     Args: a swh-model compatible date_offset
     Returns:
-        a dict containing a numeric timestamp and an integer offset
+        a dict with three keys:
+            timestamp: a date in ISO format
+            offset: the UTC offset in minutes
+            neg_utc_offset: a boolean indicating whether a null offset is
+                            negative or positive.
 
     """
 
@@ -88,6 +100,7 @@ def date_to_db(date_offset):
         timestamp = date_offset
         utcoffset = date_offset.utcoffset()
         offset = int(utcoffset.total_seconds()) // 60
+        neg_utc_offset = False if offset == 0 else None
     else:
         if isinstance(date_offset['timestamp'], numbers.Real):
             timestamp = datetime.datetime.fromtimestamp(
@@ -95,10 +108,12 @@ def date_to_db(date_offset):
         else:
             timestamp = date_offset['timestamp']
         offset = date_offset['offset']
+        neg_utc_offset = date_offset.get('negative_utc', None)
 
     return {
         'timestamp': timestamp.isoformat(),
         'offset': offset,
+        'neg_utc_offset': neg_utc_offset,
     }
 
 
@@ -117,10 +132,12 @@ def revision_to_db(revision):
         'author_email': author['email'],
         'date': date['timestamp'],
         'date_offset': date['offset'],
+        'date_neg_utc_offset': date['neg_utc_offset'],
         'committer_name': committer['name'],
         'committer_email': committer['email'],
         'committer_date': committer_date['timestamp'],
         'committer_date_offset': committer_date['offset'],
+        'committer_date_neg_utc_offset': committer_date['neg_utc_offset'],
         'type': revision['type'],
         'directory': revision['directory'],
         'message': revision['message'],
@@ -145,7 +162,11 @@ def db_to_revision(db_revision):
         db_revision['author_name'],
         db_revision['author_email'],
     )
-    date = db_to_date(db_revision['date'], db_revision['date_offset'])
+    date = db_to_date(
+        db_revision['date'],
+        db_revision['date_offset'],
+        db_revision['date_neg_utc_offset'],
+    )
 
     committer = db_to_author(
         db_revision['committer_id'],
@@ -155,6 +176,7 @@ def db_to_revision(db_revision):
     committer_date = db_to_date(
         db_revision['committer_date'],
         db_revision['committer_date_offset'],
+        db_revision['committer_date_neg_utc_offset']
     )
 
     parents = []
@@ -191,6 +213,7 @@ def release_to_db(release):
         'author_email': author['email'],
         'date': date['timestamp'],
         'date_offset': date['offset'],
+        'date_neg_utc_offset': date['neg_utc_offset'],
         'name': release['name'],
         'target': release['target'],
         'target_type': release['target_type'],
@@ -209,7 +232,11 @@ def db_to_release(db_release):
         db_release['author_name'],
         db_release['author_email'],
     )
-    date = db_to_date(db_release['date'], db_release['date_offset'])
+    date = db_to_date(
+        db_release['date'],
+        db_release['date_offset'],
+        db_release['date_neg_utc_offset']
+    )
 
     return {
         'author': author,
