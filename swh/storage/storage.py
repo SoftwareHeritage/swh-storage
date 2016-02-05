@@ -672,7 +672,7 @@ class Storage():
         db = self.db
 
         # Create temporary table for metadata injection
-        db.mktemp('release', cur)
+        db.mktemp_release_get(cur)
 
         releases_dicts = ({'id': rel} for rel in releases)
 
@@ -710,7 +710,7 @@ class Storage():
 
         releases_dicts = ({'id': rel} for rel in releases)
 
-        db.copy_to(releases_dicts, 'tmp_release_get', ['id'], cur)
+        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
 
         for release in db.release_get_from_temp(cur):
             yield converters.db_to_release(dict(zip(keys, release)))

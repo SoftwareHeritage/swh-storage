@@ -85,7 +85,7 @@ create or replace function swh_mktemp_release_get()
     returns void
     language sql
 as $$
-    create temporary table tmp_release_get(
+    create temporary table tmp_release (
       id sha1_git primary key
     ) on commit drop;
 $$;
@@ -679,7 +679,7 @@ begin
     return query
         select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
                r.synthetic, p.id as author_id, p.name as author_name, p.email as author_email
-        from tmp_release_get t
+        from tmp_release t
         inner join release r on t.id = r.id
         inner join person p on p.id = r.author;
     return;
