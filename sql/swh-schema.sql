@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(56, now(), 'Work In Progress');
+      values(57, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -381,27 +381,28 @@ create index on origin_visit(date);
 -- * git: ref (in the "git update-ref" sense)
 create table occurrence_history
 (
-  origin       bigint references origin(id),
-  branch       bytea,        -- e.g., b"master" (for VCS), or b"sid" (for Debian)
-  target       sha1_git,     -- ref target, e.g., commit id
-  target_type  object_type,  -- ref target type
-  object_id    bigserial,    -- short object identifier
-  visits       bigint[],     -- the visits where that occurrence was valid. References
-                             -- origin_visit(visit), where o_h.origin = origin_visit.origin.
+  origin       bigint references origin(id) not null,
+  branch       bytea not null,        -- e.g., b"master" (for VCS), or b"sid" (for Debian)
+  target       sha1_git not null,     -- ref target, e.g., commit id
+  target_type  object_type not null,  -- ref target type
+  object_id    bigserial not null,    -- short object identifier
+  visits       bigint[] not null,     -- the visits where that occurrence was valid. References
+                                      -- origin_visit(visit), where o_h.origin = origin_visit.origin.
   primary key (object_id)
 );
 
 create index on occurrence_history(target, target_type);
 create index on occurrence_history(origin, branch);
+create unique index on occurrence_history(origin, branch, target, target_type);
 
 -- Materialized view of occurrence_history, storing the *current* value of each
 -- branch, as last seen by SWH.
 create table occurrence
 (
-  origin    bigint references origin(id),
-  branch    bytea,
-  target    sha1_git,
-  target_type object_type, -- ref target type
+  origin    bigint references origin(id) not null,
+  branch    bytea not null,
+  target    sha1_git not null,
+  target_type object_type not null,
   primary key(origin, branch)
 );
 
