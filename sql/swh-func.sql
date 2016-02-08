@@ -844,7 +844,7 @@ begin
   -- Create or update occurrence_history
   with occurrence_history_id_visit as (
     select tmp_occurrence_history.*, object_id, visits, visit from tmp_occurrence_history
-    left join occurrence_history using(origin, target, target_type)
+    left join occurrence_history using(origin, branch, target, target_type)
     left join origin_visit using(origin, date)
   ),
   occurrences_to_update as (
