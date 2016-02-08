@@ -778,7 +778,7 @@ begin
 end
 $$;
 
-create or replace function update_occurrence_for_origin(origin_id bigint)
+create or replace function swh_occurrence_update_for_origin(origin_id bigint)
   returns void
   language sql
 as $$
@@ -793,7 +793,7 @@ as $$
            limit 1) = any(visits);
 $$;
 
-create or replace function update_occurrence()
+create or replace function swh_occurrence_update_all()
   returns void
   language plpgsql
 as $$
@@ -803,7 +803,7 @@ begin
   for origin_id in
     select distinct id from origin
   loop
-    perform update_occurrence_for_origin(origin_id);
+    perform swh_occurrence_update_for_origin(origin_id);
   end loop;
   return;
 end;
@@ -868,7 +868,7 @@ begin
   for origin_id in
     select distinct origin from tmp_occurrence_history
   loop
-    perform update_occurrence_for_origin(origin_id);
+    perform swh_occurrence_update_for_origin(origin_id);
   end loop;
   return;
 end
