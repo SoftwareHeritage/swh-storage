@@ -829,17 +829,17 @@ begin
   new_visits as (
       select origin, date, (select coalesce(max(visit), 0)
                             from origin_visit ov
-                            where ov.origin = origin) +
-                            row_number()
-                            over(partition by origin
-                                           order by origin, date)
+                            where ov.origin = cv.origin) as max_visit
         from current_visits cv
         where not exists (select 1 from origin_visit ov
                           where ov.origin = cv.origin and
                                 ov.date = cv.date)
   )
   insert into origin_visit (origin, date, visit)
-    select * from new_visits;
+    select origin, date, max_visit + row_number() over
+                                     (partition by origin
+                                                order by origin, date)
+    from new_visits;
 
   -- Create or update occurrence_history
   with occurrence_history_id_visit as (
