@@ -179,9 +179,17 @@ class AbstractTestStorage(DbTestFixture):
             'parents': [b'01234567890123456789', b'23434512345123456789'],
             'type': 'git',
             'directory': self.dir['id'],
-            'metadata': {'checksums': {'sha1': 'tarball-sha1',
-                                       'sha256': 'tarball-sha256'},
-                         'signed-off-by': 'some-dude'},
+            'metadata': {
+                'checksums': {
+                    'sha1': 'tarball-sha1',
+                    'sha256': 'tarball-sha256',
+                },
+                'signed-off-by': 'some-dude',
+                'extra_git_headers': [
+                    ['gpgsig', b'test123'],
+                    ['mergetags', [b'foo\\bar', b'\x22\xaf\x89\x80\x01\x00']],
+                ],
+            },
             'synthetic': True
         }
 

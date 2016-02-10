@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import codecs
 import datetime
 import numbers
 
@@ -17,6 +18,60 @@ DEFAULT_DATE = {
     'offset': 0,
     'neg_utc_offset': None,
 }
+
+
+def backslashescape_errors(exception):
+    if isinstance(exception, UnicodeDecodeError):
+        bad_data = exception.object[exception.start:exception.end]
+        escaped = ''.join(r'\x%02x' % x for x in bad_data)
+        return escaped, exception.end
+
+    return codecs.backslashreplace_errors(exception)
+
+codecs.register_error('backslashescape', backslashescape_errors)
+
+
+def decode_with_escape(value):
+    """Decode a bytestring as utf-8, escaping the bytes of invalid utf-8 sequences
+    as \\x<hex value>. We also escape NUL bytes as they are invalid in JSON
+    strings.
+    """
+    # escape backslashes
+    value = value.replace(b'\\', b'\\\\')
+    value = value.replace(b'\x00', b'\\x00')
+    return value.decode('utf-8', 'backslashescape')
+
+
+def encode_with_unescape(value):
+    """Encode an unicode string containing \\x<hex> backslash escapes"""
+    slices = []
+    start = 0
+    odd_backslashes = False
+    i = 0
+    while i < len(value):
+        if value[i] == '\\':
+            odd_backslashes = not odd_backslashes
+        else:
+            if odd_backslashes:
+                if value[i] != 'x':
+                    raise ValueError('invalid escape for %r at position %d' %
+                                     (value, i-1))
+                slices.append(
+                    value[start:i-1].replace('\\\\', '\\').encode('utf-8')
+                )
+                slices.append(bytes.fromhex(value[i+1:i+3]))
+
+                odd_backslashes = False
+                start = i = i + 3
+                continue
+
+        i += 1
+
+    slices.append(
+        value[start:i].replace('\\\\', '\\').encode('utf-8')
+    )
+
+    return b''.join(slices)
 
 
 def author_to_db(author):
@@ -49,6 +104,34 @@ def db_to_author(id, name, email):
         'name': name,
         'email': email,
     }
+
+
+def git_headers_to_db(git_headers):
+    """Convert git headers to their database representation.
+
+    We convert the bytes to unicode by decoding them into utf-8 and replacing
+    invalid utf-8 sequences with backslash escapes.
+
+    """
+    ret = []
+    for key, values in git_headers:
+        if isinstance(values, list):
+            ret.append([key, [decode_with_escape(value) for value in values]])
+        else:
+            ret.append([key, decode_with_escape(values)])
+
+    return ret
+
+
+def db_to_git_headers(db_git_headers):
+    ret = []
+    for key, values in db_git_headers:
+        if isinstance(values, list):
+            ret.append([key, [encode_with_unescape(value) for value in values]])
+        else:
+            ret.append([key, encode_with_unescape(values)])
+
+    return ret
 
 
 def db_to_date(date, offset, neg_utc_offset):
@@ -126,6 +209,13 @@ def revision_to_db(revision):
     committer = author_to_db(revision['committer'])
     committer_date = date_to_db(revision['committer_date'])
 
+    metadata = revision['metadata']
+
+    if metadata and 'extra_git_headers' in metadata:
+        metadata = metadata.copy()
+        extra_git_headers = git_headers_to_db(metadata['extra_git_headers'])
+        metadata['extra_git_headers'] = extra_git_headers
+
     return {
         'id': revision['id'],
         'author_name': author['name'],
@@ -141,7 +231,7 @@ def revision_to_db(revision):
         'type': revision['type'],
         'directory': revision['directory'],
         'message': revision['message'],
-        'metadata': revision['metadata'],
+        'metadata': metadata,
         'synthetic': revision['synthetic'],
         'parents': [
             {
@@ -179,6 +269,12 @@ def db_to_revision(db_revision):
         db_revision['committer_date_neg_utc_offset']
     )
 
+    metadata = db_revision['metadata']
+
+    if metadata and 'extra_git_headers' in metadata:
+        extra_git_headers = db_to_git_headers(metadata['extra_git_headers'])
+        metadata['extra_git_headers'] = extra_git_headers
+
     parents = []
     if 'parents' in db_revision:
         for parent in db_revision['parents']:
@@ -194,7 +290,7 @@ def db_to_revision(db_revision):
         'type': db_revision['type'],
         'directory': db_revision['directory'],
         'message': db_revision['message'],
-        'metadata': db_revision['metadata'],
+        'metadata': metadata,
         'synthetic': db_revision['synthetic'],
         'parents': parents,
     }
