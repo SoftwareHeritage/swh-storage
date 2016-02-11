@@ -127,7 +127,8 @@ def db_to_git_headers(db_git_headers):
     ret = []
     for key, values in db_git_headers:
         if isinstance(values, list):
-            ret.append([key, [encode_with_unescape(value) for value in values]])
+            ret.append([key, [encode_with_unescape(value)
+                              for value in values]])
         else:
             ret.append([key, encode_with_unescape(values)])
 
