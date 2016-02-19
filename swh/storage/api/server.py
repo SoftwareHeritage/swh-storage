@@ -75,6 +75,12 @@ def content_missing():
     return encode_data(g.storage.content_missing(**decode_request(request)))
 
 
+@app.route('/content/missing/sha1', methods=['POST'])
+def content_missing_per_sha1():
+    return encode_data(g.storage.content_missing_per_sha1(
+        **decode_request(request)))
+
+
 @app.route('/content/present', methods=['POST'])
 def content_find():
     return encode_data(g.storage.content_find(**decode_request(request)))

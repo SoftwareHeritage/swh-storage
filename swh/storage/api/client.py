@@ -89,6 +89,9 @@ class RemoteStorage():
         return self.post('content/missing', {'content': content,
                                              'key_hash': key_hash})
 
+    def content_missing_per_sha1(self, contents):
+        return self.post('content/missing/sha1', {'contents': contents})
+
     def content_get(self, content):
         return self.post('content/data', {'content': content})
 
