@@ -179,9 +179,17 @@ class AbstractTestStorage(DbTestFixture):
             'parents': [b'01234567890123456789', b'23434512345123456789'],
             'type': 'git',
             'directory': self.dir['id'],
-            'metadata': {'checksums': {'sha1': 'tarball-sha1',
-                                       'sha256': 'tarball-sha256'},
-                         'signed-off-by': 'some-dude'},
+            'metadata': {
+                'checksums': {
+                    'sha1': 'tarball-sha1',
+                    'sha256': 'tarball-sha256',
+                },
+                'signed-off-by': 'some-dude',
+                'extra_git_headers': [
+                    ['gpgsig', b'test123'],
+                    ['mergetags', [b'foo\\bar', b'\x22\xaf\x89\x80\x01\x00']],
+                ],
+            },
             'synthetic': True
         }
 
@@ -556,6 +564,19 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.content_add([cont2])
         gen = self.storage.content_missing([cont2, missing_cont])
 
+        self.assertEqual(list(gen), [missing_cont['sha1']])
+
+    @istest
+    def content_missing_per_sha1(self):
+        # given
+        cont2 = self.cont2
+        missing_cont = self.missing_cont
+        self.storage.content_add([cont2])
+        # when
+        gen = self.storage.content_missing_per_sha1([cont2['sha1'],
+                                                     missing_cont['sha1']])
+
+        # then
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest

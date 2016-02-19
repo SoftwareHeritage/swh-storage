@@ -144,6 +144,9 @@ class Db:
     @stored_procedure('swh_mktemp_entity_history')
     def mktemp_entity_history(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_content_sha1')
+    def mktemp_content_sha1(self, cur=None): pass
+
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
             if data is None:
@@ -211,6 +214,14 @@ class Db:
 
         cur.execute("""SELECT sha1, sha1_git, sha256
                        FROM swh_content_missing()""")
+
+        yield from cursor_to_bytes(cur)
+
+    def content_missing_per_sha1_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT *
+                       FROM swh_content_missing_per_sha1()""")
 
         yield from cursor_to_bytes(cur)
 

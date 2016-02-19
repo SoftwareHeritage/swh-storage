@@ -205,6 +205,29 @@ class Storage():
             yield obj[key_hash_idx]
 
     @db_transaction_generator
+    def content_missing_per_sha1(self, contents, cur=None):
+        """List content missing from storage based only on sha1.
+
+        Args:
+            contents: Iterable of sha1 to check for absence.
+
+        Returns:
+            an iterable of `sha1`s missing from the storage.
+
+        Raises:
+            TODO: an exception when we get a hash collision.
+
+        """
+        db = self.db
+
+        db.mktemp_content_sha1(cur)
+        db.copy_to(({'sha1': sha1} for sha1 in contents), 'tmp_content_sha1',
+                   ['sha1'], cur)
+
+        for obj in db.content_missing_per_sha1_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
     def skipped_content_missing(self, content, cur=None):
         """List skipped_content missing from storage
 
@@ -672,7 +695,7 @@ class Storage():
         db = self.db
 
         # Create temporary table for metadata injection
-        db.mktemp('release', cur)
+        db.mktemp_release_get(cur)
 
         releases_dicts = ({'id': rel} for rel in releases)
 
@@ -710,7 +733,7 @@ class Storage():
 
         releases_dicts = ({'id': rel} for rel in releases)
 
-        db.copy_to(releases_dicts, 'tmp_release_get', ['id'], cur)
+        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
 
         for release in db.release_get_from_temp(cur):
             yield converters.db_to_release(dict(zip(keys, release)))
