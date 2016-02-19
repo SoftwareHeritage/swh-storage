@@ -18,6 +18,24 @@ begin
 end
 $$;
 
+-- create a temporary table called tmp_content_sha1, mimicking existing table
+-- content with only the sha1 column
+--
+create or replace function swh_mktemp_content_sha1()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_content_sha1
+     (like content including defaults)
+     on commit drop;
+    alter table tmp_content_sha1 drop column if exists sha256;
+    alter table tmp_content_sha1 drop column if exists sha1_git;
+    alter table tmp_content_sha1 drop column if exists ctime;
+    alter table tmp_content_sha1 drop column if exists length;
+    alter table tmp_content_sha1 drop column if exists status;
+    alter table tmp_content_sha1 drop column if exists object_id;
+$$;
+
 
 -- create a temporary table for directory entries called tmp_TBLNAME,
 -- mimicking existing table TBLNAME with an extra dir_id (sha1_git)
@@ -85,7 +103,7 @@ create or replace function swh_mktemp_release_get()
     returns void
     language sql
 as $$
-    create temporary table tmp_release_get(
+    create temporary table tmp_release (
       id sha1_git primary key
     ) on commit drop;
 $$;
@@ -174,6 +192,23 @@ begin
 	 where not exists
 	     (select 1 from content as c where c.sha256 = tmp.sha256));
     return;
+end
+$$;
+
+-- check which entries of tmp_content_sha1 are missing from content
+--
+-- operates in bulk: 0. swh_mktemp_content_sha1(), 1. COPY to tmp_content_sha1,
+-- 2. call this function
+create or replace function swh_content_missing_per_sha1()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+           (select sha1
+            from tmp_content_sha1 as tmp
+            where not exists
+            (select 1 from content as c where c.sha1=tmp.sha1));
 end
 $$;
 
@@ -679,7 +714,7 @@ begin
     return query
         select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
                r.synthetic, p.id as author_id, p.name as author_name, p.email as author_email
-        from tmp_release_get t
+        from tmp_release t
         inner join release r on t.id = r.id
         inner join person p on p.id = r.author;
     return;
@@ -778,7 +813,7 @@ begin
 end
 $$;
 
-create or replace function update_occurrence_for_origin(origin_id bigint)
+create or replace function swh_occurrence_update_for_origin(origin_id bigint)
   returns void
   language sql
 as $$
@@ -793,7 +828,7 @@ as $$
            limit 1) = any(visits);
 $$;
 
-create or replace function update_occurrence()
+create or replace function swh_occurrence_update_all()
   returns void
   language plpgsql
 as $$
@@ -803,7 +838,7 @@ begin
   for origin_id in
     select distinct id from origin
   loop
-    perform update_occurrence_for_origin(origin_id);
+    perform swh_occurrence_update_for_origin(origin_id);
   end loop;
   return;
 end;
@@ -829,22 +864,22 @@ begin
   new_visits as (
       select origin, date, (select coalesce(max(visit), 0)
                             from origin_visit ov
-                            where ov.origin = origin) +
-                            row_number()
-                            over(partition by origin
-                                           order by origin, date)
+                            where ov.origin = cv.origin) as max_visit
         from current_visits cv
         where not exists (select 1 from origin_visit ov
                           where ov.origin = cv.origin and
                                 ov.date = cv.date)
   )
   insert into origin_visit (origin, date, visit)
-    select * from new_visits;
+    select origin, date, max_visit + row_number() over
+                                     (partition by origin
+                                                order by origin, date)
+    from new_visits;
 
   -- Create or update occurrence_history
   with occurrence_history_id_visit as (
     select tmp_occurrence_history.*, object_id, visits, visit from tmp_occurrence_history
-    left join occurrence_history using(origin, target, target_type)
+    left join occurrence_history using(origin, branch, target, target_type)
     left join origin_visit using(origin, date)
   ),
   occurrences_to_update as (
@@ -868,7 +903,7 @@ begin
   for origin_id in
     select distinct origin from tmp_occurrence_history
   loop
-    perform update_occurrence_for_origin(origin_id);
+    perform swh_occurrence_update_for_origin(origin_id);
   end loop;
   return;
 end
