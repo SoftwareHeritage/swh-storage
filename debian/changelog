@@ -1,3 +1,11 @@
+swh-storage (0.0.34-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage version 0.0.34
+  * occurrence improvements
+  * commit metadata improvements
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 19 Feb 2016 18:20:07 +0100
+
 swh-storage (0.0.33-1~swh1) unstable-swh; urgency=medium
 
   * Bump swh.storage to version 0.0.33
