@@ -220,10 +220,7 @@ class Storage():
         """
         db = self.db
 
-        db.mktemp_content_sha1(cur)
-        db.copy_to(({'sha1': sha1} for sha1 in contents), 'tmp_content_sha1',
-                   ['sha1'], cur)
-
+        db.store_tmp_bytea(contents, cur)
         for obj in db.content_missing_per_sha1_from_temp(cur):
             yield obj[0]
 
@@ -695,11 +692,7 @@ class Storage():
         db = self.db
 
         # Create temporary table for metadata injection
-        db.mktemp_release_get(cur)
-
-        releases_dicts = ({'id': rel} for rel in releases)
-
-        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
+        db.store_tmp_bytea(releases, cur)
 
         for obj in db.release_missing_from_temp(cur):
             yield obj[0]
@@ -729,11 +722,8 @@ class Storage():
                 'date_neg_utc_offset', 'name', 'comment', 'synthetic',
                 'author_id', 'author_name', 'author_email']
 
-        db.mktemp_release_get(cur)
-
-        releases_dicts = ({'id': rel} for rel in releases)
-
-        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
+        # Create temporary table for metadata injection
+        db.store_tmp_bytea(releases, cur)
 
         for release in db.release_get_from_temp(cur):
             yield converters.db_to_release(dict(zip(keys, release)))
@@ -847,6 +837,31 @@ class Storage():
         for line in self.db.release_get_by(origin_id, limit=limit):
             data = converters.db_to_release(dict(zip(keys, line)))
             yield data
+
+    @db_transaction
+    def object_find_by_sha1_git(self, ids, cur=None):
+        """Return the objects found with the given ids.
+
+        Args:
+            ids: a generator of sha1_gits
+        Returns:
+            a dict mapping the id to the list of objects found. Each object
+            found is itself a dict with keys:
+                sha1_git: the input id
+                type: the type of object found
+                id: the id of the object found
+                object_id: the numeric id of the object found.
+        """
+        db = self.db
+
+        ret = {id: [] for id in ids}
+
+        for retval in db.object_find_by_sha1_git(ids):
+            if retval[1]:
+                ret[retval[0]].append(dict(zip(db.object_find_by_sha1_git_cols,
+                                               retval)))
+
+        return ret
 
     @db_transaction
     def origin_get(self, origin, cur=None):
