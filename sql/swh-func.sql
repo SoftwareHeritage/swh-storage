@@ -18,25 +18,6 @@ begin
 end
 $$;
 
--- create a temporary table called tmp_content_sha1, mimicking existing table
--- content with only the sha1 column
---
-create or replace function swh_mktemp_content_sha1()
-    returns void
-    language sql
-as $$
-    create temporary table tmp_content_sha1
-     (like content including defaults)
-     on commit drop;
-    alter table tmp_content_sha1 drop column if exists sha256;
-    alter table tmp_content_sha1 drop column if exists sha1_git;
-    alter table tmp_content_sha1 drop column if exists ctime;
-    alter table tmp_content_sha1 drop column if exists length;
-    alter table tmp_content_sha1 drop column if exists status;
-    alter table tmp_content_sha1 drop column if exists object_id;
-$$;
-
-
 -- create a temporary table for directory entries called tmp_TBLNAME,
 -- mimicking existing table TBLNAME with an extra dir_id (sha1_git)
 -- column, and dropping the id column.
@@ -99,12 +80,13 @@ as $$
     alter table tmp_release drop column object_id;
 $$;
 
-create or replace function swh_mktemp_release_get()
+-- create a temporary table with a single "bytea" column for fast object lookup.
+create or replace function swh_mktemp_bytea()
     returns void
     language sql
 as $$
-    create temporary table tmp_release (
-      id sha1_git primary key
+    create temporary table tmp_bytea (
+      id bytea
     ) on commit drop;
 $$;
 
@@ -205,10 +187,10 @@ create or replace function swh_content_missing_per_sha1()
 as $$
 begin
     return query
-           (select sha1
-            from tmp_content_sha1 as tmp
+           (select id::sha1
+            from tmp_bytea as tmp
             where not exists
-            (select 1 from content as c where c.sha1=tmp.sha1));
+            (select 1 from content as c where c.sha1=tmp.id));
 end
 $$;
 
@@ -714,7 +696,7 @@ begin
     return query
         select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
                r.synthetic, p.id as author_id, p.name as author_name, p.email as author_email
-        from tmp_release t
+        from tmp_bytea t
         inner join release r on t.id = r.id
         inner join person p on p.id = r.author;
     return;
@@ -761,18 +743,17 @@ end
 $$;
 
 
--- List missing releases from tmp_release
+-- List missing releases from tmp_bytea
 create or replace function swh_release_missing()
     returns setof sha1_git
     language plpgsql
 as $$
 begin
-    return query
-        select id from tmp_release t
-	where not exists (
-	select 1 from release r
-	where r.id = t.id);
-    return;
+  return query
+    select id::sha1_git from tmp_bytea t
+    where not exists (
+      select 1 from release r
+      where r.id = t.id);
 end
 $$;
 
@@ -1125,6 +1106,38 @@ begin
     into coc;
 
     return coc;  -- might be NULL
+end
+$$;
+
+create type object_found as (
+    sha1_git   sha1_git,
+    type       object_type,
+    id         bytea,       -- sha1 or sha1_git depending on object_type
+    object_id  bigint
+);
+
+-- Find objects by sha1_git, return their type and their main identifier
+create or replace function swh_object_find_by_sha1_git()
+    returns setof object_found
+    language plpgsql
+as $$
+begin
+    return query
+    with known_objects as ((
+        select id as sha1_git, 'release'::object_type as type, id, object_id from release r
+        where exists (select 1 from tmp_bytea t where t.id = r.id)
+    ) union all (
+        select id as sha1_git, 'revision'::object_type as type, id, object_id from revision r
+        where exists (select 1 from tmp_bytea t where t.id = r.id)
+    ) union all (
+        select id as sha1_git, 'directory'::object_type as type, id, object_id from directory d
+        where exists (select 1 from tmp_bytea t where t.id = d.id)
+    ) union all (
+        select sha1_git as sha1_git, 'content'::object_type as type, sha1 as id, object_id from content c
+        where exists (select 1 from tmp_bytea t where t.id = c.sha1_git)
+    ))
+    select t.id::sha1_git as sha1_git, k.type, k.id, k.object_id from tmp_bytea t
+      left join known_objects k on t.id = k.sha1_git;
 end
 $$;
 

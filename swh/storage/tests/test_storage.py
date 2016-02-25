@@ -1317,6 +1317,52 @@ class AbstractTestStorage(DbTestFixture):
             self.storage.content_find(
                 {'unknown-sha1': 'something'})  # not the right key
 
+    @istest
+    def object_find_by_sha1_git(self):
+        sha1_gits = [b'00000000000000000000']
+        expected = {
+            b'00000000000000000000': [],
+        }
+
+        self.storage.content_add([self.cont])
+        sha1_gits.append(self.cont['sha1_git'])
+        expected[self.cont['sha1_git']] = [{
+            'sha1_git': self.cont['sha1_git'],
+            'type': 'content',
+            'id': self.cont['sha1'],
+        }]
+
+        self.storage.directory_add([self.dir])
+        sha1_gits.append(self.dir['id'])
+        expected[self.dir['id']] = [{
+            'sha1_git': self.dir['id'],
+            'type': 'directory',
+            'id': self.dir['id'],
+        }]
+
+        self.storage.revision_add([self.revision])
+        sha1_gits.append(self.revision['id'])
+        expected[self.revision['id']] = [{
+            'sha1_git': self.revision['id'],
+            'type': 'revision',
+            'id': self.revision['id'],
+        }]
+
+        self.storage.release_add([self.release])
+        sha1_gits.append(self.release['id'])
+        expected[self.release['id']] = [{
+            'sha1_git': self.release['id'],
+            'type': 'release',
+            'id': self.release['id'],
+        }]
+
+        ret = self.storage.object_find_by_sha1_git(sha1_gits)
+        for val in ret.values():
+            for obj in val:
+                del obj['object_id']
+
+        self.assertEqual(expected, ret)
+
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
     """Test the local storage"""
