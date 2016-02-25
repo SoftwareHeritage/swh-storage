@@ -1,3 +1,11 @@
+swh-storage (0.0.35-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh-storage v0.0.35
+  * Factor in temporary tables with only an id (db v059)
+  * Allow generic object search by sha1_git (db v060)
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 25 Feb 2016 16:21:01 +0100
+
 swh-storage (0.0.34-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage version 0.0.34
