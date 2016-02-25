@@ -1,8 +1,10 @@
-swh-storage (0.0.34-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.35-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh-storage v0.0.35
+  * Factor in temporary tables with only an id (db v059)
+  * Allow generic object search by sha1_git (db v060)
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 19 Feb 2016 18:20:07 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 25 Feb 2016 16:21:01 +0100
 
 swh-storage (0.0.34-1~swh1) unstable-swh; urgency=medium
 
