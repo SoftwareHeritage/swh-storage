@@ -220,10 +220,7 @@ class Storage():
         """
         db = self.db
 
-        db.mktemp_content_sha1(cur)
-        db.copy_to(({'sha1': sha1} for sha1 in contents), 'tmp_content_sha1',
-                   ['sha1'], cur)
-
+        db.store_tmp_bytea(contents, cur)
         for obj in db.content_missing_per_sha1_from_temp(cur):
             yield obj[0]
 
@@ -695,11 +692,7 @@ class Storage():
         db = self.db
 
         # Create temporary table for metadata injection
-        db.mktemp_release_get(cur)
-
-        releases_dicts = ({'id': rel} for rel in releases)
-
-        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
+        db.store_tmp_bytea(releases, cur)
 
         for obj in db.release_missing_from_temp(cur):
             yield obj[0]
@@ -729,11 +722,8 @@ class Storage():
                 'date_neg_utc_offset', 'name', 'comment', 'synthetic',
                 'author_id', 'author_name', 'author_email']
 
-        db.mktemp_release_get(cur)
-
-        releases_dicts = ({'id': rel} for rel in releases)
-
-        db.copy_to(releases_dicts, 'tmp_release', ['id'], cur)
+        # Create temporary table for metadata injection
+        db.store_tmp_bytea(releases, cur)
 
         for release in db.release_get_from_temp(cur):
             yield converters.db_to_release(dict(zip(keys, release)))

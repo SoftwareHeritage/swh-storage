@@ -135,17 +135,14 @@ class Db:
     @stored_procedure('swh_mktemp_occurrence_history')
     def mktemp_occurrence_history(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_release_get')
-    def mktemp_release_get(self, cur=None): pass
-
     @stored_procedure('swh_mktemp_entity_lister')
     def mktemp_entity_lister(self, cur=None): pass
 
     @stored_procedure('swh_mktemp_entity_history')
     def mktemp_entity_history(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_content_sha1')
-    def mktemp_content_sha1(self, cur=None): pass
+    @stored_procedure('swh_mktemp_bytea')
+    def mktemp_bytea(self, cur=None): pass
 
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
         def escape(data):
@@ -208,6 +205,14 @@ class Db:
 
     @stored_procedure('swh_entity_history_add')
     def entity_history_add_from_temp(self, cur=None): pass
+
+    def store_tmp_bytea(self, ids, cur=None):
+        """Store the given identifiers in a new tmp_bytea table"""
+        cur = self._cursor(cur)
+
+        self.mktemp_bytea(cur)
+        self.copy_to(({'id': elem} for elem in ids), 'tmp_bytea',
+                     ['id'], cur)
 
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
