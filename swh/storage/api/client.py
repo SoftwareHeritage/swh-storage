@@ -150,6 +150,9 @@ class RemoteStorage():
     def release_missing(self, releases):
         return self.post('release/missing', {'releases': releases})
 
+    def object_find_by_sha1_git(self, ids):
+        return self.post('object/find_by_sha1_git', {'ids': ids})
+
     def occurrence_get(self, origin_id):
         return self.post('occurrence', {'origin_id': origin_id})
 

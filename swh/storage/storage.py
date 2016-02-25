@@ -839,6 +839,31 @@ class Storage():
             yield data
 
     @db_transaction
+    def object_find_by_sha1_git(self, ids, cur=None):
+        """Return the objects found with the given ids.
+
+        Args:
+            ids: a generator of sha1_gits
+        Returns:
+            a dict mapping the id to the list of objects found. Each object
+            found is itself a dict with keys:
+                sha1_git: the input id
+                type: the type of object found
+                id: the id of the object found
+                object_id: the numeric id of the object found.
+        """
+        db = self.db
+
+        ret = {id: [] for id in ids}
+
+        for retval in db.object_find_by_sha1_git(ids):
+            if retval[1]:
+                ret[retval[0]].append(dict(zip(db.object_find_by_sha1_git_cols,
+                                               retval)))
+
+        return ret
+
+    @db_transaction
     def origin_get(self, origin, cur=None):
         """Return the origin either identified by its id or its tuple
         (type, url).

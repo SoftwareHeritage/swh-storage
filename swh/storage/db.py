@@ -360,6 +360,19 @@ class Db:
         cur.execute('SELECT id FROM swh_release_missing() as r(id)')
         yield from cursor_to_bytes(cur)
 
+    object_find_by_sha1_git_cols = ['sha1_git', 'type', 'id', 'object_id']
+
+    def object_find_by_sha1_git(self, ids, cur=None):
+        cur = self._cursor(cur)
+
+        self.store_tmp_bytea(ids, cur)
+        query = 'select %s from swh_object_find_by_sha1_git()' % (
+            ', '.join(self.object_find_by_sha1_git_cols)
+        )
+        cur.execute(query)
+
+        yield from cursor_to_bytes(cur)
+
     def stat_counters(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_stat_counters()')

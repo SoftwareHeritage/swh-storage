@@ -180,6 +180,12 @@ def release_missing():
     return encode_data(g.storage.release_missing(**decode_request(request)))
 
 
+@app.route('/object/find_by_sha1_git', methods=['POST'])
+def object_find_by_sha1_git():
+    return encode_data(g.storage.object_find_by_sha1_git(
+        **decode_request(request)))
+
+
 @app.route('/occurrence', methods=['POST'])
 def occurrence_get():
     return encode_data(g.storage.occurrence_get(**decode_request(request)))
