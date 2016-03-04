@@ -30,6 +30,12 @@
                     "type": "string"
                 }
             ]
+        },
+        "archive_type": {
+            "title": "a file archive type (tar, zip, etc.)",
+            "description": "Most values are self-describing. Others are as follows:\n 'dsc' -> Debian source package",
+            "type": "string",
+            "enum": ["tar", "zip", "dsc"]
         }
     },
 
@@ -46,7 +52,7 @@
                     "sha1": { "type": "string" },
                     "sha1_git": { "type": "string" },
                     "sha256": { "type": "string" },
-                    "archive_type": { "type": "string" }
+                    "archive_type": { "$ref": "#/definitions/archive_type" }
                 }
             }
         },
