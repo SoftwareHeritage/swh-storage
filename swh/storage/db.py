@@ -16,6 +16,9 @@ from contextlib import contextmanager
 TMP_CONTENT_TABLE = 'tmp_content'
 
 
+psycopg2.extras.register_uuid()
+
+
 def stored_procedure(stored_proc):
     """decorator to execute remote stored procedure, specified as argument
 

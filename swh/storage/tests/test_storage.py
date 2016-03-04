@@ -9,6 +9,7 @@ import psycopg2
 import shutil
 import tempfile
 import unittest
+from uuid import UUID
 
 from unittest.mock import patch
 
@@ -375,9 +376,9 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity1 = {
-            'uuid': 'f96a7ec1-0058-4920-90cc-7327e4b5a4bf',
+            'uuid': UUID('f96a7ec1-0058-4920-90cc-7327e4b5a4bf'),
             # GitHub users
-            'parent': 'ad6df473-c1d2-4f40-bc58-2b091d4a750e',
+            'parent': UUID('ad6df473-c1d2-4f40-bc58-2b091d4a750e'),
             'name': 'github:user:olasd',
             'type': 'person',
             'description': 'Nicolas Dandrimont',
@@ -385,7 +386,7 @@ class AbstractTestStorage(DbTestFixture):
             'active': True,
             'generated': True,
             # swh.lister.github
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
                 'id': 12877,
                 'type': 'user',
@@ -399,7 +400,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity1_query = {
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
                 'id': 12877,
                 'type': 'user',
@@ -407,9 +408,9 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity2 = {
-            'uuid': '3903d075-32d6-46d4-9e29-0aef3612c4eb',
+            'uuid': UUID('3903d075-32d6-46d4-9e29-0aef3612c4eb'),
             # GitHub users
-            'parent': 'ad6df473-c1d2-4f40-bc58-2b091d4a750e',
+            'parent': UUID('ad6df473-c1d2-4f40-bc58-2b091d4a750e'),
             'name': 'github:user:zacchiro',
             'type': 'person',
             'description': 'Stefano Zacchiroli',
@@ -417,7 +418,7 @@ class AbstractTestStorage(DbTestFixture):
             'active': True,
             'generated': True,
             # swh.lister.github
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
                 'id': 216766,
                 'type': 'user',
@@ -431,16 +432,16 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity3 = {
-            'uuid': '111df473-c1d2-4f40-bc58-2b091d4a7111',
+            'uuid': UUID('111df473-c1d2-4f40-bc58-2b091d4a7111'),
             # GitHub users
-            'parent': '222df473-c1d2-4f40-bc58-2b091d4a7222',
+            'parent': UUID('222df473-c1d2-4f40-bc58-2b091d4a7222'),
             'name': 'github:user:ardumont',
             'type': 'person',
             'description': 'Antoine R. Dumont a.k.a tony',
             'homepage': 'https://ardumont.github.io',
             'active': True,
             'generated': True,
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
                 'id': 666,
                 'type': 'user',
@@ -454,7 +455,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity4 = {
-            'uuid': '222df473-c1d2-4f40-bc58-2b091d4a7222',
+            'uuid': UUID('222df473-c1d2-4f40-bc58-2b091d4a7222'),
             # GitHub users
             'parent': None,
             'name': 'github:user:ToNyX',
@@ -463,7 +464,7 @@ class AbstractTestStorage(DbTestFixture):
             'homepage': 'https://ToNyX.github.io',
             'active': True,
             'generated': True,
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
                 'id': 999,
                 'type': 'user',
@@ -477,7 +478,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity2_query = {
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
                 'id': 216766,
                 'type': 'user',
