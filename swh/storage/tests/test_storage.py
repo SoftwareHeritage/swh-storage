@@ -1233,6 +1233,21 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(actual_entity4, [entity4])
 
     @istest
+    def entity_get_one(self):
+        # given
+        self.storage.entity_add([self.entity3, self.entity4])
+
+        # when: entity3 -child-of-> entity4
+        actual_entity3 = self.storage.entity_get_one(self.entity3['uuid'])
+
+        # remove dynamic data (modified by db)
+        entity3 = self.entity3.copy()
+        del entity3['validity']
+        del actual_entity3['last_seen']
+        del actual_entity3['last_id']
+        self.assertEquals(actual_entity3, entity3)
+
+    @istest
     def stat_counters(self):
         expected_keys = ['content', 'directory', 'directory_entry_dir',
                          'occurrence', 'origin', 'person', 'revision']

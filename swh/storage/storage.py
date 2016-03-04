@@ -1091,6 +1091,24 @@ class Storage():
             yield dict(zip(db.entity_cols, entity))
 
     @db_transaction
+    def entity_get_one(self, uuid, cur=None):
+        """Returns one entity using its uuid identifier.
+
+        Args:
+            uuid: entity's identifier
+
+        Returns:
+            the object corresponding to the given entity
+
+        """
+        db = self.db
+        entity = db.entity_get_one(uuid, cur)
+        if entity:
+            return dict(zip(db.entity_cols, entity))
+        else:
+            return None
+
+    @db_transaction
     def stat_counters(self, cur=None):
         """compute statistics about the number of tuples in various tables
 

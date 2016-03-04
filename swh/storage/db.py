@@ -558,6 +558,22 @@ class Db:
                     (uuid, ))
         yield from cursor_to_bytes(cur)
 
+    def entity_get_one(self, uuid, cur=None):
+        """Retrieve a single entity given its uuid.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT uuid, parent, name, type, description, homepage,
+                              active, generated, lister, lister_metadata, doap,
+                              last_seen, last_id
+                       FROM entity
+                       WHERE uuid = %s""",
+                    (uuid, ))
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)
+
     def release_get_by(self,
                        origin_id,
                        limit=None,
