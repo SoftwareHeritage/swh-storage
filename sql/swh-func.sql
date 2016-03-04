@@ -110,7 +110,7 @@ create or replace function swh_mktemp_entity_history()
     language sql
 as $$
     create temporary table tmp_entity_history (
-        like entity_history including defaults);
+        like entity_history including defaults) on commit drop;
     alter table tmp_entity_history drop column id;
 $$;
 
@@ -125,7 +125,7 @@ as $$
         id bigint,
         lister uuid,
 	lister_metadata jsonb
-    );
+    ) on commit drop;
 $$;
 
 -- a content signature is a set of cryptographic checksums that we use to

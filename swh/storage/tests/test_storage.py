@@ -1187,9 +1187,23 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(fetched_entities, [entity1, entity2])
 
     @istest
+    def entity_get_from_lister_metadata_twice(self):
+        self.storage.entity_add([self.entity1])
+
+        fetched_entities1 = list(
+            self.storage.entity_get_from_lister_metadata(
+                [self.entity1_query]))
+        fetched_entities2 = list(
+            self.storage.entity_get_from_lister_metadata(
+                [self.entity1_query]))
+
+        self.assertEquals(fetched_entities1, fetched_entities2)
+
+    @istest
     def entity_get(self):
         # given
-        self.storage.entity_add([self.entity3, self.entity4])
+        self.storage.entity_add([self.entity4])
+        self.storage.entity_add([self.entity3])
 
         # when: entity3 -child-of-> entity4
         actual_entity3 = list(self.storage.entity_get(self.entity3['uuid']))
