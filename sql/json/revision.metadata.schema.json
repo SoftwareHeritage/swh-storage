@@ -37,14 +37,17 @@
     "properties": {
 
         "original_artifact": {
-            "type": "object",
-            "properties": {
-                "name": { "type": "string" },
-                "length": { "type": "integer", "minimum": 0 },
-                "sha1": { "type": "string" },
-                "sha1_git": { "type": "string" },
-                "sha256": { "type": "string" },
-                "archive_type": { "type": "string" }
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" },
+                    "length": { "type": "integer", "minimum": 0 },
+                    "sha1": { "type": "string" },
+                    "sha1_git": { "type": "string" },
+                    "sha256": { "type": "string" },
+                    "archive_type": { "type": "string" }
+                }
             }
         },
 
