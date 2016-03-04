@@ -1164,47 +1164,35 @@ create or replace function swh_update_entity_from_entity_history()
     language plpgsql
 as $$
 begin
-    with all_entities as (
-      select uuid, parent, name, type, description, homepage, active,
-             generated, lister, lister_metadata, doap, last_seen, last_id
-      from (
-          select row_number() over (partition by uuid order by unnest(validity) desc) as row,
-	         id as last_id, uuid, parent, name, type, description, homepage, active,
-		 generated, lister, lister_metadata, doap,
-	         unnest(validity) as last_seen
-          from entity_history
-      ) as latest_entities
-      where latest_entities.row = 1
-    ),
-    updated_uuids as (
-      update entity set
-        parent = all_entities.parent,
-        name = all_entities.name,
-	type = all_entities.type,
-	description = all_entities.description,
-	homepage = all_entities.homepage,
-	active = all_entities.active,
-	generated = all_entities.generated,
-	lister = all_entities.lister,
-	lister_metadata = all_entities.lister_metadata,
-	doap = all_entities.doap,
-	last_seen = all_entities.last_seen,
-        last_id = all_entities.last_id
-      from all_entities
-      where entity.uuid = all_entities.uuid
-      returning entity.uuid
-    )
-    insert into entity
-    (select * from all_entities
-     where uuid not in (select uuid from updated_uuids));
+    insert into entity (uuid, parent, name, type, description, homepage, active, generated, lister,
+                        lister_metadata, doap, last_seen, last_id)
+      select uuid, parent, name, type, description, homepage, active, generated, lister,
+             lister_metadata, doap, unnest(validity), id
+      from entity_history
+      where uuid = NEW.uuid
+      order by unnest(validity) desc limit 1
+    on conflict (uuid) do update set
+      parent = EXCLUDED.parent,
+      name = EXCLUDED.name,
+      type = EXCLUDED.type,
+      description = EXCLUDED.description,
+      homepage = EXCLUDED.homepage,
+      active = EXCLUDED.active,
+      generated = EXCLUDED.generated,
+      lister = EXCLUDED.lister,
+      lister_metadata = EXCLUDED.lister_metadata,
+      doap = EXCLUDED.doap,
+      last_seen = EXCLUDED.last_seen,
+      last_id = EXCLUDED.last_id;
+
     return null;
 end
 $$;
 
 create trigger update_entity
-  after insert or update or delete or truncate
+  after insert or update
   on entity_history
-  for each statement
+  for each row
   execute procedure swh_update_entity_from_entity_history();
 
 -- map an id of tmp_entity_lister to a full entity
