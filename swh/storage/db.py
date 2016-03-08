@@ -429,7 +429,7 @@ class Db:
 
     base_entity_cols = ['uuid', 'parent', 'name', 'type',
                         'description', 'homepage', 'active',
-                        'generated', 'lister', 'lister_metadata',
+                        'generated', 'lister_metadata',
                         'doap']
 
     entity_cols = base_entity_cols + ['last_seen', 'last_id']
@@ -551,10 +551,9 @@ class Db:
 
         """
         cur = self._cursor(cur)
-        cur.execute("""SELECT uuid, parent, name, type, description, homepage,
-                              active, generated, lister, lister_metadata, doap,
-                              last_seen, last_id
-                       FROM swh_entity_get(%s)""",
+        cur.execute("""SELECT %s
+                       FROM swh_entity_get(%%s)""" % (
+                           ', '.join(self.entity_cols)),
                     (uuid, ))
         yield from cursor_to_bytes(cur)
 
@@ -563,11 +562,10 @@ class Db:
 
         """
         cur = self._cursor(cur)
-        cur.execute("""SELECT uuid, parent, name, type, description, homepage,
-                              active, generated, lister, lister_metadata, doap,
-                              last_seen, last_id
+        cur.execute("""SELECT %s
                        FROM entity
-                       WHERE uuid = %s""",
+                       WHERE uuid = %%s""" % (
+                           ', '.join(self.entity_cols)),
                     (uuid, ))
         data = cur.fetchone()
         if not data:

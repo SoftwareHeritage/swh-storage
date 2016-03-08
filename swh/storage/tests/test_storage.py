@@ -385,9 +385,9 @@ class AbstractTestStorage(DbTestFixture):
             'homepage': 'http://example.com',
             'active': True,
             'generated': True,
-            # swh.lister.github
-            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
+                # swh.lister.github
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 12877,
                 'type': 'user',
                 'last_activity': '2015-11-03',
@@ -400,11 +400,9 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity1_query = {
-            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
-            'lister_metadata': {
-                'id': 12877,
-                'type': 'user',
-            },
+            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
+            'id': 12877,
+            'type': 'user',
         }
 
         self.entity2 = {
@@ -417,9 +415,9 @@ class AbstractTestStorage(DbTestFixture):
             'homepage': 'http://example.com',
             'active': True,
             'generated': True,
-            # swh.lister.github
-            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
+                # swh.lister.github
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 216766,
                 'type': 'user',
                 'last_activity': '2015-11-03',
@@ -441,8 +439,8 @@ class AbstractTestStorage(DbTestFixture):
             'homepage': 'https://ardumont.github.io',
             'active': True,
             'generated': True,
-            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 666,
                 'type': 'user',
                 'last_activity': '2016-01-15',
@@ -464,8 +462,8 @@ class AbstractTestStorage(DbTestFixture):
             'homepage': 'https://ToNyX.github.io',
             'active': True,
             'generated': True,
-            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 999,
                 'type': 'user',
                 'last_activity': '2015-12-24',
@@ -478,8 +476,8 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity2_query = {
-            'lister': UUID('34bd6b1b-463f-43e5-a697-785107f598e4'),
             'lister_metadata': {
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 216766,
                 'type': 'user',
             },
@@ -1181,8 +1179,10 @@ class AbstractTestStorage(DbTestFixture):
         del fetched_entities[0]['last_id']
         del entity1['validity']
         # Entity 2 should have no metadata
-        entity2 = self.entity2_query.copy()
-        entity2['uuid'] = None
+        entity2 = {
+            'uuid': None,
+            'lister_metadata': self.entity2_query.copy(),
+        }
 
         self.assertEquals(fetched_entities, [entity1, entity2])
 

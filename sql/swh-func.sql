@@ -121,11 +121,10 @@ create or replace function swh_mktemp_entity_lister()
     returns void
     language sql
 as $$
-    create temporary table tmp_entity_lister (
-        id bigint,
-        lister uuid,
-	lister_metadata jsonb
-    ) on commit drop;
+  create temporary table tmp_entity_lister (
+    id              bigint,
+    lister_metadata jsonb
+  ) on commit drop;
 $$;
 
 -- a content signature is a set of cryptographic checksums that we use to
@@ -1151,8 +1150,7 @@ create or replace function swh_entity_history_add()
 as $$
 begin
     insert into entity_history (
-        uuid, parent, name, type, description, homepage, active, generated,
-	lister, lister_metadata, doap, validity
+        uuid, parent, name, type, description, homepage, active, generated, lister_metadata, doap, validity
     ) select * from tmp_entity_history;
     return;
 end
@@ -1164,9 +1162,9 @@ create or replace function swh_update_entity_from_entity_history()
     language plpgsql
 as $$
 begin
-    insert into entity (uuid, parent, name, type, description, homepage, active, generated, lister,
-                        lister_metadata, doap, last_seen, last_id)
-      select uuid, parent, name, type, description, homepage, active, generated, lister,
+    insert into entity (uuid, parent, name, type, description, homepage, active, generated,
+      lister_metadata, doap, last_seen, last_id)
+      select uuid, parent, name, type, description, homepage, active, generated,
              lister_metadata, doap, unnest(validity), id
       from entity_history
       where uuid = NEW.uuid
@@ -1179,7 +1177,6 @@ begin
       homepage = EXCLUDED.homepage,
       active = EXCLUDED.active,
       generated = EXCLUDED.generated,
-      lister = EXCLUDED.lister,
       lister_metadata = EXCLUDED.lister_metadata,
       doap = EXCLUDED.doap,
       last_seen = EXCLUDED.last_seen,
@@ -1206,7 +1203,6 @@ create type entity_id as (
     homepage         text,
     active           boolean,
     generated        boolean,
-    lister           uuid,
     lister_metadata  jsonb,
     doap             jsonb,
     last_seen        timestamptz,
@@ -1224,7 +1220,7 @@ begin
     select t.id, e.*
     from tmp_entity_lister t
     left join entity e
-    on t.lister = e.lister AND e.lister_metadata @> t.lister_metadata;
+    on e.lister_metadata @> t.lister_metadata;
   return;
 end
 $$;
