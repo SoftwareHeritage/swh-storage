@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(63, now(), 'Work In Progress');
+      values(64, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -166,7 +166,7 @@ create table listable_entity
   enabled      boolean not null default true, -- do we list this entity automatically?
   list_engine  text,  -- crawler to be used to list entity's content
   list_url     text,  -- root URL to start the listing
-  list_params  json,  -- org-specific listing parameter
+  list_params  jsonb,  -- org-specific listing parameter
   latest_list  timestamptz  -- last time the entity's content has been listed
 );
 
@@ -178,7 +178,7 @@ create table list_history
   entity    uuid references listable_entity(uuid),
   date      timestamptz not null,
   status    boolean,  -- true if and only if the listing has been successful
-  result    json,     -- more detailed return value, depending on status
+  result    jsonb,     -- more detailed return value, depending on status
   stdout    text,
   stderr    text,
   duration  interval  -- fetch duration of NULL if still ongoing
@@ -237,7 +237,7 @@ create table fetch_history
   origin    bigint references origin(id),
   date      timestamptz not null,
   status    boolean,  -- true if and only if the fetch has been successful
-  result    json,     -- more detailed returned values, times, etc...
+  result    jsonb,     -- more detailed returned values, times, etc...
   stdout    text,
   stderr    text,     -- null when status is true, filled otherwise
   duration  interval  -- fetch duration of NULL if still ongoing
