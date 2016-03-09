@@ -1150,7 +1150,7 @@ create or replace function swh_entity_history_add()
 as $$
 begin
     insert into entity_history (
-        uuid, parent, name, type, description, homepage, active, generated, lister_metadata, doap, validity
+        uuid, parent, name, type, description, homepage, active, generated, lister_metadata, metadata, validity
     ) select * from tmp_entity_history;
     return;
 end
@@ -1163,9 +1163,9 @@ create or replace function swh_update_entity_from_entity_history()
 as $$
 begin
     insert into entity (uuid, parent, name, type, description, homepage, active, generated,
-      lister_metadata, doap, last_seen, last_id)
+      lister_metadata, metadata, last_seen, last_id)
       select uuid, parent, name, type, description, homepage, active, generated,
-             lister_metadata, doap, unnest(validity), id
+             lister_metadata, metadata, unnest(validity), id
       from entity_history
       where uuid = NEW.uuid
       order by unnest(validity) desc limit 1
@@ -1178,7 +1178,7 @@ begin
       active = EXCLUDED.active,
       generated = EXCLUDED.generated,
       lister_metadata = EXCLUDED.lister_metadata,
-      doap = EXCLUDED.doap,
+      metadata = EXCLUDED.metadata,
       last_seen = EXCLUDED.last_seen,
       last_id = EXCLUDED.last_id;
 
@@ -1204,7 +1204,7 @@ create type entity_id as (
     active           boolean,
     generated        boolean,
     lister_metadata  jsonb,
-    doap             jsonb,
+    metadata         jsonb,
     last_seen        timestamptz,
     last_id          bigint
 );

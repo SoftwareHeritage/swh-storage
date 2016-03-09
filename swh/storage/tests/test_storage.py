@@ -392,7 +392,7 @@ class AbstractTestStorage(DbTestFixture):
                 'type': 'user',
                 'last_activity': '2015-11-03',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -422,7 +422,7 @@ class AbstractTestStorage(DbTestFixture):
                 'type': 'user',
                 'last_activity': '2015-11-03',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -445,7 +445,7 @@ class AbstractTestStorage(DbTestFixture):
                 'type': 'user',
                 'last_activity': '2016-01-15',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -468,7 +468,7 @@ class AbstractTestStorage(DbTestFixture):
                 'type': 'user',
                 'last_activity': '2015-12-24',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),

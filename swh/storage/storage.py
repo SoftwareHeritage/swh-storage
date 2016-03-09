@@ -1017,7 +1017,7 @@ class Storage():
                 - active (bool): whether the entity is active
                 - generated (bool): whether the entity was generated
                 - lister_metadata (dict): lister-specific entity metadata
-                - doap (dict): DOAP data for the entity
+                - metadata (dict): other metadata for the entity
                 - validity (datetime.DateTime array): timestamps at which we
                     listed the entity.
         """

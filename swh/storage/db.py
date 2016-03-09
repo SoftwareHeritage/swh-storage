@@ -430,7 +430,7 @@ class Db:
     base_entity_cols = ['uuid', 'parent', 'name', 'type',
                         'description', 'homepage', 'active',
                         'generated', 'lister_metadata',
-                        'doap']
+                        'metadata']
 
     entity_cols = base_entity_cols + ['last_seen', 'last_id']
     entity_history_cols = base_entity_cols + ['id', 'validity']
