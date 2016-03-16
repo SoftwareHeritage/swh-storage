@@ -1,3 +1,11 @@
+swh-storage (0.0.36-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.36
+  * Add json-schema documentation for the jsonb fields
+  * Overhaul entity handling
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 16 Mar 2016 17:27:17 +0100
+
 swh-storage (0.0.35-1~swh1) unstable-swh; urgency=medium
 
   * Release swh-storage v0.0.35
