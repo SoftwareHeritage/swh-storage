@@ -9,4 +9,4 @@ requests
 flask
 
 # Internal dependencies
-swh.core >= 0.0.7
+swh.core >= 0.0.17

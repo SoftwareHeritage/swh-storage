@@ -240,6 +240,11 @@ def entity_get():
         g.storage.entity_get(**decode_request(request)))
 
 
+@app.route('/entity', methods=['GET'])
+def entity_get_one():
+    return encode_data(g.storage.entity_get_one(request.args['uuid']))
+
+
 @app.route('/entity/from_lister_metadata', methods=['POST'])
 def entity_from_lister_metadata():
     return encode_data(

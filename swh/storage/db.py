@@ -16,6 +16,9 @@ from contextlib import contextmanager
 TMP_CONTENT_TABLE = 'tmp_content'
 
 
+psycopg2.extras.register_uuid()
+
+
 def stored_procedure(stored_proc):
     """decorator to execute remote stored procedure, specified as argument
 
@@ -426,8 +429,8 @@ class Db:
 
     base_entity_cols = ['uuid', 'parent', 'name', 'type',
                         'description', 'homepage', 'active',
-                        'generated', 'lister', 'lister_metadata',
-                        'doap']
+                        'generated', 'lister_metadata',
+                        'metadata']
 
     entity_cols = base_entity_cols + ['last_seen', 'last_id']
     entity_history_cols = base_entity_cols + ['id', 'validity']
@@ -548,12 +551,26 @@ class Db:
 
         """
         cur = self._cursor(cur)
-        cur.execute("""SELECT uuid, parent, name, type, description, homepage,
-                              active, generated, lister, lister_metadata, doap,
-                              last_seen, last_id
-                       FROM swh_entity_get(%s)""",
+        cur.execute("""SELECT %s
+                       FROM swh_entity_get(%%s)""" % (
+                           ', '.join(self.entity_cols)),
                     (uuid, ))
         yield from cursor_to_bytes(cur)
+
+    def entity_get_one(self, uuid, cur=None):
+        """Retrieve a single entity given its uuid.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("""SELECT %s
+                       FROM entity
+                       WHERE uuid = %%s""" % (
+                           ', '.join(self.entity_cols)),
+                    (uuid, ))
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)
 
     def release_get_by(self,
                        origin_id,

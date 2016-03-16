@@ -9,6 +9,7 @@ import psycopg2
 import shutil
 import tempfile
 import unittest
+from uuid import UUID
 
 from unittest.mock import patch
 
@@ -375,23 +376,23 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity1 = {
-            'uuid': 'f96a7ec1-0058-4920-90cc-7327e4b5a4bf',
+            'uuid': UUID('f96a7ec1-0058-4920-90cc-7327e4b5a4bf'),
             # GitHub users
-            'parent': 'ad6df473-c1d2-4f40-bc58-2b091d4a750e',
+            'parent': UUID('ad6df473-c1d2-4f40-bc58-2b091d4a750e'),
             'name': 'github:user:olasd',
             'type': 'person',
             'description': 'Nicolas Dandrimont',
             'homepage': 'http://example.com',
             'active': True,
             'generated': True,
-            # swh.lister.github
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
             'lister_metadata': {
+                # swh.lister.github
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 12877,
                 'type': 'user',
                 'last_activity': '2015-11-03',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -400,30 +401,28 @@ class AbstractTestStorage(DbTestFixture):
 
         self.entity1_query = {
             'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-            'lister_metadata': {
-                'id': 12877,
-                'type': 'user',
-            },
+            'id': 12877,
+            'type': 'user',
         }
 
         self.entity2 = {
-            'uuid': '3903d075-32d6-46d4-9e29-0aef3612c4eb',
+            'uuid': UUID('3903d075-32d6-46d4-9e29-0aef3612c4eb'),
             # GitHub users
-            'parent': 'ad6df473-c1d2-4f40-bc58-2b091d4a750e',
+            'parent': UUID('ad6df473-c1d2-4f40-bc58-2b091d4a750e'),
             'name': 'github:user:zacchiro',
             'type': 'person',
             'description': 'Stefano Zacchiroli',
             'homepage': 'http://example.com',
             'active': True,
             'generated': True,
-            # swh.lister.github
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
             'lister_metadata': {
+                # swh.lister.github
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 216766,
                 'type': 'user',
                 'last_activity': '2015-11-03',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -431,22 +430,22 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity3 = {
-            'uuid': '111df473-c1d2-4f40-bc58-2b091d4a7111',
+            'uuid': UUID('111df473-c1d2-4f40-bc58-2b091d4a7111'),
             # GitHub users
-            'parent': '222df473-c1d2-4f40-bc58-2b091d4a7222',
+            'parent': UUID('222df473-c1d2-4f40-bc58-2b091d4a7222'),
             'name': 'github:user:ardumont',
             'type': 'person',
             'description': 'Antoine R. Dumont a.k.a tony',
             'homepage': 'https://ardumont.github.io',
             'active': True,
             'generated': True,
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
             'lister_metadata': {
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 666,
                 'type': 'user',
                 'last_activity': '2016-01-15',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -454,7 +453,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity4 = {
-            'uuid': '222df473-c1d2-4f40-bc58-2b091d4a7222',
+            'uuid': UUID('222df473-c1d2-4f40-bc58-2b091d4a7222'),
             # GitHub users
             'parent': None,
             'name': 'github:user:ToNyX',
@@ -463,13 +462,13 @@ class AbstractTestStorage(DbTestFixture):
             'homepage': 'https://ToNyX.github.io',
             'active': True,
             'generated': True,
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
             'lister_metadata': {
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 999,
                 'type': 'user',
                 'last_activity': '2015-12-24',
             },
-            'doap': None,
+            'metadata': None,
             'validity': [
                 datetime.datetime(2015, 11, 3, 11, 0, 0,
                                   tzinfo=datetime.timezone.utc),
@@ -477,8 +476,8 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.entity2_query = {
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
             'lister_metadata': {
+                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
                 'id': 216766,
                 'type': 'user',
             },
@@ -1180,15 +1179,31 @@ class AbstractTestStorage(DbTestFixture):
         del fetched_entities[0]['last_id']
         del entity1['validity']
         # Entity 2 should have no metadata
-        entity2 = self.entity2_query.copy()
-        entity2['uuid'] = None
+        entity2 = {
+            'uuid': None,
+            'lister_metadata': self.entity2_query.copy(),
+        }
 
         self.assertEquals(fetched_entities, [entity1, entity2])
 
     @istest
+    def entity_get_from_lister_metadata_twice(self):
+        self.storage.entity_add([self.entity1])
+
+        fetched_entities1 = list(
+            self.storage.entity_get_from_lister_metadata(
+                [self.entity1_query]))
+        fetched_entities2 = list(
+            self.storage.entity_get_from_lister_metadata(
+                [self.entity1_query]))
+
+        self.assertEquals(fetched_entities1, fetched_entities2)
+
+    @istest
     def entity_get(self):
         # given
-        self.storage.entity_add([self.entity3, self.entity4])
+        self.storage.entity_add([self.entity4])
+        self.storage.entity_add([self.entity3])
 
         # when: entity3 -child-of-> entity4
         actual_entity3 = list(self.storage.entity_get(self.entity3['uuid']))
@@ -1216,6 +1231,21 @@ class AbstractTestStorage(DbTestFixture):
         del actual_entity4[0]['last_seen']
 
         self.assertEquals(actual_entity4, [entity4])
+
+    @istest
+    def entity_get_one(self):
+        # given
+        self.storage.entity_add([self.entity3, self.entity4])
+
+        # when: entity3 -child-of-> entity4
+        actual_entity3 = self.storage.entity_get_one(self.entity3['uuid'])
+
+        # remove dynamic data (modified by db)
+        entity3 = self.entity3.copy()
+        del entity3['validity']
+        del actual_entity3['last_seen']
+        del actual_entity3['last_id']
+        self.assertEquals(actual_entity3, entity3)
 
     @istest
     def stat_counters(self):

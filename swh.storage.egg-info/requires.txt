@@ -2,5 +2,5 @@ dateutil
 flask
 psycopg2
 requests
-swh.core>=0.0.7
+swh.core>=0.0.17
 vcversioner
