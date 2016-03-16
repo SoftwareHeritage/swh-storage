@@ -1016,9 +1016,8 @@ class Storage():
                 - homepage (str): url of the entity's homepage
                 - active (bool): whether the entity is active
                 - generated (bool): whether the entity was generated
-                - lister (uuid): the uuid of the generating entity
                 - lister_metadata (dict): lister-specific entity metadata
-                - doap (dict): DOAP data for the entity
+                - metadata (dict): other metadata for the entity
                 - validity (datetime.DateTime array): timestamps at which we
                     listed the entity.
         """
@@ -1037,14 +1036,11 @@ class Storage():
            associated metadata.
 
         Args:
-            - entities: iterable of dictionaries containing the following keys:
-                - lister (uuid): uuid of the lister
-                - lister_metadata (dict): subset of the lister metadata used
-                  for matching the entity
-
+            entities: iterable of dictionaries containing the lister metadata
+               to look for. Useful keys are 'lister', 'type', 'id', ...
         Returns:
             A generator of fetched entities with all their attributes. If no
-            match was found, the returned entity's uuid is None.
+            match was found, the returned entity is None.
         """
 
         db = self.db
@@ -1053,12 +1049,14 @@ class Storage():
 
         mapped_entities = []
         for i, entity in enumerate(entities):
-            mapped_entity = entity.copy()
-            mapped_entity['id'] = i
+            mapped_entity = {
+                'id': i,
+                'lister_metadata': entity,
+            }
             mapped_entities.append(mapped_entity)
 
         db.copy_to(mapped_entities, 'tmp_entity_lister',
-                   ['id', 'lister', 'lister_metadata'], cur)
+                   ['id', 'lister_metadata'], cur)
 
         cur.execute('''select id, %s
                        from swh_entity_from_tmp_entity_lister()
@@ -1066,12 +1064,14 @@ class Storage():
                     ','.join(db.entity_cols))
 
         for id, *entity_vals in cur:
-            returned_entity = entities[id].copy()
             fetched_entity = dict(zip(db.entity_cols, entity_vals))
-            returned_entity['uuid'] = fetched_entity['uuid']
             if fetched_entity['uuid']:
-                returned_entity.update(fetched_entity)
-            yield returned_entity
+                yield fetched_entity
+            else:
+                yield {
+                    'uuid': None,
+                    'lister_metadata': entities[i],
+                }
 
     @db_transaction_generator
     def entity_get(self, uuid, cur=None):
@@ -1089,6 +1089,24 @@ class Storage():
         db = self.db
         for entity in db.entity_get(uuid, cur):
             yield dict(zip(db.entity_cols, entity))
+
+    @db_transaction
+    def entity_get_one(self, uuid, cur=None):
+        """Returns one entity using its uuid identifier.
+
+        Args:
+            uuid: entity's identifier
+
+        Returns:
+            the object corresponding to the given entity
+
+        """
+        db = self.db
+        entity = db.entity_get_one(uuid, cur)
+        if entity:
+            return dict(zip(db.entity_cols, entity))
+        else:
+            return None
 
     @db_transaction
     def stat_counters(self, cur=None):
