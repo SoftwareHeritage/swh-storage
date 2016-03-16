@@ -185,6 +185,9 @@ class RemoteStorage():
     def entity_get(self, uuid):
         return self.post('entity/get', {'uuid': uuid})
 
+    def entity_get_one(self, uuid):
+        return self.get('entity', {'uuid': uuid})
+
     def entity_get_from_lister_metadata(self, entities):
         return self.post('entity/from_lister_metadata', {'entities': entities})
 
