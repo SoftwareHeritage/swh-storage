@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(65, now(), 'Work In Progress');
+      values(66, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -310,7 +310,7 @@ create table person
 
 create unique index on person(name, email);
 
-create type revision_type as enum ('git', 'tar', 'dsc');
+create type revision_type as enum ('git', 'tar', 'dsc', 'svn');
 
 -- the data object types stored in our data model
 create type object_type as enum ('content', 'directory', 'revision', 'release');
