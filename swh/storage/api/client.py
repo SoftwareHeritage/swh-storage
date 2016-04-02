@@ -134,8 +134,9 @@ class RemoteStorage():
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
 
-    def revision_missing(self, revisions):
-        return self.post('revision/missing', {'revisions': revisions})
+    def revision_missing(self, revisions, type='git'):
+        return self.post('revision/missing', {'revisions': revisions,
+                                              'type': type})
 
     def release_add(self, releases):
         return self.post('release/add', {'releases': releases})

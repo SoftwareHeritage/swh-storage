@@ -525,10 +525,13 @@ class Storage():
                        ['id', 'parent_id', 'parent_rank'], cur)
 
     @db_transaction_generator
-    def revision_missing(self, revisions, cur):
+    def revision_missing(self, revisions, type='git', cur=None):
         """List revisions missing from storage
 
-        Args: an iterable of revision ids
+        Args:
+            - revisions: an iterable of revision ids
+            - type: revision's type (git by default)
+
         Returns: a list of missing revision ids
         """
         db = self.db
@@ -536,7 +539,7 @@ class Storage():
         # Create temporary table for metadata injection
         db.mktemp('revision', cur)
 
-        revisions_dicts = ({'id': dir, 'type': 'git'} for dir in revisions)
+        revisions_dicts = ({'id': dir, 'type': type} for dir in revisions)
 
         db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
 
