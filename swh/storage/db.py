@@ -55,6 +55,8 @@ def entry_to_bytes(entry):
 
 def line_to_bytes(line):
     """Convert a line coming from the database to bytes"""
+    if isinstance(line, dict):
+        return {k: entry_to_bytes(v) for k, v in line.items()}
     return line.__class__(entry_to_bytes(entry) for entry in line)
 
 
