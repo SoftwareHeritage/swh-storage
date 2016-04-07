@@ -4,6 +4,7 @@ import copy
 import itertools
 import os
 import pickle
+import sys
 
 from swh.model import identifiers
 
@@ -87,18 +88,74 @@ MESSAGE_ADD_NL_START_FIX = ('add newline to start of message', [
 def author_name_doublespace(rev):
     rev['author']['name'] = b''.join([rev['author']['name'], b' '])
 
-AUTHOR_ADD_SPC_FIX = ('author double space', [
+AUTHOR_NAME_ADD_SPC_FIX = ('author double space', [
     (None, None),
-    (author_name_doublespace, 'trailing space author')
+    (author_name_doublespace, 'trailing space author name')
 ])
 
 
 def committer_name_doublespace(rev):
     rev['committer']['name'] = b''.join([rev['committer']['name'], b' '])
 
-COMMITTER_ADD_SPC_FIX = ('committer double space', [
+COMMITTER_NAME_ADD_SPC_FIX = ('committer double space', [
     (None, None),
-    (committer_name_doublespace, 'trailing space committer')
+    (committer_name_doublespace, 'trailing space committer name')
+])
+
+
+def author_name_null(rev):
+    rev['author']['name'] = None
+
+AUTHOR_NAME_NULL_FIX = ('author name null', [
+    (None, None),
+    (author_name_null, 'None author name')
+])
+
+
+def author_email_null(rev):
+    rev['author']['email'] = None
+
+AUTHOR_EMAIL_NULL_FIX = ('author email null', [
+    (None, None),
+    (author_email_null, 'None author email')
+])
+
+
+def committer_name_null(rev):
+    rev['committer']['name'] = None
+
+COMMITTER_NAME_NULL_FIX = ('committer name null', [
+    (None, None),
+    (committer_name_null, 'None committer name')
+])
+
+
+def committer_email_null(rev):
+    rev['committer']['email'] = None
+
+COMMITTER_EMAIL_NULL_FIX = ('committer email null', [
+    (None, None),
+    (committer_email_null, 'None committer email')
+])
+
+
+def author_add_spc(rev):
+    rev['author'] = b''.join([
+        identifiers.normalize_author(rev['author']), b' '])
+
+AUTHOR_ADD_SPC_FIX = ('add trailing space to author specification', [
+    (None, None),
+    (author_add_spc, 'add trailing space to author spec')
+])
+
+
+def committer_add_spc(rev):
+    rev['committer'] = b''.join([
+        identifiers.normalize_author(rev['committer']), b' '])
+
+COMMITTER_ADD_SPC_FIX = ('add trailing space to committer specification', [
+    (None, None),
+    (committer_add_spc, 'add trailing space to committer spec')
 ])
 
 
@@ -112,7 +169,6 @@ def fix_revision(revision):
 
     if revision['message'] == b'':
         data_fixups.append(MESSAGE_NULL_FIX)
-
     data_fixups.append(MESSAGE_ADD_NL_END_FIX)
     data_fixups.append(MESSAGE_ADD_NL_START_FIX)
 
@@ -132,6 +188,21 @@ def fix_revision(revision):
     # Less credible fixups are first in the list, so they run last
     data_fixups.insert(0, COMMITTER_ADD_SPC_FIX)
     data_fixups.insert(0, AUTHOR_ADD_SPC_FIX)
+
+    if revision['author']['name'] == b'':
+        data_fixups.insert(0, AUTHOR_NAME_NULL_FIX)
+
+    if revision['author']['email'] == b'':
+        data_fixups.insert(0, AUTHOR_EMAIL_NULL_FIX)
+
+    if revision['committer']['name'] == b'':
+        data_fixups.insert(0, COMMITTER_NAME_NULL_FIX)
+
+    if revision['committer']['email'] == b'':
+        data_fixups.insert(0, COMMITTER_EMAIL_NULL_FIX)
+
+    data_fixups.insert(0, COMMITTER_NAME_ADD_SPC_FIX)
+    data_fixups.insert(0, AUTHOR_NAME_ADD_SPC_FIX)
 
     data_fixup_functions = [functions for title, functions in data_fixups]
     for corrections in itertools.product(*data_fixup_functions):
@@ -155,12 +226,14 @@ def fix_revision(revision):
 
 if __name__ == '__main__':
 
-    for dirname, dirs, files in os.walk('revs'):
-        for name in files:
-            with open(os.path.join(dirname, name), 'rb') as f:
-                revision = pickle.load(f)
+    for hash in sys.stdin.readlines():
+        hash = hash.strip()
+        filename = os.path.join('revs', hash[0:2], hash[2:4], hash)
+        with open(filename, 'rb') as f:
+            revision = pickle.load(f)
 
-            id, fixes = fix_revision(revision)
-            print(';'.join([id] + fixes))
-
-            last_id = revision['id']
+        id, fixes = fix_revision(revision)
+        if not fixes:
+            print(id)
+        else:
+            print(';'.join([id, 'FIXED'] + fixes))
