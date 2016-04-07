@@ -633,20 +633,20 @@ as $$
 $$;
 
 
--- Retrieve revisions from tmp_revision in bulk
+-- Retrieve revisions from tmp_bytea in bulk
 create or replace function swh_revision_get()
     returns setof revision_entry
     language plpgsql
 as $$
 begin
     return query
-        select t.id, r.date, r.date_offset, r.date_neg_utc_offset,
+        select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
                r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
                r.type, r.directory, r.message,
                a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
          array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
                    as parents
-        from tmp_revision t
+        from tmp_bytea t
         left join revision r on t.id = r.id
         left join person a on a.id = r.author
         left join person c on c.id = r.committer;
@@ -654,14 +654,14 @@ begin
 end
 $$;
 
--- List missing revisions from tmp_revision
+-- List missing revisions from tmp_bytea
 create or replace function swh_revision_missing()
     returns setof sha1_git
     language plpgsql
 as $$
 begin
     return query
-        select id from tmp_revision t
+        select id::sha1_git from tmp_bytea t
 	where not exists (
 	    select 1 from revision r
 	    where r.id = t.id);
