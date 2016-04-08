@@ -1,3 +1,11 @@
+swh-storage (0.0.37-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.37
+  * Add fullname to person table
+  * Add svn as a revision type
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 08 Apr 2016 16:44:24 +0200
+
 swh-storage (0.0.36-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.36
