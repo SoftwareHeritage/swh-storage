@@ -19,12 +19,16 @@ class TestConverters(unittest.TestCase):
     @istest
     def db_to_author(self):
         # when
-        actual_author = converters.db_to_author(1, b'name', b'email')
+        actual_author = converters.db_to_author(
+            1, b'fullname', b'name', b'email')
 
         # then
-        self.assertEquals(actual_author, {'id': 1,
-                                          'name': b'name',
-                                          'email': b'email'})
+        self.assertEquals(actual_author, {
+            'id': 1,
+            'fullname': b'fullname',
+            'name': b'name',
+            'email': b'email',
+        })
 
     @istest
     def db_to_revision(self):
@@ -41,9 +45,11 @@ class TestConverters(unittest.TestCase):
             'directory': b'dir-sha1',
             'message': b'commit message',
             'author_id': 'auth-id',
+            'author_fullname': b'auth-fullname',
             'author_name': b'auth-name',
             'author_email': b'auth-email',
             'committer_id': 'comm-id',
+            'committer_fullname': b'comm-fullname',
             'committer_name': b'comm-name',
             'committer_email': b'comm-email',
             'metadata': {},
@@ -54,13 +60,19 @@ class TestConverters(unittest.TestCase):
         # then
         self.assertEquals(actual_revision, {
             'id': 'revision-id',
-            'author': {'id': 'auth-id',
-                       'name': b'auth-name',
-                       'email': b'auth-email'},
+            'author': {
+                'id': 'auth-id',
+                'fullname': b'auth-fullname',
+                'name': b'auth-name',
+                'email': b'auth-email',
+            },
             'date': None,
-            'committer': {'id': 'comm-id',
-                          'name': b'comm-name',
-                          'email': b'comm-email'},
+            'committer': {
+                'id': 'comm-id',
+                'fullname': b'comm-fullname',
+                'name': b'comm-name',
+                'email': b'comm-email',
+            },
             'committer_date': None,
             'type': 'rev',
             'directory': b'dir-sha1',
@@ -84,15 +96,19 @@ class TestConverters(unittest.TestCase):
             'comment': b'release comment',
             'synthetic': True,
             'author_id': 'auth-id',
+            'author_fullname': b'auth-fullname',
             'author_name': b'auth-name',
             'author_email': b'auth-email',
         })
 
         # then
         self.assertEquals(actual_release, {
-            'author': {'id': 'auth-id',
-                       'name': b'auth-name',
-                       'email': b'auth-email'},
+            'author': {
+                'id': 'auth-id',
+                'fullname': b'auth-fullname',
+                'name': b'auth-name',
+                'email': b'auth-email',
+            },
             'date': None,
             'id': b'release-id',
             'name': b'release-name',

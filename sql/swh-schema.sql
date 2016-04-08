@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(65, now(), 'Work In Progress');
+      values(68, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -303,14 +303,18 @@ create unique index on directory_entry_rev(target, name, perms);
 
 create table person
 (
-  id     bigserial primary key,
-  name   bytea not null default '',
-  email  bytea not null default ''
+  id        bigserial primary key,
+  fullname  bytea not null, -- freeform specification; what is actually used in the checksums
+                            --     will usually be of the form 'name <email>'
+  name      bytea,          -- advisory: not null if we managed to parse a name
+  email     bytea           -- advisory: not null if we managed to parse an email
 );
 
-create unique index on person(name, email);
+create unique index on person(fullname);
+create index on person(name);
+create index on person(email);
 
-create type revision_type as enum ('git', 'tar', 'dsc');
+create type revision_type as enum ('git', 'tar', 'dsc', 'svn');
 
 -- the data object types stored in our data model
 create type object_type as enum ('content', 'directory', 'revision', 'release');
