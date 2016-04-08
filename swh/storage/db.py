@@ -55,6 +55,8 @@ def entry_to_bytes(entry):
 
 def line_to_bytes(line):
     """Convert a line coming from the database to bytes"""
+    if isinstance(line, dict):
+        return {k: entry_to_bytes(v) for k, v in line.items()}
     return line.__class__(entry_to_bytes(entry) for entry in line)
 
 
@@ -330,31 +332,43 @@ class Db:
 
         yield from cursor_to_bytes(cur)
 
+    revision_add_cols = [
+        'id', 'date', 'date_offset', 'date_neg_utc_offset', 'committer_date',
+        'committer_date_offset', 'committer_date_neg_utc_offset', 'type',
+        'directory', 'message', 'author_fullname', 'author_name',
+        'author_email', 'committer_fullname', 'committer_name',
+        'committer_email', 'metadata', 'synthetic',
+    ]
+
+    revision_get_cols = revision_add_cols + [
+        'author_id', 'committer_id', 'parents']
+
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_revision_get()')
+        query = 'SELECT %s FROM swh_revision_get()' % (
+            ', '.join(self.revision_get_cols))
+        cur.execute(query)
         yield from cursor_to_bytes(cur)
 
     def revision_log(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
 
-        query = """SELECT id, date, date_offset, date_neg_utc_offset, committer_date,
-                          committer_date_offset, committer_date_neg_utc_offset,
-                          type, directory, message,
-                          author_id, author_name, author_email, committer_id,
-                          committer_name, committer_email, metadata,
-                          synthetic, parents
-                   FROM swh_revision_log(%s, %s)
-                """
+        query = """SELECT %s
+                   FROM swh_revision_log(%%s, %%s)
+                """ % ', '.join(self.revision_get_cols)
+
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
+
+    revision_shortlog_cols = ['id', 'parents']
 
     def revision_shortlog(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
 
-        query = """SELECT id, parents
-                   FROM swh_revision_list(%s, %s)
-                """
+        query = """SELECT %s
+                   FROM swh_revision_list(%%s, %%s)
+                """ % ', '.join(self.revision_shortlog_cols)
+
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
@@ -471,7 +485,10 @@ class Db:
             return line_to_bytes(data)
         return None
 
-    def person_add(self, name, email, cur=None):
+    person_cols = ['fullname', 'name', 'email']
+    person_get_cols = person_cols + ['id']
+
+    def person_add(self, person, cur=None):
         """Add a person identified by its name and email.
 
         Returns:
@@ -480,10 +497,15 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        query_new_person = '''INSERT INTO person(name, email)
-                              VALUES (%s, %s)
-                              RETURNING id'''
-        cur.execute(query_new_person, (name, email))
+        query_new_person = '''\
+        INSERT INTO person(%s)
+        VALUES (%s)
+        RETURNING id''' % (
+            ', '.join(self.person_cols),
+            ', '.join('%s' for i in range(len(self.person_cols)))
+        )
+        cur.execute(query_new_person,
+                    [person[col] for col in self.person_cols])
         return cur.fetchone()[0]
 
     def person_get(self, ids, cur=None):
@@ -492,15 +514,46 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        query = """SELECT id, name, email
+        query = """SELECT %s
                    FROM person
-                   WHERE id IN %s"""
+                   WHERE id IN %%s""" % ', '.join(self.person_get_cols)
+
         cur.execute(query, (tuple(ids),))
         yield from cursor_to_bytes(cur)
 
+    release_add_cols = [
+        'id', 'target', 'target_type', 'date', 'date_offset',
+        'date_neg_utc_offset', 'name', 'comment', 'synthetic',
+        'author_fullname', 'author_name', 'author_email',
+    ]
+    release_get_cols = release_add_cols + ['author_id']
+
     def release_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_release_get()')
+        query = '''
+        SELECT %s
+            FROM swh_release_get()
+        ''' % ', '.join(self.release_get_cols)
+        cur.execute(query)
+        yield from cursor_to_bytes(cur)
+
+    def release_get_by(self,
+                       origin_id,
+                       limit=None,
+                       cur=None):
+        """Retrieve a release by occurrence criterion (only origin right now)
+
+        Args:
+            - origin_id: The origin to look for.
+
+        """
+        cur = self._cursor(cur)
+        query = """
+        SELECT %s
+            FROM swh_release_get_by(%%s)
+            LIMIT %%s
+        """ % ', '.join(self.release_get_cols)
+        cur.execute(query, (origin_id, limit))
         yield from cursor_to_bytes(cur)
 
     def revision_get_by(self,
@@ -522,13 +575,13 @@ class Db:
         if branch_name and isinstance(branch_name, str):
             branch_name = branch_name.encode('utf-8')
 
-        cur.execute("""SELECT *
-                       FROM swh_revision_get_by(%s, %s, %s)
-                       LIMIT %s""",
-                    (origin_id,
-                     branch_name,
-                     datetime,
-                     limit))
+        query = '''
+        SELECT %s
+            FROM swh_revision_get_by(%%s, %%s, %%s)
+            LIMIT %%s
+        ''' % ', '.join(self.revision_get_cols)
+
+        cur.execute(query, (origin_id, branch_name, datetime, limit))
         yield from cursor_to_bytes(cur)
 
     def directory_entry_get_by_path(self, directory, paths, cur=None):
@@ -571,21 +624,3 @@ class Db:
         if not data:
             return None
         return line_to_bytes(data)
-
-    def release_get_by(self,
-                       origin_id,
-                       limit=None,
-                       cur=None):
-        """Retrieve a release by occurrence criterion (only origin right now)
-
-        Args:
-            - origin_id: The origin to look for.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT *
-                       FROM swh_release_get_by(%s)
-                       LIMIT %s""",
-                    (origin_id,
-                     limit))
-        yield from cursor_to_bytes(cur)

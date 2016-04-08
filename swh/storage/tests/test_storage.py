@@ -162,6 +162,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'Nicolas Dandrimont',
                 'email': b'nicolas@example.com',
+                'fullname': b'Nicolas Dandrimont <nicolas@example.com> ',
             },
             'date': {
                 'timestamp': 1234567890,
@@ -171,6 +172,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer': {
                 'name': b'St\xc3fano Zacchiroli',
                 'email': b'stefano@example.com',
+                'fullname': b'St\xc3fano Zacchiroli <stefano@example.com>'
             },
             'committer_date': {
                 'timestamp': 1123456789,
@@ -200,6 +202,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'Roberto Dicosmo',
                 'email': b'roberto@example.com',
+                'fullname': b'Roberto Dicosmo <roberto@example.com>',
             },
             'date': {
                 'timestamp': 1234567843.22,
@@ -209,6 +212,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer': {
                 'name': b'tony',
                 'email': b'ar@dumont.fr',
+                'fullname': b'tony <ar@dumont.fr>',
             },
             'committer_date': {
                 'timestamp': 1123456789,
@@ -228,6 +232,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'Roberto Dicosmo',
                 'email': b'roberto@example.com',
+                'fullname': b'Roberto Dicosmo <roberto@example.com>',
             },
             'date': {
                 'timestamp': 1234567843.22,
@@ -237,6 +242,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer': {
                 'name': b'tony',
                 'email': b'ar@dumont.fr',
+                'fullname': b'tony <ar@dumont.fr>',
             },
             'committer_date': {
                 'timestamp': 1127351742,
@@ -256,6 +262,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'me',
                 'email': b'me@soft.heri',
+                'fullname': b'me <me@soft.heri>',
             },
             'date': {
                 'timestamp': 1244567843.22,
@@ -265,6 +272,7 @@ class AbstractTestStorage(DbTestFixture):
             'committer': {
                 'name': b'committer-dude',
                 'email': b'committer@dude.com',
+                'fullname': b'committer-dude <committer@dude.com>',
             },
             'committer_date': {
                 'timestamp': 1244567843.22,
@@ -310,6 +318,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'olasd',
                 'email': b'nic@olasd.fr',
+                'fullname': b'olasd <nic@olasd.fr>',
             },
             'date': {
                 'timestamp': 1234567890,
@@ -328,6 +337,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'tony',
                 'email': b'ar@dumont.fr',
+                'fullname': b'tony <ar@dumont.fr>',
             },
             'date': {
                 'timestamp': 1634366813,
@@ -346,6 +356,7 @@ class AbstractTestStorage(DbTestFixture):
             'author': {
                 'name': b'tony',
                 'email': b'tony@ardumont.fr',
+                'fullname': b'tony <tony@ardumont.fr>',
             },
             'date': {
                 'timestamp': 1634336813,
@@ -1425,18 +1436,36 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
     @istest
     def person_get(self):
         # given
-        person0 = {'name': b'bob', 'email': b'alice@bob'}
+        person0 = {
+            'fullname': b'bob <alice@bob>',
+            'name': b'bob',
+            'email': b'alice@bob',
+        }
         id0 = self.storage._person_add(person0)
-        person1 = {'name': b'tony', 'email': b'tony@bob'}
+
+        person1 = {
+            'fullname': b'tony <tony@bob>',
+            'name': b'tony',
+            'email': b'tony@bob',
+        }
         id1 = self.storage._person_add(person1)
 
         # when
         actual_persons = self.storage.person_get([id0, id1])
 
         # given (person injection through release for example)
-        self.assertEqual(list(actual_persons), [{'id': id0,
-                                                 'name': person0['name'],
-                                                 'email': person0['email']},
-                                                {'id': id1,
-                                                 'name': person1['name'],
-                                                 'email': person1['email']}])
+        self.assertEqual(
+            list(actual_persons), [
+                {
+                    'id': id0,
+                    'fullname': person0['fullname'],
+                    'name': person0['name'],
+                    'email': person0['email'],
+                },
+                {
+                    'id': id1,
+                    'fullname': person1['fullname'],
+                    'name': person1['name'],
+                    'email': person1['email'],
+                },
+            ])
