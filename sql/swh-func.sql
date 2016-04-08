@@ -52,10 +52,12 @@ create or replace function swh_mktemp_revision()
 as $$
     create temporary table tmp_revision (
         like revision including defaults,
-        author_name bytea not null default '',
-        author_email bytea not null default '',
-        committer_name bytea not null default '',
-        committer_email bytea not null default ''
+        author_fullname bytea,
+        author_name bytea,
+        author_email bytea,
+        committer_fullname bytea,
+        committer_name bytea,
+        committer_email bytea
     ) on commit drop;
     alter table tmp_revision drop column author;
     alter table tmp_revision drop column committer;
@@ -73,8 +75,9 @@ create or replace function swh_mktemp_release()
 as $$
     create temporary table tmp_release (
         like release including defaults,
-        author_name bytea not null default '',
-        author_email bytea not null default ''
+        author_fullname bytea,
+        author_name bytea,
+        author_email bytea
     ) on commit drop;
     alter table tmp_release drop column author;
     alter table tmp_release drop column object_id;
@@ -591,25 +594,27 @@ $$;
 -- Detailed entry for a revision
 create type revision_entry as
 (
-  id                     sha1_git,
-  date                   timestamptz,
-  date_offset            smallint,
-  date_neg_utc_offset    boolean,
-  committer_date         timestamptz,
-  committer_date_offset  smallint,
-  committer_date_neg_utc_offset    boolean,
-  type                   revision_type,
-  directory              sha1_git,
-  message                bytea,
-  author_id              bigint,
-  author_name            bytea,
-  author_email           bytea,
-  committer_id           bigint,
-  committer_name         bytea,
-  committer_email        bytea,
-  metadata               jsonb,
-  synthetic              boolean,
-  parents                bytea[]
+  id                             sha1_git,
+  date                           timestamptz,
+  date_offset                    smallint,
+  date_neg_utc_offset            boolean,
+  committer_date                 timestamptz,
+  committer_date_offset          smallint,
+  committer_date_neg_utc_offset  boolean,
+  type                           revision_type,
+  directory                      sha1_git,
+  message                        bytea,
+  author_id                      bigint,
+  author_fullname                bytea,
+  author_name                    bytea,
+  author_email                   bytea,
+  committer_id                   bigint,
+  committer_fullname             bytea,
+  committer_name                 bytea,
+  committer_email                bytea,
+  metadata                       jsonb,
+  synthetic                      boolean,
+  parents                        bytea[]
 );
 
 
@@ -623,8 +628,8 @@ as $$
     select t.id, r.date, r.date_offset, r.date_neg_utc_offset,
            r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
            r.type, r.directory, r.message,
-           a.id, a.name, a.email,
-           c.id, c.name, c.email,
+           a.id, a.fullname, a.name, a.email,
+           c.id, c.fullname, c.name, c.email,
            r.metadata, r.synthetic, t.parents
     from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
@@ -633,20 +638,20 @@ as $$
 $$;
 
 
--- Retrieve revisions from tmp_revision in bulk
+-- Retrieve revisions from tmp_bytea in bulk
 create or replace function swh_revision_get()
     returns setof revision_entry
     language plpgsql
 as $$
 begin
     return query
-        select t.id, r.date, r.date_offset, r.date_neg_utc_offset,
+        select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
                r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
                r.type, r.directory, r.message,
-               a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
+               a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
          array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
                    as parents
-        from tmp_revision t
+        from tmp_bytea t
         left join revision r on t.id = r.id
         left join person a on a.id = r.author
         left join person c on c.id = r.committer;
@@ -654,14 +659,14 @@ begin
 end
 $$;
 
--- List missing revisions from tmp_revision
+-- List missing revisions from tmp_bytea
 create or replace function swh_revision_missing()
     returns setof sha1_git
     language plpgsql
 as $$
 begin
     return query
-        select id from tmp_revision t
+        select id::sha1_git from tmp_bytea t
 	where not exists (
 	    select 1 from revision r
 	    where r.id = t.id);
@@ -672,18 +677,19 @@ $$;
 -- Detailed entry for a release
 create type release_entry as
 (
-  id           sha1_git,
-  target       sha1_git,
-  target_type  object_type,
-  date         timestamptz,
-  date_offset  smallint,
-  date_neg_utc_offset boolean,
-  name         bytea,
-  comment      bytea,
-  synthetic    boolean,
-  author_id    bigint,
-  author_name  bytea,
-  author_email bytea
+  id                   sha1_git,
+  target               sha1_git,
+  target_type          object_type,
+  date                 timestamptz,
+  date_offset          smallint,
+  date_neg_utc_offset  boolean,
+  name                 bytea,
+  comment              bytea,
+  synthetic            boolean,
+  author_id            bigint,
+  author_fullname      bytea,
+  author_name          bytea,
+  author_email         bytea
 );
 
 -- Detailed entry for release
@@ -694,7 +700,7 @@ as $$
 begin
     return query
         select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
-               r.synthetic, p.id as author_id, p.name as author_name, p.email as author_email
+               r.synthetic, p.id as author_id, p.fullname as author_fullname, p.name as author_name, p.email as author_email
         from tmp_bytea t
         inner join release r on t.id = r.id
         inner join person p on p.id = r.author;
@@ -709,15 +715,15 @@ create or replace function swh_person_add_from_revision()
 as $$
 begin
     with t as (
-        select author_name as name, author_email as email from tmp_revision
+        select author_fullname as fullname, author_name as name, author_email as email from tmp_revision
     union
-        select committer_name as name, committer_email as email from tmp_revision
-    ) insert into person (name, email)
-    select distinct name, email from t
+        select committer_fullname as fullname, committer_name as name, committer_email as email from tmp_revision
+    ) insert into person (fullname, name, email)
+    select distinct fullname, name, email from t
     where not exists (
         select 1
-	from person p
-	where t.name = p.name and t.email = p.email
+        from person p
+        where t.fullname = p.fullname
     );
     return;
 end
@@ -735,8 +741,8 @@ begin
     insert into revision (id, date, date_offset, date_neg_utc_offset, committer_date, committer_date_offset, committer_date_neg_utc_offset, type, directory, message, author, committer, metadata, synthetic)
     select t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic
     from tmp_revision t
-    left join person a on a.name = t.author_name and a.email = t.author_email
-    left join person c on c.name = t.committer_name and c.email = t.committer_email;
+    left join person a on a.fullname = t.author_fullname
+    left join person c on c.fullname = t.committer_fullname;
     return;
 end
 $$;
@@ -764,13 +770,13 @@ create or replace function swh_person_add_from_release()
 as $$
 begin
     with t as (
-        select distinct author_name as name, author_email as email from tmp_release
-    ) insert into person (name, email)
-    select name, email from t
+        select distinct author_fullname as fullname, author_name as name, author_email as email from tmp_release
+    ) insert into person (fullname, name, email)
+    select fullname, name, email from t
     where not exists (
         select 1
-	from person p
-	where t.name = p.name and t.email = p.email
+        from person p
+        where t.fullname = p.fullname
     );
     return;
 end
@@ -788,7 +794,7 @@ begin
     insert into release (id, target, target_type, date, date_offset, date_neg_utc_offset, name, comment, author, synthetic)
     select t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.name, t.comment, a.id, t.synthetic
     from tmp_release t
-    left join person a on a.name = t.author_name and a.email = t.author_email;
+    left join person a on a.fullname = t.author_fullname;
     return;
 end
 $$;
@@ -1030,7 +1036,7 @@ as $$
     select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
         r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
         r.type, r.directory, r.message,
-        a.id, a.name, a.email, c.id, c.name, c.email, r.metadata, r.synthetic,
+        a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
         array(select rh.parent_id::bytea
             from revision_history rh
             where rh.id = r.id
@@ -1050,7 +1056,7 @@ create or replace function swh_release_get_by(
     stable
 as $$
    select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset,
-        r.name, r.comment, r.synthetic, a.id as author_id,
+        r.name, r.comment, r.synthetic, a.id as author_id, a.fullname as author_fullname,
         a.name as author_name, a.email as author_email
     from release r
     inner join occurrence_history occ on occ.target = r.target

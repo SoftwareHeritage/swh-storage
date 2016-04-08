@@ -9,8 +9,9 @@ import numbers
 
 
 DEFAULT_AUTHOR = {
-    'name': b'',
-    'email': b'',
+    'fullname': None,
+    'name': None,
+    'email': None,
 }
 
 DEFAULT_DATE = {
@@ -79,7 +80,7 @@ def author_to_db(author):
 
     Args: a swh-model compatible author
     Returns:
-        a dict containing two keys: author and email
+        a dict containing three keys: author, fullname and email
     """
     if author is None:
         return DEFAULT_AUTHOR
@@ -87,20 +88,26 @@ def author_to_db(author):
     return author
 
 
-def db_to_author(id, name, email):
+def db_to_author(id, fullname, name, email):
     """Convert the DB representation of an author to a swh-model author.
 
     Args:
         id (long): the author's identifier
+        fullname (bytes): the author's fullname
         name (bytes): the author's name
         email (bytes): the author's email
 
     Returns:
-        a dict with two keys: author and email.
+        a dict with four keys: id, fullname, name and email, or None if the id
+        is None
     """
+
+    if id is None:
+        return None
 
     return {
         'id': id,
+        'fullname': fullname,
         'name': name,
         'email': email,
     }
@@ -219,11 +226,13 @@ def revision_to_db(revision):
 
     return {
         'id': revision['id'],
+        'author_fullname': author['fullname'],
         'author_name': author['name'],
         'author_email': author['email'],
         'date': date['timestamp'],
         'date_offset': date['offset'],
         'date_neg_utc_offset': date['neg_utc_offset'],
+        'committer_fullname': committer['fullname'],
         'committer_name': committer['name'],
         'committer_email': committer['email'],
         'committer_date': committer_date['timestamp'],
@@ -250,6 +259,7 @@ def db_to_revision(db_revision):
 
     author = db_to_author(
         db_revision['author_id'],
+        db_revision['author_fullname'],
         db_revision['author_name'],
         db_revision['author_email'],
     )
@@ -261,6 +271,7 @@ def db_to_revision(db_revision):
 
     committer = db_to_author(
         db_revision['committer_id'],
+        db_revision['committer_fullname'],
         db_revision['committer_name'],
         db_revision['committer_email'],
     )
@@ -306,6 +317,7 @@ def release_to_db(release):
 
     return {
         'id': release['id'],
+        'author_fullname': author['fullname'],
         'author_name': author['name'],
         'author_email': author['email'],
         'date': date['timestamp'],
@@ -326,6 +338,7 @@ def db_to_release(db_release):
 
     author = db_to_author(
         db_release['author_id'],
+        db_release['author_fullname'],
         db_release['author_name'],
         db_release['author_email'],
     )

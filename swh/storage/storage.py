@@ -510,12 +510,7 @@ class Storage():
             parents_filtered = []
 
             db.copy_to(
-                revisions_filtered, 'tmp_revision',
-                ['id', 'date', 'date_offset', 'date_neg_utc_offset',
-                 'committer_date', 'committer_date_offset',
-                 'committer_date_neg_utc_offset', 'type', 'directory',
-                 'message', 'author_name', 'author_email', 'committer_name',
-                 'committer_email', 'metadata', 'synthetic'],
+                revisions_filtered, 'tmp_revision', db.revision_add_cols,
                 cur,
                 lambda rev: parents_filtered.extend(rev['parents']))
 
@@ -525,20 +520,16 @@ class Storage():
                        ['id', 'parent_id', 'parent_rank'], cur)
 
     @db_transaction_generator
-    def revision_missing(self, revisions, cur):
+    def revision_missing(self, revisions, cur=None):
         """List revisions missing from storage
 
         Args: an iterable of revision ids
+
         Returns: a list of missing revision ids
         """
         db = self.db
 
-        # Create temporary table for metadata injection
-        db.mktemp('revision', cur)
-
-        revisions_dicts = ({'id': dir, 'type': 'git'} for dir in revisions)
-
-        db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
+        db.store_tmp_bytea(revisions, cur)
 
         for obj in db.revision_missing_from_temp(cur):
             yield obj[0]
@@ -551,24 +542,14 @@ class Storage():
                     (or None if the revision doesn't exist)
         """
 
-        keys = ('id', 'date', 'date_offset', 'date_neg_utc_offset',
-                'committer_date', 'committer_date_offset',
-                'committer_date_neg_utc_offset', 'type', 'directory',
-                'message', 'author_id', 'author_name', 'author_email',
-                'committer_id', 'committer_name', 'committer_email',
-                'metadata', 'synthetic', 'parents')
-
         db = self.db
 
-        # Create temporary table for metadata injection
-        db.mktemp('revision', cur)
-
-        revisions_dicts = ({'id': rev, 'type': 'git'} for rev in revisions)
-
-        db.copy_to(revisions_dicts, 'tmp_revision', ['id', 'type'], cur)
+        db.store_tmp_bytea(revisions, cur)
 
         for line in self.db.revision_get_from_temp(cur):
-            data = converters.db_to_revision(dict(zip(keys, line)))
+            data = converters.db_to_revision(
+                dict(zip(db.revision_get_cols, line))
+            )
             if not data['type']:
                 yield None
                 continue
@@ -588,15 +569,10 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'date', 'date_offset', 'date_neg_utc_offset',
-                'committer_date', 'committer_date_offset',
-                'committer_date_neg_utc_offset', 'type', 'directory',
-                'message', 'author_id', 'author_name', 'author_email',
-                'committer_id', 'committer_name', 'committer_email',
-                'metadata', 'synthetic', 'parents']
-
         for line in db.revision_log(revisions, limit, cur):
-            data = converters.db_to_revision(dict(zip(keys, line)))
+            data = converters.db_to_revision(
+                dict(zip(db.revision_get_cols, line))
+            )
             if not data['type']:
                 yield None
                 continue
@@ -625,15 +601,10 @@ class Storage():
         """
         db = self.db
 
-        keys = ('id', 'date', 'date_offset', 'date_neg_utc_offset',
-                'committer_date', 'committer_date_offset',
-                'committer_date_neg_utc_offset', 'type', 'directory',
-                'message', 'author_id', 'author_name', 'author_email',
-                'committer_id', 'committer_name', 'committer_email',
-                'metadata', 'synthetic', 'parents')
-
         for line in db.revision_log_by(origin_id, limit, cur):
-            data = converters.db_to_revision(dict(zip(keys, line)))
+            data = converters.db_to_revision(
+                dict(zip(db.revision_get_cols, line))
+            )
             if not data['type']:
                 yield None
                 continue
@@ -674,10 +645,7 @@ class Storage():
                 if release['id'] in releases_missing
             )
 
-            db.copy_to(releases_filtered, 'tmp_release',
-                       ['id', 'target', 'target_type', 'date', 'date_offset',
-                        'date_neg_utc_offset', 'name', 'comment',
-                        'author_name', 'author_email', 'synthetic'],
+            db.copy_to(releases_filtered, 'tmp_release', db.release_add_cols,
                        cur)
 
             db.release_add_from_temp(cur)
@@ -718,15 +686,13 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'target', 'target_type', 'date', 'date_offset',
-                'date_neg_utc_offset', 'name', 'comment', 'synthetic',
-                'author_id', 'author_name', 'author_email']
-
         # Create temporary table for metadata injection
         db.store_tmp_bytea(releases, cur)
 
         for release in db.release_get_from_temp(cur):
-            yield converters.db_to_release(dict(zip(keys, release)))
+            yield converters.db_to_release(
+                dict(zip(db.release_get_cols, release))
+            )
 
     @db_transaction
     def occurrence_add(self, occurrences, cur=None):
@@ -799,19 +765,14 @@ class Storage():
             found.
 
         """
-        keys = ('id', 'date', 'date_offset', 'date_neg_utc_offset',
-                'committer_date', 'committer_date_offset',
-                'committer_date_neg_utc_offset', 'type', 'directory',
-                'message', 'author_id', 'author_name', 'author_email',
-                'committer_id', 'committer_name', 'committer_email',
-                'metadata', 'synthetic', 'parents')
-
         for line in self.db.revision_get_by(origin_id,
                                             branch_name,
                                             timestamp,
                                             limit=limit,
                                             cur=cur):
-            data = converters.db_to_revision(dict(zip(keys, line)))
+            data = converters.db_to_revision(
+                dict(zip(self.db.revision_get_cols, line))
+            )
             if not data['type']:
                 yield None
                 continue
@@ -830,12 +791,11 @@ class Storage():
             found.
 
         """
-        keys = ('id', 'target', 'target_type', 'date', 'date_offset',
-                'date_neg_utc_offset', 'name', 'comment', 'synthetic',
-                'author_id', 'author_name', 'author_email')
 
         for line in self.db.release_get_by(origin_id, limit=limit):
-            data = converters.db_to_release(dict(zip(keys, line)))
+            data = converters.db_to_release(
+                dict(zip(self.db.release_get_cols, line))
+            )
             yield data
 
     @db_transaction
@@ -922,7 +882,7 @@ class Storage():
         """
         db = self.db
 
-        return db.person_add(person['name'], person['email'])
+        return db.person_add(person)
 
     @db_transaction_generator
     def person_get(self, person, cur=None):
@@ -937,10 +897,8 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'name', 'email']
-
         for person in db.person_get(person):
-            yield dict(zip(keys, person))
+            yield dict(zip(db.person_get_cols, person))
 
     @db_transaction
     def origin_add_one(self, origin, cur=None):
