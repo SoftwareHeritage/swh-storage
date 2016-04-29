@@ -3,18 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import multiprocessing
-import socket
-import time
 import unittest
-from urllib.request import urlopen
+import tempfile
 
 from swh.storage.tests.test_storage import AbstractTestStorage
+from swh.storage.tests.server_testing import ServerTestFixture
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
 
 
-class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
+class TestRemoteStorage(AbstractTestStorage, ServerTestFixture,
+                        unittest.TestCase):
     """Test the remote storage API.
 
     This class doesn't define any tests as we want identical
@@ -23,55 +22,15 @@ class TestRemoteStorage(AbstractTestStorage, unittest.TestCase):
     """
 
     def setUp(self):
-        super().setUp()
-
-        self.start_server()
-        self.storage = RemoteStorage(self.url())
-
-    def tearDown(self):
-        self.stop_server()
-
-        super().tearDown()
-
-    def url(self):
-        return 'http://127.0.0.1:%d/' % self.port
-
-    def start_server(self):
-        """Spawn the API server using multiprocessing"""
-        self.process = None
-
-        # WSGI app configuration
+        # ServerTestFixture needs to have self.objroot for
+        # setUp() method, but this field is defined in
+        # AbstractTestStorage's setUp()
+        # To avoid confusion, override the self.objroot to a
+        # one choosen in this class.
+        storage_base = tempfile.mkdtemp()
+        self.config = {'db': 'dbname=%s' % self.dbname,
+                       'storage_base': storage_base}
         self.app = app
-        self.app.config['db'] = 'dbname=%s' % self.dbname
-        self.app.config['storage_base'] = self.objroot
-
-        # Get an available port number
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind(('127.0.0.1', 0))
-        self.port = sock.getsockname()[1]
-        sock.close()
-
-        # We need a worker function for multiprocessing
-        def worker(app, port):
-            return app.run(port=port, use_reloader=False)
-
-        self.process = multiprocessing.Process(
-            target=worker, args=(self.app, self.port)
-        )
-        self.process.start()
-
-        # Wait max. 5 seconds for server to spawn
-        i = 0
-        while i < 20:
-            try:
-                urlopen(self.url())
-            except Exception:
-                i += 1
-                time.sleep(0.25)
-            else:
-                break
-
-    def stop_server(self):
-        """Terminate the API server"""
-        if self.process:
-            self.process.terminate()
+        super().setUp()
+        self.storage = RemoteStorage(self.url())
+        self.objroot = storage_base
