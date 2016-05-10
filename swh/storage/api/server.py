@@ -9,9 +9,10 @@ import logging
 from flask import Flask, g, request
 
 from swh.core import config
-from .. import Storage
-from ..api.common import (BytesRequest, decode_request, error_handler,
-                          encode_data_server as encode_data)
+from swh.storage import Storage
+from swh.storage.api.common import (BytesRequest, decode_request,
+                                    error_handler,
+                                    encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
     'db': ('str', 'dbname=softwareheritage-dev'),

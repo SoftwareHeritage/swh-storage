@@ -7,9 +7,10 @@
 from flask import Flask, g, request
 
 from swh.core import config
-from .. import ObjStorage
-from ...api.common import (BytesRequest, decode_request, error_handler,
-                           encode_data_server as encode_data)
+from swh.storage.objstorage import ObjStorage
+from swh.storage.api.common import (BytesRequest, decode_request,
+                                    error_handler,
+                                    encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
     'storage_base': ('str', '/tmp/swh-storage/objects/'),
