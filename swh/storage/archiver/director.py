@@ -8,7 +8,8 @@ import swh
 from datetime import datetime
 
 from swh.core import hashutil, config
-from .worker import ArchiverWorker
+from swh.scheduler.celery_backend.config import app
+from . import tasks  # NOQA
 from ..db import cursor_to_bytes
 
 
@@ -21,6 +22,8 @@ DEFAULT_CONFIG = {
     'dbname': 'softwareheritage',
     'user': 'root'
 }
+
+task_name = 'swh.storage.archiver.tasks.SWHArchiverTask'
 
 
 class ArchiverDirector():
@@ -60,8 +63,9 @@ class ArchiverDirector():
                     content to be considered safe.
         """
         # Get the local storage of the master and remote ones for the slaves.
-        storage_args = [db_conn, config['objstorage_path']]
-        master_storage = swh.storage.get_storage('local_storage', storage_args)
+        self.master_storage_args = [db_conn, config['objstorage_path']]
+        master_storage = swh.storage.get_storage('local_storage',
+                                                 self.master_storage_args)
         slaves = {
             id: url
             for id, url
@@ -85,10 +89,14 @@ class ArchiverDirector():
         database and do the required backup jobs.
         """
         for batch in self.get_unarchived_content():
-            aw = ArchiverWorker(batch, self.master_storage,
-                                self.slave_storages, self.retention_policy)
-            # TODO Run the task with celery.
-            aw.run()
+            self.produce_worker(batch)
+
+    def produce_worker(self, batch):
+        """ Produce a worker that will be added to the task queue.
+        """
+        task = app.tasks[task_name]
+        task.delay(batch, self.master_storage_args,
+                   self.slave_storages, self.retention_policy)
 
     def get_unarchived_content(self):
         """ get all the contents that needs to be archived.

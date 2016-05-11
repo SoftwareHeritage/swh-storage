@@ -6,6 +6,7 @@
 import random
 
 from .copier import ArchiverCopier
+from .. import get_storage
 
 from datetime import datetime
 
@@ -21,12 +22,13 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
             that associates a content's sha1 id to the list of servers where
             the content is present or missing
             (see ArchiverDirector::get_unarchived_content).
-        master_storage: The master storage where is the content location.
+        master_storage_args: The connection argument to initialize the
+            master storage where is the content location.
         slave_storages: A map that associates server_id to the remote server.
         retention_policy: The required number of copies for a content to be
             considered safe.
     """
-    def __init__(self, batch, master_storage,
+    def __init__(self, batch, master_storage_args,
                  slave_storages, retention_policy):
         """ Constructor of the ArchiverWorker class.
 
@@ -41,7 +43,7 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
                 be considered safe.
         """
         self.batch = batch
-        self.master_storage = master_storage
+        self.master_storage = get_storage('local_storage', master_storage_args)
         self.slave_storages = slave_storages
         self.retention_policy = retention_policy
 
@@ -52,7 +54,7 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
         contain a copy of the content.
 
         Args:
-            server_missing: a list of servers where the content is missing.
+            allowed_storage: servers when the content is not already present.
             backup_number (int): The number of servers we have to choose in
                 order to fullfill the objective.
         """
