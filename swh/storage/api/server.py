@@ -243,5 +243,6 @@ if __name__ == '__main__':
 
     app.config.update(config.read(sys.argv[1], DEFAULT_CONFIG))
 
-    host = sys.argv[2] if len(sys.argv) >= 3 else '127.0.0.1'
-    app.run(host, debug=True)
+    host = sys.argv[2] if len(sys.argv) >= 3 else '0.0.0.0'
+    port = int(sys.argv[3]) if len(sys.argv) >= 4 else 5000
+    app.run(host, port=port, debug=True)
