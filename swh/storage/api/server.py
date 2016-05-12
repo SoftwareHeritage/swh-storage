@@ -5,6 +5,7 @@
 
 import json
 import logging
+import click
 
 from flask import Flask, g, request
 
@@ -238,11 +239,16 @@ def run_from_webserver(environ, start_response):
     return app(environ, start_response)
 
 
+@click.command()
+@click.argument('config-path', required=1)
+@click.option('--host', default='0.0.0.0', help="Host to run the server")
+@click.option('--port', default=5000, help="Binding port of ther server")
+@click.option('--debug/--nodebug', default=True,
+              help="Indicates if the server should run in debug mode")
+def launch(config_path, host, port, debug):
+    app.config.update(config.read(config_path, DEFAULT_CONFIG))
+    app.run(host, port=int(port), debug=bool(debug))
+
+
 if __name__ == '__main__':
-    import sys
-
-    app.config.update(config.read(sys.argv[1], DEFAULT_CONFIG))
-
-    host = sys.argv[2] if len(sys.argv) >= 3 else '0.0.0.0'
-    port = int(sys.argv[3]) if len(sys.argv) >= 4 else 5000
-    app.run(host, port=port, debug=True)
+    launch()
