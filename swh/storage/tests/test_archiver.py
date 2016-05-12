@@ -90,12 +90,13 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         return self.cursor.fetchall()
 
     def __create_director(self, batch_size=5000, archival_max_age=3600,
-                          retention_policy=1):
+                          retention_policy=1, asynchronous=False):
         config = {
             'objstorage_path': self.objroot,
             'batch_max_size': batch_size,
             'archival_max_age': archival_max_age,
-            'retention_policy': retention_policy
+            'retention_policy': retention_policy,
+            'asynchronous': asynchronous  # Avoid depending on queue for tests.
         }
         director = ArchiverDirector(self.conn, config)
         return director

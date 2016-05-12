@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
     'batch_max_size': 50,
     'archival_max_age': 3600,
     'retention_policy': 2,
+    'asynchronous': True,
 
     'dbname': 'softwareheritage',
     'user': 'root'
@@ -61,6 +62,8 @@ class ArchiverDirector():
                     the files in a given batch.
                 retention_policy (int): Required number of copies for the
                     content to be considered safe.
+                asynchronous (boolean): Indicate whenever the archival should
+                    run in asynchronous mode or not.
         """
         # Get the local storage of the master and remote ones for the slaves.
         self.master_storage_args = [db_conn, config['objstorage_path']]
@@ -81,6 +84,7 @@ class ArchiverDirector():
         self.batch_max_size = config['batch_max_size']
         self.archival_max_age = config['archival_max_age']
         self.retention_policy = config['retention_policy']
+        self.is_asynchronous = config['asynchronous']
 
     def run(self):
         """ Run the archiver director.
@@ -88,15 +92,25 @@ class ArchiverDirector():
         The archiver director will check all the contents of the archiver
         database and do the required backup jobs.
         """
+        run_fn = (self.run_async_worker
+                  if self.is_asynchronous
+                  else self.run_sync_worker)
         for batch in self.get_unarchived_content():
-            self.produce_worker(batch)
+            run_fn(batch)
 
-    def produce_worker(self, batch):
+    def run_async_worker(self, batch):
         """ Produce a worker that will be added to the task queue.
         """
         task = app.tasks[task_name]
         task.delay(batch, self.master_storage_args,
                    self.slave_storages, self.retention_policy)
+
+    def run_sync_worker(self, batch):
+        """ Run synchronously a worker on the given batch.
+        """
+        task = app.tasks[task_name]
+        task(batch, self.master_storage_args,
+             self.slave_storages, self.retention_policy)
 
     def get_unarchived_content(self):
         """ get all the contents that needs to be archived.
