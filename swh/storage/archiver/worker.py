@@ -126,7 +126,8 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
             still require to be archived.
 
             Args:
-                content (str):
+                content (str): Sha1 of a content.
+                destination: Tuple of (archive id, archive url).
             """
             archival_status = self.__get_archival_status(
                 content,
@@ -168,6 +169,8 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
             contents = []
             for content in slaves_copy[destination]:
                 if content_filter(content, destination):
+                    self.__content_archive_update(content, destination[0],
+                                                  new_status='ongoing')
                     contents.append(content)
             slaves_copy[destination] = contents
 
