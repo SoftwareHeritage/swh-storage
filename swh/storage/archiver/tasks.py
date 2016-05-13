@@ -13,8 +13,8 @@ class SWHArchiverTask(Task):
     task_queue = 'swh_storage_archive_worker'
 
     def run(self, batch, master_storage_args,
-            slave_storages, retention_policy):
+            slave_storages, config):
         aw = ArchiverWorker(batch, master_storage_args,
-                            slave_storages, retention_policy)
+                            slave_storages, config)
         if aw.run():
             self.log("Successful backup for a batch of size %s" % len(batch))

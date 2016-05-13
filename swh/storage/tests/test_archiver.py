@@ -143,7 +143,7 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
             b'archive_ongoing_elapsed',
             status='ongoing',
             date="'%s'" % (datetime.now() - timedelta(
-                seconds=self.archiver.archival_max_age + 1
+                seconds=self.archiver.config['archival_max_age'] + 1
             ))
         )
         items = [x for batch in self.archiver.get_unarchived_content()
