@@ -683,3 +683,34 @@ class Db:
         cur = self._cursor(cur)
         cur.execute(query)
         yield from cursor_to_bytes(cur)
+
+    def content_archive_update(self, content_id, archive_id,
+                               new_status=None, cur=None):
+        """ Update the status of a archive content and set it's mtime to now()
+
+        Change the last modification time of an archived content and change
+        its status to the given one.
+
+        Args:
+            content_id (string): The content id.
+            archive_id (string): The id of the concerned archive.
+            new_status (string): One of missing, ongoing or present, this
+                status will replace the previous one. If not given, the
+                function only changes the mtime of the content.
+        """
+        query = """UPDATE content_archive
+                SET %(fields)s
+                WHERE content_id='%(content_id)s'
+                    and archive_id='%(archive_id)s'
+                """
+        fields = []
+        if new_status:
+            fields.append("status='%s'" % new_status)
+        fields.append("mtime=now()")
+
+        d = {'fields': ', '.join(fields),
+             'content_id': content_id,
+             'archive_id': archive_id}
+
+        cur = self._cursor(cur)
+        cur.execute(query % d)

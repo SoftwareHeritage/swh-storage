@@ -11,7 +11,7 @@ from .. import get_storage
 from datetime import datetime
 
 
-class ArchiverWorker():  # This class should probably extend a Celery Task.
+class ArchiverWorker():
     """ Do the required backups on a given batch of contents.
 
     Process the content of a content batch in order to do the needed backups on
@@ -83,34 +83,11 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
 
     def __content_archive_update(self, content_id, archive_id,
                                  new_status=None):
-        """ Update the status of a archive content and set it's mtime to now()
-
-        Change the last modification time of an archived content and change
-        its status to the given one.
-
-        Args:
-            content_id (string): The content id.
-            archive_id (string): The id of the concerned archive.
-            new_status (string): One of missing, ongoing or present, this
-                status will replace the previous one. If not given, the
-                function only changes the mtime of the content.
-        """
-        query = """UPDATE content_archive
-                SET %(fields)s
-                WHERE content_id='%(content_id)s'
-                    and archive_id='%(archive_id)s'
-                """
-        fields = []
-        if new_status:
-            fields.append("status='%s'" % new_status)
-        fields.append("mtime=now()")
-
-        d = {'fields': ', '.join(fields),
-             'content_id': content_id,
-             'archive_id': archive_id}
-
-        with self.master_storage.db.transaction() as cur:
-            cur.execute(query % d)
+        self.master_storage.db.content_archive_update(
+            content_id,
+            archive_id,
+            new_status
+        )
 
     def run(self):
         """ Do the task expected from the archiver worker.
@@ -127,7 +104,7 @@ class ArchiverWorker():  # This class should probably extend a Celery Task.
 
             Args:
                 content (str): Sha1 of a content.
-                destination: Tuple of (archive id, archive url).
+                destination: Tuple (archive id, archive url).
             """
             archival_status = self.__get_archival_status(
                 content,
