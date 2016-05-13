@@ -17,7 +17,7 @@ from server_testing import ServerTestFixture
 
 from swh.storage import Storage
 from swh.storage.exc import ObjNotFoundError
-from swh.storage.archiver import ArchiverDirector
+from swh.storage.archiver import ArchiverDirector, ArchiverWorker
 from swh.storage.objstorage.api.client import RemoteObjStorage
 from swh.storage.objstorage.api.server import app
 
@@ -35,7 +35,7 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
 
     def setUp(self):
         # Launch the backup server
-        self.backup_objroot = tempfile.mkdtemp()
+        self.backup_objroot = tempfile.mkdtemp(prefix='remote')
         self.config = {'storage_base': self.backup_objroot,
                        'storage_depth': 3}
         self.app = app
@@ -45,12 +45,14 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         print("url", self.url())
         self.remote_objstorage = RemoteObjStorage(self.url())
         # Create the local storage.
-        self.objroot = tempfile.mkdtemp()
+        self.objroot = tempfile.mkdtemp(prefix='local')
         self.storage = Storage(self.conn, self.objroot)
         # Initializes and fill the tables.
         self.initialize_tables()
         # Create the archiver
         self.archiver = self.__create_director()
+
+        self.storage_data = ('Local', 'http://localhost:%s/' % self.port)
 
     def tearDown(self):
         self.empty_tables()
@@ -101,6 +103,16 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         director = ArchiverDirector(self.conn, config)
         return director
 
+    def __create_worker(self, batch={}, config={}):
+        mstorage_args = [self.archiver.master_storage.db.conn,
+                         self.objroot]
+        slaves = [self.storage_data]
+        if not config:
+            config = self.archiver.config
+        return ArchiverWorker(batch, mstorage_args, slaves, config)
+
+    # Integration test
+
     @istest
     def archive_missing_content(self):
         """ Run archiver on a missing content should archive it.
@@ -123,22 +135,86 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
             self.remote_objstorage.content_get(id)
 
     @istest
-    def archive_ongoing_remaining(self):
-        """ A content that is ongoing and still have some time
-        to be archived should not be rescheduled.
+    def archive_already_enough(self):
+        """ A content missing with enough copies shouldn't be archived.
         """
-        id = self.__add_content(b'archive_ongoing_remaining', status='ongoing')
-        items = [x for batch in self.archiver.get_unarchived_content()
-                 for x in batch]
-        id = r'\x' + hashutil.hash_to_hex(id)
-        self.assertNotIn(id, items)
+        id = self.__add_content(b'archive_alread_enough')
+        director = self.__create_director(retention_policy=0)
+        director.run()
+        with self.assertRaises(ObjNotFoundError):
+            self.remote_objstorage.content_get(id)
+
+    # Unit test for ArchiverDirector
+
+    def vstatus(self, status, mtime):
+        return self.archiver.get_virtual_status(status, mtime)
 
     @istest
-    def archive_ongoing_elapsed(self):
-        """ A content that is ongoing but with elapsed time should
-        be rescheduled.
+    def vstatus_present(self):
+        self.assertEquals(
+            self.vstatus('present', None),
+            'present'
+        )
+
+    @istest
+    def vstatus_missing(self):
+        self.assertEquals(
+            self.vstatus('missing', None),
+            'missing'
+        )
+
+    @istest
+    def vstatus_ongoing_remaining(self):
+        current_time = datetime.now()
+        self.assertEquals(
+            self.vstatus('ongoing', current_time),
+            'present'
+        )
+
+    @istest
+    def vstatus_ongoing_elapsed(self):
+        past_time = datetime.now() - timedelta(
+            seconds=self.archiver.config['archival_max_age'] + 1
+        )
+        self.assertEquals(
+            self.vstatus('ongoing', past_time),
+            'missing'
+        )
+
+    # Unit tests for archive worker
+
+    @istest
+    def need_archival_missing(self):
+        """ A content should still need archival when it is missing.
         """
-        # Create an ongoing archive content with time elapsed by 1s.
+        id = self.__add_content(b'need_archival_missing', status='missing')
+        id = r'\x' + hashutil.hash_to_hex(id)
+        worker = self.__create_worker()
+        self.assertEqual(worker.need_archival(id, self.storage_data), True)
+
+    @istest
+    def need_archival_present(self):
+        """ A content should still need archival when it is missing
+        """
+        id = self.__add_content(b'need_archival_missing', status='present')
+        id = r'\x' + hashutil.hash_to_hex(id)
+        worker = self.__create_worker()
+        self.assertEqual(worker.need_archival(id, self.storage_data), False)
+
+    @istest
+    def need_archival_ongoing_remaining(self):
+        """ An ongoing archival with remaining time shouldnt need archival.
+        """
+        id = self.__add_content(b'need_archival_ongoing_remaining',
+                                status='ongoing', date="'%s'" % datetime.now())
+        id = r'\x' + hashutil.hash_to_hex(id)
+        worker = self.__create_worker()
+        self.assertEqual(worker.need_archival(id, self.storage_data), False)
+
+    @istest
+    def need_archival_ongoing_elasped(self):
+        """ An ongoing archival with elapsed time should be scheduled again.
+        """
         id = self.__add_content(
             b'archive_ongoing_elapsed',
             status='ongoing',
@@ -146,18 +222,25 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
                 seconds=self.archiver.config['archival_max_age'] + 1
             ))
         )
-        items = [x for batch in self.archiver.get_unarchived_content()
-                 for x in batch]
         id = r'\x' + hashutil.hash_to_hex(id)
-        self.assertIn(id, items)
+        worker = self.__create_worker()
+        self.assertEqual(worker.need_archival(id, self.storage_data), True)
 
     @istest
-    def archive_already_enough(self):
-        """ A content missing should not be archived if there
-        is already enough copies.
+    def content_sorting_by_archiver(self):
+        """ Check that the content is correctly sorted.
         """
-        id = self.__add_content(b'archive_alread_enough')
-        director = self.__create_director(retention_policy=0)
-        director.run()
-        with self.assertRaises(ObjNotFoundError):
-            self.remote_objstorage.content_get(id)
+        batch = {
+            'id1': {
+                'present': [('slave1', 'slave1_url')],
+                'missing': []
+            },
+            'id2': {
+                'present': [],
+                'missing': [('slave1', 'slave1_url')]
+            }
+        }
+        worker = self.__create_worker(batch=batch)
+        mapping = worker.sort_content_by_archive()
+        self.assertNotIn('id1', mapping[('slave1', 'slave1_url')])
+        self.assertIn('id2', mapping[('slave1', 'slave1_url')])
