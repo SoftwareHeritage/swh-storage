@@ -17,7 +17,7 @@ from swh.storage.objstorage.api.client import RemoteObjStorage
 from swh.storage.objstorage.api.server import app
 
 
-@attr('!db')
+@attr('db')
 class TestRemoteObjStorage(ServerTestFixture, unittest.TestCase):
     """ Test the remote archive API.
     """
