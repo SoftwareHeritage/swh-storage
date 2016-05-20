@@ -219,10 +219,10 @@ def revision_to_db(revision):
 
     metadata = revision['metadata']
 
-    if metadata and 'extra_git_headers' in metadata:
+    if metadata and 'extra_headers' in metadata:
         metadata = metadata.copy()
-        extra_git_headers = git_headers_to_db(metadata['extra_git_headers'])
-        metadata['extra_git_headers'] = extra_git_headers
+        extra_headers = git_headers_to_db(metadata['extra_headers'])
+        metadata['extra_headers'] = extra_headers
 
     return {
         'id': revision['id'],
@@ -283,9 +283,9 @@ def db_to_revision(db_revision):
 
     metadata = db_revision['metadata']
 
-    if metadata and 'extra_git_headers' in metadata:
-        extra_git_headers = db_to_git_headers(metadata['extra_git_headers'])
-        metadata['extra_git_headers'] = extra_git_headers
+    if metadata and 'extra_headers' in metadata:
+        extra_headers = db_to_git_headers(metadata['extra_headers'])
+        metadata['extra_headers'] = extra_headers
 
     parents = []
     if 'parents' in db_revision:

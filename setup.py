@@ -21,7 +21,14 @@ setup(
     author='Software Heritage developers',
     author_email='swh-devel@inria.fr',
     url='https://forge.softwareheritage.org/diffusion/DSTO/',
-    packages=['swh.storage', 'swh.storage.api', 'swh.storage.tests'],
+    packages=[
+        'swh.storage',
+        'swh.storage.archiver',
+        'swh.storage.api',
+        'swh.storage.objstorage',
+        'swh.storage.objstorage.api',
+        'swh.storage.tests',
+    ],
     scripts=[
         'bin/swh-objstorage-add-dir',
         'bin/swh-objstorage-fsck',
