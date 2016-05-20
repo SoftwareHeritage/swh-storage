@@ -37,7 +37,7 @@ def before_request():
 
 @app.route('/')
 def index():
-    return 'Hello'
+    return 'SWH Storage API server'
 
 
 @app.route('/content/missing', methods=['POST'])

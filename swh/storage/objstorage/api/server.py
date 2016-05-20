@@ -35,7 +35,7 @@ def before_request():
 
 @app.route('/')
 def index():
-    return "Helloworld!"
+    return "SWH Objstorage API server"
 
 
 @app.route('/content')
