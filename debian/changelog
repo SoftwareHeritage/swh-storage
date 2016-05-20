@@ -1,8 +1,10 @@
-swh-storage (0.0.38-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.39-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.39
+  * Add run_from_webserver function for objstorage api server
+  * Add unique identifier message on default api server route endpoints
 
- -- Quentin Campos <qcampos@etud.u-pem.fr>  Fri, 20 May 2016 14:40:14 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 20 May 2016 15:27:34 +0200
 
 swh-storage (0.0.38-1~swh1) unstable-swh; urgency=medium
 
