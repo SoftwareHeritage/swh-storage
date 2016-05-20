@@ -1,3 +1,11 @@
+swh-storage (0.0.38-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.38
+  * Add an http api for object storage
+  * Implement an archiver to perform backup copies
+
+ -- Quentin Campos <qcampos@etud.u-pem.fr>  Fri, 20 May 2016 14:40:14 +0200
+
 swh-storage (0.0.37-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.37
