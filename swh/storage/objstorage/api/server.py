@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import click
+import logging
 
 from flask import Flask, g, request
 
@@ -56,6 +57,20 @@ def get_bytes():
 @app.route('/content/check', methods=['POST'])
 def check():
     return encode_data(g.objstorage.check(**decode_request(request)))
+
+
+def run_from_webserver(environ, start_response):
+    """Run the WSGI app from the webserver, loading the configuration.
+
+    """
+    config_path = '/etc/softwareheritage/storage/objstorage.ini'
+
+    app.config.update(config.read(config_path, DEFAULT_CONFIG))
+
+    handler = logging.StreamHandler()
+    app.logger.addHandler(handler)
+
+    return app(environ, start_response)
 
 
 @click.command()
