@@ -1,3 +1,11 @@
+swh-storage (0.0.39-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.39
+  * Add run_from_webserver function for objstorage api server
+  * Add unique identifier message on default api server route endpoints
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 20 May 2016 15:27:34 +0200
+
 swh-storage (0.0.38-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.38
