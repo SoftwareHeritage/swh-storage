@@ -5,13 +5,15 @@
 
 import json
 import logging
-import pickle
+import click
 
-from flask import Flask, Request, Response, g, request
+from flask import Flask, g, request
 
 from swh.core import config
-from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
 from swh.storage import Storage
+from swh.storage.api.common import (BytesRequest, decode_request,
+                                    error_handler,
+                                    encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
     'db': ('str', 'dbname=softwareheritage-dev'),
@@ -19,45 +21,13 @@ DEFAULT_CONFIG = {
 }
 
 
-class BytesRequest(Request):
-    """Request with proper escaping of arbitrary byte sequences."""
-    encoding = 'utf-8'
-    encoding_errors = 'surrogateescape'
-
-
 app = Flask(__name__)
 app.request_class = BytesRequest
 
 
-def encode_data(data):
-    return Response(
-        msgpack_dumps(data),
-        mimetype='application/x-msgpack',
-    )
-
-
-def decode_request(request):
-    content_type = request.mimetype
-    data = request.get_data()
-
-    if content_type == 'application/x-msgpack':
-        r = msgpack_loads(data)
-    elif content_type == 'application/json':
-        r = json.loads(data, cls=SWHJSONDecoder)
-    else:
-        raise ValueError('Wrong content type `%s` for API request'
-                         % content_type)
-
-    return r
-
-
 @app.errorhandler(Exception)
-def error_handler(exception):
-    # XXX: this breaks language-independence and should be
-    # replaced by proper serialization of errors
-    response = encode_data(pickle.dumps(exception))
-    response.status_code = 400
-    return response
+def my_error_handler(exception):
+    return error_handler(exception, encode_data)
 
 
 @app.before_request
@@ -269,10 +239,17 @@ def run_from_webserver(environ, start_response):
     return app(environ, start_response)
 
 
+@click.command()
+@click.argument('config-path', required=1)
+@click.option('--host', default='0.0.0.0', help="Host to run the server")
+@click.option('--port', default=5000, type=click.INT,
+              help="Binding port of the server")
+@click.option('--debug/--nodebug', default=True,
+              help="Indicates if the server should run in debug mode")
+def launch(config_path, host, port, debug):
+    app.config.update(config.read(config_path, DEFAULT_CONFIG))
+    app.run(host, port=int(port), debug=bool(debug))
+
+
 if __name__ == '__main__':
-    import sys
-
-    app.config.update(config.read(sys.argv[1], DEFAULT_CONFIG))
-
-    host = sys.argv[2] if len(sys.argv) >= 3 else '127.0.0.1'
-    app.run(host, debug=True)
+    launch()

@@ -4,34 +4,13 @@
 # See top-level LICENSE file for more information
 
 import pickle
-
 import requests
 
 from requests.exceptions import ConnectionError
-from swh.core.serializers import msgpack_dumps, msgpack_loads, SWHJSONDecoder
-from swh.storage.exc import StorageAPIError
 
-
-def encode_data(data):
-    try:
-        return msgpack_dumps(data)
-    except OverflowError as e:
-        raise ValueError('Limits were reached. Please, check your input.\n' +
-                         str(e))
-
-
-def decode_response(response):
-    content_type = response.headers['content-type']
-
-    if content_type.startswith('application/x-msgpack'):
-        r = msgpack_loads(response.content)
-    elif content_type.startswith('application/json'):
-        r = response.json(cls=SWHJSONDecoder)
-    else:
-        raise ValueError('Wrong content type `%s` for API response'
-                         % content_type)
-
-    return r
+from ..exc import StorageAPIError
+from ..api.common import (decode_response,
+                          encode_data_client as encode_data)
 
 
 class RemoteStorage():

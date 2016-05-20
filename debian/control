@@ -12,9 +12,11 @@ Build-Depends: debhelper (>= 9),
                python3-requests,
                python3-setuptools,
                python3-swh.core (>= 0.0.17~),
-               python3-vcversioner
+               python3-vcversioner,
+               python3-swh.scheduler,
+               python3-click
 Standards-Version: 3.9.6
-Homepage: https://forge.softwareheritage.org/diffusion/DCORE/
+Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
 
 Package: python3-swh.storage
 Architecture: all
