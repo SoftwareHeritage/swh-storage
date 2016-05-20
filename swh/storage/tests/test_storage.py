@@ -188,7 +188,7 @@ class AbstractTestStorage(DbTestFixture):
                     'sha256': 'tarball-sha256',
                 },
                 'signed-off-by': 'some-dude',
-                'extra_git_headers': [
+                'extra_headers': [
                     ['gpgsig', b'test123'],
                     ['mergetags', [b'foo\\bar', b'\x22\xaf\x89\x80\x01\x00']],
                 ],

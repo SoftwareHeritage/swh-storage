@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(68, now(), 'Work In Progress');
+      values(69, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -426,3 +426,29 @@ create table release
 );
 
 create index on release(target, target_type);
+
+
+-- In order to archive the content of the object storage, add
+-- some tables to keep trace of what have already been archived.
+
+CREATE DOMAIN archive_id AS TEXT;
+
+CREATE TABLE archives (
+  id   archive_id PRIMARY KEY,
+  url  TEXT
+);
+
+CREATE TYPE archive_status AS ENUM (
+  'missing',
+  'ongoing',
+  'present'
+);
+
+CREATE TABLE content_archive (
+  content_id  sha1 REFERENCES content(sha1),
+  archive_id  archive_id REFERENCES archives(id),
+  status      archive_status,
+  mtime       timestamptz,
+  PRIMARY KEY (content_id, archive_id)
+);
+

@@ -10,7 +10,7 @@ import tempfile
 
 from contextlib import contextmanager
 
-from .exc import ObjNotFoundError, Error
+from ..exc import ObjNotFoundError, Error
 from swh.core import hashutil
 
 
