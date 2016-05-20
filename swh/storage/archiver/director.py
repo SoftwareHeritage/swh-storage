@@ -5,23 +5,23 @@
 
 import swh
 import logging
+import click
 
 from datetime import datetime
 
-from swh.core import hashutil
+from swh.core import hashutil, config
 from swh.scheduler.celery_backend.config import app
 from . import tasks  # NOQA
 
 
 DEFAULT_CONFIG = {
-    'objstorage_path': '/tmp/swh-storage/objects',
-    'batch_max_size': 50,
-    'archival_max_age': 3600,
-    'retention_policy': 2,
-    'asynchronous': True,
+    'objstorage_path': ('str', '/tmp/swh-storage/objects'),
+    'batch_max_size': ('int', 50),
+    'archival_max_age': ('int', 3600),
+    'retention_policy': ('int', 2),
+    'asynchronous': ('bool', True),
 
-    'dbname': 'softwareheritage',
-    'user': 'root'
+    'dbconn': ('str', 'dbname=softwareheritage-dev user=guest')
 }
 
 task_name = 'swh.storage.archiver.tasks.SWHArchiverTask'
@@ -216,3 +216,28 @@ class ArchiverDirector():
         else:
             raise ValueError("status must be either 'present', 'missing' "
                              "or 'ongoing'")
+
+
+@click.command()
+@click.argument('config-path', required=1)
+@click.option('--dbconn', default=DEFAULT_CONFIG['dbconn'][1],
+              help="Connection string for the database")
+@click.option('--async/--sync', default=DEFAULT_CONFIG['asynchronous'][1],
+              help="Indicates if the archiver should run asynchronously")
+def launch(config_path, dbconn, async):
+    # The configuration have following priority :
+    # command line > file config > default config
+    cl_config = {
+        'dbconn': dbconn,
+        'asynchronous': async
+    }
+    conf = config.read(config_path, DEFAULT_CONFIG)
+    conf.update(cl_config)
+    # Create connection data and run the archiver.
+    archiver = ArchiverDirector(conf['dbconn'], conf)
+    logger.info("Starting an archival at", datetime.now())
+    archiver.run()
+
+
+if __name__ == '__main__':
+    launch()
