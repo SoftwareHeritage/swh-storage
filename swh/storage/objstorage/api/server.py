@@ -59,9 +59,10 @@ def check():
 
 
 @click.command()
-@click.argument('Config-path', required=1)
+@click.argument('config-path', required=1)
 @click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', default=5000, help="Server's port")
+@click.option('--port', default=5000, type=click.INT,
+              help="Binding port of the server")
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")
 def launch(config_path, host, port, debug):
