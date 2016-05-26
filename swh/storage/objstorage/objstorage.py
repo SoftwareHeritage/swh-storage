@@ -7,6 +7,7 @@ import gzip
 import os
 import shutil
 import tempfile
+import random
 
 from contextlib import contextmanager
 
@@ -40,7 +41,7 @@ def _obj_dir(hex_obj_id, root_dir, depth):
 
     # compute [depth] substrings of [obj_id], each of length 2, starting from
     # the beginning
-    id_steps = [hex_obj_id[i*2:i*2+2] for i in range(0, depth)]
+    id_steps = [hex_obj_id[i * 2:i * 2 + 2] for i in range(0, depth)]
     steps = [root_dir] + id_steps
 
     return os.path.join(*steps)
@@ -161,7 +162,7 @@ class ObjStorage:
         return os.path.exists(_obj_path(hex_obj_id, self._root_dir,
                                         self._depth))
 
-    def add_bytes(self, bytes, obj_id=None):
+    def add_bytes(self, bytes, obj_id=None, check_presence=True):
         """add a new object to the object storage
 
         Args:
@@ -169,7 +170,8 @@ class ObjStorage:
             obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
                 given, obj_id will be trusted to match bytes. If missing,
                 obj_id will be computed on the fly.
-
+            check_presence: indicate if the presence of the content should be
+                verified before adding the file.
         """
         if obj_id is None:
             # missing checksum, compute it in memory and write to file
@@ -177,7 +179,7 @@ class ObjStorage:
             h.update(bytes)
             obj_id = h.digest()
 
-        if obj_id in self:
+        if check_presence and obj_id in self:
             return obj_id
 
         hex_obj_id = hashutil.hash_to_hex(obj_id)
@@ -189,6 +191,20 @@ class ObjStorage:
             f.write(bytes)
 
         return obj_id
+
+    def restore_bytes(self, bytes, obj_id=None):
+        """ Restore a content that have been corrupted.
+
+        This function is identical to add_bytes but does not check if
+        the object id is already in the file system.
+
+        Args:
+            bytes: content of the object to be added to the storage
+            obj_id: checksums of `bytes` as computed by ID_HASH_ALGO. When
+                given, obj_id will be trusted to match bytes. If missing,
+                obj_id will be computed on the fly.
+        """
+        return self.add_bytes(bytes, obj_id, check_presence=False)
 
     def add_file(self, f, length, obj_id=None):
         """similar to `add_bytes`, but add the content of file-like object f to the
@@ -284,6 +300,43 @@ class ObjStorage:
         """
         with self.get_file_obj(obj_id) as f:
             return f.read()
+
+    def get_random_contents(self, batch_size):
+        """ Get random ids of existing contents
+
+        This method is used in order to get random ids to perform
+        content integrity verifications on random contents.
+
+        Attributes:
+            batch_size (int): Number of ids that will be given
+
+        Yields:
+            An iterable of ids of contents that are in the current object
+            storage.
+        """
+        def get_random_content(self, batch_size):
+            """ Get a batch of content inside a single directory.
+
+            Returns:
+                a tuple (batch size, batch).
+            """
+            dirs = []
+            for level in range(self._depth):
+                path = os.path.join(self._root_dir, *dirs)
+                dir_list = next(os.walk(path))[1]
+                if 'tmp' in dir_list:
+                    dir_list.remove('tmp')
+                dirs.append(random.choice(dir_list))
+
+            path = os.path.join(self._root_dir, *dirs)
+            content_list = next(os.walk(path))[2]
+            length = min(batch_size, len(content_list))
+            return length, random.sample(content_list, length)
+
+        while batch_size:
+            length, it = get_random_content(self, batch_size)
+            batch_size = batch_size - length
+            yield from it
 
     def _get_file_path(self, obj_id):
         """retrieve the path of a given object in the objects storage
