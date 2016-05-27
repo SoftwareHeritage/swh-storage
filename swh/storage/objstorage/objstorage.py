@@ -331,7 +331,8 @@ class ObjStorage:
             path = os.path.join(self._root_dir, *dirs)
             content_list = next(os.walk(path))[2]
             length = min(batch_size, len(content_list))
-            return length, random.sample(content_list, length)
+            return length, map(hashutil.hex_to_hash,
+                               random.sample(content_list, length))
 
         while batch_size:
             length, it = get_random_content(self, batch_size)

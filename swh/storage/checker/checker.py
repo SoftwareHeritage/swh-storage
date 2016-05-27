@@ -14,7 +14,7 @@ from ..exc import ObjNotFoundError, Error
 DEFAULT_CONFIG = {
     'storage_path': ('str', '/srv/softwareheritage/objects'),
     'storage_depth': ('int', 3),
-    'backup_url': ('str', 'http://uffizi:5002'),
+    'backup_url': ('str', 'http://uffizi:5002/'),
 
     'batch_size': ('int', 1000),
 }
@@ -58,7 +58,6 @@ class ContentChecker():
 
         for content_id in self.get_content_to_check(batch_size):
             if not self.check_content(content_id):
-                self.invalidate_content(content_id)
                 corrupted_contents.append(content_id)
                 logging.error('The content', content_id, 'have been corrupted')
 
@@ -108,11 +107,11 @@ class ContentChecker():
 
 @click.command()
 @click.argument('config-path', required=1)
-@click.option('--storage-path', default=DEFAULT_CONFIG['storage_path'],
+@click.option('--storage-path', default=DEFAULT_CONFIG['storage_path'][1],
               help='Path to the storage to verify')
-@click.option('--depth', default=DEFAULT_CONFIG['storage_depth'],
+@click.option('--depth', default=DEFAULT_CONFIG['storage_depth'][1],
               type=click.INT, help='Depth of the object storage')
-@click.option('--backup-url', default=DEFAULT_CONFIG['backup_url'],
+@click.option('--backup-url', default=DEFAULT_CONFIG['backup_url'][1],
               help='Url of a remote storage to retrieve corrupted content')
 def launch(config_path, storage_path, depth, backup_url):
     # The configuration have following priority :
@@ -128,7 +127,10 @@ def launch(config_path, storage_path, depth, backup_url):
     checker = ContentChecker(
         {'batch_size': conf['batch_size']},
         conf['storage_path'],
-        conf['depth'],
+        conf['storage_depth'],
         conf['backup_url']
     )
     checker.run()
+
+if __name__ == '__main__':
+    launch()

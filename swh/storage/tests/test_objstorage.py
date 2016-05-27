@@ -135,7 +135,7 @@ class TestObjStorage(unittest.TestCase):
     def get_random_contents(self):
         self.storage.add_bytes(self.content, obj_id=self.obj_id)
         for id in self.storage.get_random_contents(1):
-            self.assertIn(hashutil.hex_to_hash(id), [self.obj_id])
+            self.assertIn(id, [self.obj_id])
 
     @istest
     def get_file_path(self):
