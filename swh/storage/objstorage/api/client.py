@@ -76,6 +76,17 @@ class RemoteObjStorage():
         """
         return self.post('content/get', {'obj_id': obj_id})
 
+    def content_get_random(self, batch_size):
+        """ Retrieve a random sample of existing content.
+
+        Args:
+            batch_size: Number of content requested.
+
+        Returns:
+            A list of random ids that represents existing contents.
+        """
+        return self.post('content/get/random', {'batch_size': batch_size})
+
     def content_check(self, obj_id):
         """ Integrity check for a given object
 

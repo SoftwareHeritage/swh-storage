@@ -53,6 +53,17 @@ class TestRemoteObjStorage(ServerTestFixture, unittest.TestCase):
             self.objstorage.content_get(content_hash['sha1'])
 
     @istest
+    def content_get_random(self):
+        ids = []
+        for i in range(100):
+            content = bytes('content_get_present', 'utf8')
+            id = self.objstorage.content_add(content)
+            ids.append(id)
+        for id in self.objstorage.content_get_random(50):
+            id = hashutil.hex_to_hash(id)
+            self.assertIn(id, ids)
+
+    @istest
     def content_check_invalid(self):
         content = bytes('content_check_invalid', 'utf8')
         id = self.objstorage.content_add(content)

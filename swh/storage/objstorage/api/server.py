@@ -54,6 +54,13 @@ def get_bytes():
     return encode_data(g.objstorage.get_bytes(**decode_request(request)))
 
 
+@app.route('/content/get/random', methods=['POST'])
+def get_random_contents():
+    return encode_data(
+        g.objstorage.get_random_contents(**decode_request(request))
+    )
+
+
 @app.route('/content/check', methods=['POST'])
 def check():
     return encode_data(g.objstorage.check(**decode_request(request)))
