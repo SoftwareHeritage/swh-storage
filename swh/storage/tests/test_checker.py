@@ -46,7 +46,8 @@ class TestChecker(unittest.TestCase):
         path = tempfile.mkdtemp()
         depth = 3
         self.checker = ContentChecker(config, path, depth, 'http://None')
-        self.checker.backup_storage = MockBackupStorage()
+        self.checker.backup_storages = [MockBackupStorage(),
+                                        MockBackupStorage()]
 
     def corrupt_content(self, id):
         """ Make the given content invalid.
@@ -72,12 +73,25 @@ class TestChecker(unittest.TestCase):
         self.assertFalse(self.checker.check_content(id))
 
     @istest
-    def repair_content_present(self):
+    def repair_content_present_first(self):
         # Try to repair a content that is in the backup storage.
-        content = b'repair_content_present'
+        content = b'repair_content_present_first'
         id = self.checker.objstorage.add_bytes(content)
         # Add a content to the mock
-        self.checker.backup_storage.content_add(id, content)
+        self.checker.backup_storages[0].content_add(id, content)
+        # Corrupt and repair it.
+        self.corrupt_content(id)
+        self.assertFalse(self.checker.check_content(id))
+        self.checker.repair_contents([id])
+        self.assertTrue(self.checker.check_content(id))
+
+    @istest
+    def repair_content_present_second(self):
+        # Try to repair a content that is not in the first backup storage.
+        content = b'repair_content_present_second'
+        id = self.checker.objstorage.add_bytes(content)
+        # Add a content to the mock
+        self.checker.backup_storages[1].content_add(id, content)
         # Corrupt and repair it.
         self.corrupt_content(id)
         self.assertFalse(self.checker.check_content(id))

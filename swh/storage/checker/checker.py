@@ -34,7 +34,7 @@ class ContentChecker():
             restore corrupted content.
     """
 
-    def __init__(self, config, root, depth, backup_url):
+    def __init__(self, config, root, depth, backup_urls):
         """ Create a checker that ensure the objstorage have no corrupted file.
 
         Args:
@@ -43,12 +43,13 @@ class ContentChecker():
                     time the content checker runs.
             root (string): Path to the objstorage directory
             depth (int): Depth of the object storage.
-            master_url (string): Url of a storage that can be used to restore
-                content.
+            backup_urls: List of url that can be contacted in order to
+                get a content.
         """
         self.config = config
         self.objstorage = ObjStorage(root, depth)
-        self.backup_storage = get_storage('remote_storage', [backup_url])
+        self.backup_storages = [get_storage('remote_storage', [backup_url])
+                                for backup_url in backup_urls]
 
     def run(self):
         """ Start the check routine
@@ -81,28 +82,43 @@ class ContentChecker():
         try:
             self.objstorage.check(content_id)
         except (ObjNotFoundError, Error) as e:
-            logging.error(e)
+            logging.warning(e)
             return False
         else:
             return True
 
     def repair_contents(self, content_ids):
         """ Try to restore the given contents.
-        """
-        # Retrieve the data of the corrupted contents from the master storage.
-        contents = self.backup_storage.content_get(content_ids)
-        contents_set = set(content_ids)
-        # Erase corrupted version with new safe one.
-        for content in contents:
-            if not content:
-                continue
-            data = content['data']
-            contents_set.discard(content['sha1'])
-            self.objstorage.restore_bytes(data)
 
-        if contents_set:
-            logging.error("Some corrupted contents could not be retrieved : %s"
-                          % [hashutil.hash_to_hex(id) for id in contents_set])
+        Ask the backup storages for the contents that are corrupted on
+        the local object storage.
+        If the first storage does not contain the missing contents, send
+        a request to the second one with only the content that couldn't be
+        retrieved, and so on until there is no remaining content or servers.
+
+        If a content couldn't be retrieved on all the servers, then log it as
+        an error.
+        """
+        contents_to_get = set(content_ids)
+        # Iterates over the backup storages.
+        for backup_storage in self.backup_storages:
+            # Try to get all the contents that still need to be retrieved.
+            contents = backup_storage.content_get(list(contents_to_get))
+            for content in contents:
+                if content:
+                    hash = content['sha1']
+                    data = content['data']
+                    # When a content is retrieved, remove it from the set
+                    # of needed contents.
+                    contents_to_get.discard(hash)
+                    self.objstorage.restore_bytes(data)
+
+        # Contents still in contents_to_get couldn't be retrieved.
+        if contents_to_get:
+            logging.error(
+                "Some corrupted contents could not be retrieved : %s"
+                % [hashutil.hash_to_hex(id) for id in contents_to_get]
+            )
 
 
 @click.command()
@@ -128,7 +144,7 @@ def launch(config_path, storage_path, depth, backup_url):
         {'batch_size': conf['batch_size']},
         conf['storage_path'],
         conf['storage_depth'],
-        conf['backup_url']
+        map(lambda x: x.strip(), conf['backup_url'].split(','))
     )
     checker.run()
 
