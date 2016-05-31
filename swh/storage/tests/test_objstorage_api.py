@@ -60,7 +60,6 @@ class TestRemoteObjStorage(ServerTestFixture, unittest.TestCase):
             id = self.objstorage.content_add(content)
             ids.append(id)
         for id in self.objstorage.content_get_random(50):
-            id = hashutil.hex_to_hash(id)
             self.assertIn(id, ids)
 
     @istest
