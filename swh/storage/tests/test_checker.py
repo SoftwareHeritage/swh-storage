@@ -99,6 +99,25 @@ class TestChecker(unittest.TestCase):
         self.assertTrue(self.checker.check_content(id))
 
     @istest
+    def repair_content_present_distributed(self):
+        # Try to repair two contents that are in separate backup storages.
+        content1 = b'repair_content_present_distributed_2'
+        content2 = b'repair_content_present_distributed_1'
+        id1 = self.checker.objstorage.add_bytes(content1)
+        id2 = self.checker.objstorage.add_bytes(content2)
+        # Add content to the mock.
+        self.checker.backup_storages[0].content_add(id1, content1)
+        self.checker.backup_storages[0].content_add(id2, content2)
+        # Corrupt and repair it
+        self.corrupt_content(id1)
+        self.corrupt_content(id2)
+        self.assertFalse(self.checker.check_content(id1))
+        self.assertFalse(self.checker.check_content(id2))
+        self.checker.repair_contents([id1, id2])
+        self.assertTrue(self.checker.check_content(id1))
+        self.assertTrue(self.checker.check_content(id2))
+
+    @istest
     def repair_content_missing(self):
         # Try to repair a content that is NOT in the backup storage.
         content = b'repair_content_present'
