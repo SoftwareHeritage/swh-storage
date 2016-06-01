@@ -25,6 +25,7 @@ setup(
         'swh.storage',
         'swh.storage.archiver',
         'swh.storage.api',
+        'swh.storage.checker',
         'swh.storage.objstorage',
         'swh.storage.objstorage.api',
         'swh.storage.tests',
