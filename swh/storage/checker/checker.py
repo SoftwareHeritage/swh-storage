@@ -64,6 +64,19 @@ class ContentChecker():
 
         self.repair_contents(corrupted_contents)
 
+    def run_as_daemon(self):
+        """ Start the check routine and perform it forever.
+
+        Use this method to run the checker when it's done as a daemon that
+        will iterate over the content forever in background.
+        """
+        while True:
+            try:
+                self.run()
+            except Exception as e:
+                logging.error('An error occured while verifing the content: %s'
+                              % e)
+
     def get_content_to_check(self, batch_size):
         """ Get the content that should be verified.
 
@@ -129,7 +142,10 @@ class ContentChecker():
               type=click.INT, help='Depth of the object storage')
 @click.option('--backup-url', default=DEFAULT_CONFIG['backup_url'][1],
               help='Url of a remote storage to retrieve corrupted content')
-def launch(config_path, storage_path, depth, backup_url):
+@click.option('--daemon/--nodaemon', default=True,
+              help='Indicates if the checker should run forever '
+              'or on a single batch of content')
+def launch(config_path, storage_path, depth, backup_url, is_daemon):
     # The configuration have following priority :
     # command line > file config > default config
     cl_config = {
@@ -146,7 +162,10 @@ def launch(config_path, storage_path, depth, backup_url):
         conf['storage_depth'],
         map(lambda x: x.strip(), conf['backup_url'].split(','))
     )
-    checker.run()
+    if is_daemon:
+        checker.run_as_daemon()
+    else:
+        checker.run()
 
 if __name__ == '__main__':
     launch()
