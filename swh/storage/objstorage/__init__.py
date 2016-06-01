@@ -1,1 +1,3 @@
-from .objstorage import ObjStorage, DIR_MODE, FILE_MODE  # NOQA
+from .objstorage import ObjStorage
+
+__all__ = [ObjStorage]
