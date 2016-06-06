@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import tempfile
 import unittest
 
@@ -12,7 +13,6 @@ from nose.plugins.attrib import attr
 from swh.core import hashutil
 from swh.storage.exc import ObjNotFoundError, Error
 from swh.storage.tests.server_testing import ServerTestFixture
-from swh.storage.objstorage.objstorage import _obj_path
 from swh.storage.objstorage.api.client import RemoteObjStorage
 from swh.storage.objstorage.api.server import app
 
@@ -66,9 +66,13 @@ class TestRemoteObjStorage(ServerTestFixture, unittest.TestCase):
     def content_check_invalid(self):
         content = bytes('content_check_invalid', 'utf8')
         id = self.objstorage.content_add(content)
-        path = _obj_path(hashutil.hash_to_hex(id),
-                         self.app.config['storage_base'],
-                         self.app.config['storage_depth'])
+        hex_obj_id = hashutil.hash_to_hex(id)
+        dir_path = os.path.join(
+            self.config['storage_base'],
+            *[hex_obj_id[i*2:i*2+2]
+              for i in range(int(self.config['storage_depth']))]
+        )
+        path = os.path.join(dir_path, hex_obj_id)
         content = list(content)
         with open(path, 'bw') as f:
             content[0] = (content[0] + 1) % 128

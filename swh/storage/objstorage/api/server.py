@@ -9,7 +9,7 @@ import logging
 from flask import Flask, g, request
 
 from swh.core import config
-from swh.storage.objstorage import ObjStorage
+from swh.storage.objstorage import PathSlicingObjStorage
 from swh.storage.api.common import (BytesRequest, decode_request,
                                     error_handler,
                                     encode_data_server as encode_data)
@@ -30,8 +30,9 @@ def my_error_handler(exception):
 
 @app.before_request
 def before_request():
-    g.objstorage = ObjStorage(app.config['storage_base'],
-                              app.config['storage_depth'])
+    g.objstorage = PathSlicingObjStorage(app.config['storage_base'],
+                                         app.config['storage_depth'],
+                                         slicing=2)
 
 
 @app.route('/')
@@ -46,18 +47,18 @@ def content():
 
 @app.route('/content/add', methods=['POST'])
 def add_bytes():
-    return encode_data(g.objstorage.add_bytes(**decode_request(request)))
+    return encode_data(g.objstorage.add(**decode_request(request)))
 
 
 @app.route('/content/get', methods=['POST'])
 def get_bytes():
-    return encode_data(g.objstorage.get_bytes(**decode_request(request)))
+    return encode_data(g.objstorage.get(**decode_request(request)))
 
 
 @app.route('/content/get/random', methods=['POST'])
 def get_random_contents():
     return encode_data(
-        g.objstorage.get_random_contents(**decode_request(request))
+        g.objstorage.get_random(**decode_request(request))
     )
 
 
