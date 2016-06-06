@@ -11,7 +11,6 @@ from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from swh.core import hashutil
-from swh.storage.objstorage.objstorage import _obj_path
 from swh.storage.checker.checker import ContentChecker
 
 
@@ -53,7 +52,7 @@ class TestChecker(unittest.TestCase):
         """ Make the given content invalid.
         """
         hex_id = hashutil.hash_to_hex(id)
-        file_path = _obj_path(hex_id, self.checker.objstorage._root_dir, 3)
+        file_path = self.checker.objstorage._obj_path(hex_id)
         with gzip.open(file_path, 'wb') as f:
             f.write(b'Unexpected content')
 
@@ -61,14 +60,14 @@ class TestChecker(unittest.TestCase):
     def check_valid_content(self):
         # Check that a valid content is valid.
         content = b'check_valid_content'
-        id = self.checker.objstorage.add_bytes(content)
+        id = self.checker.objstorage.add(content)
         self.assertTrue(self.checker.check_content(id))
 
     @istest
     def check_invalid_content(self):
         # Check that an invalid content is noticed.
         content = b'check_invalid_content'
-        id = self.checker.objstorage.add_bytes(content)
+        id = self.checker.objstorage.add(content)
         self.corrupt_content(id)
         self.assertFalse(self.checker.check_content(id))
 
@@ -76,7 +75,7 @@ class TestChecker(unittest.TestCase):
     def repair_content_present_first(self):
         # Try to repair a content that is in the backup storage.
         content = b'repair_content_present_first'
-        id = self.checker.objstorage.add_bytes(content)
+        id = self.checker.objstorage.add(content)
         # Add a content to the mock
         self.checker.backup_storages[0].content_add(id, content)
         # Corrupt and repair it.
@@ -89,7 +88,7 @@ class TestChecker(unittest.TestCase):
     def repair_content_present_second(self):
         # Try to repair a content that is not in the first backup storage.
         content = b'repair_content_present_second'
-        id = self.checker.objstorage.add_bytes(content)
+        id = self.checker.objstorage.add(content)
         # Add a content to the mock
         self.checker.backup_storages[1].content_add(id, content)
         # Corrupt and repair it.
@@ -103,8 +102,8 @@ class TestChecker(unittest.TestCase):
         # Try to repair two contents that are in separate backup storages.
         content1 = b'repair_content_present_distributed_2'
         content2 = b'repair_content_present_distributed_1'
-        id1 = self.checker.objstorage.add_bytes(content1)
-        id2 = self.checker.objstorage.add_bytes(content2)
+        id1 = self.checker.objstorage.add(content1)
+        id2 = self.checker.objstorage.add(content2)
         # Add content to the mock.
         self.checker.backup_storages[0].content_add(id1, content1)
         self.checker.backup_storages[0].content_add(id2, content2)
@@ -121,7 +120,7 @@ class TestChecker(unittest.TestCase):
     def repair_content_missing(self):
         # Try to repair a content that is NOT in the backup storage.
         content = b'repair_content_present'
-        id = self.checker.objstorage.add_bytes(content)
+        id = self.checker.objstorage.add(content)
         # Corrupt and repair it.
         self.corrupt_content(id)
         self.assertFalse(self.checker.check_content(id))

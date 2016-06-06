@@ -8,7 +8,7 @@ import logging
 
 from swh.core import config, hashutil
 from .. import get_storage
-from ..objstorage import ObjStorage
+from ..objstorage import PathSlicingObjStorage
 from ..exc import ObjNotFoundError, Error
 
 DEFAULT_CONFIG = {
@@ -47,7 +47,7 @@ class ContentChecker():
                 get a content.
         """
         self.config = config
-        self.objstorage = ObjStorage(root, depth)
+        self.objstorage = PathSlicingObjStorage(root, depth, slicing=2)
         self.backup_storages = [get_storage('remote_storage', [backup_url])
                                 for backup_url in backup_urls]
 
@@ -124,7 +124,7 @@ class ContentChecker():
                     # When a content is retrieved, remove it from the set
                     # of needed contents.
                     contents_to_get.discard(hash)
-                    self.objstorage.restore_bytes(data)
+                    self.objstorage.restore(data)
 
         # Contents still in contents_to_get couldn't be retrieved.
         if contents_to_get:
