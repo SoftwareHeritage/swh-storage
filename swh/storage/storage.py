@@ -13,7 +13,7 @@ import psycopg2
 
 from . import converters
 from .db import Db
-from .objstorage import ObjStorage
+from .objstorage import PathSlicingObjStorage
 from .exc import ObjNotFoundError, StorageDBError
 
 from swh.core.hashutil import ALGORITHMS
@@ -68,7 +68,7 @@ class Storage():
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
-        self.objstorage = ObjStorage(obj_root)
+        self.objstorage = PathSlicingObjStorage(obj_root, depth=3, slicing=2)
 
     def content_add(self, content):
         """Add content blobs to the storage
@@ -115,8 +115,8 @@ class Storage():
                 db.mktemp('content', cur)
 
                 def add_to_objstorage(cont):
-                    self.objstorage.add_bytes(cont['data'],
-                                              obj_id=cont['sha1'])
+                    self.objstorage.add(cont['data'],
+                                        obj_id=cont['sha1'])
 
                 content_filtered = (cont for cont in content_with_data
                                     if cont['sha1'] in missing_content)
@@ -162,7 +162,7 @@ class Storage():
 
         for obj_id in content:
             try:
-                data = self.objstorage.get_bytes(obj_id)
+                data = self.objstorage.get(obj_id)
             except ObjNotFoundError:
                 yield None
                 continue
