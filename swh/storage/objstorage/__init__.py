@@ -1,1 +1,4 @@
-from .objstorage import ObjStorage, DIR_MODE, FILE_MODE  # NOQA
+from .objstorage import ObjStorage
+from .objstorage_pathslicing import PathSlicingObjStorage
+
+__all__ = [ObjStorage, PathSlicingObjStorage]
