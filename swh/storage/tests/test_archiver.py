@@ -42,7 +42,6 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         super().setUp()
 
         # Launch a client to check objects presence
-        print("url", self.url())
         self.remote_objstorage = RemoteObjStorage(self.url())
         # Create the local storage.
         self.objroot = tempfile.mkdtemp(prefix='local')

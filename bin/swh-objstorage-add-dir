@@ -29,7 +29,7 @@ if __name__ == '__main__':
             path = os.path.join(root, name)
             with open(path, 'rb') as f:
                 try:
-                    objs.add_file(f, length=os.path.getsize(path))
+                    objs.add(f.read())
                 except objstorage.DuplicateObjError:
                     dups += 1
 

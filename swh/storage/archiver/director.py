@@ -109,7 +109,7 @@ class ArchiverDirector():
         """
         task = app.tasks[task_name]
         task.delay(batch, self.master_storage_args,
-                   self.slave_storages, self.config['retention_policy'])
+                   self.slave_storages, self.config)
 
     def run_sync_worker(self, batch):
         """ Run synchronously a worker on the given batch.
