@@ -10,5 +10,5 @@ export PYBUILD_NAME=swh-storage
 
 override_dh_auto_test:
 	PYBUILD_SYSTEM=custom \
-        PYBUILD_TEST_ARGS="python{version} -m nose swh -sva '!db'" \
+        PYBUILD_TEST_ARGS="cd {build_dir}; python{version} -m nose swh -sva '!db'" \
         dh_auto_test
