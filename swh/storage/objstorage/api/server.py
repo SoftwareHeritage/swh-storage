@@ -16,7 +16,7 @@ from swh.storage.api.common import (BytesRequest, decode_request,
 
 DEFAULT_CONFIG = {
     'storage_base': ('str', '/tmp/swh-storage/objects/'),
-    'storage_depth': ('int', 3)
+    'storage_slicing': ('str', '0:2/2:4/4:6')
 }
 
 app = Flask(__name__)
@@ -31,8 +31,7 @@ def my_error_handler(exception):
 @app.before_request
 def before_request():
     g.objstorage = PathSlicingObjStorage(app.config['storage_base'],
-                                         app.config['storage_depth'],
-                                         slicing=2)
+                                         app.config['storage_slicing'])
 
 
 @app.route('/')

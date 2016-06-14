@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import os
 import tempfile
 import unittest
 
@@ -24,7 +23,7 @@ class TestRemoteObjStorage(ServerTestFixture, unittest.TestCase):
 
     def setUp(self):
         self.config = {'storage_base': tempfile.mkdtemp(),
-                       'storage_depth': 3}
+                       'storage_slicing': '0:1/0:5'}
         self.app = app
         super().setUp()
         self.objstorage = RemoteObjStorage(self.url())
@@ -65,20 +64,12 @@ class TestRemoteObjStorage(ServerTestFixture, unittest.TestCase):
     @istest
     def content_check_invalid(self):
         content = bytes('content_check_invalid', 'utf8')
-        id = self.objstorage.content_add(content)
-        hex_obj_id = hashutil.hash_to_hex(id)
-        dir_path = os.path.join(
-            self.config['storage_base'],
-            *[hex_obj_id[i*2:i*2+2]
-              for i in range(int(self.config['storage_depth']))]
-        )
-        path = os.path.join(dir_path, hex_obj_id)
-        content = list(content)
-        with open(path, 'bw') as f:
-            content[0] = (content[0] + 1) % 128
-            f.write(bytes(content))
+        invalid_id = hashutil.hashdata(b'invalid content')['sha1']
+        # Add the content with an invalid id.
+        self.objstorage.content_add(content, invalid_id)
+        # Then check it and expect an error.
         with self.assertRaises(Error):
-            self.objstorage.content_check(id)
+            self.objstorage.content_check(invalid_id)
 
     @istest
     def content_check_valid(self):
