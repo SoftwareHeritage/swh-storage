@@ -43,8 +43,8 @@ class TestChecker(unittest.TestCase):
         # Connect to an objstorage
         config = {'batch_size': 10}
         path = tempfile.mkdtemp()
-        depth = 3
-        self.checker = ContentChecker(config, path, depth, 'http://None')
+        slicing = '0:2/2:4/4:6'
+        self.checker = ContentChecker(config, path, slicing, 'http://None')
         self.checker.backup_storages = [MockBackupStorage(),
                                         MockBackupStorage()]
 
