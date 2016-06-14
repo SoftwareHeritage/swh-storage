@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 from swh.core import hashutil
 
-from .objstorage import ObjStorage, ID_HASH_ALGO
+from .objstorage import ObjStorage, ID_HASH_ALGO, ID_HASH_LENGTH
 from ..exc import ObjNotFoundError, Error
 
 
@@ -82,33 +82,32 @@ class PathSlicingObjStorage(ObjStorage):
     the value of the ID_HASH_ALGO constant (see hashutil for its meaning).
 
     To avoid directories that contain too many files, the object storage has a
-    given depth. Each depth level consumes a given amount of characters of
-    the object id.
+    given slicing. Each slicing correspond to a directory that is named
+    according to the hash of its content.
 
     So for instance a file with SHA1 34973274ccef6ab4dfaaf86599792fa9c3fe4689
     will be stored in the given object storages :
 
-    - depth=3, slicing=2 : 34/97/32/34973274ccef6ab4dfaaf86599792fa9c3fe4689
-    - depth=1, slicing=5 : 34973/34973274ccef6ab4dfaaf86599792fa9c3fe4689
+    - 0:2/2:4/4:6 : 34/97/32/34973274ccef6ab4dfaaf86599792fa9c3fe4689
+    - 0:1/0:5/    : 3/34973/34973274ccef6ab4dfaaf86599792fa9c3fe4689
 
     The files in the storage are stored in gzipped compressed format.
 
     Attributes:
         root (string): path to the root directory of the storage on the disk.
-        depth (int): number of subdirectories created to store a file.
-        slicing (int): number of hash character consumed for each
-            subdirectories.
+        bounds: list of tuples that indicates the beginning and the end of
+            each subdirectory for a content.
     """
 
-    def __init__(self, root, depth, slicing):
+    def __init__(self, root, slicing):
         """ Create an object to access a hash-slicing based object storage.
 
         Args:
             root (string): path to the root directory of the storage on
                 the disk.
-            depth (int): number of subdirectories created to store a file.
-            slicing (int): number of hash character consumed for each
-                subdirectories.
+            slicing (string): string that indicates the slicing to perform
+                on the hash of the content to know the path where it should
+                be stored.
         """
         if not os.path.isdir(root):
             raise ValueError(
@@ -116,8 +115,20 @@ class PathSlicingObjStorage(ObjStorage):
             )
 
         self.root = root
-        self.depth = depth
-        self.slicing = slicing
+        # Make a list of tuples where each tuple contains the beginning
+        # and the end of each slicing.
+        self.bounds = [
+            slice(*map(int, sbounds.split(':')))
+            for sbounds in slicing.split('/')
+            if sbounds
+        ]
+
+        max_endchar = max(map(lambda bound: bound.stop, self.bounds))
+        if ID_HASH_LENGTH < max_endchar:
+            raise ValueError(
+                'Algorithm %s has too short hash for slicing to char %d'
+                % (ID_HASH_ALGO, max_endchar)
+            )
 
     def __contains__(self, obj_id):
         """ Check whether the given object is present in the storage or not.
@@ -171,20 +182,8 @@ class PathSlicingObjStorage(ObjStorage):
         Returns:
             Path to the directory that contains the required object.
         """
-        if len(hex_obj_id) < self.depth * self.slicing:
-            raise ValueError(
-                'Object id "%s" is to short for %d-slicing at depth %d'
-                % (hex_obj_id, self.slicing, self.depth)
-            )
-
-        # Compute [depth] substrings of [hex_obj_id], each of length [slicing],
-        # starting from the beginning.
-        id_steps = [hex_obj_id[i * self.slicing:
-                               i * self.slicing + self.slicing]
-                    for i in range(self.depth)]
-        steps = [self.root] + id_steps
-
-        return os.path.join(*steps)
+        slices = [hex_obj_id[bound] for bound in self.bounds]
+        return os.path.join(self.root, *slices)
 
     def _obj_path(self, hex_obj_id):
         """ Compute the full path to an object into the current storage.
@@ -329,7 +328,7 @@ class PathSlicingObjStorage(ObjStorage):
                 a tuple (batch size, batch).
             """
             dirs = []
-            for level in range(self.depth):
+            for level in range(len(self.bounds)):
                 path = os.path.join(self.root, *dirs)
                 dir_list = next(os.walk(path))[1]
                 if 'tmp' in dir_list:

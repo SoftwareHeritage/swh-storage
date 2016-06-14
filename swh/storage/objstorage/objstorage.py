@@ -5,6 +5,7 @@
 
 
 ID_HASH_ALGO = 'sha1'
+ID_HASH_LENGTH = 40  # Size in bytes of the hash hexadecimal representation.
 
 
 class ObjStorage():
@@ -50,7 +51,7 @@ class ObjStorage():
             "Implementations of ObjStorage must have a 'add' method"
         )
 
-    def restore(self, content, obj_id, *args, **kwargs):
+    def restore(self, content, obj_id=None, *args, **kwargs):
         """ Restore a content that have been corrupted.
 
         This function is identical to add_bytes but does not check if
