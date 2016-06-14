@@ -68,7 +68,9 @@ class Storage():
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
-        self.objstorage = PathSlicingObjStorage(obj_root, depth=3, slicing=2)
+        # TODO this needs to be configured
+        self.objstorage = PathSlicingObjStorage(obj_root,
+                                                slicing='0:2/2:4/4:6')
 
     def content_add(self, content):
         """Add content blobs to the storage
