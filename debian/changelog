@@ -1,3 +1,12 @@
+swh-storage (0.0.40-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.40:
+  * Refactor objstorage to allow for different implementations
+  * Updates to the checker functionality
+  * Bump swh.core dependency to v0.0.20
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 14 Jun 2016 17:25:42 +0200
+
 swh-storage (0.0.39-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.39
