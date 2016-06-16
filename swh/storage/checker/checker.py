@@ -34,7 +34,7 @@ class ContentChecker():
             restore corrupted content.
     """
 
-    def __init__(self, config, root, depth, backup_urls):
+    def __init__(self, config, root, slicing, backup_urls):
         """ Create a checker that ensure the objstorage have no corrupted file.
 
         Args:
@@ -47,7 +47,7 @@ class ContentChecker():
                 get a content.
         """
         self.config = config
-        self.objstorage = PathSlicingObjStorage(root, depth, slicing=2)
+        self.objstorage = PathSlicingObjStorage(root, slicing)
         self.backup_storages = [get_storage('remote_storage', [backup_url])
                                 for backup_url in backup_urls]
 

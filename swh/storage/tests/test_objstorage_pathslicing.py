@@ -19,11 +19,9 @@ class TestpathSlicingObjStorage(ObjStorageTestFixture, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.depth = 3
-        self.slicing = 2
+        self.slicing = '0:2/2:4/4:6'
         self.tmpdir = tempfile.mkdtemp()
-        self.storage = PathSlicingObjStorage(self.tmpdir, self.depth,
-                                             self.slicing)
+        self.storage = PathSlicingObjStorage(self.tmpdir, self.slicing)
 
     def content_path(self, obj_id):
         hex_obj_id = hashutil.hash_to_hex(obj_id)
