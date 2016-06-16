@@ -1,3 +1,10 @@
+swh-storage (0.0.41-1~swh1) unstable-swh; urgency=medium
+
+  * Refactoring of the object storage in order to allow multiple
+    versions of it, as well as a multiplexer for version transition.
+
+ -- Quentin Campos <qcampos@etud.u-pem.fr>  Thu, 16 Jun 2016 15:54:16 +0200
+
 swh-storage (0.0.40-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.40:
