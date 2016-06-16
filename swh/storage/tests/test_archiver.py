@@ -37,7 +37,7 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         # Launch the backup server
         self.backup_objroot = tempfile.mkdtemp(prefix='remote')
         self.config = {'storage_base': self.backup_objroot,
-                       'storage_depth': 3}
+                       'storage_slicing': '0:2/2:4/4:6'}
         self.app = app
         super().setUp()
 
