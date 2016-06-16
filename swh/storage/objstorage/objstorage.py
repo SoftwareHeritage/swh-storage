@@ -4,6 +4,9 @@
 # See top-level LICENSE file for more information
 
 
+ID_HASH_ALGO = 'sha1'
+
+
 class ObjStorage():
     """ High-level API to manipulate the Software Heritage object storage.
 

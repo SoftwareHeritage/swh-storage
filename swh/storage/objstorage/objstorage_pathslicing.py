@@ -12,11 +12,9 @@ from contextlib import contextmanager
 
 from swh.core import hashutil
 
-from .objstorage import ObjStorage
+from .objstorage import ObjStorage, ID_HASH_ALGO
 from ..exc import ObjNotFoundError, Error
 
-
-ID_HASH_ALGO = 'sha1'
 
 GZIP_BUFSIZ = 1048576
 
