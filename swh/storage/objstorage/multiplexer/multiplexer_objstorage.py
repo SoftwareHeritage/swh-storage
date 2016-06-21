@@ -19,6 +19,34 @@ class MultiplexerObjStorage(ObjStorage):
     As the ids can be differents, no pre-computed ids should be submitted.
     Also, there are no guarantees that the returned ids can be used directly
     into the storages that the multiplexer manage.
+
+
+    Use case examples could be:
+    Example 1:
+        storage_v1 = filter.read_only(PathSlicingObjStorage('/dir1',
+                                                            '0:2/2:4/4:6'))
+        storage_v2 = PathSlicingObjStorage('/dir2', '0:1/0:5')
+        storage = MultiplexerObjStorage([storage_v1, storage_v2])
+
+        When using 'storage', all the new contents will only be added to the v2
+        storage, while it will be retrievable from both.
+
+    Example 2:
+        storage_v1 = filter.id_regex(
+            PathSlicingObjStorage('/dir1', '0:2/2:4/4:6'),
+            r'[^012].*'
+        )
+        storage_v2 = filter.if_regex(
+            PathSlicingObjStorage('/dir2', '0:1/0:5'),
+            r'[012]/*'
+        )
+        storage = MultiplexerObjStorage([storage_v1, storage_v2])
+
+        When using this storage, the contents with a sha1 starting with 0, 1 or
+        2 will be redirected (read AND write) to the storage_v2, while the
+        others will be redirected to the storage_v1.
+        If a content starting with 0, 1 or 2 is present in the storage_v1, it
+        would be ignored anyway.
     """
 
     def __init__(self, storages):
