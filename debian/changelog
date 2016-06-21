@@ -1,3 +1,10 @@
+swh-storage (0.0.42-1~swh1) unstable-swh; urgency=medium
+
+  * Add an object storage multiplexer to allow transition between
+    multiple versions of objet storages.
+
+ -- Quentin Campos <qcampos@etud.u-pem.fr>  Tue, 21 Jun 2016 15:03:52 +0200
+
 swh-storage (0.0.41-1~swh1) unstable-swh; urgency=medium
 
   * Refactoring of the object storage in order to allow multiple
