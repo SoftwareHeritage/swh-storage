@@ -28,6 +28,8 @@ setup(
         'swh.storage.checker',
         'swh.storage.objstorage',
         'swh.storage.objstorage.api',
+        'swh.storage.objstorage.multiplexer',
+        'swh.storage.objstorage.multiplexer.filter',
         'swh.storage.tests',
     ],
     scripts=[
