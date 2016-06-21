@@ -597,20 +597,36 @@ class Storage():
         yield from db.revision_shortlog(revisions, limit, cur)
 
     @db_transaction_generator
-    def revision_log_by(self, origin_id, limit=None, cur=None):
+    def revision_log_by(self, origin_id, branch_name=None, timestamp=None,
+                        limit=None, cur=None):
         """Fetch revision entry from the actual origin_id's latest revision.
+
+        Args:
+            - origin_id: the origin id from which deriving the revision
+            - branch_name: (optional) occurrence's branch name
+            - timestamp: (optional) occurrence's time
+            - limit: (optional) depth limitation for the
+              output. Default to None.
+
+        Yields:
+            The revision log starting from the revision derived from
+            the (origin, branch_name, timestamp) combination if any.
+            Returns the [] if no revision matching this combination is
+            found.
 
         """
         db = self.db
 
-        for line in db.revision_log_by(origin_id, limit, cur):
-            data = converters.db_to_revision(
-                dict(zip(db.revision_get_cols, line))
-            )
-            if not data['type']:
-                yield None
-                continue
-            yield data
+        # Retrieve the revision by criterion
+        revisions = list(db.revision_get_by(
+            origin_id, branch_name, timestamp, limit=1))
+
+        if not revisions:
+            return None
+
+        revision_id = revisions[0][0]
+        # otherwise, retrieve the revision log from that revision
+        yield from self.revision_log([revision_id], limit)
 
     def release_add(self, releases):
         """Add releases to the storage
@@ -758,9 +774,9 @@ class Storage():
 
         Args:
             origin_id: The origin to filter on.
-            branch_name: optional branch name.
-            timestamp:
-            limit:
+            branch_name: (optional) branch name.
+            timestamp: (optional) time.
+            limit: (optional) limit
 
         Yields:
             List of occurrences matching the criterions or None if nothing is

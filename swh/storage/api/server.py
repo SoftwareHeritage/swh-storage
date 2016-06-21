@@ -120,6 +120,11 @@ def revision_log():
     return encode_data(g.storage.revision_log(**decode_request(request)))
 
 
+@app.route('/revision/logby', methods=['POST'])
+def revision_log_by():
+    return encode_data(g.storage.revision_log_by(**decode_request(request)))
+
+
 @app.route('/revision/shortlog', methods=['POST'])
 def revision_shortlog():
     return encode_data(g.storage.revision_shortlog(**decode_request(request)))

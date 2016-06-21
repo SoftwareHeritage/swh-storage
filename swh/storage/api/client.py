@@ -106,6 +106,12 @@ class RemoteStorage():
         return self.post('revision/log', {'revisions': revisions,
                                           'limit': limit})
 
+    def revision_log_by(self, origin_id, branch_name, timestamp, limit=None):
+        return self.post('revision/logby', {'origin_id': origin_id,
+                                            'branch_name': branch_name,
+                                            'timestamp': timestamp,
+                                            'limit': limit})
+
     def revision_shortlog(self, revisions, limit=None):
         return self.post('revision/shortlog', {'revisions': revisions,
                                                'limit': limit})

@@ -312,6 +312,14 @@ class AbstractTestStorage(DbTestFixture):
                                       tzinfo=datetime.timezone.utc),
         }
 
+        # template occurrence to be filled in test (cf. revision_log_by)
+        self.occurrence3 = {
+            'branch': b'master',
+            'target_type': 'revision',
+            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+        }
+
         self.release = {
             'id': b'87659012345678901234',
             'name': b'v0.0.1',
@@ -745,6 +753,63 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEqual(len(actual_results), 1)
         self.assertEquals(actual_results[0], self.revision4)
+
+    @istest
+    def revision_log_by(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin2)
+        self.storage.revision_add([self.revision3,
+                                   self.revision4])
+
+        # occurrence3 targets 'revision4'
+        # with branch 'master' and origin origin_id
+        occurrence3 = self.occurrence3.copy()
+        occurrence3.update({
+            'origin': origin_id,
+            'target': self.revision4['id'],
+        })
+
+        self.storage.occurrence_add([occurrence3])
+
+        # self.revision4 -is-child-of-> self.revision3
+        # when
+        actual_results = list(self.storage.revision_log_by(
+            origin_id,
+            branch_name=occurrence3['branch'],
+            timestamp=occurrence3['date']))
+
+        # hack: ids generated
+        for actual_result in actual_results:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
+
+        self.assertEqual(len(actual_results), 2)
+        self.assertEquals(actual_results[0], self.revision4)
+        self.assertEquals(actual_results[1], self.revision3)
+
+        # when - 2
+        actual_results = list(self.storage.revision_log_by(
+            origin_id,
+            branch_name=None,
+            timestamp=None,
+            limit=1))
+
+        # then
+        for actual_result in actual_results:
+            del actual_result['author']['id']
+            del actual_result['committer']['id']
+
+        self.assertEqual(len(actual_results), 1)
+        self.assertEquals(actual_results[0], self.revision4)
+
+        # when - 3 (revision not found)
+
+        actual_res = list(self.storage.revision_log_by(
+            origin_id,
+            branch_name='inexistant-branch',
+            timestamp=None))
+
+        self.assertEquals(actual_res, [])
 
     @staticmethod
     def _short_revision(revision):
