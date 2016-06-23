@@ -13,10 +13,11 @@ import psycopg2
 
 from . import converters
 from .db import Db
-from .objstorage import PathSlicingObjStorage
-from .exc import ObjNotFoundError, StorageDBError
+from .exc import StorageDBError
 
 from swh.core.hashutil import ALGORITHMS
+from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage.exc import ObjNotFoundError
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
