@@ -1,8 +1,9 @@
-swh-storage (0.0.42-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.43-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.43
+  * Extract objstorage to its own package swh.objstorage
 
- -- Quentin Campos <qcampos@etud.u-pem.fr>  Tue, 21 Jun 2016 15:03:52 +0200
+ -- Quentin Campos <qcampos@etud.u-pem.fr>  Mon, 27 Jun 2016 14:57:12 +0200
 
 swh-storage (0.0.42-1~swh1) unstable-swh; urgency=medium
 

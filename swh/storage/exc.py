@@ -4,18 +4,6 @@
 # See top-level LICENSE file for more information
 
 
-class Error(Exception):
-
-    def __str__(self):
-        return 'storage error on object: %s' % self.args
-
-
-class ObjNotFoundError(Error):
-
-    def __str__(self):
-        return 'object not found: %s' % self.args
-
-
 class StorageDBError(Exception):
     """Specific storage db error (connection, erroneous queries, etc...)
 

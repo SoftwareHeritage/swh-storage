@@ -16,10 +16,10 @@ from swh.core.tests.db_testing import DbTestFixture
 from server_testing import ServerTestFixture
 
 from swh.storage import Storage
-from swh.storage.exc import ObjNotFoundError
 from swh.storage.archiver import ArchiverDirector, ArchiverWorker
-from swh.storage.objstorage.api.client import RemoteObjStorage
-from swh.storage.objstorage.api.server import app
+from swh.objstorage.exc import ObjNotFoundError
+from swh.objstorage.api.client import RemoteObjStorage
+from swh.objstorage.api.server import app
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')

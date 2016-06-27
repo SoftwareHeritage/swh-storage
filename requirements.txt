@@ -10,6 +10,7 @@ flask
 
 # Internal dependencies
 swh.core >= 0.0.20
+swh.objstorage >= 0.0.1
 
 click
 swh.scheduler
