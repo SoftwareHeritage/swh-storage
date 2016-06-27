@@ -8,9 +8,10 @@ import requests
 
 from requests.exceptions import ConnectionError
 
+from swh.objstorage.api.common import (decode_response,
+                                       encode_data_client as encode_data)
+
 from ..exc import StorageAPIError
-from ..api.common import (decode_response,
-                          encode_data_client as encode_data)
 
 
 class RemoteStorage():
