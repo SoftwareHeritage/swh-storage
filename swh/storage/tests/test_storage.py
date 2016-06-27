@@ -1534,3 +1534,83 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
                     'email': person1['email'],
                 },
             ])
+
+    @istest
+    def origin_revision_cache(self):
+        """Should be able to do some CRU on origin revision cache.
+
+        """
+        # given
+        # need to have one origin
+        _origin_id = self.storage.origin_add_one(self.origin)
+        # one revision
+        self.storage.revision_add([self.revision, self.revision2])
+
+        # when
+        # adding the first cache entry, we retrieve a new entry cache id
+        input_revision = {
+                'id': self.revision['id'],
+                'metadata': {
+                    'extra_headers': [['uuid', 'some-uuid'], ['svn-rev', 10]]
+                }
+            }
+        entry_cache_id = self.storage.origin_revision_cache_add(
+            origin=_origin_id,
+            revision=input_revision)
+
+        self.assertIsNotNone(entry_cache_id)
+        self.assertTrue(entry_cache_id > 0)
+
+        # adding it some same entry yield the same result
+        entry_cache_id2 = self.storage.origin_revision_cache_add(
+            origin=_origin_id,
+            revision={
+                'id': self.revision['id'],
+                'metadata': {
+                    'extra_headers': [['uuid', 'some-uuid'], ['svn-rev', 10]]
+                }
+            })
+
+        self.assertIsNotNone(entry_cache_id2)
+        self.assertEquals(entry_cache_id, entry_cache_id2)
+
+        # Retrieve the information yield the same input as the creation
+        actual_cache_entry = self.storage.origin_revision_cache_get(
+            entry_cache_id)
+
+        expected_cache_entry = {
+            'id': entry_cache_id,
+            'origin': _origin_id,
+            'revision': {
+                'id': self.revision['id'],
+                'metadata': {
+                    'extra_headers': [['uuid', 'some-uuid'], ['svn-rev', 10]]
+                }
+            }
+        }
+        self.assertEquals(actual_cache_entry, expected_cache_entry)
+
+        # Updating the entry
+        actual_cache_entry_id2 = self.storage.origin_revision_cache_update(
+            entry_cache_id,
+            origin=_origin_id,
+            revision={
+                'id': self.revision2['id'],
+                'metadata': None,
+            })
+
+        expected_cache_entry2 = {
+            'id': entry_cache_id,
+            'origin': _origin_id,
+            'revision': {
+                'id': self.revision2['id'],
+                'metadata': None
+            }
+        }
+
+        actual_cache_entry2 = self.storage.origin_revision_cache_get(
+            actual_cache_entry_id2)
+
+        self.assertEquals(entry_cache_id, actual_cache_entry_id2)
+        self.assertEquals(actual_cache_entry2, expected_cache_entry2)
+        self.assertTrue(actual_cache_entry != actual_cache_entry_id2)

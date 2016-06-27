@@ -181,6 +181,24 @@ def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))
 
 
+@app.route('/origin/revision/get', methods=['POST'])
+def origin_revision_cache_get():
+    return encode_data(g.storage.origin_revision_cache_get(
+        **decode_request(request)))
+
+
+@app.route('/origin/revision/add', methods=['POST'])
+def origin_revision_cache_add():
+    return encode_data(g.storage.origin_revision_cache_add(
+        **decode_request(request)))
+
+
+@app.route('/origin/revision/update', methods=['POST'])
+def origin_revision_cache_update():
+    return encode_data(g.storage.origin_revision_cache_update(
+        **decode_request(request)))
+
+
 @app.route('/person', methods=['POST'])
 def person_get():
     return encode_data(g.storage.person_get(**decode_request(request)))

@@ -183,3 +183,15 @@ class RemoteStorage():
     def directory_entry_get_by_path(self, directory, paths):
         return self.post('directory/path', dict(directory=directory,
                                                 paths=paths))
+
+    def origin_revision_cache_add(self, origin, revision):
+        return self.post('origin/revision/add', {'origin': origin,
+                                                 'revision': revision})
+
+    def origin_revision_cache_update(self, id, origin, revision):
+        return self.post('origin/revision/update', {'id': id,
+                                                    'origin': origin,
+                                                    'revision': revision})
+
+    def origin_revision_cache_get(self, id, origin, revision):
+        return self.post('origin/revision/get', {'id': id})

@@ -3,8 +3,8 @@
 -- to_version: 69
 -- description: add tables for the archiver.
 
-insert into dbversion(version, release, description)
-      values(69, now(), 'Work In Progress');
+insert into dbversion(version, release, description) values(69, now(),
+      'Work In Progress');
 
 CREATE DOMAIN archive_id AS TEXT;
 

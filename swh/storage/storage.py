@@ -1095,3 +1095,58 @@ class Storage():
 
         """
         return {k: v for (k, v) in self.db.stat_counters()}
+
+    @db_transaction
+    def origin_revision_cache_add(self, origin, revision, cur=None):
+        """Add a new cache entry for the couple (origin, revision).
+
+        Args:
+            origin: the origin identifier.
+            revision: the latest revision seen for that particular origin.
+
+        Returns:
+            The existing id if any or the new one otherwise.
+
+        """
+        db = self.db
+        return db.origin_revision_cache_add(origin, revision, cur)
+
+    @db_transaction
+    def origin_revision_cache_update(self, _id, origin, revision, cur=None):
+        """Update the cache entry with identifier id with the revision updated.
+
+        Args:
+            id: the actual cache entry identifier.
+            origin: the origin identifier.
+            revision: the latest revision seen for that particular origin.
+
+        Returns:
+            The existing id
+
+        """
+        db = self.db
+        return db.origin_revision_cache_update(_id, origin, revision, cur)
+
+    @db_transaction
+    def origin_revision_cache_get(self, id, cur=None):
+        """Retrieve the cache entry for the origin_revision_cache with
+        identifier id.
+
+        Args:
+            The cache entry id.
+
+        Returns:
+            The actual identifier if found or None otherwise.
+
+        """
+        db = self.db
+        t = db.origin_revision_cache_get(id, cur)
+        if t:
+            return {
+                'id': t[0],
+                'origin': t[1],
+                'revision': {
+                    'id': t[2],
+                    'metadata': t[3]
+                }
+            }

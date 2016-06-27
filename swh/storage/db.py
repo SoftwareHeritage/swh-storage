@@ -36,6 +36,20 @@ def stored_procedure(stored_proc):
     return wrap
 
 
+def escape_bytes_id(data):
+    """Convert bytes identifier to string identifier.
+
+    """
+    return '\\x%s' % binascii.hexlify(data).decode('ascii')
+
+
+def escape_json(data):
+    """Convert json data to serializable json.
+
+    """
+    return json.dumps(data)
+
+
 def jsonize(value):
     """Convert a value to a psycopg2 JSON object if necessary"""
     if isinstance(value, dict):
@@ -154,7 +168,7 @@ class Db:
             if data is None:
                 return ''
             if isinstance(data, bytes):
-                return '\\x%s' % binascii.hexlify(data).decode('ascii')
+                return escape_bytes_id(data)
             elif isinstance(data, str):
                 return '"%s"' % data.replace('"', '""')
             elif isinstance(data, datetime.datetime):
@@ -162,7 +176,7 @@ class Db:
                 # isoformat gets escaped
                 return escape(data.isoformat())
             elif isinstance(data, dict):
-                return escape(json.dumps(data))
+                return escape(escape_json(data))
             elif isinstance(data, list):
                 return escape("{%s}" % ','.join(escape(d) for d in data))
             elif isinstance(data, psycopg2.extras.Range):
@@ -714,3 +728,92 @@ class Db:
 
         cur = self._cursor(cur)
         cur.execute(query % d)
+
+    def origin_revision_cache_add(self, origin, revision, cur=None):
+        """Add a new entry for origin, revision in backend if something does
+        not already exist for such (origin, revision) tuple.
+
+        Args:
+            origin (int): the origin identifier
+            revision (dict): the revision with id and metadata
+
+        Returns:
+            The identifier for that particular row.
+            A new entry if nothing already exists or the old one if
+            something is already present.
+
+        """
+        cur = self._cursor(cur)
+        revision_id = escape_bytes_id(revision['id'])
+        query = """SELECT id
+               FROM origin_revision_cache
+               WHERE origin=%s and revision='%s'
+               LIMIT 1
+               """ % (origin, revision_id)
+        cur.execute(query)
+        _id = list(cursor_to_bytes(cur))
+        if _id:  # first line, first entry is the id
+            return _id[0][0]
+        else:  # does not exist yet, we create one
+            query = """INSERT INTO origin_revision_cache
+                             (origin, revision, metadata)
+                       VALUES(%s, '%s', '%s')
+                       RETURNING ID
+                    """ % (origin, revision_id,
+                           escape_json(revision['metadata']))
+            cur.execute(query)
+            _id = list(cursor_to_bytes(cur))
+            if _id:
+                return _id[0][0]
+
+    def origin_revision_cache_update(self, _id, origin, revision, cur=None):
+        """Update in place the last known revision seen for that origin.
+
+        Args:
+            id (int): the actual cache entry identifier.
+            origin (int): the origin identifier.
+            revision (dict): the latest revision seen for that
+            particular origin.
+
+        Returns:
+            The existing id
+
+        """
+        cur = self._cursor(cur)
+        conditions = []
+        if revision.get('metadata'):
+            conditions.append(", metadata='%s'" % revision['metadata'])
+        else:
+            conditions.append(", metadata=null")
+        conditions.append(' WHERE id = %s' % _id)
+
+        query = """UPDATE origin_revision_cache
+                   SET revision = '%s',
+                       origin = %s
+                   %s
+               """ % (escape_bytes_id(revision['id']),
+                      origin,
+                      ''.join(conditions))
+        print(query)
+        cur.execute(query)
+        return _id
+
+    def origin_revision_cache_get(self, id, cur=None):
+        """Retrieve the information on the cache entry identified by id if any.
+
+        Args:
+            id (int): the actual cache entry identifier.
+
+        Returns:
+            The existing data for that entry if any or None otherwise.
+
+        """
+        cur = self._cursor(cur)
+        query = """SELECT id, origin, revision, metadata
+               FROM origin_revision_cache
+               WHERE id=%s
+               """ % id
+        cur.execute(query)
+        res = list(cursor_to_bytes(cur))
+        if res:
+            return res[0]
