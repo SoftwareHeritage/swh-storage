@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 from swh.core import hashutil
-from ..objstorage.api.client import RemoteObjStorage
+from swh.objstorage.api.client import RemoteObjStorage
 
 
 class ArchiverCopier():
