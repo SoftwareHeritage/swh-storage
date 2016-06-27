@@ -794,7 +794,6 @@ class Db:
                """ % (escape_bytes_id(revision['id']),
                       origin,
                       ''.join(conditions))
-        print(query)
         cur.execute(query)
         return _id
 
