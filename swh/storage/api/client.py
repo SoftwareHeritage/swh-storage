@@ -193,5 +193,5 @@ class RemoteStorage():
                                                     'origin': origin,
                                                     'revision': revision})
 
-    def origin_revision_cache_get(self, id, origin, revision):
+    def origin_revision_cache_get(self, id):
         return self.post('origin/revision/get', {'id': id})

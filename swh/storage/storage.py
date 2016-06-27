@@ -1109,10 +1109,11 @@ class Storage():
 
         """
         db = self.db
-        return db.origin_revision_cache_add(origin, revision, cur)
+        partial_revision = converters.partial_revision_to_db(revision)
+        return db.origin_revision_cache_add(origin, partial_revision, cur)
 
     @db_transaction
-    def origin_revision_cache_update(self, _id, origin, revision, cur=None):
+    def origin_revision_cache_update(self, id, origin, revision, cur=None):
         """Update the cache entry with identifier id with the revision updated.
 
         Args:
@@ -1125,7 +1126,9 @@ class Storage():
 
         """
         db = self.db
-        return db.origin_revision_cache_update(_id, origin, revision, cur)
+        partial_revision = converters.partial_revision_to_db(revision)
+        return db.origin_revision_cache_update(id, origin, partial_revision,
+                                               cur)
 
     @db_transaction
     def origin_revision_cache_get(self, id, cur=None):
@@ -1141,12 +1144,13 @@ class Storage():
         """
         db = self.db
         t = db.origin_revision_cache_get(id, cur)
+        partial_revision = converters.db_to_partial_revision({
+            'id': t[2],
+            'metadata': t[3]
+        })
         if t:
             return {
                 'id': t[0],
                 'origin': t[1],
-                'revision': {
-                    'id': t[2],
-                    'metadata': t[3]
-                }
+                'revision': partial_revision
             }

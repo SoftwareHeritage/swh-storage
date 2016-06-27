@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -154,6 +154,20 @@ def date_to_db(date_offset):
     }
 
 
+def partial_revision_to_db(revision):
+    """Convert a partial swh-model revision to its database
+    representation.
+
+    """
+    metadata = revision['metadata']
+    if metadata and 'extra_headers' in metadata:
+        metadata = metadata.copy()
+        extra_headers = git_headers_to_db(metadata['extra_headers'])
+        metadata['extra_headers'] = extra_headers
+        revision['metadata'] = metadata
+    return revision
+
+
 def revision_to_db(revision):
     """Convert a swh-model revision to its database representation.
     """
@@ -196,6 +210,22 @@ def revision_to_db(revision):
                 'parent_rank': i,
             } for i, parent in enumerate(revision['parents'])
         ],
+    }
+
+
+def db_to_partial_revision(db_revision):
+    """Convert a database representation of a partial revision to its
+    swh-model representation.
+
+    """
+    metadata = db_revision['metadata']
+    if metadata and 'extra_headers' in metadata:
+        extra_headers = db_to_git_headers(metadata['extra_headers'])
+        metadata['extra_headers'] = extra_headers
+
+    return {
+        'id': db_revision['id'],
+        'metadata': metadata
     }
 
 
