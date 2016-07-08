@@ -151,6 +151,9 @@ class RemoteStorage():
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
+    def origin_visit_get(self, origin):
+        return self.post('origin/visit/get', {'origin': origin})
+
     def person_get(self, person):
         return self.post('person', {'person': person})
 
