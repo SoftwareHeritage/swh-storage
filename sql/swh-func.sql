@@ -979,6 +979,18 @@ as $$
   )) select (origin_visit).* from closest_two_visits order by interval limit 1
 $$;
 
+-- Find the visit of origin id closest to date visit_date
+create or replace function swh_visit_get(origin bigint)
+    returns origin_visit
+    language sql
+    stable
+as $$
+    select origin, visit, date
+    from origin_visit
+    where origin=origin
+    order by date desc
+$$;
+
 
 -- Retrieve occurrence by filtering on origin_id and optionally on
 -- branch_name and/or validity range
