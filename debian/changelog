@@ -1,3 +1,9 @@
+swh-storage (0.0.44-1~swh1~bpo9+1) stretch-swh; urgency=medium
+
+  * Rebuild for stretch-backports.
+
+ -- Quentin Campos <qcampos@etud.u-pem.fr>  Fri, 08 Jul 2016 11:27:10 +0200
+
 swh-storage (0.0.44-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.44
