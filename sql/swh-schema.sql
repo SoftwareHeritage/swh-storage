@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(70, now(), 'Work In Progress');
+      values(69, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -451,4 +451,3 @@ CREATE TABLE content_archive (
   mtime       timestamptz,
   PRIMARY KEY (content_id, archive_id)
 );
-
