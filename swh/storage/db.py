@@ -343,6 +343,28 @@ class Db:
     revision_get_cols = revision_add_cols + [
         'author_id', 'committer_id', 'parents']
 
+    origin_visit_get_cols = [
+        'origin', 'visit', 'date'
+    ]
+
+    def origin_visit_get(self, origin_id, cur=None):
+        """Retrieve occurrence's history information by origin_id.
+
+        Args:
+            origin_id: The occurrence's origin
+
+        Yields:
+            The occurrence's history visits
+
+        """
+        cur = self._cursor(cur)
+
+        cur.execute(
+            'SELECT origin, visit, date FROM origin_visit where origin=%s',
+            (origin_id, ))
+
+        yield from cursor_to_bytes(cur)
+
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
         query = 'SELECT %s FROM swh_revision_get()' % (

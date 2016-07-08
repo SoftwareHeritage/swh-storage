@@ -765,6 +765,22 @@ class Storage():
             }
 
     @db_transaction_generator
+    def origin_visit_get(self, origin, cur=None):
+        """Retrieve origin's visit dates.
+
+        Args:
+            origin: The occurrence's origin (identifier).
+
+        Yields:
+            List of visits.
+
+        """
+        db = self.db
+        for line in db.origin_visit_get(origin, cur):
+            data = dict(zip(self.db.origin_visit_get_cols, line))
+            yield data
+
+    @db_transaction_generator
     def revision_get_by(self,
                         origin_id,
                         branch_name=None,
