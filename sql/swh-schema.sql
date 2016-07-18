@@ -426,28 +426,3 @@ create table release
 );
 
 create index on release(target, target_type);
-
-
--- In order to archive the content of the object storage, add
--- some tables to keep trace of what have already been archived.
-
-CREATE DOMAIN archive_id AS TEXT;
-
-CREATE TABLE archives (
-  id   archive_id PRIMARY KEY,
-  url  TEXT
-);
-
-CREATE TYPE archive_status AS ENUM (
-  'missing',
-  'ongoing',
-  'present'
-);
-
-CREATE TABLE content_archive (
-  content_id  sha1 REFERENCES content(sha1),
-  archive_id  archive_id REFERENCES archives(id),
-  status      archive_status,
-  mtime       timestamptz,
-  PRIMARY KEY (content_id, archive_id)
-);
