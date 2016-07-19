@@ -69,10 +69,11 @@ CONTENT_SIZE = 10
 
 if __name__ == '__main__':
     random.seed(0)
-    # Local database
-    dbname = 'softwareheritage-dev'
-    user = 'qcampos'
-    cstring = 'dbname=%s user=%s' % (dbname, user)
+
+    # Local databases
+    cstring_archiver = 'service=swh-archiver-dev'
+    cstring_storage = 'service=swh-dev'
+
     # Archiver config
     config = {
         'objstorage_path': '/tmp/swh/storage-dev/2',
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     }
 
     # Grand-palais's storage
-    loc = Storage(cstring, config['objstorage_path'])
+    loc = Storage(cstring_storage, config['objstorage_path'])
 
     # Add the content
     l = [mc(rs(100)) for _ in range(CONTENT_SIZE)]
@@ -91,5 +92,5 @@ if __name__ == '__main__':
     initialize_content_archive(loc.db, CONTENT_SIZE, ['petit-palais'])
 
     # Launch the archiver
-    archiver = ArchiverDirector(cstring, config)
+    archiver = ArchiverDirector(cstring_archiver, cstring_storage, config)
     archiver.run()
