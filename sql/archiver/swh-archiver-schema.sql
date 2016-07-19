@@ -37,10 +37,10 @@ CREATE DOMAIN sha1 AS bytea CHECK (LENGTH(VALUE) = 20);
 
 CREATE TABLE content_archive (
   content_id  sha1,
-  archive_id  archive_id REFERENCES archive(id),
+  archive_id  archive_id REFERENCES archive(id) DEFERRABLE,
   status      archive_status,
   mtime       timestamptz,
-  PRIMARY KEY (content_id, archive_id)
+  PRIMARY KEY (content_id, archive_id) DEFERRABLE
 );
 
 comment on table content_archive is 'Referencing the status and whereabouts of a content';
