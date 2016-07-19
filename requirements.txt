@@ -9,7 +9,7 @@ requests
 flask
 
 # Internal dependencies
-swh.core >= 0.0.20
+swh.core >= 0.0.21
 swh.objstorage >= 0.0.1
 
 click

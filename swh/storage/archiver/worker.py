@@ -6,6 +6,7 @@
 import random
 import logging
 
+from .storage import ArchiverStorage
 from .copier import ArchiverCopier
 from .. import get_storage
 
@@ -42,13 +43,16 @@ class ArchiverWorker():
             asynchronous (boolean): Indicate whenever the archival should
                 run in asynchronous mode or not.
     """
-    def __init__(self, batch, master_storage_args, slave_storages, config):
+    def __init__(self, batch, archiver_args, master_storage_args,
+                 slave_storages, config):
         """ Constructor of the ArchiverWorker class.
 
         Args:
             batch: A batch of content, which is a dictionary that associates
                 a content's sha1 id to the list of servers where the content
                 is present.
+            archiver_args: The archiver's arguments to establish connection to
+                db.
             master_storage_args: The master storage arguments.
             slave_storages: A map that associates server_id to the remote
                 server.
@@ -66,6 +70,7 @@ class ArchiverWorker():
                     run in asynchronous mode or not.
         """
         self.batch = batch
+        self.archiver_storage = ArchiverStorage(archiver_args)
         self.master_storage = get_storage('local_storage', master_storage_args)
         self.slave_storages = slave_storages
         self.config = config
@@ -104,7 +109,7 @@ class ArchiverWorker():
             'archive_id', 'status', and 'mtime'
         """
         t, = list(
-            self.master_storage.db.content_archive_get(content_id, server[0])
+            self.archiver_storage.content_archive_get(content_id, server[0])
         )
         return {
             'content_id': t[0],
@@ -127,7 +132,7 @@ class ArchiverWorker():
                 status will replace the previous one. If not given, the
                 function only changes the mtime of the content.
         """
-        self.master_storage.db.content_archive_update(
+        self.archiver_storage.content_archive_update(
             content_id,
             archive_id,
             new_status

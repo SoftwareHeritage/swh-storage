@@ -24,7 +24,7 @@ class ArchiverCopier():
 
         Args:
             destination: A tuple (archive_name, archive_url) that represents a
-                remote object storage as in the 'archives' table.
+                remote object storage as in the 'archive' table.
             content: A list of sha1 that represents the content this copier
                 have to archive.
             master_storage (Storage): The master storage of the system that

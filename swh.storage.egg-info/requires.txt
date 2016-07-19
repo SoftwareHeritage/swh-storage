@@ -3,7 +3,7 @@ dateutil
 flask
 psycopg2
 requests
-swh.core>=0.0.20
+swh.core>=0.0.21
 swh.objstorage>=0.0.1
 swh.scheduler
 vcversioner
