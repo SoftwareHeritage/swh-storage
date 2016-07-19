@@ -1,3 +1,10 @@
+swh-storage (0.0.45-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.45
+  * Separate swh.storage.archiver's db from swh.storage.storage
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 19 Jul 2016 15:05:36 +0200
+
 swh-storage (0.0.44-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.44
