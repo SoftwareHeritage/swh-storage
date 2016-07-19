@@ -12,7 +12,7 @@ from nose.plugins.attrib import attr
 from datetime import datetime, timedelta
 
 from swh.core import hashutil
-from swh.core.tests.db_testing import DbTestFixture
+from swh.core.tests.db_testing import DbsTestFixture
 from server_testing import ServerTestFixture
 
 from swh.storage import Storage
@@ -26,26 +26,44 @@ TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
 
 
 @attr('db')
-class TestArchiver(DbTestFixture, ServerTestFixture,
+class TestArchiver(DbsTestFixture, ServerTestFixture,
                    unittest.TestCase):
     """ Test the objstorage archiver.
     """
 
-    TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
+    TEST_DB_NAMES = [
+        'softwareheritage-test',
+        'softwareheritage-archiver-test',
+    ]
+    TEST_DB_DUMPS = [
+        os.path.join(TEST_DATA_DIR, 'dumps/swh.dump'),
+        os.path.join(TEST_DATA_DIR, 'dumps/swh-archiver.dump'),
+    ]
+    TEST_DB_DUMP_TYPES = [
+        'pg_dump',
+        'pg_dump',
+    ]
 
     def setUp(self):
         # Launch the backup server
         self.backup_objroot = tempfile.mkdtemp(prefix='remote')
-        self.config = {'storage_base': self.backup_objroot,
-                       'storage_slicing': '0:2/2:4/4:6'}
+        self.config = {
+            'storage_base': self.backup_objroot,
+            'storage_slicing': '0:2/2:4/4:6'
+        }
         self.app = app
         super().setUp()
 
-        # Launch a client to check objects presence
+        # Retrieve connection (depends on the order in TEST_DB_NAMES)
+        self.conn_storage = self.conns[0]  # db connection to storage
+        self.conn = self.conns[1]          # archiver db's connection
+        self.cursor = self.cursors[1]
+        # a reader storage to check content has been archived
         self.remote_objstorage = RemoteObjStorage(self.url())
         # Create the local storage.
         self.objroot = tempfile.mkdtemp(prefix='local')
-        self.storage = Storage(self.conn, self.objroot)
+        # a writer storage to store content before archiving
+        self.storage = Storage(self.conn_storage, self.objroot)
         # Initializes and fill the tables.
         self.initialize_tables()
         # Create the archiver
@@ -61,15 +79,15 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         """ Initializes the database with a sample of items.
         """
         # Add an archive
-        self.cursor.execute("""INSERT INTO archives(id, url)
-                               VALUES('Local', 'http://localhost:{}/')
-                            """.format(self.port))
+        self.cursor.execute("""INSERT INTO archive(id, url)
+                               VALUES('Local', '{}')
+                            """.format(self.url()))
         self.conn.commit()
 
     def empty_tables(self):
         # Remove all content
         self.cursor.execute('DELETE FROM content_archive')
-        self.cursor.execute('DELETE FROM archives')
+        self.cursor.execute('DELETE FROM archive where id=\'Local\'')
         self.conn.commit()
 
     def __add_content(self, content_data, status='missing', date='now()'):
@@ -99,16 +117,24 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
             'retention_policy': retention_policy,
             'asynchronous': asynchronous  # Avoid depending on queue for tests.
         }
-        director = ArchiverDirector(self.conn, config)
+        director = ArchiverDirector(db_conn_archiver=self.conn,
+                                    db_conn_storage=self.conn_storage,
+                                    config=config)
         return director
 
     def __create_worker(self, batch={}, config={}):
-        mstorage_args = [self.archiver.master_storage.db.conn,
-                         self.objroot]
-        slaves = [self.storage_data]
+        mstorage_args = [
+            self.archiver.master_storage.db.conn,  # master storage db
+                                                   # connection
+            self.objroot                           # object storage path
+        ]
         if not config:
             config = self.archiver.config
-        return ArchiverWorker(batch, mstorage_args, slaves, config)
+        return ArchiverWorker(batch,
+                              archiver_args=self.conn,
+                              master_storage_args=mstorage_args,
+                              slave_storages=[self.storage_data],
+                              config=config)
 
     # Integration test
 
@@ -117,10 +143,16 @@ class TestArchiver(DbTestFixture, ServerTestFixture,
         """ Run archiver on a missing content should archive it.
         """
         content_data = b'archive_missing_content'
-        id = self.__add_content(content_data)
-        # After the run, the content should be in the archive.
+        content_id = self.__add_content(content_data)
+        # before, the content should not be there
+        try:
+            self.remote_objstorage.content_get(content_id)
+        except:
+            pass
         self.archiver.run()
-        remote_data = self.remote_objstorage.content_get(id)
+        # now the content should be present on remote objstorage
+        remote_data = self.remote_objstorage.content_get(content_id)
+        # After the run, the content should be archived after the archiver run.
         self.assertEquals(content_data, remote_data)
 
     @istest

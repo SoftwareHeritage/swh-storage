@@ -655,7 +655,7 @@ class Db:
         """
         cur = self._cursor(cur)
         cur.execute("""SELECT id, url
-                    FROM archives
+                    FROM archive
                     """)
         yield from cursor_to_bytes(cur)
 

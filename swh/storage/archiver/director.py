@@ -11,7 +11,9 @@ from datetime import datetime
 
 from swh.core import hashutil, config
 from swh.scheduler.celery_backend.config import app
+
 from . import tasks  # NOQA
+from .storage import ArchiverStorage
 
 
 DEFAULT_CONFIG = {
@@ -21,7 +23,8 @@ DEFAULT_CONFIG = {
     'retention_policy': ('int', 2),
     'asynchronous': ('bool', True),
 
-    'dbconn': ('str', 'dbname=softwareheritage-dev user=guest')
+    'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest'),
+    'dbconn_storage': ('str', 'dbname=softwareheritage-dev user=guest')
 }
 
 task_name = 'swh.storage.archiver.tasks.SWHArchiverTask'
@@ -35,15 +38,14 @@ class ArchiverDirector():
     The archiver director processes the files in the local storage in order
     to know which one needs archival and it delegates this task to
     archiver workers.
-
     Attributes:
         master_storage: the local storage of the master server.
         slave_storages: Iterable of remote obj storages to the slaves servers
             used for backup.
         config: Archiver_configuration. A dictionary that must contain
             the following keys.
-            objstorage_path (string): the path of the objstorage of the
-                master.
+            objstorage_path (string): master's objstorage path
+
             batch_max_size (int): The number of content items that can be
                 given to the same archiver worker.
             archival_max_age (int): Delay given to the worker to copy all
@@ -54,16 +56,17 @@ class ArchiverDirector():
                 run in asynchronous mode or not.
     """
 
-    def __init__(self, db_conn, config):
+    def __init__(self, db_conn_archiver, db_conn_storage, config):
         """ Constructor of the archiver director.
 
         Args:
-            db_conn: db_conn: Either a libpq connection string,
-                or a psycopg2 connection.
-            config: Archiver_configuration. A dictionary that must contains
+            db_conn_archiver: Either a libpq connection string,
+                or a psycopg2 connection for the archiver db connection.
+            db_conn_storage: Either a libpq connection string,
+                or a psycopg2 connection for the db storage connection.
+            config: Archiver_configuration. A dictionary that must contain
                 the following keys.
-                objstorage_path (string): the path of the objstorage of the
-                    master.
+                objstorage_path (string): master's objstorage path
                 batch_max_size (int): The number of content items that can be
                     given to the same archiver worker.
                 archival_max_age (int): Delay given to the worker to copy all
@@ -74,18 +77,21 @@ class ArchiverDirector():
                     run in asynchronous mode or not.
         """
         # Get the local storage of the master and remote ones for the slaves.
-        self.master_storage_args = [db_conn, config['objstorage_path']]
+        self.db_conn_archiver = db_conn_archiver
+        self.archiver_storage = ArchiverStorage(db_conn_archiver)
+
+        self.master_storage_args = [db_conn_storage, config['objstorage_path']]
         master_storage = swh.storage.get_storage('local_storage',
                                                  self.master_storage_args)
         slaves = {
             id: url
             for id, url
-            in master_storage.db.archive_ls()
+            in self.archiver_storage.archive_ls()
         }
 
         # TODO Database should be initialized somehow before going in
         # production. For now, assumes that the database contains
-        # datas for all the current content.
+        # data for all the current content.
 
         self.master_storage = master_storage
         self.slave_storages = slaves
@@ -108,18 +114,24 @@ class ArchiverDirector():
         """ Produce a worker that will be added to the task queue.
         """
         task = app.tasks[task_name]
-        task.delay(batch, self.master_storage_args,
-                   self.slave_storages, self.config)
+        task.delay(batch,
+                   archiver_args=self.db_conn_archiver,
+                   master_storage_args=self.master_storage_args,
+                   slave_storages=self.slave_storages,
+                   config=self.config)
 
     def run_sync_worker(self, batch):
         """ Run synchronously a worker on the given batch.
         """
         task = app.tasks[task_name]
-        task(batch, self.master_storage_args,
-             self.slave_storages, self.config)
+        task(batch,
+             archiver_args=self.db_conn_archiver,
+             master_storage_args=self.master_storage_args,
+             slave_storages=self.slave_storages,
+             config=self.config)
 
     def get_unarchived_content(self):
-        """ get all the contents that needs to be archived.
+        """ Get contents that need to be archived.
 
         Yields:
             A batch of contents. Batches are dictionaries which associates
@@ -147,11 +159,11 @@ class ArchiverDirector():
         """
         # Get the data about each content referenced into the archiver.
         missing_copy = {}
-        for content_id in self.master_storage.db.content_archive_ls():
+        for content_id in self.archiver_storage.content_archive_ls():
             db_content_id = '\\x' + hashutil.hash_to_hex(content_id[0])
 
             # Fetch the datas about archival status of the content
-            backups = self.master_storage.db.content_archive_get(
+            backups = self.archiver_storage.content_archive_get(
                 content=db_content_id
             )
             for _content_id, server_id, status, mtime in backups:
@@ -221,20 +233,23 @@ class ArchiverDirector():
 @click.command()
 @click.argument('config-path', required=1)
 @click.option('--dbconn', default=DEFAULT_CONFIG['dbconn'][1],
-              help="Connection string for the database")
+              help="Connection string for the archiver database")
+@click.option('--dbconn-storage', default=DEFAULT_CONFIG['dbconn_storage'][1],
+              help="Connection string for the storage database")
 @click.option('--async/--sync', default=DEFAULT_CONFIG['asynchronous'][1],
               help="Indicates if the archiver should run asynchronously")
-def launch(config_path, dbconn, async):
+def launch(config_path, dbconn, dbconn_storage, async):
     # The configuration have following priority :
     # command line > file config > default config
     cl_config = {
         'dbconn': dbconn,
+        'dbconn_storage': dbconn_storage,
         'asynchronous': async
     }
     conf = config.read(config_path, DEFAULT_CONFIG)
     conf.update(cl_config)
     # Create connection data and run the archiver.
-    archiver = ArchiverDirector(conf['dbconn'], conf)
+    archiver = ArchiverDirector(conf['dbconn'], conf['dbconn_storage'], conf)
     logger.info("Starting an archival at", datetime.now())
     archiver.run()
 
