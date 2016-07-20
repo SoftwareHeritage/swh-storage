@@ -6,11 +6,14 @@
 import random
 import logging
 
+from datetime import datetime
+
+from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage.api.client import RemoteObjStorage
+
 from .storage import ArchiverStorage
 from .copier import ArchiverCopier
-from .. import get_storage
 
-from datetime import datetime
 
 logger = logging.getLogger()
 
@@ -26,10 +29,10 @@ class ArchiverWorker():
             that associates a content's sha1 id to the list of servers where
             the content is present or missing
             (see ArchiverDirector::get_unarchived_content).
-        master_storage_args: The connection argument to initialize the
+        master_objstorage_args: The connection argument to initialize the
             master storage with the db connection url & the object storage
             path.
-        slave_storages: A map that associates server_id to the remote server.
+        slave_objstorages: A map that associates server_id to the remote server
         config: Archiver_configuration. A dictionary that must contains
             the following keys.
             objstorage_path (string): the path of the objstorage of the
@@ -43,8 +46,8 @@ class ArchiverWorker():
             asynchronous (boolean): Indicate whenever the archival should
                 run in asynchronous mode or not.
     """
-    def __init__(self, batch, archiver_args, master_storage_args,
-                 slave_storages, config):
+    def __init__(self, batch, archiver_args, master_objstorage_args,
+                 slave_objstorages, config):
         """ Constructor of the ArchiverWorker class.
 
         Args:
@@ -53,8 +56,8 @@ class ArchiverWorker():
                 is present.
             archiver_args: The archiver's arguments to establish connection to
                 db.
-            master_storage_args: The master storage arguments.
-            slave_storages: A map that associates server_id to the remote
+            master_objstorage_args: The master storage arguments.
+            slave_objstorages: A map that associates server_id to the remote
                 server.
             config: Archiver_configuration. A dictionary that must contains
                 the following keys.
@@ -71,11 +74,16 @@ class ArchiverWorker():
         """
         self.batch = batch
         self.archiver_storage = ArchiverStorage(archiver_args)
-        self.master_storage = get_storage('local_storage', master_storage_args)
-        self.slave_storages = slave_storages
+        self.slave_objstorages = slave_objstorages
         self.config = config
 
-    def __choose_backup_servers(self, allowed_storage, backup_number):
+        if config['objstorage_type'] == 'local_objstorage':
+            master_objstorage = PathSlicingObjStorage(**master_objstorage_args)
+        else:
+            master_objstorage = RemoteObjStorage(**master_objstorage_args)
+        self.master_objstorage = master_objstorage
+
+    def _choose_backup_servers(self, allowed_storage, backup_number):
         """ Choose the slave servers for archival.
 
         Choose the given amount of servers among those which don't already
@@ -88,8 +96,7 @@ class ArchiverWorker():
         """
         # In case there is not enough backup servers to get all the backups
         # we need, just do our best.
-        # TODO such situation can only be caused by an incorrect configuration
-        # setting. Do a verification previously.
+        # Such situation should not happen.
         backup_number = min(backup_number, len(allowed_storage))
 
         # TODO Find a better (or a good) policy to choose the backup servers.
@@ -98,7 +105,7 @@ class ArchiverWorker():
         # capacities.
         return random.sample(allowed_storage, backup_number)
 
-    def __get_archival_status(self, content_id, server):
+    def _get_archival_status(self, content_id, server):
         """ Get the archival status of the required content.
 
         Attributes:
@@ -118,8 +125,8 @@ class ArchiverWorker():
             'mtime': t[3]
         }
 
-    def __content_archive_update(self, content_id, archive_id,
-                                 new_status=None):
+    def _content_archive_update(self, content_id, archive_id,
+                                new_status=None):
         """ Update the status of a archive content and set it's mtime to now()
 
         Change the last modification time of an archived content and change
@@ -148,7 +155,7 @@ class ArchiverWorker():
             content (str): Sha1 of a content.
             destination: Tuple (archive id, archive url).
         """
-        archival_status = self.__get_archival_status(
+        archival_status = self._get_archival_status(
             content,
             destination
         )
@@ -187,7 +194,7 @@ class ArchiverWorker():
             server_data = self.batch[content_id]
             nb_present = len(server_data['present'])
             nb_backup = self.config['retention_policy'] - nb_present
-            backup_servers = self.__choose_backup_servers(
+            backup_servers = self._choose_backup_servers(
                 server_data['missing'],
                 nb_backup
             )
@@ -214,8 +221,8 @@ class ArchiverWorker():
                 slaves_copy[destination]
             ))
             for content_id in slaves_copy[destination]:
-                self.__content_archive_update(content_id, destination[0],
-                                              new_status='ongoing')
+                self._content_archive_update(content_id, destination[0],
+                                             new_status='ongoing')
 
         # Spawn a copier for each destination
         for destination in slaves_copy:
@@ -236,9 +243,9 @@ class ArchiverWorker():
             destination: Tuple (archive_id, archive_url) of the destination.
             contents: List of contents to archive.
         """
-        ac = ArchiverCopier(destination, contents, self.master_storage)
+        ac = ArchiverCopier(destination, contents, self.master_objstorage)
         if ac.run():
             # Once the archival complete, update the database.
             for content_id in contents:
-                self.__content_archive_update(content_id, destination[0],
-                                              new_status='present')
+                self._content_archive_update(content_id, destination[0],
+                                             new_status='present')
