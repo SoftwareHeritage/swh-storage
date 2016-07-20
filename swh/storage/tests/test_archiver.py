@@ -112,29 +112,27 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     def __create_director(self, batch_size=5000, archival_max_age=3600,
                           retention_policy=1, asynchronous=False):
         config = {
+            'objstorage_type': 'local_objstorage',
             'objstorage_path': self.objroot,
+            'objstorage_slicing': '0:2/2:4/4:6',
+
             'batch_max_size': batch_size,
             'archival_max_age': archival_max_age,
             'retention_policy': retention_policy,
             'asynchronous': asynchronous  # Avoid depending on queue for tests.
         }
         director = ArchiverDirector(db_conn_archiver=self.conn,
-                                    db_conn_storage=self.conn_storage,
                                     config=config)
         return director
 
     def __create_worker(self, batch={}, config={}):
-        mstorage_args = [
-            self.archiver.master_storage.db.conn,  # master storage db
-                                                   # connection
-            self.objroot                           # object storage path
-        ]
+        mobjstorage_args = self.archiver.master_objstorage_args
         if not config:
             config = self.archiver.config
         return ArchiverWorker(batch,
                               archiver_args=self.conn,
-                              master_storage_args=mstorage_args,
-                              slave_storages=[self.storage_data],
+                              master_objstorage_args=mobjstorage_args,
+                              slave_objstorages=[self.storage_data],
                               config=config)
 
     # Integration test
