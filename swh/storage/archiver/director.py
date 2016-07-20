@@ -277,7 +277,7 @@ class ArchiverDirector():
               help="Connection string for the archiver database")
 @click.option('--async/--sync', default=DEFAULT_CONFIG['asynchronous'][1],
               help="Indicates if the archiver should run asynchronously")
-def launch(config_path, dbconn, dbconn_storage, async):
+def launch(config_path, dbconn, async):
     # The configuration have following priority :
     # command line > file config > default config
     cl_config = {
