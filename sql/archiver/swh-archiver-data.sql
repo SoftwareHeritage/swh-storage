@@ -1,2 +1,2 @@
-INSERT INTO archive(id, url)
-VALUES('Banco', 'http://banco.softwareheritage.org:5003/');
+gINSERT INTO archive(id, url)
+VALUES('banco', 'http://banco.softwareheritage.org:5003/');
