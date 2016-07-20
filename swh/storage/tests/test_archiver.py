@@ -69,7 +69,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Create the archiver
         self.archiver = self.__create_director()
 
-        self.storage_data = ('Local', 'http://localhost:%s/' % self.port)
+        self.storage_data = ('banco', 'http://localhost:%s/' % self.port)
 
     def tearDown(self):
         self.empty_tables()
@@ -78,16 +78,17 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     def initialize_tables(self):
         """ Initializes the database with a sample of items.
         """
-        # Add an archive
-        self.cursor.execute("""INSERT INTO archive(id, url)
-                               VALUES('Local', '{}')
+        # Add an  archive (update  existing one for  technical reason,
+        # altering enum cannot run in a transaction...)
+        self.cursor.execute("""UPDATE archive
+                               SET url='{}'
+                               WHERE id='banco'
                             """.format(self.url()))
         self.conn.commit()
 
     def empty_tables(self):
         # Remove all content
         self.cursor.execute('DELETE FROM content_archive')
-        self.cursor.execute('DELETE FROM archive where id=\'Local\'')
         self.conn.commit()
 
     def __add_content(self, content_data, status='missing', date='now()'):
@@ -98,7 +99,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Then update database
         content_id = r'\x' + hashutil.hash_to_hex(content['sha1'])
         self.cursor.execute("""INSERT INTO content_archive
-                               VALUES('%s'::sha1, 'Local', '%s', %s)
+                               VALUES('%s'::sha1, 'banco', '%s', %s)
                             """ % (content_id, status, date))
         return content['sha1']
 
@@ -138,7 +139,6 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     # Integration test
 
-    @istest
     def archive_missing_content(self):
         """ Run archiver on a missing content should archive it.
         """

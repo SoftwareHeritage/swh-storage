@@ -41,7 +41,7 @@ CREATE TABLE content_archive (
   content_id  sha1,
   archive_id  archive_id REFERENCES archive(id),
   status      archive_status,
-  mtime       timestamptz
+  mtime       timestamptz,
   PRIMARY KEY (content_id, archive_id)
 );
 
