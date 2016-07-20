@@ -13,7 +13,9 @@ comment on table dbversion is 'Schema update tracking';
 INSERT INTO dbversion(version, release, description)
 VALUES(1, now(), 'Work In Progress');
 
-CREATE DOMAIN archive_id AS TEXT;
+CREATE TYPE archive_id AS ENUM (
+  'banco'
+);
 
 CREATE TABLE archive (
   id   archive_id PRIMARY KEY,
@@ -37,10 +39,10 @@ CREATE DOMAIN sha1 AS bytea CHECK (LENGTH(VALUE) = 20);
 
 CREATE TABLE content_archive (
   content_id  sha1,
-  archive_id  archive_id REFERENCES archive(id) DEFERRABLE,
+  archive_id  archive_id REFERENCES archive(id),
   status      archive_status,
   mtime       timestamptz,
-  PRIMARY KEY (content_id, archive_id) DEFERRABLE
+  PRIMARY KEY (content_id, archive_id)
 );
 
 comment on table content_archive is 'Referencing the status and whereabouts of a content';

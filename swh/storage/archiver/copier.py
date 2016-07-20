@@ -16,10 +16,10 @@ class ArchiverCopier():
             has to archive.
         server (RemoteArchive): The remote object storage that is used to
             backup content.
-        master_storage (Storage): The master storage that contains the data
-            the copier needs to archive.
+        master_objstorage (ObjStorage): The master storage that contains the
+            data the copier needs to archive.
     """
-    def __init__(self, destination, content, master_storage):
+    def __init__(self, destination, content, master_objstorage):
         """ Create a Copier for the archiver
 
         Args:
@@ -33,7 +33,7 @@ class ArchiverCopier():
         _name, self.url = destination
         self.content_ids = content
         self.server = RemoteObjStorage(self.url)
-        self.master_storage = master_storage
+        self.master_objstorage = master_objstorage
 
     def run(self):
         """ Do the copy on the backup storage.
@@ -47,14 +47,12 @@ class ArchiverCopier():
         Returns:
             A boolean that indicates if the whole content have been copied.
         """
-        self.content_ids = list(map(lambda x: hashutil.hex_to_hash(x[2:]),
-                                    self.content_ids))
-        contents = self.master_storage.content_get(self.content_ids)
+        self.content_ids = map(lambda x: hashutil.hex_to_hash(x[2:]),
+                               self.content_ids)
         try:
-            for content in contents:
-                content_data = content['data']
-                self.server.content_add(content_data)
+            for content_id in self.content_ids:
+                content = self.master_objstorage.get(content_id)
+                self.server.content_add(content, content_id)
         except:
             return False
-
         return True

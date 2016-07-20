@@ -69,7 +69,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Create the archiver
         self.archiver = self.__create_director()
 
-        self.storage_data = ('Local', 'http://localhost:%s/' % self.port)
+        self.storage_data = ('banco', 'http://localhost:%s/' % self.port)
 
     def tearDown(self):
         self.empty_tables()
@@ -78,16 +78,17 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     def initialize_tables(self):
         """ Initializes the database with a sample of items.
         """
-        # Add an archive
-        self.cursor.execute("""INSERT INTO archive(id, url)
-                               VALUES('Local', '{}')
+        # Add an  archive (update  existing one for  technical reason,
+        # altering enum cannot run in a transaction...)
+        self.cursor.execute("""UPDATE archive
+                               SET url='{}'
+                               WHERE id='banco'
                             """.format(self.url()))
         self.conn.commit()
 
     def empty_tables(self):
         # Remove all content
         self.cursor.execute('DELETE FROM content_archive')
-        self.cursor.execute('DELETE FROM archive where id=\'Local\'')
         self.conn.commit()
 
     def __add_content(self, content_data, status='missing', date='now()'):
@@ -98,7 +99,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Then update database
         content_id = r'\x' + hashutil.hash_to_hex(content['sha1'])
         self.cursor.execute("""INSERT INTO content_archive
-                               VALUES('%s'::sha1, 'Local', '%s', %s)
+                               VALUES('%s'::sha1, 'banco', '%s', %s)
                             """ % (content_id, status, date))
         return content['sha1']
 
@@ -111,34 +112,31 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     def __create_director(self, batch_size=5000, archival_max_age=3600,
                           retention_policy=1, asynchronous=False):
         config = {
+            'objstorage_type': 'local_objstorage',
             'objstorage_path': self.objroot,
+            'objstorage_slicing': '0:2/2:4/4:6',
+
             'batch_max_size': batch_size,
             'archival_max_age': archival_max_age,
             'retention_policy': retention_policy,
             'asynchronous': asynchronous  # Avoid depending on queue for tests.
         }
         director = ArchiverDirector(db_conn_archiver=self.conn,
-                                    db_conn_storage=self.conn_storage,
                                     config=config)
         return director
 
     def __create_worker(self, batch={}, config={}):
-        mstorage_args = [
-            self.archiver.master_storage.db.conn,  # master storage db
-                                                   # connection
-            self.objroot                           # object storage path
-        ]
+        mobjstorage_args = self.archiver.master_objstorage_args
         if not config:
             config = self.archiver.config
         return ArchiverWorker(batch,
                               archiver_args=self.conn,
-                              master_storage_args=mstorage_args,
-                              slave_storages=[self.storage_data],
+                              master_objstorage_args=mobjstorage_args,
+                              slave_objstorages=[self.storage_data],
                               config=config)
 
     # Integration test
 
-    @istest
     def archive_missing_content(self):
         """ Run archiver on a missing content should archive it.
         """

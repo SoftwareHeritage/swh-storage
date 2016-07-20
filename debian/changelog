@@ -1,8 +1,9 @@
-swh-storage (0.0.45-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.46-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.46
+  * Update archiver bootstrap
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 19 Jul 2016 15:05:36 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 20 Jul 2016 19:04:42 +0200
 
 swh-storage (0.0.45-1~swh1) unstable-swh; urgency=medium
 
