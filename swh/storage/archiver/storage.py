@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import psycopg2
-import time
 
 from ..common import db_transaction_generator, db_transaction
 from ..db import Db
@@ -71,12 +70,4 @@ class ArchiverStorage():
                 the function only change the mtime of the content for the
                 given archive.
         """
-        # FIXME check how to alter direclty the json object with postgres
-        # Get the data and alter it
-        copies = self.db.content_archive_get(content_id)['copies']
-        if new_status is not None:
-            copies[archive_id]['status'] = new_status
-        copies[archive_id]['mtime'] = int(time.time())
-
-        # Then save the new data
-        self.db.content_archive_update(content_id, copies)
+        self.db.content_archive_update(content_id, archive_id, new_status, cur)

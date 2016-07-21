@@ -10,6 +10,7 @@ import json
 import psycopg2
 import psycopg2.extras
 import tempfile
+import time
 
 from contextlib import contextmanager
 
@@ -662,7 +663,7 @@ class Db:
     def content_archive_get(self, content=None, cur=None):
         """ Get the archival status of a content in a specific server.
 
-        Retreive from the database the archival status of the given content
+        Retrieve from the database the archival status of the given content
         in the given archive server.
 
         Args:
@@ -681,20 +682,36 @@ class Db:
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_update(self, content_id, copies, cur=None):
-        """ Update the status of an archive content and set it's mtime to now()
+    def content_archive_update(self, content_id, archive_id,
+                               new_status=None, cur=None):
+        """ Update the status of an archive content and set its mtime to
 
-        Change the last modification time of an archived content and change
-        its status to the given one.
+        Change the mtime of an archived content for the given archive and set
+        it's mtime to the current time.
 
         Args:
-            content_id (str): The content id.
-            copies (dict): dictionary that match the json expected in the table
+            content_id (str): content sha1
+            archive_id (str): name of the archive
+            new_status (str): one of 'missing', 'present' or 'ongoing'.
+                this status will replace the previous one. If not given,
+                the function only change the mtime of the content for the
+                given archive.
         """
-        query = """UPDATE content_archive
-                SET copies=%s
-                WHERE content_id='%s'
-                """ % (jsonize(copies), content_id)
+        if new_status is not None:
+            query = """UPDATE content_archive
+                    SET copies=jsonb_set(
+                        copies, '{%s}',
+                        '{"status":"%s", "mtime":%d}'
+                    )
+                    WHERE content_id='%s'
+                    """ % (archive_id,
+                           new_status, int(time.time()),
+                           content_id)
+        else:
+            query = """ UPDATE content_archive
+                    SET copies=jsonb_set(copies, '{%s,mtime}', '%d')
+                    WHERE content_id='%s'
+                    """ % (archive_id, int(time.time()))
 
         cur = self._cursor(cur)
         cur.execute(query)
