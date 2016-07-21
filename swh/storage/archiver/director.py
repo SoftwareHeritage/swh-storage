@@ -5,8 +5,7 @@
 
 import logging
 import click
-
-from datetime import datetime
+import time
 
 from swh.core import hashutil, config
 from swh.objstorage import PathSlicingObjStorage
@@ -198,38 +197,31 @@ class ArchiverDirector():
             At least all the content that don't have enough copies on the
             backups servers are distributed into these batches.
         """
-        # Get the data about each content referenced into the archiver.
-        missing_copy = {}
-        for content_id in self.archiver_storage.content_archive_ls():
-            db_content_id = '\\x' + hashutil.hash_to_hex(content_id[0])
+        contents = {}
+        # Get the archives
+        archives = [(k, v) for k, v in self.archiver_storage.archive_ls()]
+        # Get all the contents referenced into the archiver tables
+        for content_id, copies in self.archiver_storage.content_archive_get():
+            content_id = r'\x' + hashutil.hash_to_hex(content_id)
+            data = {'present': [], 'missing': []}
+            # For each archive server, check the current content status
+            for archive_id, archive_url in archives:
+                if archive_id not in copies:
+                    data['missing'].append((archive_id, archive_url))
+                else:
+                    copy = copies[archive_id]
+                    vstatus = self.get_virtual_status(copy['status'],
+                                                      copy['mtime'])
+                    data[vstatus].append((archive_id, archive_url))
 
-            # Fetch the datas about archival status of the content
-            backups = self.archiver_storage.content_archive_get(
-                content=db_content_id
-            )
-            for _content_id, server_id, status, mtime in backups:
-                virtual_status = self.get_virtual_status(status, mtime)
-                server_data = (server_id, self.slave_objstorages[server_id])
+            contents[content_id] = data
 
-                missing_copy.setdefault(
-                    db_content_id,
-                    {'present': [], 'missing': []}
-                ).setdefault(virtual_status, []).append(server_data)
+            if len(contents) >= self.config['batch_max_size']:
+                yield contents
+                contents = {}
 
-                # Check the content before archival.
-                try:
-                    self.master_objstorage.check(content_id[0])
-                except Exception as e:
-                    # Exception can be Error or ObjNotFoundError.
-                    logger.error(e)
-                    # TODO Do something to restore the content?
-
-                if len(missing_copy) >= self.config['batch_max_size']:
-                    yield missing_copy
-                    missing_copy = {}
-
-        if len(missing_copy) > 0:
-            yield missing_copy
+        if len(contents) > 0:
+            yield contents
 
     def get_virtual_status(self, status, mtime):
         """ Compute the virtual presence of a content.
@@ -260,8 +252,7 @@ class ArchiverDirector():
         # If the status is 'ongoing' but there is still time, another worker
         # may still be on the task.
         if status == 'ongoing':
-            mtime = mtime.replace(tzinfo=None)
-            elapsed = (datetime.now() - mtime).total_seconds()
+            elapsed = int(time.time()) - mtime
             if elapsed <= self.config['archival_max_age']:
                 return 'present'
             else:
@@ -288,7 +279,7 @@ def launch(config_path, dbconn, async):
     conf.update(cl_config)
     # Create connection data and run the archiver.
     archiver = ArchiverDirector(conf['dbconn'], conf)
-    logger.info("Starting an archival at", datetime.now())
+    logger.info("Starting an archival at", time.time())
     archiver.run()
 
 

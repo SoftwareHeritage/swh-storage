@@ -659,80 +659,42 @@ class Db:
                     """)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_ls(self, cur=None):
-        """ Get the archival status of the content
-
-        Get an iterable over all the content that is referenced
-        in a backup server.
-
-        Yields:
-            the sha1 of each content referenced at least one time
-            in the database of archiveal status.
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT DISTINCT content_id
-                    FROM content_archive""")
-        yield from cursor_to_bytes(cur)
-
-    def content_archive_get(self, content=None, archive=None, cur=None):
+    def content_archive_get(self, content=None, cur=None):
         """ Get the archival status of a content in a specific server.
 
         Retreive from the database the archival status of the given content
         in the given archive server.
 
         Args:
-            content: the sha1 of the content. May be None for any id.
-            archive: the database id of the server we're looking into
-                may be None for any server.
+            content: the sha1 of the content. May be None for all contents.
 
         Yields:
-            A tuple (content_id, server_id, archival status, mtime, tzinfo).
+            A tuple (content_id, copies_json).
         """
-        query = """SELECT content_id, archive_id, status, mtime
+        query = """SELECT content_id, copies
                FROM content_archive
                """
-        conditions = []
-        if content:
-            conditions.append("content_id='%s'" % content)
-        if archive:
-            conditions.append("archive_id='%s'" % archive)
-
-        if conditions:
-            query = """%s
-                    WHERE %s
-                    """ % (query, ' and '.join(conditions))
+        if content is not None:
+            query += "WHERE content_id='%s'" % content
 
         cur = self._cursor(cur)
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_update(self, content_id, archive_id,
-                               new_status=None, cur=None):
-        """ Update the status of a archive content and set it's mtime to now()
+    def content_archive_update(self, content_id, copies, cur=None):
+        """ Update the status of an archive content and set it's mtime to now()
 
         Change the last modification time of an archived content and change
         its status to the given one.
 
         Args:
-            content_id (string): The content id.
-            archive_id (string): The id of the concerned archive.
-            new_status (string): One of missing, ongoing or present, this
-                status will replace the previous one. If not given, the
-                function only changes the mtime of the content.
+            content_id (str): The content id.
+            copies (dict): dictionary that match the json expected in the table
         """
         query = """UPDATE content_archive
-                SET %(fields)s
-                WHERE content_id='%(content_id)s'
-                    and archive_id='%(archive_id)s'
-                """
-        fields = []
-        if new_status:
-            fields.append("status='%s'" % new_status)
-        fields.append("mtime=now()")
-
-        d = {'fields': ', '.join(fields),
-             'content_id': content_id,
-             'archive_id': archive_id}
+                SET copies=%s
+                WHERE content_id='%s'
+                """ % (jsonize(copies), content_id)
 
         cur = self._cursor(cur)
-        cur.execute(query % d)
+        cur.execute(query)
