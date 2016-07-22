@@ -1,8 +1,9 @@
-swh-storage (0.0.46-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.47-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.47
+  * Update storage archiver to new schemaless schema
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 20 Jul 2016 19:04:42 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 22 Jul 2016 16:59:19 +0200
 
 swh-storage (0.0.46-1~swh1) unstable-swh; urgency=medium
 

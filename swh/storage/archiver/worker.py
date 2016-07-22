@@ -5,8 +5,7 @@
 
 import random
 import logging
-
-from datetime import datetime
+import time
 
 from swh.objstorage import PathSlicingObjStorage
 from swh.objstorage.api.client import RemoteObjStorage
@@ -115,19 +114,20 @@ class ArchiverWorker():
             A dictionary that contains all the required data : 'content_id',
             'archive_id', 'status', and 'mtime'
         """
+        archive = server[0]
         t, = list(
-            self.archiver_storage.content_archive_get(content_id, server[0])
+            self.archiver_storage.content_archive_get(content_id)
         )
         return {
             'content_id': t[0],
-            'archive_id': t[1],
-            'status': t[2],
-            'mtime': t[3]
+            'archive_id': archive,
+            'status': t[1][archive]['status'],
+            'mtime': t[1][archive]['mtime']
         }
 
     def _content_archive_update(self, content_id, archive_id,
                                 new_status=None):
-        """ Update the status of a archive content and set it's mtime to now()
+        """ Update the status of a archive content and set its mtime to now.
 
         Change the last modification time of an archived content and change
         its status to the given one.
@@ -167,8 +167,7 @@ class ArchiverWorker():
         # If the content is ongoing but still have time, there is
         # another worker working on this content.
         elif status == 'ongoing':
-            mtime = mtime.replace(tzinfo=None)
-            elapsed = (datetime.now() - mtime).total_seconds()
+            elapsed = int(time.time()) - mtime
             if elapsed <= self.config['archival_max_age']:
                 return False
         return True

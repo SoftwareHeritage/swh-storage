@@ -3,13 +3,13 @@
 -- to_version: 70
 -- description: Drop the archiver's related tables in main schema (move to its own database)
 
-insert into dbversion(version, release, description)
-      values(70, now(), 'Work In Progress');
+INSERT INTO dbversion(version, release, description)
+VALUES(70, now(), 'Work In Progress');
 
-drop domain archive_id;
+DROP TABLE content_archive;
 
-drop tab le archives;
+DROP TABLE archives;
 
-drop type archive_status;
+DROP TYPE archive_status;
 
-drop table content_archive;
+DROP DOMAIN archive_id;
