@@ -14,6 +14,7 @@ INSERT INTO dbversion(version, release, description)
 VALUES(1, now(), 'Work In Progress');
 
 CREATE TYPE archive_id AS ENUM (
+  'uffizi',
   'banco'
 );
 
@@ -38,15 +39,10 @@ comment on type archive_status is 'Status of a given archive';
 CREATE DOMAIN sha1 AS bytea CHECK (LENGTH(VALUE) = 20);
 
 CREATE TABLE content_archive (
-  content_id  sha1,
-  archive_id  archive_id REFERENCES archive(id),
-  status      archive_status,
-  mtime       timestamptz,
-  PRIMARY KEY (content_id, archive_id)
+  content_id sha1 unique,
+  copies jsonb
 );
 
 comment on table content_archive is 'Referencing the status and whereabouts of a content';
 comment on column content_archive.content_id is 'content identifier';
-comment on column content_archive.archive_id is 'content whereabouts';
-comment on column content_archive.status is 'content status';
-comment on column content_archive.mtime is 'last time the content was stored';
+comment on column content_archive.copies is 'map archive_id -> { "status": archive_status, "mtime": epoch timestamp }'

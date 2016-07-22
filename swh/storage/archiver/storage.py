@@ -5,7 +5,7 @@
 
 import psycopg2
 
-from ..common import db_transaction_generator
+from ..common import db_transaction_generator, db_transaction
 from ..db import Db
 from ..exc import StorageDBError
 
@@ -38,21 +38,7 @@ class ArchiverStorage():
         yield from self.db.archive_ls(cur)
 
     @db_transaction_generator
-    def content_archive_ls(self, cur=None):
-        """ Get the archival status of the content
-
-        Get an iterable over all the content that is referenced
-        in a backup server.
-
-        Yields:
-            the sha1 of each content referenced at least one time
-            in the database of archiveal status.
-
-        """
-        yield from self.db.content_archive_ls(cur)
-
-    @db_transaction_generator
-    def content_archive_get(self, content=None, archive=None, cur=None):
+    def content_archive_get(self, content=None, cur=None):
         """ Get the archival status of a content in a specific server.
 
         Retreive from the database the archival status of the given content
@@ -66,24 +52,42 @@ class ArchiverStorage():
         Yields:
             A tuple (content_id, server_id, archival status, mtime, tzinfo).
         """
-        yield from self.db.content_archive_get(content, archive, cur)
+        yield from self.db.content_archive_get(content, cur)
 
     @db_transaction_generator
-    def content_archive_update(self, content_id, archive_id,
-                               new_status=None, cur=None):
-        """ Update the status of a archive content and set it's mtime to now()
-
-        Change the last modification time of an archived content and change
-        its status to the given one.
+    def content_archive_get_copies(self, previous_content=None, limit=1000,
+                                   cur=None):
+        """Get the list of copies for `limit` contents starting after
+           `previous_content`.
 
         Args:
-            content_id (string): The content id.
-            archive_id (string): The id of the concerned archive.
-            new_status (string): One of missing, ongoing or present, this
-                status will replace the previous one. If not given, the
-                function only changes the mtime of the content.
+            previous_content: sha1 of the last content retrieved. May be None
+                              to start at the beginning.
+            limit: number of contents to retrieve. Can be None to retrieve all
+                   objects (will be slow).
+
+        Yields:
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
+
         """
-        yield from self.db.content_archive_update(content_id,
-                                                  archive_id,
-                                                  new_status,
-                                                  cur)
+        yield from self.db.content_archive_get_copies(previous_content, limit,
+                                                      cur)
+
+    @db_transaction
+    def content_archive_update(self, content_id, archive_id,
+                               new_status=None, cur=None):
+        """ Update the status of an archive content and set its mtime to
+
+        Change the mtime of an archived content for the given archive and set
+        it's mtime to the current time.
+
+        Args:
+            content_id (str): content sha1
+            archive_id (str): name of the archive
+            new_status (str): one of 'missing', 'present' or 'ongoing'.
+                this status will replace the previous one. If not given,
+                the function only change the mtime of the content for the
+                given archive.
+        """
+        self.db.content_archive_update(content_id, archive_id, new_status, cur)
