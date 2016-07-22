@@ -199,26 +199,35 @@ class ArchiverDirector():
         """
         contents = {}
         # Get the archives
-        archives = [(k, v) for k, v in self.archiver_storage.archive_ls()]
+        archives = dict(self.archiver_storage.archive_ls())
         # Get all the contents referenced into the archiver tables
-        for content_id, copies in self.archiver_storage.content_archive_get():
-            content_id = r'\x' + hashutil.hash_to_hex(content_id)
-            data = {'present': [], 'missing': []}
-            # For each archive server, check the current content status
-            for archive_id, archive_url in archives:
-                if archive_id not in copies:
-                    data['missing'].append((archive_id, archive_url))
-                else:
-                    copy = copies[archive_id]
-                    vstatus = self.get_virtual_status(copy['status'],
-                                                      copy['mtime'])
-                    data[vstatus].append((archive_id, archive_url))
+        last_object = b''
+        while True:
+            archived_contents = list(
+                self.archiver_storage.content_archive_get_copies(last_object))
 
-            contents[content_id] = data
+            if not archived_contents:
+                break
 
-            if len(contents) >= self.config['batch_max_size']:
-                yield contents
-                contents = {}
+            for content_id, present, ongoing in archived_contents:
+                last_object = content_id
+                data = {
+                    'present': set(present),
+                    'missing': set(archives) - set(present) - set(ongoing),
+                }
+
+                for archive_id, mtime in ongoing.items():
+                    status = self.get_virtual_status('ongoing', mtime)
+                    data[status].add(archive_id)
+
+                contents[r'\x%s' % hashutil.hash_to_hex(content_id)] = {
+                    k: [(archive_id, archives[archive_id]) for archive_id in v]
+                    for k, v in data.items()
+                }
+
+                if len(contents) >= self.config['batch_max_size']:
+                    yield contents
+                    contents = {}
 
         if len(contents) > 0:
             yield contents

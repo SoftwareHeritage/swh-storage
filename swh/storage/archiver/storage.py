@@ -54,6 +54,26 @@ class ArchiverStorage():
         """
         yield from self.db.content_archive_get(content, cur)
 
+    @db_transaction_generator
+    def content_archive_get_copies(self, previous_content=None, limit=1000,
+                                   cur=None):
+        """Get the list of copies for `limit` contents starting after
+           `previous_content`.
+
+        Args:
+            previous_content: sha1 of the last content retrieved. May be None
+                              to start at the beginning.
+            limit: number of contents to retrieve. Can be None to retrieve all
+                   objects (will be slow).
+
+        Yields:
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
+
+        """
+        yield from self.db.content_archive_get_copies(previous_content, limit,
+                                                      cur)
+
     @db_transaction
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):

@@ -684,6 +684,56 @@ class Db:
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
+    def content_archive_get_copies(self, previous_content=None, limit=1000,
+                                   cur=None):
+        """Get the list of copies for `limit` contents starting after
+           `previous_content`.
+
+        Args:
+            previous_content: sha1 of the last content retrieved. May be None
+                              to start at the beginning.
+            limit: number of contents to retrieve. Can be None to retrieve all
+                   objects (will be slow).
+
+        Yields:
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
+
+        """
+
+        query = """SELECT content_id,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'present'
+                            ORDER BY key
+                          ) AS present,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing,
+                          array(
+                            SELECT value->'mtime'
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing_mtime
+                   FROM content_archive
+                   WHERE content_id > %s
+                   ORDER BY content_id
+                   LIMIT %s
+        """
+
+        if previous_content is None:
+            previous_content = b''
+
+        cur = self._cursor(cur)
+        cur.execute(query, (previous_content, limit))
+        for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
+            yield (content_id, present, dict(zip(ongoing, mtimes)))
+
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):
         """ Update the status of an archive content and set its mtime to
