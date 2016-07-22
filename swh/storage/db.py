@@ -677,6 +677,8 @@ class Db:
                """
         if content is not None:
             query += "WHERE content_id='%s'" % content
+        else:
+            query += 'ORDER BY content_id'
 
         cur = self._cursor(cur)
         cur.execute(query)
