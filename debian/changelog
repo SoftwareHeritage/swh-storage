@@ -1,3 +1,10 @@
+swh-storage (0.0.47-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.47
+  * Update storage archiver to new schemaless schema
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 22 Jul 2016 16:59:19 +0200
+
 swh-storage (0.0.46-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.46
