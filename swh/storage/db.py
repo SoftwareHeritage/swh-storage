@@ -10,6 +10,7 @@ import json
 import psycopg2
 import psycopg2.extras
 import tempfile
+import time
 
 from contextlib import contextmanager
 
@@ -659,80 +660,110 @@ class Db:
                     """)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_ls(self, cur=None):
-        """ Get the archival status of the content
-
-        Get an iterable over all the content that is referenced
-        in a backup server.
-
-        Yields:
-            the sha1 of each content referenced at least one time
-            in the database of archiveal status.
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT DISTINCT content_id
-                    FROM content_archive""")
-        yield from cursor_to_bytes(cur)
-
-    def content_archive_get(self, content=None, archive=None, cur=None):
+    def content_archive_get(self, content=None, cur=None):
         """ Get the archival status of a content in a specific server.
 
-        Retreive from the database the archival status of the given content
+        Retrieve from the database the archival status of the given content
         in the given archive server.
 
         Args:
-            content: the sha1 of the content. May be None for any id.
-            archive: the database id of the server we're looking into
-                may be None for any server.
+            content: the sha1 of the content. May be None for all contents.
 
         Yields:
-            A tuple (content_id, server_id, archival status, mtime, tzinfo).
+            A tuple (content_id, copies_json).
         """
-        query = """SELECT content_id, archive_id, status, mtime
+        query = """SELECT content_id, copies
                FROM content_archive
                """
-        conditions = []
-        if content:
-            conditions.append("content_id='%s'" % content)
-        if archive:
-            conditions.append("archive_id='%s'" % archive)
-
-        if conditions:
-            query = """%s
-                    WHERE %s
-                    """ % (query, ' and '.join(conditions))
+        if content is not None:
+            query += "WHERE content_id='%s'" % content
+        else:
+            query += 'ORDER BY content_id'
 
         cur = self._cursor(cur)
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_update(self, content_id, archive_id,
-                               new_status=None, cur=None):
-        """ Update the status of a archive content and set it's mtime to now()
-
-        Change the last modification time of an archived content and change
-        its status to the given one.
+    def content_archive_get_copies(self, previous_content=None, limit=1000,
+                                   cur=None):
+        """Get the list of copies for `limit` contents starting after
+           `previous_content`.
 
         Args:
-            content_id (string): The content id.
-            archive_id (string): The id of the concerned archive.
-            new_status (string): One of missing, ongoing or present, this
-                status will replace the previous one. If not given, the
-                function only changes the mtime of the content.
-        """
-        query = """UPDATE content_archive
-                SET %(fields)s
-                WHERE content_id='%(content_id)s'
-                    and archive_id='%(archive_id)s'
-                """
-        fields = []
-        if new_status:
-            fields.append("status='%s'" % new_status)
-        fields.append("mtime=now()")
+            previous_content: sha1 of the last content retrieved. May be None
+                              to start at the beginning.
+            limit: number of contents to retrieve. Can be None to retrieve all
+                   objects (will be slow).
 
-        d = {'fields': ', '.join(fields),
-             'content_id': content_id,
-             'archive_id': archive_id}
+        Yields:
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
+
+        """
+
+        query = """SELECT content_id,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'present'
+                            ORDER BY key
+                          ) AS present,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing,
+                          array(
+                            SELECT value->'mtime'
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing_mtime
+                   FROM content_archive
+                   WHERE content_id > %s
+                   ORDER BY content_id
+                   LIMIT %s
+        """
+
+        if previous_content is None:
+            previous_content = b''
 
         cur = self._cursor(cur)
-        cur.execute(query % d)
+        cur.execute(query, (previous_content, limit))
+        for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
+            yield (content_id, present, dict(zip(ongoing, mtimes)))
+
+    def content_archive_update(self, content_id, archive_id,
+                               new_status=None, cur=None):
+        """ Update the status of an archive content and set its mtime to
+
+        Change the mtime of an archived content for the given archive and set
+        it's mtime to the current time.
+
+        Args:
+            content_id (str): content sha1
+            archive_id (str): name of the archive
+            new_status (str): one of 'missing', 'present' or 'ongoing'.
+                this status will replace the previous one. If not given,
+                the function only change the mtime of the content for the
+                given archive.
+        """
+        if new_status is not None:
+            query = """UPDATE content_archive
+                    SET copies=jsonb_set(
+                        copies, '{%s}',
+                        '{"status":"%s", "mtime":%d}'
+                    )
+                    WHERE content_id='%s'
+                    """ % (archive_id,
+                           new_status, int(time.time()),
+                           content_id)
+        else:
+            query = """ UPDATE content_archive
+                    SET copies=jsonb_set(copies, '{%s,mtime}', '%d')
+                    WHERE content_id='%s'
+                    """ % (archive_id, int(time.time()))
+
+        cur = self._cursor(cur)
+        cur.execute(query)

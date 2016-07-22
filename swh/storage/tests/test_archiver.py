@@ -6,10 +6,11 @@
 import tempfile
 import unittest
 import os
+import time
+import json
 
 from nose.tools import istest
 from nose.plugins.attrib import attr
-from datetime import datetime, timedelta
 
 from swh.core import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
@@ -91,16 +92,20 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.cursor.execute('DELETE FROM content_archive')
         self.conn.commit()
 
-    def __add_content(self, content_data, status='missing', date='now()'):
-        # Add the content
+    def __add_content(self, content_data, status='missing', date=None):
+        # Add the content to the storage
         content = hashutil.hashdata(content_data)
         content.update({'data': content_data})
         self.storage.content_add([content])
         # Then update database
         content_id = r'\x' + hashutil.hash_to_hex(content['sha1'])
+        copies = {'banco': {
+            'status': status,
+            'mtime': date or int(time.time())  # if date is None, use now()
+        }}
         self.cursor.execute("""INSERT INTO content_archive
-                               VALUES('%s'::sha1, 'banco', '%s', %s)
-                            """ % (content_id, status, date))
+                               VALUES('%s'::sha1, '%s')
+                            """ % (content_id, json.dumps(copies)))
         return content['sha1']
 
     def __get_missing(self):
@@ -136,7 +141,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
                               config=config)
 
     # Integration test
-
+    @istest
     def archive_missing_content(self):
         """ Run archiver on a missing content should archive it.
         """
@@ -145,12 +150,13 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # before, the content should not be there
         try:
             self.remote_objstorage.content_get(content_id)
-        except:
+        except ObjNotFoundError:
             pass
+        else:
+            self.fail('Content should not be present before archival')
         self.archiver.run()
         # now the content should be present on remote objstorage
         remote_data = self.remote_objstorage.content_get(content_id)
-        # After the run, the content should be archived after the archiver run.
         self.assertEquals(content_data, remote_data)
 
     @istest
@@ -194,16 +200,15 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     @istest
     def vstatus_ongoing_remaining(self):
-        current_time = datetime.now()
         self.assertEquals(
-            self.vstatus('ongoing', current_time),
+            self.vstatus('ongoing', int(time.time())),
             'present'
         )
 
     @istest
     def vstatus_ongoing_elapsed(self):
-        past_time = datetime.now() - timedelta(
-            seconds=self.archiver.config['archival_max_age'] + 1
+        past_time = (
+            int(time.time()) - self.archiver.config['archival_max_age'] - 1
         )
         self.assertEquals(
             self.vstatus('ongoing', past_time),
@@ -235,7 +240,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """ An ongoing archival with remaining time shouldnt need archival.
         """
         id = self.__add_content(b'need_archival_ongoing_remaining',
-                                status='ongoing', date="'%s'" % datetime.now())
+                                status='ongoing')
         id = r'\x' + hashutil.hash_to_hex(id)
         worker = self.__create_worker()
         self.assertEqual(worker.need_archival(id, self.storage_data), False)
@@ -247,9 +252,9 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         id = self.__add_content(
             b'archive_ongoing_elapsed',
             status='ongoing',
-            date="'%s'" % (datetime.now() - timedelta(
-                seconds=self.archiver.config['archival_max_age'] + 1
-            ))
+            date=(
+                int(time.time()) - self.archiver.config['archival_max_age'] - 1
+            )
         )
         id = r'\x' + hashutil.hash_to_hex(id)
         worker = self.__create_worker()
