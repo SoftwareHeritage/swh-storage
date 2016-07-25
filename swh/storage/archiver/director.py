@@ -220,6 +220,9 @@ class ArchiverDirector():
                     status = self.get_virtual_status('ongoing', mtime)
                     data[status].add(archive_id)
 
+                if not data['missing']:
+                    continue
+
                 contents[r'\x%s' % hashutil.hash_to_hex(content_id)] = {
                     k: [(archive_id, archives[archive_id]) for archive_id in v]
                     for k, v in data.items()
