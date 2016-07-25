@@ -118,11 +118,12 @@ class ArchiverWorker():
         t, = list(
             self.archiver_storage.content_archive_get(content_id)
         )
+        status_for_archive = t[1].get(archive, {})
         return {
-            'content_id': t[0],
+            'content_id': content_id,
             'archive_id': archive,
-            'status': t[1][archive]['status'],
-            'mtime': t[1][archive]['mtime']
+            'status': status_for_archive.get('status', 'missing'),
+            'mtime': status_for_archive.get('mtime', 0),
         }
 
     def _content_archive_update(self, content_id, archive_id,
