@@ -149,7 +149,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         content_id = self.__add_content(content_data)
         # before, the content should not be there
         try:
-            self.remote_objstorage.content_get(content_id)
+            self.remote_objstorage.get(content_id)
         except ObjNotFoundError:
             pass
         else:
@@ -167,7 +167,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # After the run, the content should NOT be in the archive.*
         self.archiver.run()
         with self.assertRaises(ObjNotFoundError):
-            self.remote_objstorage.content_get(id)
+            self.remote_objstorage.get(id)
 
     @istest
     def archive_already_enough(self):
@@ -177,7 +177,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         director = self.__create_director(retention_policy=0)
         director.run()
         with self.assertRaises(ObjNotFoundError):
-            self.remote_objstorage.content_get(id)
+            self.remote_objstorage.get(id)
 
     # Unit test for ArchiverDirector
 
