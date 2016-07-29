@@ -30,7 +30,8 @@ comment on column archive.url is 'Url identifying the archiver api';
 CREATE TYPE archive_status AS ENUM (
   'missing',
   'ongoing',
-  'present'
+  'present',
+  'corrupted'
 );
 
 comment on type archive_status is 'Status of a given archive';
