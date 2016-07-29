@@ -38,21 +38,19 @@ class ArchiverStorage():
         yield from self.db.archive_ls(cur)
 
     @db_transaction_generator
-    def content_archive_get(self, content=None, cur=None):
-        """ Get the archival status of a content in a specific server.
+    def content_archive_get(self, content_id, cur=None):
+        """ Get the archival status of a content.
 
-        Retreive from the database the archival status of the given content
-        in the given archive server.
+        Retrieve from the database the archival status of the given content
 
         Args:
-            content: the sha1 of the content. May be None for any id.
-            archive: the database id of the server we're looking into
-                may be None for any server.
+            content_id: the sha1 of the content
 
         Yields:
-            A tuple (content_id, server_id, archival status, mtime, tzinfo).
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
         """
-        yield from self.db.content_archive_get(content, cur)
+        return self.db.content_archive_get(content_id, cur)
 
     @db_transaction_generator
     def content_archive_get_copies(self, previous_content=None, limit=1000,
@@ -77,7 +75,7 @@ class ArchiverStorage():
     @db_transaction
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):
-        """ Update the status of an archive content and set its mtime to
+        """ Update the status of an archive content and set its mtime to now
 
         Change the mtime of an archived content for the given archive and set
         it's mtime to the current time.

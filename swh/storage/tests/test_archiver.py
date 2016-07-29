@@ -16,10 +16,9 @@ from swh.core import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
 from server_testing import ServerTestFixture
 
-from swh.storage import Storage
 from swh.storage.archiver import ArchiverDirector, ArchiverWorker
+from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.api.client import RemoteObjStorage
 from swh.objstorage.api.server import app
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,44 +32,60 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     """
 
     TEST_DB_NAMES = [
-        'softwareheritage-test',
         'softwareheritage-archiver-test',
     ]
     TEST_DB_DUMPS = [
-        os.path.join(TEST_DATA_DIR, 'dumps/swh.dump'),
         os.path.join(TEST_DATA_DIR, 'dumps/swh-archiver.dump'),
     ]
     TEST_DB_DUMP_TYPES = [
-        'pg_dump',
         'pg_dump',
     ]
 
     def setUp(self):
         # Launch the backup server
-        self.backup_objroot = tempfile.mkdtemp(prefix='remote')
+        dest_root = tempfile.mkdtemp(prefix='remote')
         self.config = {
-            'storage_base': self.backup_objroot,
+            'storage_base': dest_root,
             'storage_slicing': '0:2/2:4/4:6'
         }
         self.app = app
         super().setUp()
 
         # Retrieve connection (depends on the order in TEST_DB_NAMES)
-        self.conn_storage = self.conns[0]  # db connection to storage
-        self.conn = self.conns[1]          # archiver db's connection
-        self.cursor = self.cursors[1]
-        # a reader storage to check content has been archived
-        self.remote_objstorage = RemoteObjStorage(self.url())
-        # Create the local storage.
-        self.objroot = tempfile.mkdtemp(prefix='local')
-        # a writer storage to store content before archiving
-        self.storage = Storage(self.conn_storage, self.objroot)
+        self.conn = self.conns[0]          # archiver db's connection
+        self.cursor = self.cursors[0]
+
+        # Create source storage
+        src_root = tempfile.mkdtemp()
+        src_config = {'cls': 'pathslicing',
+                      'args': {'root': src_root,
+                               'slicing': '0:2/2:4/4:6'}}
+        self.src_storage = get_objstorage(**src_config)
+
+        # Create destination storage
+        dest_config = {'cls': 'remote',
+                       'args': {'base_url': self.url()}}
+        self.dest_storage = get_objstorage(**dest_config)
+
+        # Keep mapped the id to the storages
+        self.storages = {'uffizi': self.src_storage,
+                         'banco': self.dest_storage}
+
+        # Create the archiver itself
+        src_archiver_conf = {'host': 'uffizi'}
+        dest_archiver_conf = {'host': 'banco'}
+        src_archiver_conf.update(src_config)
+        dest_archiver_conf.update(dest_config)
+        self.archiver_storages = [src_archiver_conf, dest_archiver_conf]
+        self.archiver = self._create_director(
+            retention_policy=2,
+            storages=self.archiver_storages
+        )
+        # Create a base worker
+        self.archiver_worker = self._create_worker()
+
         # Initializes and fill the tables.
         self.initialize_tables()
-        # Create the archiver
-        self.archiver = self.__create_director()
-
-        self.storage_data = ('banco', 'http://localhost:%s/' % self.port)
 
     def tearDown(self):
         self.empty_tables()
@@ -92,97 +107,111 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.cursor.execute('DELETE FROM content_archive')
         self.conn.commit()
 
-    def __add_content(self, content_data, status='missing', date=None):
-        # Add the content to the storage
-        content = hashutil.hashdata(content_data)
-        content.update({'data': content_data})
-        self.storage.content_add([content])
-        # Then update database
-        content_id = r'\x' + hashutil.hash_to_hex(content['sha1'])
-        copies = {'banco': {
-            'status': status,
-            'mtime': date or int(time.time())  # if date is None, use now()
-        }}
-        self.cursor.execute("""INSERT INTO content_archive
-                               VALUES('%s'::sha1, '%s')
-                            """ % (content_id, json.dumps(copies)))
-        return content['sha1']
-
-    def __get_missing(self):
-        self.cursor.execute("""SELECT content_id
-                            FROM content_archive
-                            WHERE status='missing'""")
-        return self.cursor.fetchall()
-
-    def __create_director(self, batch_size=5000, archival_max_age=3600,
-                          retention_policy=1, asynchronous=False):
+    def _create_director(self, storages, batch_size=5000,
+                         archival_max_age=3600, retention_policy=2,
+                         asynchronous=False):
         config = {
-            'objstorage_type': 'local_objstorage',
-            'objstorage_path': self.objroot,
-            'objstorage_slicing': '0:2/2:4/4:6',
-
+            'storages': storages,
             'batch_max_size': batch_size,
             'archival_max_age': archival_max_age,
             'retention_policy': retention_policy,
-            'asynchronous': asynchronous  # Avoid depending on queue for tests.
+            'asynchronous': asynchronous
         }
-        director = ArchiverDirector(db_conn_archiver=self.conn,
-                                    config=config)
-        return director
+        return ArchiverDirector(self.conn, config)
 
-    def __create_worker(self, batch={}, config={}):
-        mobjstorage_args = self.archiver.master_objstorage_args
-        if not config:
-            config = self.archiver.config
-        return ArchiverWorker(batch,
-                              archiver_args=self.conn,
-                              master_objstorage_args=mobjstorage_args,
-                              slave_objstorages=[self.storage_data],
-                              config=config)
+    def _add_content(self, storage_name, content_data):
+        """ Add really a content to the given objstorage
+
+        This put an empty status for the added content.
+        """
+        # Add the content to the storage
+        obj_id = self.storages[storage_name].add(content_data)
+        db_obj_id = r'\x' + hashutil.hash_to_hex(obj_id)
+        self.cursor.execute(""" INSERT INTO content_archive
+                                VALUES('%s', '{}')
+                            """ % (db_obj_id))
+        return obj_id
+
+    def _update_status(self, obj_id, storage_name, status, date=None):
+        """ Update the db status for the given id/storage_name.
+
+        This does not create the content in the storage.
+        """
+        db_obj_id = r'\x' + hashutil.hash_to_hex(obj_id)
+        self.archiver.archiver_storage.content_archive_update(
+            db_obj_id, storage_name, status
+        )
+
+    def _add_dated_content(self, obj_id, copies={}):
+        """ Fully erase the previous copies field for the given content id
+
+        This does not alter the contents into the objstorages.
+        """
+        db_obj_id = r'\x' + hashutil.hash_to_hex(obj_id)
+        self.cursor.execute(""" UPDATE TABLE content_archive
+                                SET copies='%s'
+                                WHERE content_id='%s'
+                            """ % (json.dumps(copies), db_obj_id))
+
+    def _create_worker(self, batch={}, retention_policy=2,
+                       archival_max_age=3600):
+        archival_policy = {
+            'retention_policy': retention_policy,
+            'archival_max_age': archival_max_age
+        }
+        return ArchiverWorker(batch, self.archiver_storages,
+                              self.conn, archival_policy)
 
     # Integration test
     @istest
     def archive_missing_content(self):
         """ Run archiver on a missing content should archive it.
         """
-        content_data = b'archive_missing_content'
-        content_id = self.__add_content(content_data)
-        # before, the content should not be there
+        obj_data = b'archive_missing_content'
+        obj_id = self._add_content('uffizi', obj_data)
+        self._update_status(obj_id, 'uffizi', 'present')
+        # Content is missing on banco (entry not present in the db)
         try:
-            self.remote_objstorage.get(content_id)
+            self.dest_storage.get(obj_id)
         except ObjNotFoundError:
             pass
         else:
             self.fail('Content should not be present before archival')
         self.archiver.run()
         # now the content should be present on remote objstorage
-        remote_data = self.remote_objstorage.content_get(content_id)
-        self.assertEquals(content_data, remote_data)
+        remote_data = self.dest_storage.get(obj_id)
+        self.assertEquals(obj_data, remote_data)
 
     @istest
     def archive_present_content(self):
         """ A content that is not 'missing' shouldn't be archived.
         """
-        id = self.__add_content(b'archive_present_content', status='present')
-        # After the run, the content should NOT be in the archive.*
+        obj_id = self._add_content('uffizi', b'archive_present_content')
+        self._update_status(obj_id, 'uffizi', 'present')
+        self._update_status(obj_id, 'banco', 'present')
+        # After the run, the content should NOT be in the archive.
+        # As the archiver believe it was already in.
         self.archiver.run()
         with self.assertRaises(ObjNotFoundError):
-            self.remote_objstorage.get(id)
+            self.dest_storage.get(obj_id)
 
     @istest
     def archive_already_enough(self):
         """ A content missing with enough copies shouldn't be archived.
         """
-        id = self.__add_content(b'archive_alread_enough')
-        director = self.__create_director(retention_policy=0)
+        obj_id = self._add_content('uffizi', b'archive_alread_enough')
+        self._update_status(obj_id, 'uffizi', 'present')
+        director = self._create_director(self.archiver_storages,
+                                         retention_policy=1)
+        # Obj is present in only one archive but only one copy is required.
         director.run()
         with self.assertRaises(ObjNotFoundError):
-            self.remote_objstorage.get(id)
+            self.dest_storage.get(obj_id)
 
-    # Unit test for ArchiverDirector
+    # Unit tests for archive worker
 
     def vstatus(self, status, mtime):
-        return self.archiver.get_virtual_status(status, mtime)
+        return self.archiver_worker._get_virtual_status(status, mtime)
 
     @istest
     def vstatus_present(self):
@@ -201,80 +230,79 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     @istest
     def vstatus_ongoing_remaining(self):
         self.assertEquals(
-            self.vstatus('ongoing', int(time.time())),
+            self.vstatus('ongoing', time.time()),
             'present'
         )
 
     @istest
     def vstatus_ongoing_elapsed(self):
         past_time = (
-            int(time.time()) - self.archiver.config['archival_max_age'] - 1
+            time.time() - self.archiver_worker.archival_policy[
+                'archival_max_age'
+            ] - 1
         )
         self.assertEquals(
             self.vstatus('ongoing', past_time),
             'missing'
         )
 
-    # Unit tests for archive worker
+    def _status(self, status, mtime=None):
+        """ Get a dict that match the copies structure
+        """
+        return {'status': status, 'mtime': mtime or time.time()}
 
     @istest
     def need_archival_missing(self):
-        """ A content should still need archival when it is missing.
+        """ A content should need archival when it is missing.
         """
-        id = self.__add_content(b'need_archival_missing', status='missing')
-        id = r'\x' + hashutil.hash_to_hex(id)
-        worker = self.__create_worker()
-        self.assertEqual(worker.need_archival(id, self.storage_data), True)
+        status_copies = {'present': ['uffizi'], 'missing': ['banco']}
+        worker = self._create_worker({}, retention_policy=2)
+        self.assertEqual(worker._need_archival(status_copies),
+                         True)
 
     @istest
     def need_archival_present(self):
-        """ A content should still need archival when it is missing
+        """ A content present everywhere shouldn't need archival
         """
-        id = self.__add_content(b'need_archival_missing', status='present')
-        id = r'\x' + hashutil.hash_to_hex(id)
-        worker = self.__create_worker()
-        self.assertEqual(worker.need_archival(id, self.storage_data), False)
+        status_copies = {'present': ['uffizi', 'banco']}
+        worker = self._create_worker({}, retention_policy=2)
+        self.assertEqual(worker._need_archival(status_copies),
+                         False)
+
+    def _compute_copies_status(self, status):
+        """ A content with a given status should be detected correctly
+        """
+        obj_id = self._add_content(
+            'banco', b'compute_copies_' + bytes(status, 'utf8'))
+        self._update_status(obj_id, 'banco', status)
+        worker = self._create_worker()
+        self.assertIn('banco', worker._compute_copies(obj_id)[status])
 
     @istest
-    def need_archival_ongoing_remaining(self):
-        """ An ongoing archival with remaining time shouldnt need archival.
+    def compute_copies_present(self):
+        """ A present content should be detected with correct status
         """
-        id = self.__add_content(b'need_archival_ongoing_remaining',
-                                status='ongoing')
-        id = r'\x' + hashutil.hash_to_hex(id)
-        worker = self.__create_worker()
-        self.assertEqual(worker.need_archival(id, self.storage_data), False)
+        self._compute_copies_status('present')
 
     @istest
-    def need_archival_ongoing_elasped(self):
-        """ An ongoing archival with elapsed time should be scheduled again.
+    def compute_copies_missing(self):
+        """ A missing content should be detected with correct status
         """
-        id = self.__add_content(
-            b'archive_ongoing_elapsed',
-            status='ongoing',
-            date=(
-                int(time.time()) - self.archiver.config['archival_max_age'] - 1
-            )
+        self._compute_copies_status('missing')
+
+    def _get_backups(self, present, missing):
+        """ Return a list of the pair src/dest from the present and missing
+        """
+        worker = self._create_worker()
+        return list(worker._choose_backup_servers(present, missing))
+
+    @istest
+    def choose_backup_servers(self):
+        self.assertEqual(len(self._get_backups(['uffizi', 'banco'], [])), 0)
+        self.assertEqual(len(self._get_backups(['uffizi'], ['banco'])), 1)
+        # Even with more possible destinations, do not take more than the
+        # retention_policy require
+        self.assertEqual(
+            len(self._get_backups(['uffizi'], ['banco', 's3'])),
+            1
         )
-        id = r'\x' + hashutil.hash_to_hex(id)
-        worker = self.__create_worker()
-        self.assertEqual(worker.need_archival(id, self.storage_data), True)
-
-    @istest
-    def content_sorting_by_archiver(self):
-        """ Check that the content is correctly sorted.
-        """
-        batch = {
-            'id1': {
-                'present': [('slave1', 'slave1_url')],
-                'missing': []
-            },
-            'id2': {
-                'present': [],
-                'missing': [('slave1', 'slave1_url')]
-            }
-        }
-        worker = self.__create_worker(batch=batch)
-        mapping = worker.sort_content_by_archive()
-        self.assertNotIn('id1', mapping[('slave1', 'slave1_url')])
-        self.assertIn('id2', mapping[('slave1', 'slave1_url')])

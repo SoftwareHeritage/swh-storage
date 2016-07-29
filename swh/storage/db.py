@@ -660,29 +660,47 @@ class Db:
                     """)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_get(self, content=None, cur=None):
+    def content_archive_get(self, content_id, cur=None):
         """ Get the archival status of a content in a specific server.
 
         Retrieve from the database the archival status of the given content
         in the given archive server.
 
         Args:
-            content: the sha1 of the content. May be None for all contents.
+            content_id: the sha1 of the content.
 
         Yields:
-            A tuple (content_id, copies_json).
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
         """
-        query = """SELECT content_id, copies
-               FROM content_archive
-               """
-        if content is not None:
-            query += "WHERE content_id='%s'" % content
-        else:
-            query += 'ORDER BY content_id'
+        query = """SELECT content_id,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'present'
+                            ORDER BY key
+                          ) AS present,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing,
+                          array(
+                            SELECT value->'mtime'
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing_mtime
+                   FROM content_archive
+                   WHERE content_id = %s
+                   ORDER BY content_id
+        """
 
         cur = self._cursor(cur)
-        cur.execute(query)
-        yield from cursor_to_bytes(cur)
+        cur.execute(query, (content_id,))
+        content_id, present, ongoing, mtimes = cur.fetchone()
+        return (content_id, present, dict(zip(ongoing, mtimes)))
 
     def content_archive_get_copies(self, previous_content=None, limit=1000,
                                    cur=None):

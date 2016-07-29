@@ -7,14 +7,16 @@ import random
 import logging
 import time
 
-from swh.objstorage import PathSlicingObjStorage
-from swh.objstorage.api.client import RemoteObjStorage
+from collections import defaultdict
+
+from swh.core import hashutil
+from swh.objstorage import get_objstorage
 
 from .storage import ArchiverStorage
 from .copier import ArchiverCopier
 
 
-logger = logging.getLogger()
+logger = logging.getLogger('archiver.worker')
 
 
 class ArchiverWorker():
@@ -22,109 +24,163 @@ class ArchiverWorker():
 
     Process the content of a content batch in order to do the needed backups on
     the slaves servers.
-
-    Attributes:
-        batch: The content this worker has to archive, which is a dictionary
-            that associates a content's sha1 id to the list of servers where
-            the content is present or missing
-            (see ArchiverDirector::get_unarchived_content).
-        master_objstorage_args: The connection argument to initialize the
-            master storage with the db connection url & the object storage
-            path.
-        slave_objstorages: A map that associates server_id to the remote server
-        config: Archiver_configuration. A dictionary that must contains
-            the following keys.
-            objstorage_path (string): the path of the objstorage of the
-                master.
-            batch_max_size (int): The number of content items that can be
-                given to the same archiver worker.
-            archival_max_age (int): Delay given to the worker to copy all
-                the files in a given batch.
-            retention_policy (int): Required number of copies for the
-                content to be considered safe.
-            asynchronous (boolean): Indicate whenever the archival should
-                run in asynchronous mode or not.
     """
-    def __init__(self, batch, archiver_args, master_objstorage_args,
-                 slave_objstorages, config):
+    def __init__(self, batch, storages, dbconn, archival_policy):
         """ Constructor of the ArchiverWorker class.
-
-        Args:
-            batch: A batch of content, which is a dictionary that associates
-                a content's sha1 id to the list of servers where the content
-                is present.
-            archiver_args: The archiver's arguments to establish connection to
-                db.
-            master_objstorage_args: The master storage arguments.
-            slave_objstorages: A map that associates server_id to the remote
-                server.
-            config: Archiver_configuration. A dictionary that must contains
-                the following keys.
-                objstorage_path (string): the path of the objstorage of the
-                    master.
-                batch_max_size (int): The number of content items that can be
-                    given to the same archiver worker.
-                archival_max_age (int): Delay given to the worker to copy all
-                    the files in a given batch.
-                retention_policy (int): Required number of copies for the
-                    content to be considered safe.
-                asynchronous (boolean): Indicate whenever the archival should
-                    run in asynchronous mode or not.
         """
         self.batch = batch
-        self.archiver_storage = ArchiverStorage(archiver_args)
-        self.slave_objstorages = slave_objstorages
-        self.config = config
+        self.archival_policy = archival_policy
 
-        if config['objstorage_type'] == 'local_objstorage':
-            master_objstorage = PathSlicingObjStorage(**master_objstorage_args)
+        self.archiver_db = ArchiverStorage(dbconn)
+        self.objstorages = {
+            storage['host']: get_objstorage(storage['cls'], storage['args'])
+            for storage in storages
+        }
+
+    def run(self):
+        """ Do the task expected from the archiver worker.
+
+        Process the content in the batch, ensure that the elements still need
+        an archival, and spawn copiers to copy files in each destinations.
+        """
+        # Defaultdict so the d[key] with non-existant key automatically
+        # create the given type (here list).
+        transferts = defaultdict(list)
+        for obj_id in self.batch:
+            # Get dict {'missing': [servers], 'present': [servers]}
+            # for contents ignoring those who don't need archival.
+            copies = self._compute_copies(obj_id)
+            if not self._need_archival(copies):
+                continue
+            present = copies.get('present', [])
+            missing = copies.get('missing', [])
+            if len(present) == 0:
+                logger.critical('Content have been lost %s' % obj_id)
+                continue
+            # Choose randomly some servers to be used as srcs and dests.
+            for src_dest in self._choose_backup_servers(present, missing):
+                transferts[src_dest].append(obj_id)
+
+        # Then run copiers for each of the required transferts.
+        for (src, dest), content_ids in transferts.items():
+            self.run_copier(self.objstorages[src],
+                            self.objstorages[dest], content_ids)
+
+    def _compute_copies(self, content_id):
+        """ From a content_id, return present and missing copies.
+
+        Returns:
+            A dictionary with keys 'present' and 'missing' that are mapped to
+            lists of copies ids depending on whenever the content is present
+            or missing on the copy.
+        """
+        copies = self.archiver_db.content_archive_get(content_id)
+        _, present, ongoing = copies
+        # Initialize the archival status with all known present
+        content_data = {'present': set(present), 'missing': set()}
+        # Add data about the ongoing items
+        for copy, mtime in ongoing.items():
+            content_data[
+                self._get_virtual_status('ongoing', mtime)
+            ].add(copy)
+        # Add to the archival status datas about servers that were not
+        # in the db; they are missing.
+        content_data['missing'].update(
+            set(self.objstorages.keys()) - set(content_data['present'])
+        )
+        return content_data
+
+    def _get_virtual_status(self, status, mtime):
+        """ Compute the virtual presence of a content.
+
+        If the status is ongoing but the time is not elasped, the archiver
+        consider it will be present in the futur, and so consider it as
+        present.
+        However, if the time is elasped, the copy may have failed, so consider
+        the content as missing.
+
+        Arguments:
+            status (string): One of ('present', 'missing', 'ongoing'). The
+                status of the content.
+            mtime (datetime): Time at which the content have been updated for
+                the last time.
+
+        Returns:
+            The virtual status of the studied content, which is 'present' or
+            'missing'.
+
+        Raises:
+            ValueError: if the status is not one 'present', 'missing'
+                or 'ongoing'
+        """
+        if status in ('present', 'missing'):
+            return status
+
+        # If the status is 'ongoing' but there is still time, another worker
+        # may still be on the task.
+        if status == 'ongoing':
+            elapsed = time.time() - mtime
+            if elapsed <= self.archival_policy['archival_max_age']:
+                return 'present'
+            else:
+                return 'missing'
         else:
-            master_objstorage = RemoteObjStorage(**master_objstorage_args)
-        self.master_objstorage = master_objstorage
+            raise ValueError("status must be either 'present', 'missing' "
+                             "or 'ongoing'")
 
-    def _choose_backup_servers(self, allowed_storage, backup_number):
-        """ Choose the slave servers for archival.
-
-        Choose the given amount of servers among those which don't already
-        contain a copy of the content.
+    def _need_archival(self, content_data):
+        """ Indicate if the content need to be archived.
 
         Args:
-            allowed_storage: servers when the content is not already present.
-            backup_number (int): The number of servers we have to choose in
-                order to fullfill the objective.
+            content_data (dict): dict that contains two lists 'present' and
+                'missing' with copies id corresponding to this status.
+        Returns: True if there is not enough copies, False otherwise.
         """
-        # In case there is not enough backup servers to get all the backups
-        # we need, just do our best.
-        # Such situation should not happen.
-        backup_number = min(backup_number, len(allowed_storage))
+        nb_present = len(content_data.get('present', []))
+        retention_policy = self.archival_policy['retention_policy']
+        print(content_data['present'], nb_present, retention_policy)
+        return nb_present < retention_policy
 
-        # TODO Find a better (or a good) policy to choose the backup servers.
-        # The random choice should be equivalently distributed between
-        # servers for a great amount of data, but don't take care of servers
-        # capacities.
-        return random.sample(allowed_storage, backup_number)
+    def _choose_backup_servers(self, present, missing):
+        """ Choose and yield the required amount of couple source/destination
 
-    def _get_archival_status(self, content_id, server):
-        """ Get the archival status of the required content.
+        For each required copy, choose a unique destination server among the
+        missing copies and a source server among the presents.
 
-        Attributes:
-            content_id (string): Sha1 of the content.
-            server: Tuple (archive_id, archive_url) of the archive server.
-        Returns:
-            A dictionary that contains all the required data : 'content_id',
-            'archive_id', 'status', and 'mtime'
+        Each destination server is unique so after archival, the retention
+        policy requiremen will be fulfilled. However, the source server may be
+        used multiple times.
+
+        Yields:
+            tuple (source, destination) for each required copy.
         """
-        archive = server[0]
-        t, = list(
-            self.archiver_storage.content_archive_get(content_id)
-        )
-        status_for_archive = t[1].get(archive, {})
-        return {
-            'content_id': content_id,
-            'archive_id': archive,
-            'status': status_for_archive.get('status', 'missing'),
-            'mtime': status_for_archive.get('mtime', 0),
-        }
+        # Transform from set to list to allow random selections
+        missing = list(missing)
+        present = list(present)
+        nb_required = self.archival_policy['retention_policy'] - len(present)
+        destinations = random.sample(missing, nb_required)
+        sources = [random.choice(present) for dest in destinations]
+        yield from zip(sources, destinations)
+
+    def run_copier(self, source, destination, content_ids):
+        """ Run a copier in order to archive the given contents
+
+        Upload the given contents from the source to the destination.
+        If the process fail, the whole content is considered uncopied
+        and remains 'ongoing', waiting to be rescheduled as there is
+        a delay.
+
+        Args:
+            source (ObjStorage): source storage to get the contents.
+            destination (ObjStorage): Storage where the contents will be copied
+            content_ids: list of content's id to archive.
+        """
+        ac = ArchiverCopier(source, destination, content_ids)
+        if ac.run():
+            # Once the archival complete, update the database.
+            for content_id in content_ids:
+                self._content_archive_update(content_id, destination,
+                                             new_status='present')
 
     def _content_archive_update(self, content_id, archive_id,
                                 new_status=None):
@@ -140,112 +196,9 @@ class ArchiverWorker():
                 status will replace the previous one. If not given, the
                 function only changes the mtime of the content.
         """
-        self.archiver_storage.content_archive_update(
-            content_id,
+        db_obj_id = r'\x' + hashutil.hash_to_hex(content_id)
+        self.archiver_db.content_archive_update(
+            db_obj_id,
             archive_id,
             new_status
         )
-
-    def need_archival(self, content, destination):
-        """ Indicates whenever a content need archivage.
-
-        Filter function that returns True if a given content
-        still require to be archived.
-
-        Args:
-            content (str): Sha1 of a content.
-            destination: Tuple (archive id, archive url).
-        """
-        archival_status = self._get_archival_status(
-            content,
-            destination
-        )
-        status = archival_status['status']
-        mtime = archival_status['mtime']
-        # If the archive is already present, no need to backup.
-        if status == 'present':
-            return False
-        # If the content is ongoing but still have time, there is
-        # another worker working on this content.
-        elif status == 'ongoing':
-            elapsed = int(time.time()) - mtime
-            if elapsed <= self.config['archival_max_age']:
-                return False
-        return True
-
-    def sort_content_by_archive(self):
-        """ Create a map {archive_server -> list of content)
-
-        Create a mapping that associate to a archive server all the
-        contents that needs to be archived in it by the current worker.
-
-        The map is in the form of :
-        {
-            (archive_1, archive_1_url): [content1, content2, content_3]
-            (archive_2, archive_2_url): [content1, content3]
-        }
-
-        Returns:
-            The created mapping.
-        """
-        slaves_copy = {}
-        for content_id in self.batch:
-            # Choose some servers to upload the content among the missing ones.
-            server_data = self.batch[content_id]
-            nb_present = len(server_data['present'])
-            nb_backup = self.config['retention_policy'] - nb_present
-            backup_servers = self._choose_backup_servers(
-                server_data['missing'],
-                nb_backup
-            )
-            # Fill the map destination -> content to upload
-            for server in backup_servers:
-                slaves_copy.setdefault(server, []).append(content_id)
-        return slaves_copy
-
-    def run(self):
-        """ Do the task expected from the archiver worker.
-
-        Process the content in the batch, ensure that the elements still need
-        an archival, and spawn copiers to copy files in each destinations.
-        """
-        # Get a map (archive -> [contents])
-        slaves_copy = self.sort_content_by_archive()
-
-        # At this point, re-check the archival status in order to know if the
-        # job have been done by another worker.
-        for destination in slaves_copy:
-            # list() is needed because filter's result will be consumed twice.
-            slaves_copy[destination] = list(filter(
-                lambda content_id: self.need_archival(content_id, destination),
-                slaves_copy[destination]
-            ))
-            for content_id in slaves_copy[destination]:
-                self._content_archive_update(content_id, destination[0],
-                                             new_status='ongoing')
-
-        # Spawn a copier for each destination
-        for destination in slaves_copy:
-            try:
-                self.run_copier(destination, slaves_copy[destination])
-            except:
-                logger.error('Unable to copy a batch to %s' % destination)
-
-    def run_copier(self, destination, contents):
-        """ Run a copier in order to archive the given contents
-
-        Upload the given contents to the given archive.
-        If the process fail, the whole content is considered uncopied
-        and remains 'ongoing', waiting to be rescheduled as there is
-        a delay.
-
-        Attributes:
-            destination: Tuple (archive_id, archive_url) of the destination.
-            contents: List of contents to archive.
-        """
-        ac = ArchiverCopier(destination, contents, self.master_objstorage)
-        if ac.run():
-            # Once the archival complete, update the database.
-            for content_id in contents:
-                self._content_archive_update(content_id, destination[0],
-                                             new_status='present')
