@@ -11,6 +11,7 @@ from collections import defaultdict
 
 from swh.core import hashutil
 from swh.objstorage import get_objstorage
+from swh.objstorage.exc import Error, ObjNotFoundError
 
 from .storage import ArchiverStorage
 from .copier import ArchiverCopier
@@ -175,12 +176,53 @@ class ArchiverWorker():
             destination (ObjStorage): Storage where the contents will be copied
             content_ids: list of content's id to archive.
         """
+        # Check if there is any error among the contents.
+        content_status = self._get_contents_error(content_ids, source)
+
+        # Iterates over the error detected.
+        for content_id, real_status in content_status.items():
+            # Remove them from the to-archive list,
+            # as they cannot be retrieved correclty.
+            content_ids.remove(content_id)
+            # Update their status to reflect their real state.
+            self._content_archive_update(content_id, source,
+                                         new_status=real_status)
+
+        # Now perform the copy on the remaining contents
         ac = ArchiverCopier(source, destination, content_ids)
         if ac.run():
             # Once the archival complete, update the database.
             for content_id in content_ids:
                 self._content_archive_update(content_id, destination,
                                              new_status='present')
+
+    def _get_contents_error(self, content_ids, storage):
+        """ Indicates what is the error associated to a content when needed
+
+        Check the given content on the given storage. If an error is detected,
+        it will be reported through the returned dict.
+
+        Args:
+            content_ids: a list of content id to check
+            storage: the storage where are the content to check.
+
+        Returns:
+            a dict that map {content_id -> error_status} for each content_id
+            with an error. The `error_status` result may be 'missing' or
+            'corrupted'.
+        """
+        content_status = {}
+        for content_id in content_ids:
+            try:
+                storage.check(content_id)
+            except Error:
+                content_status[content_id] = 'corrupted'
+                logger.error('Content is corrupted: %s' % content_id)
+            except ObjNotFoundError:
+                content_status[content_id] = 'missing'
+                logger.error('A content referenced present is missing: %s'
+                             % content_id)
+        return content_status
 
     def _content_archive_update(self, content_id, archive_id,
                                 new_status=None):
