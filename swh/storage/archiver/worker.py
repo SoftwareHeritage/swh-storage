@@ -70,9 +70,7 @@ class ArchiverWorker(config.SWHConfig):
         Process the content in the batch, ensure that the elements still need
         an archival, and spawn copiers to copy files in each destinations.
         """
-        # Defaultdict so the d[key] with non-existant key automatically
-        # create the given type (here list).
-        transferts = defaultdict(list)
+        transfers = defaultdict(list)
         for obj_id in self.batch:
             # Get dict {'missing': [servers], 'present': [servers]}
             # for contents ignoring those who don't need archival.
@@ -86,10 +84,10 @@ class ArchiverWorker(config.SWHConfig):
                 continue
             # Choose randomly some servers to be used as srcs and dests.
             for src_dest in self._choose_backup_servers(present, missing):
-                transferts[src_dest].append(obj_id)
+                transfers[src_dest].append(obj_id)
 
         # Then run copiers for each of the required transferts.
-        for (src, dest), content_ids in transferts.items():
+        for (src, dest), content_ids in transfers.items():
             self.run_copier(self.objstorages[src],
                             self.objstorages[dest], content_ids)
 
@@ -100,60 +98,15 @@ class ArchiverWorker(config.SWHConfig):
             A dictionary with keys 'present' and 'missing' that are mapped to
             lists of copies ids depending on whenever the content is present
             or missing on the copy.
+            The key 'ongoing' is associated with a dict that map to a copy
+            name the mtime of the ongoing status update.
         """
         copies = self.archiver_db.content_archive_get(content_id)
         _, present, ongoing = copies
-        # Initialize the archival status with all known present
-        content_data = {'present': set(present), 'missing': set()}
-        # Add data about the ongoing items
-        for copy, mtime in ongoing.items():
-            content_data[
-                self._get_virtual_status('ongoing', mtime)
-            ].add(copy)
-        # Add to the archival status datas about servers that were not
-        # in the db; they are missing.
-        content_data['missing'].update(
-            set(self.objstorages.keys()) - set(content_data['present'])
-        )
-        return content_data
-
-    def _get_virtual_status(self, status, mtime):
-        """ Compute the virtual presence of a content.
-
-        If the status is ongoing but the time is not elasped, the archiver
-        consider it will be present in the futur, and so consider it as
-        present.
-        However, if the time is elasped, the copy may have failed, so consider
-        the content as missing.
-
-        Arguments:
-            status (string): One of ('present', 'missing', 'ongoing'). The
-                status of the content.
-            mtime (datetime): Time at which the content have been updated for
-                the last time.
-
-        Returns:
-            The virtual status of the studied content, which is 'present' or
-            'missing'.
-
-        Raises:
-            ValueError: if the status is not one 'present', 'missing'
-                or 'ongoing'
-        """
-        if status in ('present', 'missing'):
-            return status
-
-        # If the status is 'ongoing' but there is still time, another worker
-        # may still be on the task.
-        if status == 'ongoing':
-            elapsed = time.time() - mtime
-            if elapsed <= self.archival_max_age:
-                return 'present'
-            else:
-                return 'missing'
-        else:
-            raise ValueError("status must be either 'present', 'missing' "
-                             "or 'ongoing'")
+        set_present, set_ongoing = set(present), set(ongoing)
+        set_missing = set(self.objstorages) - set_present - set_ongoing
+        return {'present': set_present, 'missing': set_missing,
+                'ongoing': ongoing}
 
     def _need_archival(self, content_data):
         """ Indicate if the content need to be archived.
@@ -163,8 +116,23 @@ class ArchiverWorker(config.SWHConfig):
                 'missing' with copies id corresponding to this status.
         Returns: True if there is not enough copies, False otherwise.
         """
-        nb_present = len(content_data.get('present', []))
-        return nb_present < self.retention_policy
+        nb_presents = len(content_data.get('present', []))
+        for copy, mtime in content_data.get('ongoing', {}).items():
+            if not self._is_archival_delay_elasped(mtime):
+                nb_presents += 1
+        return nb_presents < self.retention_policy
+
+    def _is_archival_delay_elapsed(self, start_time):
+        """ Indicates if the archival delay is elapsed given the start_time
+
+        Args:
+            start_time (float): time at which the archival started.
+
+        Returns:
+            True if the archival delay is elasped, False otherwise
+        """
+        elapsed = time.time() - start_time
+        return elapsed > self.archival_max_age
 
     def _choose_backup_servers(self, present, missing):
         """ Choose and yield the required amount of couple source/destination

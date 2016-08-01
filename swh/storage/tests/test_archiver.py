@@ -212,39 +212,19 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     # Unit tests for archive worker
 
-    def vstatus(self, status, mtime):
-        return self.archiver_worker._get_virtual_status(status, mtime)
-
-    @istest
-    def vstatus_present(self):
-        self.assertEquals(
-            self.vstatus('present', None),
-            'present'
-        )
-
-    @istest
-    def vstatus_missing(self):
-        self.assertEquals(
-            self.vstatus('missing', None),
-            'missing'
-        )
+    def archival_elapsed(self, mtime):
+        return self.archiver_worker._is_archival_delay_elapsed(mtime)
 
     @istest
     def vstatus_ongoing_remaining(self):
-        self.assertEquals(
-            self.vstatus('ongoing', time.time()),
-            'present'
-        )
+        self.assertFalse(self.archival_elapsed(time.time()))
 
     @istest
     def vstatus_ongoing_elapsed(self):
         past_time = (
             time.time() - self.archiver_worker.archival_max_age
         )
-        self.assertEquals(
-            self.vstatus('ongoing', past_time),
-            'missing'
-        )
+        self.assertTrue(self.archival_elapsed(past_time))
 
     def _status(self, status, mtime=None):
         """ Get a dict that match the copies structure
