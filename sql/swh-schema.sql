@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(69, now(), 'Work In Progress');
+      values(71, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -52,6 +52,7 @@ create table content
 create unique index on content(sha1_git);
 create unique index on content(sha256);
 create index on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
+create index on content(object_id);
 
 -- Entities constitute a typed hierarchy of organization, hosting
 -- facilities, groups, people and software projects.
@@ -227,6 +228,7 @@ create table skipped_content
 create unique index on skipped_content(sha1);
 create unique index on skipped_content(sha1_git);
 create unique index on skipped_content(sha256);
+create index on skipped_content(object_id);
 
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the
@@ -267,6 +269,7 @@ create table directory
 create index on directory using gin (dir_entries);
 create index on directory using gin (file_entries);
 create index on directory using gin (rev_entries);
+create index on directory(object_id);
 
 -- A directory entry pointing to a sub-directory.
 create table directory_entry_dir
@@ -348,6 +351,7 @@ create table revision
 );
 
 create index on revision(directory);
+create index on revision(object_id);
 
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
@@ -393,6 +397,7 @@ create table occurrence_history
 create index on occurrence_history(target, target_type);
 create index on occurrence_history(origin, branch);
 create unique index on occurrence_history(origin, branch, target, target_type);
+create index on occurrence_history(object_id);
 
 -- Materialized view of occurrence_history, storing the *current* value of each
 -- branch, as last seen by SWH.
@@ -426,3 +431,4 @@ create table release
 );
 
 create index on release(target, target_type);
+create index on release(object_id);
