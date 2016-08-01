@@ -10,6 +10,7 @@ import time
 from collections import defaultdict
 
 from swh.core import hashutil
+from swh.core import config
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import Error, ObjNotFoundError
 
@@ -20,23 +21,48 @@ from .copier import ArchiverCopier
 logger = logging.getLogger('archiver.worker')
 
 
-class ArchiverWorker():
+class ArchiverWorker(config.SWHConfig):
     """ Do the required backups on a given batch of contents.
 
     Process the content of a content batch in order to do the needed backups on
     the slaves servers.
     """
-    def __init__(self, batch, storages, dbconn, archival_policy):
+
+    DEFAULT_CONFIG = {
+        'retention_policy': ('int', 2),
+        'archival_max_age': ('int', 3600),
+        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev'),
+
+        'storages': ('dict',
+                     [
+                         {'host': 'uffizi',
+                          'cls': 'pathslicing',
+                          'args': {'root': '/tmp/softwareheritage/objects',
+                                   'slicing': '0:2/2:4/4:6'}},
+                         {'host': 'banco',
+                          'cls': 'remote',
+                          'args': {'base_url': 'http://banco:5003/'}}
+                     ])
+    }
+    CONFIG_BASE_FILENAME = 'archiver-worker'
+
+    def __init__(self, batch, add_config={}):
         """ Constructor of the ArchiverWorker class.
         """
         self.batch = batch
-        self.archival_policy = archival_policy
+        config = self.parse_config_file(additional_configs=[add_config])
+        self.retention_policy = config['retention_policy']
+        self.archival_max_age = config['archival_max_age']
 
-        self.archiver_db = ArchiverStorage(dbconn)
+        self.archiver_db = ArchiverStorage(config['dbconn'])
         self.objstorages = {
             storage['host']: get_objstorage(storage['cls'], storage['args'])
-            for storage in storages
+            for storage in config.get('storages', [])
         }
+
+        if len(self.objstorages) < self.retention_policy:
+            raise ValueError('Retention policy is too high for the number of '
+                             'provided servers')
 
     def run(self):
         """ Do the task expected from the archiver worker.
@@ -121,7 +147,7 @@ class ArchiverWorker():
         # may still be on the task.
         if status == 'ongoing':
             elapsed = time.time() - mtime
-            if elapsed <= self.archival_policy['archival_max_age']:
+            if elapsed <= self.archival_max_age:
                 return 'present'
             else:
                 return 'missing'
@@ -138,9 +164,7 @@ class ArchiverWorker():
         Returns: True if there is not enough copies, False otherwise.
         """
         nb_present = len(content_data.get('present', []))
-        retention_policy = self.archival_policy['retention_policy']
-        print(content_data['present'], nb_present, retention_policy)
-        return nb_present < retention_policy
+        return nb_present < self.retention_policy
 
     def _choose_backup_servers(self, present, missing):
         """ Choose and yield the required amount of couple source/destination
@@ -158,7 +182,7 @@ class ArchiverWorker():
         # Transform from set to list to allow random selections
         missing = list(missing)
         present = list(present)
-        nb_required = self.archival_policy['retention_policy'] - len(present)
+        nb_required = self.retention_policy - len(present)
         destinations = random.sample(missing, nb_required)
         sources = [random.choice(present) for dest in destinations]
         yield from zip(sources, destinations)

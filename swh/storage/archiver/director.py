@@ -12,31 +12,10 @@ from . import tasks  # NOQA
 from .storage import ArchiverStorage
 
 
-DEFAULT_CONFIG = {
-    'batch_max_size': ('int', 50),
-    'archival_max_age': ('int', 3600),
-    'retention_policy': ('int', 2),
-    'asynchronous': ('bool', True),
-
-    'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest'),
-
-    'storages': ('json',
-                 [
-                     {'host': 'uffizi',
-                      'cls': 'pathslicing',
-                      'args': {'root': '/tmp/softwareheritage/objects',
-                                       'slicing': '0:2/2:4/4:6'}},
-                     {'host': 'banco',
-                      'cls': 'remote',
-                      'args': {'base_url': 'http://banco:5003/'}}
-                 ])
-}
-
-
 task_name = 'swh.storage.archiver.tasks.SWHArchiverTask'
 
 
-class ArchiverDirector():
+class ArchiverDirector(config.SWHConfig):
     """Process the files in order to know which one is needed as backup.
 
     The archiver director processes the files in the local storage in order
@@ -44,7 +23,17 @@ class ArchiverDirector():
     archiver workers.
     """
 
-    def __init__(self, db_conn_archiver, config):
+    DEFAULT_CONFIG = {
+        'batch_max_size': ('int', 1500),
+        'archival_max_age': ('int', 3600),
+        'retention_policy': ('int', 2),
+        'asynchronous': ('bool', True),
+
+        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest')
+    }
+    CONFIG_BASE_FILENAME = 'archiver-director'
+
+    def __init__(self, add_config):
         """ Constructor of the archiver director.
 
         Args:
@@ -53,12 +42,9 @@ class ArchiverDirector():
             config: Archiver configuration. A dictionary that must contain
                 all required data. See DEFAULT_CONFIG for structure.
         """
-        if len(config['storages']) < config['retention_policy']:
-            raise ValueError('Retention policy is too high for the number of '
-                             'provided servers')
-        self.db_conn_archiver = db_conn_archiver
-        self.archiver_storage = ArchiverStorage(db_conn_archiver)
-        self.config = config
+        self.add_config = add_config
+        self.config = self.parse_config_file(additional_configs=[add_config])
+        self.archiver_storage = ArchiverStorage(self.config['dbconn'])
 
     def run(self):
         """ Run the archiver director.
@@ -79,12 +65,7 @@ class ArchiverDirector():
         """
         return {
             'batch': batch,
-            'archival_policy': {
-                'retention_policy': self.config['retention_policy'],
-                'archival_max_age': self.config['archival_max_age']
-            },
-            'dbconn': self.db_conn_archiver,
-            'storages': self.config['storages']
+            'add_config': self.add_config
         }
 
     def run_async_worker(self, batch):
@@ -149,9 +130,10 @@ class ArchiverDirector():
 
 @click.command()
 @click.argument('config-path', required=1)
-@click.option('--dbconn', default=DEFAULT_CONFIG['dbconn'][1],
+@click.option('--dbconn', default=ArchiverDirector.DEFAULT_CONFIG['dbconn'][1],
               help="Connection string for the archiver database")
-@click.option('--async/--sync', default=DEFAULT_CONFIG['asynchronous'][1],
+@click.option('--async/--sync',
+              default=ArchiverDirector.DEFAULT_CONFIG['asynchronous'][1],
               help="Indicates if the archiver should run asynchronously")
 def launch(config_path, dbconn, async):
     # The configuration have following priority :
@@ -160,10 +142,10 @@ def launch(config_path, dbconn, async):
         'dbconn': dbconn,
         'asynchronous': async
     }
-    conf = config.read(config_path, DEFAULT_CONFIG)
+    conf = config.read(config_path, ArchiverDirector.DEFAULT_CONFIG)
     conf.update(cl_config)
     # Create connection data and run the archiver.
-    archiver = ArchiverDirector(conf['dbconn'], conf)
+    archiver = ArchiverDirector(conf)
     archiver.run()
 
 

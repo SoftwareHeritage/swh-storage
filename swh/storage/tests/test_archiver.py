@@ -111,13 +111,24 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
                          archival_max_age=3600, retention_policy=2,
                          asynchronous=False):
         config = {
-            'storages': storages,
-            'batch_max_size': batch_size,
-            'archival_max_age': archival_max_age,
-            'retention_policy': retention_policy,
-            'asynchronous': asynchronous
+            'dbconn': ('str', self.conn),
+            'batch_max_size': ('int', batch_size),
+            'archival_max_age': ('int', archival_max_age),
+            'retention_policy': ('int', retention_policy),
+            'asynchronous': ('bool', asynchronous),
+            'storages': ('dict', self.archiver_storages)
         }
-        return ArchiverDirector(self.conn, config)
+        return ArchiverDirector(config)
+
+    def _create_worker(self, batch={}, retention_policy=2,
+                       archival_max_age=3600):
+        config = {
+            'retention_policy': ('int', retention_policy),
+            'archival_max_age': ('int', archival_max_age),
+            'dbconn': ('str', self.conn),
+            'storages': ('dict', self.archiver_storages)
+        }
+        return ArchiverWorker(batch, config)
 
     def _add_content(self, storage_name, content_data):
         """ Add really a content to the given objstorage
@@ -152,15 +163,6 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
                                 SET copies='%s'
                                 WHERE content_id='%s'
                             """ % (json.dumps(copies), db_obj_id))
-
-    def _create_worker(self, batch={}, retention_policy=2,
-                       archival_max_age=3600):
-        archival_policy = {
-            'retention_policy': retention_policy,
-            'archival_max_age': archival_max_age
-        }
-        return ArchiverWorker(batch, self.archiver_storages,
-                              self.conn, archival_policy)
 
     # Integration test
     @istest
@@ -237,9 +239,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     @istest
     def vstatus_ongoing_elapsed(self):
         past_time = (
-            time.time() - self.archiver_worker.archival_policy[
-                'archival_max_age'
-            ] - 1
+            time.time() - self.archiver_worker.archival_max_age
         )
         self.assertEquals(
             self.vstatus('ongoing', past_time),
