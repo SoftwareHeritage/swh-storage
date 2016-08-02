@@ -32,7 +32,7 @@ class ArchiverDirector(config.SWHConfig):
     }
     CONFIG_BASE_FILENAME = 'archiver/director'
 
-    def __init__(self, add_config):
+    def __init__(self):
         """ Constructor of the archiver director.
 
         Args:
@@ -41,7 +41,7 @@ class ArchiverDirector(config.SWHConfig):
             config: optionnal additional configuration. Keys in the dict will
                 override the one parsed from the configuration file.
         """
-        self.config = self.parse_config_file(additional_configs=[add_config])
+        self.config = self.parse_config_file()
         self.archiver_storage = ArchiverStorage(self.config['dbconn'])
 
     def run(self):
@@ -58,24 +58,17 @@ class ArchiverDirector(config.SWHConfig):
         for batch in self.get_unarchived_content_batch():
             run_fn(batch)
 
-    def _worker_args(self, batch):
-        """ Generates a dict that contains the arguments for a worker.
-        """
-        return {
-            'batch': batch
-        }
-
     def run_async_worker(self, batch):
         """ Produce a worker that will be added to the task queue.
         """
         task = app.tasks[task_name]
-        task.delay(**self._worker_args(batch))
+        task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
         """ Run synchronously a worker on the given batch.
         """
         task = app.tasks[task_name]
-        task(**self._worker_args(batch))
+        task(batch=batch)
 
     def get_unarchived_content_batch(self):
         """ Create batch of contents that needs to be archived

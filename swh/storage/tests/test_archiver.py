@@ -71,17 +71,16 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.storages = {'uffizi': self.src_storage,
                          'banco': self.dest_storage}
 
-        # Create the archiver itself
+        # Override configurations
         src_archiver_conf = {'host': 'uffizi'}
         dest_archiver_conf = {'host': 'banco'}
         src_archiver_conf.update(src_config)
         dest_archiver_conf.update(dest_config)
         self.archiver_storages = [src_archiver_conf, dest_archiver_conf]
-        self._override_config()  # Override the default config for db conn
-        self.archiver = self._create_director(
-            retention_policy=2,
-            storages=self.archiver_storages
-        )
+        self._override_director_config()
+        self._override_worker_config()
+        # Create the base archiver
+        self.archiver = self._create_director()
 
         # Initializes and fill the tables.
         self.initialize_tables()
@@ -106,14 +105,23 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.cursor.execute('DELETE FROM content_archive')
         self.conn.commit()
 
-    def _override_config(self):
-        """ Override the default config of the Archiver director and worker
+    def _override_director_config(self, retention_policy=2):
+        """ Override the default config of the Archiver director
         to allow the tests to use the *-test db instead of the default one as
         there is no configuration file for now.
+        """
+        ArchiverDirector.parse_config_file = lambda obj: {
+            'dbconn': self.conn,
+            'batch_max_size': 5000,
+            'archival_max_age': 3600,
+            'retention_policy': retention_policy,
+            'asynchronous': False
+        }
 
-        Note that the default config file name is also overriden. If there is
-        a file with this name in the configuration directories, the tests
-        behavior may be altered.
+    def _override_worker_config(self):
+        """ Override the default config of the Archiver worker
+        to allow the tests to use the *-test db instead of the default one as
+        there is no configuration file for now.
         """
         ArchiverWorker.parse_config_file = lambda obj: {
             'retention_policy': 2,
@@ -121,36 +129,12 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             'dbconn': self.conn,
             'storages': self.archiver_storages
         }
-        ArchiverDirector.pars_config_file = lambda obj: {
-            'dbconn': self.conn,
-            'batch_max_size': 5000,
-            'archival_max_age': 3600,
-            'retention_policy': 2,
-            'asynchronous': False
-        }
 
-    def _create_director(self, storages, batch_size=5000,
-                         archival_max_age=3600, retention_policy=2,
-                         asynchronous=False):
-        config = {
-            'dbconn': ('str', self.conn),
-            'batch_max_size': ('int', batch_size),
-            'archival_max_age': ('int', archival_max_age),
-            'retention_policy': ('int', retention_policy),
-            'asynchronous': ('bool', asynchronous)
-        }
-        return ArchiverDirector(config)
+    def _create_director(self):
+        return ArchiverDirector()
 
-    def _create_worker(self, batch={}, retention_policy=2,
-                       archival_max_age=3600):
-        ArchiverWorker.DEFAULT_CONFIG = {
-            'retention_policy': ('int', retention_policy),
-            'archival_max_age': ('int', archival_max_age),
-            'dbconn': ('str', self.conn),
-            'storages': ('dict', self.archiver_storages)
-        }
-        aw = ArchiverWorker(batch)
-        return aw
+    def _create_worker(self, batch={}):
+        return ArchiverWorker(batch)
 
     def _add_content(self, storage_name, content_data):
         """ Add really a content to the given objstorage
@@ -225,8 +209,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """
         obj_id = self._add_content('uffizi', b'archive_alread_enough')
         self._update_status(obj_id, 'uffizi', 'present')
-        director = self._create_director(self.archiver_storages,
-                                         retention_policy=1)
+        self._override_director_config(retention_policy=1)
+        director = self._create_director()
         # Obj is present in only one archive but only one copy is required.
         director.run()
         with self.assertRaises(ObjNotFoundError):
@@ -258,7 +242,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """ A content should need archival when it is missing.
         """
         status_copies = {'present': ['uffizi'], 'missing': ['banco']}
-        worker = self._create_worker({}, retention_policy=2)
+        worker = self._create_worker()
         self.assertEqual(worker._need_archival(status_copies),
                          True)
 
@@ -267,7 +251,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """ A content present everywhere shouldn't need archival
         """
         status_copies = {'present': ['uffizi', 'banco']}
-        worker = self._create_worker({}, retention_policy=2)
+        worker = self._create_worker()
         self.assertEqual(worker._need_archival(status_copies),
                          False)
 
