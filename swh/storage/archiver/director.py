@@ -25,13 +25,12 @@ class ArchiverDirector(config.SWHConfig):
 
     DEFAULT_CONFIG = {
         'batch_max_size': ('int', 1500),
-        'archival_max_age': ('int', 3600),
         'retention_policy': ('int', 2),
         'asynchronous': ('bool', True),
 
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest')
     }
-    CONFIG_BASE_FILENAME = 'archiver-director'
+    CONFIG_BASE_FILENAME = 'archiver/director'
 
     def __init__(self, add_config):
         """ Constructor of the archiver director.
@@ -39,10 +38,9 @@ class ArchiverDirector(config.SWHConfig):
         Args:
             db_conn_archiver: Either a libpq connection string,
                 or a psycopg2 connection for the archiver db.
-            config: Archiver configuration. A dictionary that must contain
-                all required data. See DEFAULT_CONFIG for structure.
+            config: optionnal additional configuration. Keys in the dict will
+                override the one parsed from the configuration file.
         """
-        self.add_config = add_config
         self.config = self.parse_config_file(additional_configs=[add_config])
         self.archiver_storage = ArchiverStorage(self.config['dbconn'])
 
@@ -64,8 +62,7 @@ class ArchiverDirector(config.SWHConfig):
         """ Generates a dict that contains the arguments for a worker.
         """
         return {
-            'batch': batch,
-            'add_config': self.add_config
+            'batch': batch
         }
 
     def run_async_worker(self, batch):
@@ -129,25 +126,33 @@ class ArchiverDirector(config.SWHConfig):
 
 
 @click.command()
-@click.argument('config-path', required=1)
-@click.option('--dbconn', default=ArchiverDirector.DEFAULT_CONFIG['dbconn'][1],
+@click.option('--batch-size', help="Maximal number of objects in a batch")
+@click.option('--retention-policy',
+              help="Minimal number of copies the archiver will create")
+@click.option('--dbconn',
               help="Connection string for the archiver database")
 @click.option('--async/--sync',
-              default=ArchiverDirector.DEFAULT_CONFIG['asynchronous'][1],
               help="Indicates if the archiver should run asynchronously")
-def launch(config_path, dbconn, async):
+def launch(batch_size, retention_policy, dbconn, async):
     # The configuration have following priority :
     # command line > file config > default config
-    cl_config = {
-        'dbconn': dbconn,
-        'asynchronous': async
-    }
-    conf = config.read(config_path, ArchiverDirector.DEFAULT_CONFIG)
-    conf.update(cl_config)
-    # Create connection data and run the archiver.
-    archiver = ArchiverDirector(conf)
+    # Values are None if not provided
+    cl_config = create_conf(batch_size, retention_policy, dbconn, async)
+    # Rrun the archiver with the overriding conf.
+    archiver = ArchiverDirector(cl_config)
     archiver.run()
 
+
+def create_conf(batch_size, retention_policy, dbconn, async):
+    """ Create a dict that contains only the given arguments
+    """
+    return dict(filter(lambda k, v: v is not None,
+                       (
+                           ('batch_max_size', batch_size),
+                           ('retention_policy', retention_policy),
+                           ('dbconn', dbconn),
+                           ('async', async)
+                       )))
 
 if __name__ == '__main__':
     launch()

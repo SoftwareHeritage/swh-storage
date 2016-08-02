@@ -77,12 +77,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         src_archiver_conf.update(src_config)
         dest_archiver_conf.update(dest_config)
         self.archiver_storages = [src_archiver_conf, dest_archiver_conf]
+        self._override_config()  # Override the default config for db conn
         self.archiver = self._create_director(
             retention_policy=2,
             storages=self.archiver_storages
         )
-        # Create a base worker
-        self.archiver_worker = self._create_worker()
 
         # Initializes and fill the tables.
         self.initialize_tables()
@@ -107,6 +106,29 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.cursor.execute('DELETE FROM content_archive')
         self.conn.commit()
 
+    def _override_config(self):
+        """ Override the default config of the Archiver director and worker
+        to allow the tests to use the *-test db instead of the default one as
+        there is no configuration file for now.
+
+        Note that the default config file name is also overriden. If there is
+        a file with this name in the configuration directories, the tests
+        behavior may be altered.
+        """
+        ArchiverWorker.parse_config_file = lambda obj: {
+            'retention_policy': 2,
+            'archival_max_age': 3600,
+            'dbconn': self.conn,
+            'storages': self.archiver_storages
+        }
+        ArchiverDirector.pars_config_file = lambda obj: {
+            'dbconn': self.conn,
+            'batch_max_size': 5000,
+            'archival_max_age': 3600,
+            'retention_policy': 2,
+            'asynchronous': False
+        }
+
     def _create_director(self, storages, batch_size=5000,
                          archival_max_age=3600, retention_policy=2,
                          asynchronous=False):
@@ -115,20 +137,20 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             'batch_max_size': ('int', batch_size),
             'archival_max_age': ('int', archival_max_age),
             'retention_policy': ('int', retention_policy),
-            'asynchronous': ('bool', asynchronous),
-            'storages': ('dict', self.archiver_storages)
+            'asynchronous': ('bool', asynchronous)
         }
         return ArchiverDirector(config)
 
     def _create_worker(self, batch={}, retention_policy=2,
                        archival_max_age=3600):
-        config = {
+        ArchiverWorker.DEFAULT_CONFIG = {
             'retention_policy': ('int', retention_policy),
             'archival_max_age': ('int', archival_max_age),
             'dbconn': ('str', self.conn),
             'storages': ('dict', self.archiver_storages)
         }
-        return ArchiverWorker(batch, config)
+        aw = ArchiverWorker(batch)
+        return aw
 
     def _add_content(self, storage_name, content_data):
         """ Add really a content to the given objstorage
@@ -213,7 +235,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     # Unit tests for archive worker
 
     def archival_elapsed(self, mtime):
-        return self.archiver_worker._is_archival_delay_elapsed(mtime)
+        return self._create_worker()._is_archival_delay_elapsed(mtime)
 
     @istest
     def vstatus_ongoing_remaining(self):
@@ -222,7 +244,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
     @istest
     def vstatus_ongoing_elapsed(self):
         past_time = (
-            time.time() - self.archiver_worker.archival_max_age
+            time.time() - self._create_worker().archival_max_age
         )
         self.assertTrue(self.archival_elapsed(past_time))
 

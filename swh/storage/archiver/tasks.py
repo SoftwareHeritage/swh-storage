@@ -12,6 +12,6 @@ class SWHArchiverTask(Task):
     """
     task_queue = 'swh_storage_archive_worker'
 
-    def run(self, batch, add_config):
-        aw = ArchiverWorker(batch, add_config)
+    def run(self, *args, **kwargs):
+        aw = ArchiverWorker(*args, **kwargs)
         aw.run()

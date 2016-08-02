@@ -44,13 +44,16 @@ class ArchiverWorker(config.SWHConfig):
                           'args': {'base_url': 'http://banco:5003/'}}
                      ])
     }
-    CONFIG_BASE_FILENAME = 'archiver-worker'
+    CONFIG_BASE_FILENAME = 'archiver/worker'
 
-    def __init__(self, batch, add_config={}):
+    def __init__(self, batch):
         """ Constructor of the ArchiverWorker class.
+
+        Args:
+            batch: list of object's sha1 that potentially need archival.
         """
         self.batch = batch
-        config = self.parse_config_file(additional_configs=[add_config])
+        config = self.parse_config_file()
         self.retention_policy = config['retention_policy']
         self.archival_max_age = config['archival_max_age']
 
