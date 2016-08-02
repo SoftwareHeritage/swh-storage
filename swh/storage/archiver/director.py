@@ -3,8 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import click
-
 from swh.core import config
 from swh.scheduler.celery_backend.config import app
 
@@ -118,34 +116,9 @@ class ArchiverDirector(config.SWHConfig):
                 yield content
 
 
-@click.command()
-@click.option('--batch-size', help="Maximal number of objects in a batch")
-@click.option('--retention-policy',
-              help="Minimal number of copies the archiver will create")
-@click.option('--dbconn',
-              help="Connection string for the archiver database")
-@click.option('--async/--sync',
-              help="Indicates if the archiver should run asynchronously")
-def launch(batch_size, retention_policy, dbconn, async):
-    # The configuration have following priority :
-    # command line > file config > default config
-    # Values are None if not provided
-    cl_config = create_conf(batch_size, retention_policy, dbconn, async)
-    # Rrun the archiver with the overriding conf.
-    archiver = ArchiverDirector(cl_config)
+def launch():
+    archiver = ArchiverDirector()
     archiver.run()
-
-
-def create_conf(batch_size, retention_policy, dbconn, async):
-    """ Create a dict that contains only the given arguments
-    """
-    return dict(filter(lambda k, v: v is not None,
-                       (
-                           ('batch_max_size', batch_size),
-                           ('retention_policy', retention_policy),
-                           ('dbconn', dbconn),
-                           ('async', async)
-                       )))
 
 if __name__ == '__main__':
     launch()
