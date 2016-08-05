@@ -76,7 +76,7 @@ class ArchiverDirector(config.SWHConfig):
             copies.
         """
         contents = []
-        for content in self._get_unarchived_content():
+        for content in self._get_unarchived_content_id():
             contents.append(content)
             if len(contents) > self.config['batch_max_size']:
                 yield contents
@@ -84,20 +84,10 @@ class ArchiverDirector(config.SWHConfig):
         if len(contents) > 0:
             yield contents
 
-    def _get_unarchived_content(self):
-        """ Get all the content ids in the db that needs more copies
-
-        Yields:
-            sha1 of contents that needs to be archived.
-        """
-        for content_id, present, _ongoing in self._get_all_contents():
-            if len(present) < self.config['retention_policy']:
-                yield content_id
-            else:
-                continue
-
-    def _get_all_contents(self):
+    def _get_unarchived_content_id(self):
         """ Get batchs from the archiver db and yield it as continous stream
+
+        Content returned are those that need to have more copies.
 
         Yields:
             Datas about a content as a tuple
@@ -107,13 +97,16 @@ class ArchiverDirector(config.SWHConfig):
         last_object = b''
         while True:
             archiver_contents = list(
-                self.archiver_storage.content_archive_get_copies(last_object)
+                self.archiver_storage.content_archive_get_unarchived_copies(
+                    last_content=last_object,
+                    retention_policy=self.config['retention_policy']
+                )
             )
             if not archiver_contents:
                 return
-            for content in archiver_contents:
-                last_object = content[0]
-                yield content
+            for content_id, presents, oingoings in archiver_contents:
+                last_object = content_id
+                yield content_id
 
 
 def launch():

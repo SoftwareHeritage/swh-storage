@@ -53,13 +53,13 @@ class ArchiverStorage():
         return self.db.content_archive_get(content_id, cur)
 
     @db_transaction_generator
-    def content_archive_get_copies(self, previous_content=None, limit=1000,
+    def content_archive_get_copies(self, last_content=None, limit=1000,
                                    cur=None):
-        """Get the list of copies for `limit` contents starting after
-           `previous_content`.
+        """ Get the list of copies for `limit` contents starting after
+           `last_content`.
 
         Args:
-            previous_content: sha1 of the last content retrieved. May be None
+            last_content: sha1 of the last content retrieved. May be None
                               to start at the beginning.
             limit: number of contents to retrieve. Can be None to retrieve all
                    objects (will be slow).
@@ -69,8 +69,31 @@ class ArchiverStorage():
             ongoing_copies is a dict mapping copy to mtime.
 
         """
-        yield from self.db.content_archive_get_copies(previous_content, limit,
+        yield from self.db.content_archive_get_copies(last_content, limit,
                                                       cur)
+
+    @db_transaction_generator
+    def content_archive_get_unarchived_copies(
+            self, retention_policy, last_content=None,
+            limit=1000, cur=None):
+        """ Get the list of copies for `limit` contents starting after
+            `last_content`. Yields only copies with number of present
+            smaller than `retention policy`.
+
+        Args:
+            last_content: sha1 of the last content retrieved. May be None
+                              to start at the beginning.
+            retention_policy: number of presentcopies required.
+            limit: number of contents to retrieve. Can be None to retrieve all
+                   objects (will be slow).
+
+        Yields:
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
+
+        """
+        yield from self.db.content_archive_get_unarchived_copies(
+            retention_policy, last_content, limit, cur)
 
     @db_transaction
     def content_archive_update(self, content_id, archive_id,
