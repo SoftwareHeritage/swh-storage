@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(73, now(), 'Work In Progress');
+      values(74, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -53,6 +53,23 @@ create unique index on content(sha1_git);
 create unique index on content(sha256);
 create index on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
 create index on content(object_id);
+
+-- Asynchronous notification of new content insertions
+create function notify_new_content()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_content', encode(new.sha1, 'hex'));
+    return null;
+  end;
+$$;
+
+create trigger notify_new_content
+  after insert on content
+  for each row
+  execute procedure notify_new_content();
+
 
 -- Entities constitute a typed hierarchy of organization, hosting
 -- facilities, groups, people and software projects.
@@ -203,6 +220,22 @@ create table origin
 
 create index on origin(type, url);
 
+-- Asynchronous notification of new origin insertions
+create function notify_new_origin()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_origin', new.id::text);
+    return null;
+  end;
+$$;
+
+create trigger notify_new_origin
+  after insert on origin
+  for each row
+  execute procedure notify_new_origin();
+
 -- Content we have seen but skipped for some reason. This table is
 -- separate from the content table as we might not have the sha1
 -- checksum of that data (for instance when we inject git
@@ -224,11 +257,31 @@ create table skipped_content
   unique (sha1, sha1_git, sha256)
 );
 
--- those indexes support multiple NULL values.
+-- Those indexes support multiple NULL values.
 create unique index on skipped_content(sha1);
 create unique index on skipped_content(sha1_git);
 create unique index on skipped_content(sha256);
 create index on skipped_content(object_id);
+
+-- Asynchronous notification of new skipped content insertions
+create function notify_new_skipped_content()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+  perform pg_notify('new_skipped_content', json_build_object(
+      'sha1', encode(new.sha1, 'hex'),
+      'sha1_git', encode(new.sha1_git, 'hex'),
+      'sha256', encode(new.sha256, 'hex')
+    )::text);
+    return null;
+  end;
+$$;
+
+create trigger notify_new_skipped_content
+  after insert on skipped_content
+  for each row
+  execute procedure notify_new_skipped_content();
 
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the
@@ -270,6 +323,23 @@ create index on directory using gin (dir_entries);
 create index on directory using gin (file_entries);
 create index on directory using gin (rev_entries);
 create index on directory(object_id);
+
+-- Asynchronous notification of new directory insertions
+create function notify_new_directory()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_directory', encode(new.id, 'hex'));
+    return null;
+  end;
+$$;
+
+create trigger notify_new_directory
+  after insert on directory
+  for each row
+  execute procedure notify_new_directory();
+
 
 -- A directory entry pointing to a sub-directory.
 create table directory_entry_dir
@@ -353,6 +423,23 @@ create table revision
 create index on revision(directory);
 create index on revision(object_id);
 
+-- Asynchronous notification of new revision insertions
+create function notify_new_revision()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_revision', encode(new.id, 'hex'));
+    return null;
+  end;
+$$;
+
+create trigger notify_new_revision
+  after insert on revision
+  for each row
+  execute procedure notify_new_revision();
+
+
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
 (
@@ -375,6 +462,26 @@ create table origin_visit
 );
 
 create index on origin_visit(date);
+
+-- Asynchronous notification of new origin visits
+create function notify_new_origin_visit()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_origin_visit', json_build_object(
+      'origin', new.origin,
+      'visit', new.visit
+    )::text);
+    return null;
+  end;
+$$;
+
+create trigger notify_new_origin_visit
+  after insert on origin_visit
+  for each row
+  execute procedure notify_new_origin_visit();
+
 
 -- The content of software origins is indexed starting from top-level pointers
 -- called "branches". Every time we fetch some origin we store in this table
@@ -432,3 +539,19 @@ create table release
 
 create index on release(target, target_type);
 create index on release(object_id);
+
+-- Asynchronous notification of new release insertions
+create function notify_new_release()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_release', encode(new.id, 'hex'));
+    return null;
+  end;
+$$;
+
+create trigger notify_new_release
+  after insert on release
+  for each row
+  execute procedure notify_new_release();
