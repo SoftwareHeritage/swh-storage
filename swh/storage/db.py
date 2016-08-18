@@ -9,6 +9,7 @@ import functools
 import json
 import psycopg2
 import psycopg2.extras
+import select
 import tempfile
 import time
 
@@ -190,6 +191,19 @@ class Db:
             f.seek(0)
             self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
                 tblname, ', '.join(columns)), f)
+
+    def register_listener(self, notify_queue, cur=None):
+        """Register a listener for NOTIFY queue `notify_queue`"""
+        self._cursor(cur).execute("LISTEN %s" % notify_queue)
+
+    def listen_notifies(self, timeout):
+        """Listen to notifications for `timeout` seconds"""
+        if select.select([self.conn], [], [], timeout) == ([], [], []):
+            return
+        else:
+            self.conn.poll()
+            while self.conn.notifies:
+                yield self.conn.notifies.pop(0)
 
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
