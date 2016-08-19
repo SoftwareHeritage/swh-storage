@@ -832,7 +832,22 @@ begin
 end;
 $$;
 
-
+-- add a new origin_visit for origin origin_id at date.
+--
+-- Returns the new visit id.
+create or replace function swh_origin_visit_add(origin_id bigint, date timestamptz)
+    returns bigint
+    language sql
+as $$
+  with last_known_visit as (
+    select coalesce(max(visit), 0) as visit
+    from origin_visit
+    where origin = origin_id
+  )
+  insert into origin_visit (origin, date, visit, status)
+  values (origin_id, date, (select visit from last_known_visit) + 1, 'ongoing')
+  returning visit;
+$$;
 
 -- add tmp_occurrence_history entries to occurrence_history
 --
@@ -987,7 +1002,7 @@ create or replace function swh_visit_get(origin bigint)
     language sql
     stable
 as $$
-    select origin, visit, date
+    select origin, visit, date, status
     from origin_visit
     where origin=origin
     order by date desc
