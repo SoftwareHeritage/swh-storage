@@ -701,20 +701,12 @@ class Storage():
                     the occurrence
                 - target_type (str): the type of object pointed to by the
                     occurrence
-                - date (datetime.DateTime): the validity date for the given
-                    occurrence
         """
         db = self.db
 
-        processed = []
-        for occurrence in occurrences:
-            if isinstance(occurrence['date'], str):
-                occurrence['date'] = dateutil.parser.parse(occurrence['date'])
-            processed.append(occurrence)
-
         db.mktemp_occurrence_history(cur)
-        db.copy_to(processed, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'target', 'target_type', 'date'], cur)
+        db.copy_to(occurrences, 'tmp_occurrence_history',
+                   ['origin', 'branch', 'target', 'target_type', 'visit'], cur)
 
         db.occurrence_history_add_from_temp(cur)
 
@@ -750,8 +742,12 @@ class Storage():
             Dict with keys origin and visit where:
             - origin: origin identifier
             - visit: the visit identifier for the new visit occurrence
+            - ts (datetime.DateTime): the visit date
 
         """
+        if isinstance(ts, str):
+            ts = dateutil.parser.parse(ts)
+
         return {
             'origin': origin,
             'visit': self.db.origin_visit_add(origin, ts, cur)
