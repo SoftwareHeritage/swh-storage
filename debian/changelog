@@ -1,3 +1,10 @@
+swh-storage (0.0.49-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.49
+  * Proper dependency on python3-kafka
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 19 Aug 2016 13:45:52 +0200
+
 swh-storage (0.0.48-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.48
