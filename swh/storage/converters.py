@@ -239,7 +239,7 @@ def db_to_revision(db_revision):
             if parent:
                 parents.append(parent)
 
-    return {
+    ret = {
         'id': db_revision['id'],
         'author': author,
         'date': date,
@@ -252,6 +252,11 @@ def db_to_revision(db_revision):
         'synthetic': db_revision['synthetic'],
         'parents': parents,
     }
+
+    if 'object_id' in db_revision:
+        ret['object_id'] = db_revision['object_id']
+
+    return ret
 
 
 def release_to_db(release):
@@ -294,7 +299,7 @@ def db_to_release(db_release):
         db_release['date_neg_utc_offset']
     )
 
-    return {
+    ret = {
         'author': author,
         'date': date,
         'id': db_release['id'],
@@ -304,3 +309,8 @@ def db_to_release(db_release):
         'target': db_release['target'],
         'target_type': db_release['target_type'],
     }
+
+    if 'object_id' in db_release:
+        ret['object_id'] = db_release['object_id']
+
+    return ret

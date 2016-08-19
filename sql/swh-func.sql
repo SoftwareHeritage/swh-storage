@@ -614,7 +614,8 @@ create type revision_entry as
   committer_email                bytea,
   metadata                       jsonb,
   synthetic                      boolean,
-  parents                        bytea[]
+  parents                        bytea[],
+  object_id                      bigint
 );
 
 
@@ -630,7 +631,7 @@ as $$
            r.type, r.directory, r.message,
            a.id, a.fullname, a.name, a.email,
            c.id, c.fullname, c.name, c.email,
-           r.metadata, r.synthetic, t.parents
+           r.metadata, r.synthetic, t.parents, r.object_id
     from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
@@ -650,7 +651,7 @@ begin
                r.type, r.directory, r.message,
                a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
          array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
-                   as parents
+                   as parents, r.object_id
         from tmp_bytea t
         left join revision r on t.id = r.id
         left join person a on a.id = r.author
@@ -689,7 +690,8 @@ create type release_entry as
   author_id            bigint,
   author_fullname      bytea,
   author_name          bytea,
-  author_email         bytea
+  author_email         bytea,
+  object_id            bigint
 );
 
 -- Detailed entry for release
@@ -700,7 +702,7 @@ as $$
 begin
     return query
         select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
-               r.synthetic, p.id as author_id, p.fullname as author_fullname, p.name as author_name, p.email as author_email
+               r.synthetic, p.id as author_id, p.fullname as author_fullname, p.name as author_name, p.email as author_email, r.object_id
         from tmp_bytea t
         inner join release r on t.id = r.id
         inner join person p on p.id = r.author;
@@ -1053,7 +1055,7 @@ as $$
             from revision_history rh
             where rh.id = r.id
             order by rh.parent_rank
-        ) as parents
+        ) as parents, r.object_id
     from swh_occurrence_get_by(origin_id, branch_name, date) as occ
     inner join revision r on occ.target = r.id
     left join person a on a.id = r.author
@@ -1069,7 +1071,7 @@ create or replace function swh_release_get_by(
 as $$
    select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset,
         r.name, r.comment, r.synthetic, a.id as author_id, a.fullname as author_fullname,
-        a.name as author_name, a.email as author_email
+        a.name as author_name, a.email as author_email, r.object_id
     from release r
     inner join occurrence_history occ on occ.target = r.target
     left join person a on a.id = r.author
@@ -1258,6 +1260,65 @@ as $$
   )
   select *
   from entity_hierarchy;
+$$;
+
+
+-- Object listing by object_id
+
+create or replace function swh_content_list_by_object_id(
+    min_excl bigint,
+    max_incl bigint
+)
+    returns setof content
+    language sql
+    stable
+as $$
+    select * from content
+    where object_id > min_excl and object_id <= max_incl
+    order by object_id;
+$$;
+
+create or replace function swh_revision_list_by_object_id(
+    min_excl bigint,
+    max_incl bigint
+)
+    returns setof revision_entry
+    language sql
+    stable
+as $$
+    with revs as (
+        select * from revision
+        where object_id > min_excl and object_id <= max_incl
+    )
+    select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
+           r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
+           r.type, r.directory, r.message,
+           a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
+           array(select rh.parent_id::bytea from revision_history rh where rh.id = r.id order by rh.parent_rank)
+               as parents, r.object_id
+    from revs r
+    left join person a on a.id = r.author
+    left join person c on c.id = r.committer
+    order by r.object_id;
+$$;
+
+create or replace function swh_release_list_by_object_id(
+    min_excl bigint,
+    max_incl bigint
+)
+    returns setof release_entry
+    language sql
+    stable
+as $$
+    with rels as (
+        select * from release
+        where object_id > min_excl and object_id <= max_incl
+    )
+    select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
+           r.synthetic, p.id as author_id, p.fullname as author_fullname, p.name as author_name, p.email as author_email, r.object_id
+    from rels r
+    left join person p on p.id = r.author
+    order by r.object_id;
 $$;
 
 -- simple counter mapping a textual label to an integer value

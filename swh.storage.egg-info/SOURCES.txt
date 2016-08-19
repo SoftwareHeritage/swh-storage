@@ -17,6 +17,7 @@ debian/copyright
 debian/rules
 debian/source/format
 docs/archiver-blueprint.md
+docs/vault-blueprint.md
 sql/.gitignore
 sql/Makefile
 sql/TODO
@@ -28,6 +29,8 @@ sql/swh-schema.sql
 sql/archiver/Makefile
 sql/archiver/swh-archiver-data.sql
 sql/archiver/swh-archiver-schema.sql
+sql/archiver/upgrades/002.sql
+sql/archiver/upgrades/003.sql
 sql/bin/db-upgrade
 sql/bin/dot_add_content
 sql/doc/json
@@ -106,6 +109,10 @@ sql/upgrades/067.sql
 sql/upgrades/068.sql
 sql/upgrades/069.sql
 sql/upgrades/070.sql
+sql/upgrades/071.sql
+sql/upgrades/072.sql
+sql/upgrades/073.sql
+sql/upgrades/074.sql
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
 swh.storage.egg-info/dependency_links.txt
@@ -116,6 +123,7 @@ swh/storage/common.py
 swh/storage/converters.py
 swh/storage/db.py
 swh/storage/exc.py
+swh/storage/listener.py
 swh/storage/storage.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
@@ -126,7 +134,6 @@ swh/storage/archiver/director.py
 swh/storage/archiver/storage.py
 swh/storage/archiver/tasks.py
 swh/storage/archiver/worker.py
-swh/storage/tests/manual_test_archiver.py
 swh/storage/tests/server_testing.py
 swh/storage/tests/test_api_client.py
 swh/storage/tests/test_archiver.py
