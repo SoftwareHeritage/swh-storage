@@ -3,138 +3,44 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import logging
-import click
-import time
-
-from swh.core import hashutil, config
-from swh.objstorage import PathSlicingObjStorage
-from swh.objstorage.api.client import RemoteObjStorage
+from swh.core import config
 from swh.scheduler.celery_backend.config import app
 
 from . import tasks  # NOQA
 from .storage import ArchiverStorage
 
 
-DEFAULT_CONFIG = {
-    'objstorage_type': ('str', 'local_storage'),
-    'objstorage_path': ('str', '/tmp/swh-storage/objects'),
-    'objstorage_slicing': ('str', '0:2/2:4/4:6'),
-    'objstorage_url': ('str', 'http://localhost:5003/'),
-
-    'batch_max_size': ('int', 50),
-    'archival_max_age': ('int', 3600),
-    'retention_policy': ('int', 2),
-    'asynchronous': ('bool', True),
-
-    'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest')
-}
-
 task_name = 'swh.storage.archiver.tasks.SWHArchiverTask'
 
-logger = logging.getLogger()
 
-
-class ArchiverDirector():
+class ArchiverDirector(config.SWHConfig):
     """Process the files in order to know which one is needed as backup.
 
     The archiver director processes the files in the local storage in order
     to know which one needs archival and it delegates this task to
     archiver workers.
-    Attributes:
-        master_objstorage: the local storage of the master server.
-        master_objstorage_args (dict): arguments of the master objstorage
-            initialization.
-
-        archiver_storage: a wrapper for archiver db operations.
-        db_conn_archiver: Either a libpq connection string,
-                or a psycopg2 connection for the archiver db.
-
-        slave_objstorages: Iterable of remote obj storages to the slaves
-            servers used for backup.
-        config: Archiver_configuration. A dictionary that must contain
-                the following keys:
-
-                objstorage_type (str): type of objstorage used (local_storage
-                    or remote_storage).
-                    If the storage is local, the arguments keys must be present
-                        objstorage_path (str): master's objstorage path
-                        objstorage_slicing (str): masters's objstorage slicing
-                    Otherwise, if it's a remote objstorage, the keys must be:
-                        objstorage_url (str): url of the remote objstorage
-
-                batch_max_size (int): The number of content items that can be
-                    given to the same archiver worker.
-                archival_max_age (int): Delay given to the worker to copy all
-                    the files in a given batch.
-                retention_policy (int): Required number of copies for the
-                    content to be considered safe.
-                asynchronous (boolean): Indicate whenever the archival should
-                    run in asynchronous mode or not.
     """
 
-    def __init__(self, db_conn_archiver, config):
+    DEFAULT_CONFIG = {
+        'batch_max_size': ('int', 1500),
+        'retention_policy': ('int', 2),
+        'asynchronous': ('bool', True),
+
+        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest')
+    }
+    CONFIG_BASE_FILENAME = 'archiver/director'
+
+    def __init__(self):
         """ Constructor of the archiver director.
 
         Args:
             db_conn_archiver: Either a libpq connection string,
                 or a psycopg2 connection for the archiver db.
-            config: Archiver_configuration. A dictionary that must contain
-                the following keys:
-
-                objstorage_type (str): type of objstorage used
-                    (local_objstorage or remote_objstorage).
-                    If the storage is local, the arguments keys must be present
-                        objstorage_path (str): master's objstorage path
-                        objstorage_slicing (str): masters's objstorage slicing
-                    Otherwise, if it's a remote objstorage, the keys must be:
-                        objstorage_url (str): url of the remote objstorage
-
-                batch_max_size (int): The number of content items that can be
-                    given to the same archiver worker.
-                archival_max_age (int): Delay given to the worker to copy all
-                    the files in a given batch.
-                retention_policy (int): Required number of copies for the
-                    content to be considered safe.
-                asynchronous (boolean): Indicate whenever the archival should
-                    run in asynchronous mode or not.
+            config: optionnal additional configuration. Keys in the dict will
+                override the one parsed from the configuration file.
         """
-        # Get the slave storages
-        self.db_conn_archiver = db_conn_archiver
-        self.archiver_storage = ArchiverStorage(db_conn_archiver)
-        self.slave_objstorages = {
-            id: url
-            for id, url
-            in self.archiver_storage.archive_ls()
-        }
-        # Check that there is enough backup servers for the retention policy
-        if config['retention_policy'] > len(self.slave_objstorages) + 1:
-            raise ValueError(
-                "Can't have a retention policy of %d with %d backup servers"
-                % (config['retention_policy'], len(self.slave_objstorages))
-            )
-
-        # Get the master storage that contains content to be archived
-        if config['objstorage_type'] == 'local_objstorage':
-            master_objstorage_args = {
-                'root': config['objstorage_path'],
-                'slicing': config['objstorage_slicing']
-            }
-            master_objstorage = PathSlicingObjStorage(
-                **master_objstorage_args
-            )
-        elif config['objstorage_type'] == 'remote_objstorage':
-            master_objstorage_args = {'base_url': config['objstorage_url']}
-            master_objstorage = RemoteObjStorage(**master_objstorage_args)
-        else:
-            raise ValueError(
-                'Unknow objstorage class `%s`' % config['objstorage_type']
-            )
-        self.master_objstorage = master_objstorage
-        self.master_objstorage_args = master_objstorage_args
-
-        # Keep the full configuration
-        self.config = config
+        self.config = self.parse_config_file()
+        self.archiver_storage = ArchiverStorage(self.config['dbconn'])
 
     def run(self):
         """ Run the archiver director.
@@ -147,150 +53,65 @@ class ArchiverDirector():
         else:
             run_fn = self.run_sync_worker
 
-        for batch in self.get_unarchived_content():
+        for batch in self.get_unarchived_content_batch():
             run_fn(batch)
 
     def run_async_worker(self, batch):
         """ Produce a worker that will be added to the task queue.
         """
         task = app.tasks[task_name]
-        task.delay(batch,
-                   archiver_args=self.db_conn_archiver,
-                   master_objstorage_args=self.master_objstorage_args,
-                   slave_objstorages=self.slave_objstorages,
-                   config=self.config)
+        task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
         """ Run synchronously a worker on the given batch.
         """
         task = app.tasks[task_name]
-        task(batch,
-             archiver_args=self.db_conn_archiver,
-             master_objstorage_args=self.master_objstorage_args,
-             slave_objstorages=self.slave_objstorages,
-             config=self.config)
+        task(batch=batch)
 
-    def get_unarchived_content(self):
-        """ Get contents that need to be archived.
+    def get_unarchived_content_batch(self):
+        """ Create batch of contents that needs to be archived
 
         Yields:
-            A batch of contents. Batches are dictionaries which associates
-            a content id to the data about servers that contains it or not.
-
-            {'id1':
-                {'present': [('slave1', 'slave1_url')],
-                 'missing': [('slave2', 'slave2_url'),
-                             ('slave3', 'slave3_url')]
-                },
-             'id2':
-                {'present': [],
-                 'missing': [
-                     ('slave1', 'slave1_url'),
-                     ('slave2', 'slave2_url'),
-                     ('slave3', 'slave3_url')
-                 ]}
-            }
-
-            Where keys (idX) are sha1 of the content and (slaveX, slaveX_url)
-            are ids and urls of the storage slaves.
-
-            At least all the content that don't have enough copies on the
-            backups servers are distributed into these batches.
+            batch of sha1 that corresponds to contents that needs more archive
+            copies.
         """
-        contents = {}
-        # Get the archives
-        archives = dict(self.archiver_storage.archive_ls())
-        # Get all the contents referenced into the archiver tables
-        last_object = b''
-        while True:
-            archived_contents = list(
-                self.archiver_storage.content_archive_get_copies(last_object))
-
-            if not archived_contents:
-                break
-
-            for content_id, present, ongoing in archived_contents:
-                last_object = content_id
-                data = {
-                    'present': set(present),
-                    'missing': set(archives) - set(present) - set(ongoing),
-                }
-
-                for archive_id, mtime in ongoing.items():
-                    status = self.get_virtual_status('ongoing', mtime)
-                    data[status].add(archive_id)
-
-                contents[r'\x%s' % hashutil.hash_to_hex(content_id)] = {
-                    k: [(archive_id, archives[archive_id]) for archive_id in v]
-                    for k, v in data.items()
-                }
-
-                if len(contents) >= self.config['batch_max_size']:
-                    yield contents
-                    contents = {}
-
+        contents = []
+        for content in self._get_unarchived_content_id():
+            contents.append(content)
+            if len(contents) > self.config['batch_max_size']:
+                yield contents
+                contents = []
         if len(contents) > 0:
             yield contents
 
-    def get_virtual_status(self, status, mtime):
-        """ Compute the virtual presence of a content.
+    def _get_unarchived_content_id(self):
+        """ Get batchs from the archiver db and yield it as continous stream
 
-        If the status is ongoing but the time is not elasped, the archiver
-        consider it will be present in the futur, and so consider it as
-        present.
-        However, if the time is elasped, the copy may have failed, so consider
-        the content as missing.
+        Content returned are those that need to have more copies.
 
-        Arguments:
-            status (string): One of ('present', 'missing', 'ongoing'). The
-                status of the content.
-            mtime (datetime): Time at which the content have been updated for
-                the last time.
-
-        Returns:
-            The virtual status of the studied content, which is 'present' or
-            'missing'.
-
-        Raises:
-            ValueError: if the status is not one 'present', 'missing'
-                or 'ongoing'
+        Yields:
+            Datas about a content as a tuple
+            (content_id, present_copies, ongoing_copies) where ongoing_copies
+            is a dict mapping copy to mtime.
         """
-        if status in ('present', 'missing'):
-            return status
+        last_object = b''
+        while True:
+            archiver_contents = list(
+                self.archiver_storage.content_archive_get_unarchived_copies(
+                    last_content=last_object,
+                    retention_policy=self.config['retention_policy']
+                )
+            )
+            if not archiver_contents:
+                return
+            for content_id, presents, oingoings in archiver_contents:
+                last_object = content_id
+                yield content_id
 
-        # If the status is 'ongoing' but there is still time, another worker
-        # may still be on the task.
-        if status == 'ongoing':
-            elapsed = int(time.time()) - mtime
-            if elapsed <= self.config['archival_max_age']:
-                return 'present'
-            else:
-                return 'missing'
-        else:
-            raise ValueError("status must be either 'present', 'missing' "
-                             "or 'ongoing'")
 
-
-@click.command()
-@click.argument('config-path', required=1)
-@click.option('--dbconn', default=DEFAULT_CONFIG['dbconn'][1],
-              help="Connection string for the archiver database")
-@click.option('--async/--sync', default=DEFAULT_CONFIG['asynchronous'][1],
-              help="Indicates if the archiver should run asynchronously")
-def launch(config_path, dbconn, async):
-    # The configuration have following priority :
-    # command line > file config > default config
-    cl_config = {
-        'dbconn': dbconn,
-        'asynchronous': async
-    }
-    conf = config.read(config_path, DEFAULT_CONFIG)
-    conf.update(cl_config)
-    # Create connection data and run the archiver.
-    archiver = ArchiverDirector(conf['dbconn'], conf)
-    logger.info("Starting an archival at", time.time())
+def launch():
+    archiver = ArchiverDirector()
     archiver.run()
-
 
 if __name__ == '__main__':
     launch()
