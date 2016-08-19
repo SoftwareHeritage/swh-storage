@@ -4,6 +4,6 @@ flask
 psycopg2
 requests
 swh.core>=0.0.21
-swh.objstorage>=0.0.1
+swh.objstorage>=0.0.2
 swh.scheduler
 vcversioner

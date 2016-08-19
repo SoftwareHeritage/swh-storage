@@ -9,6 +9,7 @@ import functools
 import json
 import psycopg2
 import psycopg2.extras
+import select
 import tempfile
 import time
 
@@ -190,6 +191,19 @@ class Db:
             f.seek(0)
             self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
                 tblname, ', '.join(columns)), f)
+
+    def register_listener(self, notify_queue, cur=None):
+        """Register a listener for NOTIFY queue `notify_queue`"""
+        self._cursor(cur).execute("LISTEN %s" % notify_queue)
+
+    def listen_notifies(self, timeout):
+        """Listen to notifications for `timeout` seconds"""
+        if select.select([self.conn], [], [], timeout) == ([], [], []):
+            return
+        else:
+            self.conn.poll()
+            while self.conn.notifies:
+                yield self.conn.notifies.pop(0)
 
     @stored_procedure('swh_content_add')
     def content_add_from_temp(self, cur=None): pass
@@ -660,37 +674,55 @@ class Db:
                     """)
         yield from cursor_to_bytes(cur)
 
-    def content_archive_get(self, content=None, cur=None):
+    def content_archive_get(self, content_id, cur=None):
         """ Get the archival status of a content in a specific server.
 
         Retrieve from the database the archival status of the given content
         in the given archive server.
 
         Args:
-            content: the sha1 of the content. May be None for all contents.
+            content_id: the sha1 of the content.
 
         Yields:
-            A tuple (content_id, copies_json).
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
         """
-        query = """SELECT content_id, copies
-               FROM content_archive
-               """
-        if content is not None:
-            query += "WHERE content_id='%s'" % content
-        else:
-            query += 'ORDER BY content_id'
+        query = """SELECT content_id,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'present'
+                            ORDER BY key
+                          ) AS present,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing,
+                          array(
+                            SELECT value->'mtime'
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing_mtime
+                   FROM content_archive
+                   WHERE content_id = %s
+                   ORDER BY content_id
+        """
 
         cur = self._cursor(cur)
-        cur.execute(query)
-        yield from cursor_to_bytes(cur)
+        cur.execute(query, (content_id,))
+        content_id, present, ongoing, mtimes = cur.fetchone()
+        return (content_id, present, dict(zip(ongoing, mtimes)))
 
-    def content_archive_get_copies(self, previous_content=None, limit=1000,
+    def content_archive_get_copies(self, last_content=None, limit=1000,
                                    cur=None):
         """Get the list of copies for `limit` contents starting after
-           `previous_content`.
+           `last_content`.
 
         Args:
-            previous_content: sha1 of the last content retrieved. May be None
+            last_content: sha1 of the last content retrieved. May be None
                               to start at the beginning.
             limit: number of contents to retrieve. Can be None to retrieve all
                    objects (will be slow).
@@ -726,11 +758,64 @@ class Db:
                    LIMIT %s
         """
 
-        if previous_content is None:
-            previous_content = b''
+        if last_content is None:
+            last_content = b''
 
         cur = self._cursor(cur)
-        cur.execute(query, (previous_content, limit))
+        cur.execute(query, (last_content, limit))
+        for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
+            yield (content_id, present, dict(zip(ongoing, mtimes)))
+
+    def content_archive_get_unarchived_copies(
+            self, retention_policy, last_content=None,
+            limit=1000, cur=None):
+        """ Get the list of copies for `limit` contents starting after
+            `last_content`. Yields only copies with number of present
+            smaller than `retention policy`.
+
+        Args:
+            last_content: sha1 of the last content retrieved. May be None
+                              to start at the beginning.
+            retention_policy: number of presentcopies required.
+            limit: number of contents to retrieve. Can be None to retrieve all
+                   objects (will be slow).
+
+        Yields:
+            A tuple (content_id, present_copies, ongoing_copies), where
+            ongoing_copies is a dict mapping copy to mtime.
+
+        """
+
+        query = """SELECT content_id,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'present'
+                            ORDER BY key
+                          ) AS present,
+                          array(
+                            SELECT key
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing,
+                          array(
+                            SELECT value->'mtime'
+                            FROM jsonb_each(copies)
+                            WHERE value->>'status' = 'ongoing'
+                            ORDER BY key
+                          ) AS ongoing_mtime
+                   FROM content_archive
+                   WHERE content_id > %s AND num_present < %s
+                   ORDER BY content_id
+                   LIMIT %s
+        """
+
+        if last_content is None:
+            last_content = b''
+
+        cur = self._cursor(cur)
+        cur.execute(query, (last_content, retention_policy, limit))
         for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
             yield (content_id, present, dict(zip(ongoing, mtimes)))
 
