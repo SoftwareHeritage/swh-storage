@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1085,56 +1085,79 @@ class AbstractTestStorage(DbTestFixture):
                                           'project': None})
 
     @istest
-    def origin_visit_get(self):
-        # 1- given
+    def origin_visit_add(self):
+        # given
         self.assertIsNone(self.storage.origin_get(self.origin2))
 
-        self.storage.content_add([self.cont2])
-        self.storage.directory_add([self.dir2])
-        self.storage.revision_add([self.revision2, self.revision3])
         origin_id = self.storage.origin_add_one(self.origin2)
-
-        # occurrence2 points to 'revision2' with branch 'master', we
-        # need to point to the right origin
-        occurrence2 = self.occurrence2.copy()
-        occurrence2.update({'origin': origin_id,
-                            'date': occurrence2['date']})
-
-        dt = datetime.timedelta(days=1)
-
-        occurrence3 = self.occurrence2.copy()
-        occurrence3.update({'origin': origin_id,
-                            'date': occurrence3['date'] + dt,
-                            'target': self.revision3['id']})
-
-        # 2 occurrences on same revision with lower validity date with 1h delta
-        self.storage.occurrence_add([occurrence2])
+        self.assertIsNotNone(origin_id)
 
         # when
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.occurrence2['date'])
+
+        # then
+        self.assertEquals(origin_visit1['origin'], origin_id)
+        self.assertIsNotNone(origin_visit1['visit'])
+        self.assertTrue(origin_visit1['visit'] > 0)
+
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(len(actual_origin_visits), 1)
         self.assertEquals(actual_origin_visits,
                           [{
                               'origin': origin_id,
-                              'date': occurrence2['date'],
-                              'visit': 1
+                              'date': self.occurrence2['date'],
+                              'visit': origin_visit1['visit'],
+                              'status': 'ongoing',
                           }])
 
-        # 2- given
-        self.storage.occurrence_add([occurrence3])
+    @istest
+    def origin_visit_update(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin2)
+        origin_id2 = self.storage.origin_add_one(self.origin)
+
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.occurrence2['date'])
+
+        origin_visit2 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.occurrence3['date'])
+
+        origin_visit3 = self.storage.origin_visit_add(
+            origin_id2,
+            ts=self.occurrence3['date'])
 
         # when
+        self.storage.origin_visit_update(origin_id, origin_visit1['visit'],
+                                         status='full')
+        self.storage.origin_visit_update(origin_id2, origin_visit3['visit'],
+                                         status='partial')
+
+        # then
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(len(actual_origin_visits), 2)
         self.assertEquals(actual_origin_visits,
                           [{
-                              'origin': origin_id,
-                              'date': occurrence2['date'],
-                              'visit': 1
-                          }, {
-                              'origin': origin_id,
-                              'date': occurrence3['date'],
-                              'visit': 2
+                              'origin': origin_visit2['origin'],
+                              'date': self.occurrence2['date'],
+                              'visit': origin_visit1['visit'],
+                              'status': 'full'
+                          },
+                           {
+                               'origin': origin_visit2['origin'],
+                               'date': self.occurrence3['date'],
+                               'visit': origin_visit2['visit'],
+                               'status': 'ongoing'
+                           }])
+
+        actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
+        self.assertEquals(actual_origin_visits2,
+                          [{
+                              'origin': origin_visit3['origin'],
+                              'date': self.occurrence3['date'],
+                              'visit': origin_visit3['visit'],
+                              'status': 'partial'
                           }])
 
     @istest

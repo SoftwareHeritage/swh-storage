@@ -738,6 +738,40 @@ class Storage():
                 'target_type': line[3],
             }
 
+    @db_transaction
+    def origin_visit_add(self, origin, ts, cur=None):
+        """Add an origin_visit for the origin at ts with status 'ongoing'.
+
+        Args:
+            origin: Visited Origin id
+            ts: timestamp of such visit
+
+        Returns:
+            Dict with keys origin and visit where:
+            - origin: origin identifier
+            - visit: the visit identifier for the new visit occurrence
+
+        """
+        return {
+            'origin': origin,
+            'visit': self.db.origin_visit_add(origin, ts, cur)
+        }
+
+    @db_transaction
+    def origin_visit_update(self, origin, visit_id, status, cur=None):
+        """Update an origin_visit's status.
+
+        Args:
+            origin: Visited Origin id
+            visit_id: Visit's id
+            status: Visit's new status
+
+        Returns:
+            None
+
+        """
+        return self.db.origin_visit_update(origin, visit_id, status, cur)
+
     @db_transaction_generator
     def origin_visit_get(self, origin, cur=None):
         """Retrieve origin's visit dates.

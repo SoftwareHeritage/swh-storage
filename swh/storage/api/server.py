@@ -186,6 +186,17 @@ def origin_visit_get():
     return encode_data(g.storage.origin_visit_get(**decode_request(request)))
 
 
+@app.route('/origin/visit/add', methods=['POST'])
+def origin_visit_add():
+    return encode_data(g.storage.origin_visit_add(**decode_request(request)))
+
+
+@app.route('/origin/visit/update', methods=['POST'])
+def origin_visit_update():
+    return encode_data(g.storage.origin_visit_update(
+        **decode_request(request)))
+
+
 @app.route('/person', methods=['POST'])
 def person_get():
     return encode_data(g.storage.person_get(**decode_request(request)))
