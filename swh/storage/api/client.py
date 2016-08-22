@@ -75,6 +75,9 @@ class RemoteStorage():
     def content_get(self, content):
         return self.post('content/data', {'content': content})
 
+    def content_get_metadata(self, content):
+        return self.post('content/metadata', {'content': content})
+
     def content_find(self, content):
         return self.post('content/present', {'content': content})
 

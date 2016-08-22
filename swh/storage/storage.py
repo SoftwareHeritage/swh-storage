@@ -147,6 +147,23 @@ class Storage():
             yield {'sha1': obj_id, 'data': data}
 
     @db_transaction_generator
+    def content_get_metadata(self, content, cur=None):
+        """Retrieve content metadata in bulk
+
+        Args:
+            content: iterable of content identifiers (sha1)
+
+        Returns:
+            an iterable with content metadata corresponding to the given ids
+        """
+        db = self.db
+
+        db.store_tmp_bytea(content, cur)
+
+        for content_metadata in db.content_get_metadata_from_temp(cur):
+            yield dict(zip(db.content_get_metadata_keys, content_metadata))
+
+    @db_transaction_generator
     def content_missing(self, content, key_hash='sha1', cur=None):
         """List content missing from storage
 

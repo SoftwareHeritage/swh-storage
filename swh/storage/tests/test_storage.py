@@ -56,6 +56,7 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '673650f936cb3b0a2f93ce09d81be107'
                 '48b1b203c19e8176b4eefc1964a0cf3a'),
+            'status': 'visible',
         }
 
         self.cont2 = {
@@ -68,6 +69,7 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '859f0b154fdb2d630f45e1ecae4a8629'
                 '15435e663248bb8461d914696fc047cd'),
+            'status': 'visible',
         }
 
         self.missing_cont = {
@@ -80,6 +82,7 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '6bbd052ab054ef222c1c87be60cd191a'
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
+            'status': 'absent',
         }
 
         self.skipped_cont = {
@@ -599,6 +602,40 @@ class AbstractTestStorage(DbTestFixture):
 
         # then
         self.assertEqual(list(gen), [missing_cont['sha1']])
+
+    @istest
+    def content_get_metadata(self):
+        cont1 = self.cont.copy()
+        cont2 = self.cont2.copy()
+
+        self.storage.content_add([cont1, cont2])
+
+        gen = self.storage.content_get_metadata([cont1['sha1'], cont2['sha1']])
+
+        # we only retrieve the metadata
+        cont1.pop('data')
+        cont2.pop('data')
+
+        self.assertEqual(list(gen), [cont1, cont2])
+
+    @istest
+    def content_get_metadata_missing_sha1(self):
+        cont1 = self.cont.copy()
+        cont2 = self.cont2.copy()
+
+        missing_cont = self.missing_cont.copy()
+
+        self.storage.content_add([cont1, cont2])
+
+        gen = self.storage.content_get_metadata([missing_cont['sha1']])
+
+        # All the metadata keys are None
+        missing_cont.pop('data')
+        for key in list(missing_cont):
+            if key != 'sha1':
+                missing_cont[key] = None
+
+        self.assertEqual(list(gen), [missing_cont])
 
     @istest
     def directory_get(self):

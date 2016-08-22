@@ -234,6 +234,17 @@ class Db:
         self.copy_to(({'id': elem} for elem in ids), 'tmp_bytea',
                      ['id'], cur)
 
+    content_get_metadata_keys = ['sha1', 'sha1_git', 'sha256', 'length',
+                                 'status']
+
+    def content_get_metadata_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("""select t.id as sha1, %s from tmp_bytea t
+                       left join content on t.id = content.sha1
+                    """ % ', '.join(self.content_get_metadata_keys[1:]))
+
+        yield from cursor_to_bytes(cur)
+
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 

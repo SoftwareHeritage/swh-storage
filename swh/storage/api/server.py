@@ -72,6 +72,12 @@ def content_get():
     return encode_data(g.storage.content_get(**decode_request(request)))
 
 
+@app.route('/content/metadata', methods=['POST'])
+def content_get_metadata():
+    return encode_data(g.storage.content_get_metadata(
+        **decode_request(request)))
+
+
 @app.route('/directory', methods=['POST'])
 def directory_get():
     return encode_data(g.storage.directory_get(**decode_request(request)))
