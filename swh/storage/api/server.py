@@ -72,6 +72,12 @@ def content_get():
     return encode_data(g.storage.content_get(**decode_request(request)))
 
 
+@app.route('/content/metadata', methods=['POST'])
+def content_get_metadata():
+    return encode_data(g.storage.content_get_metadata(
+        **decode_request(request)))
+
+
 @app.route('/directory', methods=['POST'])
 def directory_get():
     return encode_data(g.storage.directory_get(**decode_request(request)))
@@ -184,6 +190,17 @@ def origin_add_one():
 @app.route('/origin/visit/get', methods=['POST'])
 def origin_visit_get():
     return encode_data(g.storage.origin_visit_get(**decode_request(request)))
+
+
+@app.route('/origin/visit/add', methods=['POST'])
+def origin_visit_add():
+    return encode_data(g.storage.origin_visit_add(**decode_request(request)))
+
+
+@app.route('/origin/visit/update', methods=['POST'])
+def origin_visit_update():
+    return encode_data(g.storage.origin_visit_update(
+        **decode_request(request)))
 
 
 @app.route('/person', methods=['POST'])
