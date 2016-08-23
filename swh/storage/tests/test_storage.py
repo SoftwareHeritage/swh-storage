@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -56,6 +56,7 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '673650f936cb3b0a2f93ce09d81be107'
                 '48b1b203c19e8176b4eefc1964a0cf3a'),
+            'status': 'visible',
         }
 
         self.cont2 = {
@@ -68,6 +69,7 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '859f0b154fdb2d630f45e1ecae4a8629'
                 '15435e663248bb8461d914696fc047cd'),
+            'status': 'visible',
         }
 
         self.missing_cont = {
@@ -80,6 +82,7 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '6bbd052ab054ef222c1c87be60cd191a'
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
+            'status': 'absent',
         }
 
         self.skipped_cont = {
@@ -296,28 +299,31 @@ class AbstractTestStorage(DbTestFixture):
             'type': 'git',
         }
 
+        self.date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                             tzinfo=datetime.timezone.utc)
+
         self.occurrence = {
             'branch': b'master',
             'target': b'67890123456789012345',
             'target_type': 'revision',
-            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
         }
+
+        self.date_visit2 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                             tzinfo=datetime.timezone.utc)
 
         self.occurrence2 = {
             'branch': b'master',
             'target': self.revision2['id'],
             'target_type': 'revision',
-            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
         }
+
+        self.date_visit3 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                             tzinfo=datetime.timezone.utc)
 
         # template occurrence to be filled in test (cf. revision_log_by)
         self.occurrence3 = {
             'branch': b'master',
             'target_type': 'revision',
-            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
         }
 
         self.release = {
@@ -598,6 +604,40 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(gen), [missing_cont['sha1']])
 
     @istest
+    def content_get_metadata(self):
+        cont1 = self.cont.copy()
+        cont2 = self.cont2.copy()
+
+        self.storage.content_add([cont1, cont2])
+
+        gen = self.storage.content_get_metadata([cont1['sha1'], cont2['sha1']])
+
+        # we only retrieve the metadata
+        cont1.pop('data')
+        cont2.pop('data')
+
+        self.assertEqual(list(gen), [cont1, cont2])
+
+    @istest
+    def content_get_metadata_missing_sha1(self):
+        cont1 = self.cont.copy()
+        cont2 = self.cont2.copy()
+
+        missing_cont = self.missing_cont.copy()
+
+        self.storage.content_add([cont1, cont2])
+
+        gen = self.storage.content_get_metadata([missing_cont['sha1']])
+
+        # All the metadata keys are None
+        missing_cont.pop('data')
+        for key in list(missing_cont):
+            if key != 'sha1':
+                missing_cont[key] = None
+
+        self.assertEqual(list(gen), [missing_cont])
+
+    @istest
     def directory_get(self):
         # given
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
@@ -764,9 +804,13 @@ class AbstractTestStorage(DbTestFixture):
         # occurrence3 targets 'revision4'
         # with branch 'master' and origin origin_id
         occurrence3 = self.occurrence3.copy()
+        date_visit1 = self.date_visit3
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      date_visit1)
         occurrence3.update({
             'origin': origin_id,
             'target': self.revision4['id'],
+            'visit': origin_visit1['visit'],
         })
 
         self.storage.occurrence_add([occurrence3])
@@ -776,7 +820,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_results = list(self.storage.revision_log_by(
             origin_id,
             branch_name=occurrence3['branch'],
-            timestamp=occurrence3['date']))
+            timestamp=date_visit1))
 
         # hack: ids generated
         for actual_result in actual_results:
@@ -880,7 +924,12 @@ class AbstractTestStorage(DbTestFixture):
         # occurrence2 points to 'revision2' with branch 'master', we
         # need to point to the right origin
         occurrence2 = self.occurrence2.copy()
-        occurrence2.update({'origin': origin_id})
+        date_visit1 = self.date_visit2
+        origin_visit1 = self.storage.origin_visit_add(origin_id, date_visit1)
+        occurrence2.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
+        })
         self.storage.occurrence_add([occurrence2])
 
         # we want only revision 2
@@ -917,17 +966,23 @@ class AbstractTestStorage(DbTestFixture):
 
         # occurrence2 points to 'revision2' with branch 'master', we
         # need to point to the right origin
+        date_visit1 = self.date_visit2
+        origin_visit1 = self.storage.origin_visit_add(origin_id, date_visit1)
         occurrence2 = self.occurrence2.copy()
-        occurrence2.update({'origin': origin_id,
-                            'date': occurrence2['date']})
+        occurrence2.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit']
+        })
 
         dt = datetime.timedelta(days=1)
-
+        date_visit2 = date_visit1 + dt
+        origin_visit2 = self.storage.origin_visit_add(origin_id, date_visit2)
         occurrence3 = self.occurrence2.copy()
-        occurrence3.update({'origin': origin_id,
-                            'date': occurrence3['date'] + dt,
-                            'target': self.revision3['id']})
-
+        occurrence3.update({
+            'origin': origin_id,
+            'visit': origin_visit2['visit'],
+            'target': self.revision3['id'],
+        })
         # 2 occurrences on same revision with lower validity date with 1h delta
         self.storage.occurrence_add([occurrence2])
         self.storage.occurrence_add([occurrence3])
@@ -936,7 +991,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_results0 = list(self.storage.revision_get_by(
             origin_id,
             occurrence2['branch'],
-            occurrence2['date']))
+            date_visit1))
 
         # hack: ids are generated
         del actual_results0[0]['author']['id']
@@ -949,7 +1004,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_results1 = list(self.storage.revision_get_by(
             origin_id,
             occurrence2['branch'],
-            occurrence2['date'] + dt/3))  # closer to occurrence2
+            date_visit1 + dt/3))  # closer to first visit
 
         # hack: ids are generated
         del actual_results1[0]['author']['id']
@@ -962,7 +1017,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_results2 = list(self.storage.revision_get_by(
             origin_id,
             occurrence2['branch'],
-            occurrence2['date'] + 2*dt/3))  # closer to occurrence3
+            date_visit1 + 2*dt/3))  # closer to second visit
 
         del actual_results2[0]['author']['id']
         del actual_results2[0]['committer']['id']
@@ -974,7 +1029,7 @@ class AbstractTestStorage(DbTestFixture):
         actual_results3 = list(self.storage.revision_get_by(
             origin_id,
             occurrence3['branch'],
-            occurrence3['date']))
+            date_visit2))
 
         # hack: ids are generated
         del actual_results3[0]['author']['id']
@@ -1035,8 +1090,14 @@ class AbstractTestStorage(DbTestFixture):
 
         # occurrence2 points to 'revision2' with branch 'master', we
         # need to point to the right origin
+        origin_visit = self.storage.origin_visit_add(origin_id,
+                                                     self.date_visit2)
         occurrence2 = self.occurrence2.copy()
-        occurrence2.update({'origin': origin_id})
+        occurrence2.update({
+            'origin': origin_id,
+            'visit': origin_visit['visit'],
+        })
+
         self.storage.occurrence_add([occurrence2])
 
         # we want only revision 2
@@ -1085,69 +1146,97 @@ class AbstractTestStorage(DbTestFixture):
                                           'project': None})
 
     @istest
-    def origin_visit_get(self):
-        # 1- given
+    def origin_visit_add(self):
+        # given
         self.assertIsNone(self.storage.origin_get(self.origin2))
 
-        self.storage.content_add([self.cont2])
-        self.storage.directory_add([self.dir2])
-        self.storage.revision_add([self.revision2, self.revision3])
         origin_id = self.storage.origin_add_one(self.origin2)
-
-        # occurrence2 points to 'revision2' with branch 'master', we
-        # need to point to the right origin
-        occurrence2 = self.occurrence2.copy()
-        occurrence2.update({'origin': origin_id,
-                            'date': occurrence2['date']})
-
-        dt = datetime.timedelta(days=1)
-
-        occurrence3 = self.occurrence2.copy()
-        occurrence3.update({'origin': origin_id,
-                            'date': occurrence3['date'] + dt,
-                            'target': self.revision3['id']})
-
-        # 2 occurrences on same revision with lower validity date with 1h delta
-        self.storage.occurrence_add([occurrence2])
+        self.assertIsNotNone(origin_id)
 
         # when
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.date_visit2)
+
+        # then
+        self.assertEquals(origin_visit1['origin'], origin_id)
+        self.assertIsNotNone(origin_visit1['visit'])
+        self.assertTrue(origin_visit1['visit'] > 0)
+
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(len(actual_origin_visits), 1)
         self.assertEquals(actual_origin_visits,
                           [{
                               'origin': origin_id,
-                              'date': occurrence2['date'],
-                              'visit': 1
+                              'date': self.date_visit2,
+                              'visit': origin_visit1['visit'],
+                              'status': 'ongoing',
                           }])
 
-        # 2- given
-        self.storage.occurrence_add([occurrence3])
+    @istest
+    def origin_visit_update(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin2)
+        origin_id2 = self.storage.origin_add_one(self.origin)
+
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.date_visit2)
+
+        origin_visit2 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.date_visit3)
+
+        origin_visit3 = self.storage.origin_visit_add(
+            origin_id2,
+            ts=self.date_visit3)
 
         # when
+        self.storage.origin_visit_update(origin_id, origin_visit1['visit'],
+                                         status='full')
+        self.storage.origin_visit_update(origin_id2, origin_visit3['visit'],
+                                         status='partial')
+
+        # then
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(len(actual_origin_visits), 2)
         self.assertEquals(actual_origin_visits,
                           [{
-                              'origin': origin_id,
-                              'date': occurrence2['date'],
-                              'visit': 1
-                          }, {
-                              'origin': origin_id,
-                              'date': occurrence3['date'],
-                              'visit': 2
+                              'origin': origin_visit2['origin'],
+                              'date': self.date_visit2,
+                              'visit': origin_visit1['visit'],
+                              'status': 'full'
+                          },
+                           {
+                               'origin': origin_visit2['origin'],
+                               'date': self.date_visit3,
+                               'visit': origin_visit2['visit'],
+                               'status': 'ongoing'
+                           }])
+
+        actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
+        self.assertEquals(actual_origin_visits2,
+                          [{
+                              'origin': origin_visit3['origin'],
+                              'date': self.date_visit3,
+                              'visit': origin_visit3['visit'],
+                              'status': 'partial'
                           }])
 
     @istest
     def occurrence_add(self):
+        occur = self.occurrence.copy()
+
         origin_id = self.storage.origin_add_one(self.origin2)
+        date_visit1 = self.date_visit1
+        origin_visit1 = self.storage.origin_visit_add(origin_id, date_visit1)
 
         revision = self.revision.copy()
-        revision['id'] = self.occurrence['target']
+        revision['id'] = occur['target']
         self.storage.revision_add([revision])
 
-        occur = self.occurrence
-        occur['origin'] = origin_id
-        self.storage.occurrence_add([occur])
+        occur.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
+        })
         self.storage.occurrence_add([occur])
 
         test_query = '''
@@ -1167,11 +1256,16 @@ class AbstractTestStorage(DbTestFixture):
             (ret[0][0], ret[0][1].tobytes(), ret[0][2].tobytes(),
              ret[0][3], ret[0][4]),
             (occur['origin'], occur['branch'], occur['target'],
-             occur['target_type'], occur['date']))
+             occur['target_type'], self.date_visit1))
 
-        orig_date = occur['date']
-        occur['date'] += datetime.timedelta(hours=10)
-        self.storage.occurrence_add([occur])
+        date_visit2 = date_visit1 + datetime.timedelta(hours=10)
+
+        origin_visit2 = self.storage.origin_visit_add(origin_id, date_visit2)
+        occur2 = occur.copy()
+        occur2.update({
+            'visit': origin_visit2['visit'],
+        })
+        self.storage.occurrence_add([occur2])
 
         self.cursor.execute(test_query)
         ret = self.cursor.fetchall()
@@ -1180,24 +1274,29 @@ class AbstractTestStorage(DbTestFixture):
             (ret[0][0], ret[0][1].tobytes(), ret[0][2].tobytes(),
              ret[0][3], ret[0][4]),
             (occur['origin'], occur['branch'], occur['target'],
-             occur['target_type'], orig_date))
+             occur['target_type'], date_visit1))
         self.assertEqual(
             (ret[1][0], ret[1][1].tobytes(), ret[1][2].tobytes(),
              ret[1][3], ret[1][4]),
-            (occur['origin'], occur['branch'], occur['target'],
-             occur['target_type'], occur['date']))
+            (occur2['origin'], occur2['branch'], occur2['target'],
+             occur2['target_type'], date_visit2))
 
     @istest
     def occurrence_get(self):
         # given
+        occur = self.occurrence.copy()
         origin_id = self.storage.origin_add_one(self.origin2)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
 
         revision = self.revision.copy()
-        revision['id'] = self.occurrence['target']
+        revision['id'] = occur['target']
         self.storage.revision_add([revision])
 
-        occur = self.occurrence
-        occur['origin'] = origin_id
+        occur.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
+        })
         self.storage.occurrence_add([occur])
         self.storage.occurrence_add([occur])
 
@@ -1205,11 +1304,12 @@ class AbstractTestStorage(DbTestFixture):
         actual_occurrence = list(self.storage.occurrence_get(origin_id))
 
         # then
-        expected_occur = occur.copy()
-        del expected_occur['date']
-
+        expected_occurrence = self.occurrence.copy()
+        expected_occurrence.update({
+            'origin': origin_id
+        })
         self.assertEquals(len(actual_occurrence), 1)
-        self.assertEquals(actual_occurrence[0], expected_occur)
+        self.assertEquals(actual_occurrence[0], expected_occurrence)
 
     @istest
     def content_find_occurrence_with_present_content(self):
@@ -1219,8 +1319,15 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.directory_add([self.dir2])  # point to self.cont
         self.storage.revision_add([self.revision2])  # points to self.dir
         origin_id = self.storage.origin_add_one(self.origin2)
-        occurrence = self.occurrence2
-        occurrence.update({'origin': origin_id})
+
+        occurrence = self.occurrence2.copy()
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        occurrence.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
+        })
+
         self.storage.occurrence_add([occurrence])
 
         # when

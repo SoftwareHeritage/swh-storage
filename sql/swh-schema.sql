@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(74, now(), 'Work In Progress');
+      values(75, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -452,14 +452,28 @@ create table revision_history
 
 create index on revision_history(parent_id);
 
+create type origin_visit_status as enum (
+  'ongoing',
+  'full',
+  'partial'
+);
+
+comment on type origin_visit_status IS 'Possible visit status';
+
 -- The timestamps at which Software Heritage has made a visit of the given origin.
 create table origin_visit
 (
   origin  bigint not null references origin(id),
   visit   bigint not null,
   date    timestamptz not null,
+  status  origin_visit_status not null,
   primary key (origin, visit)
 );
+
+comment on column origin_visit.origin is 'Visited origin';
+comment on column origin_visit.visit is 'Visit number the visit occurred for that origin';
+comment on column origin_visit.date is 'Visit date for that origin';
+comment on column origin_visit.status is 'Visit status for that origin';
 
 create index on origin_visit(date);
 
