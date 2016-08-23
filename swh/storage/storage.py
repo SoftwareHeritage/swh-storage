@@ -147,6 +147,23 @@ class Storage():
             yield {'sha1': obj_id, 'data': data}
 
     @db_transaction_generator
+    def content_get_metadata(self, content, cur=None):
+        """Retrieve content metadata in bulk
+
+        Args:
+            content: iterable of content identifiers (sha1)
+
+        Returns:
+            an iterable with content metadata corresponding to the given ids
+        """
+        db = self.db
+
+        db.store_tmp_bytea(content, cur)
+
+        for content_metadata in db.content_get_metadata_from_temp(cur):
+            yield dict(zip(db.content_get_metadata_keys, content_metadata))
+
+    @db_transaction_generator
     def content_missing(self, content, key_hash='sha1', cur=None):
         """List content missing from storage
 
@@ -701,20 +718,12 @@ class Storage():
                     the occurrence
                 - target_type (str): the type of object pointed to by the
                     occurrence
-                - date (datetime.DateTime): the validity date for the given
-                    occurrence
         """
         db = self.db
 
-        processed = []
-        for occurrence in occurrences:
-            if isinstance(occurrence['date'], str):
-                occurrence['date'] = dateutil.parser.parse(occurrence['date'])
-            processed.append(occurrence)
-
         db.mktemp_occurrence_history(cur)
-        db.copy_to(processed, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'target', 'target_type', 'date'], cur)
+        db.copy_to(occurrences, 'tmp_occurrence_history',
+                   ['origin', 'branch', 'target', 'target_type', 'visit'], cur)
 
         db.occurrence_history_add_from_temp(cur)
 
@@ -737,6 +746,44 @@ class Storage():
                 'target': line[2],
                 'target_type': line[3],
             }
+
+    @db_transaction
+    def origin_visit_add(self, origin, ts, cur=None):
+        """Add an origin_visit for the origin at ts with status 'ongoing'.
+
+        Args:
+            origin: Visited Origin id
+            ts: timestamp of such visit
+
+        Returns:
+            Dict with keys origin and visit where:
+            - origin: origin identifier
+            - visit: the visit identifier for the new visit occurrence
+            - ts (datetime.DateTime): the visit date
+
+        """
+        if isinstance(ts, str):
+            ts = dateutil.parser.parse(ts)
+
+        return {
+            'origin': origin,
+            'visit': self.db.origin_visit_add(origin, ts, cur)
+        }
+
+    @db_transaction
+    def origin_visit_update(self, origin, visit_id, status, cur=None):
+        """Update an origin_visit's status.
+
+        Args:
+            origin: Visited Origin id
+            visit_id: Visit's id
+            status: Visit's new status
+
+        Returns:
+            None
+
+        """
+        return self.db.origin_visit_update(origin, visit_id, status, cur)
 
     @db_transaction_generator
     def origin_visit_get(self, origin, cur=None):

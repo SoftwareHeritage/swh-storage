@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -234,6 +234,17 @@ class Db:
         self.copy_to(({'id': elem} for elem in ids), 'tmp_bytea',
                      ['id'], cur)
 
+    content_get_metadata_keys = ['sha1', 'sha1_git', 'sha256', 'length',
+                                 'status']
+
+    def content_get_metadata_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("""select t.id as sha1, %s from tmp_bytea t
+                       left join content on t.id = content.sha1
+                    """ % ', '.join(self.content_get_metadata_keys[1:]))
+
+        yield from cursor_to_bytes(cur)
+
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
@@ -358,12 +369,37 @@ class Db:
     revision_get_cols = revision_add_cols + [
         'author_id', 'committer_id', 'parents']
 
+    def origin_visit_add(self, origin, ts, cur=None):
+        """Add a new origin_visit for origin origin at timestamp ts with
+        status 'ongoing'.
+
+        Args:
+            origin: origin concerned by the visit
+            ts: the date of the visit
+
+        Returns:
+            The new visit index step for that origin
+
+        """
+        cur = self._cursor(cur)
+        self._cursor(cur).execute('SELECT swh_origin_visit_add(%s, %s)',
+                                  (origin, ts))
+        return cur.fetchone()[0]
+
+    def origin_visit_update(self, origin, visit_id, status, cur):
+        """Update origin_visit's status."""
+        cur = self._cursor(cur)
+        update = """UPDATE origin_visit
+                    SET status=%s
+                    WHERE origin=%s AND visit=%s"""
+        cur.execute(update, (status, origin, visit_id))
+
     origin_visit_get_cols = [
-        'origin', 'visit', 'date'
+        'origin', 'visit', 'date', 'status'
     ]
 
     def origin_visit_get(self, origin_id, cur=None):
-        """Retrieve occurrence's history information by origin_id.
+        """Retrieve all visits for origin with id origin_id.
 
         Args:
             origin_id: The occurrence's origin
@@ -375,7 +411,9 @@ class Db:
         cur = self._cursor(cur)
 
         cur.execute(
-            'SELECT origin, visit, date FROM origin_visit where origin=%s',
+            """SELECT origin, visit, date, status
+               FROM origin_visit
+               WHERE origin=%s""",
             (origin_id, ))
 
         yield from cursor_to_bytes(cur)
