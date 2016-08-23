@@ -1,3 +1,13 @@
+swh-storage (0.0.50-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.50
+  * Add a function to pull (only) metadata for a list of contents
+  * Update occurrence_add api entry point to properly deal with
+    origin_visit
+  * Add origin_visit api entry points to create/update origin_visit
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 23 Aug 2016 16:29:26 +0200
+
 swh-storage (0.0.49-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.49
