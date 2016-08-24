@@ -982,7 +982,7 @@ create or replace function swh_visit_get(origin bigint)
     language sql
     stable
 as $$
-    select origin, visit, date, status
+    select *
     from origin_visit
     where origin=origin
     order by date desc

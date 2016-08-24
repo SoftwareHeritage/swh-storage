@@ -771,19 +771,22 @@ class Storage():
         }
 
     @db_transaction
-    def origin_visit_update(self, origin, visit_id, status, cur=None):
+    def origin_visit_update(self, origin, visit_id, status, metadata=None,
+                            cur=None):
         """Update an origin_visit's status.
 
         Args:
             origin: Visited Origin id
             visit_id: Visit's id
             status: Visit's new status
+            metadata: Data associated to the visit
 
         Returns:
             None
 
         """
-        return self.db.origin_visit_update(origin, visit_id, status, cur)
+        return self.db.origin_visit_update(origin, visit_id, status, metadata,
+                                           cur)
 
     @db_transaction_generator
     def origin_visit_get(self, origin, cur=None):
