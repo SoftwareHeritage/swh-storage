@@ -1170,6 +1170,7 @@ class AbstractTestStorage(DbTestFixture):
                               'date': self.date_visit2,
                               'visit': origin_visit1['visit'],
                               'status': 'ongoing',
+                              'metadata': None,
                           }])
 
     @istest
@@ -1191,8 +1192,13 @@ class AbstractTestStorage(DbTestFixture):
             ts=self.date_visit3)
 
         # when
-        self.storage.origin_visit_update(origin_id, origin_visit1['visit'],
-                                         status='full')
+        visit1_metadata = {
+            'contents': 42,
+            'directories': 22,
+        }
+        self.storage.origin_visit_update(
+            origin_id, origin_visit1['visit'], status='full',
+            metadata=visit1_metadata)
         self.storage.origin_visit_update(origin_id2, origin_visit3['visit'],
                                          status='partial')
 
@@ -1203,13 +1209,15 @@ class AbstractTestStorage(DbTestFixture):
                               'origin': origin_visit2['origin'],
                               'date': self.date_visit2,
                               'visit': origin_visit1['visit'],
-                              'status': 'full'
+                              'status': 'full',
+                              'metadata': visit1_metadata,
                           },
                            {
                                'origin': origin_visit2['origin'],
                                'date': self.date_visit3,
                                'visit': origin_visit2['visit'],
-                               'status': 'ongoing'
+                               'status': 'ongoing',
+                               'metadata': None,
                            }])
 
         actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
@@ -1218,7 +1226,8 @@ class AbstractTestStorage(DbTestFixture):
                               'origin': origin_visit3['origin'],
                               'date': self.date_visit3,
                               'visit': origin_visit3['visit'],
-                              'status': 'partial'
+                              'status': 'partial',
+                              'metadata': None,
                           }])
 
     @istest
