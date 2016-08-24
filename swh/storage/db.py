@@ -386,16 +386,17 @@ class Db:
                                   (origin, ts))
         return cur.fetchone()[0]
 
-    def origin_visit_update(self, origin, visit_id, status, cur):
+    def origin_visit_update(self, origin, visit_id, status,
+                            metadata, cur=None):
         """Update origin_visit's status."""
         cur = self._cursor(cur)
         update = """UPDATE origin_visit
-                    SET status=%s
+                    SET status=%s, metadata=%s
                     WHERE origin=%s AND visit=%s"""
-        cur.execute(update, (status, origin, visit_id))
+        cur.execute(update, (status, jsonize(metadata), origin, visit_id))
 
     origin_visit_get_cols = [
-        'origin', 'visit', 'date', 'status'
+        'origin', 'visit', 'date', 'status', 'metadata',
     ]
 
     def origin_visit_get(self, origin_id, cur=None):
@@ -410,11 +411,12 @@ class Db:
         """
         cur = self._cursor(cur)
 
-        cur.execute(
-            """SELECT origin, visit, date, status
-               FROM origin_visit
-               WHERE origin=%s""",
-            (origin_id, ))
+        query = """\
+        SELECT %s
+        FROM origin_visit
+        WHERE origin=%%s""" % (', '.join(self.origin_visit_get_cols))
+
+        cur.execute(query, (origin_id, ))
 
         yield from cursor_to_bytes(cur)
 

@@ -36,4 +36,4 @@ if __name__ == '__main__':
                 cont['data'] = open(path, 'rb').read()
                 yield cont
 
-    storage.add_content(list_content())
+    storage.content_add(list_content())

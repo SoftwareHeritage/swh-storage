@@ -1,0 +1,21 @@
+{
+    "$schema": "http://json-schema.org/schema#",
+    "id": "http://softwareheritage.org/schemas/origin_visit.metadata.schema.json",
+
+    "definitions": {
+        "counter": {
+            "type": "integer",
+            "minimum": 0
+        }
+    },
+
+    "type": "object",
+    "properties": {
+        "occurrences": { "$ref": "#/definitions/counter" },
+        "directories": { "$ref": "#/definitions/counter" },
+        "revisions": { "$ref": "#/definitions/counter" },
+        "releases": { "$ref": "#/definitions/counter" },
+        "contents": { "$ref": "#/definitions/counter" },
+        "fake" : { "type": "boolean" }
+    }
+}
