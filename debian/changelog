@@ -1,3 +1,11 @@
+swh-storage (0.0.51-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.51
+  * Add new metadata column to origin_visit
+  * Update swh-add-directory script for updated API
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 24 Aug 2016 14:36:03 +0200
+
 swh-storage (0.0.50-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.50
