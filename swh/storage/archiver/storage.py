@@ -5,9 +5,10 @@
 
 import psycopg2
 
-from ..common import db_transaction_generator, db_transaction
-from ..db import Db
-from ..exc import StorageDBError
+from .db import ArchiverDb
+
+from swh.storage.common import db_transaction_generator, db_transaction
+from swh.storage.exc import StorageDBError
 
 
 class ArchiverStorage():
@@ -22,9 +23,9 @@ class ArchiverStorage():
         """
         try:
             if isinstance(db_conn, psycopg2.extensions.connection):
-                self.db = Db(db_conn)
+                self.db = ArchiverDb(db_conn)
             else:
-                self.db = Db.connect(db_conn)
+                self.db = ArchiverDb.connect(db_conn)
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
