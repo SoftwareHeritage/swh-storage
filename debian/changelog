@@ -1,3 +1,10 @@
+swh-storage (0.0.52-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.52
+  * Package python3-swh.storage.archiver
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 25 Aug 2016 14:55:23 +0200
+
 swh-storage (0.0.51-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.51
