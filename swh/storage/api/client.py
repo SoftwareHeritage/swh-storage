@@ -161,8 +161,7 @@ class RemoteStorage():
         return self.post('origin/visit/update', {'origin': origin,
                                                  'visit_id': visit_id,
                                                  'status': status,
-                                                 'metadata': metadata,
-        })
+                                                 'metadata': metadata})
 
     def origin_visit_get(self, origin):
         return self.post('origin/visit/get', {'origin': origin})
