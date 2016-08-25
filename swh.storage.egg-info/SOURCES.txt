@@ -134,6 +134,7 @@ swh/storage/api/client.py
 swh/storage/api/server.py
 swh/storage/archiver/__init__.py
 swh/storage/archiver/copier.py
+swh/storage/archiver/db.py
 swh/storage/archiver/director.py
 swh/storage/archiver/storage.py
 swh/storage/archiver/tasks.py

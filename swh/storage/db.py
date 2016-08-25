@@ -67,8 +67,10 @@ def cursor_to_bytes(cursor):
     yield from (line_to_bytes(line) for line in cursor)
 
 
-class Db:
-    """Proxy to the SWH DB, with wrappers around stored procedures
+class BaseDb:
+    """Base class for swh.storage.*Db.
+
+    cf. swh.storage.db.Db, swh.storage.archiver.db.ArchiverDb
 
     """
 
@@ -126,6 +128,11 @@ class Db:
                     self.conn.rollback()
                 raise
 
+
+class Db(BaseDb):
+    """Proxy to the SWH DB, with wrappers around stored procedures
+
+    """
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
 
