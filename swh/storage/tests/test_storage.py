@@ -758,6 +758,81 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
+    def cache_content_revision_add(self):
+        # Create a real arborescence tree (contents + directory) and a
+        # revision targeting that directory.
+        # Assert the cache is empty for that revision
+        # Then create that revision
+        # Trigger the cache population for that revision
+        # Assert the cache now contains information for that revision
+        # Trigger again the cache population for that revision
+        # Assert the cache is not modified
+
+        # given ()
+        self.storage.content_add([self.cont, self.cont2])
+        directory = {
+            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
+            'entries': [
+                {
+                    'name': b'bar',
+                    'type': 'file',
+                    'target': self.cont2['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'bar\xc3',
+                    'type': 'dir',
+                    'target': b'12345678901234567890',
+                    'perms': 0o2000,
+                },
+            ],
+        }
+        self.storage.directory_add([directory])
+        revision = self.revision.copy()
+        revision['directory'] = directory['id']
+        self.storage.revision_add([revision])
+
+        # assert nothing in cache yet
+        test_query = '''select content, revision, path
+                        from cache_content_revision
+                        where revision=%s
+                        order by path'''
+        self.cursor.execute(test_query, (revision['id'],))
+        ret = self.cursor.fetchall()
+        self.assertEqual(len(ret), 0)
+
+        # when, triggered the first time, we cache the revision
+        self.storage.cache_content_revision_add(revision['id'])
+        # the second time, we do nothing as this is already done
+        self.storage.cache_content_revision_add(revision['id'])
+
+        # then
+        self.cursor.execute(test_query, (revision['id'],))
+        ret = self.cursor.fetchall()
+        # only 2 contents exists for that revision (the second call to
+        # revision_cache discards as the revision is already cached)
+        self.assertEqual(len(ret), 2)
+
+        expected_cache_entries = [
+            (directory['entries'][0]['target'],
+             revision['id'],
+             directory['entries'][0]['name']),
+            (directory['entries'][1]['target'],
+             revision['id'],
+             directory['entries'][1]['name'])
+        ]
+        for i, expected_entry in enumerate(expected_cache_entries):
+            ret_entry = (ret[i][0].tobytes(), ret[i][1].tobytes(),
+                         ret[i][2].tobytes())
+            self.assertEquals(ret_entry, expected_entry)
+
+    @istest
     def revision_log(self):
         # given
         # self.revision4 -is-child-of-> self.revision3

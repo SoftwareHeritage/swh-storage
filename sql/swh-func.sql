@@ -466,7 +466,7 @@ as $$
     order by name;
 $$;
 
--- List recursively the content of a directory
+-- List recursively the revision directory arborescence
 create or replace function swh_directory_walk(walked_dir_id sha1_git)
     returns setof directory_entry
     language sql
@@ -485,6 +485,49 @@ as $$
     select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
     from entries
 $$;
+
+create or replace function swh_revision_walk(revision_id sha1_git)
+  returns setof directory_entry
+  language sql
+  stable
+as $$
+  select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
+  from swh_directory_walk((select directory from revision where id=revision_id))
+$$;
+
+COMMENT ON FUNCTION swh_revision_walk(sha1_git) IS 'Recursively list the revision targeted directory arborescence';
+
+
+create or replace function swh_cache_content_revision_add(revision_id sha1_git)
+    returns void
+    language plpgsql
+as $$
+declare
+  rev sha1_git;
+begin
+    select revision from cache_content_revision where revision=revision_id
+    into rev;
+
+    if rev is NULL then
+
+      with contents_to_cache as (
+          select sha1_git, name
+          from swh_directory_walk((select directory from revision where id=revision_id))
+          where type='file'
+      )
+      insert into cache_content_revision (content, revision, path)
+      select sha1_git, revision_id, name
+      from contents_to_cache;
+      return;
+
+    else
+      return;
+    end if;
+end
+$$;
+
+COMMENT ON FUNCTION swh_cache_content_revision_add(sha1_git) IS 'Cache the specified revision directory contents into cache_content_revision';
+
 
 -- Find a directory entry by its path
 create or replace function swh_find_directory_entry_by_path(

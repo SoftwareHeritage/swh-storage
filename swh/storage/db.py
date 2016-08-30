@@ -459,6 +459,13 @@ class Db(BaseDb):
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
+    def cache_content_revision_add(self, revision_id, cur=None):
+        """Populate the revision cache for the revision revision_id if not
+        already cached."""
+        cur = self._cursor(cur)
+        cur.execute('SELECT swh_cache_content_revision_add(%s)',
+                    (revision_id,))
+
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT id FROM swh_release_missing() as r(id)')

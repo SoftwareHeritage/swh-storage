@@ -141,6 +141,12 @@ def revision_missing():
     return encode_data(g.storage.revision_missing(**decode_request(request)))
 
 
+@app.route('/cache/content_revision', methods=['POST'])
+def cache_content_revision_add():
+    return encode_data(g.storage.cache_content_revision_add(
+        **decode_request(request)))
+
+
 @app.route('/release/add', methods=['POST'])
 def release_add():
     return encode_data(g.storage.release_add(**decode_request(request)))
