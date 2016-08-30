@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(76, now(), 'Work In Progress');
+      values(77, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -571,3 +571,40 @@ create trigger notify_new_release
   after insert on release
   for each row
   execute procedure notify_new_release();
+
+
+-- Content provenance information caches
+-- https://forge.softwareheritage.org/T547
+--
+-- Those tables aren't expected to be exhaustive, and get filled on a case by
+-- case basis: absence of data doesn't mean the data is not there
+
+-- content <-> revision mapping cache
+--
+-- semantics: "we have seen the content with given id in the given path inside
+-- the given revision"
+
+create table cache_content_revision (
+    content   sha1_git not null references content(sha1_git),
+    revision  sha1_git not null references revision(id),
+    path      unix_path not null,
+    primary key (content, revision, path)
+);
+
+create index on cache_content_revision(content);
+create index on cache_content_revision(revision);
+
+-- revision <-> origin_visit mapping cache
+--
+-- semantics: "we have seen the given revision in the given origin during the
+-- given visit"
+
+create table cache_revision_origin (
+   revision  sha1_git not null references revision(id),
+   origin    bigint not null,
+   visit     bigint not null,
+   primary key (revision, origin, visit),
+   foreign key (origin, visit) references origin_visit (origin, visit)
+);
+
+create index on cache_revision_origin(revision);
