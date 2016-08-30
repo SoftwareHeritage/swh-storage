@@ -348,6 +348,9 @@ class Db(BaseDb):
         cur.execute('SELECT * FROM swh_directory_missing()')
         yield from cursor_to_bytes(cur)
 
+    directory_ls_cols = ['dir_id', 'type', 'target', 'name', 'perms',
+                         'status', 'sha1', 'sha1_git', 'sha256']
+
     def directory_walk_one(self, directory, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT * FROM swh_directory_walk_one(%s)', (directory,))

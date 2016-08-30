@@ -423,8 +423,6 @@ class Storage():
 
         """
         db = self.db
-        keys = ['dir_id', 'type', 'target', 'name', 'perms', 'status',
-                'sha1', 'sha1_git', 'sha256']
 
         if recursive:
             res_gen = db.directory_walk(directory)
@@ -432,7 +430,7 @@ class Storage():
             res_gen = db.directory_walk_one(directory)
 
         for line in res_gen:
-            yield dict(zip(keys, line))
+            yield dict(zip(db.directory_ls_cols, line))
 
     @db_transaction
     def directory_entry_get_by_path(self, directory, paths, cur=None):
