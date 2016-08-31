@@ -466,6 +466,11 @@ class Db(BaseDb):
         cur.execute('SELECT swh_cache_content_revision_add(%s)',
                     (revision_id,))
 
+    def cache_revision_origin_add(self, origin, visit, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('SELECT swh_cache_revision_origin_add(%s, %s)',
+                    (origin, visit))
+
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
         cur.execute('SELECT id FROM swh_release_missing() as r(id)')

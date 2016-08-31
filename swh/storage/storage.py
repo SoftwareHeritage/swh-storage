@@ -447,6 +447,10 @@ class Storage():
         self.db.cache_content_revision_add(revision)
 
     @db_transaction
+    def cache_revision_origin_add(self, origin, visit, cur=None):
+        self.db.cache_revision_origin_add(origin, visit)
+
+    @db_transaction
     def directory_entry_get_by_path(self, directory, paths, cur=None):
         """Get the directory entry (either file or dir) from directory with
         path.

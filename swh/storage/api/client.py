@@ -123,6 +123,10 @@ class RemoteStorage():
     def cache_content_revision_add(self, revision):
         return self.post('cache/content_revision', {'revision': revision})
 
+    def cache_revision_origin_add(self, origin, visit):
+        return self.post('cache/revision_origin', {'origin': origin,
+                                                   'visit': visit})
+
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
 
