@@ -498,37 +498,6 @@ $$;
 COMMENT ON FUNCTION swh_revision_walk(sha1_git) IS 'Recursively list the revision targeted directory arborescence';
 
 
-create or replace function swh_cache_content_revision_add(revision_id sha1_git)
-    returns void
-    language plpgsql
-as $$
-declare
-  rev sha1_git;
-begin
-    select revision from cache_content_revision where revision=revision_id
-    into rev;
-
-    if rev is NULL then
-
-      with contents_to_cache as (
-          select sha1_git, name
-          from swh_directory_walk((select directory from revision where id=revision_id))
-          where type='file'
-      )
-      insert into cache_content_revision (content, revision, path)
-      select sha1_git, revision_id, name
-      from contents_to_cache;
-      return;
-
-    else
-      return;
-    end if;
-end
-$$;
-
-COMMENT ON FUNCTION swh_cache_content_revision_add(sha1_git) IS 'Cache the specified revision directory contents into cache_content_revision';
-
-
 -- Find a directory entry by its path
 create or replace function swh_find_directory_entry_by_path(
     walked_dir_id sha1_git,
@@ -1358,6 +1327,114 @@ as $$
     left join person p on p.id = r.author
     order by r.object_id;
 $$;
+
+
+create or replace function swh_cache_content_revision_add(revision_id sha1_git)
+    returns void
+    language plpgsql
+as $$
+declare
+  rev sha1_git;
+begin
+    select revision from cache_content_revision where revision=revision_id limit 1
+    into rev;
+
+    if rev is NULL then
+
+      with contents_to_cache as (
+          select sha1_git, name
+          from swh_directory_walk((select directory from revision where id=revision_id))
+          where type='file'
+      )
+      insert into cache_content_revision (content, revision, path)
+      select sha1_git, revision_id, name
+      from contents_to_cache;
+      return;
+
+    else
+      return;
+    end if;
+end
+$$;
+
+COMMENT ON FUNCTION swh_cache_content_revision_add(sha1_git) IS 'Cache the specified revision directory contents into cache_content_revision';
+
+
+create or replace function swh_occurrence_by_origin_visit(origin_id bigint, visit_id bigint)
+    returns setof occurrence
+    language sql
+    stable
+as $$
+  select origin, branch, target, target_type from occurrence_history
+  where origin = origin_id and visit_id = ANY(visits);
+$$;
+
+create or replace function swh_revision_from_target(target sha1_git, target_type object_type)
+    returns sha1_git
+    language plpgsql
+as $$
+#variable_conflict use_variable
+begin
+   while target_type = 'release' loop
+       select r.target, r.target_type from release r where r.id = target into target, target_type;
+   end loop;
+   if target_type = 'revision' then
+       return target;
+   else
+       return null;
+   end if;
+end
+$$;
+
+create or replace function swh_cache_revision_origin_add(origin_id bigint, visit_id bigint)
+    returns setof sha1_git
+    language plpgsql
+as $$
+declare
+    visit_exists bool;
+begin
+  select true from origin_visit where origin = origin_id and visit = visit_id into visit_exists;
+
+  if not visit_exists then
+      return;
+  end if;
+
+  visit_exists := null;
+
+  select true from cache_revision_origin where origin = origin_id and visit = visit_id limit 1 into visit_exists;
+
+  if visit_exists then
+      return;
+  end if;
+
+  return query with new_pointed_revs as (
+    select swh_revision_from_target(target, target_type) as id
+    from swh_occurrence_by_origin_visit(origin_id, visit_id)
+  ),
+  old_pointed_revs as (
+    select swh_revision_from_target(target, target_type) as id
+    from swh_occurrence_by_origin_visit(origin_id,
+      (select visit from origin_visit where origin = origin_id and visit < visit_id order by visit desc limit 1))
+  ),
+  new_revs as (
+    select distinct id
+    from swh_revision_list(array(select id::bytea from new_pointed_revs where id is not null))
+  ),
+  old_revs as (
+    select distinct id
+    from swh_revision_list(array(select id::bytea from old_pointed_revs where id is not null))
+  )
+  insert into cache_revision_origin (revision, origin, visit)
+  select n.id as revision, origin_id, visit_id from new_revs n
+    where not exists (
+    select 1 from old_revs o
+    where o.id = n.id)
+   returning revision;
+end
+$$;
+
+
+
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (
