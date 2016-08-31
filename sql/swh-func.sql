@@ -1085,75 +1085,6 @@ as $$
     where occ.origin = origin_id and occ.target_type = 'revision' and r.target_type = 'revision';
 $$;
 
-
--- Occurrence of some content in a given context
-create type content_occurrence as (
-    origin_type	 text,
-    origin_url	 text,
-    branch	 bytea,
-    target	 sha1_git,
-    target_type	 object_type,
-    path	 unix_path
-);
-
-
--- Given the sha1 of some content, look up an occurrence that points to a
--- revision, which in turns reference (transitively) a tree containing the
--- content. Answer the question: "where/when did SWH see a given content"?
--- Return information about an arbitrary occurrence/revision/tree if one is
--- found, NULL otherwise.
-create or replace function swh_content_find_occurrence(content_id sha1)
-    returns content_occurrence
-    language plpgsql
-as $$
-declare
-    dir content_dir;
-    rev sha1_git;
-    occ occurrence%ROWTYPE;
-    coc content_occurrence;
-begin
-    -- each step could fail if no results are found, and that's OK
-    select * from swh_content_find_directory(content_id)     -- look up directory
-	into dir;
-    if not found then return null; end if;
-
-    select id from revision where directory = dir.directory  -- look up revision
-	limit 1
-	into rev;
-    if not found then return null; end if;
-
-    select * from swh_revision_find_occurrence(rev)	     -- look up occurrence
-	into occ;
-    if not found then return null; end if;
-
-    select origin.type, origin.url, occ.branch, occ.target, occ.target_type, dir.path
-    from origin
-    where origin.id = occ.origin
-    into coc;
-
-    return coc;  -- might be NULL
-end
-$$;
-
--- Given a content identified by sha1_git, look up the last occurrence
--- for that content.
--- Returns nothing if the content is not found.
-create or replace function swh_content_find_last_occurrence(content_id sha1_git)
-    returns setof content_occurrence
-    language sql
-as $$
-    select ori.type as origin_type, ori.url as origin_url,
-           occ.branch, occ.target, occ.target_type, ccr.path
-    from cache_content_revision ccr
-    inner join cache_revision_origin cro using(revision)
-    inner join origin ori on ori.id=cro.origin
-    inner join occurrence occ on (occ.origin=ori.id and
-                                  occ.target_type='revision'
-                                  and occ.target=ccr.revision)
-    where ccr.content=content_id;
-$$;
-COMMENT ON FUNCTION swh_content_find_last_occurrence(sha1_git) IS 'Find the last occurrence of a content';
-
 create type occurrence_visit as (
   origin      bigint,
   visit       bigint,
@@ -1176,7 +1107,7 @@ $$;
 
 COMMENT ON FUNCTION swh_occurrence_history_per_origin(bigint, object_type) IS 'List occurrence_history per origin and target_type';
 
-create type content_provenance_info as (
+create type content_provenance as (
     origin_url  text,
     origin_type text,
     date        timestamptz,
@@ -1186,10 +1117,10 @@ create type content_provenance_info as (
     path        unix_path
 );
 
-COMMENT ON TYPE content_provenance_info IS 'Provenance information on content';
+COMMENT ON TYPE content_provenance IS 'Provenance information on content';
 
-create or replace function swh_content_find_provenance_info(content_id sha1_git)
-    returns setof content_provenance_info
+create or replace function swh_content_find_provenance(content_id sha1_git)
+    returns setof content_provenance
     language sql
 as $$
     with content_partial_provenance_info as (
@@ -1198,14 +1129,15 @@ as $$
         inner join cache_revision_origin cro using(revision)
         where ccr.content=content_id
     )
-    select ori.type as origin_type, ori.url as origin_url, ov.date, occ.branch, occ.target, occ.target_type, info.path
+    select ori.url as origin_url, ori.type as origin_type,
+           ov.date, occ.branch, occ.target, occ.target_type, info.path
     from content_partial_provenance_info as info
     inner join origin ori on ori.id = info.origin
     inner join origin_visit ov on ori.id = ov.origin and ov.visit = info.visit
     inner join lateral swh_occurrence_history_per_origin(ori.id) as occ on (occ.origin=ov.origin and occ.visit=ov.visit);
 $$;
 
-COMMENT ON TYPE swh_content_find_provenance_info IS 'Find a provenance information for a content';
+COMMENT ON FUNCTION swh_content_find_provenance(sha1_git) IS 'Find a provenance information for a content';
 
 create type object_found as (
     sha1_git   sha1_git,
