@@ -56,9 +56,9 @@ def content_find():
     return encode_data(g.storage.content_find(**decode_request(request)))
 
 
-@app.route('/content/occurrence', methods=['POST'])
-def content_find_occurrence():
-    res = g.storage.content_find_occurrence(**decode_request(request))
+@app.route('/content/provenance', methods=['POST'])
+def content_find_provenance():
+    res = g.storage.content_find_provenance(**decode_request(request))
     return encode_data(res)
 
 

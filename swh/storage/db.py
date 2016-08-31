@@ -317,25 +317,30 @@ class Db(BaseDb):
         else:
             return content
 
-    def content_find_occurrence(self, sha1, cur=None):
-        """Find one content's occurrence.
+    provenance_cols = [
+        'origin_url', 'origin_type',
+        'date', 'branch', 'target', 'target_type', 'path'
+    ]
+
+    def content_find_provenance(self, sha1_git, cur=None):
+        """Find content's provenance information
 
         Args:
-            sha1: sha1 content
+            sha1: sha1_git content
             cur: cursor to use
 
         Returns:
-            One occurrence for that particular sha1
+            Provenance information on such content
 
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT origin_type, origin_url, branch, target, target_type, path
-                       FROM swh_content_find_occurrence(%s)
-                       LIMIT 1""",
-                    (sha1, ))
+        cur.execute("""SELECT origin_url, origin_type,
+                              date, branch, target, target_type, path
+                       FROM swh_content_find_provenance(%s)""",
+                    (sha1_git, ))
 
-        return line_to_bytes(cur.fetchone())
+        yield from cursor_to_bytes(cur)
 
     def directory_get_from_temp(self, cur=None):
         cur = self._cursor(cur)

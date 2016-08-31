@@ -272,21 +272,17 @@ class Storage():
             return dict(zip(keys, c))
         return None
 
-    @db_transaction
-    def content_find_occurrence(self, content, cur=None):
-        """Find the content's occurrence.
+    @db_transaction_generator
+    def content_find_provenance(self, content, cur=None):
+        """Find content's provenance information.
 
         Args:
             content: a dictionary entry representing one content hash.
             The dictionary key is one of swh.core.hashutil.ALGORITHMS.
             The value mapped to the corresponding checksum.
 
-        Returns:
-            The occurrence of the content.
-
-        Raises:
-            ValueError in case the key of the dictionary is not sha1, sha1_git
-            nor sha256.
+        Yields:
+            The provenance information on content.
 
         """
         db = self.db
@@ -294,16 +290,12 @@ class Storage():
         c = self.content_find(content)
 
         if not c:
-            return None
+            return []
 
-        sha1 = c['sha1']
+        sha1_git = c['sha1_git']
 
-        found_occ = db.content_find_occurrence(sha1, cur=cur)
-        if found_occ:
-            keys = ['origin_type', 'origin_url', 'branch', 'target',
-                    'target_type', 'path']
-            return dict(zip(keys, found_occ))
-        return None
+        for provenance in db.content_find_provenance(sha1_git, cur=cur):
+            yield dict(zip(db.provenance_cols, provenance))
 
     def directory_add(self, directories):
         """Add directories to the storage
