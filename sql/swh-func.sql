@@ -1154,29 +1154,6 @@ as $$
 $$;
 COMMENT ON FUNCTION swh_content_find_last_occurrence(sha1_git) IS 'Find the last occurrence of a content';
 
-create type partial_content_provenance_info as (
-    content  sha1_git,
-    revision sha1_git,
-    origin   bigint,
-    visit    bigint,
-    path     unix_path
-);
-COMMENT ON TYPE partial_content_provenance_info IS 'Partial provenance information on content';
-
--- Given a content identified by sha1_git, look up the occurrences
--- for that content.
--- Returns nothing if the content is not found.
-create or replace function swh_content_find_partial_provenance_info(content_id sha1_git)
-    returns setof partial_content_provenance_info
-    language sql
-as $$
-    select ccr.content, ccr.revision, cro.origin, cro.visit, ccr.path
-    from cache_content_revision ccr
-    inner join cache_revision_origin cro using(revision)
-    where ccr.content=content_id;
-$$;
-COMMENT ON FUNCTION swh_content_find_partial_provenance_info(sha1_git) IS 'Partial provenance information on content';
-
 create type occurrence_visit as (
   origin      bigint,
   visit       bigint,
@@ -1199,7 +1176,7 @@ $$;
 
 COMMENT ON FUNCTION swh_occurrence_history_per_origin(bigint, object_type) IS 'List occurrence_history per origin and target_type';
 
-create type full_content_provenance_info as (
+create type content_provenance_info as (
     origin_url  text,
     origin_type text,
     date        timestamptz,
@@ -1209,20 +1186,26 @@ create type full_content_provenance_info as (
     path        unix_path
 );
 
-COMMENT ON TYPE full_content_provenance_info IS 'Full provenance information on content';
+COMMENT ON TYPE content_provenance_info IS 'Provenance information on content';
 
-create or replace function swh_content_find_full_provenance_info(content_id sha1_git)
-    returns setof full_content_provenance_info
+create or replace function swh_content_find_provenance_info(content_id sha1_git)
+    returns setof content_provenance_info
     language sql
 as $$
+    with content_partial_provenance_info as (
+        select ccr.content, ccr.revision, cro.origin, cro.visit, ccr.path
+        from cache_content_revision ccr
+        inner join cache_revision_origin cro using(revision)
+        where ccr.content=content_id
+    )
     select ori.type as origin_type, ori.url as origin_url, ov.date, occ.branch, occ.target, occ.target_type, info.path
-    from swh_content_find_partial_provenance_info(content_id) as info
+    from content_partial_provenance_info as info
     inner join origin ori on ori.id = info.origin
     inner join origin_visit ov on ori.id = ov.origin and ov.visit = info.visit
     inner join lateral swh_occurrence_history_per_origin(ori.id) as occ on (occ.origin=ov.origin and occ.visit=ov.visit);
 $$;
 
-COMMENT ON TYPE swh_content_find_full_provenance_info IS 'Find a content\'s full provenance information';
+COMMENT ON TYPE swh_content_find_provenance_info IS 'Find a provenance information for a content';
 
 create type object_found as (
     sha1_git   sha1_git,
