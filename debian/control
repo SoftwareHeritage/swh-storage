@@ -34,3 +34,9 @@ Architecture: all
 Depends: python3-swh.storage (= ${binary:Version}), python3-swh.scheduler,
          ${misc:Depends}, ${python3:Depends}
 Description: Software Heritage storage Archiver
+
+Package: python3-swh.storage.provenance
+Architecture: all
+Depends: python3-swh.storage (= ${binary:Version}), python3-swh.scheduler,
+         ${misc:Depends}, ${python3:Depends}
+Description: Software Heritage storage Provenance
