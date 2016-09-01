@@ -64,12 +64,12 @@ class ServerTestFixture():
 
         # Wait max 5 seconds for server to spawn
         i = 0
-        while i < 20:
+        while i < 500:
             try:
                 urlopen(self.url())
             except Exception:
                 i += 1
-                time.sleep(0.25)
+                time.sleep(0.01)
             else:
                 return
 
