@@ -1410,7 +1410,7 @@ class AbstractTestStorage(DbTestFixture):
         return ret
 
     @istest
-    def content_find_occurrence_with_present_content(self):
+    def content_find_provenance_with_present_content(self):
         # 1. with something to find
         # given
         origin_id = self.storage.origin_add_one(self.origin2)
@@ -1440,40 +1440,31 @@ class AbstractTestStorage(DbTestFixture):
 
         # then
         self.assertEquals(len(occs), 1)
-        self.assertEquals(occs[0]['origin_type'], self.origin2['type'])
-        self.assertEquals(occs[0]['origin_url'], self.origin2['url'])
-        self.assertEquals(occs[0]['branch'], self.occurrence2['branch'])
-        self.assertEquals(occs[0]['target'], self.revision3['id'])
-        self.assertEquals(occs[0]['target_type'],
-                          self.occurrence2['target_type'])
+        self.assertEquals(occs[0]['origin'], origin_visit1['origin'])
+        self.assertEquals(occs[0]['visit'], origin_visit1['visit'])
+        self.assertEquals(occs[0]['revision'], self.revision3['id'])
         self.assertEquals(occs[0]['path'], self.dir2['entries'][0]['name'])
 
         occs2 = list(self.storage.content_find_provenance(
             {'sha1_git': self.cont2['sha1_git']}))
 
         self.assertEquals(len(occs2), 1)
-        self.assertEquals(occs2[0]['origin_type'], self.origin2['type'])
-        self.assertEquals(occs2[0]['origin_url'], self.origin2['url'])
-        self.assertEquals(occs2[0]['branch'], self.occurrence2['branch'])
-        self.assertEquals(occs2[0]['target'], self.revision3['id'])
-        self.assertEquals(occs2[0]['target_type'],
-                          self.occurrence2['target_type'])
+        self.assertEquals(occs2[0]['origin'], origin_visit1['origin'])
+        self.assertEquals(occs2[0]['visit'], origin_visit1['visit'])
+        self.assertEquals(occs2[0]['revision'], self.revision3['id'])
         self.assertEquals(occs2[0]['path'], self.dir2['entries'][0]['name'])
 
         occs3 = list(self.storage.content_find_provenance(
             {'sha256': self.cont2['sha256']}))
 
         self.assertEquals(len(occs3), 1)
-        self.assertEquals(occs3[0]['origin_type'], self.origin2['type'])
-        self.assertEquals(occs3[0]['origin_url'], self.origin2['url'])
-        self.assertEquals(occs3[0]['branch'], self.occurrence2['branch'])
-        self.assertEquals(occs3[0]['target'], self.revision3['id'])
-        self.assertEquals(occs3[0]['target_type'],
-                          self.occurrence2['target_type'])
+        self.assertEquals(occs3[0]['origin'], origin_visit1['origin'])
+        self.assertEquals(occs3[0]['visit'], origin_visit1['visit'])
+        self.assertEquals(occs3[0]['revision'], self.revision3['id'])
         self.assertEquals(occs3[0]['path'], self.dir2['entries'][0]['name'])
 
     @istest
-    def content_find_occurrence_with_non_present_content(self):
+    def content_find_provenance_with_non_present_content(self):
         # 1. with something that does not exist
         missing_cont = self.missing_cont
 

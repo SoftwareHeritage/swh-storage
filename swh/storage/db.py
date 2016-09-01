@@ -317,10 +317,7 @@ class Db(BaseDb):
         else:
             return content
 
-    provenance_cols = [
-        'origin_url', 'origin_type',
-        'date', 'branch', 'target', 'target_type', 'path'
-    ]
+    provenance_cols = ['content', 'revision', 'origin', 'visit', 'path']
 
     def content_find_provenance(self, sha1_git, cur=None):
         """Find content's provenance information
@@ -335,8 +332,7 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT origin_url, origin_type,
-                              date, branch, target, target_type, path
+        cur.execute("""SELECT content, revision, origin, visit, path
                        FROM swh_content_find_provenance(%s)""",
                     (sha1_git, ))
 
