@@ -1395,15 +1395,17 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(len(actual_occurrence), 1)
         self.assertEquals(actual_occurrence[0], expected_occurrence)
 
-    def _trigger_cache_provenance(self, revision_id, origin_visit):
+    def _trigger_cache_provenance(self, origin_visit):
         """Trigger cache population for cache_content_revision.
 
         """
-        self.storage.cache_content_revision_add(revision_id)
         ret = list(self.storage.cache_revision_origin_add(
                 origin_visit['origin'],
                 origin_visit['visit'],
         ))
+
+        for revision_id in ret:
+            self.storage.cache_content_revision_add(revision_id)
 
         return ret
 
@@ -1428,7 +1430,9 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.occurrence_add([occurrence])
 
         # Trigger cache population for cache_content_revision
-        self._trigger_cache_provenance(occurrence['target'], origin_visit1)
+        cached_revisions = self._trigger_cache_provenance(origin_visit1)
+
+        self.assertIn(self.revision3['id'], cached_revisions)
 
         # when
         occs = list(self.storage.content_find_provenance(
