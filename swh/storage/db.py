@@ -472,9 +472,12 @@ class Db(BaseDb):
                     (revision_id,))
 
     def cache_revision_origin_add(self, origin, visit, cur=None):
+        """Populate the content provenance information cache for the given (origin,
+           visit) couple."""
         cur = self._cursor(cur)
-        cur.execute('SELECT swh_cache_revision_origin_add(%s, %s)',
+        cur.execute('SELECT * FROM swh_cache_revision_origin_add(%s, %s)',
                     (origin, visit))
+        yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)

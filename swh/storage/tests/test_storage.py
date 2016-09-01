@@ -1400,8 +1400,12 @@ class AbstractTestStorage(DbTestFixture):
 
         """
         self.storage.cache_content_revision_add(revision_id)
-        self.storage.cache_revision_origin_add(origin_visit['origin'],
-                                               origin_visit['visit'])
+        ret = list(self.storage.cache_revision_origin_add(
+                origin_visit['origin'],
+                origin_visit['visit'],
+        ))
+
+        return ret
 
     @istest
     def content_find_occurrence_with_present_content(self):

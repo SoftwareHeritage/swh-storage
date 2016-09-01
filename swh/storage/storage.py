@@ -438,9 +438,19 @@ class Storage():
         """
         self.db.cache_content_revision_add(revision)
 
-    @db_transaction
+    @db_transaction_generator
     def cache_revision_origin_add(self, origin, visit, cur=None):
-        self.db.cache_revision_origin_add(origin, visit)
+        """Cache the list of revisions the given visit added to the origin.
+
+        Args:
+            - origin: the id of the origin
+            - visit: the id of the visit
+
+        Returns:
+            The list of new revisions
+
+        """
+        yield from self.db.cache_revision_origin_add(origin, visit)
 
     @db_transaction
     def directory_entry_get_by_path(self, directory, paths, cur=None):
