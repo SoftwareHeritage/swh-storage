@@ -450,7 +450,8 @@ class Storage():
             The list of new revisions
 
         """
-        yield from self.db.cache_revision_origin_add(origin, visit)
+        for (revision,) in self.db.cache_revision_origin_add(origin, visit):
+            yield revision
 
     @db_transaction
     def directory_entry_get_by_path(self, directory, paths, cur=None):
