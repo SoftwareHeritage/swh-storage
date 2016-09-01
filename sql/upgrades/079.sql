@@ -3,11 +3,11 @@
 -- to_version: 79
 -- description: Add the means to list the revision's directory
 
-drop type content_occurrence;
-drop type swh_content_find_occurrence;
-
 insert into dbversion(version, release, description)
       values(79, now(), 'Work In Progress');
+
+drop function swh_content_find_occurrence(sha1);
+drop type content_occurrence;
 
 create type occurrence_visit as (
   origin      bigint,
