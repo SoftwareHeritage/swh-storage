@@ -19,7 +19,7 @@ Requirements
   retention policy specifies the minimum number of copies that are required
   to be "safe".
 
-  Althoug the servers are totally equals the coordination of which content
+  Although the servers are totally equals the coordination of which content
   should be copied and from where to where is centralized.
 
 * **Append-only archival**
@@ -57,13 +57,13 @@ Requirements
 
 * **Persistent archival status**
 
-  The archiver maintains a mapping between objects and the locations where they
-  are stored. Locations are the set {master, slave_1, ..., slave_n}.
+  The archiver maintains a mapping between objects and their storage
+  locations.  Locations are the set {master, slave_1, ..., slave_n}.
 
   Each pair <object,destination> is also associated to the following
   information:
 
-  * **status**: 3-state: *missing* (copy not present at destination), *ongoing*
+  * **status**: 4-state: *missing* (copy not present at destination), *ongoing*
     (copy to destination ongoing), *present* (copy present at destination),
     *corrupted* (content detected as corrupted during an archival).
   * **mtime**: timestamp of last status change. This is either the destination
@@ -119,10 +119,11 @@ At each execution a worker:
 1. for each object in the batch
    1. check that the object still need to be archived
       (#present copies < retention policy)
-   2. if an object has status=ongoing but the elapsed time from task submission
-      is less than the *archival max age*, it count as present, as we assume
-      that it will be copied in the futur. If the delay is elapsed, otherwise,
-      is count as a missing copy.
+   2. if an object has status=ongoing but the elapsed time from task
+      submission is less than the *archival max age*, it counts as
+      present (as we assume that it will be copied in the near
+      future). If the delay is elapsed (still with status ongoing), it
+      counts as a missing copy.
 2. for each object to archive:
    1. retrieve current archive status for all destinations
    2. create a map noting where the object is present and where it can be copied
@@ -132,24 +133,25 @@ At each execution a worker:
    1. Join the contents by key (source, destination) to have a map
       {(source, destination) -> [contents]}
 4. for each (source, destination) -> contents
-   1. for each content in content, check its integrity on the source storage
-      * if the object if corrupted or missing
+   1. for each content in contents, check its integrity on the source storage
+      * if the object is corrupted or missing
         * update its status in the database
         * remove it from the current contents list
-5. start the copy of the batces by launching for each transfer tuple a copier
-      * if an error occured on one of the content that should have been valid,
+5. start the copy of the batches by launching for each transfer tuple a copier
+      * if an error occurred on one of the content that should have been valid,
         consider the whole batch as a failure.
 6. set status=present and mtime=now for each successfully copied object
 
 Note that:
 
-* In case multiple jobs where tasked to archive the same of overlapping
-  objects, step (1) might decide that some/all objects of this batch no
-  longer need to be archived.
+* In case multiple jobs where tasked to archive the same overlapping
+  objects, step (1) might decide that some/all objects of this batch
+  no longer needs to be archived.
 
-* Due to parallelism, it is possible that the same objects will be copied
-  over at the same time by multiple workers. Also, the same object could end
-  having more copies than the minimal number required.
+* Due to parallelism, it is possible that the same objects will be
+  copied over at the same time by multiple workers. Also, the same
+  object could end up having more copies than the minimal number
+  required.
 
 
 ### Archiver copier
@@ -157,7 +159,7 @@ Note that:
 The copier is run on demand by archiver workers, to transfer file batches from
 a given source to a given destination.
 
-The copier transfers files one by one. The copying process is atomic at the file
+The copier transfers files one by one. The copying process is atomic with a file
 granularity (i.e., individual files might be visible on the destination before
 *all* files have been transferred) and ensures that *concurrent transfer of the
 same files by multiple copier instances do not result in corrupted files*. Note
@@ -198,8 +200,9 @@ Postgres SQL definitions for the archival status:
     );
 
 
-Where the content_archive.copies field is of type jsonb and contains datas
-about the storages that contains (or not) the content represented by the sha1
+Where the content_archive.copies field is of type jsonb.
+It contains content's presence (or absence) in storages.
+A content being represented by its signature (sha1)
 
     {
         "$schema": "http://json-schema.org/schema#",
