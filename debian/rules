@@ -15,6 +15,9 @@ override_dh_install:
 		mkdir -p $(CURDIR)/debian/python3-swh.storage.archiver/usr/lib/python$$pyvers/dist-packages/swh/storage/archiver ; \
 		mv $(CURDIR)/debian/python3-swh.storage/usr/lib/python$$pyvers/dist-packages/swh/storage/archiver/* \
 		$(CURDIR)/debian/python3-swh.storage.archiver/usr/lib/python$$pyvers/dist-packages/swh/storage/archiver/ ; \
+		mkdir -p $(CURDIR)/debian/python3-swh.storage.provenance/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance ; \
+		mv $(CURDIR)/debian/python3-swh.storage/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance/* \
+		$(CURDIR)/debian/python3-swh.storage.provenance/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance/ ; \
 	done
 
 override_dh_auto_test:

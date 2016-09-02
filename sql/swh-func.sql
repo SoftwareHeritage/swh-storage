@@ -466,7 +466,7 @@ as $$
     order by name;
 $$;
 
--- List recursively the content of a directory
+-- List recursively the revision directory arborescence
 create or replace function swh_directory_walk(walked_dir_id sha1_git)
     returns setof directory_entry
     language sql
@@ -485,6 +485,18 @@ as $$
     select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
     from entries
 $$;
+
+create or replace function swh_revision_walk(revision_id sha1_git)
+  returns setof directory_entry
+  language sql
+  stable
+as $$
+  select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
+  from swh_directory_walk((select directory from revision where id=revision_id))
+$$;
+
+COMMENT ON FUNCTION swh_revision_walk(sha1_git) IS 'Recursively list the revision targeted directory arborescence';
+
 
 -- Find a directory entry by its path
 create or replace function swh_find_directory_entry_by_path(
@@ -1074,54 +1086,28 @@ as $$
 $$;
 
 
--- Occurrence of some content in a given context
-create type content_occurrence as (
-    origin_type	 text,
-    origin_url	 text,
-    branch	 bytea,
-    target	 sha1_git,
-    target_type	 object_type,
-    path	 unix_path
+create type content_provenance as (
+  content  sha1_git,
+  revision sha1_git,
+  origin   bigint,
+  visit    bigint,
+  path     unix_path
 );
 
+COMMENT ON TYPE content_provenance IS 'Provenance information on content';
 
--- Given the sha1 of some content, look up an occurrence that points to a
--- revision, which in turns reference (transitively) a tree containing the
--- content. Answer the question: "where/when did SWH see a given content"?
--- Return information about an arbitrary occurrence/revision/tree if one is
--- found, NULL otherwise.
-create or replace function swh_content_find_occurrence(content_id sha1)
-    returns content_occurrence
-    language plpgsql
+create or replace function swh_content_find_provenance(content_id sha1_git)
+    returns setof content_provenance
+    language sql
 as $$
-declare
-    dir content_dir;
-    rev sha1_git;
-    occ occurrence%ROWTYPE;
-    coc content_occurrence;
-begin
-    -- each step could fail if no results are found, and that's OK
-    select * from swh_content_find_directory(content_id)     -- look up directory
-	into dir;
-    if not found then return null; end if;
-
-    select id from revision where directory = dir.directory  -- look up revision
-	limit 1
-	into rev;
-    if not found then return null; end if;
-
-    select * from swh_revision_find_occurrence(rev)	     -- look up occurrence
-	into occ;
-    if not found then return null; end if;
-
-    select origin.type, origin.url, occ.branch, occ.target, occ.target_type, dir.path
-    from origin
-    where origin.id = occ.origin
-    into coc;
-
-    return coc;  -- might be NULL
-end
+    select ccr.content, ccr.revision, cro.origin, cro.visit, ccr.path
+    from cache_content_revision ccr
+    inner join cache_revision_origin cro using(revision)
+    where ccr.content=content_id
 $$;
+
+COMMENT ON FUNCTION swh_content_find_provenance(sha1_git) IS 'Given a content, provide provenance information on it';
+
 
 create type object_found as (
     sha1_git   sha1_git,
@@ -1315,6 +1301,114 @@ as $$
     left join person p on p.id = r.author
     order by r.object_id;
 $$;
+
+
+create or replace function swh_cache_content_revision_add(revision_id sha1_git)
+    returns void
+    language plpgsql
+as $$
+declare
+  rev sha1_git;
+begin
+    select revision from cache_content_revision where revision=revision_id limit 1
+    into rev;
+
+    if rev is NULL then
+
+      with contents_to_cache as (
+          select sha1_git, name
+          from swh_directory_walk((select directory from revision where id=revision_id))
+          where type='file'
+      )
+      insert into cache_content_revision (content, revision, path)
+      select sha1_git, revision_id, name
+      from contents_to_cache;
+      return;
+
+    else
+      return;
+    end if;
+end
+$$;
+
+COMMENT ON FUNCTION swh_cache_content_revision_add(sha1_git) IS 'Cache the specified revision directory contents into cache_content_revision';
+
+
+create or replace function swh_occurrence_by_origin_visit(origin_id bigint, visit_id bigint)
+    returns setof occurrence
+    language sql
+    stable
+as $$
+  select origin, branch, target, target_type from occurrence_history
+  where origin = origin_id and visit_id = ANY(visits);
+$$;
+
+create or replace function swh_revision_from_target(target sha1_git, target_type object_type)
+    returns sha1_git
+    language plpgsql
+as $$
+#variable_conflict use_variable
+begin
+   while target_type = 'release' loop
+       select r.target, r.target_type from release r where r.id = target into target, target_type;
+   end loop;
+   if target_type = 'revision' then
+       return target;
+   else
+       return null;
+   end if;
+end
+$$;
+
+create or replace function swh_cache_revision_origin_add(origin_id bigint, visit_id bigint)
+    returns setof sha1_git
+    language plpgsql
+as $$
+declare
+    visit_exists bool;
+begin
+  select true from origin_visit where origin = origin_id and visit = visit_id into visit_exists;
+
+  if not visit_exists then
+      return;
+  end if;
+
+  visit_exists := null;
+
+  select true from cache_revision_origin where origin = origin_id and visit = visit_id limit 1 into visit_exists;
+
+  if visit_exists then
+      return;
+  end if;
+
+  return query with new_pointed_revs as (
+    select swh_revision_from_target(target, target_type) as id
+    from swh_occurrence_by_origin_visit(origin_id, visit_id)
+  ),
+  old_pointed_revs as (
+    select swh_revision_from_target(target, target_type) as id
+    from swh_occurrence_by_origin_visit(origin_id,
+      (select visit from origin_visit where origin = origin_id and visit < visit_id order by visit desc limit 1))
+  ),
+  new_revs as (
+    select distinct id
+    from swh_revision_list(array(select id::bytea from new_pointed_revs where id is not null))
+  ),
+  old_revs as (
+    select distinct id
+    from swh_revision_list(array(select id::bytea from old_pointed_revs where id is not null))
+  )
+  insert into cache_revision_origin (revision, origin, visit)
+  select n.id as revision, origin_id, visit_id from new_revs n
+    where not exists (
+    select 1 from old_revs o
+    where o.id = n.id)
+   returning revision;
+end
+$$;
+
+
+
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

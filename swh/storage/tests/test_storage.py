@@ -758,6 +758,81 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual([], list(end_missing))
 
     @istest
+    def cache_content_revision_add(self):
+        # Create a real arborescence tree (contents + directory) and a
+        # revision targeting that directory.
+        # Assert the cache is empty for that revision
+        # Then create that revision
+        # Trigger the cache population for that revision
+        # Assert the cache now contains information for that revision
+        # Trigger again the cache population for that revision
+        # Assert the cache is not modified
+
+        # given ()
+        self.storage.content_add([self.cont, self.cont2])
+        directory = {
+            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
+            'entries': [
+                {
+                    'name': b'bar',
+                    'type': 'file',
+                    'target': self.cont2['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'bar\xc3',
+                    'type': 'dir',
+                    'target': b'12345678901234567890',
+                    'perms': 0o2000,
+                },
+            ],
+        }
+        self.storage.directory_add([directory])
+        revision = self.revision.copy()
+        revision['directory'] = directory['id']
+        self.storage.revision_add([revision])
+
+        # assert nothing in cache yet
+        test_query = '''select content, revision, path
+                        from cache_content_revision
+                        where revision=%s
+                        order by path'''
+        self.cursor.execute(test_query, (revision['id'],))
+        ret = self.cursor.fetchall()
+        self.assertEqual(len(ret), 0)
+
+        # when, triggered the first time, we cache the revision
+        self.storage.cache_content_revision_add(revision['id'])
+        # the second time, we do nothing as this is already done
+        self.storage.cache_content_revision_add(revision['id'])
+
+        # then
+        self.cursor.execute(test_query, (revision['id'],))
+        ret = self.cursor.fetchall()
+        # only 2 contents exists for that revision (the second call to
+        # revision_cache discards as the revision is already cached)
+        self.assertEqual(len(ret), 2)
+
+        expected_cache_entries = [
+            (directory['entries'][0]['target'],
+             revision['id'],
+             directory['entries'][0]['name']),
+            (directory['entries'][1]['target'],
+             revision['id'],
+             directory['entries'][1]['name'])
+        ]
+        for i, expected_entry in enumerate(expected_cache_entries):
+            ret_entry = (ret[i][0].tobytes(), ret[i][1].tobytes(),
+                         ret[i][2].tobytes())
+            self.assertEquals(ret_entry, expected_entry)
+
+    @istest
     def revision_log(self):
         # given
         # self.revision4 -is-child-of-> self.revision3
@@ -1320,16 +1395,31 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(len(actual_occurrence), 1)
         self.assertEquals(actual_occurrence[0], expected_occurrence)
 
+    def _trigger_cache_provenance(self, origin_visit):
+        """Trigger cache population for cache_content_revision.
+
+        """
+        ret = list(self.storage.cache_revision_origin_add(
+                origin_visit['origin'],
+                origin_visit['visit'],
+        ))
+
+        for revision_id in ret:
+            self.storage.cache_content_revision_add(revision_id)
+
+        return ret
+
     @istest
-    def content_find_occurrence_with_present_content(self):
+    def content_find_provenance_with_present_content(self):
         # 1. with something to find
         # given
+        origin_id = self.storage.origin_add_one(self.origin2)
         self.storage.content_add([self.cont2])
         self.storage.directory_add([self.dir2])  # point to self.cont
-        self.storage.revision_add([self.revision2])  # points to self.dir
-        origin_id = self.storage.origin_add_one(self.origin2)
+        self.storage.revision_add([self.revision3])  # points to self.dir
 
-        occurrence = self.occurrence2.copy()
+        occurrence = self.occurrence3.copy()
+        occurrence['target'] = self.revision3['id']
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit2)
         occurrence.update({
@@ -1339,74 +1429,76 @@ class AbstractTestStorage(DbTestFixture):
 
         self.storage.occurrence_add([occurrence])
 
+        # Trigger cache population for cache_content_revision
+        cached_revisions = self._trigger_cache_provenance(origin_visit1)
+
+        self.assertIn(self.revision3['id'], cached_revisions)
+
         # when
-        occ = self.storage.content_find_occurrence(
-            {'sha1': self.cont2['sha1']})
+        occs = list(self.storage.content_find_provenance(
+            {'sha1': self.cont2['sha1']}))
 
         # then
-        self.assertEquals(occ['origin_type'], self.origin2['type'])
-        self.assertEquals(occ['origin_url'], self.origin2['url'])
-        self.assertEquals(occ['branch'], self.occurrence2['branch'])
-        self.assertEquals(occ['target'], self.revision2['id'])
-        self.assertEquals(occ['target_type'], self.occurrence2['target_type'])
-        self.assertEquals(occ['path'], self.dir2['entries'][0]['name'])
+        self.assertEquals(len(occs), 1)
+        self.assertEquals(occs[0]['origin'], origin_visit1['origin'])
+        self.assertEquals(occs[0]['visit'], origin_visit1['visit'])
+        self.assertEquals(occs[0]['revision'], self.revision3['id'])
+        self.assertEquals(occs[0]['path'], self.dir2['entries'][0]['name'])
 
-        occ2 = self.storage.content_find_occurrence(
-            {'sha1_git': self.cont2['sha1_git']})
+        occs2 = list(self.storage.content_find_provenance(
+            {'sha1_git': self.cont2['sha1_git']}))
 
-        self.assertEquals(occ2['origin_type'], self.origin2['type'])
-        self.assertEquals(occ2['origin_url'], self.origin2['url'])
-        self.assertEquals(occ2['branch'], self.occurrence2['branch'])
-        self.assertEquals(occ2['target'], self.revision2['id'])
-        self.assertEquals(occ2['target_type'], self.occurrence2['target_type'])
-        self.assertEquals(occ2['path'], self.dir2['entries'][0]['name'])
+        self.assertEquals(len(occs2), 1)
+        self.assertEquals(occs2[0]['origin'], origin_visit1['origin'])
+        self.assertEquals(occs2[0]['visit'], origin_visit1['visit'])
+        self.assertEquals(occs2[0]['revision'], self.revision3['id'])
+        self.assertEquals(occs2[0]['path'], self.dir2['entries'][0]['name'])
 
-        occ3 = self.storage.content_find_occurrence(
-            {'sha256': self.cont2['sha256']})
+        occs3 = list(self.storage.content_find_provenance(
+            {'sha256': self.cont2['sha256']}))
 
-        self.assertEquals(occ3['origin_type'], self.origin2['type'])
-        self.assertEquals(occ3['origin_url'], self.origin2['url'])
-        self.assertEquals(occ3['branch'], self.occurrence2['branch'])
-        self.assertEquals(occ3['target'], self.revision2['id'])
-        self.assertEquals(occ3['target_type'], self.occurrence2['target_type'])
-        self.assertEquals(occ3['path'], self.dir2['entries'][0]['name'])
+        self.assertEquals(len(occs3), 1)
+        self.assertEquals(occs3[0]['origin'], origin_visit1['origin'])
+        self.assertEquals(occs3[0]['visit'], origin_visit1['visit'])
+        self.assertEquals(occs3[0]['revision'], self.revision3['id'])
+        self.assertEquals(occs3[0]['path'], self.dir2['entries'][0]['name'])
 
     @istest
-    def content_find_occurrence_with_non_present_content(self):
+    def content_find_provenance_with_non_present_content(self):
         # 1. with something that does not exist
         missing_cont = self.missing_cont
 
-        occ = self.storage.content_find_occurrence(
-            {'sha1': missing_cont['sha1']})
+        occ = list(self.storage.content_find_provenance(
+            {'sha1': missing_cont['sha1']}))
 
-        self.assertEquals(occ, None,
+        self.assertEquals(occ, [],
                           "Content does not exist so no occurrence")
 
         # 2. with something that does not exist
-        occ = self.storage.content_find_occurrence(
-            {'sha1_git': missing_cont['sha1_git']})
+        occ = list(self.storage.content_find_provenance(
+            {'sha1_git': missing_cont['sha1_git']}))
 
-        self.assertEquals(occ, None,
+        self.assertEquals(occ, [],
                           "Content does not exist so no occurrence")
 
         # 3. with something that does not exist
-        occ = self.storage.content_find_occurrence(
-            {'sha256': missing_cont['sha256']})
+        occ = list(self.storage.content_find_provenance(
+            {'sha256': missing_cont['sha256']}))
 
-        self.assertEquals(occ, None,
+        self.assertEquals(occ, [],
                           "Content does not exist so no occurrence")
 
     @istest
     def content_find_occurrence_bad_input(self):
         # 1. with bad input
         with self.assertRaises(ValueError) as cm:
-            self.storage.content_find_occurrence({})  # empty is bad
+            list(self.storage.content_find_provenance({}))  # empty is bad
         self.assertIn('content keys', cm.exception.args[0])
 
         # 2. with bad input
         with self.assertRaises(ValueError) as cm:
-            self.storage.content_find_occurrence(
-                {'unknown-sha1': 'something'})  # not the right key
+            list(self.storage.content_find_provenance(
+                {'unknown-sha1': 'something'}))  # not the right key
         self.assertIn('content keys', cm.exception.args[0])
 
     @istest
