@@ -1,3 +1,12 @@
+swh-storage (0.0.53-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.53
+  * Add cache about content provenance
+  * debian: fix python3-swh.storage.archiver runtime dependency
+  * debian: create new package python3-swh.storage.provenance
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 02 Sep 2016 11:14:09 +0200
+
 swh-storage (0.0.52-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.52
