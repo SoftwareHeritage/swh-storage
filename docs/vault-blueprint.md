@@ -5,7 +5,7 @@ Software source code **objects**---e.g., individual source code files,
 tarballs, commits, tagged releases, etc.---are stored in the Software Heritage
 (SWH) Archive in fully deduplicated form. That allows direct access to
 individual artifacts but require some preparation, usually in the form of
-collecting and assemblying multiple artifacts in a single **bundle**, when fast
+collecting and assembling multiple artifacts in a single **bundle**, when fast
 access to a set of related artifacts (e.g., the snapshot of a VCS repository,
 the archive corresponding to a Git commit, or a specific software release as a
 zip archive) is required.
@@ -13,7 +13,7 @@ zip archive) is required.
 The **Software Heritage Vault** is a cache of pre-built source code bundles
 which are assembled opportunistically retrieving objects from the Software
 Heritage Archive, can be accessed efficiently, and might be garbage collected
-after a long period of non use.
+after a long period of non-use.
 
 
 Requirements
@@ -103,7 +103,7 @@ To cook a bundle:
 
   (paginated) list of all bundles of a given kind available in the vault; see
   Pagination. Note that, due to cache expiration, objects might disappear
-  between listing and subsequent actions on them
+  between listing and subsequent actions on them.
 
   Examples:
 

@@ -81,8 +81,8 @@ class RemoteStorage():
     def content_find(self, content):
         return self.post('content/present', {'content': content})
 
-    def content_find_occurrence(self, content):
-        return self.post('content/occurrence', {'content': content})
+    def content_find_provenance(self, content):
+        return self.post('content/provenance', {'content': content})
 
     def directory_add(self, directories):
         return self.post('directory/add', {'directories': directories})
@@ -119,6 +119,13 @@ class RemoteStorage():
     def revision_shortlog(self, revisions, limit=None):
         return self.post('revision/shortlog', {'revisions': revisions,
                                                'limit': limit})
+
+    def cache_content_revision_add(self, revision):
+        return self.post('cache/content_revision', {'revision': revision})
+
+    def cache_revision_origin_add(self, origin, visit):
+        return self.post('cache/revision_origin', {'origin': origin,
+                                                   'visit': visit})
 
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
