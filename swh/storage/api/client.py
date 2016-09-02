@@ -173,6 +173,10 @@ class RemoteStorage():
     def origin_visit_get(self, origin):
         return self.post('origin/visit/get', {'origin': origin})
 
+    def origin_visit_get_by(self, origin, visit):
+        return self.post('origin/visit/getby', {'origin': origin,
+                                                'visit': visit})
+
     def person_get(self, person):
         return self.post('person', {'person': person})
 

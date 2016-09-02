@@ -809,7 +809,7 @@ class Storage():
 
     @db_transaction_generator
     def origin_visit_get(self, origin, cur=None):
-        """Retrieve origin's visit dates.
+        """Retrieve all the origin's visit's information.
 
         Args:
             origin: The occurrence's origin (identifier).
@@ -822,6 +822,22 @@ class Storage():
         for line in db.origin_visit_get(origin, cur):
             data = dict(zip(self.db.origin_visit_get_cols, line))
             yield data
+
+    @db_transaction
+    def origin_visit_get_by(self, origin, visit, cur=None):
+        """Retrieve origin visit's information.
+
+        Args:
+            origin: The occurrence's origin (identifier).
+
+        Yields:
+            The information on visits.
+
+        """
+        ori_visit = self.db.origin_visit_get_by(origin, visit)
+        if not ori_visit:
+            return None
+        return dict(zip(self.db.origin_visit_get_cols, ori_visit))
 
     @db_transaction_generator
     def revision_get_by(self,

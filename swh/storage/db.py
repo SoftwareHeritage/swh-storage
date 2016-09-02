@@ -431,6 +431,28 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
+    def origin_visit_get_by(self, origin_id, visit_id, cur=None):
+        """Retrieve all visits for origin with id origin_id.
+
+        Args:
+            origin_id: the origin concerned
+            visit_id: The visit step for that origin
+
+        Yields:
+            The occurrence's history visits
+
+        """
+        cur = self._cursor(cur)
+
+        query = """\
+            SELECT %s
+            FROM origin_visit
+            WHERE origin=%%s
+            AND visit=%%s LIMIT 1""" % (', '.join(self.origin_visit_get_cols))
+
+        cur.execute(query, (origin_id, visit_id))
+        return cur.fetchone()
+
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
         query = 'SELECT %s FROM swh_revision_get()' % (
