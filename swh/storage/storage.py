@@ -837,7 +837,7 @@ class Storage():
         ori_visit = self.db.origin_visit_get_by(origin, visit)
         if not ori_visit:
             return None
-        return dict(zip(self.db.origin_visit_get_cols, ori_visit))
+        return dict(zip(self.db.origin_visit_get_by_cols, ori_visit))
 
     @db_transaction_generator
     def revision_get_by(self,

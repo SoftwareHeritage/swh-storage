@@ -1314,6 +1314,15 @@ class AbstractTestStorage(DbTestFixture):
             origin_id,
             ts=self.date_visit2)
 
+        occurrence2 = self.occurrence2.copy()
+        occurrence2.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
+        })
+
+        self.storage.occurrence_add([occurrence2])
+
+        # Add some other {origin, visit} entries
         self.storage.origin_visit_add(origin_id, ts=self.date_visit3)
         self.storage.origin_visit_add(origin_id2, ts=self.date_visit3)
 
@@ -1331,7 +1340,10 @@ class AbstractTestStorage(DbTestFixture):
         expected_origin_visit.update({
             'date': self.date_visit2,
             'metadata': visit1_metadata,
-            'status': 'full'
+            'status': 'full',
+            'target': occurrence2['target'],
+            'target_type': occurrence2['target_type'],
+            'branch': occurrence2['branch'],
         })
 
         # when
@@ -1341,11 +1353,13 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEquals(actual_origin_visit1, expected_origin_visit)
 
+    @istest
+    def origin_visit_get_by_no_result(self):
         # No result
-        actual_origin_visit2 = self.storage.origin_visit_get_by(
-            origin_visit1['origin'], 999)
+        actual_origin_visit = self.storage.origin_visit_get_by(
+            10, 999)
 
-        self.assertIsNone(actual_origin_visit2)
+        self.assertIsNone(actual_origin_visit)
 
     @istest
     def occurrence_add(self):

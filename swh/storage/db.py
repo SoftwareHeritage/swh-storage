@@ -57,6 +57,8 @@ def entry_to_bytes(entry):
 
 def line_to_bytes(line):
     """Convert a line coming from the database to bytes"""
+    if not line:
+        return line
     if isinstance(line, dict):
         return {k: entry_to_bytes(v) for k, v in line.items()}
     return line.__class__(entry_to_bytes(entry) for entry in line)
@@ -431,6 +433,10 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
+    origin_visit_get_by_cols = origin_visit_get_cols + [
+        'branch', 'target', 'target_type'
+    ]
+
     def origin_visit_get_by(self, origin_id, visit_id, cur=None):
         """Retrieve all visits for origin with id origin_id.
 
@@ -445,13 +451,14 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query = """\
-            SELECT %s
-            FROM origin_visit
-            WHERE origin=%%s
-            AND visit=%%s LIMIT 1""" % (', '.join(self.origin_visit_get_cols))
+            SELECT ov.origin, %s
+            FROM swh_occurrence_by_origin_visit(%%s, %%s) as occ
+            INNER JOIN origin_visit ov
+              ON (occ.origin = ov.origin and ov.visit = %%s)
+            LIMIT 1""" % (', '.join(self.origin_visit_get_by_cols[1:]))
 
-        cur.execute(query, (origin_id, visit_id))
-        return cur.fetchone()
+        cur.execute(query, (origin_id, visit_id, visit_id))
+        return line_to_bytes(cur.fetchone())
 
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
