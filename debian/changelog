@@ -1,3 +1,10 @@
+swh-storage (0.0.54-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.54
+  * Open origin_visit_get_by entry point
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 05 Sep 2016 12:36:34 +0200
+
 swh-storage (0.0.53-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.53
