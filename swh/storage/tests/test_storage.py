@@ -1306,6 +1306,62 @@ class AbstractTestStorage(DbTestFixture):
                           }])
 
     @istest
+    def origin_visit_get_by(self):
+        origin_id = self.storage.origin_add_one(self.origin2)
+        origin_id2 = self.storage.origin_add_one(self.origin)
+
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            ts=self.date_visit2)
+
+        occurrence2 = self.occurrence2.copy()
+        occurrence2.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
+        })
+
+        self.storage.occurrence_add([occurrence2])
+
+        # Add some other {origin, visit} entries
+        self.storage.origin_visit_add(origin_id, ts=self.date_visit3)
+        self.storage.origin_visit_add(origin_id2, ts=self.date_visit3)
+
+        # when
+        visit1_metadata = {
+            'contents': 42,
+            'directories': 22,
+        }
+
+        self.storage.origin_visit_update(
+            origin_id, origin_visit1['visit'], status='full',
+            metadata=visit1_metadata)
+
+        expected_origin_visit = origin_visit1.copy()
+        expected_origin_visit.update({
+            'date': self.date_visit2,
+            'metadata': visit1_metadata,
+            'status': 'full',
+            'target': occurrence2['target'],
+            'target_type': occurrence2['target_type'],
+            'branch': occurrence2['branch'],
+        })
+
+        # when
+        actual_origin_visit1 = self.storage.origin_visit_get_by(
+            origin_visit1['origin'], origin_visit1['visit'])
+
+        # then
+        self.assertEquals(actual_origin_visit1, expected_origin_visit)
+
+    @istest
+    def origin_visit_get_by_no_result(self):
+        # No result
+        actual_origin_visit = self.storage.origin_visit_get_by(
+            10, 999)
+
+        self.assertIsNone(actual_origin_visit)
+
+    @istest
     def occurrence_add(self):
         occur = self.occurrence.copy()
 
