@@ -104,7 +104,7 @@ class ArchiverDirector(config.SWHConfig):
             )
             if not archiver_contents:
                 return
-            for content_id, presents, oingoings in archiver_contents:
+            for content_id, _, _ in archiver_contents:
                 last_object = content_id
                 yield content_id
 
