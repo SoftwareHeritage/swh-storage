@@ -408,11 +408,9 @@ class Db(BaseDb):
                     WHERE origin=%s AND visit=%s"""
         cur.execute(update, (status, jsonize(metadata), origin, visit_id))
 
-    origin_visit_get_cols = [
-        'origin', 'visit', 'date', 'status', 'metadata',
-    ]
+    origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata']
 
-    def origin_visit_get(self, origin_id, cur=None):
+    def origin_visit_get_all(self, origin_id, cur=None):
         """Retrieve all visits for origin with id origin_id.
 
         Args:
@@ -433,32 +431,7 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    origin_visit_get_by_cols = ['origin', 'branch', 'target', 'target_type']
-
-    def origin_visit_get_by(self, origin_id, visit_id, cur=None):
-        """Retrieve all visits for origin with id origin_id.
-
-        Args:
-            origin_id: the origin concerned
-            visit_id: The visit step for that origin
-
-        Yields:
-            The occurrence's history visits
-
-        """
-        cur = self._cursor(cur)
-
-        query = """\
-            SELECT %s
-            FROM swh_occurrence_by_origin_visit(%%s, %%s)
-            """ % (', '.join(self.origin_visit_get_by_cols))
-
-        cur.execute(query, (origin_id, visit_id))
-        yield from cursor_to_bytes(cur)
-
-    origin_visit_info_cols = ['origin', 'visit', 'date', 'status', 'metadata']
-
-    def origin_visit_info(self, origin_id, visit_id, cur=None):
+    def origin_visit_get(self, origin_id, visit_id, cur=None):
         """Retrieve information on visit visit_id of origin origin_id.
 
         Args:
@@ -475,13 +448,36 @@ class Db(BaseDb):
             SELECT %s
             FROM origin_visit
             WHERE origin = %%s AND visit = %%s
-            """ % (', '.join(self.origin_visit_info_cols))
+            """ % (', '.join(self.origin_visit_get_cols))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
         if not r:
             return None
         return line_to_bytes(r[0])
+
+    occurrence_cols = ['origin', 'branch', 'target', 'target_type']
+
+    def occurrence_by_origin_visit(self, origin_id, visit_id, cur=None):
+        """Retrieve all occurrences for a particular origin_visit.
+
+        Args:
+            origin_id: the origin concerned
+            visit_id: The visit step for that origin
+
+        Yields:
+            The occurrence's history visits
+
+        """
+        cur = self._cursor(cur)
+
+        query = """\
+            SELECT %s
+            FROM swh_occurrence_by_origin_visit(%%s, %%s)
+            """ % (', '.join(self.occurrence_cols))
+
+        cur.execute(query, (origin_id, visit_id))
+        yield from cursor_to_bytes(cur)
 
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)

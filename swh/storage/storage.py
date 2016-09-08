@@ -819,7 +819,7 @@ class Storage():
 
         """
         db = self.db
-        for line in db.origin_visit_get(origin, cur):
+        for line in db.origin_visit_get_all(origin, cur):
             data = dict(zip(self.db.origin_visit_get_cols, line))
             yield data
 
@@ -836,17 +836,19 @@ class Storage():
         """
         db = self.db
 
-        ori_visit = db.origin_visit_info(origin, visit, cur)
+        ori_visit = db.origin_visit_get(origin, visit, cur)
         if not ori_visit:
             return None
 
-        ori_visit = dict(zip(self.db.origin_visit_info_cols, ori_visit))
+        ori_visit = dict(zip(self.db.origin_visit_get_cols, ori_visit))
 
         occs = {}
-
-        for _, branch_name, target, target_type in self.db.origin_visit_get_by(
-                origin, visit):
-            occs[branch_name] = {'target': target, 'target_type': target_type}
+        for occ in db.occurrence_by_origin_visit(origin, visit):
+            _, branch_name, target, target_type = occ
+            occs[branch_name] = {
+                'target': target,
+                'target_type': target_type
+            }
 
         ori_visit.update({
             'occurrences': occs
