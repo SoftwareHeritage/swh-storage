@@ -1,3 +1,10 @@
+swh-storage (0.0.55-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.55
+  * Fix origin_visit endpoint
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 08 Sep 2016 15:21:28 +0200
+
 swh-storage (0.0.54-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.54
