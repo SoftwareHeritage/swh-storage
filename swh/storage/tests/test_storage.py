@@ -1338,12 +1338,17 @@ class AbstractTestStorage(DbTestFixture):
 
         expected_origin_visit = origin_visit1.copy()
         expected_origin_visit.update({
+            'origin': origin_id,
+            'visit': origin_visit1['visit'],
             'date': self.date_visit2,
             'metadata': visit1_metadata,
             'status': 'full',
-            'target': occurrence2['target'],
-            'target_type': occurrence2['target_type'],
-            'branch': occurrence2['branch'],
+            'occurrences': {
+                occurrence2['branch']: {
+                    'target': occurrence2['target'],
+                    'target_type': occurrence2['target_type'],
+                }
+            }
         })
 
         # when

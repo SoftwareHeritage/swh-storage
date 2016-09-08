@@ -830,14 +830,29 @@ class Storage():
         Args:
             origin: The occurrence's origin (identifier).
 
-        Yields:
-            The information on visits.
+        Returns:
+            The information on that particular (origin, visit)
 
         """
-        ori_visit = self.db.origin_visit_get_by(origin, visit)
+        db = self.db
+
+        ori_visit = db.origin_visit_info(origin, visit, cur)
         if not ori_visit:
             return None
-        return dict(zip(self.db.origin_visit_get_by_cols, ori_visit))
+
+        ori_visit = dict(zip(self.db.origin_visit_info_cols, ori_visit))
+
+        occs = {}
+
+        for _, branch_name, target, target_type in self.db.origin_visit_get_by(
+                origin, visit):
+            occs[branch_name] = {'target': target, 'target_type': target_type}
+
+        ori_visit.update({
+            'occurrences': occs
+        })
+
+        return ori_visit
 
     @db_transaction_generator
     def revision_get_by(self,

@@ -433,9 +433,7 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    origin_visit_get_by_cols = origin_visit_get_cols + [
-        'branch', 'target', 'target_type'
-    ]
+    origin_visit_get_by_cols = ['origin', 'branch', 'target', 'target_type']
 
     def origin_visit_get_by(self, origin_id, visit_id, cur=None):
         """Retrieve all visits for origin with id origin_id.
@@ -451,14 +449,39 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query = """\
-            SELECT ov.origin, %s
-            FROM swh_occurrence_by_origin_visit(%%s, %%s) as occ
-            INNER JOIN origin_visit ov
-              ON (occ.origin = ov.origin and ov.visit = %%s)
-            LIMIT 1""" % (', '.join(self.origin_visit_get_by_cols[1:]))
+            SELECT %s
+            FROM swh_occurrence_by_origin_visit(%%s, %%s)
+            """ % (', '.join(self.origin_visit_get_by_cols))
 
-        cur.execute(query, (origin_id, visit_id, visit_id))
-        return line_to_bytes(cur.fetchone())
+        cur.execute(query, (origin_id, visit_id))
+        yield from cursor_to_bytes(cur)
+
+    origin_visit_info_cols = ['origin', 'visit', 'date', 'status', 'metadata']
+
+    def origin_visit_info(self, origin_id, visit_id, cur=None):
+        """Retrieve information on visit visit_id of origin origin_id.
+
+        Args:
+            origin_id: the origin concerned
+            visit_id: The visit step for that origin
+
+        Returns:
+            The origin_visit information
+
+        """
+        cur = self._cursor(cur)
+
+        query = """\
+            SELECT %s
+            FROM origin_visit
+            WHERE origin = %%s AND visit = %%s
+            """ % (', '.join(self.origin_visit_info_cols))
+
+        cur.execute(query, (origin_id, visit_id))
+        r = cur.fetchall()
+        if not r:
+            return None
+        return line_to_bytes(r[0])
 
     def revision_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
