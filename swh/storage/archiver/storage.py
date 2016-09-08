@@ -84,7 +84,7 @@ class ArchiverStorage():
         Args:
             last_content: sha1 of the last content retrieved. May be None
                               to start at the beginning.
-            retention_policy: number of presentcopies required.
+            retention_policy: number of required present copies
             limit: number of contents to retrieve. Can be None to retrieve all
                    objects (will be slow).
 

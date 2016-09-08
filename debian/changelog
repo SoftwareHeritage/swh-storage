@@ -1,8 +1,9 @@
-swh-storage (0.0.54-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.55-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.55
+  * Fix origin_visit endpoint
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 05 Sep 2016 12:36:34 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 08 Sep 2016 15:21:28 +0200
 
 swh-storage (0.0.54-1~swh1) unstable-swh; urgency=medium
 
