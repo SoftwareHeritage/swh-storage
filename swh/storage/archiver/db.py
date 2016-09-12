@@ -62,7 +62,6 @@ class ArchiverDb(BaseDb):
                    WHERE content_id = %s
                    ORDER BY content_id
         """
-
         cur = self._cursor(cur)
         cur.execute(query, (content_id,))
         content_id, present, ongoing, mtimes = cur.fetchone()

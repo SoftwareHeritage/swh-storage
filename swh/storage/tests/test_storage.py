@@ -833,6 +833,93 @@ class AbstractTestStorage(DbTestFixture):
             self.assertEquals(ret_entry, expected_entry)
 
     @istest
+    def cache_content_get(self):
+        # given ()
+        self.storage.content_add([self.cont, self.cont2])
+        directory = {
+            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
+            'entries': [
+                {
+                    'name': b'bar',
+                    'type': 'file',
+                    'target': self.cont2['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'bar\xc3',
+                    'type': 'dir',
+                    'target': b'12345678901234567890',
+                    'perms': 0o2000,
+                },
+            ],
+        }
+        self.storage.directory_add([directory])
+        revision = self.revision.copy()
+        revision['directory'] = directory['id']
+        self.storage.revision_add([revision])
+
+        # assert nothing in cache yet
+        test_query = '''select content
+                        from cache_content_revision
+                        where revision=%s
+                        order by content'''
+
+        self.storage.cache_content_revision_add(revision['id'])
+        self.cursor.execute(test_query, (revision['id'],))
+        ret = self.cursor.fetchall()
+        # only 2 contents exists for that revision (the second call to
+        # revision_cache discards as the revision is already cached)
+        self.assertEqual(len(ret), 2)
+
+        expected_contents = [t[0].tobytes() for t in ret]
+
+        print(expected_contents)
+
+        # 1. default filters gives everything
+        actual_cache_contents = self.storage.cache_content_get()
+
+        def convert_contents(contents):
+            return list(map(lambda c: c['sha1_git'], contents))
+
+        self.assertEquals(convert_contents(actual_cache_contents),
+                          expected_contents)
+
+        # 2. Using limit of 2 gives back the same result since there
+        # are 2 results
+        actual_cache_contents = self.storage.cache_content_get(limit=2)
+
+        self.assertEquals(convert_contents(actual_cache_contents),
+                          expected_contents)
+
+        # 3. Using limit of 1 returns only the first 1
+        actual_cache_contents = self.storage.cache_content_get(limit=1)
+
+        self.assertEquals(convert_contents(actual_cache_contents),
+                          expected_contents[:1])
+
+        # 4. Using last content exclude the last content and returns
+        # the second part
+        actual_cache_contents = self.storage.cache_content_get(
+            last_content=expected_contents[0])
+
+        self.assertEquals(convert_contents(actual_cache_contents),
+                          expected_contents[1:])
+
+        # 3. Using last content gives no more result since there are
+        # no other contents
+        actual_cache_contents = self.storage.cache_content_get(
+            last_content=expected_contents[1])
+
+        self.assertEquals(convert_contents(actual_cache_contents),
+                          [])
+
+    @istest
     def revision_log(self):
         # given
         # self.revision4 -is-child-of-> self.revision3
