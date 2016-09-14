@@ -135,16 +135,16 @@ class ArchiverWithRetentionPolicyDirector(ArchiverDirectorBase):
             is a dict mapping copy to mtime.
 
          """
-        last_object = b''
+        last_content = None
         while True:
             archiver_contents = list(
                 self.archiver_storage.content_archive_get_unarchived_copies(
-                    last_content=last_object,
+                    last_content=last_content,
                     retention_policy=self.config['retention_policy']))
             if not archiver_contents:
                 return
             for content_id, _, _ in archiver_contents:
-                last_object = content_id
+                last_content = content_id
                 yield content_id
 
 
@@ -161,6 +161,9 @@ class ArchiverToBackendDirector(ArchiverDirectorBase):
         'storage': ('dict', {
             'dbconn': 'dbname=softwareheritage-dev user=guest',
             'objroot': '/srv/softwareheritage/storage',
+        }),
+        'destination': ('dict', {
+            'host': 'azure',
         })
     }
 
@@ -172,6 +175,13 @@ class ArchiverToBackendDirector(ArchiverDirectorBase):
         super().__init__()
         storage = self.config['storage']
         self.storage = Storage(storage['dbconn'], storage['objroot'])
+        self.destination_host = self.config['destination']['host']
+
+    def read_cache_content_from_storage(self, last_content=None):
+        for content in self.storage.cache_content_get(
+                last_content=last_content,
+                limit=self.config['batch_max_size']):
+            yield {'content_id': content['sha1']}
 
     def get_contents_to_archive(self):
         """Create batch of contents that needs to be archived
@@ -180,18 +190,29 @@ class ArchiverToBackendDirector(ArchiverDirectorBase):
             sha1 of content to archive
 
          """
-        last_object = b''
+        last_content = None
         while True:
-            contents = list(self.storage.cache_content_get(
-                last_content=last_object,
-                limit=self.config['batch_max_size']))
+            content_ids = list(
+                self.read_cache_content_from_storage(last_content))
 
-            if not contents:
+            if not content_ids:
                 return
 
-            last_object = contents[-1]['sha1_git']
-            for content in contents:
-                yield content['sha1']
+            # Keep the last known content
+            last_content = content_ids[-1]['content_id']
+
+            content_ids = list(
+                self.archiver_storage.content_archive_get_missing(
+                    content_ids=content_ids,
+                    backend_name=self.destination_host))
+
+            if not content_ids:
+                return
+
+            print('Sending %s new contents for archive' % len(content_ids))
+
+            for content in content_ids:
+                yield content
 
 
 @click.command()

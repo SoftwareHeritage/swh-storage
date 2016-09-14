@@ -865,10 +865,11 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.revision_add([revision])
 
         # assert nothing in cache yet
-        test_query = '''select content
-                        from cache_content_revision
+        test_query = '''select sha1, sha1_git, sha256
+                        from cache_content_revision ccr
+                        inner join content c on c.sha1_git=ccr.content
                         where revision=%s
-                        order by content'''
+                        order by c.sha1'''
 
         self.storage.cache_content_revision_add(revision['id'])
         self.cursor.execute(test_query, (revision['id'],))
@@ -877,47 +878,38 @@ class AbstractTestStorage(DbTestFixture):
         # revision_cache discards as the revision is already cached)
         self.assertEqual(len(ret), 2)
 
-        expected_contents = [t[0].tobytes() for t in ret]
-
-        print(expected_contents)
+        expected_contents = dict(
+            zip(self.storage.db.cache_content_get_cols, ret))
 
         # 1. default filters gives everything
         actual_cache_contents = self.storage.cache_content_get()
 
-        def convert_contents(contents):
-            return list(map(lambda c: c['sha1_git'], contents))
-
-        self.assertEquals(convert_contents(actual_cache_contents),
-                          expected_contents)
+        self.assertEquals(actual_cache_contents, expected_contents)
 
         # 2. Using limit of 2 gives back the same result since there
         # are 2 results
         actual_cache_contents = self.storage.cache_content_get(limit=2)
 
-        self.assertEquals(convert_contents(actual_cache_contents),
-                          expected_contents)
+        self.assertEquals(actual_cache_contents, expected_contents)
 
         # 3. Using limit of 1 returns only the first 1
         actual_cache_contents = self.storage.cache_content_get(limit=1)
 
-        self.assertEquals(convert_contents(actual_cache_contents),
-                          expected_contents[:1])
+        self.assertEquals(actual_cache_contents, expected_contents[:1])
 
         # 4. Using last content exclude the last content and returns
         # the second part
         actual_cache_contents = self.storage.cache_content_get(
             last_content=expected_contents[0])
 
-        self.assertEquals(convert_contents(actual_cache_contents),
-                          expected_contents[1:])
+        self.assertEquals(actual_cache_contents, expected_contents[1:])
 
         # 3. Using last content gives no more result since there are
         # no other contents
         actual_cache_contents = self.storage.cache_content_get(
             last_content=expected_contents[1])
 
-        self.assertEquals(convert_contents(actual_cache_contents),
-                          [])
+        self.assertEquals(actual_cache_contents, [])
 
     @istest
     def revision_log(self):

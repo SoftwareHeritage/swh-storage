@@ -15,9 +15,7 @@ as $$
     FROM cache_content_revision ccr
     INNER JOIN content as c
     ON ccr.content = c.sha1_git
-    WHERE ccr.content > last_content
-    ORDER BY c.sha1_git
+    WHERE c.sha1 > last_content
+    ORDER BY c.sha1
     LIMIT batch_limit
 $$;
-
-COMMENT ON FUNCTION swh_cache_content_get_by_batch(bytea, bigint) IS 'Retrieve batch of distinct sha1_git with size batch_limit from last_content';

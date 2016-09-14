@@ -324,7 +324,7 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
 
 
 class ArchiverToBackendWorker(BaseArchiveWorker):
-    """Worker that send copies over to backend without retention policy.
+    """Worker that send copies over from a source to another backend.
 
     Process the content of a content batch from source objstorage to
     destination objstorage.

@@ -1353,8 +1353,8 @@ as $$
     FROM cache_content_revision ccr
     INNER JOIN content as c
     ON ccr.content = c.sha1_git
-    WHERE ccr.content > last_content
-    ORDER BY c.sha1_git
+    WHERE c.sha1 > last_content
+    ORDER BY c.sha1
     LIMIT batch_limit
 $$;
 

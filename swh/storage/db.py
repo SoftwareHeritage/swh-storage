@@ -130,37 +130,17 @@ class BaseDb:
                     self.conn.rollback()
                 raise
 
-
-class Db(BaseDb):
-    """Proxy to the SWH DB, with wrappers around stored procedures
-
-    """
-    def mktemp(self, tblname, cur=None):
-        self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
-
-    def mktemp_dir_entry(self, entry_type, cur=None):
-        self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
-                                  (('directory_entry_%s' % entry_type),))
-
-    @stored_procedure('swh_mktemp_revision')
-    def mktemp_revision(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_release')
-    def mktemp_release(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_occurrence_history')
-    def mktemp_occurrence_history(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_entity_lister')
-    def mktemp_entity_lister(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_entity_history')
-    def mktemp_entity_history(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_bytea')
-    def mktemp_bytea(self, cur=None): pass
-
     def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
+        """Copy items' entries to table tblname with columns information.
+
+        Args:
+            items (dict): dictionary of data to copy over tblname
+            tblname (str): Destination table's name
+            columns ([str]): keys to access data in items and also the
+              column names in the destination table.
+            item_cb (fn): optional function to apply to items's entry
+
+        """
         def escape(data):
             if data is None:
                 return ''
@@ -200,6 +180,36 @@ class Db(BaseDb):
             f.seek(0)
             self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
                 tblname, ', '.join(columns)), f)
+
+
+class Db(BaseDb):
+    """Proxy to the SWH DB, with wrappers around stored procedures
+
+    """
+    def mktemp(self, tblname, cur=None):
+        self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
+
+    def mktemp_dir_entry(self, entry_type, cur=None):
+        self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
+                                  (('directory_entry_%s' % entry_type),))
+
+    @stored_procedure('swh_mktemp_revision')
+    def mktemp_revision(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_release')
+    def mktemp_release(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_occurrence_history')
+    def mktemp_occurrence_history(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_entity_lister')
+    def mktemp_entity_lister(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_entity_history')
+    def mktemp_entity_history(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_bytea')
+    def mktemp_bytea(self, cur=None): pass
 
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
@@ -518,7 +528,7 @@ class Db(BaseDb):
     cache_content_get_cols = ['sha1', 'sha1_git', 'sha256']
 
     def cache_content_get(self, last_content, limit, cur=None):
-        """Retrieve batch of 'limit' contents from last_content.
+        """Retrieve batch of 'limit' contents from last seen sha1.
         """
         cur = self._cursor(cur)
         if not last_content:

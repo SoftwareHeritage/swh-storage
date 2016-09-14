@@ -96,6 +96,27 @@ class ArchiverStorage():
         yield from self.db.content_archive_get_unarchived_copies(
             retention_policy, last_content, limit, cur)
 
+    @db_transaction_generator
+    def content_archive_get_missing(self, content_ids, backend_name, cur=None):
+        """Retrieve the list of missing copies from source_name.
+
+        Args:
+            content_ids ([sha1s]): list of sha1s to test
+            source_name (str): Name of the backend to check for content
+
+        Yields:
+            List of ids effectively missing from backend_name
+
+        """
+        db = self.db
+
+        db.mktemp_content_archive()
+
+        db.copy_to(content_ids, 'tmp_content_archive', ['content_id'], cur)
+
+        for content_id in db.content_archive_get_missing(backend_name, cur):
+            yield content_id[0]
+
     @db_transaction
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):
