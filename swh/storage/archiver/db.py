@@ -21,9 +21,7 @@ class ArchiverDb(BaseDb):
             a tuple (server_id, server_url) for each archive server.
         """
         cur = self._cursor(cur)
-        cur.execute("""SELECT id, url
-                    FROM archive
-                    """)
+        cur.execute("SELECT * FROM archive")
         yield from cursor_to_bytes(cur)
 
     def content_archive_get(self, content_id, cur=None):

@@ -83,23 +83,9 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Create the base archiver
         self.archiver = self._create_director()
 
-        # Initializes and fill the tables.
-        self.initialize_tables()
-
     def tearDown(self):
         self.empty_tables()
         super().tearDown()
-
-    def initialize_tables(self):
-        """ Initializes the database with a sample of items.
-        """
-        # Add an  archive (update  existing one for  technical reason,
-        # altering enum cannot run in a transaction...)
-        self.cursor.execute("""UPDATE archive
-                               SET url='{}'
-                               WHERE id='banco'
-                            """.format(self.url()))
-        self.conn.commit()
 
     def empty_tables(self):
         # Remove all content

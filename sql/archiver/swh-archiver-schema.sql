@@ -11,21 +11,14 @@ create table dbversion
 comment on table dbversion is 'Schema update tracking';
 
 INSERT INTO dbversion(version, release, description)
-VALUES(3, now(), 'Work In Progress');
-
-CREATE TYPE archive_id AS ENUM (
-  'uffizi',
-  'banco'
-);
+VALUES(4, now(), 'Work In Progress');
 
 CREATE TABLE archive (
-  id   archive_id PRIMARY KEY,
-  url  TEXT
+  id text PRIMARY KEY
 );
 
 comment on table archive is 'Possible archives';
 comment on column archive.id is 'Short identifier for the archive';
-comment on column archive.url is 'Url identifying the archiver api';
 
 CREATE TYPE archive_status AS ENUM (
   'missing',
@@ -64,4 +57,3 @@ CREATE TRIGGER update_num_present
     BEFORE INSERT OR UPDATE OF copies ON content_archive
     FOR EACH ROW
     EXECUTE PROCEDURE update_num_present();
-
