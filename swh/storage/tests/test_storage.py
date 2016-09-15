@@ -19,6 +19,7 @@ from nose.plugins.attrib import attr
 from swh.core.tests.db_testing import DbTestFixture
 from swh.core.hashutil import hex_to_hash
 from swh.storage import Storage
+from swh.storage.db import cursor_to_bytes
 
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -873,41 +874,46 @@ class AbstractTestStorage(DbTestFixture):
 
         self.storage.cache_content_revision_add(revision['id'])
         self.cursor.execute(test_query, (revision['id'],))
-        ret = self.cursor.fetchall()
+        ret = list(cursor_to_bytes(self.cursor))
+
         # only 2 contents exists for that revision (the second call to
         # revision_cache discards as the revision is already cached)
         self.assertEqual(len(ret), 2)
 
-        expected_contents = dict(
-            zip(self.storage.db.cache_content_get_cols, ret))
+        expected_contents = []
+        for entry in ret:
+            expected_contents.append(dict(
+                zip(['sha1', 'sha1_git', 'sha256'], entry)))
+
+        print(expected_contents)
 
         # 1. default filters gives everything
-        actual_cache_contents = self.storage.cache_content_get()
+        actual_cache_contents = list(self.storage.cache_content_get())
 
         self.assertEquals(actual_cache_contents, expected_contents)
 
         # 2. Using limit of 2 gives back the same result since there
         # are 2 results
-        actual_cache_contents = self.storage.cache_content_get(limit=2)
+        actual_cache_contents = list(self.storage.cache_content_get(limit=2))
 
         self.assertEquals(actual_cache_contents, expected_contents)
 
         # 3. Using limit of 1 returns only the first 1
-        actual_cache_contents = self.storage.cache_content_get(limit=1)
+        actual_cache_contents = list(self.storage.cache_content_get(limit=1))
 
         self.assertEquals(actual_cache_contents, expected_contents[:1])
 
         # 4. Using last content exclude the last content and returns
         # the second part
-        actual_cache_contents = self.storage.cache_content_get(
-            last_content=expected_contents[0])
+        actual_cache_contents = list(self.storage.cache_content_get(
+            last_content=expected_contents[0]['sha1']))
 
         self.assertEquals(actual_cache_contents, expected_contents[1:])
 
         # 3. Using last content gives no more result since there are
         # no other contents
-        actual_cache_contents = self.storage.cache_content_get(
-            last_content=expected_contents[1])
+        actual_cache_contents = list(self.storage.cache_content_get(
+            last_content=expected_contents[1]['sha1']))
 
         self.assertEquals(actual_cache_contents, [])
 
