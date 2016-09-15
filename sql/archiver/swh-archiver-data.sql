@@ -1,2 +1,2 @@
-INSERT INTO archive(id, url)
-VALUES('banco', 'http://banco.softwareheritage.org:5003/');
+INSERT INTO archive(id) VALUES('banco');
+INSERT INTO archive(id) VALUES('azure');
