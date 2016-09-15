@@ -39,6 +39,16 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
     """
     DEFAULT_CONFIG = {
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev'),
+        'storages': ('list[dict]',
+                     [
+                         {'host': 'uffizi',
+                          'cls': 'pathslicing',
+                          'args': {'root': '/tmp/softwareheritage/objects',
+                                   'slicing': '0:2/2:4/4:6'}},
+                         {'host': 'banco',
+                          'cls': 'remote',
+                          'args': {'base_url': 'http://banco:5003/'}}
+                     ])
     }
 
     ADDITIONAL_CONFIG = {}
@@ -53,6 +63,10 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             additional_configs=[self.ADDITIONAL_CONFIG])
         self.batch = batch
         self.archiver_db = ArchiverStorage(self.config['dbconn'])
+        self.objstorages = {
+            storage['host']: get_objstorage(storage['cls'], storage['args'])
+            for storage in self.config.get('storages', [])
+        }
 
     def run(self):
         """Do the task expected from the archiver worker.
@@ -239,18 +253,8 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
     ADDITIONAL_CONFIG = {
         'retention_policy': ('int', 2),
         'archival_max_age': ('int', 3600),
-
-        'storages': ('list[dict]',
-                     [
-                         {'host': 'uffizi',
-                          'cls': 'pathslicing',
-                          'args': {'root': '/tmp/softwareheritage/objects',
-                                   'slicing': '0:2/2:4/4:6'}},
-                         {'host': 'banco',
-                          'cls': 'remote',
-                          'args': {'base_url': 'http://banco:5003/'}}
-                     ])
     }
+
     CONFIG_BASE_FILENAME = 'archiver/worker'
 
     def __init__(self, batch):
@@ -263,11 +267,6 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         config = self.config
         self.retention_policy = config['retention_policy']
         self.archival_max_age = config['archival_max_age']
-
-        self.objstorages = {
-            storage['host']: get_objstorage(storage['cls'], storage['args'])
-            for storage in config.get('storages', [])
-        }
 
         if len(self.objstorages) < self.retention_policy:
             raise ValueError('Retention policy is too high for the number of '
@@ -331,26 +330,6 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
     """
 
-    ADDITIONAL_CONFIG = {
-        'source': ('dict', {
-            'host': 'uffizi',
-            'cls': 'pathslicing',
-            'args': {
-                'root': '/srv/softwareheritage/objects',
-                'slicing': '0:2/2:4/4:6'
-            }
-        }),
-        'destination': ('dict', {
-            'host': 'azure',
-            'cls': 'objstorage_azure',
-            'args': {
-                'account_name': 'accout-name',
-                'api_secret_key': 'secret-key',
-                'container_name': 'container-name',
-            }
-        })
-    }
-
     CONFIG_BASE_FILENAME = 'archiver/worker-to-backend'
 
     def __init__(self, batch):
@@ -361,16 +340,7 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
         """
         super().__init__(batch)
-
-        source = self.config['source']
-        self.source_host = source['host']
-        self.objstorages[self.source_host] = get_objstorage(
-            source['cls'], source['args'])
-
-        destination = self.config['destination']
-        self.destination_host = destination['host']
-        self.objstorages[self.destination_host] = get_objstorage(
-            destination['cls'], destination['args'])
+        self.destination_host = self.config['destination_host']
 
     def need_archival(self, content_data):
         """Indicate if the content needs to be archived.
@@ -389,8 +359,8 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         return False
 
     def choose_backup_servers(self, present, missing):
-        """Only 1 couple source/destination as backup so we send back always
-        from the same source to the destination.
-
-        """
-        return [(self.source_host, self.destination_host)]
+        missing = list(missing)
+        present = list(present)
+        destinations = random.sample(missing, len(missing))
+        sources = [random.choice(present) for dest in destinations]
+        yield from zip(sources, destinations)
