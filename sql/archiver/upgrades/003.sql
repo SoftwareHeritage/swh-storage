@@ -3,6 +3,8 @@
 -- to_version: 3
 -- description: Add a 'num_present' cache column into the archive_content status
 
+INSERT INTO dbversion(version, release, description)
+VALUES(3, now(), 'Work In Progress');
 
 alter table content_archive add column num_present int default null;
 comment on column content_archive.num_present is 'Number of copies marked as present (cache updated via trigger)';
@@ -21,4 +23,3 @@ CREATE TRIGGER update_num_present
     BEFORE INSERT OR UPDATE OF copies ON content_archive
     FOR EACH ROW
     EXECUTE PROCEDURE update_num_present();
-
