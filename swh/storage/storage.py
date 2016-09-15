@@ -439,7 +439,7 @@ class Storage():
         self.db.cache_content_revision_add(revision)
 
     @db_transaction_generator
-    def cache_content_get(self, last_content=None, limit=1000, cur=None):
+    def cache_content_get(self, cur=None):
         """Read the distinct contents in the cache table.
 
         Args:
@@ -452,7 +452,7 @@ class Storage():
             content from last_content up to limit.
 
         """
-        for content in self.db.cache_content_get(last_content, limit, cur):
+        for content in self.db.cache_content_get(cur):
             yield dict(zip(self.db.cache_content_get_cols, content))
 
     @db_transaction_generator
