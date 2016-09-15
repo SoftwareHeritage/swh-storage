@@ -6,7 +6,7 @@
 import abc
 import click
 
-from swh.core import config
+from swh.core import config, utils
 from swh.scheduler.celery_backend.config import app
 
 from . import tasks  # noqa
@@ -177,11 +177,10 @@ class ArchiverToBackendDirector(ArchiverDirectorBase):
         self.storage = Storage(storage['dbconn'], storage['objroot'])
         self.destination_host = self.config['destination']['host']
 
-    def read_cache_content_from_storage(self, last_content=None):
-        for content in self.storage.cache_content_get(
-                last_content=last_content,
-                limit=self.config['batch_max_size']):
-            yield {'content_id': content['sha1']}
+    def read_cache_content_from_storage_by_batch(self, batch_max_size):
+        for contents in utils.grouper(self.storage.cache_content_get(),
+                                      batch_max_size):
+            yield contents
 
     def get_contents_to_archive(self):
         """Create batch of contents that needs to be archived
@@ -190,24 +189,21 @@ class ArchiverToBackendDirector(ArchiverDirectorBase):
             sha1 of content to archive
 
          """
-        last_content = None
-        while True:
-            content_ids = list(
-                self.read_cache_content_from_storage(last_content))
+        for contents in self.read_cache_content_from_storage_by_batch(
+                self.config['batch_max_size']):
+            content_ids = [{'content_id': c['sha1']} for c in contents]
 
             if not content_ids:
-                return
+                continue
 
-            # Keep the last known content
-            last_content = content_ids[-1]['content_id']
-
+            # Filter the known
             content_ids = list(
                 self.archiver_storage.content_archive_get_missing(
                     content_ids=content_ids,
                     backend_name=self.destination_host))
 
             if not content_ids:
-                return
+                continue
 
             print('Sending %s new contents for archive' % len(content_ids))
 

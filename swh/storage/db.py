@@ -527,18 +527,12 @@ class Db(BaseDb):
 
     cache_content_get_cols = ['sha1', 'sha1_git', 'sha256']
 
-    def cache_content_get(self, last_content, limit, cur=None):
-        """Retrieve batch of 'limit' contents from last seen sha1.
+    def cache_content_get(self, cur=None):
+        """Retrieve cache contents
+
         """
         cur = self._cursor(cur)
-        if not last_content:
-            last_content = b''
-
-        query = '''SELECT %s
-                   FROM swh_cache_content_get_by_batch(%%s, %%s)
-                ''' % ', '.join(self.cache_content_get_cols)
-
-        cur.execute(query, (last_content, limit))
+        cur.execute('SELECT * FROM swh_cache_content_get()')
         yield from cursor_to_bytes(cur)
 
     def cache_revision_origin_add(self, origin, visit, cur=None):
