@@ -53,7 +53,7 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
 
     ADDITIONAL_CONFIG = {}
 
-    CONFIG_BASE_FILENAME = 'archiver/director'
+    CONFIG_BASE_FILENAME = 'archiver/worker'
 
     objstorages = {}
 
@@ -254,8 +254,6 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         'retention_policy': ('int', 2),
         'archival_max_age': ('int', 3600),
     }
-
-    CONFIG_BASE_FILENAME = 'archiver/worker'
 
     def __init__(self, batch):
         """ Constructor of the ArchiverWorker class.
