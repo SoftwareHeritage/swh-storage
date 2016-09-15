@@ -16,7 +16,8 @@ from swh.core import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
 from server_testing import ServerTestFixture
 
-from swh.storage.archiver import ArchiverDirector, ArchiverWorker
+from swh.storage.archiver import ArchiverWithRetentionPolicyDirector
+from swh.storage.archiver import ArchiverWithRetentionPolicyWorker
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.api.server import app
@@ -82,23 +83,9 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Create the base archiver
         self.archiver = self._create_director()
 
-        # Initializes and fill the tables.
-        self.initialize_tables()
-
     def tearDown(self):
         self.empty_tables()
         super().tearDown()
-
-    def initialize_tables(self):
-        """ Initializes the database with a sample of items.
-        """
-        # Add an  archive (update  existing one for  technical reason,
-        # altering enum cannot run in a transaction...)
-        self.cursor.execute("""UPDATE archive
-                               SET url='{}'
-                               WHERE id='banco'
-                            """.format(self.url()))
-        self.conn.commit()
 
     def empty_tables(self):
         # Remove all content
@@ -110,7 +97,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         to allow the tests to use the *-test db instead of the default one as
         there is no configuration file for now.
         """
-        ArchiverDirector.parse_config_file = lambda obj: {
+        ArchiverWithRetentionPolicyDirector.parse_config_file = lambda obj, additional_configs: {  # noqa
             'dbconn': self.conn,
             'batch_max_size': 5000,
             'archival_max_age': 3600,
@@ -123,7 +110,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         to allow the tests to use the *-test db instead of the default one as
         there is no configuration file for now.
         """
-        ArchiverWorker.parse_config_file = lambda obj: {
+        ArchiverWithRetentionPolicyWorker.parse_config_file = lambda obj, additional_configs: {  # noqa
             'retention_policy': 2,
             'archival_max_age': 3600,
             'dbconn': self.conn,
@@ -131,10 +118,10 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         }
 
     def _create_director(self):
-        return ArchiverDirector()
+        return ArchiverWithRetentionPolicyDirector()
 
     def _create_worker(self, batch={}):
-        return ArchiverWorker(batch)
+        return ArchiverWithRetentionPolicyWorker(batch)
 
     def _add_content(self, storage_name, content_data):
         """ Add really a content to the given objstorage
@@ -243,7 +230,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """
         status_copies = {'present': ['uffizi'], 'missing': ['banco']}
         worker = self._create_worker()
-        self.assertEqual(worker._need_archival(status_copies),
+        self.assertEqual(worker.need_archival(status_copies),
                          True)
 
     @istest
@@ -252,7 +239,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """
         status_copies = {'present': ['uffizi', 'banco']}
         worker = self._create_worker()
-        self.assertEqual(worker._need_archival(status_copies),
+        self.assertEqual(worker.need_archival(status_copies),
                          False)
 
     def _compute_copies_status(self, status):
@@ -262,7 +249,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             'banco', b'compute_copies_' + bytes(status, 'utf8'))
         self._update_status(obj_id, 'banco', status)
         worker = self._create_worker()
-        self.assertIn('banco', worker._compute_copies(obj_id)[status])
+        self.assertIn('banco', worker.compute_copies(
+            set(worker.objstorages), obj_id)[status])
 
     @istest
     def compute_copies_present(self):
@@ -280,7 +268,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """ Return a list of the pair src/dest from the present and missing
         """
         worker = self._create_worker()
-        return list(worker._choose_backup_servers(present, missing))
+        return list(worker.choose_backup_servers(present, missing))
 
     @istest
     def choose_backup_servers(self):

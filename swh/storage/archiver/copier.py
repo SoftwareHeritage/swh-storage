@@ -4,6 +4,12 @@
 # See top-level LICENSE file for more information
 
 
+import logging
+
+
+logger = logging.getLogger('archiver.worker.copier')
+
+
 class ArchiverCopier():
     """ This archiver copy some files into a remote objstorage
     in order to get a backup.
@@ -37,6 +43,7 @@ class ArchiverCopier():
             for content_id in self.content_ids:
                 content = self.source.get(content_id)
                 self.destination.add(content, content_id)
-        except:
+        except Exception as e:
+            logging.error('Problem during copy: %s' % e)
             return False
         return True

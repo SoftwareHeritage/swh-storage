@@ -439,6 +439,23 @@ class Storage():
         self.db.cache_content_revision_add(revision)
 
     @db_transaction_generator
+    def cache_content_get(self, last_content=None, limit=1000, cur=None):
+        """Read the distinct contents in the cache table.
+
+        Args:
+            last_content: sha1 of the last content retrieved. May be
+            None to start at the beginning.
+            limit: number of contents to retrieve. Can be None to retrieve all
+            objects (will be slow).
+
+        Yields:
+            content from last_content up to limit.
+
+        """
+        for content in self.db.cache_content_get(last_content, limit, cur):
+            yield dict(zip(self.db.cache_content_get_cols, content))
+
+    @db_transaction_generator
     def cache_revision_origin_add(self, origin, visit, cur=None):
         """Cache the list of revisions the given visit added to the origin.
 

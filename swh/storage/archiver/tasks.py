@@ -4,14 +4,23 @@
 # See top-level LICENSE file for more information
 
 from swh.scheduler.task import Task
-from .worker import ArchiverWorker
+from .worker import ArchiverWithRetentionPolicyWorker
+from .worker import ArchiverToBackendWorker
 
 
-class SWHArchiverTask(Task):
+class SWHArchiverWithRetentionPolicyTask(Task):
     """ Main task that archive a batch of content.
     """
     task_queue = 'swh_storage_archive_worker'
 
     def run(self, *args, **kwargs):
-        aw = ArchiverWorker(*args, **kwargs)
-        aw.run()
+        ArchiverWithRetentionPolicyWorker(*args, **kwargs).run()
+
+
+class SWHArchiverToBackendTask(Task):
+    """ Main task that archive a batch of content in the cloud.
+    """
+    task_queue = 'swh_storage_archive_worker_to_backend'
+
+    def run(self, *args, **kwargs):
+        ArchiverToBackendWorker(*args, **kwargs).run()
