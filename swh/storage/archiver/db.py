@@ -6,7 +6,7 @@
 
 import time
 
-from swh.storage.db import BaseDb, cursor_to_bytes
+from swh.storage.db import BaseDb, cursor_to_bytes, stored_procedure
 
 
 class ArchiverDb(BaseDb):
@@ -21,9 +21,7 @@ class ArchiverDb(BaseDb):
             a tuple (server_id, server_url) for each archive server.
         """
         cur = self._cursor(cur)
-        cur.execute("""SELECT id, url
-                    FROM archive
-                    """)
+        cur.execute("SELECT * FROM archive")
         yield from cursor_to_bytes(cur)
 
     def content_archive_get(self, content_id, cur=None):
@@ -62,7 +60,6 @@ class ArchiverDb(BaseDb):
                    WHERE content_id = %s
                    ORDER BY content_id
         """
-
         cur = self._cursor(cur)
         cur.execute(query, (content_id,))
         content_id, present, ongoing, mtimes = cur.fetchone()
@@ -170,6 +167,30 @@ class ArchiverDb(BaseDb):
         cur.execute(query, (last_content, retention_policy, limit))
         for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
             yield (content_id, present, dict(zip(ongoing, mtimes)))
+
+    @stored_procedure('swh_mktemp_content_archive')
+    def mktemp_content_archive(self, cur=None):
+        """Trigger the creation of the temporary table tmp_content_archive
+        during the lifetime of the transaction.
+
+        Use from archiver.storage module:
+            self.db.mktemp_content_archive()
+            # copy data over to the temp table
+            self.db.copy_to([{'colname': id0}, {'colname': id1}],
+                            'tmp_cache_content',
+                            ['colname'], cur)
+
+        """
+        pass
+
+    def content_archive_get_missing(self, backend_name, cur=None):
+        """Retrieve the content missing from backend_name.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("select * from swh_content_archive_missing(%s)",
+                    (backend_name,))
+        yield from cursor_to_bytes(cur)
 
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):

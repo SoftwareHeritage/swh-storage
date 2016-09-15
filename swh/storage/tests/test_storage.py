@@ -19,6 +19,7 @@ from nose.plugins.attrib import attr
 from swh.core.tests.db_testing import DbTestFixture
 from swh.core.hashutil import hex_to_hash
 from swh.storage import Storage
+from swh.storage.db import cursor_to_bytes
 
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -831,6 +832,90 @@ class AbstractTestStorage(DbTestFixture):
             ret_entry = (ret[i][0].tobytes(), ret[i][1].tobytes(),
                          ret[i][2].tobytes())
             self.assertEquals(ret_entry, expected_entry)
+
+    @istest
+    def cache_content_get(self):
+        # given ()
+        self.storage.content_add([self.cont, self.cont2])
+        directory = {
+            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
+            'entries': [
+                {
+                    'name': b'bar',
+                    'type': 'file',
+                    'target': self.cont2['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'foo',
+                    'type': 'file',
+                    'target': self.cont['sha1_git'],
+                    'perms': 0o644,
+                },
+                {
+                    'name': b'bar\xc3',
+                    'type': 'dir',
+                    'target': b'12345678901234567890',
+                    'perms': 0o2000,
+                },
+            ],
+        }
+        self.storage.directory_add([directory])
+        revision = self.revision.copy()
+        revision['directory'] = directory['id']
+        self.storage.revision_add([revision])
+
+        # assert nothing in cache yet
+        test_query = '''select sha1, sha1_git, sha256
+                        from cache_content_revision ccr
+                        inner join content c on c.sha1_git=ccr.content
+                        where revision=%s
+                        order by c.sha1'''
+
+        self.storage.cache_content_revision_add(revision['id'])
+        self.cursor.execute(test_query, (revision['id'],))
+        ret = list(cursor_to_bytes(self.cursor))
+
+        # only 2 contents exists for that revision (the second call to
+        # revision_cache discards as the revision is already cached)
+        self.assertEqual(len(ret), 2)
+
+        expected_contents = []
+        for entry in ret:
+            expected_contents.append(dict(
+                zip(['sha1', 'sha1_git', 'sha256'], entry)))
+
+        print(expected_contents)
+
+        # 1. default filters gives everything
+        actual_cache_contents = list(self.storage.cache_content_get())
+
+        self.assertEquals(actual_cache_contents, expected_contents)
+
+        # 2. Using limit of 2 gives back the same result since there
+        # are 2 results
+        actual_cache_contents = list(self.storage.cache_content_get(limit=2))
+
+        self.assertEquals(actual_cache_contents, expected_contents)
+
+        # 3. Using limit of 1 returns only the first 1
+        actual_cache_contents = list(self.storage.cache_content_get(limit=1))
+
+        self.assertEquals(actual_cache_contents, expected_contents[:1])
+
+        # 4. Using last content exclude the last content and returns
+        # the second part
+        actual_cache_contents = list(self.storage.cache_content_get(
+            last_content=expected_contents[0]['sha1']))
+
+        self.assertEquals(actual_cache_contents, expected_contents[1:])
+
+        # 3. Using last content gives no more result since there are
+        # no other contents
+        actual_cache_contents = list(self.storage.cache_content_get(
+            last_content=expected_contents[1]['sha1']))
+
+        self.assertEquals(actual_cache_contents, [])
 
     @istest
     def revision_log(self):
