@@ -885,8 +885,6 @@ class AbstractTestStorage(DbTestFixture):
             expected_contents.append(dict(
                 zip(['sha1', 'sha1_git', 'sha256'], entry)))
 
-        print(expected_contents)
-
         # 1. default filters gives everything
         actual_cache_contents = list(self.storage.cache_content_get())
 
