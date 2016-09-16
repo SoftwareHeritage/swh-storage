@@ -1,3 +1,12 @@
+swh-storage (0.0.58-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.58
+  * ArchiverDirectorToBackend reads sha1 from stdin and sends chunks of
+    sha1
+  * for archival.
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 16 Sep 2016 22:17:14 +0200
+
 swh-storage (0.0.57-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.57
