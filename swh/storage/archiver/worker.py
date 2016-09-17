@@ -83,12 +83,16 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             # Get dict {'missing': [servers], 'present': [servers]}
             # for contents ignoring those who don't need archival.
             copies = self.compute_copies(set_objstorages, obj_id)
+            if not copies:
+                logger.warning('Unknown content archiver-wise %s' %
+                               hashutil.hash_to_hex(obj_id))
+                continue
             if not self.need_archival(copies):
                 continue
             present = copies.get('present', [])
             missing = copies.get('missing', [])
             if len(present) == 0:
-                logger.critical('Content have been lost %s' %
+                logger.critical('Lost content %s' %
                                 hashutil.hash_to_hex(obj_id))
                 continue
             # Choose servers to be used as srcs and dests.
@@ -116,7 +120,10 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             status update.
 
         """
-        _, present, ongoing = self.archiver_db.content_archive_get(content_id)
+        result = self.archiver_db.content_archive_get(content_id)
+        if not result:
+            return None
+        _, present, ongoing = result
         set_present = set(present)
         set_ongoing = set(ongoing)
         set_missing = set_objstorages - set_present - set_ongoing
