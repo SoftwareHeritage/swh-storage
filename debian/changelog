@@ -1,3 +1,13 @@
+swh-storage (0.0.59-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.59
+  * Unify configuration property between director/worker
+  * Deal with potential missing contents in the archiver db
+  * Improve get_contents_error implementation
+  * Remove dead code in swh.storage.db about archiver
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Sat, 17 Sep 2016 12:50:14 +0200
+
 swh-storage (0.0.58-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.58
