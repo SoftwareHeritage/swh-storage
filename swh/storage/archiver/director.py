@@ -166,9 +166,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
     """
     ADDITIONAL_CONFIG = {
-        'destination': ('dict', {
-            'host': 'azure',
-        }),
+        'destination_host': ('str', 'azure'),
         'force_copy': ('bool', False),
     }
 
@@ -178,7 +176,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
     def __init__(self):
         super().__init__()
-        self.destination_host = self.config['destination']['host']
+        self.destination_host = self.config['destination_host']
         self.force_copy = self.config['force_copy']
 
     def get_contents_to_archive(self):
