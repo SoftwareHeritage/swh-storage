@@ -164,33 +164,35 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
                 self.content_archive_update(
                     content_id, archive_id=destination, new_status='present')
 
-    def get_contents_error(self, content_ids, storage):
-        """ Indicates what is the error associated to a content when needed
+    def get_contents_error(self, content_ids, source_storage):
+        """Indicates what is the error associated to a content when needed
 
         Check the given content on the given storage. If an error is detected,
         it will be reported through the returned dict.
 
         Args:
             content_ids ([sha1]): list of content ids to check
-            storage (str): the storage where are the content to check.
+            source_storage (str): the source storage holding the
+            contents to check.
 
         Returns:
             a dict that map {content_id -> error_status} for each content_id
             with an error. The `error_status` result may be 'missing' or
             'corrupted'.
+
         """
         content_status = {}
+        storage = self.objstorages[source_storage]
         for content_id in content_ids:
             try:
-                self.objstorages[storage].check(content_id)
-            except Error as e:
+                storage.check(content_id)
+            except Error:
                 content_status[content_id] = 'corrupted'
-                content_id = hashutil.hash_to_hex(content_id)
-                logger.error(e)
-            except ObjNotFoundError as e:
+                logger.error('%s corrupted!' % hashutil.hash_to_hex(
+                    content_id))
+            except ObjNotFoundError:
                 content_status[content_id] = 'missing'
-                content_id = hashutil.hash_to_hex(content_id)
-                logger.error(e)
+                logger.error('%s missing!' % hashutil.hash_to_hex(content_id))
 
         return content_status
 
