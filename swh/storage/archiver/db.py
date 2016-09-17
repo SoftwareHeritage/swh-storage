@@ -62,7 +62,10 @@ class ArchiverDb(BaseDb):
         """
         cur = self._cursor(cur)
         cur.execute(query, (content_id,))
-        content_id, present, ongoing, mtimes = cur.fetchone()
+        row = cur.fetchone()
+        if not row:
+            return None
+        content_id, present, ongoing, mtimes = row
         return (content_id, present, dict(zip(ongoing, mtimes)))
 
     def content_archive_get_copies(self, last_content=None, limit=1000,
