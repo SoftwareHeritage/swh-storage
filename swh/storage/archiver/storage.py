@@ -38,7 +38,7 @@ class ArchiverStorage():
         """
         yield from self.db.archive_ls(cur)
 
-    @db_transaction_generator
+    @db_transaction
     def content_archive_get(self, content_id, cur=None):
         """ Get the archival status of a content.
 
