@@ -46,8 +46,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         # Launch the backup server
         dest_root = tempfile.mkdtemp(prefix='remote')
         self.config = {
-            'storage_base': dest_root,
-            'storage_slicing': '0:2/2:4/4:6'
+            'cls': 'pathslicing',
+            'args': {
+                'root': dest_root,
+                'slicing': '0:2/2:4/4:6',
+            }
         }
         self.app = app
         super().setUp()
@@ -58,19 +61,29 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
         # Create source storage
         src_root = tempfile.mkdtemp()
-        src_config = {'cls': 'pathslicing',
-                      'args': {'root': src_root,
-                               'slicing': '0:2/2:4/4:6'}}
+        src_config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': src_root,
+                'slicing': '0:2/2:4/4:6'
+            }
+        }
         self.src_storage = get_objstorage(**src_config)
 
         # Create destination storage
-        dest_config = {'cls': 'remote',
-                       'args': {'base_url': self.url()}}
+        dest_config = {
+            'cls': 'remote',
+            'args': {
+                'base_url': self.url()
+            }
+        }
         self.dest_storage = get_objstorage(**dest_config)
 
         # Keep mapped the id to the storages
-        self.storages = {'uffizi': self.src_storage,
-                         'banco': self.dest_storage}
+        self.storages = {
+            'uffizi': self.src_storage,
+            'banco': self.dest_storage
+        }
 
         # Override configurations
         src_archiver_conf = {'host': 'uffizi'}
