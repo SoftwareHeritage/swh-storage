@@ -21,7 +21,7 @@ Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
 
 Package: python3-swh.storage
 Architecture: all
-Depends: python3-swh.core (>= 0.0.23~), python3-swh.objstorage (>= 0.0112~), ${misc:Depends}, ${python3:Depends}
+Depends: python3-swh.core (>= 0.0.23~), python3-swh.objstorage (>= 0.0.11~), ${misc:Depends}, ${python3:Depends}
 Description: Software Heritage storage utilities
 
 Package: python3-swh.storage.listener
