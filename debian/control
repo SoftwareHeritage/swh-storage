@@ -13,7 +13,6 @@ Build-Depends: debhelper (>= 9),
                python3-setuptools,
                python3-swh.core (>= 0.0.23~),
                python3-swh.objstorage (>= 0.0.2~),
-               python3-swh.objstorage.cloud (>= 0.0.9~),
                python3-vcversioner,
                python3-swh.scheduler,
                python3-click
@@ -32,7 +31,7 @@ Description: Software Heritage storage listener
 
 Package: python3-swh.storage.archiver
 Architecture: all
-Depends: python3-swh.storage (= ${binary:Version}), python3-swh.scheduler, python3-swh.objstorage.cloud (>= 0.0.9~),
+Depends: python3-swh.storage (= ${binary:Version}), python3-swh.scheduler,
          ${misc:Depends}, ${python3:Depends}
 Description: Software Heritage storage Archiver
 
