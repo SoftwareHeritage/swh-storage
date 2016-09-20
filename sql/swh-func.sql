@@ -1100,10 +1100,18 @@ create or replace function swh_content_find_provenance(content_id sha1_git)
     returns setof content_provenance
     language sql
 as $$
-    select ccr.content, ccr.revision, cro.origin, cro.visit, ccr.path
-    from cache_content_revision ccr
+    with subscripted_paths as (
+        select content, revision_paths, generate_subscripts(revision_paths, 1) as s
+        from cache_content_revision
+        where content = content_id
+    ),
+    cleaned_up_contents as (
+        select content, revision_paths[s][1]::sha1_git as revision, revision_paths[s][2]::unix_path as path
+        from subscripted_paths
+    )
+    select cuc.content, cuc.revision, cro.origin, cro.visit, cuc.path
+    from cleaned_up_contents cuc
     inner join cache_revision_origin cro using(revision)
-    where ccr.content=content_id
 $$;
 
 COMMENT ON FUNCTION swh_content_find_provenance(sha1_git) IS 'Given a content, provide provenance information on it';
@@ -1310,19 +1318,23 @@ as $$
 declare
   rev sha1_git;
 begin
-    select revision from cache_content_revision where revision=revision_id limit 1
-    into rev;
+    select revision
+        from cache_content_revision_processed
+        where revision=revision_id
+        into rev;
 
     if rev is NULL then
 
-      with contents_to_cache as (
-          select sha1_git, name
+      insert into cache_content_revision_processed (revision) VALUES (revision_id);
+
+      insert into cache_content_revision
+          select sha1_git as content, false as blacklisted, array_agg(ARRAY[revision_id::bytea, name::bytea]) as revision_paths
           from swh_directory_walk((select directory from revision where id=revision_id))
           where type='file'
-      )
-      insert into cache_content_revision (content, revision, path)
-      select sha1_git, revision_id, name
-      from contents_to_cache;
+          group by sha1_git
+      on conflict (content) do update
+          set revision_paths = cache_content_revision.revision_paths || EXCLUDED.revision_paths
+          where cache_content_revision.blacklisted = false;
       return;
 
     else
