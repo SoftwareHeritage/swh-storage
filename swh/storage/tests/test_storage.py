@@ -800,13 +800,11 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.revision_add([revision])
 
         # assert nothing in cache yet
-        test_query = '''select content, revision, path
-                        from cache_content_revision
-                        where revision=%s
-                        order by path'''
-        self.cursor.execute(test_query, (revision['id'],))
-        ret = self.cursor.fetchall()
-        self.assertEqual(len(ret), 0)
+        count_query = '''select count(*)
+                         from cache_content_revision'''
+        self.cursor.execute(count_query)
+        ret = self.cursor.fetchone()
+        self.assertEqual(ret, (0, ))
 
         # when, triggered the first time, we cache the revision
         self.storage.cache_content_revision_add(revision['id'])
@@ -814,23 +812,25 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.cache_content_revision_add(revision['id'])
 
         # then
-        self.cursor.execute(test_query, (revision['id'],))
-        ret = self.cursor.fetchall()
+        self.cursor.execute(count_query)
+        ret = self.cursor.fetchone()
         # only 2 contents exists for that revision (the second call to
         # revision_cache discards as the revision is already cached)
-        self.assertEqual(len(ret), 2)
+        self.assertEqual(ret, (2, ))
+
+        self.cursor.execute('select * from cache_content_revision')
+        ret = self.cursor.fetchall()
 
         expected_cache_entries = [
-            (directory['entries'][0]['target'],
-             revision['id'],
-             directory['entries'][0]['name']),
-            (directory['entries'][1]['target'],
-             revision['id'],
-             directory['entries'][1]['name'])
+            (directory['entries'][0]['target'], False,
+             [[revision['id'], directory['entries'][0]['name']]]),
+            (directory['entries'][1]['target'], False,
+             [[revision['id'], directory['entries'][1]['name']]])
         ]
         for i, expected_entry in enumerate(expected_cache_entries):
-            ret_entry = (ret[i][0].tobytes(), ret[i][1].tobytes(),
-                         ret[i][2].tobytes())
+            ret_entry = (ret[i][0].tobytes(), ret[i][1],
+                         [[ret[i][2][0][0].tobytes(),
+                           ret[i][2][0][1].tobytes()]])
             self.assertEquals(ret_entry, expected_entry)
 
     @istest

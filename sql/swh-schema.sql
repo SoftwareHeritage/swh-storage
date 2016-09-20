@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(81, now(), 'Work In Progress');
+      values(82, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -585,14 +585,14 @@ create trigger notify_new_release
 -- the given revision"
 
 create table cache_content_revision (
-    content   sha1_git not null references content(sha1_git),
-    revision  sha1_git not null references revision(id),
-    path      unix_path not null,
-    primary key (content, revision, path)
+    content         sha1_git not null primary key references content(sha1_git),
+    blacklisted     boolean default false,
+    revision_paths  bytea[][]
 );
 
-create index on cache_content_revision(content);
-create index on cache_content_revision(revision);
+create table cache_content_revision_processed (
+    revision  sha1_git not null primary key references revision(id)
+);
 
 -- revision <-> origin_visit mapping cache
 --
