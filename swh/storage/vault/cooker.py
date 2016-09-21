@@ -5,10 +5,11 @@
 
 import abc
 import io
+import itertools
 import os
 import tarfile
 import tempfile
-import itertools
+
 from swh.core import hashutil
 
 
@@ -24,7 +25,15 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
     This class describes a common API for the cookers.
 
+    To define a new cooker, inherit from this class and override:
+    - CACHE_TYPE_KEY: key to use for the bundle to reference in cache
+    - def cook(obj_id): cook the object into a bundle
+    - def notify_bundle_ready(notif_data, bundle_id): notify the
+      bundle is ready.
+
     """
+    CACHE_TYPE_KEY = None
+
     def __init__(self, storage, cache):
         self.storage = storage
         self.cache = cache
@@ -41,22 +50,25 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             obj_id: id of the object to be cooked into a bundle.
 
         """
-        raise NotImplementedError(
-            'Vault cookers must implement a `cook` method')
+        pass
 
-    @abc.abstractmethod
     def update_cache(self, id, bundle_content):
-        raise NotImplementedError('Vault cookers must implement a '
-                                  '`update_cache` method')
+        """Update the cache with id and bundle_content.
+
+        """
+        self.cache.add(self.CACHE_TYPE_KEY, id, bundle_content)
 
     @abc.abstractmethod
     def notify_bundle_ready(self, notif_data, bundle_id):
-        raise NotImplementedError(
-            'Vault cookers must implement a `notify_bundle_ready` method')
+        """Notify the bundle bundle_id is ready.
+
+        """
+        pass
 
 
 class DirectoryVaultCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
+    CACHE_TYPE_KEY = 'directory'
 
     def __init__(self, storage, cache):
         """Initialize a cooker that create directory bundles
@@ -84,13 +96,12 @@ class DirectoryVaultCooker(BaseVaultCooker):
         directory_cooker = DirectoryCooker(self.storage)
         bundle_content = directory_cooker.get_directory_bytes(dir_id)
         # Cache the bundle
-        self._cache_bundle(dir_id, bundle_content)
+        self.update_cache(dir_id, bundle_content)
         # Make a notification that the bundle have been cooked
         # NOT YET IMPLEMENTED see TODO in function.
-        self._notify_bundle_ready(dir_id)
-
-    def update_cache(self, dir_id, bundle_content):
-        self.cache.add('directory', dir_id, bundle_content)
+        self.notify_bundle_ready(
+            notif_data='Bundle %s ready' % hashutil.hash_to_hex(dir_id),
+            bundle_id=dir_id)
 
     def notify_bundle_ready(self, bundle_id):
         # TODO plug this method with the notification method once
@@ -102,7 +113,7 @@ class DirectoryCooker():
     """Creates a cooked directory from its sha1_git in the db.
 
     Warning: This is NOT a directly accessible cooker, but a low-level
-    one that effectuates the manipulations.
+    one that executes the manipulations.
 
     """
     def __init__(self, storage):
@@ -113,7 +124,7 @@ class DirectoryCooker():
         root = bytes(tempfile.mkdtemp(prefix='directory.',
                                       suffix='.cook'), 'utf8')
         # Retrieve data from the database.
-        data = list(self.storage.directory_ls(dir_id, recursive=True))
+        data = self.storage.directory_ls(dir_id, recursive=True)
         # Split into files and directory data.
         data1, data2 = itertools.tee(data, 2)
         dir_data = (entry['name'] for entry in data1 if entry['type'] == 'dir')
@@ -127,8 +138,7 @@ class DirectoryCooker():
         # a compressed directory.
         bundle_content = self._create_bundle_content(
             root,
-            hashutil.hash_to_hex(dir_id)
-        )
+            hashutil.hash_to_hex(dir_id))
         return bundle_content
 
     def _create_tree(self, root, directory_paths):
@@ -143,8 +153,7 @@ class DirectoryCooker():
         bsep = bytes(os.path.sep, 'utf8')
         dir_names = sorted(
             directory_paths,
-            key=lambda x: len(x.split(bsep))
-        )
+            key=lambda x: len(x.split(bsep)))
         for dir_name in dir_names:
             os.makedirs(os.path.join(root, dir_name))
 
@@ -182,7 +191,7 @@ class DirectoryCooker():
         """Create a file that indicates a skipped content
 
         Create the given file but fill it with a specific content to
-        indicates that the content have not been retrieved by the
+        indicate that the content have not been retrieved by the
         software heritage archive due to its size.
 
         """
@@ -192,7 +201,7 @@ class DirectoryCooker():
         """Create a file that indicates an hidden content
 
         Create the given file but fill it with a specific content to
-        indicates that the content could not be retrieved due to
+        indicate that the content could not be retrieved due to
         privacy policy.
 
         """
@@ -206,8 +215,7 @@ class DirectoryCooker():
             hex_dir_id: hex representation of the directory id
 
         Returns:
-            bytes that represents the compressed directory as a
-            bundle.
+            bytes that represent the compressed directory as a bundle.
 
         """
         tar_buffer = io.BytesIO()

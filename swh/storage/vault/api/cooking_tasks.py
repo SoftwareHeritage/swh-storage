@@ -16,17 +16,16 @@ COOKER_TYPES = {
 
 
 class SWHCookingTask(Task):
-    """ Main task that archive a batch of content.
+    """Main task which archives a contents batch.
+
     """
     task_queue = 'swh_storage_vault_cooking'
 
-    def run(self, type, hex_dir_id, storage_args, cache_args):
+    def run(self, type, hex_id, storage_args, cache_args):
         # Initialize elements
         storage = get_storage(**storage_args)
         cache = VaultCache(**cache_args)
         # Initialize cooker
-        vault_cooker_class = COOKER_TYPES[type]
-        cooker = vault_cooker_class(storage, cache)
+        cooker = COOKER_TYPES[type](storage, cache)
         # Perform the cooking
-        dir_id = hashutil.hex_to_hash(hex_dir_id)
-        cooker.cook(dir_id)
+        cooker.cook(obj_id=hashutil.hex_to_hash(hex_id))
