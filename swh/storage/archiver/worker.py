@@ -84,16 +84,16 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             # for contents ignoring those who don't need archival.
             copies = self.compute_copies(set_objstorages, obj_id)
             if not copies:
-                logger.warning('Unknown content archiver-wise %s' %
-                               hashutil.hash_to_hex(obj_id))
+                msg = 'Unknown content %s' % hashutil.hash_to_hex(obj_id)
+                logger.warning(msg)
                 continue
             if not self.need_archival(copies):
                 continue
             present = copies.get('present', [])
             missing = copies.get('missing', [])
             if len(present) == 0:
-                logger.critical('Lost content %s' %
-                                hashutil.hash_to_hex(obj_id))
+                msg = 'Lost content %s' % hashutil.hash_to_hex(obj_id)
+                logger.critical(msg)
                 continue
             # Choose servers to be used as srcs and dests.
             for src_dest in self.choose_backup_servers(present, missing):
