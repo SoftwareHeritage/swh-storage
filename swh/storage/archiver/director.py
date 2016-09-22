@@ -166,7 +166,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
     """
     ADDITIONAL_CONFIG = {
-        'destination_host': ('str', 'azure'),
+        'destination': ('str', 'azure'),
         'force_copy': ('bool', False),
     }
 
@@ -176,7 +176,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
     def __init__(self):
         super().__init__()
-        self.destination_host = self.config['destination_host']
+        self.destination = self.config['destination']
         self.force_copy = self.config['force_copy']
 
     def get_contents_to_archive(self):
@@ -202,7 +202,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
                 content_ids = list(
                     self.archiver_storage.content_archive_get_missing(
                         content_ids=content_ids,
-                        backend_name=self.destination_host))
+                        backend_name=self.destination))
 
                 if not content_ids:
                     continue

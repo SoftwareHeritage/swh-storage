@@ -134,3 +134,15 @@ class ArchiverStorage():
                 given archive.
         """
         self.db.content_archive_update(content_id, archive_id, new_status, cur)
+
+    @db_transaction
+    def content_archive_insert(self, content_id, source, status, cur=None):
+        """Insert a new entry in db about content_id.
+
+        Args:
+            content_id: content concerned
+            source: name of the source
+            status: the status of the content for that source
+
+        """
+        self.db.content_archive_insert(content_id, source, status, cur)

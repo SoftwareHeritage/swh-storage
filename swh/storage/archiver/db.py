@@ -6,6 +6,7 @@
 
 import time
 
+from swh.core import hashutil
 from swh.storage.db import BaseDb, cursor_to_bytes, stored_procedure
 
 
@@ -194,6 +195,24 @@ class ArchiverDb(BaseDb):
         cur.execute("select * from swh_content_archive_missing(%s)",
                     (backend_name,))
         yield from cursor_to_bytes(cur)
+
+    def content_archive_insert(self, content_id, source, status, cur=None):
+        """Insert a new entry in the db for the content_id.
+
+        Args:
+            content_id: content concerned
+            source: name of the source
+            status: the status of the content for that source
+
+        """
+        if isinstance(content_id, bytes):
+            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
+
+        query = """INSERT INTO content_archive(content_id, copies, num_present)
+                   VALUES('%s', '{"%s": {"status": "%s", "mtime": %d}}', 1)
+                    """ % (content_id, source, status, int(time.time()))
+        cur = self._cursor(cur)
+        cur.execute(query)
 
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):
