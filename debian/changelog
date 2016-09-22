@@ -1,8 +1,11 @@
-swh-storage (0.0.60-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.61-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.61
+  * Handle copies of unregistered sha1 in archiver db
+  * Fix copy to only the targeted destination
+  * Update to latest python3-swh.core dependency
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 20 Sep 2016 16:46:49 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 22 Sep 2016 13:44:05 +0200
 
 swh-storage (0.0.60-1~swh1) unstable-swh; urgency=medium
 

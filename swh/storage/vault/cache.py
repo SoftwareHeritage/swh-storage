@@ -11,6 +11,8 @@ from swh.objstorage.objstorage_pathslicing import DIR_MODE
 
 BUNDLE_TYPES = {
     'directory': 'd',
+    'revision': 'r',
+    'snapshot': 's',
 }
 
 
@@ -38,7 +40,10 @@ class VaultCache():
         }
 
     def __contains__(self, obj_id):
-        return obj_id in self.storage
+        for storage in self.storages:
+            if obj_id in storage:
+                return True
+        return False
 
     def add(self, obj_type, obj_id, content):
         storage = self._get_storage(obj_type)

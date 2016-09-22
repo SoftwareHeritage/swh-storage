@@ -6,6 +6,8 @@
 
 import logging
 
+from swh.core import hashutil
+from swh.objstorage.exc import ObjNotFoundError
 
 logger = logging.getLogger('archiver.worker.copier')
 
@@ -41,7 +43,12 @@ class ArchiverCopier():
         """
         try:
             for content_id in self.content_ids:
-                content = self.source.get(content_id)
+                try:
+                    content = self.source.get(content_id)
+                except ObjNotFoundError:
+                    logging.error('content %s not found' %
+                                  hashutil.hash_to_hex(content_id))
+                    continue
                 self.destination.add(content, content_id)
         except Exception as e:
             logging.error('Problem during copy: %s' % e)

@@ -10,15 +10,22 @@ from ..cooker import DirectoryVaultCooker
 from ... import get_storage
 
 
+COOKER_TYPES = {
+    'directory': DirectoryVaultCooker
+}
+
+
 class SWHCookingTask(Task):
-    """ Main task that archive a batch of content.
+    """Main task which archives a contents batch.
+
     """
     task_queue = 'swh_storage_vault_cooking'
 
-    def run(self, hex_dir_id, storage_args, cache_args):
+    def run(self, type, hex_id, storage_args, cache_args):
+        # Initialize elements
         storage = get_storage(**storage_args)
         cache = VaultCache(**cache_args)
-        directory_cooker = DirectoryVaultCooker(storage, cache)
-
-        dir_id = hashutil.hex_to_hash(hex_dir_id)
-        directory_cooker.cook(dir_id)
+        # Initialize cooker
+        cooker = COOKER_TYPES[type](storage, cache)
+        # Perform the cooking
+        cooker.cook(obj_id=hashutil.hex_to_hash(hex_id))
