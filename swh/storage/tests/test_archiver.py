@@ -115,7 +115,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             'batch_max_size': 5000,
             'archival_max_age': 3600,
             'retention_policy': retention_policy,
-            'asynchronous': False
+            'asynchronous': False,
         }
 
     def _override_worker_config(self):
@@ -127,7 +127,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             'retention_policy': 2,
             'archival_max_age': 3600,
             'dbconn': self.conn,
-            'storages': self.archiver_storages
+            'storages': self.archiver_storages,
+            'source': 'uffizi',
         }
 
     def _create_director(self):
@@ -140,6 +141,12 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """ Add really a content to the given objstorage
 
         This put an empty status for the added content.
+
+        Args:
+            storage_name: the concerned storage
+            content_data: the data to insert
+            with_row_insert: to insert a row entry in the db or not
+
         """
         # Add the content to the storage
         obj_id = self.storages[storage_name].add(content_data)
@@ -293,3 +300,24 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             len(self._get_backups(['uffizi'], ['banco', 's3'])),
             1
         )
+
+    # This cannot be tested with ArchiverWithRetentionPolicyDirector
+    # (it reads from archiver db)
+    # @istest
+    # def archive_missing_content__without_row_entry_in_archive_db(self):
+    #     """ Run archiver on a missing content should archive it.
+    #     """
+    #     obj_data = b'archive_missing_content_without_row_entry_in_archive_db'
+    #     obj_id = self._add_content('uffizi', obj_data)
+    #     # One entry in archiver db but no status about its whereabouts
+    #     # Content is actually missing on banco but present on uffizi
+    #     try:
+    #         self.dest_storage.get(obj_id)
+    #     except ObjNotFoundError:
+    #         pass
+    #     else:
+    #         self.fail('Content should not be present before archival')
+    #     self.archiver.run()
+    #     # now the content should be present on remote objstorage
+    #     remote_data = self.dest_storage.get(obj_id)
+    #     self.assertEquals(obj_data, remote_data)
