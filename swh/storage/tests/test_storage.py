@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import copy
 import datetime
 import os
 import psycopg2
@@ -70,6 +71,19 @@ class AbstractTestStorage(DbTestFixture):
             'sha256': hex_to_hash(
                 '859f0b154fdb2d630f45e1ecae4a8629'
                 '15435e663248bb8461d914696fc047cd'),
+            'status': 'visible',
+        }
+
+        self.cont3 = {
+            'data': b'424242\n',
+            'length': 7,
+            'sha1': hex_to_hash(
+                '3e21cc4942a4234c9e5edd8a9cacd1670fe59f13'),
+            'sha1_git': hex_to_hash(
+                'c932c7649c6dfa4b82327d121215116909eb3bea'),
+            'sha256': hex_to_hash(
+                '92fb72daf8c6818288a35137b72155f5'
+                '07e5de8d892712ab96277aaed8cf8a36'),
             'status': 'visible',
         }
 
@@ -758,19 +772,8 @@ class AbstractTestStorage(DbTestFixture):
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
 
-    @istest
-    def cache_content_revision_add(self):
-        # Create a real arborescence tree (contents + directory) and a
-        # revision targeting that directory.
-        # Assert the cache is empty for that revision
-        # Then create that revision
-        # Trigger the cache population for that revision
-        # Assert the cache now contains information for that revision
-        # Trigger again the cache population for that revision
-        # Assert the cache is not modified
-
-        # given ()
-        self.storage.content_add([self.cont, self.cont2])
+    def cache_content_revision_objects(self):
+        self.storage.content_add([self.cont, self.cont2, self.cont3])
         directory = {
             'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
             'entries': [
@@ -794,10 +797,41 @@ class AbstractTestStorage(DbTestFixture):
                 },
             ],
         }
-        self.storage.directory_add([directory])
+        directory2 = copy.deepcopy(directory)
+        directory2['id'] = (directory2['id'][:-1] +
+                            bytes([(directory2['id'][-1] + 1) % 256]))
+        directory2['entries'][1] = {
+            'name': b'foo',
+            'type': 'file',
+            'target': self.cont3['sha1_git'],
+            'perms': 0o644,
+        }
+
+        self.storage.directory_add([directory, directory2])
         revision = self.revision.copy()
         revision['directory'] = directory['id']
-        self.storage.revision_add([revision])
+        revision2 = copy.deepcopy(revision)
+        revision2['parents'] = [revision['id']]
+        revision2['directory'] = directory2['id']
+        revision2['id'] = (revision2['id'][:-1] +
+                           bytes([(revision2['id'][-1] + 1) % 256]))
+        self.storage.revision_add([revision, revision2])
+        return (directory, directory2, revision, revision2)
+
+    @istest
+    def cache_content_revision_add(self):
+        # Create a real arborescence tree (contents + directory) and a
+        # revision targeting that directory.
+        # Assert the cache is empty for that revision
+        # Then create that revision
+        # Trigger the cache population for that revision
+        # Assert the cache now contains information for that revision
+        # Trigger again the cache population for that revision
+        # Assert the cache is not modified
+
+        # given ()
+        (directory, directory2,
+         revision, revision2) = self.cache_content_revision_objects()
 
         # assert nothing in cache yet
         count_query = '''select count(*)
@@ -807,9 +841,9 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret, (0, ))
 
         # when, triggered the first time, we cache the revision
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
         # the second time, we do nothing as this is already done
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
 
         # then
         self.cursor.execute(count_query)
@@ -834,43 +868,48 @@ class AbstractTestStorage(DbTestFixture):
             self.assertEquals(ret_entry, expected_entry)
 
     @istest
+    def cache_content_revision_add_twice(self):
+        # given ()
+        (directory, directory2,
+         revision, revision2) = self.cache_content_revision_objects()
+
+        # assert nothing in cache yet
+        count_query = '''select count(*)
+                         from cache_content_revision'''
+        self.cursor.execute(count_query)
+        ret = self.cursor.fetchone()
+        self.assertEqual(ret, (0, ))
+
+        # when, triggered the first time, we cache the revision
+        self.storage.cache_content_revision_add([revision['id']])
+        # the second time, we do nothing as this is already done
+        self.storage.cache_content_revision_add([revision2['id']])
+
+        # then
+        self.cursor.execute('select * from cache_content_revision')
+        cache_entries = {
+            content.tobytes(): [[rev.tobytes(), path.tobytes()]
+                                for rev, path in rev_paths]
+            for content, blacklisted, rev_paths in self.cursor.fetchall()
+        }
+
+        self.assertEquals(len(cache_entries), 3)
+        self.assertEquals(len(cache_entries[self.cont['sha1_git']]), 1)
+        self.assertEquals(len(cache_entries[self.cont2['sha1_git']]), 2)
+        self.assertEquals(len(cache_entries[self.cont3['sha1_git']]), 1)
+
+    @istest
     def cache_content_get(self):
         # given ()
-        self.storage.content_add([self.cont, self.cont2])
-        directory = {
-            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
-            'entries': [
-                {
-                    'name': b'bar',
-                    'type': 'file',
-                    'target': self.cont2['sha1_git'],
-                    'perms': 0o644,
-                },
-                {
-                    'name': b'foo',
-                    'type': 'file',
-                    'target': self.cont['sha1_git'],
-                    'perms': 0o644,
-                },
-                {
-                    'name': b'bar\xc3',
-                    'type': 'dir',
-                    'target': b'12345678901234567890',
-                    'perms': 0o2000,
-                },
-            ],
-        }
-        self.storage.directory_add([directory])
-        revision = self.revision.copy()
-        revision['directory'] = directory['id']
-        self.storage.revision_add([revision])
+        (directory, directory2,
+         revision, revision2) = self.cache_content_revision_objects()
 
         # assert nothing in cache yet
         test_query = '''select sha1, sha1_git, sha256
                         from cache_content_revision ccr
                         inner join content c on c.sha1_git=ccr.content'''
 
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
         self.cursor.execute(test_query, (revision['id'],))
         ret = list(cursor_to_bytes(self.cursor))
 
@@ -1520,7 +1559,7 @@ class AbstractTestStorage(DbTestFixture):
         ))
 
         for revision_id in ret:
-            self.storage.cache_content_revision_add(revision_id)
+            self.storage.cache_content_revision_add([revision_id])
 
         return ret
 
