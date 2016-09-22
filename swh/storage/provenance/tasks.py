@@ -45,9 +45,9 @@ class PopulateCacheContentRevision(Task):
             config['storage_args'],
         )
 
-        for rev in revisions:
-            revision = hashutil.hex_to_hash(rev)
-            storage.cache_content_revision_add(revision)
+        storage.cache_content_revision_add(
+            hashutil.hash_to_hex(revision) for revision in revisions
+        )
 
 
 class PopulateCacheRevisionOrigin(Task):

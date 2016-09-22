@@ -841,9 +841,9 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret, (0, ))
 
         # when, triggered the first time, we cache the revision
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
         # the second time, we do nothing as this is already done
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
 
         # then
         self.cursor.execute(count_query)
@@ -881,9 +881,9 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(ret, (0, ))
 
         # when, triggered the first time, we cache the revision
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
         # the second time, we do nothing as this is already done
-        self.storage.cache_content_revision_add(revision2['id'])
+        self.storage.cache_content_revision_add([revision2['id']])
 
         # then
         self.cursor.execute('select * from cache_content_revision')
@@ -909,7 +909,7 @@ class AbstractTestStorage(DbTestFixture):
                         from cache_content_revision ccr
                         inner join content c on c.sha1_git=ccr.content'''
 
-        self.storage.cache_content_revision_add(revision['id'])
+        self.storage.cache_content_revision_add([revision['id']])
         self.cursor.execute(test_query, (revision['id'],))
         ret = list(cursor_to_bytes(self.cursor))
 
@@ -1559,7 +1559,7 @@ class AbstractTestStorage(DbTestFixture):
         ))
 
         for revision_id in ret:
-            self.storage.cache_content_revision_add(revision_id)
+            self.storage.cache_content_revision_add([revision_id])
 
         return ret
 

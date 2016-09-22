@@ -425,18 +425,21 @@ class Storage():
             yield dict(zip(db.directory_ls_cols, line))
 
     @db_transaction
-    def cache_content_revision_add(self, revision, cur=None):
+    def cache_content_revision_add(self, revisions, cur=None):
         """Cache the current revision's current targeted arborescence directory.
         If the revision has already been cached, it just does nothing.
 
         Args:
-            - revision: the revision's identifier to cache
+            - revisions: the revisions to cache
 
         Returns:
             None
 
         """
-        self.db.cache_content_revision_add(revision)
+        db = self.db
+
+        db.store_tmp_bytea(revisions, cur)
+        db.cache_content_revision_add()
 
     @db_transaction_generator
     def cache_content_get(self, cur=None):

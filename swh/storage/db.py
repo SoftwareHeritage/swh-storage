@@ -244,6 +244,9 @@ class Db(BaseDb):
     @stored_procedure('swh_entity_history_add')
     def entity_history_add_from_temp(self, cur=None): pass
 
+    @stored_procedure('swh_cache_content_revision_add')
+    def cache_content_revision_add(self, cur=None): pass
+
     def store_tmp_bytea(self, ids, cur=None):
         """Store the given identifiers in a new tmp_bytea table"""
         cur = self._cursor(cur)
@@ -516,13 +519,6 @@ class Db(BaseDb):
 
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
-
-    def cache_content_revision_add(self, revision_id, cur=None):
-        """Populate the revision cache for the revision revision_id if not
-        already cached."""
-        cur = self._cursor(cur)
-        cur.execute('SELECT swh_cache_content_revision_add(%s)',
-                    (revision_id,))
 
     cache_content_get_cols = ['sha1', 'sha1_git', 'sha256']
 

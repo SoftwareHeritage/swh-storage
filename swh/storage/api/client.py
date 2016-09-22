@@ -120,8 +120,8 @@ class RemoteStorage():
         return self.post('revision/shortlog', {'revisions': revisions,
                                                'limit': limit})
 
-    def cache_content_revision_add(self, revision):
-        return self.post('cache/content_revision', {'revision': revision})
+    def cache_content_revision_add(self, revisions):
+        return self.post('cache/content_revision', {'revisions': revisions})
 
     def cache_content_get(self):
         return self.get('cache/content')
