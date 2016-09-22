@@ -1,8 +1,9 @@
-swh-storage (0.0.61-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.62-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.62
+  * Updates to the provenance cache to reduce churn on the main tables
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 22 Sep 2016 13:44:06 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 22 Sep 2016 18:54:52 +0200
 
 swh-storage (0.0.61-1~swh1) unstable-swh; urgency=medium
 
