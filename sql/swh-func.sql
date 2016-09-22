@@ -1327,14 +1327,23 @@ begin
 
       insert into cache_content_revision_processed (revision) VALUES (revision_id);
 
-      insert into cache_content_revision
-          select sha1_git as content, false as blacklisted, array_agg(ARRAY[revision_id::bytea, name::bytea]) as revision_paths
-          from swh_directory_walk((select directory from revision where id=revision_id))
-          where type='file'
-          group by sha1_git
-      on conflict (content) do update
-          set revision_paths = cache_content_revision.revision_paths || EXCLUDED.revision_paths
-          where cache_content_revision.blacklisted = false;
+      with revision_contents as (
+            select sha1_git as content, false as blacklisted, array_agg(ARRAY[revision_id::bytea, name::bytea]) as revision_paths
+            from swh_directory_walk((select directory from revision where id=revision_id))
+            where type='file'
+            group by sha1_git
+      ), updated_cache_entries as (
+            update cache_content_revision ccr
+            set revision_paths = ccr.revision_paths || rc.revision_paths
+            from revision_contents rc
+            where ccr.content = rc.content and ccr.blacklisted = false
+            returning ccr.content
+      ) insert into cache_content_revision
+          select * from revision_contents rc
+          where not exists (select 1 from updated_cache_entries uce where uce.content = rc.content)
+          on conflict (content) do update
+            set revision_paths = cache_content_revision.revision_paths || EXCLUDED.revision_paths
+            where cache_content_revision.blacklisted = false;
       return;
 
     else
