@@ -39,7 +39,7 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
     """
     DEFAULT_CONFIG = {
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev'),
-        'source': 'uffizi',
+        'source': ('str', 'uffizi'),
         'storages': ('list[dict]',
                      [
                          {'host': 'uffizi',
@@ -391,7 +391,7 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
         """
         super().__init__(batch)
-        self.destination_host = self.config['destination_host']
+        self.destination = self.config['destination']
 
     def need_archival(self, content_data):
         """Indicate if the content needs to be archived.
@@ -405,7 +405,7 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
             True if we need to archive, False otherwise
 
         """
-        if self.destination_host in content_data.get('missing', {}):
+        if self.destination in content_data.get('missing', {}):
             return True
         return False
 
