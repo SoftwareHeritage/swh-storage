@@ -1,3 +1,10 @@
+swh-storage (0.0.62-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.62
+  * Updates to the provenance cache to reduce churn on the main tables
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 22 Sep 2016 18:54:52 +0200
+
 swh-storage (0.0.61-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.61
