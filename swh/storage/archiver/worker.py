@@ -39,6 +39,7 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
     """
     DEFAULT_CONFIG = {
         'dbconn': ('str', 'dbname=softwareheritage-archiver-dev'),
+        'source': 'uffizi',
         'storages': ('list[dict]',
                      [
                          {'host': 'uffizi',
@@ -67,6 +68,9 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             storage['host']: get_objstorage(storage['cls'], storage['args'])
             for storage in self.config.get('storages', [])
         }
+        self.set_objstorages = set(self.objstorages)
+        # Fallback objstorage
+        self.source = self.config['source']
 
     def run(self):
         """Do the task expected from the archiver worker.
@@ -78,23 +82,29 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
 
         """
         transfers = defaultdict(list)
-        set_objstorages = set(self.objstorages)
         for obj_id in self.batch:
             # Get dict {'missing': [servers], 'present': [servers]}
             # for contents ignoring those who don't need archival.
-            copies = self.compute_copies(set_objstorages, obj_id)
+            copies = self.compute_copies(self.set_objstorages, obj_id)
             if not copies:
-                msg = 'Unknown content %s' % hashutil.hash_to_hex(obj_id)
-                logger.warning(msg)
-                continue
+                # could happen if archiver db lags behind
+                copies = self.compute_fallback_copies(
+                    self.source, self.set_objstorages, obj_id)
+                if not copies:
+                    msg = 'Unknown content %s' % hashutil.hash_to_hex(obj_id)
+                    logger.warning(msg)
+                    continue
+
             if not self.need_archival(copies):
                 continue
+
             present = copies.get('present', [])
             missing = copies.get('missing', [])
             if len(present) == 0:
                 msg = 'Lost content %s' % hashutil.hash_to_hex(obj_id)
                 logger.critical(msg)
                 continue
+
             # Choose servers to be used as srcs and dests.
             for src_dest in self.choose_backup_servers(present, missing):
                 transfers[src_dest].append(obj_id)
@@ -102,6 +112,40 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
         # Then run copiers for each of the required transfers.
         for (src, dest), content_ids in transfers.items():
             self.run_copier(src, dest, content_ids)
+
+    def compute_fallback_copies(self, source, set_objstorages, content_id):
+        """Compute fallback copies for content_id.
+
+        Args:
+            source: the objstorage where the content_id is supposedly present
+            set_objstorages: the complete set of objstorages
+            content_id: the content concerned
+
+        Returns:
+            A dictionary with keys 'present' and 'missing' that are
+            mapped to lists of copies ids depending on whenever the
+            content is present or missing on the copy.
+
+            There is also the key 'ongoing' which is associated with a
+            dict that map to a copy name the mtime of the ongoing
+            status update.
+
+        """
+        if content_id not in self.objstorages[source]:
+            return None
+
+        # insert a new entry about of the content_id's presence for that source
+        self.archiver_db.content_archive_insert(
+            content_id=content_id, source=self.source, status='present')
+
+        # Now compute the fallback copies
+        set_present = {self.source}
+        set_missing = set_objstorages - set_present
+        return {
+            'present': set_present,
+            'missing': set_missing,
+            'ongoing': {}
+        }
 
     def compute_copies(self, set_objstorages, content_id):
         """From a content_id, return present and missing copies.
@@ -111,9 +155,9 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             content_id: the content concerned
 
         Returns:
-            A dictionary with keys 'present' and 'missing'.
-            that are mapped to lists of copies ids depending on
-            whenever the content is present or missing on the copy.
+            A dictionary with keys 'present' and 'missing' that are
+            mapped to lists of copies ids depending on whenever the
+            content is present or missing on the copy.
 
             There is also the key 'ongoing' which is associated with a
             dict that map to a copy name the mtime of the ongoing
