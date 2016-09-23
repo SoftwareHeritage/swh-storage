@@ -159,7 +159,7 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             # as they cannot be retrieved correctly.
             content_ids.remove(content_id)
             # Update their status to reflect their real state.
-            self.content_archive_update(
+            self.archiver_db.content_archive_update(
                 content_id, archive_id=source, new_status=real_status)
 
         # Now perform the copy on the remaining contents
@@ -171,7 +171,7 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
         if ac.run():
             # Once the archival complete, update the database.
             for content_id in content_ids:
-                self.content_archive_update(
+                self.archiver_db.content_archive_update(
                     content_id, archive_id=destination, new_status='present')
 
     def get_contents_error(self, content_ids, source_storage):
@@ -205,26 +205,6 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
                 logger.error('%s missing!' % hashutil.hash_to_hex(content_id))
 
         return content_status
-
-    def content_archive_update(self, content_id, archive_id, new_status=None):
-        """Update the status of a archive content and set its mtime to now.
-
-        Change the last modification time of an archived content and change
-        its status to the given one.
-
-        Args:
-            content_id (str): The content id.
-            archive_id (str): The id of the concerned archive.
-            new_status (str): One of missing, ongoing or present, this
-                status will replace the previous one. If not given, the
-                function only changes the mtime of the content.
-        """
-        db_obj_id = r'\x' + hashutil.hash_to_hex(content_id)
-        self.archiver_db.content_archive_update(
-            db_obj_id,
-            archive_id,
-            new_status
-        )
 
     @abc.abstractmethod
     def need_archival(self, content_data):
