@@ -98,14 +98,14 @@ class ArchiverStorage():
 
     @db_transaction_generator
     def content_archive_get_missing(self, content_ids, backend_name, cur=None):
-        """Retrieve the list of missing copies from source_name.
+        """Retrieve missing sha1s from source_name.
 
         Args:
             content_ids ([sha1s]): list of sha1s to test
             source_name (str): Name of the backend to check for content
 
         Yields:
-            List of ids effectively missing from backend_name
+            missing sha1s from backend_name
 
         """
         db = self.db
@@ -115,6 +115,26 @@ class ArchiverStorage():
         db.copy_to(content_ids, 'tmp_content_archive', ['content_id'], cur)
 
         for content_id in db.content_archive_get_missing(backend_name, cur):
+            yield content_id[0]
+
+    @db_transaction_generator
+    def content_archive_get_unknown(self, content_ids, cur=None):
+        """Retrieve unknown sha1s from content_archive.
+
+        Args:
+            content_ids ([sha1s]): list of sha1s to test
+
+        Yields:
+            Unknown sha1s from content_archive
+
+        """
+        db = self.db
+
+        db.mktemp_content_archive()
+
+        db.copy_to(content_ids, 'tmp_content_archive', ['content_id'], cur)
+
+        for content_id in db.content_archive_get_unknown(cur):
             yield content_id[0]
 
     @db_transaction
