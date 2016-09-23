@@ -1,3 +1,13 @@
+swh-storage (0.0.63-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.63
+  * Make the 'worker to backend' destination agnostic (message
+    parameter)
+  * Improve 'unknown sha1' policy (archiver db can lag behind swh db)
+  * Improve 'force copy' policy
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 23 Sep 2016 12:29:50 +0200
+
 swh-storage (0.0.62-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.62
