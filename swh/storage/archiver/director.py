@@ -8,6 +8,7 @@ import click
 import sys
 
 from swh.core import config, utils, hashutil
+from swh.objstorage import get_objstorage
 from swh.scheduler.celery_backend.config import app
 
 from . import tasks  # noqa
@@ -74,13 +75,15 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
             run_fn(batch)
 
     def run_async_worker(self, batch):
-        """ Produce a worker that will be added to the task queue.
+        """Produce a worker that will be added to the task queue.
+
         """
         task = app.tasks[self.TASK_NAME]
         task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
-        """ Run synchronously a worker on the given batch.
+        """Run synchronously a worker on the given batch.
+
         """
         task = app.tasks[self.TASK_NAME]
         task(batch=batch)
@@ -160,14 +163,30 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
     """A cloud archiver director in charge of reading contents and send
     them in batch in the cloud.
 
-    The archiver director processes the files in the local storage in
-    order to know which one needs archival and it delegates this task
-    to archiver workers.
+    The archiver director, in order:
+    - Reads sha1 to send to a specific backend.
+    - Checks if those sha1 are known in the archiver. If they are not,
+      add them
+    - if the sha1 are missing, they are sent for the worker to archive
+
+    If the flag force_copy is set, this will force the copy to be sent
+    for archive even though it has already been done.
 
     """
     ADDITIONAL_CONFIG = {
         'destination': ('str', 'azure'),
         'force_copy': ('bool', False),
+        'source': ('str', 'uffizi'),
+        'storages': ('list[dict]',
+                     [
+                         {'host': 'uffizi',
+                          'cls': 'pathslicing',
+                          'args': {'root': '/tmp/softwareheritage/objects',
+                                   'slicing': '0:2/2:4/4:6'}},
+                         {'host': 'banco',
+                          'cls': 'remote',
+                          'args': {'base_url': 'http://banco:5003/'}}
+                     ])
     }
 
     CONFIG_BASE_FILENAME = 'archiver/worker-to-backend'
@@ -178,13 +197,39 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         super().__init__()
         self.destination = self.config['destination']
         self.force_copy = self.config['force_copy']
+        self.objstorages = {
+            storage['host']: get_objstorage(storage['cls'], storage['args'])
+            for storage in self.config.get('storages', [])
+        }
+        # Fallback objstorage
+        self.source = self.config['source']
+
+    def _add_unknown_content_ids(self, content_ids, source_objstorage):
+        """Check whether some content_id are unknown.
+        If they are, add them to the archiver db.
+
+        Args:
+            content_ids: List of dict with one key content_id
+
+            source_objstorage (ObjStorage): objstorage to check if
+            content_id is there
+
+        """
+        unknowns = self.archiver_storage.content_archive_get_unknown(
+            content_ids)
+        for unknown_id in unknowns:
+            print('unknown', unknown_id)
+            if unknown_id not in source_objstorage:
+                continue
+            self.archiver_storage.content_archive_insert(
+                unknown_id, self.source, 'present')
 
     def get_contents_to_archive(self):
         gen_content_ids = (
             ids for ids in utils.grouper(read_sha1_from_stdin(),
-                                         self.config['batch_max_size'])
-        )
+                                         self.config['batch_max_size']))
 
+        source_objstorage = self.objstorages[self.source]
         if self.force_copy:
             for content_ids in gen_content_ids:
                 content_ids = list(content_ids)
@@ -192,13 +237,26 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
                 if not content_ids:
                     continue
 
+                # Add missing entries in archiver table
+                self._add_unknown_content_ids(content_ids, source_objstorage)
+
                 print('Send %s contents to archive' % len(content_ids))
 
                 for content in content_ids:
-                    yield content['content_id']
+                    content_id = content['content_id']
+                    # force its status to missing
+                    self.archiver_storage.content_archive_update(
+                        content_id, self.destination, 'missing')
+                    yield content_id
 
         else:
             for content_ids in gen_content_ids:
+                content_ids = list(content_ids)
+
+                # Add missing entries in archiver table
+                self._add_unknown_content_ids(content_ids, source_objstorage)
+
+                # Filter already copied data
                 content_ids = list(
                     self.archiver_storage.content_archive_get_missing(
                         content_ids=content_ids,
@@ -211,6 +269,20 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
                 for content in content_ids:
                     yield content
+
+    def run_async_worker(self, batch):
+        """Produce a worker that will be added to the task queue.
+
+        """
+        task = app.tasks[self.TASK_NAME]
+        task.delay(destination=self.destination, batch=batch)
+
+    def run_sync_worker(self, batch):
+        """Run synchronously a worker on the given batch.
+
+        """
+        task = app.tasks[self.TASK_NAME]
+        task(destination=self.destination, batch=batch)
 
 
 @click.command()

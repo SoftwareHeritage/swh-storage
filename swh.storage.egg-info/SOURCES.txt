@@ -33,6 +33,7 @@ sql/archiver/swh-archiver-schema.sql
 sql/archiver/upgrades/002.sql
 sql/archiver/upgrades/003.sql
 sql/archiver/upgrades/004.sql
+sql/archiver/upgrades/005.sql
 sql/bin/db-upgrade
 sql/bin/dot_add_content
 sql/doc/json

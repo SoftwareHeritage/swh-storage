@@ -46,7 +46,7 @@ class PopulateCacheContentRevision(Task):
         )
 
         storage.cache_content_revision_add(
-            hashutil.hash_to_hex(revision) for revision in revisions
+            hashutil.hex_to_hash(revision) for revision in revisions
         )
 
 

@@ -29,3 +29,20 @@ end
 $$;
 
 COMMENT ON FUNCTION swh_content_archive_missing(text) IS 'Filter missing data from a specific backend';
+
+create or replace function swh_content_archive_unknown()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+        select content_id
+        from tmp_content_archive tmp where not exists (
+            select 1
+            from content_archive c
+            where tmp.content_id = c.content_id
+        );
+end
+$$;
+
+COMMENT ON FUNCTION swh_content_archive_unknown() IS 'Retrieve list of unknown sha1s';
