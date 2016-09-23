@@ -1340,7 +1340,7 @@ begin
       inner join revision using(id);
 
     insert into cache_content_revision_processed
-      select distinct id from tmp_bytea;
+      select distinct id from tmp_bytea order by id;
 
     for d in
       select distinct directory from tmp_ccrd
@@ -1356,6 +1356,7 @@ begin
       from tmp_ccr
       inner join tmp_ccrd using (directory)
       group by content
+      order by content
     ), updated_cache_entries as (
       update cache_content_revision ccr
       set revision_paths = ccr.revision_paths || rc.revision_paths
@@ -1363,8 +1364,9 @@ begin
       where ccr.content = rc.content and ccr.blacklisted = false
       returning ccr.content
     ) insert into cache_content_revision
-      select * from revision_contents rc
-      where not exists (select 1 from updated_cache_entries uce where uce.content = rc.content)
+        select * from revision_contents rc
+        where not exists (select 1 from updated_cache_entries uce where uce.content = rc.content)
+        order by rc.content
       on conflict (content) do update
         set revision_paths = cache_content_revision.revision_paths || EXCLUDED.revision_paths
         where cache_content_revision.blacklisted = false;
