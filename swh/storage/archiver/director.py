@@ -75,13 +75,15 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
             run_fn(batch)
 
     def run_async_worker(self, batch):
-        """ Produce a worker that will be added to the task queue.
+        """Produce a worker that will be added to the task queue.
+
         """
         task = app.tasks[self.TASK_NAME]
         task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
-        """ Run synchronously a worker on the given batch.
+        """Run synchronously a worker on the given batch.
+
         """
         task = app.tasks[self.TASK_NAME]
         task(batch=batch)
@@ -267,6 +269,20 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
                 for content in content_ids:
                     yield content
+
+    def run_async_worker(self, batch):
+        """Produce a worker that will be added to the task queue.
+
+        """
+        task = app.tasks[self.TASK_NAME]
+        task.delay(destination=self.destination, batch=batch)
+
+    def run_sync_worker(self, batch):
+        """Run synchronously a worker on the given batch.
+
+        """
+        task = app.tasks[self.TASK_NAME]
+        task(destination=self.destination, batch=batch)
 
 
 @click.command()

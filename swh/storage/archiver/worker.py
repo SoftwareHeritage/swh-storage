@@ -325,7 +325,7 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
 
 
 class ArchiverToBackendWorker(BaseArchiveWorker):
-    """Worker that send copies over from a source to another backend.
+    """Worker that sends copies over from a source to another backend.
 
     Process the content of a content batch from source objstorage to
     destination objstorage.
@@ -334,19 +334,16 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
     CONFIG_BASE_FILENAME = 'archiver/worker-to-backend'
 
-    ADDITIONAL_CONFIG = {
-        'destination': ('str', 'azure'),
-    }
-
-    def __init__(self, batch):
+    def __init__(self, destination, batch):
         """Constructor of the ArchiverWorkerToBackend class.
 
         Args:
-            batch: list of object's sha1 that potentially need archival.
+            destination: where to copy the objects from
+            batch: sha1s to send to destination
 
         """
         super().__init__(batch)
-        self.destination = self.config['destination']
+        self.destination = destination
 
     def need_archival(self, content_data):
         """Indicate if the content needs to be archived.
