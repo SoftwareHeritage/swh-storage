@@ -237,6 +237,9 @@ class ArchiverDb(BaseDb):
                 the function only change the mtime of the content for the
                 given archive.
         """
+        if isinstance(content_id, bytes):
+            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
+
         if new_status is not None:
             query = """UPDATE content_archive
                     SET copies=jsonb_set(
