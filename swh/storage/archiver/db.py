@@ -196,6 +196,14 @@ class ArchiverDb(BaseDb):
                     (backend_name,))
         yield from cursor_to_bytes(cur)
 
+    def content_archive_get_unknown(self, cur=None):
+        """Retrieve unknown sha1 from archiver db.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute('select * from swh_content_archive_unknown()')
+        yield from cursor_to_bytes(cur)
+
     def content_archive_insert(self, content_id, source, status, cur=None):
         """Insert a new entry in the db for the content_id.
 
@@ -229,6 +237,9 @@ class ArchiverDb(BaseDb):
                 the function only change the mtime of the content for the
                 given archive.
         """
+        if isinstance(content_id, bytes):
+            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
+
         if new_status is not None:
             query = """UPDATE content_archive
                     SET copies=jsonb_set(
