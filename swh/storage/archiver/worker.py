@@ -334,6 +334,10 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
     CONFIG_BASE_FILENAME = 'archiver/worker-to-backend'
 
+    ADDITIONAL_CONFIG = {
+        'destination': ('str', 'azure'),
+    }
+
     def __init__(self, batch):
         """Constructor of the ArchiverWorkerToBackend class.
 
