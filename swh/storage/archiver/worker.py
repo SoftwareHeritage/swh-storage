@@ -228,6 +228,12 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
         among the missing copies and a source server among the
         presents.
 
+        Args:
+            present: set of objstorage source name where the content
+            is present
+            missing: set of objstorage destination name where the
+            content is missing
+
         Yields:
             tuple (source (str), destination (src)) for each required copy.
 
@@ -299,6 +305,12 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         retention policy requirement will be fulfilled. However, the
         source server may be used multiple times.
 
+        Args:
+            present: set of objstorage source name where the content
+            is present
+            missing: set of objstorage destination name where the
+            content is missing
+
         Yields:
             tuple (source, destination) for each required copy.
 
@@ -347,4 +359,19 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         return self.destination in content_data.get('missing', {})
 
     def choose_backup_servers(self, present, missing):
+        """The destination is fixed to the destination mentioned.
+
+        The only variable here is the source of information that we
+        choose randomly in 'present'.
+
+        Args:
+            present: set of objstorage source name where the content
+            is present
+            missing: set of objstorage destination name where the
+            content is missing
+
+        Yields:
+            tuple (source, destination) for each required copy.
+
+        """
         yield (random.choice(list(present)), self.destination)
