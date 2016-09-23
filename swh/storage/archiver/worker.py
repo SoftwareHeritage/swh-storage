@@ -410,4 +410,4 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         return False
 
     def choose_backup_servers(self, present, missing):
-        yield (random.choice(present), self.destination)
+        yield (random.choice(list(present)), self.destination)
