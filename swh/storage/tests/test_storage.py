@@ -947,8 +947,7 @@ class AbstractTestStorage(DbTestFixture):
             zip(['sha1', 'sha1_git', 'sha256', 'revision_paths'], ret))
 
         # when
-        actual_cache_content = self.storage.cache_content_get(
-            self.cont2['sha1_git'])
+        actual_cache_content = self.storage.cache_content_get(self.cont2)
 
         # then
         self.assertEquals(actual_cache_content, expected_content)

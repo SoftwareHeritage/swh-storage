@@ -457,13 +457,21 @@ class Storage():
         """Retrieve information on content.
 
         Args:
-            content (dict): one content
+            content (dict): content with checkums
 
         Returns:
-            Its properties
+            Its properties (sha1, sha1_git, sha256, revision_paths)
 
         """
-        c = self.db.cache_content_get(content)
+        if 'sha1_git' in content:
+            sha1_git = content['sha1_git']
+        else:
+            c = self.content_find(content)
+            if not c:
+                return None
+            sha1_git = c['sha1_git']
+
+        c = self.db.cache_content_get(sha1_git, cur=cur)
         if not c:
             return None
         return dict(zip(self.db.cache_content_get_cols, c))
