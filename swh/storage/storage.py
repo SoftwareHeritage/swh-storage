@@ -442,21 +442,39 @@ class Storage():
         db.cache_content_revision_add()
 
     @db_transaction_generator
-    def cache_content_get(self, cur=None):
+    def cache_content_get_all(self, cur=None):
         """Read the distinct contents in the cache table.
 
-        Args:
-            last_content: sha1 of the last content retrieved. May be
-            None to start at the beginning.
-            limit: number of contents to retrieve. Can be None to retrieve all
-            objects (will be slow).
-
         Yields:
-            content from last_content up to limit.
+            contents from cache
 
         """
-        for content in self.db.cache_content_get(cur):
+        for content in self.db.cache_content_get_all(cur):
             yield dict(zip(self.db.cache_content_get_cols, content))
+
+    @db_transaction
+    def cache_content_get(self, content, cur=None):
+        """Retrieve information on content.
+
+        Args:
+            content (dict): content with checkums
+
+        Returns:
+            Its properties (sha1, sha1_git, sha256, revision_paths)
+
+        """
+        if 'sha1_git' in content:
+            sha1_git = content['sha1_git']
+        else:
+            c = self.content_find(content)
+            if not c:
+                return None
+            sha1_git = c['sha1_git']
+
+        c = self.db.cache_content_get(sha1_git, cur=cur)
+        if not c:
+            return None
+        return dict(zip(self.db.cache_content_get_cols, c))
 
     @db_transaction_generator
     def cache_revision_origin_add(self, origin, visit, cur=None):
