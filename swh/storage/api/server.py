@@ -147,9 +147,15 @@ def cache_content_revision_add():
         **decode_request(request)))
 
 
-@app.route('/cache/content', methods=['GET'])
+@app.route('/cache/contents', methods=['GET'])
+def cache_content_get_all():
+    return encode_data(g.storage.cache_content_get_all())
+
+
+@app.route('/cache/content', methods=['POST'])
 def cache_content_get():
-    return encode_data(g.storage.cache_content_get())
+    return encode_data(g.storage.cache_content_get(
+        **decode_request(request)))
 
 
 @app.route('/cache/revision_origin', methods=['POST'])

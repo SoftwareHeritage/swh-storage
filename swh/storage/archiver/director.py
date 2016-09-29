@@ -218,7 +218,6 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         unknowns = self.archiver_storage.content_archive_get_unknown(
             content_ids)
         for unknown_id in unknowns:
-            print('unknown', unknown_id)
             if unknown_id not in source_objstorage:
                 continue
             self.archiver_storage.content_archive_insert(

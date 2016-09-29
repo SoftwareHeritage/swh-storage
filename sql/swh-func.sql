@@ -1340,7 +1340,7 @@ begin
       inner join revision using(id);
 
     insert into cache_content_revision_processed
-      select distinct id from tmp_bytea;
+      select distinct id from tmp_bytea order by id;
 
     for d in
       select distinct directory from tmp_ccrd
@@ -1356,6 +1356,7 @@ begin
       from tmp_ccr
       inner join tmp_ccrd using (directory)
       group by content
+      order by content
     ), updated_cache_entries as (
       update cache_content_revision ccr
       set revision_paths = ccr.revision_paths || rc.revision_paths
@@ -1363,8 +1364,9 @@ begin
       where ccr.content = rc.content and ccr.blacklisted = false
       returning ccr.content
     ) insert into cache_content_revision
-      select * from revision_contents rc
-      where not exists (select 1 from updated_cache_entries uce where uce.content = rc.content)
+        select * from revision_contents rc
+        where not exists (select 1 from updated_cache_entries uce where uce.content = rc.content)
+        order by rc.content
       on conflict (content) do update
         set revision_paths = cache_content_revision.revision_paths || EXCLUDED.revision_paths
         where cache_content_revision.blacklisted = false;
@@ -1387,19 +1389,40 @@ as $$
   where origin = origin_id and visit_id = ANY(visits);
 $$;
 
+create type cache_content_signature as (
+  sha1      sha1,
+  sha1_git  sha1_git,
+  sha256    sha256,
+  revision_paths  bytea[][]
+);
 
-create or replace function swh_cache_content_get()
-       returns setof content_signature
+create or replace function swh_cache_content_get_all()
+       returns setof cache_content_signature
        language sql
        stable
 as $$
-    SELECT DISTINCT c.sha1, c.sha1_git, c.sha256
+    SELECT c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
     FROM cache_content_revision ccr
     INNER JOIN content as c
     ON ccr.content = c.sha1_git
 $$;
 
-COMMENT ON FUNCTION swh_cache_content_get() IS 'Retrieve batch of distinct sha1_git with size batch_limit from last_content';
+COMMENT ON FUNCTION swh_cache_content_get_all() IS 'Retrieve batch of contents';
+
+
+create or replace function swh_cache_content_get(target sha1_git)
+       returns setof cache_content_signature
+       language sql
+       stable
+as $$
+    SELECT c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
+    FROM cache_content_revision ccr
+    INNER JOIN content as c
+    ON ccr.content = c.sha1_git
+    where ccr.content = target
+$$;
+
+COMMENT ON FUNCTION swh_cache_content_get(sha1_git) IS 'Retrieve cache content information';
 
 create or replace function swh_revision_from_target(target sha1_git, target_type object_type)
     returns sha1_git

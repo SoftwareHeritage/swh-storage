@@ -520,15 +520,27 @@ class Db(BaseDb):
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
-    cache_content_get_cols = ['sha1', 'sha1_git', 'sha256']
+    cache_content_get_cols = [
+        'sha1', 'sha1_git', 'sha256', 'revision_paths']
 
-    def cache_content_get(self, cur=None):
-        """Retrieve cache contents
+    def cache_content_get_all(self, cur=None):
+        """Retrieve cache contents' sha1, sha256, sha1_git
 
         """
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_content_get()')
+        cur.execute('SELECT * FROM swh_cache_content_get_all()')
         yield from cursor_to_bytes(cur)
+
+    def cache_content_get(self, sha1_git, cur=None):
+        """Retrieve cache content information sh.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute('SELECT * FROM swh_cache_content_get(%s)', (sha1_git, ))
+        data = cur.fetchone()
+        if data:
+            return line_to_bytes(data)
+        return None
 
     def cache_revision_origin_add(self, origin, visit, cur=None):
         """Populate the content provenance information cache for the given
