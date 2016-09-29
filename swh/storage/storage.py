@@ -450,21 +450,23 @@ class Storage():
 
         """
         for content in self.db.cache_content_get_all(cur):
-            yield dict(zip(self.db.cache_content_get_all_cols, content))
+            yield dict(zip(self.db.cache_content_get_cols, content))
 
     @db_transaction
-        Args:
-            last_content: sha1 of the last content retrieved. May be
-            None to start at the beginning.
-            limit: number of contents to retrieve. Can be None to retrieve all
-            objects (will be slow).
+    def cache_content_get(self, content, cur=None):
+        """Retrieve information on content.
 
-        Yields:
-            content from last_content up to limit.
+        Args:
+            content (dict): one content
+
+        Returns:
+            Its properties
 
         """
-        for content in self.db.cache_content_get(cur):
-            yield dict(zip(self.db.cache_content_get_cols, content))
+        c = self.db.cache_content_get(content)
+        if not c:
+            return None
+        return dict(zip(self.db.cache_content_get_cols, c))
 
     @db_transaction_generator
     def cache_revision_origin_add(self, origin, visit, cur=None):

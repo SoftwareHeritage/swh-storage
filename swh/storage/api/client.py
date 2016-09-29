@@ -126,6 +126,8 @@ class RemoteStorage():
     def cache_content_get_all(self):
         return self.get('cache/contents')
 
+    def cache_content_get(self, content):
+        return self.post('cache/content', {'content': content})
 
     def cache_revision_origin_add(self, origin, visit):
         return self.post('cache/revision_origin', {'origin': origin,

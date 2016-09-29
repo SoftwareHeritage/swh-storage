@@ -1410,18 +1410,19 @@ $$;
 COMMENT ON FUNCTION swh_cache_content_get_all() IS 'Retrieve batch of contents';
 
 
-create or replace function swh_cache_content_get()
-       returns setof content_signature
+create or replace function swh_cache_content_get(target sha1_git)
+       returns setof cache_content_signature
        language sql
        stable
 as $$
-    SELECT DISTINCT c.sha1, c.sha1_git, c.sha256
+    SELECT c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
     FROM cache_content_revision ccr
     INNER JOIN content as c
     ON ccr.content = c.sha1_git
+    where ccr.content = target
 $$;
 
-COMMENT ON FUNCTION swh_cache_content_get() IS 'Retrieve batch of distinct sha1_git with size batch_limit from last_content';
+COMMENT ON FUNCTION swh_cache_content_get(sha1_git) IS 'Retrieve cache content information';
 
 create or replace function swh_revision_from_target(target sha1_git, target_type object_type)
     returns sha1_git

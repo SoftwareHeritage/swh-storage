@@ -900,12 +900,12 @@ class AbstractTestStorage(DbTestFixture):
 
     @istest
     def cache_content_get_all(self):
-        # given ()
+        # given
         (directory, directory2,
          revision, revision2) = self.cache_content_revision_objects()
 
         # assert nothing in cache yet
-        test_query = '''select sha1, sha1_git, sha256
+        test_query = '''select sha1, sha1_git, sha256, ccr.revision_paths
                         from cache_content_revision ccr
                         inner join content c on c.sha1_git=ccr.content'''
 
@@ -918,13 +918,40 @@ class AbstractTestStorage(DbTestFixture):
         expected_contents = []
         for entry in ret:
             expected_contents.append(dict(
-                zip(['sha1', 'sha1_git', 'sha256'], entry)))
+                zip(['sha1', 'sha1_git', 'sha256', 'revision_paths'], entry)))
 
         # 1. default filters gives everything
         actual_cache_contents = list(self.storage.cache_content_get_all())
 
         self.assertEquals(actual_cache_contents, expected_contents)
 
+    @istest
+    def cache_content_get(self):
+        # given
+        (directory, directory2,
+         revision, revision2) = self.cache_content_revision_objects()
+
+        # assert nothing in cache yet
+        test_query = '''select c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
+                        from cache_content_revision ccr
+                        inner join content c on c.sha1_git=ccr.content
+                        where ccr.content=%s'''
+
+        self.storage.cache_content_revision_add([revision['id']])
+        self.cursor.execute(test_query, (self.cont2['sha1_git'],))
+        ret = list(cursor_to_bytes(self.cursor))[0]
+
+        self.assertIsNotNone(ret)
+
+        expected_content = dict(
+            zip(['sha1', 'sha1_git', 'sha256', 'revision_paths'], ret))
+
+        # when
+        actual_cache_content = self.storage.cache_content_get(
+            self.cont2['sha1_git'])
+
+        # then
+        self.assertEquals(actual_cache_content, expected_content)
 
     @istest
     def revision_log(self):
