@@ -442,9 +442,17 @@ class Storage():
         db.cache_content_revision_add()
 
     @db_transaction_generator
-    def cache_content_get(self, cur=None):
+    def cache_content_get_all(self, cur=None):
         """Read the distinct contents in the cache table.
 
+        Yields:
+            contents from cache
+
+        """
+        for content in self.db.cache_content_get_all(cur):
+            yield dict(zip(self.db.cache_content_get_all_cols, content))
+
+    @db_transaction
         Args:
             last_content: sha1 of the last content retrieved. May be
             None to start at the beginning.

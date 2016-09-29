@@ -520,14 +520,14 @@ class Db(BaseDb):
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
-    cache_content_get_cols = ['sha1', 'sha1_git', 'sha256']
+    cache_content_get_all_cols = ['sha1', 'sha1_git', 'sha256']
 
-    def cache_content_get(self, cur=None):
-        """Retrieve cache contents
+    def cache_content_get_all(self, cur=None):
+        """Retrieve cache contents' sha1, sha256, sha1_git
 
         """
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_content_get()')
+        cur.execute('SELECT * FROM swh_cache_content_get_all()')
         yield from cursor_to_bytes(cur)
 
     def cache_revision_origin_add(self, origin, visit, cur=None):

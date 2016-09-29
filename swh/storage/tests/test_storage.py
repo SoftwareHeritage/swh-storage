@@ -899,7 +899,7 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEquals(len(cache_entries[self.cont3['sha1_git']]), 1)
 
     @istest
-    def cache_content_get(self):
+    def cache_content_get_all(self):
         # given ()
         (directory, directory2,
          revision, revision2) = self.cache_content_revision_objects()
@@ -921,9 +921,10 @@ class AbstractTestStorage(DbTestFixture):
                 zip(['sha1', 'sha1_git', 'sha256'], entry)))
 
         # 1. default filters gives everything
-        actual_cache_contents = list(self.storage.cache_content_get())
+        actual_cache_contents = list(self.storage.cache_content_get_all())
 
         self.assertEquals(actual_cache_contents, expected_contents)
+
 
     @istest
     def revision_log(self):

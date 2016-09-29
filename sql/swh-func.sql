@@ -1389,6 +1389,26 @@ as $$
   where origin = origin_id and visit_id = ANY(visits);
 $$;
 
+create type cache_content_signature as (
+  sha1      sha1,
+  sha1_git  sha1_git,
+  sha256    sha256,
+  revision_paths  bytea[][]
+);
+
+create or replace function swh_cache_content_get_all()
+       returns setof cache_content_signature
+       language sql
+       stable
+as $$
+    SELECT c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
+    FROM cache_content_revision ccr
+    INNER JOIN content as c
+    ON ccr.content = c.sha1_git
+$$;
+
+COMMENT ON FUNCTION swh_cache_content_get_all() IS 'Retrieve batch of contents';
+
 
 create or replace function swh_cache_content_get()
        returns setof content_signature
