@@ -1,3 +1,12 @@
+swh-storage (0.0.64-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.64
+  * Fix: Missing incremented version 5 for archiver.dbversion
+  * Retrieve information on a content cached
+  * sql/swh-func: content cache populates lines in deterministic order
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 29 Sep 2016 21:50:59 +0200
+
 swh-storage (0.0.63-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.63
