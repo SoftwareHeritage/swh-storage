@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(86, now(), 'Work In Progress');
+      values(87, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -608,3 +608,16 @@ create table cache_revision_origin (
 );
 
 create index on cache_revision_origin(revision);
+
+-- Computing metadata on sha1's contents
+
+-- Properties (mimetype, encoding, etc...)
+create table content_mimetype (
+  id sha1 primary key references content(sha1) not null,
+  mimetype bytea not null,
+  encoding bytea not null
+);
+
+comment on table content_mimetype is 'Metadata associated to a raw content';
+comment on column content_mimetype.mimetype is 'Raw content Mimetype';
+comment on column content_mimetype.encoding is 'Raw content encoding';
