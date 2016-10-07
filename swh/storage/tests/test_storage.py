@@ -1911,6 +1911,36 @@ class AbstractTestStorage(DbTestFixture):
 
         self.assertEqual(expected, ret)
 
+    @istest
+    def content_mimetype_missing(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        mimetypes = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        # when
+        actual_missing = self.storage.content_mimetype_missing(mimetypes)
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            self.cont2['sha1'],
+            self.missing_cont['sha1']
+        ])
+
+        # given
+        self.storage.content_mimetype_add([{
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8'
+        }])
+
+        # when
+        actual_missing = self.storage.content_mimetype_missing(mimetypes)
+
+        # then
+        self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
     """Test the local storage"""

@@ -277,6 +277,11 @@ def entity_from_lister_metadata():
         g.storage.entity_get_from_lister_metadata(**decode_request(request)))
 
 
+@app.route('/content_mimetype/add', methods=['POST'])
+def content_mimetype_add():
+    return encode_data(
+        g.storage.content_mimetype_add(**decode_request(request)))
+
 
 @app.route('/content_mimetype/missing', methods=['POST'])
 def content_mimetype_missing():

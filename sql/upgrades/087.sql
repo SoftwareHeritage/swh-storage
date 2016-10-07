@@ -36,3 +36,21 @@ $$;
 
 comment on function swh_mimetype_missing() IS 'Filter missing mimetype';
 
+-- add tmp_content_mimetype entries to content_mimetype, skipping duplicates
+--
+-- operates in bulk: 0. swh_mktemp(content_mimetype), 1. COPY to tmp_content_mimetype,
+-- 2. call this function
+create or replace function swh_mimetype_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into content_mimetype (id, mimetype, encoding)
+	select id, mimetype, encoding
+	from tmp_content_mimetype
+        on conflict do nothing;
+    return;
+end
+$$;
+
+COMMENT ON FUNCTION swh_mimetype_add() IS 'Add new content mimetype';

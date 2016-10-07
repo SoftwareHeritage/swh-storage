@@ -1243,3 +1243,18 @@ class Storage():
             yield obj[0]
 
     @db_transaction
+    def content_mimetype_add(self, mimetypes, cur=None):
+        """Add mimetypes not present in storage.
+
+        Args:
+            mimetypes: iterable of dictionary with keys:
+            - id: sha1
+            - mimetype: bytes
+            - encoding: bytes
+
+        """
+        db = self.db
+        db.mktemp('content_mimetype', cur)
+        db.copy_to(mimetypes, 'tmp_content_mimetype',
+                   ['id', 'mimetype', 'encoding'], cur)
+        db.mimetype_add_from_temp(cur)

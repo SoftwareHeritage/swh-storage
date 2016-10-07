@@ -811,3 +811,5 @@ class Db(BaseDb):
         cur.execute("SELECT * FROM swh_mimetype_missing()")
         yield from cursor_to_bytes(cur)
 
+    @stored_procedure('swh_mimetype_add')
+    def mimetype_add_from_temp(self, cur=None): pass
