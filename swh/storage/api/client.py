@@ -215,3 +215,6 @@ class RemoteStorage():
     def directory_entry_get_by_path(self, directory, paths):
         return self.post('directory/path', dict(directory=directory,
                                                 paths=paths))
+
+    def content_mimetype_missing(self, mimetypes):
+        return self.post('content_mimetype/missing', {'mimetypes': mimetypes})

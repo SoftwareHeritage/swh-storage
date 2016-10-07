@@ -1225,3 +1225,21 @@ class Storage():
 
         """
         return {k: v for (k, v) in self.db.stat_counters()}
+
+    @db_transaction_generator
+    def content_mimetype_missing(self, mimetypes, cur=None):
+        """List mimetypes missing from storage.
+
+        Args:
+            mimetypes: iterable of sha1
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.store_tmp_bytea(mimetypes, cur)
+        for obj in db.mimetype_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction
