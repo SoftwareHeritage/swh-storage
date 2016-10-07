@@ -57,6 +57,13 @@ subgraph "logical_grouping" {
 		list_history;
 	}
 
+	subgraph cluster_provenance {
+		label = <<b>provenance</b>>;
+		cache_revision_origin;
+		cache_content_revision;
+		cache_content_revision_processed;
+	}
+
 	{
 		edge [style = dashed];
 
