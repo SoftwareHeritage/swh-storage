@@ -45,6 +45,7 @@ subgraph "logical_grouping" {
 		label = <<b>origins</b>>;
 		origin;
 		fetch_history;
+		origin_visit;
 	}
 
 	subgraph cluster_entity {
