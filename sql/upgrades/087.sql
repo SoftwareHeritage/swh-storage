@@ -454,7 +454,8 @@ create type languages as enum (
   'xul+mozpreproc',
   'yaml',
   'yaml+jinja',
-  'zephir'
+  'zephir',
+  'unknown'
 );
 
 -- Language metadata
@@ -465,3 +466,42 @@ create table content_language (
 
 comment on table content_language is 'Language information on a raw content';
 comment on column content_language.lang is 'Language information';
+
+-- check which entries of tmp_bytea are missing from content_language
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_language_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_language as c where c.id = tmp.id));
+    return;
+end
+$$;
+
+COMMENT ON FUNCTION swh_language_missing() IS 'Filter missing content language';
+
+
+-- add tmp_content_language entries to content_language, skipping duplicates
+--
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
+-- 2. call this function
+create or replace function swh_language_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into content_language (id, lang)
+	select id, lang
+	from tmp_content_language
+        on conflict do nothing;
+    return;
+end
+$$;
+
+COMMENT ON FUNCTION swh_language_add() IS 'Add new content language';

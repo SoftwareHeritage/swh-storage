@@ -289,6 +289,18 @@ def content_mimetype_missing():
         g.storage.content_mimetype_missing(**decode_request(request)))
 
 
+@app.route('/content_language/add', methods=['POST'])
+def content_language_add():
+    return encode_data(
+        g.storage.content_language_add(**decode_request(request)))
+
+
+@app.route('/content_language/missing', methods=['POST'])
+def content_language_missing():
+    return encode_data(
+        g.storage.content_language_missing(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())

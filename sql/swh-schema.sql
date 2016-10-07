@@ -1021,7 +1021,8 @@ create type languages as enum (
   'xul+mozpreproc',
   'yaml',
   'yaml+jinja',
-  'zephir'
+  'zephir',
+  'unknown'
 );
 
 -- Language metadata

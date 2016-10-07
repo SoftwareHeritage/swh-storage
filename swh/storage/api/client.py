@@ -221,3 +221,9 @@ class RemoteStorage():
 
     def content_mimetype_missing(self, mimetypes):
         return self.post('content_mimetype/missing', {'mimetypes': mimetypes})
+
+    def content_language_add(self, languages):
+        return self.post('content_language/add', {'languages': languages})
+
+    def content_language_missing(self, languages):
+        return self.post('content_language/missing', {'languages': languages})
