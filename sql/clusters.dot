@@ -45,6 +45,7 @@ subgraph "logical_grouping" {
 		label = <<b>origins</b>>;
 		origin;
 		fetch_history;
+		origin_visit;
 	}
 
 	subgraph cluster_entity {
@@ -54,6 +55,13 @@ subgraph "logical_grouping" {
 		entity_equivalence;
 		listable_entity;
 		list_history;
+	}
+
+	subgraph cluster_provenance {
+		label = <<b>provenance</b>>;
+		cache_revision_origin;
+		cache_content_revision;
+		cache_content_revision_processed;
 	}
 
 	{

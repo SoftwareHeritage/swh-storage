@@ -1488,7 +1488,83 @@ begin
 end
 $$;
 
+-- check which entries of tmp_bytea are missing from content_mimetype
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_mimetype_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_mimetype as c where c.id = tmp.id));
+    return;
+end
+$$;
 
+COMMENT ON FUNCTION swh_mimetype_missing() IS 'Filter missing content mimetype';
+
+
+-- add tmp_content_mimetype entries to content_mimetype, skipping duplicates
+--
+-- operates in bulk: 0. swh_mktemp(content_mimetype), 1. COPY to tmp_content_mimetype,
+-- 2. call this function
+create or replace function swh_mimetype_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into content_mimetype (id, mimetype, encoding)
+	select id, mimetype, encoding
+	from tmp_content_mimetype
+        on conflict do nothing;
+    return;
+end
+$$;
+
+COMMENT ON FUNCTION swh_mimetype_add() IS 'Add new content mimetype';
+
+-- check which entries of tmp_bytea are missing from content_language
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_language_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_language as c where c.id = tmp.id));
+    return;
+end
+$$;
+
+COMMENT ON FUNCTION swh_language_missing() IS 'Filter missing content language';
+
+
+-- add tmp_content_language entries to content_language, skipping duplicates
+--
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
+-- 2. call this function
+create or replace function swh_language_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into content_language (id, lang)
+	select id, lang
+	from tmp_content_language
+        on conflict do nothing;
+    return;
+end
+$$;
+
+COMMENT ON FUNCTION swh_language_add() IS 'Add new content language';
 
 
 -- simple counter mapping a textual label to an integer value

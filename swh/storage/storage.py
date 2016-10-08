@@ -1225,3 +1225,74 @@ class Storage():
 
         """
         return {k: v for (k, v) in self.db.stat_counters()}
+
+    @db_transaction_generator
+    def content_mimetype_missing(self, mimetypes, cur=None):
+        """List mimetypes missing from storage.
+
+        Args:
+            mimetypes: iterable of sha1
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.store_tmp_bytea(mimetypes, cur)
+        for obj in db.mimetype_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction
+    def content_mimetype_add(self, mimetypes, cur=None):
+        """Add mimetypes not present in storage.
+
+        Args:
+            mimetypes: iterable of dictionary with keys:
+            - id: sha1
+            - mimetype: bytes
+            - encoding: bytes
+
+        """
+        db = self.db
+        db.mktemp('content_mimetype', cur)
+        db.copy_to(mimetypes, 'tmp_content_mimetype',
+                   ['id', 'mimetype', 'encoding'], cur)
+        db.mimetype_add_from_temp(cur)
+
+    @db_transaction_generator
+    def content_language_missing(self, languages, cur=None):
+        """List languages missing from storage.
+
+        Args:
+            languages: iterable of sha1
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.store_tmp_bytea(languages, cur)
+        for obj in db.language_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction
+    def content_language_add(self, languages, cur=None):
+        """Add languages not present in storage.
+
+        Args:
+            languages: iterable of dictionary with keys:
+            - id: sha1
+            - lang: bytes
+
+        """
+        db = self.db
+        db.mktemp('content_language', cur)
+        # empty language is mapped to 'unknown'
+        db.copy_to(
+            ({
+                'id': l['id'],
+                'lang': 'unknown' if not l['lang'] else l['lang']
+            } for l in languages),
+            'tmp_content_language', ['id', 'lang'], cur)
+
+        db.language_add_from_temp(cur)
