@@ -1,3 +1,10 @@
+swh-storage (0.0.66-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.66
+  * Improve provenance configuration format
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 12 Oct 2016 01:39:26 +0200
+
 swh-storage (0.0.65-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.65
