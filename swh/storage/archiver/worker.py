@@ -9,12 +9,12 @@ import random
 import time
 
 from collections import defaultdict
+from celery import group
 
+from swh.core import hashutil, config, utils
 from swh.objstorage import get_objstorage
-
-from swh.core import hashutil, config
-
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.scheduler.celery_backend.config import app
 
 from .storage import ArchiverStorage
 from .copier import ArchiverCopier
@@ -103,8 +103,12 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
                 transfers[src_dest].append(obj_id)
 
         # Then run copiers for each of the required transfers.
+        contents_copied = []
         for (src, dest), content_ids in transfers.items():
-            self.run_copier(src, dest, content_ids)
+            contents_copied.extend(self.run_copier(src, dest, content_ids))
+
+        # copy is done, eventually do something else with them
+        self.copy_finished(contents_copied)
 
     def compute_copies(self, set_objstorages, content_id):
         """From a content_id, return present and missing copies.
@@ -173,6 +177,15 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             for content_id in content_ids:
                 self.archiver_db.content_archive_update(
                     content_id, archive_id=destination, new_status='present')
+
+            return content_ids
+        return []
+
+    def copy_finished(self, content_ids):
+        """Hook to notify the content_ids archive copy is finished.
+        (This is not an abstract method as this is optional
+        """
+        pass
 
     def get_contents_error(self, content_ids, source_storage):
         """Indicates what is the error associated to a content when needed
@@ -334,6 +347,15 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
     CONFIG_BASE_FILENAME = 'archiver/worker-to-backend'
 
+    ADDITIONAL_CONFIG = {
+        'next_task': (
+            'dict', {
+                'queue': 'swh.indexer.tasks.SWHOrchestratorAllContentsTask',
+                'batch_size': 10,
+            }
+        )
+    }
+
     def __init__(self, destination, batch):
         """Constructor of the ArchiverWorkerToBackend class.
 
@@ -344,6 +366,10 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         """
         super().__init__(batch)
         self.destination = destination
+        next_task = self.config['next_task']
+        destination_queue = next_task['queue']
+        self.task_destination = app.tasks[destination_queue]
+        self.batch_size = int(next_task['batch_size'])
 
     def need_archival(self, content_data):
         """Indicate if the content needs to be archived.
@@ -376,3 +402,15 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
 
         """
         yield (random.choice(list(present)), self.destination)
+
+    def copy_finished(self, content_ids):
+        """Once the copy is finished, we'll send those batch of contents as
+        done in the destination queue.
+
+        """
+        groups = []
+        for ids in utils.grouper(content_ids, self.batch_size):
+            sig_ids = self.task_destination.s(list(ids))
+            groups.append(sig_ids)
+
+        group(groups).delay()
