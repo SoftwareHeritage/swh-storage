@@ -811,8 +811,9 @@ class Db(BaseDb):
         cur.execute("SELECT * FROM swh_mimetype_missing()")
         yield from cursor_to_bytes(cur)
 
-    @stored_procedure('swh_mimetype_add')
-    def mimetype_add_from_temp(self, cur=None): pass
+    def mimetype_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_mimetype_add(%s)",
+                                  (conflict_update, ))
 
     def language_missing_from_temp(self, cur=None):
         """List missing languages.
@@ -822,5 +823,6 @@ class Db(BaseDb):
         cur.execute("SELECT * FROM swh_language_missing()")
         yield from cursor_to_bytes(cur)
 
-    @stored_procedure('swh_language_add')
-    def language_add_from_temp(self, cur=None): pass
+    def language_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_language_add(%s)",
+                                  (conflict_update, ))

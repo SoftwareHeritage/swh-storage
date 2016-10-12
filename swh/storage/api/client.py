@@ -216,14 +216,20 @@ class RemoteStorage():
         return self.post('directory/path', dict(directory=directory,
                                                 paths=paths))
 
-    def content_mimetype_add(self, mimetypes):
-        return self.post('content_mimetype/add', {'mimetypes': mimetypes})
+    def content_mimetype_add(self, mimetypes, conflict_update=False):
+        return self.post('content_mimetype/add', {
+            'mimetypes': mimetypes,
+            'conflict_update': conflict_update,
+        })
 
     def content_mimetype_missing(self, mimetypes):
         return self.post('content_mimetype/missing', {'mimetypes': mimetypes})
 
-    def content_language_add(self, languages):
-        return self.post('content_language/add', {'languages': languages})
+    def content_language_add(self, languages, conflict_update=False):
+        return self.post('content_language/add', {
+            'languages': languages,
+            'conflict_update': conflict_update,
+        })
 
     def content_language_missing(self, languages):
         return self.post('content_language/missing', {'languages': languages})
