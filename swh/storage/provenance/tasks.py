@@ -42,7 +42,7 @@ class PopulateCacheContentRevision(Task):
         config = self.config
         storage = get_storage(
             config['storage']['cls'],
-            config['storage']['args'],
+            config['storage']['args']
         )
 
         storage.cache_content_revision_add(
@@ -76,8 +76,9 @@ class PopulateCacheRevisionOrigin(Task):
         config = self.config
         storage = get_storage(
             config['storage']['cls'],
-            config['storage']['args'],
+            config['storage']['args']
         )
+
         packet_size = config['revision_packet_size']
 
         pipelined_tasks = []
