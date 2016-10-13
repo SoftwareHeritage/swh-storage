@@ -6,7 +6,11 @@
 insert into dbversion(version, release, description)
       values(88, now(), 'Work In Progress');
 
+alter function swh_language_missing() rename to swh_content_language_missing;
+alter function swh_mimetype_missing() rename to swh_content_mimetype_missing;
+
 drop function swh_mimetype_add();
+drop function swh_language_add();
 
 -- add tmp_content_mimetype entries to content_mimetype, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
@@ -17,7 +21,7 @@ drop function swh_mimetype_add();
 --
 -- operates in bulk: 0. swh_mktemp(content_mimetype), 1. COPY to tmp_content_mimetype,
 -- 2. call this function
-create or replace function swh_mimetype_add(conflict_update boolean)
+create or replace function swh_content_mimetype_add(conflict_update boolean)
     returns void
     language plpgsql
 as $$
@@ -39,12 +43,12 @@ begin
 end
 $$;
 
-comment on function swh_mimetype_add(boolean) IS 'Add new content mimetype';
+comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimetypes';
 
 -- Retrieve list of content mimetype from the temporary table.
 --
 -- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
-create or replace function swh_content_mimetype_get_from_temp()
+create or replace function swh_content_mimetype_get()
     returns setof content_mimetype
     language plpgsql
 as $$
@@ -57,9 +61,7 @@ begin
 end
 $$;
 
-comment on function swh_content_mimetype_get_from_temp() IS 'List content mimetype';
-
-drop function swh_language_add();
+comment on function swh_content_mimetype_get() IS 'List content mimetypes';
 
 -- add tmp_content_language entries to content_language, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
@@ -69,7 +71,7 @@ drop function swh_language_add();
 --
 -- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
 -- 2. call this function
-create or replace function swh_language_add(conflict_update boolean)
+create or replace function swh_content_language_add(conflict_update boolean)
     returns void
     language plpgsql
 as $$
@@ -90,12 +92,12 @@ begin
 end
 $$;
 
-comment on function swh_language_add(boolean) IS 'Add new content language';
+comment on function swh_content_language_add(boolean) IS 'Add new content languages';
 
 -- Retrieve list of content language from the temporary table.
 --
 -- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
-create or replace function swh_content_language_get_from_temp()
+create or replace function swh_content_language_get()
     returns setof content_language
     language plpgsql
 as $$
@@ -108,4 +110,4 @@ begin
 end
 $$;
 
-comment on function swh_content_language_get_from_temp() IS 'List content language';
+comment on function swh_content_language_get() IS 'List content languages';

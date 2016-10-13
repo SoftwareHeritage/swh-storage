@@ -1239,7 +1239,7 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(mimetypes, cur)
-        for obj in db.mimetype_missing_from_temp(cur):
+        for obj in db.content_mimetype_missing_from_temp(cur):
             yield obj[0]
 
     @db_transaction
@@ -1259,7 +1259,7 @@ class Storage():
         db.mktemp('content_mimetype', cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype',
                    ['id', 'mimetype', 'encoding'], cur)
-        db.mimetype_add_from_temp(conflict_update, cur)
+        db.content_mimetype_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
     def content_mimetype_get(self, ids, cur=None):
@@ -1281,7 +1281,7 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(languages, cur)
-        for obj in db.language_missing_from_temp(cur):
+        for obj in db.content_language_missing_from_temp(cur):
             yield obj[0]
 
     @db_transaction_generator
@@ -1313,4 +1313,4 @@ class Storage():
             } for l in languages),
             'tmp_content_language', ['id', 'lang'], cur)
 
-        db.language_add_from_temp(conflict_update, cur)
+        db.content_language_add_from_temp(conflict_update, cur)
