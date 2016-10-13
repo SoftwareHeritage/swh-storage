@@ -803,24 +803,44 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    def mimetype_missing_from_temp(self, cur=None):
+    def content_mimetype_missing_from_temp(self, cur=None):
         """List missing mimetypes.
 
         """
         cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_mimetype_missing()")
+        cur.execute("SELECT * FROM swh_content_mimetype_missing()")
         yield from cursor_to_bytes(cur)
 
-    @stored_procedure('swh_mimetype_add')
-    def mimetype_add_from_temp(self, cur=None): pass
+    def content_mimetype_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_content_mimetype_add(%s)",
+                                  (conflict_update, ))
 
-    def language_missing_from_temp(self, cur=None):
+    content_mimetype_cols = ['id', 'mimetype', 'encoding']
+
+    def content_mimetype_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        query = "SELECT %s FROM swh_content_mimetype_get()" % (
+            ','.join(self.content_mimetype_cols))
+        cur.execute(query)
+        yield from cursor_to_bytes(cur)
+
+    def content_language_missing_from_temp(self, cur=None):
         """List missing languages.
 
         """
         cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_language_missing()")
+        cur.execute("SELECT * FROM swh_content_language_missing()")
         yield from cursor_to_bytes(cur)
 
-    @stored_procedure('swh_language_add')
-    def language_add_from_temp(self, cur=None): pass
+    def content_language_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_content_language_add(%s)",
+                                  (conflict_update, ))
+
+    content_language_cols = ['id', 'lang']
+
+    def content_language_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        query = "SELECT %s FROM swh_content_language_get()" % (
+            ','.join(self.content_language_cols))
+        cur.execute(query)
+        yield from cursor_to_bytes(cur)
