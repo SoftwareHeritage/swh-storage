@@ -1,8 +1,13 @@
-swh-storage (0.0.67-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.68-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.68
+  * indexer: Open mimetype/language get endpoints
+  * indexer: Add the mimetype/language add function with conflict_update
+    flag
+  * archiver: Extend worker-to-backend to transmit messages to another
+  * queue (once done)
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 12 Oct 2016 02:24:12 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 13 Oct 2016 15:30:21 +0200
 
 swh-storage (0.0.67-1~swh1) unstable-swh; urgency=medium
 
