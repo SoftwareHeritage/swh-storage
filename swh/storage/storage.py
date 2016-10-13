@@ -1262,6 +1262,13 @@ class Storage():
         db.mimetype_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
+    def content_mimetype_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.content_mimetype_get_from_temp():
+            yield dict(zip(db.content_mimetype_cols, c))
+
+    @db_transaction_generator
     def content_language_missing(self, languages, cur=None):
         """List languages missing from storage.
 
@@ -1276,6 +1283,13 @@ class Storage():
         db.store_tmp_bytea(languages, cur)
         for obj in db.language_missing_from_temp(cur):
             yield obj[0]
+
+    @db_transaction_generator
+    def content_language_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.content_language_get_from_temp():
+            yield dict(zip(db.content_language_cols, c))
 
     @db_transaction
     def content_language_add(self, languages, conflict_update=False, cur=None):

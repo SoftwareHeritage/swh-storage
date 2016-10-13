@@ -41,6 +41,24 @@ $$;
 
 comment on function swh_mimetype_add(boolean) IS 'Add new content mimetype';
 
+-- Retrieve list of content mimetype from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_mimetype_get_from_temp()
+    returns setof content_mimetype
+    language plpgsql
+as $$
+begin
+    return query
+        select id::sha1, mimetype, encoding
+        from tmp_bytea t
+        inner join content_mimetype using(id);
+    return;
+end
+$$;
+
+comment on function swh_content_mimetype_get_from_temp() IS 'List content mimetype';
+
 drop function swh_language_add();
 
 -- add tmp_content_language entries to content_language, overwriting
@@ -73,3 +91,21 @@ end
 $$;
 
 comment on function swh_language_add(boolean) IS 'Add new content language';
+
+-- Retrieve list of content language from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_language_get_from_temp()
+    returns setof content_language
+    language plpgsql
+as $$
+begin
+    return query
+        select id::sha1, lang
+        from tmp_bytea t
+        inner join content_language using(id);
+    return;
+end
+$$;
+
+comment on function swh_content_language_get_from_temp() IS 'List content language';

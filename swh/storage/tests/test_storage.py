@@ -1942,6 +1942,29 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
 
     @istest
+    def content_mimetype_get(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        mimetypes = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        mimetype1 = {
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8'
+        }
+
+        # when
+        self.storage.content_mimetype_add([mimetype1])
+
+        # then
+        actual_mimetypes = self.storage.content_mimetype_get(mimetypes)
+
+        # then
+        self.assertEqual(list(actual_mimetypes), [mimetype1])
+
+    @istest
     def content_language_missing(self):
         # given
         cont2 = self.cont2
@@ -1969,6 +1992,28 @@ class AbstractTestStorage(DbTestFixture):
 
         # then
         self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+
+    @istest
+    def content_language_get(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        languages = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        language1 = {
+            'id': self.cont2['sha1'],
+            'lang': 'common-lisp',
+        }
+
+        # when
+        self.storage.content_language_add([language1])
+
+        # then
+        actual_languages = self.storage.content_language_get(languages)
+
+        # then
+        self.assertEqual(list(actual_languages), [language1])
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
