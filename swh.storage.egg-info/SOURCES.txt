@@ -131,6 +131,7 @@ sql/upgrades/084.sql
 sql/upgrades/085.sql
 sql/upgrades/086.sql
 sql/upgrades/087.sql
+sql/upgrades/088.sql
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
 swh.storage.egg-info/dependency_links.txt

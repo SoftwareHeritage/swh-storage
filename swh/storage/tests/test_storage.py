@@ -1941,7 +1941,103 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
 
-    @attr('one')
+    @istest
+    def content_mimetype_add__drop_duplicate(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        mimetype_v1 = {
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8'
+        }
+
+        # given
+        self.storage.content_mimetype_add([mimetype_v1])
+
+        # when
+        actual_mimetypes = list(self.storage.content_mimetype_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_mimetypes[0], mimetype_v1)
+
+        # given
+        mimetype_v2 = mimetype_v1.copy()
+        mimetype_v2.update({
+            'mimetype': b'text/html',
+            'encoding': b'us-ascii',
+        })
+
+        self.storage.content_mimetype_add([mimetype_v2])
+
+        actual_mimetypes = list(self.storage.content_mimetype_get(
+            [self.cont2['sha1']]))
+
+        # mimetype did not change as the v2 was dropped.
+        self.assertEqual(actual_mimetypes[0], mimetype_v1)
+
+    @istest
+    def content_mimetype_add__update_in_place_duplicate(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        mimetype_v1 = {
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8'
+        }
+
+        # given
+        self.storage.content_mimetype_add([mimetype_v1])
+
+        # when
+        actual_mimetypes = list(self.storage.content_mimetype_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_mimetypes[0], mimetype_v1)
+
+        # given
+        mimetype_v2 = mimetype_v1.copy()
+        mimetype_v2.update({
+            'mimetype': b'text/html',
+            'encoding': b'us-ascii',
+        })
+
+        self.storage.content_mimetype_add([mimetype_v2], conflict_update=True)
+
+        actual_mimetypes = list(self.storage.content_mimetype_get(
+            [self.cont2['sha1']]))
+
+        # mimetype did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_mimetypes[0], mimetype_v2)
+
+    @istest
+    def content_mimetype_get(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        mimetypes = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        mimetype1 = {
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8'
+        }
+
+        # when
+        self.storage.content_mimetype_add([mimetype1])
+
+        # then
+        actual_mimetypes = self.storage.content_mimetype_get(mimetypes)
+
+        # then
+        self.assertEqual(list(actual_mimetypes), [mimetype1])
+
     @istest
     def content_language_missing(self):
         # given
@@ -1970,6 +2066,100 @@ class AbstractTestStorage(DbTestFixture):
 
         # then
         self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+
+    @istest
+    def content_language_get(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        languages = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        language1 = {
+            'id': self.cont2['sha1'],
+            'lang': 'common-lisp',
+        }
+
+        # when
+        self.storage.content_language_add([language1])
+
+        # then
+        actual_languages = self.storage.content_language_get(languages)
+
+        # then
+        self.assertEqual(list(actual_languages), [language1])
+
+    @attr('one')
+    @istest
+    def content_language_add__drop_duplicate(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        language_v1 = {
+            'id': self.cont2['sha1'],
+            'lang': 'emacslisp',
+        }
+
+        # given
+        self.storage.content_language_add([language_v1])
+
+        # when
+        actual_languages = list(self.storage.content_language_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_languages[0], language_v1)
+
+        # given
+        language_v2 = language_v1.copy()
+        language_v2.update({
+            'lang': 'common-lisp',
+        })
+
+        self.storage.content_language_add([language_v2])
+
+        actual_languages = list(self.storage.content_language_get(
+            [self.cont2['sha1']]))
+
+        # language did not change as the v2 was dropped.
+        self.assertEqual(actual_languages[0], language_v1)
+
+    @attr('one')
+    @istest
+    def content_language_add__update_in_place_duplicate(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        language_v1 = {
+            'id': self.cont2['sha1'],
+            'lang': 'common-lisp',
+        }
+
+        # given
+        self.storage.content_language_add([language_v1])
+
+        # when
+        actual_languages = list(self.storage.content_language_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_languages[0], language_v1)
+
+        # given
+        language_v2 = language_v1.copy()
+        language_v2.update({
+            'lang': 'emacslisp',
+        })
+
+        self.storage.content_language_add([language_v2], conflict_update=True)
+
+        actual_languages = list(self.storage.content_language_get(
+            [self.cont2['sha1']]))
+
+        # language did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_languages[0], language_v2)
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):

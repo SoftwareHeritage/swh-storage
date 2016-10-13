@@ -1492,7 +1492,7 @@ $$;
 --
 -- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
 -- 2. call this function
-create or replace function swh_mimetype_missing()
+create or replace function swh_content_mimetype_missing()
     returns setof sha1
     language plpgsql
 as $$
@@ -1505,33 +1505,48 @@ begin
 end
 $$;
 
-COMMENT ON FUNCTION swh_mimetype_missing() IS 'Filter missing content mimetype';
+COMMENT ON FUNCTION swh_content_mimetype_missing() IS 'Filter missing content mimetype';
 
 
--- add tmp_content_mimetype entries to content_mimetype, skipping duplicates
+-- add tmp_content_mimetype entries to content_mimetype, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_mimetype_missing must take place before calling this function.
+--
 --
 -- operates in bulk: 0. swh_mktemp(content_mimetype), 1. COPY to tmp_content_mimetype,
 -- 2. call this function
-create or replace function swh_mimetype_add()
+create or replace function swh_content_mimetype_add(conflict_update boolean)
     returns void
     language plpgsql
 as $$
 begin
-    insert into content_mimetype (id, mimetype, encoding)
-	select id, mimetype, encoding
-	from tmp_content_mimetype
-        on conflict do nothing;
+    if conflict_update then
+        insert into content_mimetype (id, mimetype, encoding)
+        select id, mimetype, encoding
+        from tmp_content_mimetype
+            on conflict(id)
+                do update set mimetype = excluded.mimetype,
+                    encoding = excluded.encoding;
+
+    else
+        insert into content_mimetype (id, mimetype, encoding)
+        select id, mimetype, encoding
+         from tmp_content_mimetype
+            on conflict do nothing;
+    end if;
     return;
 end
 $$;
 
-COMMENT ON FUNCTION swh_mimetype_add() IS 'Add new content mimetype';
+comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimetypes';
 
 -- check which entries of tmp_bytea are missing from content_language
 --
 -- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
 -- 2. call this function
-create or replace function swh_language_missing()
+create or replace function swh_content_language_missing()
     returns setof sha1
     language plpgsql
 as $$
@@ -1544,28 +1559,75 @@ begin
 end
 $$;
 
-COMMENT ON FUNCTION swh_language_missing() IS 'Filter missing content language';
+comment on function swh_content_language_missing() IS 'Filter missing content languages';
 
-
--- add tmp_content_language entries to content_language, skipping duplicates
+-- Retrieve list of content mimetype from the temporary table.
 --
--- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
--- 2. call this function
-create or replace function swh_language_add()
-    returns void
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_mimetype_get()
+    returns setof content_mimetype
     language plpgsql
 as $$
 begin
-    insert into content_language (id, lang)
-	select id, lang
-	from tmp_content_language
-        on conflict do nothing;
+    return query
+        select id::sha1, mimetype, encoding
+        from tmp_bytea t
+        inner join content_mimetype using(id);
     return;
 end
 $$;
 
-COMMENT ON FUNCTION swh_language_add() IS 'Add new content language';
+comment on function swh_content_mimetype_get() IS 'List content mimetypes';
 
+-- add tmp_content_language entries to content_language, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_mimetype_missing must take place before calling this function.
+--
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
+-- 2. call this function
+create or replace function swh_content_language_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        insert into content_language (id, lang)
+        select id, lang
+    	from tmp_content_language
+            on conflict(id)
+                do update set lang = excluded.lang;
+
+    else
+        insert into content_language (id, lang)
+        select id, lang
+    	from tmp_content_language
+            on conflict do nothing;
+    end if;
+    return;
+end
+$$;
+
+comment on function swh_content_language_add(boolean) IS 'Add new content languages';
+
+-- Retrieve list of content language from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_language_get()
+    returns setof content_language
+    language plpgsql
+as $$
+begin
+    return query
+        select id::sha1, lang
+        from tmp_bytea t
+        inner join content_language using(id);
+    return;
+end
+$$;
+
+comment on function swh_content_language_get() IS 'List content languages';
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

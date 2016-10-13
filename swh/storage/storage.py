@@ -1239,11 +1239,11 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(mimetypes, cur)
-        for obj in db.mimetype_missing_from_temp(cur):
+        for obj in db.content_mimetype_missing_from_temp(cur):
             yield obj[0]
 
     @db_transaction
-    def content_mimetype_add(self, mimetypes, cur=None):
+    def content_mimetype_add(self, mimetypes, conflict_update=False, cur=None):
         """Add mimetypes not present in storage.
 
         Args:
@@ -1251,13 +1251,22 @@ class Storage():
             - id: sha1
             - mimetype: bytes
             - encoding: bytes
+            conflict_update: Flag to determine if we want to overwrite (true)
+            or skip duplicates (false, the default)
 
         """
         db = self.db
         db.mktemp('content_mimetype', cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype',
                    ['id', 'mimetype', 'encoding'], cur)
-        db.mimetype_add_from_temp(cur)
+        db.content_mimetype_add_from_temp(conflict_update, cur)
+
+    @db_transaction_generator
+    def content_mimetype_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.content_mimetype_get_from_temp():
+            yield dict(zip(db.content_mimetype_cols, c))
 
     @db_transaction_generator
     def content_language_missing(self, languages, cur=None):
@@ -1272,17 +1281,26 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(languages, cur)
-        for obj in db.language_missing_from_temp(cur):
+        for obj in db.content_language_missing_from_temp(cur):
             yield obj[0]
 
+    @db_transaction_generator
+    def content_language_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.content_language_get_from_temp():
+            yield dict(zip(db.content_language_cols, c))
+
     @db_transaction
-    def content_language_add(self, languages, cur=None):
+    def content_language_add(self, languages, conflict_update=False, cur=None):
         """Add languages not present in storage.
 
         Args:
             languages: iterable of dictionary with keys:
             - id: sha1
             - lang: bytes
+            conflict_update: Flag to determine if we want to overwrite (true)
+            or skip duplicates (false, the default)
 
         """
         db = self.db
@@ -1295,4 +1313,4 @@ class Storage():
             } for l in languages),
             'tmp_content_language', ['id', 'lang'], cur)
 
-        db.language_add_from_temp(cur)
+        db.content_language_add_from_temp(conflict_update, cur)
