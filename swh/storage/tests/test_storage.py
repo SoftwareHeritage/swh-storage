@@ -1941,7 +1941,6 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
 
-    @attr('one')
     @istest
     def content_language_missing(self):
         # given
