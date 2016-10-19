@@ -205,6 +205,11 @@ def origin_get():
     return encode_data(g.storage.origin_get(**decode_request(request)))
 
 
+@app.route('/origin/add_multi', methods=['POST'])
+def origin_add():
+    return encode_data(g.storage.origin_add(**decode_request(request)))
+
+
 @app.route('/origin/add', methods=['POST'])
 def origin_add_one():
     return encode_data(g.storage.origin_add_one(**decode_request(request)))

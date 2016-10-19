@@ -1050,6 +1050,25 @@ class Storage():
             yield dict(zip(db.person_get_cols, person))
 
     @db_transaction
+    def origin_add(self, origins, cur=None):
+        """Add origins to the storage
+
+        Args:
+            origins: list of dictionaries representing the individual origins,
+            with the following keys:
+                type: the origin type ('git', 'svn', 'deb', ...)
+                url (bytes): the url the origin points to
+        Returns:
+            The array of ids corresponding to the given origins
+        """
+
+        ret = []
+        for origin in origins:
+            ret.append(self.origin_add_one(origin, cur=cur))
+
+        return ret
+
+    @db_transaction
     def origin_add_one(self, origin, cur=None):
         """Add origin to the storage
 
