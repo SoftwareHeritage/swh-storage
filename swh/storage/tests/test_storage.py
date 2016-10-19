@@ -2115,7 +2115,6 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEqual(list(actual_languages), [language1])
 
-    @attr('one')
     @istest
     def content_language_add__drop_duplicate(self):
         # given
@@ -2151,7 +2150,6 @@ class AbstractTestStorage(DbTestFixture):
         # language did not change as the v2 was dropped.
         self.assertEqual(actual_languages[0], language_v1)
 
-    @attr('one')
     @istest
     def content_language_add__update_in_place_duplicate(self):
         # given
