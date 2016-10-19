@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(88, now(), 'Work In Progress');
+      values(89, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -1033,3 +1033,9 @@ create table content_language (
 
 comment on table content_language is 'Language information on a raw content';
 comment on column content_language.lang is 'Language information';
+
+-- ctags metadata
+create table content_ctags (
+  id sha1 primary key references content(sha1) not null,
+  ctags jsonb
+);

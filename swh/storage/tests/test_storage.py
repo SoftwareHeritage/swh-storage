@@ -2185,6 +2185,175 @@ class AbstractTestStorage(DbTestFixture):
         # language did change as the v2 was used to overwrite v1
         self.assertEqual(actual_languages[0], language_v2)
 
+    @istest
+    def content_ctags_missing(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctags = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        # when
+        actual_missing = self.storage.content_ctags_missing(ctags)
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            self.cont2['sha1'],
+            self.missing_cont['sha1']
+        ])
+
+        # given
+        self.storage.content_ctags_add([
+            {
+                'id': self.cont2['sha1'],
+                'ctags': [{
+                    'name': 'done',
+                    'pattern': '/^  static int done = 0;$/',
+                    'kind': 'variable',
+                    'line': '119',
+                }]
+            },
+        ])
+
+        # when
+        actual_missing = self.storage.content_ctags_missing(ctags)
+
+        # then
+        self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+
+    @istest
+    def content_ctags_get(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctags = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        ctag1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [{
+                'name': 'done',
+                'pattern': '/^  static int done = 0;$/',
+                'kind': 'variable',
+                'line': '119',
+            }]
+        }
+
+        # when
+        self.storage.content_ctags_add([ctag1])
+
+        # then
+        actual_ctags = self.storage.content_ctags_get(ctags)
+
+        # then
+        self.assertEqual(list(actual_ctags), [ctag1])
+
+    @istest
+    def content_ctags_add__drop_duplicate(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctag_v1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [{
+                'name': 'done',
+                'pattern': '/^  static int done = 0;$/',
+                'kind': 'variable',
+                'line': '119',
+            }]
+        }
+
+        # given
+        self.storage.content_ctags_add([ctag_v1])
+
+        # when
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_ctags[0], ctag_v1)
+
+        # given
+        ctag_v2 = ctag_v1.copy()
+        ctag_v2.update({
+            'ctags': [
+                {
+                    'name': 'done',
+                    'pattern': '/^  static int done = 0;$/',
+                    'kind': 'variable',
+                    'line': 119,
+                },
+                {
+                    "name": "fp",
+                    "pattern": '/^FILE* fp = fopen([path cString], "w");$/',
+                    "kind": "variable",
+                    "line": 130,
+                }
+            ]
+        })
+
+        self.storage.content_ctags_add([ctag_v2])
+
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # ctag did not change as the v2 was dropped.
+        self.assertEqual(actual_ctags[0], ctag_v1)
+
+    @istest
+    def content_ctags_add__update_in_place_duplicate(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctag_v1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [{
+                'name': 'done',
+                'pattern': '/^  static int done = 0;$/',
+                'kind': 'variable',
+                'line': '119',
+            }]
+        }
+
+        # given
+        self.storage.content_ctags_add([ctag_v1])
+
+        # when
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_ctags[0], ctag_v1)
+
+        # given
+        ctag_v2 = ctag_v1.copy()
+        ctag_v2.update({
+            'ctags': [
+                {
+                    'name': 'done',
+                    'pattern': '/^  static int done = 0;$/',
+                    'kind': 'variable',
+                    'line': '119',
+                },
+                {
+                    'name': 'fp',
+                    'pattern': '/^FILE* fp = fopen([path cString], "w");$/',
+                    'kind': 'variable',
+                    'line': '88',
+                }
+            ]
+        })
+
+        self.storage.content_ctags_add([ctag_v2], conflict_update=True)
+
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # ctag did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_ctags[0], ctag_v2)
+
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
     """Test the local storage"""

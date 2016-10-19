@@ -844,3 +844,24 @@ class Db(BaseDb):
             ','.join(self.content_language_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
+
+    def content_ctags_missing_from_temp(self, cur=None):
+        """List missing ctagss.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("SELECT * FROM swh_content_ctags_missing()")
+        yield from cursor_to_bytes(cur)
+
+    def content_ctags_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_content_ctags_add(%s)",
+                                  (conflict_update, ))
+
+    content_ctags_cols = ['id', 'ctags']
+
+    def content_ctags_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        query = "SELECT %s FROM swh_content_ctags_get()" % (
+            ','.join(self.content_ctags_cols))
+        cur.execute(query)
+        yield from cursor_to_bytes(cur)

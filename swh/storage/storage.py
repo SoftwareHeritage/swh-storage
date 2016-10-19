@@ -7,6 +7,7 @@
 from collections import defaultdict
 import datetime
 import itertools
+import json
 import dateutil.parser
 import psycopg2
 
@@ -1333,3 +1334,55 @@ class Storage():
             'tmp_content_language', ['id', 'lang'], cur)
 
         db.content_language_add_from_temp(conflict_update, cur)
+
+    @db_transaction_generator
+    def content_ctags_missing(self, ctags, cur=None):
+        """List ctags missing from storage.
+
+        Args:
+            ctags: iterable of sha1
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.store_tmp_bytea(ctags, cur)
+        for obj in db.content_ctags_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
+    def content_ctags_get(self, ids, cur=None):
+        """Retrieve ctags per id.
+
+        Args:
+            ids ([sha1]): Iterable of sha1
+
+        """
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.content_ctags_get_from_temp():
+            yield dict(zip(db.content_ctags_cols, c))
+
+    @db_transaction
+    def content_ctags_add(self, ctags, conflict_update=False, cur=None):
+        """Add ctags not present in storage
+
+        Args:
+            ctags: iterable of dictionary with keys:
+            - id: sha1
+            - lang: bytes
+            conflict_update: Flag to determine if we want to overwrite (true)
+            or skip duplicates (false, the default)
+
+        """
+        db = self.db
+        db.mktemp('content_ctags', cur)
+        db.copy_to(
+            ({
+                'id': c['id'],
+                'ctags': json.dumps(c['ctags']),
+            } for c in ctags),
+            'tmp_content_ctags', ['id', 'ctags'], cur)
+
+        db.content_ctags_add_from_temp(conflict_update, cur)

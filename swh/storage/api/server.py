@@ -318,6 +318,24 @@ def content_language_get():
         g.storage.content_language_get(**decode_request(request)))
 
 
+@app.route('/content_ctags/add', methods=['POST'])
+def content_ctags_add():
+    return encode_data(
+        g.storage.content_ctags_add(**decode_request(request)))
+
+
+@app.route('/content_ctags/missing', methods=['POST'])
+def content_ctags_missing():
+    return encode_data(
+        g.storage.content_ctags_missing(**decode_request(request)))
+
+
+@app.route('/content_ctags', methods=['POST'])
+def content_ctags_get():
+    return encode_data(
+        g.storage.content_ctags_get(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())
