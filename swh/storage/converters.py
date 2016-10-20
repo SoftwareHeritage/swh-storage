@@ -8,6 +8,7 @@ import numbers
 
 from swh.core.utils import decode_with_escape, encode_with_unescape
 
+
 DEFAULT_AUTHOR = {
     'fullname': None,
     'name': None,
@@ -314,3 +315,36 @@ def db_to_release(db_release):
         ret['object_id'] = db_release['object_id']
 
     return ret
+
+
+def ctags_to_db(ctags):
+    """Convert a ctags entry into a ready ctags entry.
+
+    Args:
+        ctags (dict): ctags entry with the following keys:
+        - id (bytes): content's identifier
+        - ctags ([dict]): List of dictionary with the following keys:
+          - name (str): symbol's name
+          - kind (str): symbol's kind
+          - line (int): symbol's line in the content
+          - language (str): language
+
+    Returns:
+        List of ctags ready entry (dict with the following keys):
+        - id (bytes): content's identifier
+        - name (str): symbol's name
+        - kind (str): symbol's kind
+        - language (str): language for that content
+
+    """
+    res = []
+    id = ctags['id']
+    for ctag in ctags['ctags']:
+        res.append({
+            'id': id,
+            'name': ctag['name'],
+            'kind': ctag['kind'],
+            'line': ctag['line'],
+            'lang': ctag['lang'],
+        })
+    return res

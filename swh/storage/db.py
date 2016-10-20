@@ -846,18 +846,17 @@ class Db(BaseDb):
         yield from cursor_to_bytes(cur)
 
     def content_ctags_missing_from_temp(self, cur=None):
-        """List missing ctagss.
+        """List missing ctags.
 
         """
         cur = self._cursor(cur)
         cur.execute("SELECT * FROM swh_content_ctags_missing()")
         yield from cursor_to_bytes(cur)
 
-    def content_ctags_add_from_temp(self, conflict_update, cur=None):
-        self._cursor(cur).execute("SELECT swh_content_ctags_add(%s)",
-                                  (conflict_update, ))
+    def content_ctags_add_from_temp(self, cur=None):
+        self._cursor(cur).execute("SELECT swh_content_ctags_add()")
 
-    content_ctags_cols = ['id', 'ctags']
+    content_ctags_cols = ['id', 'name', 'kind', 'line', 'lang']
 
     def content_ctags_get_from_temp(self, cur=None):
         cur = self._cursor(cur)

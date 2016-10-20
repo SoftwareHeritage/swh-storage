@@ -7,7 +7,6 @@
 from collections import defaultdict
 import datetime
 import itertools
-import json
 import dateutil.parser
 import psycopg2
 
@@ -1361,28 +1360,43 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(ids, cur)
+
+        r = {}
         for c in db.content_ctags_get_from_temp():
-            yield dict(zip(db.content_ctags_cols, c))
+            id = c[0]
+            l = r.get(id, [])
+            l.append(dict(zip(db.content_ctags_cols[1:], c[1:])))
+            r[id] = l
+
+        for id, ctags in r.items():
+            yield {'id': id, 'ctags': ctags}
 
     @db_transaction
-    def content_ctags_add(self, ctags, conflict_update=False, cur=None):
+    def content_ctags_add(self, ctags, cur=None):
         """Add ctags not present in storage
 
         Args:
-            ctags: iterable of dictionary with keys:
-            - id: sha1
-            - lang: bytes
-            conflict_update: Flag to determine if we want to overwrite (true)
-            or skip duplicates (false, the default)
+            ctags: iterable of dictionaries with keys:
+            - id (bytes): sha1
+            - ctags ([dict]): List of dictionary with keys (name,
+            kind, line, language)
 
         """
         db = self.db
-        db.mktemp('content_ctags', cur)
-        db.copy_to(
-            ({
-                'id': c['id'],
-                'ctags': json.dumps(c['ctags']),
-            } for c in ctags),
-            'tmp_content_ctags', ['id', 'ctags'], cur)
 
-        db.content_ctags_add_from_temp(conflict_update, cur)
+        def _convert_ctags(ctags):
+            """Convert ctags to list of ctags.
+
+            """
+            res = []
+            for ctag in ctags:
+                res.extend(converters.ctags_to_db(ctag))
+            return res
+
+        db.mktemp('content_ctags', cur)
+        db.copy_to(_convert_ctags(ctags),
+                   tblname='tmp_content_ctags',
+                   columns=db.content_ctags_cols,
+                   cur=cur)
+
+        db.content_ctags_add_from_temp(cur)

@@ -2208,9 +2208,9 @@ class AbstractTestStorage(DbTestFixture):
                 'id': self.cont2['sha1'],
                 'ctags': [{
                     'name': 'done',
-                    'pattern': '/^  static int done = 0;$/',
                     'kind': 'variable',
-                    'line': '119',
+                    'line': 119,
+                    'lang': 'OCaml',
                 }]
             },
         ])
@@ -2231,25 +2231,32 @@ class AbstractTestStorage(DbTestFixture):
 
         ctag1 = {
             'id': self.cont2['sha1'],
-            'ctags': [{
-                'name': 'done',
-                'pattern': '/^  static int done = 0;$/',
-                'kind': 'variable',
-                'line': '119',
-            }]
+            'ctags': [
+                {
+                    'name': 'done',
+                    'kind': 'variable',
+                    'line': 100,
+                    'lang': 'Python',
+                },
+                {
+                    'name': 'main',
+                    'kind': 'function',
+                    'line': 119,
+                    'lang': 'Python',
+                }]
         }
 
         # when
         self.storage.content_ctags_add([ctag1])
 
         # then
-        actual_ctags = self.storage.content_ctags_get(ctags)
+        actual_ctags = list(self.storage.content_ctags_get(ctags))
 
         # then
-        self.assertEqual(list(actual_ctags), [ctag1])
+        self.assertEqual(actual_ctags, [ctag1])
 
     @istest
-    def content_ctags_add__drop_duplicate(self):
+    def content_ctags_add(self):
         # given
         cont2 = self.cont2
         self.storage.content_add([cont2])
@@ -2258,9 +2265,9 @@ class AbstractTestStorage(DbTestFixture):
             'id': self.cont2['sha1'],
             'ctags': [{
                 'name': 'done',
-                'pattern': '/^  static int done = 0;$/',
                 'kind': 'variable',
-                'line': '119',
+                'line': 100,
+                'lang': 'Scheme',
             }]
         }
 
@@ -2280,15 +2287,15 @@ class AbstractTestStorage(DbTestFixture):
             'ctags': [
                 {
                     'name': 'done',
-                    'pattern': '/^  static int done = 0;$/',
                     'kind': 'variable',
-                    'line': 119,
+                    'line': 100,
+                    'lang': 'Scheme',
                 },
                 {
-                    "name": "fp",
-                    "pattern": '/^FILE* fp = fopen([path cString], "w");$/',
-                    "kind": "variable",
-                    "line": 130,
+                    'name': 'defn',
+                    'kind': 'function',
+                    'line': 120,
+                    'lang': 'Scheme',
                 }
             ]
         })
@@ -2298,61 +2305,8 @@ class AbstractTestStorage(DbTestFixture):
         actual_ctags = list(self.storage.content_ctags_get(
             [self.cont2['sha1']]))
 
-        # ctag did not change as the v2 was dropped.
-        self.assertEqual(actual_ctags[0], ctag_v1)
-
-    @istest
-    def content_ctags_add__update_in_place_duplicate(self):
-        # given
-        cont2 = self.cont2
-        self.storage.content_add([cont2])
-
-        ctag_v1 = {
-            'id': self.cont2['sha1'],
-            'ctags': [{
-                'name': 'done',
-                'pattern': '/^  static int done = 0;$/',
-                'kind': 'variable',
-                'line': '119',
-            }]
-        }
-
-        # given
-        self.storage.content_ctags_add([ctag_v1])
-
-        # when
-        actual_ctags = list(self.storage.content_ctags_get(
-            [self.cont2['sha1']]))
-
-        # then
-        self.assertEqual(actual_ctags[0], ctag_v1)
-
-        # given
-        ctag_v2 = ctag_v1.copy()
-        ctag_v2.update({
-            'ctags': [
-                {
-                    'name': 'done',
-                    'pattern': '/^  static int done = 0;$/',
-                    'kind': 'variable',
-                    'line': '119',
-                },
-                {
-                    'name': 'fp',
-                    'pattern': '/^FILE* fp = fopen([path cString], "w");$/',
-                    'kind': 'variable',
-                    'line': '88',
-                }
-            ]
-        })
-
-        self.storage.content_ctags_add([ctag_v2], conflict_update=True)
-
-        actual_ctags = list(self.storage.content_ctags_get(
-            [self.cont2['sha1']]))
-
         # ctag did change as the v2 was used to overwrite v1
-        self.assertEqual(actual_ctags[0], ctag_v2)
+        self.assertEqual(actual_ctags, [ctag_v2])
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):

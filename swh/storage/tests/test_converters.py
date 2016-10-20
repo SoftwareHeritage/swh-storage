@@ -128,3 +128,43 @@ class TestConverters(unittest.TestCase):
         db_data = converters.git_headers_to_db(raw_data)
         loop = converters.db_to_git_headers(db_data)
         self.assertEquals(raw_data, loop)
+
+    @istest
+    def ctags_to_db(self):
+        input_ctag = {
+            'id': b'some-id',
+            'ctags': [
+                {
+                    'name': 'some-name',
+                    'kind': 'some-kind',
+                    'line': 10,
+                    'lang': 'Yaml',
+                }, {
+                    'name': 'main',
+                    'kind': 'function',
+                    'line': 12,
+                    'lang': 'Yaml',
+                },
+            ]
+        }
+
+        expected_ctags = [
+            {
+                'id': b'some-id',
+                'name': 'some-name',
+                'kind': 'some-kind',
+                'line': 10,
+                'lang': 'Yaml',
+            }, {
+                'id': b'some-id',
+                'name': 'main',
+                'kind': 'function',
+                'line': 12,
+                'lang': 'Yaml',
+            }]
+
+        # when
+        actual_ctags = converters.ctags_to_db(input_ctag)
+
+        # then
+        self.assertEquals(actual_ctags, expected_ctags)

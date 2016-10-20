@@ -243,10 +243,9 @@ class RemoteStorage():
     def content_language_get(self, ids):
         return self.post('content_language', {'ids': ids})
 
-    def content_ctags_add(self, ctags, conflict_update=False):
+    def content_ctags_add(self, ctags):
         return self.post('content_ctags/add', {
             'ctags': ctags,
-            'conflict_update': conflict_update,
         })
 
     def content_ctags_missing(self, ctags):
