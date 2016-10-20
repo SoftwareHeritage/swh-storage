@@ -112,7 +112,7 @@ comment on column content_ctags.line is 'Symbol line';
 comment on column content_ctags.lang is 'Language information for that content';
 
 create index on content_ctags(id);
-create unique index on content_ctags(id, name, kind, line, lang);
+create unique index on content_ctags(id, md5(name), kind, line, lang);
 
 -- add tmp_content_ctags entries to content_ctags, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
@@ -131,7 +131,7 @@ begin
     insert into content_ctags (id, name, kind, line, lang)
     select id, name, kind, line, lang
     from tmp_content_ctags
-        on conflict(id, name, kind, line, lang)
+        on conflict(id, md5(name), kind, line, lang)
         do nothing;
     return;
 end

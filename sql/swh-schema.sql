@@ -1141,4 +1141,4 @@ comment on column content_ctags.line is 'Symbol line';
 comment on column content_ctags.lang is 'Language information for that content';
 
 create index on content_ctags(id);
-create unique index on content_ctags(id, name, kind, line, lang);
+create unique index on content_ctags(id, md5(name), kind, line, lang);

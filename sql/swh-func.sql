@@ -1649,7 +1649,7 @@ begin
     insert into content_ctags (id, name, kind, line, lang)
     select id, name, kind, line, lang
     from tmp_content_ctags
-        on conflict(id, name, kind, line, lang)
+        on conflict(id, md5(name), kind, line, lang)
         do nothing;
     return;
 end
