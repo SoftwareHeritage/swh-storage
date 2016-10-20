@@ -1,8 +1,10 @@
-swh-storage (0.0.68-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.69-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.69
+  * storage: Open ctags entry points (missing, add, get)
+  * storage: allow adding several origins at once
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 13 Oct 2016 15:30:20 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 20 Oct 2016 16:07:07 +0200
 
 swh-storage (0.0.68-1~swh1) unstable-swh; urgency=medium
 

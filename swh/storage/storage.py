@@ -1050,6 +1050,25 @@ class Storage():
             yield dict(zip(db.person_get_cols, person))
 
     @db_transaction
+    def origin_add(self, origins, cur=None):
+        """Add origins to the storage
+
+        Args:
+            origins: list of dictionaries representing the individual origins,
+            with the following keys:
+                type: the origin type ('git', 'svn', 'deb', ...)
+                url (bytes): the url the origin points to
+        Returns:
+            The array of ids corresponding to the given origins
+        """
+
+        ret = []
+        for origin in origins:
+            ret.append(self.origin_add_one(origin, cur=cur))
+
+        return ret
+
+    @db_transaction
     def origin_add_one(self, origin, cur=None):
         """Add origin to the storage
 
@@ -1314,3 +1333,70 @@ class Storage():
             'tmp_content_language', ['id', 'lang'], cur)
 
         db.content_language_add_from_temp(conflict_update, cur)
+
+    @db_transaction_generator
+    def content_ctags_missing(self, ctags, cur=None):
+        """List ctags missing from storage.
+
+        Args:
+            ctags: iterable of sha1
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.store_tmp_bytea(ctags, cur)
+        for obj in db.content_ctags_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
+    def content_ctags_get(self, ids, cur=None):
+        """Retrieve ctags per id.
+
+        Args:
+            ids ([sha1]): Iterable of sha1
+
+        """
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+
+        r = {}
+        for c in db.content_ctags_get_from_temp():
+            id = c[0]
+            l = r.get(id, [])
+            l.append(dict(zip(db.content_ctags_cols[1:], c[1:])))
+            r[id] = l
+
+        for id, ctags in r.items():
+            yield {'id': id, 'ctags': ctags}
+
+    @db_transaction
+    def content_ctags_add(self, ctags, cur=None):
+        """Add ctags not present in storage
+
+        Args:
+            ctags: iterable of dictionaries with keys:
+            - id (bytes): sha1
+            - ctags ([dict]): List of dictionary with keys (name,
+            kind, line, language)
+
+        """
+        db = self.db
+
+        def _convert_ctags(ctags):
+            """Convert ctags to list of ctags.
+
+            """
+            res = []
+            for ctag in ctags:
+                res.extend(converters.ctags_to_db(ctag))
+            return res
+
+        db.mktemp('content_ctags', cur)
+        db.copy_to(_convert_ctags(ctags),
+                   tblname='tmp_content_ctags',
+                   columns=db.content_ctags_cols,
+                   cur=cur)
+
+        db.content_ctags_add_from_temp(cur)

@@ -1542,24 +1542,6 @@ $$;
 
 comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimetypes';
 
--- check which entries of tmp_bytea are missing from content_language
---
--- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
--- 2. call this function
-create or replace function swh_content_language_missing()
-    returns setof sha1
-    language plpgsql
-as $$
-begin
-    return query
-	(select id::sha1 from tmp_bytea as tmp
-	 where not exists
-	     (select 1 from content_language as c where c.id = tmp.id));
-    return;
-end
-$$;
-
-comment on function swh_content_language_missing() IS 'Filter missing content languages';
 
 -- Retrieve list of content mimetype from the temporary table.
 --
@@ -1578,6 +1560,26 @@ end
 $$;
 
 comment on function swh_content_mimetype_get() IS 'List content mimetypes';
+
+
+-- check which entries of tmp_bytea are missing from content_language
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_language_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_language as c where c.id = tmp.id));
+    return;
+end
+$$;
+
+comment on function swh_content_language_missing() IS 'Filter missing content languages';
 
 -- add tmp_content_language entries to content_language, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
@@ -1628,6 +1630,71 @@ end
 $$;
 
 comment on function swh_content_language_get() IS 'List content languages';
+
+
+-- add tmp_content_ctags entries to content_ctags, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_ctags_missing must take place before calling this function.
+--
+--
+-- operates in bulk: 0. swh_mktemp(content_ctags), 1. COPY to tmp_content_ctags,
+-- 2. call this function
+create or replace function swh_content_ctags_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into content_ctags (id, name, kind, line, lang)
+    select id, name, kind, line, lang
+    from tmp_content_ctags
+        on conflict(id, md5(name), kind, line, lang)
+        do nothing;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_add() IS 'Add new ctags symbols per content';
+
+-- check which entries of tmp_bytea are missing from content_ctags
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_ctags_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_ctags as c where c.id = tmp.id limit 1));
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_missing() IS 'Filter missing content ctags';
+
+-- Retrieve list of content ctags from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_ctags_get()
+    returns setof content_ctags
+    language plpgsql
+as $$
+begin
+    return query
+        select id::sha1, name, kind, line, lang
+        from tmp_bytea t
+        inner join content_ctags using(id)
+        order by line;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_get() IS 'List content ctags';
+
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

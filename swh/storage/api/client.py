@@ -164,6 +164,9 @@ class RemoteStorage():
     def origin_get(self, origin):
         return self.post('origin/get', {'origin': origin})
 
+    def origin_add(self, origins):
+        return self.post('origin/add_multi', {'origins': origins})
+
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
@@ -239,3 +242,14 @@ class RemoteStorage():
 
     def content_language_get(self, ids):
         return self.post('content_language', {'ids': ids})
+
+    def content_ctags_add(self, ctags):
+        return self.post('content_ctags/add', {
+            'ctags': ctags,
+        })
+
+    def content_ctags_missing(self, ctags):
+        return self.post('content_ctags/missing', {'ctags': ctags})
+
+    def content_ctags_get(self, ids):
+        return self.post('content_ctags', {'ids': ids})

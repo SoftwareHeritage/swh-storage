@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(88, now(), 'Work In Progress');
+      values(89, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -1033,3 +1033,112 @@ create table content_language (
 
 comment on table content_language is 'Language information on a raw content';
 comment on column content_language.lang is 'Language information';
+
+create type ctags_languages as enum (
+  'Ada',
+  'AnsiblePlaybook',
+  'Ant',
+  'Asm',
+  'Asp',
+  'Autoconf',
+  'Automake',
+  'Awk',
+  'Basic',
+  'BETA',
+  'C',
+  'C#',
+  'C++',
+  'Clojure',
+  'Cobol',
+  'CoffeeScript [disabled]',
+  'CSS',
+  'ctags',
+  'D',
+  'DBusIntrospect',
+  'Diff',
+  'DosBatch',
+  'DTS',
+  'Eiffel',
+  'Erlang',
+  'Falcon',
+  'Flex',
+  'Fortran',
+  'gdbinit [disabled]',
+  'Glade',
+  'Go',
+  'HTML',
+  'Iniconf',
+  'Java',
+  'JavaProperties',
+  'JavaScript',
+  'JSON',
+  'Lisp',
+  'Lua',
+  'M4',
+  'Make',
+  'man [disabled]',
+  'MatLab',
+  'Maven2',
+  'Myrddin',
+  'ObjectiveC',
+  'OCaml',
+  'OldC [disabled]',
+  'OldC++ [disabled]',
+  'Pascal',
+  'Perl',
+  'Perl6',
+  'PHP',
+  'PlistXML',
+  'pod',
+  'Protobuf',
+  'Python',
+  'PythonLoggingConfig',
+  'R',
+  'RelaxNG',
+  'reStructuredText',
+  'REXX',
+  'RpmSpec',
+  'Ruby',
+  'Rust',
+  'Scheme',
+  'Sh',
+  'SLang',
+  'SML',
+  'SQL',
+  'SVG',
+  'SystemdUnit',
+  'SystemVerilog',
+  'Tcl',
+  'Tex',
+  'TTCN',
+  'Vera',
+  'Verilog',
+  'VHDL',
+  'Vim',
+  'WindRes',
+  'XSLT',
+  'YACC',
+  'Yaml',
+  'YumRepo',
+  'Zephir'
+);
+
+
+-- ctags information per content
+create table content_ctags (
+  id sha1 references content(sha1) not null,
+  name text not null,
+  kind text not null,
+  line bigint not null,
+  lang ctags_languages not null
+);
+
+comment on table content_ctags is 'Ctags information on a raw content';
+comment on column content_ctags.id is 'Content identifier';
+comment on column content_ctags.name is 'Symbol name';
+comment on column content_ctags.kind is 'Symbol kind (function, class, variable, const...)';
+comment on column content_ctags.line is 'Symbol line';
+comment on column content_ctags.lang is 'Language information for that content';
+
+create index on content_ctags(id);
+create unique index on content_ctags(id, md5(name), kind, line, lang);
