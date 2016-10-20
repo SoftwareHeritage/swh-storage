@@ -1322,6 +1322,32 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(id, id2)
 
     @istest
+    def origin_add(self):
+        origin0 = self.storage.origin_get(self.origin)
+        self.assertIsNone(origin0)
+
+        id1, id2 = self.storage.origin_add([self.origin, self.origin2])
+
+        actual_origin = self.storage.origin_get({
+            'url': self.origin['url'],
+            'type': self.origin['type'],
+        })
+        self.assertEqual(actual_origin['id'], id1)
+
+        actual_origin2 = self.storage.origin_get({
+            'url': self.origin2['url'],
+            'type': self.origin2['type'],
+        })
+        self.assertEqual(actual_origin2['id'], id2)
+
+    @istest
+    def origin_add_twice(self):
+        add1 = self.storage.origin_add([self.origin, self.origin2])
+        add2 = self.storage.origin_add([self.origin, self.origin2])
+
+        self.assertEqual(add1, add2)
+
+    @istest
     def origin_get(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
@@ -2089,7 +2115,6 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEqual(list(actual_languages), [language1])
 
-    @attr('one')
     @istest
     def content_language_add__drop_duplicate(self):
         # given
@@ -2125,7 +2150,6 @@ class AbstractTestStorage(DbTestFixture):
         # language did not change as the v2 was dropped.
         self.assertEqual(actual_languages[0], language_v1)
 
-    @attr('one')
     @istest
     def content_language_add__update_in_place_duplicate(self):
         # given
@@ -2160,6 +2184,129 @@ class AbstractTestStorage(DbTestFixture):
 
         # language did change as the v2 was used to overwrite v1
         self.assertEqual(actual_languages[0], language_v2)
+
+    @istest
+    def content_ctags_missing(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctags = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        # when
+        actual_missing = self.storage.content_ctags_missing(ctags)
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            self.cont2['sha1'],
+            self.missing_cont['sha1']
+        ])
+
+        # given
+        self.storage.content_ctags_add([
+            {
+                'id': self.cont2['sha1'],
+                'ctags': [{
+                    'name': 'done',
+                    'kind': 'variable',
+                    'line': 119,
+                    'lang': 'OCaml',
+                }]
+            },
+        ])
+
+        # when
+        actual_missing = self.storage.content_ctags_missing(ctags)
+
+        # then
+        self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+
+    @istest
+    def content_ctags_get(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctags = [self.cont2['sha1'], self.missing_cont['sha1']]
+
+        ctag1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [
+                {
+                    'name': 'done',
+                    'kind': 'variable',
+                    'line': 100,
+                    'lang': 'Python',
+                },
+                {
+                    'name': 'main',
+                    'kind': 'function',
+                    'line': 119,
+                    'lang': 'Python',
+                }]
+        }
+
+        # when
+        self.storage.content_ctags_add([ctag1])
+
+        # then
+        actual_ctags = list(self.storage.content_ctags_get(ctags))
+
+        # then
+        self.assertEqual(actual_ctags, [ctag1])
+
+    @istest
+    def content_ctags_add(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctag_v1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [{
+                'name': 'done',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'Scheme',
+            }]
+        }
+
+        # given
+        self.storage.content_ctags_add([ctag_v1])
+
+        # when
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_ctags[0], ctag_v1)
+
+        # given
+        ctag_v2 = ctag_v1.copy()
+        ctag_v2.update({
+            'ctags': [
+                {
+                    'name': 'done',
+                    'kind': 'variable',
+                    'line': 100,
+                    'lang': 'Scheme',
+                },
+                {
+                    'name': 'defn',
+                    'kind': 'function',
+                    'line': 120,
+                    'lang': 'Scheme',
+                }
+            ]
+        })
+
+        self.storage.content_ctags_add([ctag_v2])
+
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # ctag did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_ctags, [ctag_v2])
 
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
