@@ -40,6 +40,11 @@ def index():
     return 'SWH Storage API server'
 
 
+@app.route('/check_config', methods=['POST'])
+def check_config():
+    return encode_data(g.storage.check_config(**decode_request(request)))
+
+
 @app.route('/content/missing', methods=['POST'])
 def content_missing():
     return encode_data(g.storage.content_missing(**decode_request(request)))

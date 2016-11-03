@@ -62,6 +62,9 @@ class RemoteStorage():
         else:
             return decode_response(response)
 
+    def check_config(self, *, check_write):
+        return self.post('check_config', {'check_write': check_write})
+
     def content_add(self, content):
         return self.post('content/add', {'content': content})
 

@@ -542,6 +542,11 @@ class AbstractTestStorage(DbTestFixture):
         super().tearDown()
 
     @istest
+    def check_config(self):
+        self.assertTrue(self.storage.check_config(check_write=True))
+        self.assertTrue(self.storage.check_config(check_write=False))
+
+    @istest
     def content_add(self):
         cont = self.cont
 

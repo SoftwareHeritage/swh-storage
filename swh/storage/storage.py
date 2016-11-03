@@ -47,6 +47,27 @@ class Storage():
         self.objstorage = PathSlicingObjStorage(obj_root,
                                                 slicing='0:2/2:4/4:6')
 
+    def check_config(self, *, check_write):
+        """Check that the storage is configured and ready to go."""
+
+        if not self.objstorage.check_config(check_write=check_write):
+            return False
+
+        # Check permissions on one of the tables
+        with self.db.transaction() as cur:
+            if check_write:
+                check = 'INSERT'
+            else:
+                check = 'SELECT'
+
+            cur.execute(
+                "select has_table_privilege(current_user, 'content', %s)",
+                (check,)
+            )
+            return cur.fetchone()[0]
+
+        return True
+
     def content_add(self, content):
         """Add content blobs to the storage
 
