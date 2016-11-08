@@ -2313,6 +2313,127 @@ class AbstractTestStorage(DbTestFixture):
         # ctag did change as the v2 was used to overwrite v1
         self.assertEqual(actual_ctags, [ctag_v2])
 
+    @istest
+    def content_license_missing(self):
+        # given
+        cont = self.cont2
+        self.storage.content_add([cont])
+
+        licenses = [cont['sha1'], self.missing_cont['sha1']]
+
+        # when
+        actual_missing = self.storage.content_license_missing(licenses)
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            cont['sha1'],
+            self.missing_cont['sha1']
+        ])
+
+        # given
+        self.storage.content_license_add([{
+            'id': cont['sha1'],
+            'licenses': [b'GPL-2.0'],
+        }])
+
+        # when
+        actual_missing = self.storage.content_license_missing(licenses)
+
+        # then
+        self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+
+    @istest
+    def content_license_get(self):
+        # given
+        cont = self.cont2
+        self.storage.content_add([cont])
+
+        licenses = [cont['sha1'], self.missing_cont['sha1']]
+
+        license1 = {
+            'id': cont['sha1'],
+            'licenses': [b'GPL-2.0+'],
+        }
+
+        # when
+        self.storage.content_license_add([license1])
+
+        # then
+        actual_licenses = list(self.storage.content_license_get(licenses))
+
+        # then
+        self.assertEqual(actual_licenses, [license1])
+
+    @istest
+    def content_license_add__drop_duplicate(self):
+        # given
+        cont = self.cont2
+        self.storage.content_add([cont])
+
+        license_v1 = {
+            'id': cont['sha1'],
+            'licenses': [b'Apache-2.0'],
+        }
+
+        # given
+        self.storage.content_license_add([license_v1])
+
+        # when
+        actual_licenses = list(self.storage.content_license_get(
+            [cont['sha1']]))
+
+        # then
+        self.assertEqual(actual_licenses[0], license_v1)
+
+        # given
+        license_v2 = license_v1.copy()
+        license_v2.update({
+            'licenses': [b'BSD-2-Clause'],
+        })
+
+        self.storage.content_license_add([license_v2])
+
+        actual_licenses = list(self.storage.content_license_get(
+            [cont['sha1']]))
+
+        # license did not change as the v2 was dropped.
+        self.assertEqual(actual_licenses[0], license_v1)
+
+    @istest
+    def content_license_add__update_in_place_duplicate(self):
+        # given
+        cont = self.cont2
+        self.storage.content_add([cont])
+
+        license_v1 = {
+            'id': cont['sha1'],
+            'licenses': [b'CC-LGPL'],
+        }
+
+        # given
+        self.storage.content_license_add([license_v1])
+
+        # when
+        actual_licenses = list(self.storage.content_license_get(
+            [cont['sha1']]))
+
+        # then
+        self.assertEqual(actual_licenses[0], license_v1)
+
+        # given
+        license_v2 = license_v1.copy()
+        license_v2.update({
+            'licenses': [b'GPL-2.0+-with-classpath-exception']
+        })
+
+        self.storage.content_license_add([license_v2], conflict_update=True)
+
+        actual_licenses = list(self.storage.content_license_get(
+            [cont['sha1']]))
+
+        # license did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_licenses[0], license_v2)
+
 
 class TestStorage(AbstractTestStorage, unittest.TestCase):
     """Test the local storage"""

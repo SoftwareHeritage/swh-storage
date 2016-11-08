@@ -341,6 +341,24 @@ def content_ctags_get():
         g.storage.content_ctags_get(**decode_request(request)))
 
 
+@app.route('/content_license/add', methods=['POST'])
+def content_license_add():
+    return encode_data(
+        g.storage.content_license_add(**decode_request(request)))
+
+
+@app.route('/content_license/missing', methods=['POST'])
+def content_license_missing():
+    return encode_data(
+        g.storage.content_license_missing(**decode_request(request)))
+
+
+@app.route('/content_license', methods=['POST'])
+def content_license_get():
+    return encode_data(
+        g.storage.content_license_get(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())

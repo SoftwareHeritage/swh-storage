@@ -256,3 +256,15 @@ class RemoteStorage():
 
     def content_ctags_get(self, ids):
         return self.post('content_ctags', {'ids': ids})
+
+    def content_license_add(self, licenses, conflict_update=False):
+        return self.post('content_license/add', {
+            'licenses': licenses,
+            'conflict_update': conflict_update,
+        })
+
+    def content_license_missing(self, licenses):
+        return self.post('content_license/missing', {'licenses': licenses})
+
+    def content_license_get(self, ids):
+        return self.post('content_license', {'ids': ids})

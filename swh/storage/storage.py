@@ -1421,3 +1421,56 @@ class Storage():
                    cur=cur)
 
         db.content_ctags_add_from_temp(cur)
+
+    @db_transaction_generator
+    def content_license_missing(self, licenses, cur=None):
+        """List license missing from storage.
+
+        Args:
+            licenses ([bytes]): iterable of sha1
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.store_tmp_bytea(licenses, cur)
+        for obj in db.content_license_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
+    def content_license_get(self, ids, cur=None):
+        """Retrieve license per id.
+
+        Args:
+            ids ([sha1]): Iterable of sha1
+
+        """
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+
+        for c in db.content_license_get_from_temp():
+            yield dict(zip(db.content_license_cols, c))
+
+    @db_transaction
+    def content_license_add(self, licenses, conflict_update=False, cur=None):
+        """Add licenses not present in storage.
+
+        Args:
+            licenses: iterable of dictionary with keys:
+                - id: sha1
+                - licenses ([bytes]): List of licenses associated to sha1
+            conflict_update: Flag to determine if we want to overwrite (true)
+            or skip duplicates (false, the default)
+
+        """
+        db = self.db
+        db.mktemp_content_license(cur)
+        db.copy_to(({'id': l['id'],
+                     'licenses': [name.decode('utf-8')
+                                  for name in l['licenses']]}
+                    for l in licenses),
+                   tblname='tmp_content_license',
+                   columns=['id', 'licenses'],
+                   cur=cur)
+        db.content_license_add_from_temp(conflict_update, cur)

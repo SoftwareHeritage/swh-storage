@@ -130,6 +130,19 @@ as $$
   ) on commit drop;
 $$;
 
+-- create a temporary table for content_license tmp_content_license,
+create or replace function swh_mktemp_content_license()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_license (
+    id       sha1,
+    licenses bytea[]
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_license() is 'Helper table to add content license';
+
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
@@ -1512,7 +1525,8 @@ COMMENT ON FUNCTION swh_content_mimetype_missing() IS 'Filter missing content mi
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
 -- If filtering duplicates is in order, the call to
--- swh_mimetype_missing must take place before calling this function.
+-- swh_content_mimetype_missing must take place before calling this
+-- function.
 --
 --
 -- operates in bulk: 0. swh_mktemp(content_mimetype), 1. COPY to tmp_content_mimetype,
@@ -1545,7 +1559,8 @@ comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimety
 
 -- Retrieve list of content mimetype from the temporary table.
 --
--- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
+-- 2. call this function
 create or replace function swh_content_mimetype_get()
     returns setof content_mimetype
     language plpgsql
@@ -1585,10 +1600,11 @@ comment on function swh_content_language_missing() IS 'Filter missing content la
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
 -- If filtering duplicates is in order, the call to
--- swh_mimetype_missing must take place before calling this function.
+-- swh_content_language_missing must take place before calling this
+-- function.
 --
--- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
--- 2. call this function
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to
+-- tmp_content_language, 2. call this function
 create or replace function swh_content_language_add(conflict_update boolean)
     returns void
     language plpgsql
@@ -1694,6 +1710,83 @@ end
 $$;
 
 comment on function swh_content_ctags_get() IS 'List content ctags';
+
+
+-- check which entries of tmp_bytea are missing from content_license
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_license_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_license as c where c.id = tmp.id));
+    return;
+end
+$$;
+
+comment on function swh_content_license_missing() IS 'Filter missing content licenses';
+
+-- add tmp_content_license entries to content_license, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_content_license_missing must take place before calling this
+-- function.
+--
+-- operates in bulk: 0. swh_mktemp(content_license), 1. COPY to
+-- tmp_content_license, 2. call this function
+create or replace function swh_content_license_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        insert into content_license (id, licenses)
+        select tcl.id, array(select id from license where name = ANY(tcl.licenses)) as licenses
+    	from tmp_content_license tcl
+            on conflict(id)
+                do update set licenses = excluded.licenses;
+
+    else
+        insert into content_license (id, licenses)
+        select tcl.id, array(select id from license where name = ANY(tcl.licenses)) as licenses
+    	from tmp_content_license tcl
+            on conflict do nothing;
+    end if;
+    return;
+end
+$$;
+
+comment on function swh_content_license_add(boolean) IS 'Add new content licenses';
+
+create type content_license_signature as (
+  id      sha1,
+  licenses bytea[]
+);
+
+-- Retrieve list of content license from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_license_get()
+    returns setof content_license_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select id::sha1, array(select name from license where id = ANY(cl.licenses)) as licenses
+        from tmp_bytea
+        inner join content_license cl using(id);
+    return;
+end
+$$;
+
+comment on function swh_content_license_get() IS 'List content licenses';
 
 
 -- simple counter mapping a textual label to an integer value
