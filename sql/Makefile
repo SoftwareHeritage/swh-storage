@@ -4,10 +4,11 @@ DBNAME = softwareheritage-dev
 DOCDIR = autodoc
 
 SQL_INIT   = swh-init.sql
+SQL_ENUMS = swh-enums.sql
 SQL_SCHEMA = swh-schema.sql
 SQL_FUNC   = swh-func.sql
 SQL_DATA   = swh-data.sql
-SQLS = $(SQL_INIT) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_DATA)
+SQLS = $(SQL_INIT) $(SQL_ENUMS) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_DATA)
 
 PSQL_BIN = psql
 PSQL_FLAGS = --single-transaction --echo-all -X
