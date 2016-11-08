@@ -3,6 +3,7 @@
 ---
 
 create type content_status as enum ('absent', 'visible', 'hidden');
+comment on type content_status is 'Content visibility';
 
 -- Types of entities.
 --
@@ -34,18 +35,19 @@ create type entity_type as enum (
   'person',
   'project'
 );
+comment on type entity_type is 'Entity types';
 
 create type revision_type as enum ('git', 'tar', 'dsc', 'svn');
+comment on type revision_type is 'Possible revision types';
 
--- the data object types stored in our data model
 create type object_type as enum ('content', 'directory', 'revision', 'release');
+comment on type object_type is 'Data object types stored in data model';
 
 create type origin_visit_status as enum (
   'ongoing',
   'full',
   'partial'
 );
-
 comment on type origin_visit_status IS 'Possible visit status';
 
 create type languages as enum ( 'abap', 'abnf', 'actionscript',
@@ -128,7 +130,9 @@ create type languages as enum ( 'abap', 'abnf', 'actionscript',
   'xml+django/jinja', 'xml+evoque', 'xml+lasso', 'xml+mako',
   'xml+myghty', 'xml+php', 'xml+ruby', 'xml+smarty', 'xml+velocity',
   'xquery', 'xslt', 'xtend', 'xul+mozpreproc', 'yaml', 'yaml+jinja',
-  'zephir', 'unknown' );
+  'zephir', 'unknown'
+);
+comment on type languages is 'Languages recognized by language indexer';
 
 create type ctags_languages as enum ( 'Ada', 'AnsiblePlaybook', 'Ant',
   'Asm', 'Asp', 'Autoconf', 'Automake', 'Awk', 'Basic', 'BETA', 'C',
@@ -143,4 +147,6 @@ create type ctags_languages as enum ( 'Ada', 'AnsiblePlaybook', 'Ant',
   'RelaxNG', 'reStructuredText', 'REXX', 'RpmSpec', 'Ruby', 'Rust',
   'Scheme', 'Sh', 'SLang', 'SML', 'SQL', 'SVG', 'SystemdUnit',
   'SystemVerilog', 'Tcl', 'Tex', 'TTCN', 'Vera', 'Verilog', 'VHDL',
-  'Vim', 'WindRes', 'XSLT', 'YACC', 'Yaml', 'YumRepo', 'Zephir' );
+  'Vim', 'WindRes', 'XSLT', 'YACC', 'Yaml', 'YumRepo', 'Zephir'
+);
+comment on type ctags_languages is 'Languages recognized by ctags indexer';
