@@ -603,3 +603,23 @@ comment on column content_ctags.lang is 'Language information for that content';
 
 create index on content_ctags(id);
 create unique index on content_ctags(id, md5(name), kind, line, lang);
+
+create table license(
+  id serial primary key,
+  name bytea not null
+);
+
+comment on table license is 'Possible license recognized by license indexer';
+comment on column license.id is 'License identifier';
+comment on column license.name is 'License name';
+
+create unique index on license(name);
+
+create table content_license (
+   id sha1 primary key references content(sha1) not null,
+   licenses bigint[] -- reference license(id)
+);
+
+comment on table content_license is 'license associated to a raw content';
+comment on column content_license.id is 'Raw content identifier';
+comment on column content_license.licenses is 'Raw content licenses';
