@@ -2333,7 +2333,7 @@ class AbstractTestStorage(DbTestFixture):
         # given
         self.storage.content_license_add([{
             'id': cont['sha1'],
-            'licenses': [b'GPL-2.0'],
+            'licenses': [b'GPL-2.0', b'GPL-2.0+'],
         }])
 
         # when
@@ -2363,6 +2363,30 @@ class AbstractTestStorage(DbTestFixture):
 
         # then
         self.assertEqual(actual_licenses, [license1])
+
+    @istest
+    def content_license_add__wrong_license(self):
+        # given
+        cont = self.cont2
+        self.storage.content_add([cont])
+
+        license_v1 = {
+            'id': cont['sha1'],
+            'licenses': [b'blackhole'],
+        }
+
+        # given
+        r = self.storage.content_license_add([license_v1])
+
+        # then
+        self.assertEqual(r, [license_v1])
+
+        # when
+        actual_licenses = list(self.storage.content_license_get(
+            [cont['sha1']]))
+
+        # then
+        self.assertEqual(actual_licenses, [])
 
     @istest
     def content_license_add__drop_duplicate(self):

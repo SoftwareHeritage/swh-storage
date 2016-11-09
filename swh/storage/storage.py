@@ -1463,14 +1463,58 @@ class Storage():
             conflict_update: Flag to determine if we want to overwrite (true)
             or skip duplicates (false, the default)
 
+        Returns:
+            List of content_license entries which failed due to
+            unknown licenses
+
         """
         db = self.db
-        db.mktemp_content_license(cur)
-        db.copy_to(({'id': l['id'],
-                     'licenses': [name.decode('utf-8')
-                                  for name in l['licenses']]}
-                    for l in licenses),
-                   tblname='tmp_content_license',
-                   columns=['id', 'licenses'],
+
+        # First, we check the licenses are ok
+        licenses_to_check = set()      # set of licenses to check
+        content_licenses_to_add = {}   # content_licenses to add
+        names_to_content_license = {}  # map from names to content licenses
+
+        for c in licenses:
+            id = c['id']
+            for bytename in c['licenses']:
+                name = bytename.decode('utf-8')
+                licenses_to_check.add(name)
+                l = names_to_content_license.get(bytename, [])
+                l.append(id)
+                names_to_content_license[bytename] = l
+
+            content_licenses_to_add[id] = c
+
+        db.mktemp_content_license_unknown()
+        db.copy_to(({'name': name} for name in licenses_to_check),
+                   tblname='tmp_content_license_unknown',
+                   columns=['name'],
                    cur=cur)
-        db.content_license_add_from_temp(conflict_update, cur)
+        unknown_licenses = db.content_license_unknown(cur)
+
+        # We filter out wrong content_license (this will be the result)
+        wrong_content_licenses = []
+        for name, in unknown_licenses:
+            for id in names_to_content_license[name]:
+                # we can remove it multiple times since one content
+                # can have multiple licenses
+                content_license = content_licenses_to_add.pop(id, None)
+                if content_license:
+                    wrong_content_licenses.append(content_license)
+
+        if content_licenses_to_add:
+            # Then, we add the correct ones
+            db.mktemp_content_license(cur)
+            db.copy_to(
+                ({
+                    'id': c['id'],
+                    'licenses': [
+                        name.decode('utf-8') for name in c['licenses']]
+                  } for c in content_licenses_to_add.values()),
+                tblname='tmp_content_license',
+                columns=['id', 'licenses'],
+                cur=cur)
+            db.content_license_add_from_temp(conflict_update, cur)
+
+        return wrong_content_licenses

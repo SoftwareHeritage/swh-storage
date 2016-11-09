@@ -143,6 +143,19 @@ $$;
 
 comment on function swh_mktemp_content_license() is 'Helper table to add content license';
 
+-- create a temporary table for checking licenses' name
+create or replace function swh_mktemp_content_license_unknown()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_license_unknown (
+    name       bytea not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_license_unknown() is 'Helper table to list unknown licenses';
+
+
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
@@ -1763,6 +1776,20 @@ end
 $$;
 
 comment on function swh_content_license_add(boolean) IS 'Add new content licenses';
+
+create or replace function swh_content_license_unknown()
+    returns setof bytea
+    language plpgsql
+as $$
+begin
+    return query
+        select name from tmp_content_license_unknown t where not exists (
+            select 1 from license where name=t.name
+        );
+end
+$$;
+
+comment on function swh_content_license_unknown() IS 'List unknown licenses';
 
 create type content_license_signature as (
   id      sha1,

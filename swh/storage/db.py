@@ -213,6 +213,9 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_content_license')
     def mktemp_content_license(self, cur=None): pass
 
+    @stored_procedure('swh_mktemp_content_license_unknown')
+    def mktemp_content_license_unknown(self, cur=None): pass
+
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
         self._cursor(cur).execute("LISTEN %s" % notify_queue)
@@ -893,4 +896,12 @@ class Db(BaseDb):
         query = "SELECT %s FROM swh_content_license_get()" % (
             ','.join(self.content_license_cols))
         cur.execute(query)
+        yield from cursor_to_bytes(cur)
+
+    def content_license_unknown(self, cur=None):
+        """Returns the unknown licenses from tmp_content_license_unknown.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("SELECT * FROM swh_content_license_unknown()")
         yield from cursor_to_bytes(cur)
