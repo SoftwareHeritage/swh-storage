@@ -2356,7 +2356,9 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         # when
-        self.storage.content_license_add([license1])
+        r = self.storage.content_license_add([license1])
+
+        self.assertEquals(r, [])
 
         # then
         actual_licenses = list(self.storage.content_license_get(licenses))
@@ -2431,7 +2433,7 @@ class AbstractTestStorage(DbTestFixture):
 
         license_v1 = {
             'id': cont['sha1'],
-            'licenses': [b'CC-LGPL'],
+            'licenses': [b'CECILL'],
         }
 
         # given
@@ -2447,7 +2449,7 @@ class AbstractTestStorage(DbTestFixture):
         # given
         license_v2 = license_v1.copy()
         license_v2.update({
-            'licenses': [b'GPL-2.0+-with-classpath-exception']
+            'licenses': [b'CECILL-2.0']
         })
 
         self.storage.content_license_add([license_v2], conflict_update=True)
