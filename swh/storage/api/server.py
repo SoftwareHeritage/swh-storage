@@ -40,6 +40,11 @@ def index():
     return 'SWH Storage API server'
 
 
+@app.route('/check_config', methods=['POST'])
+def check_config():
+    return encode_data(g.storage.check_config(**decode_request(request)))
+
+
 @app.route('/content/missing', methods=['POST'])
 def content_missing():
     return encode_data(g.storage.content_missing(**decode_request(request)))
@@ -318,22 +323,40 @@ def content_language_get():
         g.storage.content_language_get(**decode_request(request)))
 
 
-@app.route('/content_ctags/add', methods=['POST'])
+@app.route('/content/ctags/add', methods=['POST'])
 def content_ctags_add():
     return encode_data(
         g.storage.content_ctags_add(**decode_request(request)))
 
 
-@app.route('/content_ctags/missing', methods=['POST'])
+@app.route('/content/ctags/missing', methods=['POST'])
 def content_ctags_missing():
     return encode_data(
         g.storage.content_ctags_missing(**decode_request(request)))
 
 
-@app.route('/content_ctags', methods=['POST'])
+@app.route('/content/ctags', methods=['POST'])
 def content_ctags_get():
     return encode_data(
         g.storage.content_ctags_get(**decode_request(request)))
+
+
+@app.route('/content/fossology_license/add', methods=['POST'])
+def content_fossology_license_add():
+    return encode_data(
+        g.storage.content_fossology_license_add(**decode_request(request)))
+
+
+@app.route('/content/fossology_license/missing', methods=['POST'])
+def content_fossology_license_missing():
+    return encode_data(
+        g.storage.content_fossology_license_missing(**decode_request(request)))
+
+
+@app.route('/content/fossology_license', methods=['POST'])
+def content_fossology_license_get():
+    return encode_data(
+        g.storage.content_fossology_license_get(**decode_request(request)))
 
 
 @app.route('/stat/counters', methods=['GET'])
