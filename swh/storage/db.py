@@ -859,8 +859,9 @@ class Db(BaseDb):
         cur.execute("SELECT * FROM swh_content_ctags_missing()")
         yield from cursor_to_bytes(cur)
 
-    def content_ctags_add_from_temp(self, cur=None):
-        self._cursor(cur).execute("SELECT swh_content_ctags_add()")
+    def content_ctags_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_content_ctags_add(%s)",
+                                  (conflict_update, ))
 
     content_ctags_cols = ['id', 'name', 'kind', 'line', 'lang']
 

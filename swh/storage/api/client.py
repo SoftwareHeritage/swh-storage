@@ -246,16 +246,17 @@ class RemoteStorage():
     def content_language_get(self, ids):
         return self.post('content_language', {'ids': ids})
 
-    def content_ctags_add(self, ctags):
-        return self.post('content_ctags/add', {
+    def content_ctags_add(self, ctags, conflict_update=False):
+        return self.post('content/ctags/add', {
             'ctags': ctags,
+            'conflict_update': conflict_update,
         })
 
     def content_ctags_missing(self, ctags):
-        return self.post('content_ctags/missing', {'ctags': ctags})
+        return self.post('content/ctags/missing', {'ctags': ctags})
 
     def content_ctags_get(self, ids):
-        return self.post('content_ctags', {'ids': ids})
+        return self.post('content/ctags', {'ids': ids})
 
     def content_fossology_license_add(self, licenses, conflict_update=False):
         return self.post('content/fossology_license/add', {

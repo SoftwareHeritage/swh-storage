@@ -1393,7 +1393,7 @@ class Storage():
             yield {'id': id, 'ctags': ctags}
 
     @db_transaction
-    def content_ctags_add(self, ctags, cur=None):
+    def content_ctags_add(self, ctags, conflict_update=False, cur=None):
         """Add ctags not present in storage
 
         Args:
@@ -1420,7 +1420,7 @@ class Storage():
                    columns=db.content_ctags_cols,
                    cur=cur)
 
-        db.content_ctags_add_from_temp(cur)
+        db.content_ctags_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
     def content_fossology_license_missing(self, licenses, cur=None):

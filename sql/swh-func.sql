@@ -1666,17 +1666,18 @@ comment on function swh_content_language_get() IS 'List content languages';
 -- add tmp_content_ctags entries to content_ctags, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
--- If filtering duplicates is in order, the call to
--- swh_ctags_missing must take place before calling this function.
---
---
 -- operates in bulk: 0. swh_mktemp(content_ctags), 1. COPY to tmp_content_ctags,
 -- 2. call this function
-create or replace function swh_content_ctags_add()
+create or replace function swh_content_ctags_add(conflict_update boolean)
     returns void
     language plpgsql
 as $$
 begin
+    if conflict_update then
+        delete from content_ctags
+        where id in (select distinct id from tmp_content_ctags);
+    end if;
+
     insert into content_ctags (id, name, kind, line, lang)
     select id, name, kind, line, lang
     from tmp_content_ctags
@@ -1686,7 +1687,7 @@ begin
 end
 $$;
 
-comment on function swh_content_ctags_add() IS 'Add new ctags symbols per content';
+comment on function swh_content_ctags_add(boolean) IS 'Add new ctags symbols per content';
 
 -- check which entries of tmp_bytea are missing from content_ctags
 --

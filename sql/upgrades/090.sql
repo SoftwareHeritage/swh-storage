@@ -972,3 +972,27 @@ end
 $$;
 
 comment on function swh_content_fossology_license_get() IS 'List content licenses';
+
+
+-- ctags
+
+drop function swh_content_ctags_add();
+
+create or replace function swh_content_ctags_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        delete from content_ctags
+        where id in (select distinct id from tmp_content_ctags);
+    end if;
+
+    insert into content_ctags (id, name, kind, line, lang)
+    select id, name, kind, line, lang
+    from tmp_content_ctags;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_add(boolean) IS 'Add ctags symbols per content';

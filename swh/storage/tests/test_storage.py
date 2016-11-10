@@ -2262,7 +2262,72 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_ctags, [ctag1])
 
     @istest
-    def content_ctags_add(self):
+    def content_ctags_add__add_new_ctags_added(self):
+        # given
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        ctag_v1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [{
+                'name': 'done',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'Scheme',
+            }]
+        }
+
+        # given
+        self.storage.content_ctags_add([ctag_v1])
+        self.storage.content_ctags_add([ctag_v1])  # conflict does nothing
+
+        # when
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        # then
+        self.assertEqual(actual_ctags[0], ctag_v1)
+
+        # given
+        ctag_v2 = ctag_v1.copy()
+        ctag_v2.update({
+            'ctags': [
+                {
+                    'name': 'defn',
+                    'kind': 'function',
+                    'line': 120,
+                    'lang': 'Scheme',
+                }
+            ]
+        })
+
+        self.storage.content_ctags_add([ctag_v2])
+
+        expected_ctag = ctag_v1.copy()
+        expected_ctag.update({
+            'ctags': [
+                {
+                    'name': 'done',
+                    'kind': 'variable',
+                    'line': 100,
+                    'lang': 'Scheme',
+                },
+                {
+                    'name': 'defn',
+                    'kind': 'function',
+                    'line': 120,
+                    'lang': 'Scheme',
+                }
+            ]
+        })
+
+        actual_ctags = list(self.storage.content_ctags_get(
+            [self.cont2['sha1']]))
+
+        self.assertEqual(actual_ctags, [expected_ctag])
+
+    @istest
+    def content_ctags_add__update_in_place(self):
         # given
         cont2 = self.cont2
         self.storage.content_add([cont2])
@@ -2306,7 +2371,7 @@ class AbstractTestStorage(DbTestFixture):
             ]
         })
 
-        self.storage.content_ctags_add([ctag_v2])
+        self.storage.content_ctags_add([ctag_v2], conflict_update=True)
 
         actual_ctags = list(self.storage.content_ctags_get(
             [self.cont2['sha1']]))
