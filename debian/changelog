@@ -1,3 +1,11 @@
+swh-storage (0.0.70-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.70
+  * Add new license endpoints (add/get)
+  * Update ctags endpoints to align update conflict policy
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 10 Nov 2016 17:27:49 +0100
+
 swh-storage (0.0.69-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.69
