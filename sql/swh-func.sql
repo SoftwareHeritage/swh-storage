@@ -130,6 +130,34 @@ as $$
   ) on commit drop;
 $$;
 
+-- create a temporary table for content_fossology_license tmp_content_fossology_license,
+create or replace function swh_mktemp_content_fossology_license()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license (
+    id           sha1,
+    tool_name    text,
+    tool_version text,
+    license      text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license() is 'Helper table to add content license';
+
+-- create a temporary table for checking licenses' name
+create or replace function swh_mktemp_content_fossology_license_unknown()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_unknown (
+    name       text not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
+
+
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
@@ -1512,7 +1540,8 @@ COMMENT ON FUNCTION swh_content_mimetype_missing() IS 'Filter missing content mi
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
 -- If filtering duplicates is in order, the call to
--- swh_mimetype_missing must take place before calling this function.
+-- swh_content_mimetype_missing must take place before calling this
+-- function.
 --
 --
 -- operates in bulk: 0. swh_mktemp(content_mimetype), 1. COPY to tmp_content_mimetype,
@@ -1545,7 +1574,8 @@ comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimety
 
 -- Retrieve list of content mimetype from the temporary table.
 --
--- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
+-- 2. call this function
 create or replace function swh_content_mimetype_get()
     returns setof content_mimetype
     language plpgsql
@@ -1585,10 +1615,11 @@ comment on function swh_content_language_missing() IS 'Filter missing content la
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
 -- If filtering duplicates is in order, the call to
--- swh_mimetype_missing must take place before calling this function.
+-- swh_content_language_missing must take place before calling this
+-- function.
 --
--- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to tmp_content_language,
--- 2. call this function
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to
+-- tmp_content_language, 2. call this function
 create or replace function swh_content_language_add(conflict_update boolean)
     returns void
     language plpgsql
@@ -1635,17 +1666,18 @@ comment on function swh_content_language_get() IS 'List content languages';
 -- add tmp_content_ctags entries to content_ctags, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
--- If filtering duplicates is in order, the call to
--- swh_ctags_missing must take place before calling this function.
---
---
 -- operates in bulk: 0. swh_mktemp(content_ctags), 1. COPY to tmp_content_ctags,
 -- 2. call this function
-create or replace function swh_content_ctags_add()
+create or replace function swh_content_ctags_add(conflict_update boolean)
     returns void
     language plpgsql
 as $$
 begin
+    if conflict_update then
+        delete from content_ctags
+        where id in (select distinct id from tmp_content_ctags);
+    end if;
+
     insert into content_ctags (id, name, kind, line, lang)
     select id, name, kind, line, lang
     from tmp_content_ctags
@@ -1655,7 +1687,7 @@ begin
 end
 $$;
 
-comment on function swh_content_ctags_add() IS 'Add new ctags symbols per content';
+comment on function swh_content_ctags_add(boolean) IS 'Add new ctags symbols per content';
 
 -- check which entries of tmp_bytea are missing from content_ctags
 --
@@ -1694,6 +1726,106 @@ end
 $$;
 
 comment on function swh_content_ctags_get() IS 'List content ctags';
+
+
+-- check which entries of tmp_bytea are missing from content_fossology_license
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_fossology_license_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_fossology_license as c where c.id = tmp.id));
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_missing() IS 'Filter missing content licenses';
+
+-- add tmp_content_fossology_license entries to content_fossology_license, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_content_fossology_license_missing must take place before calling this
+-- function.
+--
+-- operates in bulk: 0. swh_mktemp(content_fossology_license), 1. COPY to
+-- tmp_content_fossology_license, 2. call this function
+create or replace function swh_content_fossology_license_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        delete from content_fossology_license
+        where id in (select distinct id from tmp_content_fossology_license);
+    end if;
+
+    insert into content_fossology_license (id, license_id, indexer_configuration_id)
+    select tcl.id,
+          (select id from fossology_license where name = tcl.license) as license,
+          (select id from indexer_configuration where tool_name = tcl.tool_name
+                                                and tool_version = tcl.tool_version)
+                          as indexer_configuration_id
+    from tmp_content_fossology_license tcl
+        on conflict(id, license_id, indexer_configuration_id)
+        do nothing;
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_add(boolean) IS 'Add new content licenses';
+
+create or replace function swh_content_fossology_license_unknown()
+    returns setof text
+    language plpgsql
+as $$
+begin
+    return query
+        select name from tmp_content_fossology_license_unknown t where not exists (
+            select 1 from fossology_license where name=t.name
+        );
+end
+$$;
+
+comment on function swh_content_fossology_license_unknown() IS 'List unknown licenses';
+
+create type content_fossology_license_signature as (
+  id           sha1,
+  tool_name    text,
+  tool_version text,
+  licenses     text[]
+);
+
+-- Retrieve list of content license from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_fossology_license_get()
+    returns setof content_fossology_license_signature
+    language plpgsql
+as $$
+begin
+    return query
+      select cl.id,
+             ic.tool_name,
+             ic.tool_version,
+             array(select name
+                   from fossology_license
+                   where id = ANY(array_agg(cl.license_id))) as licenses
+      from content_fossology_license cl
+      inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
+      group by cl.id, ic.tool_name, ic.tool_version;
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_get() IS 'List content licenses';
 
 
 -- simple counter mapping a textual label to an integer value

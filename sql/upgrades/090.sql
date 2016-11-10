@@ -1,42 +1,60 @@
-insert into entity_history
-  (uuid, parent, name, type, description, homepage, active, generated, validity)
-values
-  ('5f4d4c51-498a-4e28-88b3-b3e4e8396cba', NULL, 'softwareheritage',
-   'organization', 'Software Heritage',
-   'http://www.softwareheritage.org/', true, false, ARRAY[now()]),
-  ('6577984d-64c8-4fab-b3ea-3cf63ebb8589', NULL, 'gnu', 'organization',
-   'GNU is not UNIX', 'https://gnu.org/', true, false, ARRAY[now()]),
-  ('7c33636b-8f11-4bda-89d9-ba8b76a42cec', '6577984d-64c8-4fab-b3ea-3cf63ebb8589',
-   'GNU Hosting', 'group_of_entities',
-   'GNU Hosting facilities', NULL, true, false, ARRAY[now()]),
-  ('4706c92a-8173-45d9-93d7-06523f249398', '6577984d-64c8-4fab-b3ea-3cf63ebb8589',
-   'GNU rsync mirror', 'hosting',
-   'GNU rsync mirror', 'rsync://mirror.gnu.org/', true, false, ARRAY[now()]),
-  ('5cb20137-c052-4097-b7e9-e1020172c48e', '6577984d-64c8-4fab-b3ea-3cf63ebb8589',
-   'GNU Projects', 'group_of_entities',
-   'GNU Projects', 'https://gnu.org/software/', true, false, ARRAY[now()]),
-  ('4bfb38f6-f8cd-4bc2-b256-5db689bb8da4', NULL, 'GitHub', 'organization',
-   'GitHub', 'https://github.org/', true, false, ARRAY[now()]),
-  ('aee991a0-f8d7-4295-a201-d1ce2efc9fb2', '4bfb38f6-f8cd-4bc2-b256-5db689bb8da4',
-   'GitHub Hosting', 'group_of_entities',
-   'GitHub Hosting facilities', 'https://github.org/', true, false, ARRAY[now()]),
-  ('34bd6b1b-463f-43e5-a697-785107f598e4', 'aee991a0-f8d7-4295-a201-d1ce2efc9fb2',
-   'GitHub git hosting', 'hosting',
-   'GitHub git hosting', 'https://github.org/', true, false, ARRAY[now()]),
-  ('e8c3fc2e-a932-4fd7-8f8e-c40645eb35a7', 'aee991a0-f8d7-4295-a201-d1ce2efc9fb2',
-   'GitHub asset hosting', 'hosting',
-   'GitHub asset hosting', 'https://github.org/', true, false, ARRAY[now()]),
-  ('9f7b34d9-aa98-44d4-8907-b332c1036bc3', '4bfb38f6-f8cd-4bc2-b256-5db689bb8da4',
-   'GitHub Organizations', 'group_of_entities',
-   'GitHub Organizations', 'https://github.org/', true, false, ARRAY[now()]),
-  ('ad6df473-c1d2-4f40-bc58-2b091d4a750e', '4bfb38f6-f8cd-4bc2-b256-5db689bb8da4',
-   'GitHub Users', 'group_of_entities',
-   'GitHub Users', 'https://github.org/', true, false, ARRAY[now()]);
+-- SWH DB schema upgrade
+-- from_version: 89
+-- to_version: 90
+-- description: indexer: Add content_ctags
 
-insert into listable_entity
-  (uuid, list_engine)
-values
-  ('34bd6b1b-463f-43e5-a697-785107f598e4', 'swh.lister.github');
+insert into dbversion(version, release, description)
+      values(90, now(), 'Work In Progress');
+
+comment on type content_status is 'Content visibility';
+comment on type entity_type is 'Entity types';
+comment on type revision_type is 'Possible revision types';
+comment on type object_type is 'Data object types stored in data model';
+comment on type languages is 'Languages recognized by language indexer';
+comment on type ctags_languages is 'Languages recognized by ctags indexer';
+
+create table fossology_license(
+  id smallserial primary key,
+  name text not null
+);
+
+comment on table fossology_license is 'Possible license recognized by license indexer';
+comment on column fossology_license.id is 'License identifier';
+comment on column fossology_license.name is 'License name';
+
+create unique index on fossology_license(name);
+
+create table indexer_configuration (
+  id serial primary key not null,
+  tool_name text not null,
+  tool_version text not null,
+  tool_configuration jsonb
+);
+
+comment on table indexer_configuration is 'Indexer''s configuration version';
+comment on column indexer_configuration.id is 'Tool identifier';
+comment on column indexer_configuration.tool_version is 'Tool name';
+comment on column indexer_configuration.tool_version is 'Tool version';
+comment on column indexer_configuration.tool_configuration is 'Tool configuration: command line, flags, etc...';
+
+create unique index on indexer_configuration(tool_name, tool_version);
+
+create table content_fossology_license (
+  id sha1 references content(sha1) not null,
+  license_id smallserial references fossology_license(id) not null,
+  indexer_configuration_id bigserial references indexer_configuration(id) not null
+);
+
+create unique index on content_fossology_license(id, license_id, indexer_configuration_id);
+
+comment on table content_fossology_license is 'license associated to a raw content';
+comment on column content_fossology_license.id is 'Raw content identifier';
+comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
+
+-- data
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('nomos', '3.1.0rc2-31-ga2cbb8c', '{"command_line": "nomossa"}');
 
 insert into fossology_license (name)
 values
@@ -828,5 +846,153 @@ values
   ('ZPL-2.1'),
   ('Zveno');
 
-insert into indexer_configuration(tool_name, tool_version, tool_configuration)
-values ('nomos', '3.1.0rc2-31-ga2cbb8c', '{"command_line": "nomossa"}');
+-- create a temporary table for content_fossology_license tmp_content_fossology_license,
+create or replace function swh_mktemp_content_fossology_license()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license (
+    id           sha1,
+    tool_name    text,
+    tool_version text,
+    license      text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license() is 'Helper table to add content license';
+
+-- create a temporary table for checking licenses' name
+create or replace function swh_mktemp_content_fossology_license_unknown()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_unknown (
+    name       text not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
+
+
+-- check which entries of tmp_bytea are missing from content_fossology_license
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_fossology_license_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_bytea as tmp
+	 where not exists
+	     (select 1 from content_fossology_license as c where c.id = tmp.id));
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_missing() IS 'Filter missing content licenses';
+
+-- add tmp_content_fossology_license entries to content_fossology_license, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_content_fossology_license_missing must take place before calling this
+-- function.
+--
+-- operates in bulk: 0. swh_mktemp(content_fossology_license), 1. COPY to
+-- tmp_content_fossology_license, 2. call this function
+create or replace function swh_content_fossology_license_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        delete from content_fossology_license
+        where id in (select distinct id from tmp_content_fossology_license);
+    end if;
+
+    insert into content_fossology_license (id, license_id, indexer_configuration_id)
+    select tcl.id,
+          (select id from fossology_license where name = tcl.license) as license,
+          (select id from indexer_configuration where tool_name = tcl.tool_name
+                                                and tool_version = tcl.tool_version)
+                          as indexer_configuration_id
+    from tmp_content_fossology_license tcl
+        on conflict(id, license_id, indexer_configuration_id)
+        do nothing;
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_add(boolean) IS 'Add new content licenses';
+
+create or replace function swh_content_fossology_license_unknown()
+    returns setof text
+    language plpgsql
+as $$
+begin
+    return query
+        select name from tmp_content_fossology_license_unknown t where not exists (
+            select 1 from fossology_license where name=t.name
+        );
+end
+$$;
+
+comment on function swh_content_fossology_license_unknown() IS 'List unknown licenses';
+
+create type content_fossology_license_signature as (
+  id           sha1,
+  tool_name    text,
+  tool_version text,
+  licenses     text[]
+);
+
+-- Retrieve list of content license from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_fossology_license_get()
+    returns setof content_fossology_license_signature
+    language plpgsql
+as $$
+begin
+    return query
+      select cl.id,
+             ic.tool_name,
+             ic.tool_version,
+             array(select name
+                   from fossology_license
+                   where id = ANY(array_agg(cl.license_id))) as licenses
+      from content_fossology_license cl
+      inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
+      group by cl.id, ic.tool_name, ic.tool_version;
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_get() IS 'List content licenses';
+
+
+-- ctags
+
+drop function swh_content_ctags_add();
+
+create or replace function swh_content_ctags_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        delete from content_ctags
+        where id in (select distinct id from tmp_content_ctags);
+    end if;
+
+    insert into content_ctags (id, name, kind, line, lang)
+    select id, name, kind, line, lang
+    from tmp_content_ctags;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_add(boolean) IS 'Add ctags symbols per content';
