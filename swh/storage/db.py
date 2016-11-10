@@ -210,11 +210,11 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_bytea')
     def mktemp_bytea(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_content_license')
-    def mktemp_content_license(self, cur=None): pass
+    @stored_procedure('swh_mktemp_content_fossology_license')
+    def mktemp_content_fossology_license(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_content_license_unknown')
-    def mktemp_content_license_unknown(self, cur=None): pass
+    @stored_procedure('swh_mktemp_content_fossology_license_unknown')
+    def mktemp_content_fossology_license_unknown(self, cur=None): pass
 
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
@@ -871,37 +871,41 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    def content_license_missing_from_temp(self, cur=None):
+    def content_fossology_license_missing_from_temp(self, cur=None):
         """List missing licenses.
 
         """
         cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_content_license_missing()")
+        cur.execute("SELECT * FROM swh_content_fossology_license_missing()")
         yield from cursor_to_bytes(cur)
 
-    def content_license_add_from_temp(self, conflict_update, cur=None):
+    def content_fossology_license_add_from_temp(self, conflict_update,
+                                                cur=None):
         """Add new licenses per content.
 
         """
-        self._cursor(cur).execute("SELECT swh_content_license_add(%s)",
-                                  (conflict_update, ))
+        self._cursor(cur).execute(
+            "SELECT swh_content_fossology_license_add(%s)",
+            (conflict_update, ))
 
-    content_license_cols = ['id', 'licenses']
+    content_fossology_license_cols = ['id', 'tool_name', 'tool_version',
+                                      'licenses']
 
-    def content_license_get_from_temp(self, cur=None):
+    def content_fossology_license_get_from_temp(self, cur=None):
         """Retrieve licenses per content.
 
         """
         cur = self._cursor(cur)
-        query = "SELECT %s FROM swh_content_license_get()" % (
-            ','.join(self.content_license_cols))
+        query = "SELECT %s FROM swh_content_fossology_license_get()" % (
+            ','.join(self.content_fossology_license_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    def content_license_unknown(self, cur=None):
-        """Returns the unknown licenses from tmp_content_license_unknown.
+    def content_fossology_license_unknown(self, cur=None):
+        """Returns the unknown licenses from
+           tmp_content_fossology_license_unknown.
 
         """
         cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_content_license_unknown()")
+        cur.execute("SELECT * FROM swh_content_fossology_license_unknown()")
         yield from cursor_to_bytes(cur)

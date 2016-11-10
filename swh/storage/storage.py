@@ -1423,7 +1423,7 @@ class Storage():
         db.content_ctags_add_from_temp(cur)
 
     @db_transaction_generator
-    def content_license_missing(self, licenses, cur=None):
+    def content_fossology_license_missing(self, licenses, cur=None):
         """List license missing from storage.
 
         Args:
@@ -1435,31 +1435,38 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(licenses, cur)
-        for obj in db.content_license_missing_from_temp(cur):
+        for obj in db.content_fossology_license_missing_from_temp(cur):
             yield obj[0]
 
     @db_transaction_generator
-    def content_license_get(self, ids, cur=None):
-        """Retrieve license per id.
+    def content_fossology_license_get(self, ids, cur=None):
+        """Retrieve licenses per id.
 
         Args:
             ids ([sha1]): Iterable of sha1
+
+        Yields:
+            List of dict with the following keys:
+            - id (bytes)
+            - licenses ([str]): associated licenses for that content
 
         """
         db = self.db
         db.store_tmp_bytea(ids, cur)
 
-        for c in db.content_license_get_from_temp():
-            yield dict(zip(db.content_license_cols, c))
+        for c in db.content_fossology_license_get_from_temp():
+            yield dict(zip(db.content_fossology_license_cols, c))
 
     @db_transaction
-    def content_license_add(self, licenses, conflict_update=False, cur=None):
+    def content_fossology_license_add(self, licenses,
+                                      conflict_update=False, cur=None):
         """Add licenses not present in storage.
 
         Args:
-            licenses: iterable of dictionary with keys:
+            licenses ([dict]): iterable of dict with keys:
                 - id: sha1
-                - licenses ([bytes]): List of licenses associated to sha1
+                - license ([bytes]): List of licenses associated to sha1
+                - tool (str): nomossa
             conflict_update: Flag to determine if we want to overwrite (true)
             or skip duplicates (false, the default)
 
@@ -1477,21 +1484,21 @@ class Storage():
 
         for c in licenses:
             id = c['id']
-            for bytename in c['licenses']:
-                name = bytename.decode('utf-8')
+
+            for name in c['licenses']:
                 licenses_to_check.add(name)
-                l = names_to_content_license.get(bytename, [])
+                l = names_to_content_license.get(name, [])
                 l.append(id)
-                names_to_content_license[bytename] = l
+                names_to_content_license[name] = l
 
             content_licenses_to_add[id] = c
 
-        db.mktemp_content_license_unknown()
+        db.mktemp_content_fossology_license_unknown()
         db.copy_to(({'name': name} for name in licenses_to_check),
-                   tblname='tmp_content_license_unknown',
+                   tblname='tmp_content_fossology_license_unknown',
                    columns=['name'],
                    cur=cur)
-        unknown_licenses = db.content_license_unknown(cur)
+        unknown_licenses = db.content_fossology_license_unknown(cur)
 
         # We filter out wrong content_license (this will be the result)
         wrong_content_licenses = []
@@ -1505,16 +1512,18 @@ class Storage():
 
         if content_licenses_to_add:
             # Then, we add the correct ones
-            db.mktemp_content_license(cur)
+            db.mktemp_content_fossology_license(cur)
             db.copy_to(
                 ({
                     'id': c['id'],
-                    'licenses': [
-                        name.decode('utf-8') for name in c['licenses']]
-                  } for c in content_licenses_to_add.values()),
-                tblname='tmp_content_license',
-                columns=['id', 'licenses'],
+                    'tool_name': c['tool_name'],
+                    'tool_version': c['tool_version'],
+                    'license': license,
+                  } for c in content_licenses_to_add.values()
+                    for license in c['licenses']),
+                tblname='tmp_content_fossology_license',
+                columns=['id', 'tool_name', 'tool_version', 'license'],
                 cur=cur)
-            db.content_license_add_from_temp(conflict_update, cur)
+            db.content_fossology_license_add_from_temp(conflict_update, cur)
 
         return wrong_content_licenses

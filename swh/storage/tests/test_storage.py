@@ -530,7 +530,8 @@ class AbstractTestStorage(DbTestFixture):
                                WHERE table_schema = %s""", ('public',))
 
         tables = set(table for (table,) in self.cursor.fetchall())
-        tables -= {'dbversion', 'entity', 'entity_history', 'listable_entity'}
+        tables -= {'dbversion', 'entity', 'entity_history', 'listable_entity',
+                   'fossology_license', 'indexer_configuration'}
 
         for table in tables:
             self.cursor.execute('truncate table %s cascade' % table)
@@ -2314,98 +2315,113 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_ctags, [ctag_v2])
 
     @istest
-    def content_license_missing(self):
+    def content_fossology_license_missing(self):
         # given
-        cont = self.cont2
+        cont = self.cont
         self.storage.content_add([cont])
 
         licenses = [cont['sha1'], self.missing_cont['sha1']]
 
         # when
-        actual_missing = self.storage.content_license_missing(licenses)
+        actual_missing = list(self.storage.content_fossology_license_missing(
+            licenses))
 
         # then
-        self.assertEqual(list(actual_missing), [
+        self.assertEqual(actual_missing, [
             cont['sha1'],
             self.missing_cont['sha1']
         ])
 
         # given
-        self.storage.content_license_add([{
+        r = self.storage.content_fossology_license_add([{
             'id': cont['sha1'],
-            'licenses': [b'GPL-2.0', b'GPL-2.0+'],
+            'licenses': ['GPL-2.0', 'GPL-2.0+'],
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
         }])
 
+        self.assertEqual(r, [])
+
         # when
-        actual_missing = self.storage.content_license_missing(licenses)
+        actual_missing = list(self.storage.content_fossology_license_missing(
+            licenses))
 
         # then
-        self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+        self.assertEqual(actual_missing, [self.missing_cont['sha1']])
 
     @istest
-    def content_license_get(self):
+    def content_fossology_license_get(self):
         # given
-        cont = self.cont2
+        cont = self.cont
         self.storage.content_add([cont])
 
         licenses = [cont['sha1'], self.missing_cont['sha1']]
 
         license1 = {
             'id': cont['sha1'],
-            'licenses': [b'GPL-2.0+'],
+            'licenses': ['GPL-2.0+'],
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
         }
 
         # when
-        r = self.storage.content_license_add([license1])
+        r = self.storage.content_fossology_license_add([license1])
 
         self.assertEquals(r, [])
 
         # then
-        actual_licenses = list(self.storage.content_license_get(licenses))
+        actual_licenses = list(self.storage.content_fossology_license_get(
+            licenses))
 
         # then
         self.assertEqual(actual_licenses, [license1])
 
     @istest
-    def content_license_add__wrong_license(self):
+    def content_fossology_license_add__wrong_license(self):
         # given
-        cont = self.cont2
+        cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
-            'licenses': [b'blackhole'],
+            'licenses': ['blackhole'],
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
         }
 
         # given
-        r = self.storage.content_license_add([license_v1])
+        r = self.storage.content_fossology_license_add([license_v1])
 
         # then
         self.assertEqual(r, [license_v1])
 
         # when
-        actual_licenses = list(self.storage.content_license_get(
+        actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
         # then
         self.assertEqual(actual_licenses, [])
 
     @istest
-    def content_license_add__drop_duplicate(self):
+    def content_fossology_license_add__new_license_added(self):
         # given
-        cont = self.cont2
+        cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
-            'licenses': [b'Apache-2.0'],
+            'licenses': ['Apache-2.0'],
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
         }
 
         # given
-        self.storage.content_license_add([license_v1])
+        self.storage.content_fossology_license_add([license_v1])
+        # conflict does nothing
+        self.storage.content_fossology_license_add([license_v1])
 
         # when
-        actual_licenses = list(self.storage.content_license_get(
+        actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
         # then
@@ -2414,33 +2430,41 @@ class AbstractTestStorage(DbTestFixture):
         # given
         license_v2 = license_v1.copy()
         license_v2.update({
-            'licenses': [b'BSD-2-Clause'],
+            'licenses': ['BSD-2-Clause'],
         })
 
-        self.storage.content_license_add([license_v2])
+        self.storage.content_fossology_license_add([license_v2])
 
-        actual_licenses = list(self.storage.content_license_get(
+        actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
+        expected_license = license_v1.copy()
+        expected_license.update({
+            'licenses': ['Apache-2.0', 'BSD-2-Clause'],
+        })
         # license did not change as the v2 was dropped.
-        self.assertEqual(actual_licenses[0], license_v1)
+        self.assertEqual(actual_licenses[0], expected_license)
 
     @istest
-    def content_license_add__update_in_place_duplicate(self):
+    def content_fossology_license_add__update_in_place_duplicate(self):
         # given
-        cont = self.cont2
+        cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
-            'licenses': [b'CECILL'],
+            'licenses': ['CECILL'],
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
         }
 
         # given
-        self.storage.content_license_add([license_v1])
+        self.storage.content_fossology_license_add([license_v1])
+        # conflict does nothing
+        self.storage.content_fossology_license_add([license_v1])
 
         # when
-        actual_licenses = list(self.storage.content_license_get(
+        actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
         # then
@@ -2449,12 +2473,13 @@ class AbstractTestStorage(DbTestFixture):
         # given
         license_v2 = license_v1.copy()
         license_v2.update({
-            'licenses': [b'CECILL-2.0']
+            'licenses': ['CECILL-2.0']
         })
 
-        self.storage.content_license_add([license_v2], conflict_update=True)
+        self.storage.content_fossology_license_add([license_v2],
+                                                   conflict_update=True)
 
-        actual_licenses = list(self.storage.content_license_get(
+        actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
         # license did change as the v2 was used to overwrite v1

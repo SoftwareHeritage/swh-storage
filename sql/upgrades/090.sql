@@ -13,27 +13,50 @@ comment on type object_type is 'Data object types stored in data model';
 comment on type languages is 'Languages recognized by language indexer';
 comment on type ctags_languages is 'Languages recognized by ctags indexer';
 
-create table license(
-  id serial primary key,
-  name bytea not null
+create table fossology_license(
+  id smallserial primary key,
+  name text not null
 );
 
-comment on table license is 'Possible license recognized by license indexer';
-comment on column license.id is 'License identifier';
-comment on column license.name is 'License name';
+comment on table fossology_license is 'Possible license recognized by license indexer';
+comment on column fossology_license.id is 'License identifier';
+comment on column fossology_license.name is 'License name';
 
-create unique index on license(name);
+create unique index on fossology_license(name);
 
-create table content_license (
-  id sha1 primary key references content(sha1) not null,
-  licenses bigint[] -- reference license(id)
+create table indexer_configuration (
+  id serial primary key not null,
+  tool_name text not null,
+  tool_version text not null,
+  tool_configuration jsonb
 );
 
-comment on table content_license is 'license associated to a raw content';
-comment on column content_license.id is 'Raw content identifier';
-comment on column content_license.licenses is 'Raw content licenses';
+comment on table indexer_configuration is 'Indexer''s configuration version';
+comment on column indexer_configuration.id is 'Tool identifier';
+comment on column indexer_configuration.tool_version is 'Tool name';
+comment on column indexer_configuration.tool_version is 'Tool version';
+comment on column indexer_configuration.tool_configuration is 'Tool configuration: command line, flags, etc...';
 
-insert into license (name)
+create unique index on indexer_configuration(tool_name, tool_version);
+
+create table content_fossology_license (
+  id sha1 references content(sha1) not null,
+  license_id smallserial references fossology_license(id) not null,
+  indexer_configuration_id bigserial references indexer_configuration(id) not null
+);
+
+create unique index on content_fossology_license(id, license_id, indexer_configuration_id);
+
+comment on table content_fossology_license is 'license associated to a raw content';
+comment on column content_fossology_license.id is 'Raw content identifier';
+comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
+
+-- data
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('nomos', '3.1.0rc2-31-ga2cbb8c', '{"command_line": "nomossa"}');
+
+insert into fossology_license (name)
 values
   ('3DFX'),
   ('3DFX-PL'),
@@ -823,24 +846,39 @@ values
   ('ZPL-2.1'),
   ('Zveno');
 
--- create a temporary table for content_license tmp_content_license,
-create or replace function swh_mktemp_content_license()
+-- create a temporary table for content_fossology_license tmp_content_fossology_license,
+create or replace function swh_mktemp_content_fossology_license()
     returns void
     language sql
 as $$
-  create temporary table tmp_content_license (
-    id       sha1,
-    licenses bytea[]
+  create temporary table tmp_content_fossology_license (
+    id           sha1,
+    tool_name    text,
+    tool_version text,
+    license      text
   ) on commit drop;
 $$;
 
-comment on function swh_mktemp_content_license() is 'Helper table to add content license';
+comment on function swh_mktemp_content_fossology_license() is 'Helper table to add content license';
 
--- check which entries of tmp_bytea are missing from content_license
+-- create a temporary table for checking licenses' name
+create or replace function swh_mktemp_content_fossology_license_unknown()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_unknown (
+    name       text not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
+
+
+-- check which entries of tmp_bytea are missing from content_fossology_license
 --
 -- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
 -- 2. call this function
-create or replace function swh_content_license_missing()
+create or replace function swh_content_fossology_license_missing()
     returns setof sha1
     language plpgsql
 as $$
@@ -848,66 +886,89 @@ begin
     return query
 	(select id::sha1 from tmp_bytea as tmp
 	 where not exists
-	     (select 1 from content_license as c where c.id = tmp.id));
+	     (select 1 from content_fossology_license as c where c.id = tmp.id));
     return;
 end
 $$;
 
-comment on function swh_content_license_missing() IS 'Filter missing content licenses';
+comment on function swh_content_fossology_license_missing() IS 'Filter missing content licenses';
 
--- add tmp_content_license entries to content_license, overwriting
+-- add tmp_content_fossology_license entries to content_fossology_license, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
 -- If filtering duplicates is in order, the call to
--- swh_content_license_missing must take place before calling this
+-- swh_content_fossology_license_missing must take place before calling this
 -- function.
 --
--- operates in bulk: 0. swh_mktemp(content_license), 1. COPY to
--- tmp_content_license, 2. call this function
-create or replace function swh_content_license_add(conflict_update boolean)
+-- operates in bulk: 0. swh_mktemp(content_fossology_license), 1. COPY to
+-- tmp_content_fossology_license, 2. call this function
+create or replace function swh_content_fossology_license_add(conflict_update boolean)
     returns void
     language plpgsql
 as $$
 begin
     if conflict_update then
-        insert into content_license (id, licenses)
-        select tcl.id, array(select id from license where name = ANY(tcl.licenses)) as licenses
-    	from tmp_content_license tcl
-            on conflict(id)
-                do update set licenses = excluded.licenses;
-
-    else
-        insert into content_license (id, licenses)
-        select tcl.id, array(select id from license where name = ANY(tcl.licenses)) as licenses
-    	from tmp_content_license tcl
-            on conflict do nothing;
+        delete from content_fossology_license
+        where id in (select distinct id from tmp_content_fossology_license);
     end if;
+
+    insert into content_fossology_license (id, license_id, indexer_configuration_id)
+    select tcl.id,
+          (select id from fossology_license where name = tcl.license) as license,
+          (select id from indexer_configuration where tool_name = tcl.tool_name
+                                                and tool_version = tcl.tool_version)
+                          as indexer_configuration_id
+    from tmp_content_fossology_license tcl
+        on conflict(id, license_id, indexer_configuration_id)
+        do nothing;
     return;
 end
 $$;
 
-comment on function swh_content_license_add(boolean) IS 'Add new content licenses';
+comment on function swh_content_fossology_license_add(boolean) IS 'Add new content licenses';
 
-create type content_license_signature as (
-  id      sha1,
-  licenses bytea[]
+create or replace function swh_content_fossology_license_unknown()
+    returns setof text
+    language plpgsql
+as $$
+begin
+    return query
+        select name from tmp_content_fossology_license_unknown t where not exists (
+            select 1 from fossology_license where name=t.name
+        );
+end
+$$;
+
+comment on function swh_content_fossology_license_unknown() IS 'List unknown licenses';
+
+create type content_fossology_license_signature as (
+  id           sha1,
+  tool_name    text,
+  tool_version text,
+  licenses     text[]
 );
 
 -- Retrieve list of content license from the temporary table.
 --
 -- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
 -- 2. call this function
-create or replace function swh_content_license_get()
-    returns setof content_license_signature
+create or replace function swh_content_fossology_license_get()
+    returns setof content_fossology_license_signature
     language plpgsql
 as $$
 begin
     return query
-        select id::sha1, array(select name from license where id = ANY(cl.licenses)) as licenses
-        from tmp_bytea
-        inner join content_license cl using(id);
+      select cl.id,
+             ic.tool_name,
+             ic.tool_version,
+             array(select name
+                   from fossology_license
+                   where id = ANY(array_agg(cl.license_id))) as licenses
+      from content_fossology_license cl
+      inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
+      group by cl.id, ic.tool_name, ic.tool_version;
     return;
 end
 $$;
 
-comment on function swh_content_license_get() IS 'List content licenses';
+comment on function swh_content_fossology_license_get() IS 'List content licenses';

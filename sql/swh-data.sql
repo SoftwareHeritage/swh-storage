@@ -38,7 +38,7 @@ insert into listable_entity
 values
   ('34bd6b1b-463f-43e5-a697-785107f598e4', 'swh.lister.github');
 
-insert into license (name)
+insert into fossology_license (name)
 values
   ('3DFX'),
   ('3DFX-PL'),
@@ -827,3 +827,6 @@ values
   ('ZPL-2.0'),
   ('ZPL-2.1'),
   ('Zveno');
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('nomos', '3.1.0rc2-31-ga2cbb8c', '{"command_line": "nomossa"}');

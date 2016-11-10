@@ -604,22 +604,40 @@ comment on column content_ctags.lang is 'Language information for that content';
 create index on content_ctags(id);
 create unique index on content_ctags(id, md5(name), kind, line, lang);
 
-create table license(
-  id serial primary key,
-  name bytea not null
+create table fossology_license(
+  id smallserial primary key,
+  name text not null
 );
 
-comment on table license is 'Possible license recognized by license indexer';
-comment on column license.id is 'License identifier';
-comment on column license.name is 'License name';
+comment on table fossology_license is 'Possible license recognized by license indexer';
+comment on column fossology_license.id is 'License identifier';
+comment on column fossology_license.name is 'License name';
 
-create unique index on license(name);
+create unique index on fossology_license(name);
 
-create table content_license (
-   id sha1 primary key references content(sha1) not null,
-   licenses bigint[] -- reference license(id)
+create table indexer_configuration (
+  id serial primary key not null,
+  tool_name text not null,
+  tool_version text not null,
+  tool_configuration jsonb
 );
 
-comment on table content_license is 'license associated to a raw content';
-comment on column content_license.id is 'Raw content identifier';
-comment on column content_license.licenses is 'Raw content licenses';
+comment on table indexer_configuration is 'Indexer''s configuration version';
+comment on column indexer_configuration.id is 'Tool identifier';
+comment on column indexer_configuration.tool_version is 'Tool name';
+comment on column indexer_configuration.tool_version is 'Tool version';
+comment on column indexer_configuration.tool_configuration is 'Tool configuration: command line, flags, etc...';
+
+create unique index on indexer_configuration(tool_name, tool_version);
+
+create table content_fossology_license (
+  id sha1 references content(sha1) not null,
+  license_id smallserial references fossology_license(id) not null,
+  indexer_configuration_id bigserial references indexer_configuration(id) not null
+);
+
+create unique index on content_fossology_license(id, license_id, indexer_configuration_id);
+
+comment on table content_fossology_license is 'license associated to a raw content';
+comment on column content_fossology_license.id is 'Raw content identifier';
+comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
