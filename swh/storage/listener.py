@@ -91,6 +91,7 @@ def run_from_config(config):
         logging.exception("Caught exception")
         producer.flush()
 
+
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.INFO,
