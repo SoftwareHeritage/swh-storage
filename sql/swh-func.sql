@@ -1818,7 +1818,8 @@ begin
              array(select name
                    from fossology_license
                    where id = ANY(array_agg(cl.license_id))) as licenses
-      from content_fossology_license cl
+      from tmp_bytea tcl
+      inner join content_fossology_license cl using(id)
       inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
       group by cl.id, ic.tool_name, ic.tool_version;
     return;
