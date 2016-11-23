@@ -872,6 +872,13 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
+    def content_ctags_search(self, expression, cur=None):
+        cur = self._cursor(cur)
+        query = "SELECT %s FROM swh_content_ctags_search(%%s)" % (
+            ','.join(self.content_ctags_cols))
+        cur.execute(query, (expression, ))
+        yield from cursor_to_bytes(cur)
+
     def content_fossology_license_missing_from_temp(self, cur=None):
         """List missing licenses.
 

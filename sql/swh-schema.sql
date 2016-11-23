@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(90, now(), 'Work In Progress');
+      values(93, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -591,7 +591,8 @@ create table content_ctags (
   name text not null,
   kind text not null,
   line bigint not null,
-  lang ctags_languages not null
+  lang ctags_languages not null,
+  searchable_symbol tsvector
 );
 
 comment on table content_ctags is 'Ctags information on a raw content';
@@ -600,9 +601,16 @@ comment on column content_ctags.name is 'Symbol name';
 comment on column content_ctags.kind is 'Symbol kind (function, class, variable, const...)';
 comment on column content_ctags.line is 'Symbol line';
 comment on column content_ctags.lang is 'Language information for that content';
+comment on column content_ctags.searchable_symbol is 'Searchable symbol derived from name column';
 
 create index on content_ctags(id);
 create unique index on content_ctags(id, md5(name), kind, line, lang);
+
+create trigger content_ctags_tsvectorupdate before insert or update
+on content_ctags for each row execute procedure
+tsvector_update_trigger(searchable_symbol, 'pg_catalog.english', name);
+
+create index searchable_symbol_idx ON content_ctags USING GIN (searchable_symbol);
 
 create table fossology_license(
   id smallserial primary key,
