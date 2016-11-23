@@ -329,6 +329,12 @@ def content_ctags_add():
         g.storage.content_ctags_add(**decode_request(request)))
 
 
+@app.route('/content/ctags/search', methods=['POST'])
+def content_ctags_search():
+    return encode_data(
+        g.storage.content_ctags_search(**decode_request(request)))
+
+
 @app.route('/content/ctags/missing', methods=['POST'])
 def content_ctags_missing():
     return encode_data(
