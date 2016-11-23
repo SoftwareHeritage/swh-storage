@@ -1,3 +1,10 @@
+swh-storage (0.0.71-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.71
+  * Open full-text search endpoint on ctags
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 23 Nov 2016 17:33:51 +0100
+
 swh-storage (0.0.70-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.70
