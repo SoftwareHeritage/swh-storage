@@ -2262,6 +2262,78 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_ctags, [ctag1])
 
     @istest
+    def content_ctags_search(self):
+        # 1. given
+        cont = self.cont
+        cont2 = self.cont2
+        self.storage.content_add([cont, cont2])
+
+        ctag1 = {
+            'id': self.cont2['sha1'],
+            'ctags': [
+                {
+                    'name': 'def hello(name):',
+                    'kind': 'function',
+                    'line': 100,
+                    'lang': 'Python',
+                },
+                {
+                    'name': 'counter',
+                    'kind': 'variable',
+                    'line': 119,
+                    'lang': 'Python',
+                },
+            ]
+        }
+
+        ctag2 = {
+            'id': self.cont['sha1'],
+            'ctags': [
+                {
+                    'name': 'hello',
+                    'kind': 'variable',
+                    'line': 100,
+                    'lang': 'C',
+                },
+            ]
+        }
+
+        self.storage.content_ctags_add([ctag1, ctag2])
+
+        # 1. when
+        actual_ctags = list(self.storage.content_ctags_search('hello'))
+
+        # 1. then
+        self.assertEqual(actual_ctags, [
+            {
+                'id': ctag1['id'],
+                'name': 'def hello(name):',
+                'kind': 'function',
+                'line': 100,
+                'lang': 'Python',
+            },
+            {
+                'id': ctag2['id'],
+                'name': 'hello',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'C',
+            }
+        ])
+
+        # 2. when
+        actual_ctags = list(self.storage.content_ctags_search('counter'))
+
+        # then
+        self.assertEqual(actual_ctags, [{
+            'id': ctag1['id'],
+            'name': 'counter',
+            'kind': 'variable',
+            'line': 119,
+            'lang': 'Python',
+        }])
+
+    @istest
     def content_ctags_add__add_new_ctags_added(self):
         # given
         cont2 = self.cont2

@@ -1708,24 +1708,45 @@ $$;
 
 comment on function swh_content_ctags_missing() IS 'Filter missing content ctags';
 
+create type content_ctags_signature as (
+  id sha1,
+  name text,
+  kind text,
+  line bigint,
+  lang ctags_languages
+);
+
 -- Retrieve list of content ctags from the temporary table.
 --
 -- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
 create or replace function swh_content_ctags_get()
-    returns setof content_ctags
+    returns setof content_ctags_signature
     language plpgsql
 as $$
 begin
     return query
-        select id::sha1, name, kind, line, lang
+        select c.id, c.name, c.kind, c.line, c.lang
         from tmp_bytea t
-        inner join content_ctags using(id)
+        inner join content_ctags c using(id)
         order by line;
     return;
 end
 $$;
 
 comment on function swh_content_ctags_get() IS 'List content ctags';
+
+-- Search within ctags content.
+--
+create or replace function swh_content_ctags_search(expression text)
+    returns setof content_ctags_signature
+    language sql
+as $$
+    select id, name, kind, line, lang
+    from content_ctags
+    where searchable_symbol @@ to_tsquery(expression);
+$$;
+
+comment on function swh_content_ctags_search(text) IS 'Search through ctags'' symbols';
 
 
 -- check which entries of tmp_bytea are missing from content_fossology_license
@@ -1818,7 +1839,8 @@ begin
              array(select name
                    from fossology_license
                    where id = ANY(array_agg(cl.license_id))) as licenses
-      from content_fossology_license cl
+      from tmp_bytea tcl
+      inner join content_fossology_license cl using(id)
       inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
       group by cl.id, ic.tool_name, ic.tool_version;
     return;
