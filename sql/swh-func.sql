@@ -1737,16 +1737,19 @@ comment on function swh_content_ctags_get() IS 'List content ctags';
 
 -- Search within ctags content.
 --
-create or replace function swh_content_ctags_search(expression text)
+create or replace function swh_content_ctags_search(expression text, l integer, o integer)
     returns setof content_ctags_signature
     language sql
 as $$
     select id, name, kind, line, lang
     from content_ctags
-    where searchable_symbol @@ to_tsquery(expression);
+    where searchable_symbol @@ to_tsquery(expression)
+    order by id
+    limit l
+    offset o;
 $$;
 
-comment on function swh_content_ctags_search(text) IS 'Search through ctags'' symbols';
+comment on function swh_content_ctags_search(text, integer, integer) IS 'Search through ctags'' symbols';
 
 
 -- check which entries of tmp_bytea are missing from content_fossology_license
