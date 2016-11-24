@@ -258,8 +258,12 @@ class RemoteStorage():
     def content_ctags_get(self, ids):
         return self.post('content/ctags', {'ids': ids})
 
-    def content_ctags_search(self, expression):
-        return self.post('content/ctags/search', {'expression': expression})
+    def content_ctags_search(self, expression, limit=10, offset=0):
+        return self.post('content/ctags/search', {
+            'expression': expression,
+            'limit': limit,
+            'offset': offset,
+        })
 
     def content_fossology_license_add(self, licenses, conflict_update=False):
         return self.post('content/fossology_license/add', {

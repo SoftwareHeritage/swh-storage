@@ -1423,19 +1423,21 @@ class Storage():
         db.content_ctags_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
-    def content_ctags_search(self, expression, cur=None):
+    def content_ctags_search(self, expression, limit=10, offset=0, cur=None):
         """Search through content's raw ctags symbols.
 
         Args:
             expression (str): Expression to search for
+            limit (int): Number of rows to return (default to 10).
+            offset (int): Offset from which retrieving data (default to 0).
 
         Yields:
-            row of ctags including id, name, lang, kind, line, etc...
+            rows of ctags including id, name, lang, kind, line, etc...
 
         """
         db = self.db
 
-        for obj in db.content_ctags_search(expression, cur=cur):
+        for obj in db.content_ctags_search(expression, limit, offset, cur=cur):
             yield dict(zip(db.content_ctags_cols, obj))
 
     @db_transaction_generator
