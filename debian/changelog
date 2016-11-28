@@ -1,3 +1,10 @@
+swh-storage (0.0.73-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.73
+  * Improve ctags search query for edge cases
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 28 Nov 2016 16:34:55 +0100
+
 swh-storage (0.0.72-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.72
