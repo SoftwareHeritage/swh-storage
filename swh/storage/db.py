@@ -14,6 +14,9 @@ import tempfile
 
 from contextlib import contextmanager
 
+from .exc import BadSyntaxAPIError
+
+
 TMP_CONTENT_TABLE = 'tmp_content'
 
 
@@ -874,10 +877,15 @@ class Db(BaseDb):
 
     def content_ctags_search(self, expression, limit, offset, cur=None):
         cur = self._cursor(cur)
-        query = "SELECT %s FROM swh_content_ctags_search(%%s, %%s, %%s)" % (
-            ','.join(self.content_ctags_cols))
-        cur.execute(query, (expression, limit, offset))
-        yield from cursor_to_bytes(cur)
+        try:
+            query = """SELECT %s
+                       FROM swh_content_ctags_search(%%s, %%s, %%s)""" % (
+                ','.join(self.content_ctags_cols))
+            cur.execute(query, (expression, limit, offset))
+            yield from cursor_to_bytes(cur)
+        except psycopg2.InternalError as e:  # 'expression' is incorrect
+            raise BadSyntaxAPIError("Bad syntax in expression '%s'" %
+                                    expression)
 
     def content_fossology_license_missing_from_temp(self, cur=None):
         """List missing licenses.
