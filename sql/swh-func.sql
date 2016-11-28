@@ -1739,14 +1739,20 @@ comment on function swh_content_ctags_get() IS 'List content ctags';
 --
 create or replace function swh_content_ctags_search(expression text, l integer, o integer)
     returns setof content_ctags_signature
-    language sql
+    language plpgsql
 as $$
-    select id, name, kind, line, lang
-    from content_ctags
-    where searchable_symbol @@ to_tsquery(expression)
-    order by id
-    limit l
-    offset o;
+begin
+    return query
+        select id, name, kind, line, lang
+        from content_ctags
+        where searchable_symbol @@ to_tsquery(expression)
+        order by id
+        limit l
+        offset o;
+exception
+    when sqlstate '42000' then  -- syntax error
+        raise exception 'Bad syntax in expression ''%''', expression;
+end
 $$;
 
 comment on function swh_content_ctags_search(text, integer, integer) IS 'Search through ctags'' symbols';
