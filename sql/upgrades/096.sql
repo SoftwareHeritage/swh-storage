@@ -29,4 +29,10 @@ $$;
 
 comment on function swh_content_ctags_search(text, integer, sha1) IS 'Equality search through ctags'' symbols';
 
-create index on content_ctags(name);
+create or replace function hash_sha1(text)
+    returns text
+as $$
+    select encode(digest($1, 'sha1'), 'hex')
+$$ language sql strict immutable;
+
+create index on content_ctags(hash_sha1(name));
