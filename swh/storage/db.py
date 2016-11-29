@@ -14,8 +14,7 @@ import tempfile
 
 from contextlib import contextmanager
 
-from .exc import BadSyntaxAPIError
-
+from swh.core import hashutil
 
 TMP_CONTENT_TABLE = 'tmp_content'
 
@@ -875,17 +874,25 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    def content_ctags_search(self, expression, limit, offset, cur=None):
+    def content_ctags_search(self, expression, last_sha1, limit, cur=None):
         cur = self._cursor(cur)
-        try:
+        if not last_sha1:
+            query = """SELECT %s
+                       FROM swh_content_ctags_search(%%s, %%s)""" % (
+                           ','.join(self.content_ctags_cols))
+            cur.execute(query, (expression, limit))
+        else:
+            if last_sha1 and isinstance(last_sha1, bytes):
+                last_sha1 = '\\x%s' % hashutil.hash_to_hex(last_sha1)
+            elif last_sha1:
+                last_sha1 = '\\x%s' % last_sha1
+
             query = """SELECT %s
                        FROM swh_content_ctags_search(%%s, %%s, %%s)""" % (
-                ','.join(self.content_ctags_cols))
-            cur.execute(query, (expression, limit, offset))
-            yield from cursor_to_bytes(cur)
-        except psycopg2.InternalError as e:  # 'expression' is incorrect
-            raise BadSyntaxAPIError("Bad syntax in expression '%s'" %
-                                    expression)
+                           ','.join(self.content_ctags_cols))
+            cur.execute(query, (expression, limit, last_sha1))
+
+        yield from cursor_to_bytes(cur)
 
     def content_fossology_license_missing_from_temp(self, cur=None):
         """List missing licenses.

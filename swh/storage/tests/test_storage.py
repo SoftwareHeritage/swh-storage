@@ -2270,12 +2270,12 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.content_add([cont, cont2])
 
         ctag1 = {
-            'id': self.cont2['sha1'],
+            'id': cont['sha1'],
             'ctags': [
                 {
-                    'name': 'def hello(name):',
+                    'name': 'hello',
                     'kind': 'function',
-                    'line': 100,
+                    'line': 133,
                     'lang': 'Python',
                 },
                 {
@@ -2288,7 +2288,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         ctag2 = {
-            'id': self.cont['sha1'],
+            'id': cont2['sha1'],
             'ctags': [
                 {
                     'name': 'hello',
@@ -2303,10 +2303,26 @@ class AbstractTestStorage(DbTestFixture):
 
         # 1. when
         actual_ctags = list(self.storage.content_ctags_search('hello',
-                                                              limit=1,
-                                                              offset=0))
+                                                              limit=1))
 
         # 1. then
+        self.assertEqual(actual_ctags, [
+            {
+                'id': ctag1['id'],
+                'name': 'hello',
+                'kind': 'function',
+                'line': 133,
+                'lang': 'Python',
+            }
+        ])
+
+        # 2. when
+        actual_ctags = list(self.storage.content_ctags_search(
+            'hello',
+            limit=1,
+            last_sha1=ctag1['id']))
+
+        # 2. then
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag2['id'],
@@ -2314,21 +2330,6 @@ class AbstractTestStorage(DbTestFixture):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'C',
-            }
-        ])
-
-        # 2. when
-        actual_ctags = list(self.storage.content_ctags_search('hello',
-                                                              offset=1))
-
-        # 2. then
-        self.assertEqual(actual_ctags, [
-            {
-                'id': ctag1['id'],
-                'name': 'def hello(name):',
-                'kind': 'function',
-                'line': 100,
-                'lang': 'Python',
             }
         ])
 
@@ -2338,19 +2339,19 @@ class AbstractTestStorage(DbTestFixture):
         # 3. then
         self.assertEqual(actual_ctags, [
             {
+                'id': ctag1['id'],
+                'name': 'hello',
+                'kind': 'function',
+                'line': 133,
+                'lang': 'Python',
+            },
+            {
                 'id': ctag2['id'],
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'C',
             },
-            {
-                'id': ctag1['id'],
-                'name': 'def hello(name):',
-                'kind': 'function',
-                'line': 100,
-                'lang': 'Python',
-            }
         ])
 
         # 4. when
@@ -2365,7 +2366,6 @@ class AbstractTestStorage(DbTestFixture):
             'lang': 'Python',
         }])
 
-    @attr('one')
     @istest
     def content_ctags_search_no_result(self):
         actual_ctags = list(self.storage.content_ctags_search('counter'))
