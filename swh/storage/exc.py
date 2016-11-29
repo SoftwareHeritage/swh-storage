@@ -21,9 +21,3 @@ class StorageAPIError(Exception):
     def __str__(self):
         args = self.args
         return 'An unexpected error occurred in the api backend: %s' % args
-
-
-class BadSyntaxAPIError(Exception):
-    def __str__(self):
-        args = self.args
-        return 'Syntax error in the request: %s' % args
