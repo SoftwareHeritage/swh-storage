@@ -1423,13 +1423,14 @@ class Storage():
         db.content_ctags_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
-    def content_ctags_search(self, expression, limit=10, offset=0, cur=None):
+    def content_ctags_search(self, expression,
+                             limit=10, last_sha1=None, cur=None):
         """Search through content's raw ctags symbols.
 
         Args:
             expression (str): Expression to search for
             limit (int): Number of rows to return (default to 10).
-            offset (int): Offset from which retrieving data (default to 0).
+            last_sha1 (str): Offset from which retrieving data (default to '').
 
         Yields:
             rows of ctags including id, name, lang, kind, line, etc...
@@ -1437,7 +1438,8 @@ class Storage():
         """
         db = self.db
 
-        for obj in db.content_ctags_search(expression, limit, offset, cur=cur):
+        for obj in db.content_ctags_search(expression, last_sha1, limit,
+                                           cur=cur):
             yield dict(zip(db.content_ctags_cols, obj))
 
     @db_transaction_generator
