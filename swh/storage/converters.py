@@ -323,6 +323,8 @@ def ctags_to_db(ctags):
     Args:
         ctags (dict): ctags entry with the following keys:
         - id (bytes): content's identifier
+        - tool_name (str): tool name used to compute ctags
+        - tool_version (str): associated tool's version
         - ctags ([dict]): List of dictionary with the following keys:
           - name (str): symbol's name
           - kind (str): symbol's kind
@@ -335,6 +337,8 @@ def ctags_to_db(ctags):
         - name (str): symbol's name
         - kind (str): symbol's kind
         - language (str): language for that content
+        - tool_name (str): tool name used to compute ctags
+        - tool_version (str): associated tool's version
 
     """
     res = []
@@ -352,3 +356,36 @@ def ctags_to_db(ctags):
             'tool_version': tool_version,
         })
     return res
+
+
+def db_to_ctags(ctag):
+    """Convert a ctags entry into a ready ctags entry.
+
+    Args:
+        ctags (dict): ctags entry with the following keys:
+        - id (bytes): content's identifier
+        - ctags ([dict]): List of dictionary with the following keys:
+          - name (str): symbol's name
+          - kind (str): symbol's kind
+          - line (int): symbol's line in the content
+          - language (str): language
+
+    Returns:
+        List of ctags ready entry (dict with the following keys):
+        - id (bytes): content's identifier
+        - name (str): symbol's name
+        - kind (str): symbol's kind
+        - language (str): language for that content
+
+    """
+    return {
+        'id': ctag['id'],
+        'name': ctag['name'],
+        'kind': ctag['kind'],
+        'line': ctag['line'],
+        'lang': ctag['lang'],
+        'tool': {
+            'name': ctag['tool_name'],
+            'version': ctag['tool_version'],
+        }
+    }

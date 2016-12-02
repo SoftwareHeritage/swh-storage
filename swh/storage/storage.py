@@ -1390,7 +1390,7 @@ class Storage():
         db = self.db
         db.store_tmp_bytea(ids, cur)
         for c in db.content_ctags_get_from_temp():
-            yield dict(zip(db.content_ctags_cols, c))
+            yield converters.db_to_ctags(dict(zip(db.content_ctags_cols, c)))
 
     @db_transaction
     def content_ctags_add(self, ctags, conflict_update=False, cur=None):
@@ -1440,7 +1440,7 @@ class Storage():
 
         for obj in db.content_ctags_search(expression, last_sha1, limit,
                                            cur=cur):
-            yield dict(zip(db.content_ctags_cols, obj))
+            yield converters.db_to_ctags(dict(zip(db.content_ctags_cols, obj)))
 
     @db_transaction_generator
     def content_fossology_license_missing(self, licenses, cur=None):

@@ -174,3 +174,32 @@ class TestConverters(unittest.TestCase):
 
         # then
         self.assertEquals(actual_ctags, expected_ctags)
+
+    @istest
+    def db_to_ctags(self):
+        input_ctags = {
+            'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'name': 'some-name',
+            'kind': 'some-kind',
+            'line': 10,
+            'lang': 'Yaml',
+        }
+        expected_ctags = {
+            'id': b'some-id',
+            'name': 'some-name',
+            'kind': 'some-kind',
+            'line': 10,
+            'lang': 'Yaml',
+            'tool': {
+                'name': 'some-toolname',
+                'version': 'some-toolversion'
+            }
+        }
+
+        # when
+        actual_ctags = converters.db_to_ctags(input_ctags)
+
+        # then
+        self.assertEquals(actual_ctags, expected_ctags)
