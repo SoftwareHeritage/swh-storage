@@ -1271,14 +1271,21 @@ class Storage():
         """List mimetypes missing from storage.
 
         Args:
-            mimetypes: iterable of sha1
+            mimetypes: iterable of dict with keys:
+            - id (bytes): sha1 identifier
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
 
         Returns:
-            an iterable of missing id
+            an iterable of missing id for the triplets id,
+            tool_name, tool_version
 
         """
         db = self.db
-        db.store_tmp_bytea(mimetypes, cur)
+        db.mktemp_content_mimetype_missing(cur)
+        db.copy_to(mimetypes, 'tmp_content_mimetype_missing',
+                   ['id', 'tool_name', 'tool_version'],
+                   cur)
         for obj in db.content_mimetype_missing_from_temp(cur):
             yield obj[0]
 
@@ -1288,17 +1295,20 @@ class Storage():
 
         Args:
             mimetypes: iterable of dictionary with keys:
-            - id: sha1
-            - mimetype: bytes
-            - encoding: bytes
+            - id (bytes): sha1 identifier
+            - mimetype (bytes): raw content's mimetype
+            - encoding (bytes): raw content's encoding
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
             conflict_update: Flag to determine if we want to overwrite (true)
             or skip duplicates (false, the default)
 
         """
         db = self.db
-        db.mktemp('content_mimetype', cur)
+        db.mktemp_content_mimetype(cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype',
-                   ['id', 'mimetype', 'encoding'], cur)
+                   db.content_mimetype_cols,
+                   cur)
         db.content_mimetype_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
@@ -1306,21 +1316,27 @@ class Storage():
         db = self.db
         db.store_tmp_bytea(ids, cur)
         for c in db.content_mimetype_get_from_temp():
-            yield dict(zip(db.content_mimetype_cols, c))
+            yield converters.db_to_mimetype(
+                dict(zip(db.content_mimetype_cols, c)))
 
     @db_transaction_generator
     def content_language_missing(self, languages, cur=None):
         """List languages missing from storage.
 
         Args:
-            languages: iterable of sha1
+            languages: iterable of dict with keys:
+            - id (bytes): sha1 identifier
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
 
         Returns:
             an iterable of missing id
 
         """
         db = self.db
-        db.store_tmp_bytea(languages, cur)
+        db.mktemp_content_language_missing(cur)
+        db.copy_to(languages, 'tmp_content_language_missing',
+                   db.content_language_cols, cur)
         for obj in db.content_language_missing_from_temp(cur):
             yield obj[0]
 
@@ -1329,7 +1345,8 @@ class Storage():
         db = self.db
         db.store_tmp_bytea(ids, cur)
         for c in db.content_language_get_from_temp():
-            yield dict(zip(db.content_language_cols, c))
+            yield converters.db_to_language(
+                dict(zip(db.content_language_cols, c)))
 
     @db_transaction
     def content_language_add(self, languages, conflict_update=False, cur=None):
@@ -1344,14 +1361,16 @@ class Storage():
 
         """
         db = self.db
-        db.mktemp('content_language', cur)
+        db.mktemp_content_language(cur)
         # empty language is mapped to 'unknown'
         db.copy_to(
             ({
                 'id': l['id'],
-                'lang': 'unknown' if not l['lang'] else l['lang']
+                'lang': 'unknown' if not l['lang'] else l['lang'],
+                'tool_name': l['tool_name'],
+                'tool_version': l['tool_version'],
             } for l in languages),
-            'tmp_content_language', ['id', 'lang'], cur)
+            'tmp_content_language', db.content_language_cols, cur)
 
         db.content_language_add_from_temp(conflict_update, cur)
 
@@ -1360,14 +1379,22 @@ class Storage():
         """List ctags missing from storage.
 
         Args:
-            ctags: iterable of sha1
+            ctags: iterable of dict with keys:
+            - id (bytes): sha1 identifier
+            - tool_name (str): tool name used
+            - tool_version (str): associated version
 
         Returns:
             an iterable of missing id
 
         """
         db = self.db
-        db.store_tmp_bytea(ctags, cur)
+
+        db.mktemp_content_ctags_missing(cur)
+        db.copy_to(ctags,
+                   tblname='tmp_content_ctags_missing',
+                   columns=['id', 'tool_name', 'tool_version'],
+                   cur=cur)
         for obj in db.content_ctags_missing_from_temp(cur):
             yield obj[0]
 
@@ -1381,16 +1408,8 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(ids, cur)
-
-        r = {}
         for c in db.content_ctags_get_from_temp():
-            id = c[0]
-            l = r.get(id, [])
-            l.append(dict(zip(db.content_ctags_cols[1:], c[1:])))
-            r[id] = l
-
-        for id, ctags in r.items():
-            yield {'id': id, 'ctags': ctags}
+            yield converters.db_to_ctags(dict(zip(db.content_ctags_cols, c)))
 
     @db_transaction
     def content_ctags_add(self, ctags, conflict_update=False, cur=None):
@@ -1414,7 +1433,7 @@ class Storage():
                 res.extend(converters.ctags_to_db(ctag))
             return res
 
-        db.mktemp('content_ctags', cur)
+        db.mktemp_content_ctags(cur)
         db.copy_to(_convert_ctags(ctags),
                    tblname='tmp_content_ctags',
                    columns=db.content_ctags_cols,
@@ -1440,7 +1459,7 @@ class Storage():
 
         for obj in db.content_ctags_search(expression, last_sha1, limit,
                                            cur=cur):
-            yield dict(zip(db.content_ctags_cols, obj))
+            yield converters.db_to_ctags(dict(zip(db.content_ctags_cols, obj)))
 
     @db_transaction_generator
     def content_fossology_license_missing(self, licenses, cur=None):
@@ -1454,7 +1473,10 @@ class Storage():
 
         """
         db = self.db
-        db.store_tmp_bytea(licenses, cur)
+        db.mktemp_content_fossology_license_missing(cur)
+        db.copy_to(licenses, 'tmp_content_fossology_license_missing',
+                   ['id', 'tool_name', 'tool_version'],
+                   cur)
         for obj in db.content_fossology_license_missing_from_temp(cur):
             yield obj[0]
 

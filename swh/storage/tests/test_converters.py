@@ -133,6 +133,8 @@ class TestConverters(unittest.TestCase):
     def ctags_to_db(self):
         input_ctag = {
             'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
             'ctags': [
                 {
                     'name': 'some-name',
@@ -155,12 +157,16 @@ class TestConverters(unittest.TestCase):
                 'kind': 'some-kind',
                 'line': 10,
                 'lang': 'Yaml',
+                'tool_name': 'some-toolname',
+                'tool_version': 'some-toolversion',
             }, {
                 'id': b'some-id',
                 'name': 'main',
                 'kind': 'function',
                 'line': 12,
                 'lang': 'Yaml',
+                'tool_name': 'some-toolname',
+                'tool_version': 'some-toolversion',
             }]
 
         # when
@@ -168,3 +174,78 @@ class TestConverters(unittest.TestCase):
 
         # then
         self.assertEquals(actual_ctags, expected_ctags)
+
+    @istest
+    def db_to_ctags(self):
+        input_ctags = {
+            'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'name': 'some-name',
+            'kind': 'some-kind',
+            'line': 10,
+            'lang': 'Yaml',
+        }
+        expected_ctags = {
+            'id': b'some-id',
+            'name': 'some-name',
+            'kind': 'some-kind',
+            'line': 10,
+            'lang': 'Yaml',
+            'tool': {
+                'name': 'some-toolname',
+                'version': 'some-toolversion'
+            }
+        }
+
+        # when
+        actual_ctags = converters.db_to_ctags(input_ctags)
+
+        # then
+        self.assertEquals(actual_ctags, expected_ctags)
+
+    @istest
+    def db_to_mimetype(self):
+        input_mimetype = {
+            'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'encoding': b'ascii',
+            'mimetype': b'text/plain',
+        }
+
+        expected_mimetype = {
+            'id': b'some-id',
+            'encoding': b'ascii',
+            'mimetype': b'text/plain',
+            'tool': {
+                'name': 'some-toolname',
+                'version': 'some-toolversion',
+            }
+        }
+
+        actual_mimetype = converters.db_to_mimetype(input_mimetype)
+
+        self.assertEquals(actual_mimetype, expected_mimetype)
+
+    @istest
+    def db_to_language(self):
+        input_language = {
+            'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'lang': b'css',
+        }
+
+        expected_language = {
+            'id': b'some-id',
+            'lang': b'css',
+            'tool': {
+                'name': 'some-toolname',
+                'version': 'some-toolversion',
+            }
+        }
+
+        actual_language = converters.db_to_language(input_language)
+
+        self.assertEquals(actual_language, expected_language)
