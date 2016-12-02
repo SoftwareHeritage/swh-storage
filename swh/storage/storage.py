@@ -1271,14 +1271,21 @@ class Storage():
         """List mimetypes missing from storage.
 
         Args:
-            mimetypes: iterable of sha1
+            mimetypes: iterable of dict with keys:
+            - id (bytes): sha1 identifier
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
 
         Returns:
-            an iterable of missing id
+            an iterable of missing id for the triplets id,
+            tool_name, tool_version
 
         """
         db = self.db
-        db.store_tmp_bytea(mimetypes, cur)
+        db.mktemp_content_mimetype_missing(cur)
+        db.copy_to(mimetypes, 'tmp_content_mimetype_missing',
+                   ['id', 'tool_name', 'tool_version'],
+                   cur)
         for obj in db.content_mimetype_missing_from_temp(cur):
             yield obj[0]
 
@@ -1288,17 +1295,20 @@ class Storage():
 
         Args:
             mimetypes: iterable of dictionary with keys:
-            - id: sha1
-            - mimetype: bytes
-            - encoding: bytes
+            - id (bytes): sha1 identifier
+            - mimetype (bytes): raw content's mimetype
+            - encoding (bytes): raw content's encoding
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
             conflict_update: Flag to determine if we want to overwrite (true)
             or skip duplicates (false, the default)
 
         """
         db = self.db
-        db.mktemp('content_mimetype', cur)
+        db.mktemp_content_mimetype(cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype',
-                   ['id', 'mimetype', 'encoding'], cur)
+                   db.content_mimetype_cols,
+                   cur)
         db.content_mimetype_add_from_temp(conflict_update, cur)
 
     @db_transaction_generator
@@ -1306,7 +1316,8 @@ class Storage():
         db = self.db
         db.store_tmp_bytea(ids, cur)
         for c in db.content_mimetype_get_from_temp():
-            yield dict(zip(db.content_mimetype_cols, c))
+            yield converters.db_to_mimetype(
+                dict(zip(db.content_mimetype_cols, c)))
 
     @db_transaction_generator
     def content_language_missing(self, languages, cur=None):

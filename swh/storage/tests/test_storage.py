@@ -1949,7 +1949,17 @@ class AbstractTestStorage(DbTestFixture):
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
-        mimetypes = [self.cont2['sha1'], self.missing_cont['sha1']]
+        mimetypes = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'file',
+                'tool_version': '5.22',
+            },
+            {
+                'id': self.missing_cont['sha1'],
+                'tool_name': 'file',
+                'tool_version': '5.22',
+            }]
 
         # when
         actual_missing = self.storage.content_mimetype_missing(mimetypes)
@@ -1964,7 +1974,9 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.content_mimetype_add([{
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
-            'encoding': b'utf-8'
+            'encoding': b'utf-8',
+            'tool_name': 'file',
+            'tool_version': '5.22',
         }])
 
         # when
@@ -1982,7 +1994,9 @@ class AbstractTestStorage(DbTestFixture):
         mimetype_v1 = {
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
-            'encoding': b'utf-8'
+            'encoding': b'utf-8',
+            'tool_name': 'file',
+            'tool_version': '5.22',
         }
 
         # given
@@ -1993,7 +2007,16 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # then
-        self.assertEqual(actual_mimetypes[0], mimetype_v1)
+        expected_mimetypes_v1 = [{
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8',
+            'tool': {
+                'name': 'file',
+                'version': '5.22',
+            }
+        }]
+        self.assertEqual(actual_mimetypes, expected_mimetypes_v1)
 
         # given
         mimetype_v2 = mimetype_v1.copy()
@@ -2008,7 +2031,7 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # mimetype did not change as the v2 was dropped.
-        self.assertEqual(actual_mimetypes[0], mimetype_v1)
+        self.assertEqual(actual_mimetypes, expected_mimetypes_v1)
 
     @istest
     def content_mimetype_add__update_in_place_duplicate(self):
@@ -2019,7 +2042,9 @@ class AbstractTestStorage(DbTestFixture):
         mimetype_v1 = {
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
-            'encoding': b'utf-8'
+            'encoding': b'utf-8',
+            'tool_name': 'file',
+            'tool_version': '5.22',
         }
 
         # given
@@ -2029,8 +2054,18 @@ class AbstractTestStorage(DbTestFixture):
         actual_mimetypes = list(self.storage.content_mimetype_get(
             [self.cont2['sha1']]))
 
+        expected_mimetypes_v1 = [{
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8',
+            'tool': {
+                'name': 'file',
+                'version': '5.22',
+            }
+        }]
+
         # then
-        self.assertEqual(actual_mimetypes[0], mimetype_v1)
+        self.assertEqual(actual_mimetypes, expected_mimetypes_v1)
 
         # given
         mimetype_v2 = mimetype_v1.copy()
@@ -2044,8 +2079,18 @@ class AbstractTestStorage(DbTestFixture):
         actual_mimetypes = list(self.storage.content_mimetype_get(
             [self.cont2['sha1']]))
 
+        expected_mimetypes_v2 = [{
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/html',
+            'encoding': b'us-ascii',
+            'tool': {
+                'name': 'file',
+                'version': '5.22',
+            }
+        }]
+
         # mimetype did change as the v2 was used to overwrite v1
-        self.assertEqual(actual_mimetypes[0], mimetype_v2)
+        self.assertEqual(actual_mimetypes, expected_mimetypes_v2)
 
     @istest
     def content_mimetype_get(self):
@@ -2058,17 +2103,29 @@ class AbstractTestStorage(DbTestFixture):
         mimetype1 = {
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
-            'encoding': b'utf-8'
+            'encoding': b'utf-8',
+            'tool_name': 'file',
+            'tool_version': '5.22',
         }
 
         # when
         self.storage.content_mimetype_add([mimetype1])
 
         # then
-        actual_mimetypes = self.storage.content_mimetype_get(mimetypes)
+        actual_mimetypes = list(self.storage.content_mimetype_get(mimetypes))
 
         # then
-        self.assertEqual(list(actual_mimetypes), [mimetype1])
+        expected_mimetypes = [{
+            'id': self.cont2['sha1'],
+            'mimetype': b'text/plain',
+            'encoding': b'utf-8',
+            'tool': {
+                'name': 'file',
+                'version': '5.22',
+            }
+        }]
+
+        self.assertEqual(actual_mimetypes, expected_mimetypes)
 
     @istest
     def content_language_missing(self):

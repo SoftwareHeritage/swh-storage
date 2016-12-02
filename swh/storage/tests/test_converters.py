@@ -203,3 +203,27 @@ class TestConverters(unittest.TestCase):
 
         # then
         self.assertEquals(actual_ctags, expected_ctags)
+
+    @istest
+    def db_to_mimetype(self):
+        input_mimetype = {
+            'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'encoding': b'ascii',
+            'mimetype': b'text/plain',
+        }
+
+        expected_mimetype = {
+            'id': b'some-id',
+            'encoding': b'ascii',
+            'mimetype': b'text/plain',
+            'tool': {
+                'name': 'some-toolname',
+                'version': 'some-toolversion',
+            }
+        }
+
+        actual_mimetype = converters.db_to_mimetype(input_mimetype)
+
+        self.assertEquals(actual_mimetype, expected_mimetype)

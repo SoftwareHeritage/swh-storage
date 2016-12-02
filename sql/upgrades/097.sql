@@ -107,6 +107,8 @@ alter table content_fossology_license
 -- Update functions
 ---------------------
 
+-- ctags
+
 -- create a temporary table for content_ctags missing routine
 create or replace function swh_mktemp_content_ctags_missing()
     returns void
@@ -141,7 +143,6 @@ begin
 end
 $$;
 
--- create a temporary table for content_ctags tmp_content_ctags,
 -- create a temporary table for content_ctags tmp_content_ctags,
 create or replace function swh_mktemp_content_ctags()
     returns void
@@ -256,3 +257,113 @@ as $$
 $$;
 
 comment on function swh_content_ctags_search(text, integer, sha1) IS 'Equality search through ctags'' symbols';
+
+-- mimetype
+
+-- create a temporary table for content_ctags tmp_content_mimetype_missing,
+create or replace function swh_mktemp_content_mimetype_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_mimetype_missing (
+    id sha1 references content(sha1) not null,
+    tool_name text not null,
+    tool_version text not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_mimetype_missing() IS 'Helper table to filter existing mimetype information';
+
+-- create a temporary table for content_ctags tmp_content_mimetype,
+create or replace function swh_mktemp_content_mimetype()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_mimetype (
+    like content_mimetype including defaults
+  ) on commit drop;
+  alter table tmp_content_mimetype
+    drop column indexer_configuration_id,
+    add column tool_name text,
+    add column tool_version text;
+$$;
+
+comment on function swh_mktemp_content_mimetype() is 'Helper table to add content ctags';
+
+create or replace function swh_content_mimetype_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_content_mimetype_missing as tmp
+	 where not exists
+	     (select 1 from content_mimetype as c
+              inner join indexer_configuration i
+              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+              where c.id = tmp.id));
+    return;
+end
+$$;
+
+comment on function swh_content_mimetype_missing() is 'Filter existing mimetype information';
+
+create or replace function swh_content_mimetype_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        insert into content_mimetype (id, mimetype, encoding, indexer_configuration_id)
+        select id, mimetype, encoding,
+               (select id from indexer_configuration
+               where tool_name=tcm.tool_name
+               and tool_version=tcm.tool_version)
+        from tmp_content_mimetype tcm
+            on conflict(id, indexer_configuration_id)
+                do update set mimetype = excluded.mimetype,
+                              encoding = excluded.encoding;
+
+    else
+        insert into content_mimetype (id, mimetype, encoding, indexer_configuration_id)
+        select id, mimetype, encoding,
+               (select id from indexer_configuration
+               where tool_name=tcm.tool_name
+               and tool_version=tcm.tool_version)
+         from tmp_content_mimetype tcm
+            on conflict(id, indexer_configuration_id)
+            do nothing;
+    end if;
+    return;
+end
+$$;
+
+comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimetypes';
+
+create type content_mimetype_signature as(
+  id sha1,
+  mimetype bytea,
+  encoding bytea,
+  tool_name text,
+  tool_version text
+);
+
+drop function swh_content_mimetype_get();
+
+create or replace function swh_content_mimetype_get()
+    returns setof content_mimetype_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select c.id, mimetype, encoding, tool_name, tool_version
+        from tmp_bytea t
+        inner join content_mimetype c on c.id=t.id
+        inner join indexer_configuration i on c.indexer_configuration_id=i.id;
+    return;
+end
+$$;
+
+comment on function swh_content_mimetype_get() IS 'List content''s mimetype';
+
+-- language

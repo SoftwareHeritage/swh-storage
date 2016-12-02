@@ -389,3 +389,18 @@ def db_to_ctags(ctag):
             'version': ctag['tool_version'],
         }
     }
+
+
+def db_to_mimetype(mimetype):
+    """Convert a ctags entry into a ready ctags entry.
+
+    """
+    return {
+        'id': mimetype['id'],
+        'encoding': mimetype['encoding'],
+        'mimetype': mimetype['mimetype'],
+        'tool': {
+            'name': mimetype['tool_name'],
+            'version': mimetype['tool_version'],
+        }
+    }

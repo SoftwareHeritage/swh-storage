@@ -1516,6 +1516,20 @@ begin
 end
 $$;
 
+-- create a temporary table for content_ctags tmp_content_mimetype_missing,
+create or replace function swh_mktemp_content_mimetype_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_mimetype_missing (
+    id sha1,
+    tool_name text,
+    tool_version text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_mimetype_missing() IS 'Helper table to filter existing mimetype information';
+
 -- check which entries of tmp_bytea are missing from content_mimetype
 --
 -- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
@@ -1526,15 +1540,33 @@ create or replace function swh_content_mimetype_missing()
 as $$
 begin
     return query
-	(select id::sha1 from tmp_bytea as tmp
+	(select id::sha1 from tmp_content_mimetype_missing as tmp
 	 where not exists
-	     (select 1 from content_mimetype as c where c.id = tmp.id));
+	     (select 1 from content_mimetype as c
+              inner join indexer_configuration i
+              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+              where c.id = tmp.id));
     return;
 end
 $$;
 
-COMMENT ON FUNCTION swh_content_mimetype_missing() IS 'Filter missing content mimetype';
+comment on function swh_content_mimetype_missing() is 'Filter existing mimetype information';
 
+-- create a temporary table for content_ctags tmp_content_mimetype,
+create or replace function swh_mktemp_content_mimetype()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_mimetype (
+    like content_mimetype including defaults
+  ) on commit drop;
+  alter table tmp_content_mimetype
+    drop column indexer_configuration_id,
+    add column tool_name text,
+    add column tool_version text;
+$$;
+
+comment on function swh_mktemp_content_mimetype() IS 'Helper table to add mimetype information';
 
 -- add tmp_content_mimetype entries to content_mimetype, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
@@ -1552,18 +1584,24 @@ create or replace function swh_content_mimetype_add(conflict_update boolean)
 as $$
 begin
     if conflict_update then
-        insert into content_mimetype (id, mimetype, encoding)
-        select id, mimetype, encoding
-        from tmp_content_mimetype
-            on conflict(id)
+        insert into content_mimetype (id, mimetype, encoding, indexer_configuration_id)
+        select id, mimetype, encoding,
+               (select id from indexer_configuration
+               where tool_name=tcm.tool_name
+               and tool_version=tcm.tool_version)
+        from tmp_content_mimetype tcm
+            on conflict(id, indexer_configuration_id)
                 do update set mimetype = excluded.mimetype,
-                    encoding = excluded.encoding;
+                              encoding = excluded.encoding;
 
     else
-        insert into content_mimetype (id, mimetype, encoding)
-        select id, mimetype, encoding
-         from tmp_content_mimetype
-            on conflict do nothing;
+        insert into content_mimetype (id, mimetype, encoding, indexer_configuration_id)
+        select id, mimetype, encoding,
+               (select id from indexer_configuration
+               where tool_name=tcm.tool_name
+               and tool_version=tcm.tool_version)
+         from tmp_content_mimetype tcm
+             on conflict(id, indexer_configuration_id) do nothing;
     end if;
     return;
 end
@@ -1571,25 +1609,33 @@ $$;
 
 comment on function swh_content_mimetype_add(boolean) IS 'Add new content mimetypes';
 
+create type content_mimetype_signature as(
+    id sha1,
+    mimetype bytea,
+    encoding bytea,
+    tool_name text,
+    tool_version text
+);
 
 -- Retrieve list of content mimetype from the temporary table.
 --
 -- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea,
 -- 2. call this function
 create or replace function swh_content_mimetype_get()
-    returns setof content_mimetype
+    returns setof content_mimetype_signature
     language plpgsql
 as $$
 begin
     return query
-        select id::sha1, mimetype, encoding
+        select c.id, mimetype, encoding, tool_name, tool_version
         from tmp_bytea t
-        inner join content_mimetype using(id);
+        inner join content_mimetype c on c.id=t.id
+        inner join indexer_configuration i on c.indexer_configuration_id=i.id;
     return;
 end
 $$;
 
-comment on function swh_content_mimetype_get() IS 'List content mimetypes';
+comment on function swh_content_mimetype_get() IS 'List content''s mimetypes';
 
 
 -- check which entries of tmp_bytea are missing from content_language
@@ -1692,7 +1738,9 @@ as $$
 begin
     if conflict_update then
         delete from content_ctags
-        where id in (select distinct id from tmp_content_ctags);
+        where id in (
+          select distinct id from tmp_content_ctags
+        );
     end if;
 
     insert into content_ctags (id, name, kind, line, lang, indexer_configuration_id)

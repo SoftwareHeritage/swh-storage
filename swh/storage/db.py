@@ -817,6 +817,9 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
+    @stored_procedure('swh_mktemp_content_mimetype_missing')
+    def mktemp_content_mimetype_missing(self, cur=None): pass
+
     def content_mimetype_missing_from_temp(self, cur=None):
         """List missing mimetypes.
 
@@ -825,11 +828,15 @@ class Db(BaseDb):
         cur.execute("SELECT * FROM swh_content_mimetype_missing()")
         yield from cursor_to_bytes(cur)
 
+    @stored_procedure('swh_mktemp_content_mimetype')
+    def mktemp_content_mimetype(self, cur=None): pass
+
     def content_mimetype_add_from_temp(self, conflict_update, cur=None):
         self._cursor(cur).execute("SELECT swh_content_mimetype_add(%s)",
                                   (conflict_update, ))
 
-    content_mimetype_cols = ['id', 'mimetype', 'encoding']
+    content_mimetype_cols = ['id', 'mimetype', 'encoding',
+                             'tool_name', 'tool_version']
 
     def content_mimetype_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
