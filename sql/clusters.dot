@@ -64,6 +64,16 @@ subgraph "logical_grouping" {
 		cache_content_revision_processed;
 	}
 
+        subgraph cluster_content_indexer {
+                label = <<b>content_indexer</b>>;
+                content_mimetype;
+                content_ctags;
+                content_language;
+                fossology_license;
+                content_fossology_license;
+                indexer_configuration;
+        }
+
 	{
 		edge [style = dashed];
 
@@ -79,7 +89,7 @@ subgraph "logical_grouping" {
 		"occurrence":rtcol3 -> "revision":ltcol1;
 		"occurrence_history":rtcol3 -> "revision":ltcol1;
 		"release":rtcol2 -> "revision":ltcol1;
-		"revision":rtcol7 -> "directory":ltcol1;
+		"revision":rtcol9 -> "directory":ltcol1;
 		"revision_history":rtcol2 -> "revision":ltcol1;
 		"entity_history":rtcol3 -> "entity_history":ltcol2;
 		"entity_history":rtcol10 -> "listable_entity":ltcol1;

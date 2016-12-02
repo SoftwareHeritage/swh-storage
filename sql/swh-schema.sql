@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(96, now(), 'Work In Progress');
+      values(97, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -565,57 +565,6 @@ create index on cache_revision_origin(revision);
 
 -- Computing metadata on sha1's contents
 
--- Properties (mimetype, encoding, etc...)
-create table content_mimetype (
-  id sha1 primary key references content(sha1) not null,
-  mimetype bytea not null,
-  encoding bytea not null
-);
-
-comment on table content_mimetype is 'Metadata associated to a raw content';
-comment on column content_mimetype.mimetype is 'Raw content Mimetype';
-comment on column content_mimetype.encoding is 'Raw content encoding';
-
--- Language metadata
-create table content_language (
-  id sha1 primary key references content(sha1) not null,
-  lang languages not null
-);
-
-comment on table content_language is 'Language information on a raw content';
-comment on column content_language.lang is 'Language information';
-
--- ctags information per content
-create table content_ctags (
-  id sha1 references content(sha1) not null,
-  name text not null,
-  kind text not null,
-  line bigint not null,
-  lang ctags_languages not null
-);
-
-comment on table content_ctags is 'Ctags information on a raw content';
-comment on column content_ctags.id is 'Content identifier';
-comment on column content_ctags.name is 'Symbol name';
-comment on column content_ctags.kind is 'Symbol kind (function, class, variable, const...)';
-comment on column content_ctags.line is 'Symbol line';
-comment on column content_ctags.lang is 'Language information for that content';
-
-create index on content_ctags(id);
-create index on content_ctags(name);
-create unique index on content_ctags(id, md5(name), kind, line, lang);
-
-create table fossology_license(
-  id smallserial primary key,
-  name text not null
-);
-
-comment on table fossology_license is 'Possible license recognized by license indexer';
-comment on column fossology_license.id is 'License identifier';
-comment on column fossology_license.name is 'License name';
-
-create unique index on fossology_license(name);
-
 create table indexer_configuration (
   id serial primary key not null,
   tool_name text not null,
@@ -631,14 +580,73 @@ comment on column indexer_configuration.tool_configuration is 'Tool configuratio
 
 create unique index on indexer_configuration(tool_name, tool_version);
 
-create table content_fossology_license (
+-- Properties (mimetype, encoding, etc...)
+create table content_mimetype (
   id sha1 references content(sha1) not null,
-  license_id smallserial references fossology_license(id) not null,
+  mimetype bytea not null,
+  encoding bytea not null,
+  indexer_configuration_id bigserial references indexer_configuration(id) not null,
+  primary key(id, indexer_configuration_id)
+);
+
+comment on table content_mimetype is 'Metadata associated to a raw content';
+comment on column content_mimetype.mimetype is 'Raw content Mimetype';
+comment on column content_mimetype.encoding is 'Raw content encoding';
+comment on column content_mimetype.indexer_configuration_id is 'Tool used to compute the information';
+
+-- Language metadata
+create table content_language (
+  id sha1 references content(sha1) not null,
+  lang languages not null,
+  indexer_configuration_id bigserial references indexer_configuration(id) not null,
+  primary key(id, indexer_configuration_id)
+);
+
+comment on table content_language is 'Language information on a raw content';
+comment on column content_language.lang is 'Language information';
+comment on column content_language.indexer_configuration_id is 'Tool used to compute the information';
+
+-- ctags information per content
+create table content_ctags (
+  id sha1 references content(sha1) not null,
+  name text not null,
+  kind text not null,
+  line bigint not null,
+  lang ctags_languages not null,
   indexer_configuration_id bigserial references indexer_configuration(id) not null
 );
 
-create unique index on content_fossology_license(id, license_id, indexer_configuration_id);
+comment on table content_ctags is 'Ctags information on a raw content';
+comment on column content_ctags.id is 'Content identifier';
+comment on column content_ctags.name is 'Symbol name';
+comment on column content_ctags.kind is 'Symbol kind (function, class, variable, const...)';
+comment on column content_ctags.line is 'Symbol line';
+comment on column content_ctags.lang is 'Language information for that content';
+comment on column content_ctags.indexer_configuration_id is 'Tool used to compute the information';
+
+create index on content_ctags(id);
+create index on content_ctags(name);
+create unique index on content_ctags(id, md5(name), kind, line, lang, indexer_configuration_id);
+
+create table fossology_license(
+  id smallserial primary key,
+  name text not null
+);
+
+comment on table fossology_license is 'Possible license recognized by license indexer';
+comment on column fossology_license.id is 'License identifier';
+comment on column fossology_license.name is 'License name';
+
+create unique index on fossology_license(name);
+
+create table content_fossology_license (
+  id sha1 references content(sha1) not null,
+  license_id smallserial references fossology_license(id) not null,
+  indexer_configuration_id bigserial references indexer_configuration(id) not null,
+  primary key(id, license_id, indexer_configuration_id)
+);
 
 comment on table content_fossology_license is 'license associated to a raw content';
 comment on column content_fossology_license.id is 'Raw content identifier';
 comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
+comment on column content_fossology_license.indexer_configuration_id is 'Tool used to compute the information';

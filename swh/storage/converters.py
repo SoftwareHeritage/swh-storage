@@ -323,6 +323,47 @@ def ctags_to_db(ctags):
     Args:
         ctags (dict): ctags entry with the following keys:
         - id (bytes): content's identifier
+        - tool_name (str): tool name used to compute ctags
+        - tool_version (str): associated tool's version
+        - ctags ([dict]): List of dictionary with the following keys:
+          - name (str): symbol's name
+          - kind (str): symbol's kind
+          - line (int): symbol's line in the content
+          - language (str): language
+
+    Returns:
+        List of ctags ready entry (dict with the following keys):
+        - id (bytes): content's identifier
+        - name (str): symbol's name
+        - kind (str): symbol's kind
+        - language (str): language for that content
+        - tool_name (str): tool name used to compute ctags
+        - tool_version (str): associated tool's version
+
+    """
+    res = []
+    id = ctags['id']
+    tool_name = ctags['tool_name']
+    tool_version = ctags['tool_version']
+    for ctag in ctags['ctags']:
+        res.append({
+            'id': id,
+            'name': ctag['name'],
+            'kind': ctag['kind'],
+            'line': ctag['line'],
+            'lang': ctag['lang'],
+            'tool_name': tool_name,
+            'tool_version': tool_version,
+        })
+    return res
+
+
+def db_to_ctags(ctag):
+    """Convert a ctags entry into a ready ctags entry.
+
+    Args:
+        ctags (dict): ctags entry with the following keys:
+        - id (bytes): content's identifier
         - ctags ([dict]): List of dictionary with the following keys:
           - name (str): symbol's name
           - kind (str): symbol's kind
@@ -337,14 +378,43 @@ def ctags_to_db(ctags):
         - language (str): language for that content
 
     """
-    res = []
-    id = ctags['id']
-    for ctag in ctags['ctags']:
-        res.append({
-            'id': id,
-            'name': ctag['name'],
-            'kind': ctag['kind'],
-            'line': ctag['line'],
-            'lang': ctag['lang'],
-        })
-    return res
+    return {
+        'id': ctag['id'],
+        'name': ctag['name'],
+        'kind': ctag['kind'],
+        'line': ctag['line'],
+        'lang': ctag['lang'],
+        'tool': {
+            'name': ctag['tool_name'],
+            'version': ctag['tool_version'],
+        }
+    }
+
+
+def db_to_mimetype(mimetype):
+    """Convert a ctags entry into a ready ctags output.
+
+    """
+    return {
+        'id': mimetype['id'],
+        'encoding': mimetype['encoding'],
+        'mimetype': mimetype['mimetype'],
+        'tool': {
+            'name': mimetype['tool_name'],
+            'version': mimetype['tool_version'],
+        }
+    }
+
+
+def db_to_language(language):
+    """Convert a language entry into a ready language output.
+
+    """
+    return {
+        'id': language['id'],
+        'lang': language['lang'],
+        'tool': {
+            'name': language['tool_name'],
+            'version': language['tool_version'],
+        }
+    }

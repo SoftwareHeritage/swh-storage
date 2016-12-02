@@ -212,11 +212,11 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_bytea')
     def mktemp_bytea(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_content_fossology_license')
-    def mktemp_content_fossology_license(self, cur=None): pass
+    @stored_procedure('swh_mktemp_content_ctags')
+    def mktemp_content_ctags(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_content_fossology_license_unknown')
-    def mktemp_content_fossology_license_unknown(self, cur=None): pass
+    @stored_procedure('swh_mktemp_content_ctags_missing')
+    def mktemp_content_ctags_missing(self, cur=None): pass
 
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
@@ -811,6 +811,12 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
+    content_mimetype_cols = ['id', 'mimetype', 'encoding',
+                             'tool_name', 'tool_version']
+
+    @stored_procedure('swh_mktemp_content_mimetype_missing')
+    def mktemp_content_mimetype_missing(self, cur=None): pass
+
     def content_mimetype_missing_from_temp(self, cur=None):
         """List missing mimetypes.
 
@@ -819,11 +825,17 @@ class Db(BaseDb):
         cur.execute("SELECT * FROM swh_content_mimetype_missing()")
         yield from cursor_to_bytes(cur)
 
+    @stored_procedure('swh_mktemp_content_mimetype')
+    def mktemp_content_mimetype(self, cur=None): pass
+
     def content_mimetype_add_from_temp(self, conflict_update, cur=None):
         self._cursor(cur).execute("SELECT swh_content_mimetype_add(%s)",
                                   (conflict_update, ))
 
-    content_mimetype_cols = ['id', 'mimetype', 'encoding']
+    content_language_cols = ['id', 'lang', 'tool_name', 'tool_version']
+
+    @stored_procedure('swh_mktemp_content_language')
+    def mktemp_content_language(self, cur=None): pass
 
     def content_mimetype_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -831,6 +843,9 @@ class Db(BaseDb):
             ','.join(self.content_mimetype_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
+
+    @stored_procedure('swh_mktemp_content_language_missing')
+    def mktemp_content_language_missing(self, cur=None): pass
 
     def content_language_missing_from_temp(self, cur=None):
         """List missing languages.
@@ -843,8 +858,6 @@ class Db(BaseDb):
     def content_language_add_from_temp(self, conflict_update, cur=None):
         self._cursor(cur).execute("SELECT swh_content_language_add(%s)",
                                   (conflict_update, ))
-
-    content_language_cols = ['id', 'lang']
 
     def content_language_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -865,7 +878,8 @@ class Db(BaseDb):
         self._cursor(cur).execute("SELECT swh_content_ctags_add(%s)",
                                   (conflict_update, ))
 
-    content_ctags_cols = ['id', 'name', 'kind', 'line', 'lang']
+    content_ctags_cols = ['id', 'name', 'kind', 'line', 'lang',
+                          'tool_name', 'tool_version']
 
     def content_ctags_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -894,6 +908,12 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
+    content_fossology_license_cols = ['id', 'tool_name', 'tool_version',
+                                      'licenses']
+
+    @stored_procedure('swh_mktemp_content_fossology_license_missing')
+    def mktemp_content_fossology_license_missing(self, cur=None): pass
+
     def content_fossology_license_missing_from_temp(self, cur=None):
         """List missing licenses.
 
@@ -901,6 +921,12 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         cur.execute("SELECT * FROM swh_content_fossology_license_missing()")
         yield from cursor_to_bytes(cur)
+
+    @stored_procedure('swh_mktemp_content_fossology_license')
+    def mktemp_content_fossology_license(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_content_fossology_license_unknown')
+    def mktemp_content_fossology_license_unknown(self, cur=None): pass
 
     def content_fossology_license_add_from_temp(self, conflict_update,
                                                 cur=None):
@@ -910,9 +936,6 @@ class Db(BaseDb):
         self._cursor(cur).execute(
             "SELECT swh_content_fossology_license_add(%s)",
             (conflict_update, ))
-
-    content_fossology_license_cols = ['id', 'tool_name', 'tool_version',
-                                      'licenses']
 
     def content_fossology_license_get_from_temp(self, cur=None):
         """Retrieve licenses per content.
