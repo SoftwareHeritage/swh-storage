@@ -1663,6 +1663,23 @@ $$;
 comment on function swh_content_language_get() IS 'List content languages';
 
 
+-- create a temporary table for content_ctags tmp_content_ctags,
+create or replace function swh_mktemp_content_ctags()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_ctags (
+    like content_ctags including defaults
+  ) on commit drop;
+  alter table tmp_content_ctags
+    drop column indexer_configuration_id,
+    add column tool_name text,
+    add column tool_version text;
+$$;
+
+comment on function swh_mktemp_content_ctags() is 'Helper table to add content ctags';
+
+
 -- add tmp_content_ctags entries to content_ctags, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
 --
@@ -1678,16 +1695,33 @@ begin
         where id in (select distinct id from tmp_content_ctags);
     end if;
 
-    insert into content_ctags (id, name, kind, line, lang)
-    select id, name, kind, line, lang
-    from tmp_content_ctags
-        on conflict(id, md5(name), kind, line, lang)
+    insert into content_ctags (id, name, kind, line, lang, indexer_configuration_id)
+    select id, name, kind, line, lang,
+           (select id from indexer_configuration
+            where tool_name=tct.tool_name
+            and tool_version=tct.tool_version)
+    from tmp_content_ctags tct
+        on conflict(id, md5(name), kind, line, lang, indexer_configuration_id)
         do nothing;
     return;
 end
 $$;
 
 comment on function swh_content_ctags_add(boolean) IS 'Add new ctags symbols per content';
+
+-- create a temporary table for content_ctags missing routine
+create or replace function swh_mktemp_content_ctags_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_ctags_missing (
+    id           sha1,
+    tool_name    text,
+    tool_version text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_ctags_missing() is 'Helper table to filter missing content ctags';
 
 -- check which entries of tmp_bytea are missing from content_ctags
 --
@@ -1699,9 +1733,12 @@ create or replace function swh_content_ctags_missing()
 as $$
 begin
     return query
-	(select id::sha1 from tmp_bytea as tmp
+	(select id::sha1 from tmp_content_ctags_missing as tmp
 	 where not exists
-	     (select 1 from content_ctags as c where c.id = tmp.id limit 1));
+	     (select 1 from content_ctags as c
+              inner join indexer_configuration i
+              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+              where c.id = tmp.id limit 1));
     return;
 end
 $$;
@@ -1713,7 +1750,9 @@ create type content_ctags_signature as (
   name text,
   kind text,
   line bigint,
-  lang ctags_languages
+  lang ctags_languages,
+  tool_name text,
+  tool_version text
 );
 
 -- Retrieve list of content ctags from the temporary table.
@@ -1725,9 +1764,10 @@ create or replace function swh_content_ctags_get()
 as $$
 begin
     return query
-        select c.id, c.name, c.kind, c.line, c.lang
+        select c.id, c.name, c.kind, c.line, c.lang, i.tool_name, i.tool_version
         from tmp_bytea t
         inner join content_ctags c using(id)
+        inner join indexer_configuration i on i.id = c.indexer_configuration_id
         order by line;
     return;
 end
@@ -1752,10 +1792,11 @@ create or replace function swh_content_ctags_search(
     returns setof content_ctags_signature
     language sql
 as $$
-    select id, name, kind, line, lang
-    from content_ctags
+    select c.id, name, kind, line, lang, tool_name, tool_version
+    from content_ctags c
+    inner join indexer_configuration i on i.id = c.indexer_configuration_id
     where hash_sha1(name) = hash_sha1(expression)
-    and id > last_sha1
+    and c.id > last_sha1
     order by id
     limit l;
 $$;

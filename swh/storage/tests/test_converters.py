@@ -133,6 +133,8 @@ class TestConverters(unittest.TestCase):
     def ctags_to_db(self):
         input_ctag = {
             'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
             'ctags': [
                 {
                     'name': 'some-name',
@@ -155,12 +157,16 @@ class TestConverters(unittest.TestCase):
                 'kind': 'some-kind',
                 'line': 10,
                 'lang': 'Yaml',
+                'tool_name': 'some-toolname',
+                'tool_version': 'some-toolversion',
             }, {
                 'id': b'some-id',
                 'name': 'main',
                 'kind': 'function',
                 'line': 12,
                 'lang': 'Yaml',
+                'tool_name': 'some-toolname',
+                'tool_version': 'some-toolversion',
             }]
 
         # when

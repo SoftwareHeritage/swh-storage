@@ -103,3 +103,156 @@ alter table content_fossology_license
 alter table content_fossology_license
   add primary key using index content_fossology_license_id_license_id_indexer_configurati_idx;
 
+---------------------
+-- Update functions
+---------------------
+
+-- create a temporary table for content_ctags missing routine
+create or replace function swh_mktemp_content_ctags_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_ctags_missing (
+    id           sha1,
+    tool_name    text,
+    tool_version text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_ctags_missing() is 'Helper table to filter missing content ctags';
+
+-- check which entries of tmp_bytea are missing from content_ctags
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_ctags_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_content_ctags_missing as tmp
+	 where not exists
+	     (select 1 from content_ctags as c
+              inner join indexer_configuration i
+              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+              where c.id = tmp.id limit 1));
+    return;
+end
+$$;
+
+-- create a temporary table for content_ctags tmp_content_ctags,
+-- create a temporary table for content_ctags tmp_content_ctags,
+create or replace function swh_mktemp_content_ctags()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_ctags (
+    like content_ctags including defaults
+  ) on commit drop;
+  alter table tmp_content_ctags
+    drop column indexer_configuration_id,
+    add column tool_name text,
+    add column tool_version text;
+$$;
+
+comment on function swh_mktemp_content_ctags() is 'Helper table to add content ctags';
+
+create or replace function swh_content_ctags_get()
+    returns setof content_ctags_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select c.id, c.name, c.kind, c.line, c.lang, i.tool_name, i.tool_version
+        from tmp_bytea t
+        inner join content_ctags c using(id)
+        inner join indexer_configuration i on i.id = c.indexer_configuration_id
+        order by line;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_get() IS 'List content ctags';
+
+
+-- add tmp_content_ctags entries to content_ctags, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- operates in bulk: 0. swh_mktemp(content_ctags), 1. COPY to tmp_content_ctags,
+-- 2. call this function
+create or replace function swh_content_ctags_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        delete from content_ctags
+        where id in (select distinct id from tmp_content_ctags);
+    end if;
+
+    insert into content_ctags (id, name, kind, line, lang, indexer_configuration_id)
+    select id, name, kind, line, lang,
+           (select id from indexer_configuration
+            where tool_name=tct.tool_name
+            and tool_version=tct.tool_version)
+    from tmp_content_ctags tct
+        on conflict(id, md5(name), kind, line, lang, indexer_configuration_id)
+        do nothing;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_add(boolean) IS 'Add new ctags symbols per content';
+
+drop type content_ctags_signature cascade;
+create type content_ctags_signature as (
+  id sha1,
+  name text,
+  kind text,
+  line bigint,
+  lang ctags_languages,
+  tool_name text,
+  tool_version text
+);
+
+
+-- Retrieve list of content ctags from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_ctags_get()
+    returns setof content_ctags_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select c.id, c.name, c.kind, c.line, c.lang, i.tool_name, i.tool_version
+        from tmp_bytea t
+        inner join content_ctags c using(id)
+        inner join indexer_configuration i on i.id = c.indexer_configuration_id
+        order by line;
+    return;
+end
+$$;
+
+comment on function swh_content_ctags_get() IS 'List content ctags';
+
+-- Search within ctags content.
+--
+create or replace function swh_content_ctags_search(
+       expression text,
+       l integer default 10,
+       last_sha1 sha1 default '\x0000000000000000000000000000000000000000')
+    returns setof content_ctags_signature
+    language sql
+as $$
+    select c.id, name, kind, line, lang, tool_name, tool_version
+    from content_ctags c
+    inner join indexer_configuration i on i.id = c.indexer_configuration_id
+    where hash_sha1(name) = hash_sha1(expression)
+    and c.id > last_sha1
+    order by id
+    limit l;
+$$;
+
+comment on function swh_content_ctags_search(text, integer, sha1) IS 'Equality search through ctags'' symbols';

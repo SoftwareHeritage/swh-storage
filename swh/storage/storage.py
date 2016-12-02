@@ -1360,14 +1360,22 @@ class Storage():
         """List ctags missing from storage.
 
         Args:
-            ctags: iterable of sha1
+            ctags: iterable of dict with keys:
+            - id (bytes): sha1 identifier
+            - tool_name (str): tool name used
+            - tool_version (str): associated version
 
         Returns:
             an iterable of missing id
 
         """
         db = self.db
-        db.store_tmp_bytea(ctags, cur)
+
+        db.mktemp_content_ctags_missing(cur)
+        db.copy_to(ctags,
+                   tblname='tmp_content_ctags_missing',
+                   columns=['id', 'tool_name', 'tool_version'],
+                   cur=cur)
         for obj in db.content_ctags_missing_from_temp(cur):
             yield obj[0]
 
@@ -1381,16 +1389,8 @@ class Storage():
         """
         db = self.db
         db.store_tmp_bytea(ids, cur)
-
-        r = {}
         for c in db.content_ctags_get_from_temp():
-            id = c[0]
-            l = r.get(id, [])
-            l.append(dict(zip(db.content_ctags_cols[1:], c[1:])))
-            r[id] = l
-
-        for id, ctags in r.items():
-            yield {'id': id, 'ctags': ctags}
+            yield dict(zip(db.content_ctags_cols, c))
 
     @db_transaction
     def content_ctags_add(self, ctags, conflict_update=False, cur=None):
@@ -1414,7 +1414,7 @@ class Storage():
                 res.extend(converters.ctags_to_db(ctag))
             return res
 
-        db.mktemp('content_ctags', cur)
+        db.mktemp_content_ctags(cur)
         db.copy_to(_convert_ctags(ctags),
                    tblname='tmp_content_ctags',
                    columns=db.content_ctags_cols,

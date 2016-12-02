@@ -2197,7 +2197,18 @@ class AbstractTestStorage(DbTestFixture):
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
-        ctags = [self.cont2['sha1'], self.missing_cont['sha1']]
+        ctags = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+            },
+            {
+                'id': self.missing_cont['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+            }
+        ]
 
         # when
         actual_missing = self.storage.content_ctags_missing(ctags)
@@ -2212,6 +2223,8 @@ class AbstractTestStorage(DbTestFixture):
         self.storage.content_ctags_add([
             {
                 'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
                 'ctags': [{
                     'name': 'done',
                     'kind': 'variable',
@@ -2237,6 +2250,8 @@ class AbstractTestStorage(DbTestFixture):
 
         ctag1 = {
             'id': self.cont2['sha1'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
             'ctags': [
                 {
                     'name': 'done',
@@ -2259,7 +2274,29 @@ class AbstractTestStorage(DbTestFixture):
         actual_ctags = list(self.storage.content_ctags_get(ctags))
 
         # then
-        self.assertEqual(actual_ctags, [ctag1])
+
+        expected_ctags = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'done',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'Python',
+            },
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'main',
+                'kind': 'function',
+                'line': 119,
+                'lang': 'Python',
+            }
+        ]
+
+        self.assertEqual(actual_ctags, expected_ctags)
 
     @attr('one')
     @istest
@@ -2271,6 +2308,8 @@ class AbstractTestStorage(DbTestFixture):
 
         ctag1 = {
             'id': cont['sha1'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
             'ctags': [
                 {
                     'name': 'hello',
@@ -2289,6 +2328,8 @@ class AbstractTestStorage(DbTestFixture):
 
         ctag2 = {
             'id': cont2['sha1'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
             'ctags': [
                 {
                     'name': 'hello',
@@ -2309,6 +2350,8 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag1['id'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
                 'name': 'hello',
                 'kind': 'function',
                 'line': 133,
@@ -2326,6 +2369,8 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag2['id'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
@@ -2340,6 +2385,8 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag1['id'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
                 'name': 'hello',
                 'kind': 'function',
                 'line': 133,
@@ -2347,6 +2394,8 @@ class AbstractTestStorage(DbTestFixture):
             },
             {
                 'id': ctag2['id'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
@@ -2360,12 +2409,15 @@ class AbstractTestStorage(DbTestFixture):
         # then
         self.assertEqual(actual_ctags, [{
             'id': ctag1['id'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
             'name': 'counter',
             'kind': 'variable',
             'line': 119,
             'lang': 'Python',
         }])
 
+    @attr('one')
     @istest
     def content_ctags_search_no_result(self):
         actual_ctags = list(self.storage.content_ctags_search('counter'))
@@ -2380,6 +2432,8 @@ class AbstractTestStorage(DbTestFixture):
 
         ctag_v1 = {
             'id': self.cont2['sha1'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
             'ctags': [{
                 'name': 'done',
                 'kind': 'variable',
@@ -2397,7 +2451,17 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # then
-        self.assertEqual(actual_ctags[0], ctag_v1)
+        expected_ctags = [{
+            'id': self.cont2['sha1'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
+            'name': 'done',
+            'kind': 'variable',
+            'line': 100,
+            'lang': 'Scheme',
+        }]
+
+        self.assertEqual(actual_ctags, expected_ctags)
 
         # given
         ctag_v2 = ctag_v1.copy()
@@ -2414,28 +2478,30 @@ class AbstractTestStorage(DbTestFixture):
 
         self.storage.content_ctags_add([ctag_v2])
 
-        expected_ctag = ctag_v1.copy()
-        expected_ctag.update({
-            'ctags': [
-                {
-                    'name': 'done',
-                    'kind': 'variable',
-                    'line': 100,
-                    'lang': 'Scheme',
-                },
-                {
-                    'name': 'defn',
-                    'kind': 'function',
-                    'line': 120,
-                    'lang': 'Scheme',
-                }
-            ]
-        })
+        expected_ctags = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'done',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'Scheme',
+            }, {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'defn',
+                'kind': 'function',
+                'line': 120,
+                'lang': 'Scheme',
+            }
+        ]
 
         actual_ctags = list(self.storage.content_ctags_get(
             [self.cont2['sha1']]))
 
-        self.assertEqual(actual_ctags, [expected_ctag])
+        self.assertEqual(actual_ctags, expected_ctags)
 
     @istest
     def content_ctags_add__update_in_place(self):
@@ -2445,6 +2511,8 @@ class AbstractTestStorage(DbTestFixture):
 
         ctag_v1 = {
             'id': self.cont2['sha1'],
+            'tool_name': 'universal-ctags',
+            'tool_version': '~git7859817b',
             'ctags': [{
                 'name': 'done',
                 'kind': 'variable',
@@ -2461,7 +2529,18 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # then
-        self.assertEqual(actual_ctags[0], ctag_v1)
+        expected_ctags = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'done',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'Scheme',
+            }
+        ]
+        self.assertEqual(actual_ctags, expected_ctags)
 
         # given
         ctag_v2 = ctag_v1.copy()
@@ -2488,7 +2567,27 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # ctag did change as the v2 was used to overwrite v1
-        self.assertEqual(actual_ctags, [ctag_v2])
+        expected_ctags = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'done',
+                'kind': 'variable',
+                'line': 100,
+                'lang': 'Scheme',
+            },
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'universal-ctags',
+                'tool_version': '~git7859817b',
+                'name': 'defn',
+                'kind': 'function',
+                'line': 120,
+                'lang': 'Scheme',
+            }
+        ]
+        self.assertEqual(actual_ctags, expected_ctags)
 
     @istest
     def content_fossology_license_missing(self):

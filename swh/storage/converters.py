@@ -339,6 +339,8 @@ def ctags_to_db(ctags):
     """
     res = []
     id = ctags['id']
+    tool_name = ctags['tool_name']
+    tool_version = ctags['tool_version']
     for ctag in ctags['ctags']:
         res.append({
             'id': id,
@@ -346,5 +348,7 @@ def ctags_to_db(ctags):
             'kind': ctag['kind'],
             'line': ctag['line'],
             'lang': ctag['lang'],
+            'tool_name': tool_name,
+            'tool_version': tool_version,
         })
     return res
