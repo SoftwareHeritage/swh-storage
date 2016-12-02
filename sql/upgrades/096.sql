@@ -21,7 +21,7 @@ create or replace function swh_content_ctags_search(
 as $$
     select id, name, kind, line, lang
     from content_ctags
-    where name = expression
+    where hash_sha1(name) = hash_sha1(expression)
     and id > last_sha1
     order by id
     limit l;
