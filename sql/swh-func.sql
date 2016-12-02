@@ -1759,9 +1759,9 @@ as $$
 begin
     if conflict_update then
         delete from content_ctags
-        where id in (
-          select distinct id from tmp_content_ctags
-        );
+        where id in (select tmp.id
+                     from tmp_content_ctags tmp
+                     inner join indexer_configuration i on (i.tool_name=tmp.tool_name and i.tool_version = tmp.tool_version));
     end if;
 
     insert into content_ctags (id, name, kind, line, lang, indexer_configuration_id)
@@ -1934,8 +1934,13 @@ create or replace function swh_content_fossology_license_add(conflict_update boo
 as $$
 begin
     if conflict_update then
+        -- delete from content_fossology_license c
+        --   using tmp_content_fossology_license tmp, indexer_configuration i
+        --   where c.id = tmp.id and i.tool_name = tmp.tool_name and i.tool_version = tmp.tool_version;
         delete from content_fossology_license
-        where id in (select distinct id from tmp_content_fossology_license);
+        where id in (select tmp.id
+                     from tmp_content_fossology_license tmp
+                     inner join indexer_configuration i on (i.tool_name=tmp.tool_name and i.tool_version = tmp.tool_version));
     end if;
 
     insert into content_fossology_license (id, license_id, indexer_configuration_id)
