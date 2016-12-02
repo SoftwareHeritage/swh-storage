@@ -130,33 +130,6 @@ as $$
   ) on commit drop;
 $$;
 
--- create a temporary table for content_fossology_license tmp_content_fossology_license,
-create or replace function swh_mktemp_content_fossology_license()
-    returns void
-    language sql
-as $$
-  create temporary table tmp_content_fossology_license (
-    id           sha1,
-    tool_name    text,
-    tool_version text,
-    license      text
-  ) on commit drop;
-$$;
-
-comment on function swh_mktemp_content_fossology_license() is 'Helper table to add content license';
-
--- create a temporary table for checking licenses' name
-create or replace function swh_mktemp_content_fossology_license_unknown()
-    returns void
-    language sql
-as $$
-  create temporary table tmp_content_fossology_license_unknown (
-    name       text not null
-  ) on commit drop;
-$$;
-
-comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
-
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
@@ -1899,24 +1872,52 @@ $$;
 
 comment on function swh_content_ctags_search(text, integer, sha1) IS 'Equality search through ctags'' symbols';
 
--- check which entries of tmp_bytea are missing from content_fossology_license
---
--- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
--- 2. call this function
+-- create a temporary table for content_fossology_license_missing
+create or replace function swh_mktemp_content_fossology_license_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_missing (
+    id bytea,
+    tool_name text,
+    tool_version text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_missing() is 'Helper table to add content license';
+
+-- check which entries of tmp_content_fossology_license are missing from content_fossology_license
 create or replace function swh_content_fossology_license_missing()
     returns setof sha1
     language plpgsql
 as $$
 begin
     return query
-	(select id::sha1 from tmp_bytea as tmp
+	(select id::sha1 from tmp_content_fossology_license_missing as tmp
 	 where not exists
-	     (select 1 from content_fossology_license as c where c.id = tmp.id));
+	     (select 1 from content_fossology_license as c
+              inner join indexer_configuration i on i.id=c.indexer_configuration_id
+              where c.id = tmp.id));
     return;
 end
 $$;
 
 comment on function swh_content_fossology_license_missing() IS 'Filter missing content licenses';
+
+-- create a temporary table for content_fossology_license tmp_content_fossology_license,
+create or replace function swh_mktemp_content_fossology_license()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license (
+    id           sha1,
+    tool_name    text,
+    tool_version text,
+    license      text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license() is 'Helper table to add content license';
 
 -- add tmp_content_fossology_license entries to content_fossology_license, overwriting
 -- duplicates if conflict_update is true, skipping duplicates otherwise.
@@ -1965,6 +1966,18 @@ end
 $$;
 
 comment on function swh_content_fossology_license_unknown() IS 'List unknown licenses';
+
+-- create a temporary table for checking licenses' name
+create or replace function swh_mktemp_content_fossology_license_unknown()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_unknown (
+    name       text not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
 
 create type content_fossology_license_signature as (
   id           sha1,

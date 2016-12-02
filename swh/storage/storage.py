@@ -1473,7 +1473,10 @@ class Storage():
 
         """
         db = self.db
-        db.store_tmp_bytea(licenses, cur)
+        db.mktemp_content_fossology_license_missing(cur)
+        db.copy_to(licenses, 'tmp_content_fossology_license_missing',
+                   ['id', 'tool_name', 'tool_version'],
+                   cur)
         for obj in db.content_fossology_license_missing_from_temp(cur):
             yield obj[0]
 

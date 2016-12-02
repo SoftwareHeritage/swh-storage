@@ -488,3 +488,64 @@ end
 $$;
 
 comment on function swh_content_language_get() IS 'List content''s language';
+
+-- license
+
+-- create a temporary table for content_fossology_license_missing
+create or replace function swh_mktemp_content_fossology_license_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_missing (
+    id bytea,
+    tool_name text,
+    tool_version text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_missing() is 'Helper table to add content license';
+
+-- check which entries of tmp_content_fossology_license are missing from content_fossology_license
+create or replace function swh_content_fossology_license_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	(select id::sha1 from tmp_content_fossology_license_missing as tmp
+	 where not exists
+	     (select 1 from content_fossology_license as c
+              inner join indexer_configuration i on i.id=c.indexer_configuration_id
+              where c.id = tmp.id));
+    return;
+end
+$$;
+
+comment on function swh_content_fossology_license_missing() IS 'Filter missing content licenses';
+
+-- create a temporary table for content_fossology_license tmp_content_fossology_license,
+create or replace function swh_mktemp_content_fossology_license()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license (
+    id           sha1,
+    tool_name    text,
+    tool_version text,
+    license      text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license() is 'Helper table to add content license';
+
+-- create a temporary table for checking licenses' name
+create or replace function swh_mktemp_content_fossology_license_unknown()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_fossology_license_unknown (
+    name       text not null
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';

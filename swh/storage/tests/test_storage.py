@@ -2730,7 +2730,17 @@ class AbstractTestStorage(DbTestFixture):
         cont = self.cont
         self.storage.content_add([cont])
 
-        licenses = [cont['sha1'], self.missing_cont['sha1']]
+        licenses = [
+            {
+                'id': cont['sha1'],
+                'tool_name': 'nomos',
+                'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            }, {
+                'id': self.missing_cont['sha1'],
+                'tool_name': 'nomos',
+                'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            }
+        ]
 
         # when
         actual_missing = list(self.storage.content_fossology_license_missing(
