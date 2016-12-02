@@ -367,3 +367,124 @@ $$;
 comment on function swh_content_mimetype_get() IS 'List content''s mimetype';
 
 -- language
+
+-- create a temporary table for content_language tmp_content_language,
+create or replace function swh_mktemp_content_language_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_language_missing (
+    id sha1,
+    lang languages,
+    tool_name text,
+    tool_version text
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_language_missing() is 'Helper table to filter missing language';
+
+-- check which entries of tmp_bytea are missing from content_language
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_language_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	select id::sha1 from tmp_content_language_missing as tmp
+	where not exists
+	    (select 1 from content_language as c
+            inner join indexer_configuration i
+            on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+            where c.id = tmp.id);
+    return;
+end
+$$;
+
+comment on function swh_content_language_missing() IS 'Filter missing content languages';
+
+-- add tmp_content_language entries to content_language, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_content_language_missing must take place before calling this
+-- function.
+--
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to
+-- tmp_content_language, 2. call this function
+create or replace function swh_content_language_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        insert into content_language (id, lang, indexer_configuration_id)
+        select id, lang,
+               (select id from indexer_configuration
+               where tool_name=tcl.tool_name
+               and tool_version=tcl.tool_version)
+    	from tmp_content_language tcl
+            on conflict(id, indexer_configuration_id)
+                do update set lang = excluded.lang;
+
+    else
+        insert into content_language (id, lang, indexer_configuration_id)
+        select id, lang,
+               (select id from indexer_configuration
+               where tool_name=tcl.tool_name
+               and tool_version=tcl.tool_version)
+    	from tmp_content_language tcl
+            on conflict(id, indexer_configuration_id)
+            do nothing;
+    end if;
+    return;
+end
+$$;
+
+comment on function swh_content_language_add(boolean) IS 'Add new content languages';
+
+-- create a temporary table for retrieving content_language
+create or replace function swh_mktemp_content_language()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_language (
+    like content_language including defaults
+  ) on commit drop;
+  alter table tmp_content_language
+    drop column indexer_configuration_id,
+    add column tool_name text,
+    add column tool_version text;
+$$;
+
+comment on function swh_mktemp_content_language() is 'Helper table to add content language';
+
+create type content_language_signature as (
+    id sha1,
+    lang languages,
+    tool_name text,
+    tool_version text
+);
+
+drop function swh_content_language_get();
+
+-- Retrieve list of content language from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_language_get()
+    returns setof content_language_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select c.id, lang, tool_name, tool_version
+        from tmp_bytea t
+        inner join content_language c on c.id = t.id
+        inner join indexer_configuration i on i.id=c.indexer_configuration_id;
+    return;
+end
+$$;
+
+comment on function swh_content_language_get() IS 'List content''s language';

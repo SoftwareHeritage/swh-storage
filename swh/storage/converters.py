@@ -392,7 +392,7 @@ def db_to_ctags(ctag):
 
 
 def db_to_mimetype(mimetype):
-    """Convert a ctags entry into a ready ctags entry.
+    """Convert a ctags entry into a ready ctags output.
 
     """
     return {
@@ -402,5 +402,19 @@ def db_to_mimetype(mimetype):
         'tool': {
             'name': mimetype['tool_name'],
             'version': mimetype['tool_version'],
+        }
+    }
+
+
+def db_to_language(language):
+    """Convert a language entry into a ready language output.
+
+    """
+    return {
+        'id': language['id'],
+        'lang': language['lang'],
+        'tool': {
+            'name': language['tool_name'],
+            'version': language['tool_version'],
         }
     }

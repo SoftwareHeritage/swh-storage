@@ -227,3 +227,25 @@ class TestConverters(unittest.TestCase):
         actual_mimetype = converters.db_to_mimetype(input_mimetype)
 
         self.assertEquals(actual_mimetype, expected_mimetype)
+
+    @istest
+    def db_to_language(self):
+        input_language = {
+            'id': b'some-id',
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'lang': b'css',
+        }
+
+        expected_language = {
+            'id': b'some-id',
+            'lang': b'css',
+            'tool': {
+                'name': 'some-toolname',
+                'version': 'some-toolversion',
+            }
+        }
+
+        actual_language = converters.db_to_language(input_language)
+
+        self.assertEquals(actual_language, expected_language)

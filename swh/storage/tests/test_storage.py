@@ -2133,28 +2133,41 @@ class AbstractTestStorage(DbTestFixture):
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
-        languages = [self.cont2['sha1'], self.missing_cont['sha1']]
+        languages = [
+            {
+                'id': self.cont2['sha1'],
+                'tool_name': 'pygments',
+                'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            },
+            {
+                'id': self.missing_cont['sha1'],
+                'tool_name': 'pygments',
+                'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            }
+        ]
 
         # when
-        actual_missing = self.storage.content_language_missing(languages)
+        actual_missing = list(self.storage.content_language_missing(languages))
 
         # then
         self.assertEqual(list(actual_missing), [
             self.cont2['sha1'],
-            self.missing_cont['sha1']
+            self.missing_cont['sha1'],
         ])
 
         # given
         self.storage.content_language_add([{
             'id': self.cont2['sha1'],
             'lang': 'haskell',
+            'tool_name': 'pygments',
+            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
         }])
 
         # when
-        actual_missing = self.storage.content_language_missing(languages)
+        actual_missing = list(self.storage.content_language_missing(languages))
 
         # then
-        self.assertEqual(list(actual_missing), [self.missing_cont['sha1']])
+        self.assertEqual(actual_missing, [self.missing_cont['sha1']])
 
     @istest
     def content_language_get(self):
@@ -2162,21 +2175,31 @@ class AbstractTestStorage(DbTestFixture):
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
-        languages = [self.cont2['sha1'], self.missing_cont['sha1']]
-
         language1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
+            'tool_name': 'pygments',
+            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
         }
 
         # when
         self.storage.content_language_add([language1])
 
         # then
-        actual_languages = self.storage.content_language_get(languages)
+        actual_languages = list(self.storage.content_language_get(
+            [self.cont2['sha1'], self.missing_cont['sha1']]))
 
         # then
-        self.assertEqual(list(actual_languages), [language1])
+        expected_languages = [{
+            'id': self.cont2['sha1'],
+            'lang': 'common-lisp',
+            'tool': {
+                'name': 'pygments',
+                'version': '2.0.1+dfsg-1.1+deb8u1',
+            }
+        }]
+
+        self.assertEqual(actual_languages, expected_languages)
 
     @istest
     def content_language_add__drop_duplicate(self):
@@ -2187,6 +2210,8 @@ class AbstractTestStorage(DbTestFixture):
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
+            'tool_name': 'pygments',
+            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
         }
 
         # given
@@ -2197,7 +2222,15 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # then
-        self.assertEqual(actual_languages[0], language_v1)
+        expected_languages_v1 = [{
+            'id': self.cont2['sha1'],
+            'lang': 'emacslisp',
+            'tool': {
+                'name': 'pygments',
+                'version': '2.0.1+dfsg-1.1+deb8u1',
+            }
+        }]
+        self.assertEqual(actual_languages, expected_languages_v1)
 
         # given
         language_v2 = language_v1.copy()
@@ -2211,8 +2244,9 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # language did not change as the v2 was dropped.
-        self.assertEqual(actual_languages[0], language_v1)
+        self.assertEqual(actual_languages, expected_languages_v1)
 
+    @attr('one')
     @istest
     def content_language_add__update_in_place_duplicate(self):
         # given
@@ -2222,6 +2256,8 @@ class AbstractTestStorage(DbTestFixture):
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
+            'tool_name': 'pygments',
+            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
         }
 
         # given
@@ -2232,7 +2268,15 @@ class AbstractTestStorage(DbTestFixture):
             [self.cont2['sha1']]))
 
         # then
-        self.assertEqual(actual_languages[0], language_v1)
+        expected_languages_v1 = [{
+            'id': self.cont2['sha1'],
+            'lang': 'common-lisp',
+            'tool': {
+                'name': 'pygments',
+                'version': '2.0.1+dfsg-1.1+deb8u1',
+            }
+        }]
+        self.assertEqual(actual_languages, expected_languages_v1)
 
         # given
         language_v2 = language_v1.copy()
@@ -2245,8 +2289,18 @@ class AbstractTestStorage(DbTestFixture):
         actual_languages = list(self.storage.content_language_get(
             [self.cont2['sha1']]))
 
+        # language did not change as the v2 was dropped.
+        expected_languages_v2 = [{
+            'id': self.cont2['sha1'],
+            'lang': 'emacslisp',
+            'tool': {
+                'name': 'pygments',
+                'version': '2.0.1+dfsg-1.1+deb8u1',
+            }
+        }]
+
         # language did change as the v2 was used to overwrite v1
-        self.assertEqual(actual_languages[0], language_v2)
+        self.assertEqual(actual_languages, expected_languages_v2)
 
     @istest
     def content_ctags_missing(self):

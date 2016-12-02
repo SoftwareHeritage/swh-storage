@@ -1324,14 +1324,19 @@ class Storage():
         """List languages missing from storage.
 
         Args:
-            languages: iterable of sha1
+            languages: iterable of dict with keys:
+            - id (bytes): sha1 identifier
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
 
         Returns:
             an iterable of missing id
 
         """
         db = self.db
-        db.store_tmp_bytea(languages, cur)
+        db.mktemp_content_language_missing(cur)
+        db.copy_to(languages, 'tmp_content_language_missing',
+                   db.content_language_cols, cur)
         for obj in db.content_language_missing_from_temp(cur):
             yield obj[0]
 
@@ -1340,7 +1345,8 @@ class Storage():
         db = self.db
         db.store_tmp_bytea(ids, cur)
         for c in db.content_language_get_from_temp():
-            yield dict(zip(db.content_language_cols, c))
+            yield converters.db_to_language(
+                dict(zip(db.content_language_cols, c)))
 
     @db_transaction
     def content_language_add(self, languages, conflict_update=False, cur=None):
@@ -1355,14 +1361,16 @@ class Storage():
 
         """
         db = self.db
-        db.mktemp('content_language', cur)
+        db.mktemp_content_language(cur)
         # empty language is mapped to 'unknown'
         db.copy_to(
             ({
                 'id': l['id'],
-                'lang': 'unknown' if not l['lang'] else l['lang']
+                'lang': 'unknown' if not l['lang'] else l['lang'],
+                'tool_name': l['tool_name'],
+                'tool_version': l['tool_version'],
             } for l in languages),
-            'tmp_content_language', ['id', 'lang'], cur)
+            'tmp_content_language', db.content_language_cols, cur)
 
         db.content_language_add_from_temp(conflict_update, cur)
 

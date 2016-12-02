@@ -817,6 +817,9 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
+    content_mimetype_cols = ['id', 'mimetype', 'encoding',
+                             'tool_name', 'tool_version']
+
     @stored_procedure('swh_mktemp_content_mimetype_missing')
     def mktemp_content_mimetype_missing(self, cur=None): pass
 
@@ -835,8 +838,10 @@ class Db(BaseDb):
         self._cursor(cur).execute("SELECT swh_content_mimetype_add(%s)",
                                   (conflict_update, ))
 
-    content_mimetype_cols = ['id', 'mimetype', 'encoding',
-                             'tool_name', 'tool_version']
+    content_language_cols = ['id', 'lang', 'tool_name', 'tool_version']
+
+    @stored_procedure('swh_mktemp_content_language')
+    def mktemp_content_language(self, cur=None): pass
 
     def content_mimetype_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -844,6 +849,9 @@ class Db(BaseDb):
             ','.join(self.content_mimetype_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
+
+    @stored_procedure('swh_mktemp_content_language_missing')
+    def mktemp_content_language_missing(self, cur=None): pass
 
     def content_language_missing_from_temp(self, cur=None):
         """List missing languages.
@@ -856,8 +864,6 @@ class Db(BaseDb):
     def content_language_add_from_temp(self, conflict_update, cur=None):
         self._cursor(cur).execute("SELECT swh_content_language_add(%s)",
                                   (conflict_update, ))
-
-    content_language_cols = ['id', 'lang']
 
     def content_language_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
