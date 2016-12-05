@@ -1844,14 +1844,6 @@ $$;
 
 comment on function swh_content_ctags_get() IS 'List content ctags';
 
-create or replace function hash_sha1(text)
-       returns text
-as $$
-   select encode(digest($1, 'sha1'), 'hex')
-$$ language sql strict immutable;
-
-comment on function hash_sha1(text) is 'Compute sha1 hash as text';
-
 -- Search within ctags content.
 --
 create or replace function swh_content_ctags_search(
