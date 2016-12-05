@@ -1770,7 +1770,7 @@ begin
             where tool_name=tct.tool_name
             and tool_version=tct.tool_version)
     from tmp_content_ctags tct
-        on conflict(id, md5(name), kind, line, lang, indexer_configuration_id)
+        on conflict(id, hash_sha1(name), kind, line, lang, indexer_configuration_id)
         do nothing;
     return;
 end
