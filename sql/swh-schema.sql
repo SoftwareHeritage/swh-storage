@@ -625,8 +625,8 @@ comment on column content_ctags.lang is 'Language information for that content';
 comment on column content_ctags.indexer_configuration_id is 'Tool used to compute the information';
 
 create index on content_ctags(id);
-create index on content_ctags(name);
-create unique index on content_ctags(id, md5(name), kind, line, lang, indexer_configuration_id);
+create index on content_ctags(hash_sha1(name));
+create unique index on content_ctags(id, hash_sha1(name), kind, line, lang, indexer_configuration_id);
 
 create table fossology_license(
   id smallserial primary key,

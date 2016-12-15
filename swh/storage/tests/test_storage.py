@@ -19,7 +19,7 @@ from nose.plugins.attrib import attr
 
 from swh.core.tests.db_testing import DbTestFixture
 from swh.core.hashutil import hex_to_hash
-from swh.storage import Storage
+from swh.storage import get_storage
 from swh.storage.db import cursor_to_bytes
 
 
@@ -46,7 +46,22 @@ class AbstractTestStorage(DbTestFixture):
         super().setUp()
         self.maxDiff = None
         self.objroot = tempfile.mkdtemp()
-        self.storage = Storage(self.conn, self.objroot)
+
+        storage_conf = {
+            'cls': 'local',
+            'args': {
+                'db': self.conn,
+                'objstorage': {
+                    'cls': 'pathslicing',
+                    'args': {
+                        'root': self.objroot,
+                        'slicing': '0:2/2:4/4:6',
+                    },
+                },
+            },
+        }
+
+        self.storage = get_storage(**storage_conf)
 
         self.cont = {
             'data': b'42\n',

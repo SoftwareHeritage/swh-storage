@@ -14,8 +14,10 @@ from swh.storage import get_storage
 BASE_CONFIG_PATH = 'storage/provenance_cache'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
-        'cls': 'remote_storage',
-        'args': ('list[str]', ['http://localhost:5000/']),
+        'cls': 'remote',
+        'args': {
+            'url': 'http://localhost:5000/'
+        },
     }),
     'revision_packet_size': ('int', 100),
 }
@@ -40,10 +42,7 @@ class PopulateCacheContentRevision(Task):
 
         """
         config = self.config
-        storage = get_storage(
-            config['storage']['cls'],
-            config['storage']['args']
-        )
+        storage = get_storage(**config['storage'])
 
         storage.cache_content_revision_add(
             hashutil.hex_to_hash(revision) for revision in revisions
@@ -74,10 +73,7 @@ class PopulateCacheRevisionOrigin(Task):
 
         """
         config = self.config
-        storage = get_storage(
-            config['storage']['cls'],
-            config['storage']['args']
-        )
+        storage = get_storage(**config['storage'])
 
         packet_size = config['revision_packet_size']
 
