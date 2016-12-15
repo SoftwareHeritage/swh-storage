@@ -16,17 +16,17 @@ from ..exc import StorageAPIError
 
 class RemoteStorage():
     """Proxy to a remote storage API"""
-    def __init__(self, base_url):
-        self.base_url = base_url
+    def __init__(self, url):
+        self.url = url
         self.session = requests.Session()
 
-    def url(self, endpoint):
-        return '%s%s' % (self.base_url, endpoint)
+    def _url(self, endpoint):
+        return '%s%s' % (self.url, endpoint)
 
     def post(self, endpoint, data):
         try:
             response = self.session.post(
-                self.url(endpoint),
+                self._url(endpoint),
                 data=encode_data(data),
                 headers={'content-type': 'application/x-msgpack'},
             )
@@ -44,7 +44,7 @@ class RemoteStorage():
     def get(self, endpoint, data=None):
         try:
             response = self.session.get(
-                self.url(endpoint),
+                self._url(endpoint),
                 params=data,
             )
         except ConnectionError as e:

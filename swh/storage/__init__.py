@@ -1,27 +1,36 @@
+# Copyright (C) 2015-2016  The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
 from . import storage
 
 Storage = storage.Storage
 
 
-def get_storage(storage_class, storage_args):
+def get_storage(cls, args):
     """
     Get a storage object of class `storage_class` with arguments
     `storage_args`.
 
     Args:
-        storage_class: one of 'remote_storage', 'local_storage'
-        storage_args: the arguments to pass to the storage class
+        storage (dict): dictionary with keys:
+        - cls (str): storage's class, either 'local' or 'remote'
+        - args (dict): dictionary with keys
+
     Returns:
         an instance of swh.storage.Storage (either local or remote)
+
     Raises:
-        ValueError if passed an unknown storage_class.
+        ValueError if passed an unknown storage class.
+
     """
 
-    if storage_class == 'remote_storage':
+    if cls == 'remote':
         from .api.client import RemoteStorage as Storage
-    elif storage_class == 'local_storage':
+    elif cls == 'local':
         from .storage import Storage
     else:
-        raise ValueError('Unknown storage class `%s`' % storage_class)
+        raise ValueError('Unknown storage class `%s`' % cls)
 
-    return Storage(*storage_args)
+    return Storage(**args)
