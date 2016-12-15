@@ -28,7 +28,7 @@ class Storage():
 
     """
 
-    def __init__(self, db_conn, objstorage):
+    def __init__(self, db, objstorage):
         """
         Args:
             db_conn: either a libpq connection string, or a psycopg2 connection
@@ -36,15 +36,14 @@ class Storage():
 
         """
         try:
-            if isinstance(db_conn, psycopg2.extensions.connection):
-                self.db = Db(db_conn)
+            if isinstance(db, psycopg2.extensions.connection):
+                self.db = Db(db)
             else:
-                self.db = Db.connect(db_conn)
+                self.db = Db.connect(db)
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
-        self.objstorage = get_objstorage(
-            objstorage['cls'], objstorage['args'])
+        self.objstorage = get_objstorage(**objstorage)
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""

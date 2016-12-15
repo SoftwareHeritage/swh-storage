@@ -29,14 +29,19 @@ class TestRemoteStorage(AbstractTestStorage, ServerTestFixture,
         # one choosen in this class.
         storage_base = tempfile.mkdtemp()
         self.config = {
-            'db': 'dbname=%s' % self.dbname,
-            'objstorage': {
-                'cls': 'pathslicing',
+            'storage': {
+                'cls': 'local',
                 'args': {
-                    'root': storage_base,
-                    'slicing': '0:2/2:4/4:6',
-                },
-            },
+                    'db': 'dbname=%s' % self.dbname,
+                    'objstorage': {
+                        'cls': 'pathslicing',
+                        'args': {
+                            'root': storage_base,
+                            'slicing': '0:2/2:4/4:6',
+                        },
+                    },
+                }
+            }
         }
         self.app = app
         super().setUp()

@@ -10,20 +10,25 @@ import click
 from flask import Flask, g, request
 
 from swh.core import config
-from swh.storage import Storage
+from swh.storage import get_storage
 from swh.objstorage.api.common import (BytesRequest, decode_request,
                                        error_handler,
                                        encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
-    'db': ('str', 'dbname=softwareheritage-dev'),
-    'objstorage': ('dict', {
-        'cls': 'pathslicing',
+    'storage': ('dict', {
+        'cls': 'local',
         'args': {
-            'root': '/srv/softwareheritage/objects',
-            'slicing': '0:2/2:4/4:6',
+            'db': 'dbname=softwareheritage-dev',
+            'objstorage': {
+                'cls': 'pathslicing',
+                'args': {
+                    'root': '/srv/softwareheritage/objects',
+                    'slicing': '0:2/2:4/4:6',
+                },
+            },
         },
-    }),
+    })
 }
 
 
@@ -38,7 +43,7 @@ def my_error_handler(exception):
 
 @app.before_request
 def before_request():
-    g.storage = Storage(app.config['db'], app.config['objstorage'])
+    g.storage = get_storage(**app.config['storage'])
 
 
 @app.route('/')
@@ -379,7 +384,7 @@ def stat_counters():
 def run_from_webserver(environ, start_response):
     """Run the WSGI app from the webserver, loading the configuration."""
 
-    config_path = '/etc/softwareheritage/storage/storage.ini'
+    config_path = '/etc/softwareheritage/storage/storage.yml'
 
     app.config.update(config.read(config_path, DEFAULT_CONFIG))
 
