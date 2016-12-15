@@ -46,7 +46,16 @@ class AbstractTestStorage(DbTestFixture):
         super().setUp()
         self.maxDiff = None
         self.objroot = tempfile.mkdtemp()
-        self.storage = Storage(self.conn, self.objroot)
+
+        objstorage_config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': self.objroot,
+                'slicing': '0:2/2:4/4:6',
+            },
+        }
+
+        self.storage = Storage(self.conn, objstorage_config)
 
         self.cont = {
             'data': b'42\n',

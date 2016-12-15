@@ -16,7 +16,7 @@ from .db import Db
 from .exc import StorageDBError
 
 from swh.core.hashutil import ALGORITHMS
-from swh.objstorage import PathSlicingObjStorage
+from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
 # Max block size of contents to return
@@ -28,7 +28,7 @@ class Storage():
 
     """
 
-    def __init__(self, db_conn, obj_root):
+    def __init__(self, db_conn, objstorage):
         """
         Args:
             db_conn: either a libpq connection string, or a psycopg2 connection
@@ -43,9 +43,8 @@ class Storage():
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
-        # TODO this needs to be configured
-        self.objstorage = PathSlicingObjStorage(obj_root,
-                                                slicing='0:2/2:4/4:6')
+        self.objstorage = get_objstorage(
+            objstorage['cls'], objstorage['args'])
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""

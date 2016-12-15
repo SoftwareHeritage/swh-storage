@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -17,7 +17,13 @@ from swh.objstorage.api.common import (BytesRequest, decode_request,
 
 DEFAULT_CONFIG = {
     'db': ('str', 'dbname=softwareheritage-dev'),
-    'storage_base': ('str', '/tmp/swh-storage/test'),
+    'objstorage': ('dict', {
+        'cls': 'pathslicing',
+        'args': {
+            'root': '/srv/softwareheritage/objects',
+            'slicing': '0:2/2:4/4:6',
+        },
+    }),
 }
 
 
@@ -32,7 +38,7 @@ def my_error_handler(exception):
 
 @app.before_request
 def before_request():
-    g.storage = Storage(app.config['db'], app.config['storage_base'])
+    g.storage = Storage(app.config['db'], app.config['objstorage'])
 
 
 @app.route('/')

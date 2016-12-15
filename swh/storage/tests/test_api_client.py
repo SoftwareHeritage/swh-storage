@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2016  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -28,8 +28,16 @@ class TestRemoteStorage(AbstractTestStorage, ServerTestFixture,
         # To avoid confusion, override the self.objroot to a
         # one choosen in this class.
         storage_base = tempfile.mkdtemp()
-        self.config = {'db': 'dbname=%s' % self.dbname,
-                       'storage_base': storage_base}
+        self.config = {
+            'db': 'dbname=%s' % self.dbname,
+            'objstorage': {
+                'cls': 'pathslicing',
+                'args': {
+                    'root': storage_base,
+                    'slicing': '0:2/2:4/4:6',
+                },
+            },
+        }
         self.app = app
         super().setUp()
         self.storage = RemoteStorage(self.url())
