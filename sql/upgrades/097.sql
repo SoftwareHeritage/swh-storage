@@ -25,25 +25,42 @@ values ('file', '5.22', '{"command_line": "file --mime <filepath>"}');
 
 -- ctags
 
-alter table content_ctags
-  add column indexer_configuration_id bigserial;
+create table content_ctags_new (
+  id sha1 not null,
+  name text not null,
+  kind text not null,
+  line bigint not null,
+  lang ctags_languages not null,
+  indexer_configuration_id bigserial not null
+);
 
-comment on column content_ctags.indexer_configuration_id is 'Tool used to compute the information';
+comment on table content_ctags_new is 'Ctags information on a raw content';
+comment on column content_ctags_new.id is 'Content identifier';
+comment on column content_ctags_new.name is 'Symbol name';
+comment on column content_ctags_new.kind is 'Symbol kind (function, class, variable, const...)';
+comment on column content_ctags_new.line is 'Symbol line';
+comment on column content_ctags_new.lang is 'Language information for that content';
+comment on column content_ctags_new.indexer_configuration_id is 'Tool used to compute the information';
 
-update content_ctags
-set indexer_configuration_id = (select id
-                                from indexer_configuration
-                                where tool_name='universal-ctags');
+insert into content_ctags_new(id, name, kind, line, lang, indexer_configuration_id)
+select id, name, kind, line, lang, (select id from indexer_configuration where tool_name='universal-ctags' limit 1)
+from content_ctags;
 
-alter table content_ctags
-  alter column indexer_configuration_id set not null;
+alter table content_ctags_new
+add constraint content_ctags_id_idx
+foreign key (id) references content(sha1);
 
-alter table content_ctags
-  add constraint content_ctags_indexer_configuration_id_idx
-  foreign key (indexer_configuration_id) references indexer_configuration(id);
+alter table content_ctags_new
+add constraint content_ctags_indexer_configuration_id_idx
+foreign key (indexer_configuration_id) references indexer_configuration(id);
 
-drop index content_ctags_id_md5_kind_line_lang_idx;
-create unique index on content_ctags(id, md5(name), kind, line, lang, indexer_configuration_id);
+create index on content_ctags_new(id);
+create unique index on content_ctags_new(id, hash_sha1(name), kind, line, lang, indexer_configuration_id);
+create index on content_ctags_new(hash_sha1(name));
+
+alter table content_ctags rename to content_ctags_old;
+alter table content_ctags_new rename to content_ctags;
+drop table content_ctags_old;
 
 -- language
 
@@ -198,7 +215,7 @@ begin
             where tool_name=tct.tool_name
             and tool_version=tct.tool_version)
     from tmp_content_ctags tct
-        on conflict(id, md5(name), kind, line, lang, indexer_configuration_id)
+        on conflict(id, hash_sha1(name), kind, line, lang, indexer_configuration_id)
         do nothing;
     return;
 end

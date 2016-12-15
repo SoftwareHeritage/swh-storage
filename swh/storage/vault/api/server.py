@@ -20,12 +20,16 @@ cooking_task_name = 'swh.storage.vault.api.cooking_tasks.SWHCookingTask'
 
 
 DEFAULT_CONFIG = {
-    'storage': ('dict', {'storage_class': 'local_storage',
-                         'storage_args': [
-                             'dbname=softwareheritage-dev',
-                             '/tmp/objects'
-                         ]
-                         }),
+    'storage': ('dict', {
+        'cls': 'local',
+        'args': {
+            'db': 'dbname=softwareheritage-dev',
+            'objstorage': {
+                'root': '/tmp/objects',
+                'slicing': '0:2/2:4/4:6',
+            },
+        },
+    }),
     'cache': ('dict', {'root': '/tmp/vaultcache'})
 }
 

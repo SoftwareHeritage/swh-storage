@@ -1770,7 +1770,7 @@ begin
             where tool_name=tct.tool_name
             and tool_version=tct.tool_version)
     from tmp_content_ctags tct
-        on conflict(id, md5(name), kind, line, lang, indexer_configuration_id)
+        on conflict(id, hash_sha1(name), kind, line, lang, indexer_configuration_id)
         do nothing;
     return;
 end
@@ -1843,14 +1843,6 @@ end
 $$;
 
 comment on function swh_content_ctags_get() IS 'List content ctags';
-
-create or replace function hash_sha1(text)
-       returns text
-as $$
-   select encode(digest($1, 'sha1'), 'hex')
-$$ language sql strict immutable;
-
-comment on function hash_sha1(text) is 'Compute sha1 hash as text';
 
 -- Search within ctags content.
 --
