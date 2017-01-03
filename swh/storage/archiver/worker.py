@@ -291,7 +291,7 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         """
         nb_presents = len(content_data.get('present', []))
         for copy, mtime in content_data.get('ongoing', {}).items():
-            if not self._is_archival_delay_elasped(mtime):
+            if not self._is_archival_delay_elapsed(mtime):
                 nb_presents += 1
         return nb_presents < self.retention_policy
 
