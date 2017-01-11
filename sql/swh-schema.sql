@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(97, now(), 'Work In Progress');
+      values(98, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -37,7 +37,7 @@ create domain file_perms as int;
 -- content collisions not knowingly.
 create table content
 (
-  sha1      sha1 primary key,
+  sha1      sha1 not null,
   sha1_git  sha1_git not null,
   sha256    sha256 not null,
   length    bigint not null,
@@ -46,27 +46,6 @@ create table content
   status    content_status not null default 'visible',
   object_id bigserial
 );
-
-create unique index on content(sha1_git);
-create unique index on content(sha256);
-create index on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
-create index on content(object_id);
-
--- Asynchronous notification of new content insertions
-create function notify_new_content()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-    perform pg_notify('new_content', encode(new.sha1, 'hex'));
-    return null;
-  end;
-$$;
-
-create trigger notify_new_content
-  after insert on content
-  for each row
-  execute procedure notify_new_content();
 
 
 -- Entities constitute a typed hierarchy of organization, hosting
@@ -96,7 +75,7 @@ create trigger notify_new_content
 -- deactivate, in a new entry of entity_history.
 create table entity_history
 (
-  id               bigserial primary key,
+  id               bigserial not null,
   uuid             uuid,
   parent           uuid,             -- should reference entity_history(uuid)
   name             text not null,
@@ -110,15 +89,12 @@ create table entity_history
   validity         timestamptz[]     -- timestamps at which we have seen this entity
 );
 
-create index on entity_history(uuid);
-create index on entity_history(name);
-
 -- The entity table provides a view of the latest information on a
 -- given entity. It is updated via a trigger on entity_history.
 create table entity
 (
-  uuid             uuid primary key,
-  parent           uuid references entity(uuid) deferrable initially deferred,
+  uuid             uuid not null,
+  parent           uuid,
   name             text not null,
   type             entity_type not null,
   description      text,
@@ -128,26 +104,21 @@ create table entity
   lister_metadata  jsonb,            -- lister-specific metadata, used for queries
   metadata         jsonb,
   last_seen        timestamptz,      -- last listing time or disappearance time for active=false
-  last_id          bigint references entity_history(id) -- last listing id
+  last_id          bigint            -- last listing id
 );
-
-create index on entity(name);
-create index on entity using gin(lister_metadata jsonb_path_ops);
 
 -- Register the equivalence between two entities. Allows sideways
 -- navigation in the entity table
 create table entity_equivalence
 (
-  entity1 uuid references entity(uuid),
-  entity2 uuid references entity(uuid),
-  primary key (entity1, entity2),
-  constraint order_entities check (entity1 < entity2)
+  entity1 uuid,
+  entity2 uuid
 );
 
 -- Register a lister for a specific entity.
 create table listable_entity
 (
-  uuid         uuid references entity(uuid) primary key,
+  uuid         uuid,
   enabled      boolean not null default true, -- do we list this entity automatically?
   list_engine  text,  -- crawler to be used to list entity's content
   list_url     text,  -- root URL to start the listing
@@ -159,8 +130,8 @@ create table listable_entity
 -- done in the past, or are still ongoing.
 create table list_history
 (
-  id        bigserial primary key,
-  entity    uuid references listable_entity(uuid),
+  id        bigserial not null,
+  entity    uuid,
   date      timestamptz not null,
   status    boolean,  -- true if and only if the listing has been successful
   result    jsonb,     -- more detailed return value, depending on status
@@ -178,30 +149,12 @@ create table list_history
 -- checkout, etc.) to retrieve all the contained software.
 create table origin
 (
-  id       bigserial primary key,
+  id       bigserial not null,
   type     text, -- TODO use an enum here (?)
   url      text not null,
-  lister   uuid references listable_entity(uuid),
-  project  uuid references entity(uuid)
+  lister   uuid,
+  project  uuid
 );
-
-create index on origin(type, url);
-
--- Asynchronous notification of new origin insertions
-create function notify_new_origin()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-    perform pg_notify('new_origin', new.id::text);
-    return null;
-  end;
-$$;
-
-create trigger notify_new_origin
-  after insert on origin
-  for each row
-  execute procedure notify_new_origin();
 
 -- Content we have seen but skipped for some reason. This table is
 -- separate from the content table as we might not have the sha1
@@ -219,44 +172,16 @@ create table skipped_content
   ctime     timestamptz not null default now(),
   status    content_status not null default 'absent',
   reason    text not null,
-  origin    bigint references origin(id),
-  object_id bigserial,
-  unique (sha1, sha1_git, sha256)
+  origin    bigint,
+  object_id bigserial
 );
-
--- Those indexes support multiple NULL values.
-create unique index on skipped_content(sha1);
-create unique index on skipped_content(sha1_git);
-create unique index on skipped_content(sha256);
-create index on skipped_content(object_id);
-
--- Asynchronous notification of new skipped content insertions
-create function notify_new_skipped_content()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-  perform pg_notify('new_skipped_content', json_build_object(
-      'sha1', encode(new.sha1, 'hex'),
-      'sha1_git', encode(new.sha1_git, 'hex'),
-      'sha256', encode(new.sha256, 'hex')
-    )::text);
-    return null;
-  end;
-$$;
-
-create trigger notify_new_skipped_content
-  after insert on skipped_content
-  for each row
-  execute procedure notify_new_skipped_content();
-
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the
 -- past, or are still ongoing. Similar to list_history, but for origins.
 create table fetch_history
 (
-  id        bigserial primary key,
-  origin    bigint references origin(id),
+  id        bigserial,
+  origin    bigint,
   date      timestamptz not null,
   status    boolean,  -- true if and only if the fetch has been successful
   result    jsonb,     -- more detailed returned values, times, etc...
@@ -279,80 +204,48 @@ create table fetch_history
 -- * git: tree
 create table directory
 (
-  id            sha1_git primary key,
+  id            sha1_git,
   dir_entries   bigint[],  -- sub-directories, reference directory_entry_dir
   file_entries  bigint[],  -- contained files, reference directory_entry_file
   rev_entries   bigint[],  -- mounted revisions, reference directory_entry_rev
   object_id     bigserial  -- short object identifier
 );
 
-create index on directory using gin (dir_entries);
-create index on directory using gin (file_entries);
-create index on directory using gin (rev_entries);
-create index on directory(object_id);
-
--- Asynchronous notification of new directory insertions
-create function notify_new_directory()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-    perform pg_notify('new_directory', encode(new.id, 'hex'));
-    return null;
-  end;
-$$;
-
-create trigger notify_new_directory
-  after insert on directory
-  for each row
-  execute procedure notify_new_directory();
-
-
 -- A directory entry pointing to a sub-directory.
 create table directory_entry_dir
 (
-  id      bigserial primary key,
+  id      bigserial,
   target  sha1_git,   -- id of target directory
   name    unix_path,  -- path name, relative to containing dir
   perms   file_perms  -- unix-like permissions
 );
 
-create unique index on directory_entry_dir(target, name, perms);
-
 -- A directory entry pointing to a file.
 create table directory_entry_file
 (
-  id      bigserial primary key,
+  id      bigserial,
   target  sha1_git,   -- id of target file
   name    unix_path,  -- path name, relative to containing dir
   perms   file_perms  -- unix-like permissions
 );
 
-create unique index on directory_entry_file(target, name, perms);
-
 -- A directory entry pointing to a revision.
 create table directory_entry_rev
 (
-  id      bigserial primary key,
+  id      bigserial,
   target  sha1_git,   -- id of target revision
   name    unix_path,  -- path name, relative to containing dir
   perms   file_perms  -- unix-like permissions
 );
 
-create unique index on directory_entry_rev(target, name, perms);
-
 create table person
 (
-  id        bigserial primary key,
+  id        bigserial,
   fullname  bytea not null, -- freeform specification; what is actually used in the checksums
                             --     will usually be of the form 'name <email>'
   name      bytea,          -- advisory: not null if we managed to parse a name
   email     bytea           -- advisory: not null if we managed to parse an email
 );
-
-create unique index on person(fullname);
-create index on person(name);
-create index on person(email);
 
 -- A snapshot of a software project at a specific point in time.
 --
@@ -365,7 +258,7 @@ create index on person(email);
 -- a file-system tree containing files and directories.
 create table revision
 (
-  id                    sha1_git primary key,
+  id                    sha1_git,
   date                  timestamptz,
   date_offset           smallint,
   date_neg_utc_offset   boolean,
@@ -375,54 +268,31 @@ create table revision
   type                  revision_type not null,
   directory             sha1_git,  -- file-system tree
   message               bytea,
-  author                bigint references person(id),
-  committer             bigint references person(id),
+  author                bigint,
+  committer             bigint,
   metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
   synthetic             boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
   object_id             bigserial
 );
 
-create index on revision(directory);
-create index on revision(object_id);
-
--- Asynchronous notification of new revision insertions
-create function notify_new_revision()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-    perform pg_notify('new_revision', encode(new.id, 'hex'));
-    return null;
-  end;
-$$;
-
-create trigger notify_new_revision
-  after insert on revision
-  for each row
-  execute procedure notify_new_revision();
-
 
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
 (
-  id           sha1_git references revision(id),
+  id           sha1_git,
   parent_id    sha1_git,
-  parent_rank  int not null default 0,
+  parent_rank  int not null default 0
     -- parent position in merge commits, 0-based
-  primary key (id, parent_rank)
 );
-
-create index on revision_history(parent_id);
 
 -- The timestamps at which Software Heritage has made a visit of the given origin.
 create table origin_visit
 (
-  origin    bigint not null references origin(id),
+  origin    bigint not null,
   visit     bigint not null,
   date      timestamptz not null,
   status    origin_visit_status not null,
-  metadata  jsonb,
-  primary key (origin, visit)
+  metadata  jsonb
 );
 
 comment on column origin_visit.origin is 'Visited origin';
@@ -430,27 +300,6 @@ comment on column origin_visit.visit is 'Visit number the visit occurred for tha
 comment on column origin_visit.date is 'Visit date for that origin';
 comment on column origin_visit.status is 'Visit status for that origin';
 comment on column origin_visit.metadata is 'Metadata associated with the visit';
-
-create index on origin_visit(date);
-
--- Asynchronous notification of new origin visits
-create function notify_new_origin_visit()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-    perform pg_notify('new_origin_visit', json_build_object(
-      'origin', new.origin,
-      'visit', new.visit
-    )::text);
-    return null;
-  end;
-$$;
-
-create trigger notify_new_origin_visit
-  after insert on origin_visit
-  for each row
-  execute procedure notify_new_origin_visit();
 
 
 -- The content of software origins is indexed starting from top-level pointers
@@ -461,30 +310,23 @@ create trigger notify_new_origin_visit
 -- * git: ref (in the "git update-ref" sense)
 create table occurrence_history
 (
-  origin       bigint references origin(id) not null,
+  origin       bigint not null,
   branch       bytea not null,        -- e.g., b"master" (for VCS), or b"sid" (for Debian)
   target       sha1_git not null,     -- ref target, e.g., commit id
   target_type  object_type not null,  -- ref target type
   object_id    bigserial not null,    -- short object identifier
-  visits       bigint[] not null,     -- the visits where that occurrence was valid. References
+  visits       bigint[] not null      -- the visits where that occurrence was valid. References
                                       -- origin_visit(visit), where o_h.origin = origin_visit.origin.
-  primary key (object_id)
 );
-
-create index on occurrence_history(target, target_type);
-create index on occurrence_history(origin, branch);
-create unique index on occurrence_history(origin, branch, target, target_type);
-create index on occurrence_history(object_id);
 
 -- Materialized view of occurrence_history, storing the *current* value of each
 -- branch, as last seen by SWH.
 create table occurrence
 (
-  origin    bigint references origin(id) not null,
+  origin    bigint,
   branch    bytea not null,
   target    sha1_git not null,
-  target_type object_type not null,
-  primary key(origin, branch)
+  target_type object_type not null
 );
 
 -- A "memorable" point in the development history of a project.
@@ -494,7 +336,7 @@ create table occurrence
 -- * tarball: the release version number
 create table release
 (
-  id          sha1_git primary key,
+  id          sha1_git,
   target      sha1_git,
   target_type object_type,
   date        timestamptz,
@@ -502,29 +344,10 @@ create table release
   date_neg_utc_offset  boolean,
   name        bytea,
   comment     bytea,
-  author      bigint references person(id),
+  author      bigint,
   synthetic   boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
   object_id   bigserial
 );
-
-create index on release(target, target_type);
-create index on release(object_id);
-
--- Asynchronous notification of new release insertions
-create function notify_new_release()
-  returns trigger
-  language plpgsql
-as $$
-  begin
-    perform pg_notify('new_release', encode(new.id, 'hex'));
-    return null;
-  end;
-$$;
-
-create trigger notify_new_release
-  after insert on release
-  for each row
-  execute procedure notify_new_release();
 
 
 -- Content provenance information caches
@@ -539,13 +362,13 @@ create trigger notify_new_release
 -- the given revision"
 
 create table cache_content_revision (
-    content         sha1_git not null primary key references content(sha1_git),
+    content         sha1_git not null,
     blacklisted     boolean default false,
     revision_paths  bytea[][]
 );
 
 create table cache_content_revision_processed (
-    revision  sha1_git not null primary key references revision(id)
+    revision  sha1_git not null
 );
 
 -- revision <-> origin_visit mapping cache
@@ -554,19 +377,15 @@ create table cache_content_revision_processed (
 -- given visit"
 
 create table cache_revision_origin (
-   revision  sha1_git not null references revision(id),
+   revision  sha1_git not null,
    origin    bigint not null,
-   visit     bigint not null,
-   primary key (revision, origin, visit),
-   foreign key (origin, visit) references origin_visit (origin, visit)
+   visit     bigint not null
 );
-
-create index on cache_revision_origin(revision);
 
 -- Computing metadata on sha1's contents
 
 create table indexer_configuration (
-  id serial primary key not null,
+  id serial not null,
   tool_name text not null,
   tool_version text not null,
   tool_configuration jsonb
@@ -578,15 +397,12 @@ comment on column indexer_configuration.tool_version is 'Tool name';
 comment on column indexer_configuration.tool_version is 'Tool version';
 comment on column indexer_configuration.tool_configuration is 'Tool configuration: command line, flags, etc...';
 
-create unique index on indexer_configuration(tool_name, tool_version);
-
 -- Properties (mimetype, encoding, etc...)
 create table content_mimetype (
-  id sha1 references content(sha1) not null,
+  id sha1 not null,
   mimetype bytea not null,
   encoding bytea not null,
-  indexer_configuration_id bigserial references indexer_configuration(id) not null,
-  primary key(id, indexer_configuration_id)
+  indexer_configuration_id bigserial
 );
 
 comment on table content_mimetype is 'Metadata associated to a raw content';
@@ -596,10 +412,9 @@ comment on column content_mimetype.indexer_configuration_id is 'Tool used to com
 
 -- Language metadata
 create table content_language (
-  id sha1 references content(sha1) not null,
+  id sha1 not null,
   lang languages not null,
-  indexer_configuration_id bigserial references indexer_configuration(id) not null,
-  primary key(id, indexer_configuration_id)
+  indexer_configuration_id bigserial
 );
 
 comment on table content_language is 'Language information on a raw content';
@@ -608,12 +423,12 @@ comment on column content_language.indexer_configuration_id is 'Tool used to com
 
 -- ctags information per content
 create table content_ctags (
-  id sha1 references content(sha1) not null,
+  id sha1 not null,
   name text not null,
   kind text not null,
   line bigint not null,
   lang ctags_languages not null,
-  indexer_configuration_id bigserial references indexer_configuration(id) not null
+  indexer_configuration_id bigserial
 );
 
 comment on table content_ctags is 'Ctags information on a raw content';
@@ -624,12 +439,8 @@ comment on column content_ctags.line is 'Symbol line';
 comment on column content_ctags.lang is 'Language information for that content';
 comment on column content_ctags.indexer_configuration_id is 'Tool used to compute the information';
 
-create index on content_ctags(id);
-create index on content_ctags(hash_sha1(name));
-create unique index on content_ctags(id, hash_sha1(name), kind, line, lang, indexer_configuration_id);
-
 create table fossology_license(
-  id smallserial primary key,
+  id smallserial,
   name text not null
 );
 
@@ -637,13 +448,10 @@ comment on table fossology_license is 'Possible license recognized by license in
 comment on column fossology_license.id is 'License identifier';
 comment on column fossology_license.name is 'License name';
 
-create unique index on fossology_license(name);
-
 create table content_fossology_license (
-  id sha1 references content(sha1) not null,
-  license_id smallserial references fossology_license(id) not null,
-  indexer_configuration_id bigserial references indexer_configuration(id) not null,
-  primary key(id, license_id, indexer_configuration_id)
+  id sha1 not null,
+  license_id smallserial not null,
+  indexer_configuration_id bigserial not null
 );
 
 comment on table content_fossology_license is 'license associated to a raw content';
