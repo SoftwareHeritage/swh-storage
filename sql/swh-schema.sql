@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(98, now(), 'Work In Progress');
+      values(99, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -131,13 +131,13 @@ create table listable_entity
 create table list_history
 (
   id        bigserial not null,
-  entity    uuid,
   date      timestamptz not null,
-  status    boolean,  -- true if and only if the listing has been successful
+  status    boolean,   -- true if and only if the listing has been successful
   result    jsonb,     -- more detailed return value, depending on status
   stdout    text,
   stderr    text,
-  duration  interval  -- fetch duration of NULL if still ongoing
+  duration  interval,  -- fetch duration of NULL if still ongoing
+  entity    uuid
 );
 
 
@@ -241,10 +241,10 @@ create table directory_entry_rev
 create table person
 (
   id        bigserial,
-  fullname  bytea not null, -- freeform specification; what is actually used in the checksums
-                            --     will usually be of the form 'name <email>'
   name      bytea,          -- advisory: not null if we managed to parse a name
-  email     bytea           -- advisory: not null if we managed to parse an email
+  email     bytea,          -- advisory: not null if we managed to parse an email
+  fullname  bytea not null  -- freeform specification; what is actually used in the checksums
+                            --     will usually be of the form 'name <email>'
 );
 
 -- A snapshot of a software project at a specific point in time.
@@ -261,18 +261,18 @@ create table revision
   id                    sha1_git,
   date                  timestamptz,
   date_offset           smallint,
-  date_neg_utc_offset   boolean,
   committer_date        timestamptz,
   committer_date_offset smallint,
-  committer_date_neg_utc_offset boolean,
   type                  revision_type not null,
   directory             sha1_git,  -- file-system tree
   message               bytea,
   author                bigint,
   committer             bigint,
-  metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
   synthetic             boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
-  object_id             bigserial
+  metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
+  object_id             bigserial,
+  date_neg_utc_offset   boolean,
+  committer_date_neg_utc_offset boolean
 );
 
 
@@ -314,9 +314,9 @@ create table occurrence_history
   branch       bytea not null,        -- e.g., b"master" (for VCS), or b"sid" (for Debian)
   target       sha1_git not null,     -- ref target, e.g., commit id
   target_type  object_type not null,  -- ref target type
-  object_id    bigserial not null,    -- short object identifier
-  visits       bigint[] not null      -- the visits where that occurrence was valid. References
+  visits       bigint[] not null,     -- the visits where that occurrence was valid. References
                                       -- origin_visit(visit), where o_h.origin = origin_visit.origin.
+  object_id    bigserial not null     -- short object identifier
 );
 
 -- Materialized view of occurrence_history, storing the *current* value of each
@@ -336,17 +336,17 @@ create table occurrence
 -- * tarball: the release version number
 create table release
 (
-  id          sha1_git,
+  id          sha1_git not null,
   target      sha1_git,
-  target_type object_type,
   date        timestamptz,
   date_offset smallint,
-  date_neg_utc_offset  boolean,
   name        bytea,
   comment     bytea,
   author      bigint,
   synthetic   boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
-  object_id   bigserial
+  object_id   bigserial,
+  target_type object_type not null,
+  date_neg_utc_offset  boolean
 );
 
 
@@ -402,7 +402,7 @@ create table content_mimetype (
   id sha1 not null,
   mimetype bytea not null,
   encoding bytea not null,
-  indexer_configuration_id bigserial
+  indexer_configuration_id bigint not null
 );
 
 comment on table content_mimetype is 'Metadata associated to a raw content';
@@ -414,7 +414,7 @@ comment on column content_mimetype.indexer_configuration_id is 'Tool used to com
 create table content_language (
   id sha1 not null,
   lang languages not null,
-  indexer_configuration_id bigserial
+  indexer_configuration_id bigint not null
 );
 
 comment on table content_language is 'Language information on a raw content';
@@ -428,7 +428,7 @@ create table content_ctags (
   kind text not null,
   line bigint not null,
   lang ctags_languages not null,
-  indexer_configuration_id bigserial
+  indexer_configuration_id bigint not null
 );
 
 comment on table content_ctags is 'Ctags information on a raw content';
@@ -451,7 +451,7 @@ comment on column fossology_license.name is 'License name';
 create table content_fossology_license (
   id sha1 not null,
   license_id smallserial not null,
-  indexer_configuration_id bigserial not null
+  indexer_configuration_id bigint not null
 );
 
 comment on table content_fossology_license is 'license associated to a raw content';
