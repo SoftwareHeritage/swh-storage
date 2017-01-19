@@ -865,18 +865,23 @@ class Storage():
                                            cur)
 
     @db_transaction_generator
-    def origin_visit_get(self, origin, cur=None):
+    def origin_visit_get(self, origin, last_visit=None, limit=None, cur=None):
         """Retrieve all the origin's visit's information.
 
         Args:
-            origin: The occurrence's origin (identifier).
+            origin (int): The occurrence's origin (identifier).
+            last_visit (int): Starting point from which listing the next visits
+                              Default to None
+            limit (int): Number of results to return from the last visit.
+                         Default to None
 
         Yields:
             List of visits.
 
         """
         db = self.db
-        for line in db.origin_visit_get_all(origin, cur):
+        for line in db.origin_visit_get_all(
+                origin, last_visit=last_visit, limit=limit, cur=cur):
             data = dict(zip(self.db.origin_visit_get_cols, line))
             yield data
 
