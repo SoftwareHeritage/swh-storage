@@ -1462,6 +1462,28 @@ class AbstractTestStorage(DbTestFixture):
                                'metadata': None,
                            }])
 
+        actual_origin_visits_bis = list(self.storage.origin_visit_get(
+            origin_id, limit=1))
+        self.assertEquals(actual_origin_visits_bis,
+                          [{
+                              'origin': origin_visit2['origin'],
+                              'date': self.date_visit2,
+                              'visit': origin_visit1['visit'],
+                              'status': 'full',
+                              'metadata': visit1_metadata,
+                          }])
+
+        actual_origin_visits_ter = list(self.storage.origin_visit_get(
+            origin_id, last_visit=origin_visit1['visit']))
+        self.assertEquals(actual_origin_visits_ter,
+                          [{
+                               'origin': origin_visit2['origin'],
+                               'date': self.date_visit3,
+                               'visit': origin_visit2['visit'],
+                               'status': 'ongoing',
+                               'metadata': None,
+                           }])
+
         actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
         self.assertEquals(actual_origin_visits2,
                           [{
