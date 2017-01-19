@@ -430,7 +430,8 @@ class Db(BaseDb):
 
     origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata']
 
-    def origin_visit_get_all(self, origin_id, cur=None):
+    def origin_visit_get_all(self, origin_id,
+                             last_visit=None, limit=None, cur=None):
         """Retrieve all visits for origin with id origin_id.
 
         Args:
@@ -442,10 +443,18 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
+        query_suffix = ''
+        if last_visit:
+            query_suffix += ' AND %s < visit' % last_visit
+
+        if limit:
+            query_suffix += ' LIMIT %s' % limit
+
         query = """\
         SELECT %s
         FROM origin_visit
-        WHERE origin=%%s""" % (', '.join(self.origin_visit_get_cols))
+        WHERE origin=%%s %s""" % (
+            ', '.join(self.origin_visit_get_cols), query_suffix)
 
         cur.execute(query, (origin_id, ))
 
