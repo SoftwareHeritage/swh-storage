@@ -1,3 +1,10 @@
+swh-storage (0.0.77-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.77
+  * Paginate results for origin_visits endpoint
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 19 Jan 2017 14:41:49 +0100
+
 swh-storage (0.0.76-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.76
