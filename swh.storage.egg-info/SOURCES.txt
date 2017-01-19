@@ -25,8 +25,10 @@ sql/clusters.dot
 sql/swh-data.sql
 sql/swh-enums.sql
 sql/swh-func.sql
+sql/swh-indexes.sql
 sql/swh-init.sql
 sql/swh-schema.sql
+sql/swh-triggers.sql
 sql/archiver/Makefile
 sql/archiver/swh-archiver-data.sql
 sql/archiver/swh-archiver-func.sql
@@ -144,6 +146,8 @@ sql/upgrades/094.sql
 sql/upgrades/095.sql
 sql/upgrades/096.sql
 sql/upgrades/097.sql
+sql/upgrades/098.sql
+sql/upgrades/099.sql
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
 swh.storage.egg-info/dependency_links.txt

@@ -74,7 +74,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         dest_config = {
             'cls': 'remote',
             'args': {
-                'base_url': self.url()
+                'url': self.url()
             }
         }
         self.dest_storage = get_objstorage(**dest_config)
