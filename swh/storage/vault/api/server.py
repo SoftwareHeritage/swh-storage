@@ -4,11 +4,11 @@
 # See top-level LICENSE file for more information
 
 import click
-from flask import Flask, abort, g
+from flask import abort, g
 from werkzeug.routing import BaseConverter
 from swh.core import config
-from swh.objstorage.api.common import encode_data_server as encode_data
-from swh.objstorage.api.common import BytesRequest, error_handler
+from swh.core.api import (SWHServerAPIApp, error_handler,
+                          encode_data_server as encode_data)
 from swh.storage import get_storage
 from swh.storage.vault.api import cooking_tasks  # NOQA
 from swh.storage.vault.cache import VaultCache
@@ -40,8 +40,7 @@ class RegexConverter(BaseConverter):
         self.regex = items[0]
 
 
-app = Flask(__name__)
-app.request_class = BytesRequest
+app = SWHServerAPIApp(__name__)
 app.url_map.converters['regex'] = RegexConverter
 
 
