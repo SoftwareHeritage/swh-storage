@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,13 +7,13 @@ import json
 import logging
 import click
 
-from flask import Flask, g, request
+from flask import g, request
 
 from swh.core import config
 from swh.storage import get_storage
-from swh.objstorage.api.common import (BytesRequest, decode_request,
-                                       error_handler,
-                                       encode_data_server as encode_data)
+from swh.core.api import (SWHServerAPIApp, decode_request,
+                          error_handler,
+                          encode_data_server as encode_data)
 
 DEFAULT_CONFIG = {
     'storage': ('dict', {
@@ -32,8 +32,7 @@ DEFAULT_CONFIG = {
 }
 
 
-app = Flask(__name__)
-app.request_class = BytesRequest
+app = SWHServerAPIApp(__name__)
 
 
 @app.errorhandler(Exception)

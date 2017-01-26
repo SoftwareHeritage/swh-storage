@@ -2,15 +2,12 @@ dateutil
 psycopg2
 vcversioner
 
-# remote storage API client
-requests
-
 # remote storage API server
 flask
 
 # Internal dependencies
-swh.core >= 0.0.24
-swh.objstorage >= 0.0.15
+swh.core >= 0.0.28
+swh.objstorage >= 0.0.17
 
 click
 swh.scheduler
