@@ -1,8 +1,10 @@
-swh-storage (0.0.77-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.78-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.78
+  * Refactoring some common code into swh.core + adaptation api calls in
+  * swh.objstorage and swh.storage (storage and vault)
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 19 Jan 2017 14:41:49 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 26 Jan 2017 15:08:03 +0100
 
 swh-storage (0.0.77-1~swh1) unstable-swh; urgency=medium
 
