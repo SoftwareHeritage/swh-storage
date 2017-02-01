@@ -975,18 +975,20 @@ create or replace function swh_visit_find_by_date(origin bigint, visit_date time
     stable
 as $$
   with closest_two_visits as ((
-    select origin_visit, (date - visit_date) as interval
-    from origin_visit
-    where date >= visit_date
-    order by date asc
+    select ov, (date - visit_date) as interval
+    from origin_visit ov
+    where ov.origin = origin
+          and ov.date >= visit_date
+    order by ov.date asc
     limit 1
   ) union (
-    select origin_visit, (visit_date - date) as interval
-    from origin_visit
-    where date < visit_date
-    order by date desc
+    select ov, (visit_date - date) as interval
+    from origin_visit ov
+    where ov.origin = origin
+          and ov.date < visit_date
+    order by ov.date desc
     limit 1
-  )) select (origin_visit).* from closest_two_visits order by interval limit 1
+  )) select (ov).* from closest_two_visits order by interval limit 1
 $$;
 
 -- Find the visit of origin id closest to date visit_date
