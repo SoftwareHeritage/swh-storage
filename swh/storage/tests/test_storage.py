@@ -1171,7 +1171,7 @@ class AbstractTestStorage(DbTestFixture):
     @istest
     def revision_get_by_multiple_occurrence(self):
         # 2 occurrences pointing to 2 different revisions
-        # each occurence have 1 hour delta
+        # each occurence have 1 day delta
         # the api must return the revision whose occurrence is the nearest.
 
         # given
@@ -1199,7 +1199,7 @@ class AbstractTestStorage(DbTestFixture):
             'visit': origin_visit2['visit'],
             'target': self.revision3['id'],
         })
-        # 2 occurrences on same revision with lower validity date with 1h delta
+        # 2 occurrences on same revision with lower validity date with 1 day delta
         self.storage.occurrence_add([occurrence2])
         self.storage.occurrence_add([occurrence3])
 
@@ -1264,9 +1264,8 @@ class AbstractTestStorage(DbTestFixture):
             del actual_result['author']['id']
             del actual_result['committer']['id']
 
-        self.assertEquals(len(actual_results4), 2)
-        self.assertCountEqual(actual_results4,
-                              [self.revision3, self.revision2])
+        self.assertEquals(len(actual_results4), 1)
+        self.assertCountEqual(actual_results4, [self.revision3])
 
     @istest
     def release_add(self):
