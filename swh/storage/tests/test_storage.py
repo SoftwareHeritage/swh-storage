@@ -1199,7 +1199,8 @@ class AbstractTestStorage(DbTestFixture):
             'visit': origin_visit2['visit'],
             'target': self.revision3['id'],
         })
-        # 2 occurrences on same revision with lower validity date with 1 day delta
+        # 2 occurrences on same revision with lower validity date with 1 day
+        # delta
         self.storage.occurrence_add([occurrence2])
         self.storage.occurrence_add([occurrence3])
 
