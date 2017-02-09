@@ -76,3 +76,17 @@ CREATE OR REPLACE FUNCTION init_content_archive_counts() returns void language s
 $$;
 
 comment on function init_content_archive_counts() is 'Initialize the content archive counts for the registered archives';
+
+create type content_archive_count as (
+  archive text,
+  count bigint
+);
+
+create or replace function get_content_archive_counts() returns setof content_archive_count language sql as $$
+    select archive, sum(count)::bigint
+    from content_archive_counts
+    group by archive
+    order by archive;
+$$;
+
+comment on function get_content_archive_counts() is 'Get count for each archive';
