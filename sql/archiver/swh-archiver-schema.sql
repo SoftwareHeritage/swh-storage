@@ -73,36 +73,6 @@ CREATE TRIGGER update_num_present
     FOR EACH ROW
     EXECUTE PROCEDURE update_num_present();
 
-CREATE FUNCTION count_copies(from_id bytea, to_id bytea) returns void language sql as $$
-    with sample as (
-        select content_id, copies from content_archive
-        where content_id > from_id and content_id <= to_id
-    ), data as (
-        select substring(content_id from 19) as bucket, jbe.key as archive
-        from sample
-        join lateral jsonb_each(copies) jbe on true
-        where jbe.value->>'status' = 'present'
-    ), bucketed as (
-        select bucket, archive, count(*) as count
-        from data
-        group by bucket, archive
-    ) update content_archive_counts cac set
-        count = cac.count + bucketed.count
-      from bucketed
-      where cac.archive = bucketed.archive and cac.bucket = bucketed.bucket;
-$$;
-
-comment on function count_copies(bytea, bytea) is 'Count the objects between from_id and to_id, add the results to content_archive_counts';
-
-CREATE FUNCTION init_content_archive_counts() returns void language sql as $$
-    insert into content_archive_counts (
-        select id, decode(lpad(to_hex(bucket), 4, '0'), 'hex')::bucket as bucket, 0 as count
-        from archive join lateral generate_series(0, 65535) bucket on true
-    ) on conflict (archive, bucket) do nothing;
-$$;
-
-comment on function init_content_archive_counts() is 'Initialize the content archive counts for the registered archives';
-
 -- keep the content_archive_counts updated
 CREATE FUNCTION update_content_archive_counts() RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
     DECLARE
