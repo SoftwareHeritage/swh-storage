@@ -1,0 +1,3 @@
+swh.core >= 0.0.28
+swh.objstorage >= 0.0.17
+swh.scheduler

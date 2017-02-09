@@ -5,9 +5,5 @@ vcversioner
 # remote storage API server
 flask
 
-# Internal dependencies
-swh.core >= 0.0.28
-swh.objstorage >= 0.0.17
 
 click
-swh.scheduler
