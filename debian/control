@@ -27,7 +27,6 @@ Depends: python3-swh.core (>= 0.0.28~),
          python3-swh.objstorage (>= 0.0.17~),
          ${misc:Depends},
          ${python3:Depends}
-
 Description: Software Heritage storage utilities
 
 Package: python3-swh.storage.listener
