@@ -19,6 +19,8 @@ from nose.plugins.attrib import attr
 
 from swh.core.tests.db_testing import DbTestFixture
 from swh.core.hashutil import hex_to_hash
+from swh.model import identifiers
+
 from swh.storage import get_storage
 from swh.storage.db import cursor_to_bytes
 
@@ -238,7 +240,10 @@ class AbstractTestStorage(DbTestFixture):
                 'fullname': b'Roberto Dicosmo <roberto@example.com>',
             },
             'date': {
-                'timestamp': 1234567843.22,
+                'timestamp': {
+                    'seconds': 1234567843,
+                    'microseconds': 220000,
+                },
                 'offset': -720,
                 'negative_utc': None,
             },
@@ -268,7 +273,10 @@ class AbstractTestStorage(DbTestFixture):
                 'fullname': b'Roberto Dicosmo <roberto@example.com>',
             },
             'date': {
-                'timestamp': 1234567843.22,
+                'timestamp': {
+                    'seconds': 1234567843,
+                    'microseconds': 220000,
+                },
                 'offset': -720,
                 'negative_utc': None,
             },
@@ -298,7 +306,10 @@ class AbstractTestStorage(DbTestFixture):
                 'fullname': b'me <me@soft.heri>',
             },
             'date': {
-                'timestamp': 1244567843.22,
+                'timestamp': {
+                    'seconds': 1244567843,
+                    'microseconds': 220000,
+                },
                 'offset': -720,
                 'negative_utc': None,
             },
@@ -308,7 +319,10 @@ class AbstractTestStorage(DbTestFixture):
                 'fullname': b'committer-dude <committer@dude.com>',
             },
             'committer_date': {
-                'timestamp': 1244567843.22,
+                'timestamp': {
+                    'seconds': 1244567843,
+                    'microseconds': 220000,
+                },
                 'offset': -720,
                 'negative_utc': None,
             },
@@ -556,6 +570,15 @@ class AbstractTestStorage(DbTestFixture):
         self.conn.commit()
 
         super().tearDown()
+
+    @staticmethod
+    def normalize_entity(entity):
+        entity = copy.deepcopy(entity)
+        for key in ('date', 'committer_date'):
+            if key in entity:
+                entity[key] = identifiers.normalize_timestamp(entity[key])
+
+        return entity
 
     @istest
     def check_config(self):
@@ -990,8 +1013,10 @@ class AbstractTestStorage(DbTestFixture):
             del actual_result['committer']['id']
 
         self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
-        self.assertEquals(actual_results[0], self.revision4)
-        self.assertEquals(actual_results[1], self.revision3)
+        self.assertEquals(actual_results[0],
+                          self.normalize_entity(self.revision4))
+        self.assertEquals(actual_results[1],
+                          self.normalize_entity(self.revision3))
 
     @istest
     def revision_log_with_limit(self):
@@ -1044,8 +1069,10 @@ class AbstractTestStorage(DbTestFixture):
             del actual_result['committer']['id']
 
         self.assertEqual(len(actual_results), 2)
-        self.assertEquals(actual_results[0], self.revision4)
-        self.assertEquals(actual_results[1], self.revision3)
+        self.assertEquals(actual_results[0],
+                          self.normalize_entity(self.revision4))
+        self.assertEquals(actual_results[1],
+                          self.normalize_entity(self.revision3))
 
         # when - 2
         actual_results = list(self.storage.revision_log_by(
@@ -1117,7 +1144,8 @@ class AbstractTestStorage(DbTestFixture):
         del actual_revisions[0]['committer']['id']
 
         self.assertEqual(len(actual_revisions), 2)
-        self.assertEqual(actual_revisions[0], self.revision)
+        self.assertEqual(actual_revisions[0],
+                         self.normalize_entity(self.revision))
         self.assertIsNone(actual_revisions[1])
 
     @istest
@@ -1215,7 +1243,8 @@ class AbstractTestStorage(DbTestFixture):
         del actual_results0[0]['committer']['id']
 
         self.assertEquals(len(actual_results0), 1)
-        self.assertEqual(actual_results0, [self.revision2])
+        self.assertEqual(actual_results0,
+                         [self.normalize_entity(self.revision2)])
 
         # when
         actual_results1 = list(self.storage.revision_get_by(
@@ -1228,7 +1257,8 @@ class AbstractTestStorage(DbTestFixture):
         del actual_results1[0]['committer']['id']
 
         self.assertEquals(len(actual_results1), 1)
-        self.assertEqual(actual_results1, [self.revision2])
+        self.assertEqual(actual_results1,
+                         [self.normalize_entity(self.revision2)])
 
         # when
         actual_results2 = list(self.storage.revision_get_by(
@@ -1240,7 +1270,8 @@ class AbstractTestStorage(DbTestFixture):
         del actual_results2[0]['committer']['id']
 
         self.assertEquals(len(actual_results2), 1)
-        self.assertEqual(actual_results2, [self.revision3])
+        self.assertEqual(actual_results2,
+                         [self.normalize_entity(self.revision3)])
 
         # when
         actual_results3 = list(self.storage.revision_get_by(
@@ -1253,7 +1284,8 @@ class AbstractTestStorage(DbTestFixture):
         del actual_results3[0]['committer']['id']
 
         self.assertEquals(len(actual_results3), 1)
-        self.assertEqual(actual_results3, [self.revision3])
+        self.assertEqual(actual_results3,
+                         [self.normalize_entity(self.revision3)])
 
         # when
         actual_results4 = list(self.storage.revision_get_by(
@@ -1266,7 +1298,8 @@ class AbstractTestStorage(DbTestFixture):
             del actual_result['committer']['id']
 
         self.assertEquals(len(actual_results4), 1)
-        self.assertCountEqual(actual_results4, [self.revision3])
+        self.assertCountEqual(actual_results4,
+                              [self.normalize_entity(self.revision3)])
 
     @istest
     def release_add(self):
@@ -1294,7 +1327,8 @@ class AbstractTestStorage(DbTestFixture):
         for actual_release in actual_releases:
             del actual_release['author']['id']  # hack: ids are generated
 
-        self.assertEquals([self.release, self.release2],
+        self.assertEquals([self.normalize_entity(self.release),
+                           self.normalize_entity(self.release2)],
                           [actual_releases[0], actual_releases[1]])
 
     @istest
