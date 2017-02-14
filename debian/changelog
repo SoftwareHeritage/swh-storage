@@ -1,8 +1,10 @@
-swh-storage (0.0.78-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.79-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.79
+  * archiver: keep counts of objects in each archive
+  * converters: normalize timestamps using swh.model
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 26 Jan 2017 15:08:03 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 14 Feb 2017 19:37:36 +0100
 
 swh-storage (0.0.78-1~swh1) unstable-swh; urgency=medium
 
