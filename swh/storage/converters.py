@@ -4,9 +4,9 @@
 # See top-level LICENSE file for more information
 
 import datetime
-import numbers
 
 from swh.core.utils import decode_with_escape, encode_with_unescape
+from swh.model import identifiers
 
 
 DEFAULT_AUTHOR = {
@@ -108,7 +108,10 @@ def db_to_date(date, offset, neg_utc_offset):
         return None
 
     return {
-        'timestamp': date.timestamp(),
+        'timestamp': {
+            'seconds': int(date.timestamp()),
+            'microseconds': date.microsecond,
+        },
         'offset': offset,
         'negative_utc': neg_utc_offset,
     }
@@ -130,28 +133,20 @@ def date_to_db(date_offset):
     if date_offset is None:
         return DEFAULT_DATE
 
-    if isinstance(date_offset, numbers.Real):
-        date_offset = datetime.datetime.fromtimestamp(date_offset,
-                                                      tz=datetime.timezone.utc)
+    normalized = identifiers.normalize_timestamp(date_offset)
 
-    if isinstance(date_offset, datetime.datetime):
-        timestamp = date_offset
-        utcoffset = date_offset.utcoffset()
-        offset = int(utcoffset.total_seconds()) // 60
-        neg_utc_offset = False if offset == 0 else None
-    else:
-        if isinstance(date_offset['timestamp'], numbers.Real):
-            timestamp = datetime.datetime.fromtimestamp(
-                date_offset['timestamp'], tz=datetime.timezone.utc)
-        else:
-            timestamp = date_offset['timestamp']
-        offset = date_offset['offset']
-        neg_utc_offset = date_offset.get('negative_utc', None)
+    ts = normalized['timestamp']
+    seconds = ts.get('seconds', 0)
+    microseconds = ts.get('microseconds', 0)
+
+    timestamp = datetime.datetime.fromtimestamp(seconds, datetime.timezone.utc)
+    timestamp = timestamp.replace(microsecond=microseconds)
 
     return {
+        # PostgreSQL supports isoformatted timestamps
         'timestamp': timestamp.isoformat(),
-        'offset': offset,
-        'neg_utc_offset': neg_utc_offset,
+        'offset': normalized['offset'],
+        'neg_utc_offset': normalized['negative_utc'],
     }
 
 
