@@ -5,6 +5,7 @@ Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python,
                python3-all,
+               python3-click,
                python3-dateutil,
                python3-flask,
                python3-nose,
@@ -12,31 +13,42 @@ Build-Depends: debhelper (>= 9),
                python3-requests,
                python3-setuptools,
                python3-swh.core (>= 0.0.28~),
+               python3-swh.model (>= 0.0.13~),
                python3-swh.objstorage (>= 0.0.17~),
-               python3-vcversioner,
                python3-swh.scheduler,
-               python3-click
+               python3-vcversioner
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
 
 Package: python3-swh.storage
 Architecture: all
-Depends: python3-swh.core (>= 0.0.28~), python3-swh.objstorage (>= 0.0.17~), ${misc:Depends}, ${python3:Depends}
+Depends: python3-swh.core (>= 0.0.28~),
+         python3-swh.model (>= 0.0.13~),
+         python3-swh.objstorage (>= 0.0.17~),
+         ${misc:Depends},
+         ${python3:Depends}
 Description: Software Heritage storage utilities
 
 Package: python3-swh.storage.listener
 Architecture: all
-Depends: python3-swh.storage (= ${binary:Version}), ${misc:Depends}, ${python3:Depends}, python3-kafka (>= 1.3.1~)
+Depends: python3-kafka (>= 1.3.1~),
+         python3-swh.storage (= ${binary:Version}),
+         ${misc:Depends},
+         ${python3:Depends}
 Description: Software Heritage storage listener
 
 Package: python3-swh.storage.archiver
 Architecture: all
-Depends: python3-swh.storage (= ${binary:Version}), python3-swh.scheduler,
-         ${misc:Depends}, ${python3:Depends}
+Depends: python3-swh.scheduler,
+         python3-swh.storage (= ${binary:Version}),
+         ${misc:Depends},
+         ${python3:Depends}
 Description: Software Heritage storage Archiver
 
 Package: python3-swh.storage.provenance
 Architecture: all
-Depends: python3-swh.storage (= ${binary:Version}), python3-swh.scheduler,
-         ${misc:Depends}, ${python3:Depends}
+Depends: python3-swh.scheduler,
+         python3-swh.storage (= ${binary:Version}),
+         ${misc:Depends},
+         ${python3:Depends}
 Description: Software Heritage storage Provenance
