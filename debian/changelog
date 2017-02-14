@@ -1,3 +1,11 @@
+swh-storage (0.0.79-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.79
+  * archiver: keep counts of objects in each archive
+  * converters: normalize timestamps using swh.model
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 14 Feb 2017 19:37:36 +0100
+
 swh-storage (0.0.78-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.78
