@@ -81,11 +81,11 @@ class DirectoryVaultCooker(BaseVaultCooker):
         self.storage = storage
         self.cache = cache
 
-    def cook(self, dir_id):
+    def cook(self, obj_id):
         """Cook the requested directory into a Bundle
 
         Args:
-            dir_id (bytes): the id of the directory to be cooked.
+            obj_id (bytes): the id of the directory to be cooked.
 
         Returns:
             bytes that correspond to the bundle
@@ -94,16 +94,16 @@ class DirectoryVaultCooker(BaseVaultCooker):
         # Create the bytes that corresponds to the compressed
         # directory.
         directory_cooker = DirectoryCooker(self.storage)
-        bundle_content = directory_cooker.get_directory_bytes(dir_id)
+        bundle_content = directory_cooker.get_directory_bytes(obj_id)
         # Cache the bundle
-        self.update_cache(dir_id, bundle_content)
+        self.update_cache(obj_id, bundle_content)
         # Make a notification that the bundle have been cooked
         # NOT YET IMPLEMENTED see TODO in function.
         self.notify_bundle_ready(
-            notif_data='Bundle %s ready' % hashutil.hash_to_hex(dir_id),
-            bundle_id=dir_id)
+            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
+            bundle_id=obj_id)
 
-    def notify_bundle_ready(self, bundle_id):
+    def notify_bundle_ready(self, notif_data, bundle_id):
         # TODO plug this method with the notification method once
         # done.
         pass
