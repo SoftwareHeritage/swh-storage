@@ -6,6 +6,7 @@
 import abc
 import io
 import itertools
+import logging
 import os
 import tarfile
 import tempfile
@@ -126,6 +127,7 @@ class DirectoryCooker():
         # Retrieve data from the database.
         data = self.storage.directory_ls(dir_id, recursive=True)
         # Split into files and directory data.
+        # TODO(seirl): also handle revision data.
         data1, data2 = itertools.tee(data, 2)
         dir_data = (entry['name'] for entry in data1 if entry['type'] == 'dir')
         file_data = (entry for entry in data2 if entry['type'] == 'file')
@@ -165,20 +167,29 @@ class DirectoryCooker():
         for file_data in file_datas:
             path = os.path.join(root, file_data['name'])
             status = file_data['status']
+            perms = file_data['perms']
             if status == 'absent':
                 self._create_file_absent(path)
             elif status == 'hidden':
                 self._create_file_hidden(path)
             else:
                 content = self._get_file_content(file_data['sha1'])
-                self._create_file(path, content)
+                self._create_file(path, content, perms)
 
-    def _create_file(self, path, content):
+    def _create_file(self, path, content, perms=0o100644):
         """Create the given file and fill it with content.
 
         """
-        with open(path, 'wb') as f:
-            f.write(content)
+        if perms not in (0o100644, 0o100755, 0o120000):
+            logging.warning('File {} has invalid permission {}, '
+                            'defaulting to 644.'.format(path, perms))
+
+        if perms == 0o120000:  # Symbolic link
+            os.symlink(content, path)
+        else:
+            with open(path, 'wb') as f:
+                f.write(content)
+            os.chmod(path, perms & 0o777)
 
     def _get_file_content(self, obj_id):
         """Get the content of the given file.
