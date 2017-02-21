@@ -47,7 +47,7 @@ Command:
 python3 -m swh.storage.api.server ~/.config/swh/storage.yml
 ```
 
-This runs a local swh-storage api at 5000 port.
+This runs a local swh-storage api at 5002 port.
 
 
 # And then what?
@@ -59,7 +59,7 @@ remote storage with this snippet of yaml configuration.
 storage:
   cls: remote
   args:
-    url: http://localhost:5000/
+    url: http://localhost:5002/
 ```
 
 You could directly define a local storage with the following snippet:
