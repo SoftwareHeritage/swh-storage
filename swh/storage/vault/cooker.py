@@ -11,6 +11,8 @@ import os
 import tarfile
 import tempfile
 
+from pathlib import Path
+
 from swh.core import hashutil
 
 
@@ -110,6 +112,60 @@ class DirectoryVaultCooker(BaseVaultCooker):
         pass
 
 
+class RevisionVaultCooker(BaseVaultCooker):
+    """Cooker to create a directory bundle """
+    CACHE_TYPE_KEY = 'revision'
+
+    def __init__(self, storage, cache):
+        """Initialize a cooker that create revision bundles
+
+        Args:
+            storage: source storage where content are retrieved.
+            cache: destination storage where the cooked bundle are stored.
+
+        """
+        self.storage = storage
+        self.cache = cache
+
+    def cook(self, obj_id):
+        """Cook the requested revision into a Bundle
+
+        Args:
+            obj_id (bytes): the id of the revision to be cooked.
+
+        Returns:
+            bytes that correspond to the bundle
+
+        """
+        directory_cooker = DirectoryCooker(self.storage)
+        with tempfile.TemporaryDirectory(suffix='.cook') as root_tmp:
+            root = Path(root_tmp)
+            for revision in self.storage.revision_log([obj_id]):
+                revhex = hashutil.hash_to_hex(revision['id'])
+                revdir = (root / revhex)
+                revdir.mkdir()
+                directory_cooker.build_directory(revision['directory'],
+                                                 str(revdir).encode())
+
+            tar_buffer = io.BytesIO()
+            tar = tarfile.open(fileobj=tar_buffer, mode='w')
+            tar.add(root_tmp, arcname=hashutil.hash_to_hex(obj_id))
+            bundle_content = tar_buffer.getbuffer()
+
+        # Cache the bundle
+        self.update_cache(obj_id, bundle_content)
+        # Make a notification that the bundle have been cooked
+        # NOT YET IMPLEMENTED see TODO in function.
+        self.notify_bundle_ready(
+            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
+            bundle_id=obj_id)
+
+    def notify_bundle_ready(self, notif_data, bundle_id):
+        # TODO plug this method with the notification method once
+        # done.
+        pass
+
+
 class DirectoryCooker():
     """Creates a cooked directory from its sha1_git in the db.
 
@@ -124,8 +180,18 @@ class DirectoryCooker():
         # Create temporary folder to retrieve the files into.
         root = bytes(tempfile.mkdtemp(prefix='directory.',
                                       suffix='.cook'), 'utf8')
+        self.build_directory(dir_id, root)
+        # Use the created directory to make a bundle with the data as
+        # a compressed directory.
+        bundle_content = self._create_bundle_content(
+            root,
+            hashutil.hash_to_hex(dir_id))
+        return bundle_content
+
+    def build_directory(self, dir_id, root):
         # Retrieve data from the database.
         data = self.storage.directory_ls(dir_id, recursive=True)
+
         # Split into files and directory data.
         # TODO(seirl): also handle revision data.
         data1, data2 = itertools.tee(data, 2)
@@ -135,13 +201,6 @@ class DirectoryCooker():
         # Recreate the directory's subtree and then the files into it.
         self._create_tree(root, dir_data)
         self._create_files(root, file_data)
-
-        # Use the created directory to make a bundle with the data as
-        # a compressed directory.
-        bundle_content = self._create_bundle_content(
-            root,
-            hashutil.hash_to_hex(dir_id))
-        return bundle_content
 
     def _create_tree(self, root, directory_paths):
         """Create a directory tree from the given paths
