@@ -23,6 +23,16 @@ SKIPPED_MESSAGE = (b'This content have not been retrieved in '
 HIDDEN_MESSAGE = (b'This content is hidden')
 
 
+def get_tar_bytes(path, arcname=None):
+    path = Path(path)
+    if not arcname:
+        arcname = path.name
+    tar_buffer = io.BytesIO()
+    tar = tarfile.open(fileobj=tar_buffer, mode='w')
+    tar.add(str(path), arcname=arcname)
+    return tar_buffer.getbuffer()
+
+
 class BaseVaultCooker(metaclass=abc.ABCMeta):
     """Abstract base class for the vault's bundle creators
 
@@ -141,17 +151,12 @@ class RevisionVaultCooker(BaseVaultCooker):
         with tempfile.TemporaryDirectory(suffix='.cook') as root_tmp:
             root = Path(root_tmp)
             for revision in self.storage.revision_log([obj_id]):
-                revhex = hashutil.hash_to_hex(revision['id'])
-                revdir = (root / revhex)
+                revdir = root / hashutil.hash_to_hex(revision['id'])
                 revdir.mkdir()
                 directory_cooker.build_directory(revision['directory'],
                                                  str(revdir).encode())
-
-            tar_buffer = io.BytesIO()
-            tar = tarfile.open(fileobj=tar_buffer, mode='w')
-            tar.add(root_tmp, arcname=hashutil.hash_to_hex(obj_id))
-            bundle_content = tar_buffer.getbuffer()
-
+            bundle_content = get_tar_bytes(root_tmp,
+                                           hashutil.hash_to_hex(obj_id))
         # Cache the bundle
         self.update_cache(obj_id, bundle_content)
         # Make a notification that the bundle have been cooked
@@ -288,7 +293,4 @@ class DirectoryCooker():
             bytes that represent the compressed directory as a bundle.
 
         """
-        tar_buffer = io.BytesIO()
-        tar = tarfile.open(fileobj=tar_buffer, mode='w')
-        tar.add(path.decode(), arcname=hex_dir_id)
-        return tar_buffer.getbuffer()
+        return get_tar_bytes(path.decode(), hex_dir_id)
