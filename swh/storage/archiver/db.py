@@ -1,9 +1,10 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 
+import json
 import time
 
 from swh.core import hashutil
@@ -256,5 +257,31 @@ class ArchiverDb(BaseDb):
                     WHERE content_id='%s'
                     """ % (archive_id, int(time.time()))
 
+        cur = self._cursor(cur)
+        cur.execute(query)
+
+    def content_archive_content_add(
+            self, content_id, sources_present, sources_missing, cur=None):
+
+        if isinstance(content_id, bytes):
+            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
+
+        copies = {}
+        num_present = 0
+        for source in sources_present:
+            copies[source] = {
+                "status": "present",
+                "mtime": int(time.time()),
+            }
+            num_present += 1
+
+        for source in sources_missing:
+            copies[source] = {
+                "status": "absent",
+            }
+
+        query = """INSERT INTO content_archive(content_id, copies, num_present)
+                   VALUES('%s', '%s', %s)
+                    """ % (content_id, json.dumps(copies), num_present)
         cur = self._cursor(cur)
         cur.execute(query)
