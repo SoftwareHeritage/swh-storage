@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,7 @@ import sys
 
 from swh.core import config, utils, hashutil
 from swh.objstorage import get_objstorage
-from swh.scheduler.celery_backend.config import app
+from swh.scheduler.utils import get_task
 
 from . import tasks  # noqa
 from .storage import ArchiverStorage
@@ -59,6 +59,7 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         self.config = self.parse_config_file(
             additional_configs=[self.ADDITIONAL_CONFIG])
         self.archiver_storage = ArchiverStorage(self.config['dbconn'])
+        self.task = get_task(self.TASK_NAME)
 
     def run(self):
         """ Run the archiver director.
@@ -78,15 +79,13 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         """Produce a worker that will be added to the task queue.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task.delay(batch=batch)
+        self.task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
         """Run synchronously a worker on the given batch.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task(batch=batch)
+        self.task(batch=batch)
 
     def read_batch_contents(self):
         """ Create batch of contents that needs to be archived
@@ -275,15 +274,13 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         """Produce a worker that will be added to the task queue.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task.delay(destination=self.destination, batch=batch)
+        self.task.delay(destination=self.destination, batch=batch)
 
     def run_sync_worker(self, batch):
         """Run synchronously a worker on the given batch.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task(destination=self.destination, batch=batch)
+        self.task(destination=self.destination, batch=batch)
 
 
 @click.command()

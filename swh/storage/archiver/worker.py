@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,7 +14,7 @@ from celery import group
 from swh.core import hashutil, config, utils
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import Error, ObjNotFoundError
-from swh.scheduler.celery_backend.config import app
+from swh.scheduler.utils import get_task
 
 from .storage import ArchiverStorage
 from .copier import ArchiverCopier
@@ -368,7 +368,7 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         self.destination = destination
         next_task = self.config['next_task']
         destination_queue = next_task['queue']
-        self.task_destination = app.tasks[destination_queue]
+        self.task_destination = get_task(destination_queue)
         self.batch_size = int(next_task['batch_size'])
 
     def need_archival(self, content_data):
