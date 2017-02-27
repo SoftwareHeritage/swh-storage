@@ -182,14 +182,14 @@ class BaseDb:
             self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
                 tblname, ', '.join(columns)), f)
 
+    def mktemp(self, tblname, cur=None):
+        self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
+
 
 class Db(BaseDb):
     """Proxy to the SWH DB, with wrappers around stored procedures
 
     """
-    def mktemp(self, tblname, cur=None):
-        self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
-
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
                                   (('directory_entry_%s' % entry_type),))

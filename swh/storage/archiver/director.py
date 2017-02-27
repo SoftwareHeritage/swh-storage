@@ -203,8 +203,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         # Fallback objstorage
         self.source = self.config['source']
         # Where the content is missing
-        self.sources_missing = list(
-            set(self.objstorages.keys()) - set(self.source))
+        self.sources_missing = set(self.objstorages.keys()) - set([self.source])  # noqa
 
     def _add_unknown_content_ids(self, content_ids, source_objstorage):
         """Check whether some content_id are unknown.
@@ -217,10 +216,10 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
             content_id is there
 
         """
-        unknowns = self.archiver_storage.content_archive_get_unknown(
-            content_ids)
         self.archiver_storage.content_archive_add(
-            [u_id for u_id in unknowns if u_id in self.source],
+            (h['content_id']
+             for h in content_ids
+             if h['content_id'] in source_objstorage),
             sources_present=[self.source],
             sources_missing=self.sources_missing)
 

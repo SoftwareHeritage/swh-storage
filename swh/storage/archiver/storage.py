@@ -170,14 +170,15 @@ class ArchiverStorage():
                                      contents are missing
 
         """
+        db = self.db
+
+        # Prepare copies dictionary
         copies = {}
-        num_present = 0
         for source in sources_present:
             copies[source] = {
                 "status": "present",
                 "mtime": int(time.time()),
             }
-            num_present += 1
 
         for source in sources_missing:
             copies[source] = {
@@ -187,13 +188,13 @@ class ArchiverStorage():
         copies = json.dumps(copies)
         num_present = len(sources_present)
 
-        db = self.db
-        db.mktemp_content_archive(cur)
-        db.copy_to(({'content_id': id,
-                     'copies': copies,
-                     'num_present': num_present}
-                    for id in content_ids),
-                   'tmp_content_archive',
-                   ['content_id', 'copies', 'num_present'],
-                   cur)
+        db.mktemp('content_archive')
+        db.copy_to(
+            ({'content_id': id,
+              'copies': copies,
+              'num_present': num_present}
+             for id in content_ids),
+            'tmp_content_archive',
+            ['content_id', 'copies', 'num_present'],
+            cur)
         db.content_archive_add_from_temp(cur)

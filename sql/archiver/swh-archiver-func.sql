@@ -91,7 +91,26 @@ $$;
 
 comment on function get_content_archive_counts() is 'Get count for each archive';
 
--- Add new content_archive from temporary table, skipping duplicates.
+-- create a temporary table called tmp_TBLNAME, mimicking existing table
+-- TBLNAME
+create or replace function swh_mktemp(tblname regclass)
+    returns void
+    language plpgsql
+as $$
+begin
+    execute format('
+	create temporary table tmp_%1$I
+	    (like %1$I including defaults)
+	    on commit drop;
+	', tblname);
+    return;
+end
+$$;
+
+comment on function swh_mktemp(regclass) is 'Helper function to create a temporary table mimicking the existing one';
+
+-- Helper function to insert new entries in content_archive from a
+-- temporary table skipping duplicates.
 create or replace function swh_content_archive_add()
     returns void
     language plpgsql

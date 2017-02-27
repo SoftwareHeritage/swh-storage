@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 
-import json
 import time
 
 from swh.core import hashutil
@@ -181,8 +180,8 @@ class ArchiverDb(BaseDb):
         """
         pass
 
-    @stored_procedure('swh_add_content_archive')
-    def add_content_archive_from_temp(self, cur=None):
+    @stored_procedure('swh_content_archive_add')
+    def content_archive_add_from_temp(self, cur=None):
         """Add new content archive entries from temporary table.
 
         Use from archiver.storage module:
@@ -248,37 +247,5 @@ class ArchiverDb(BaseDb):
                     WHERE content_id='%s'
                     """ % (archive_id, int(time.time()))
 
-        cur = self._cursor(cur)
-        cur.execute(query)
-
-    def content_archive_add(
-            self, content_id, sources_present, sources_missing, cur=None):
-        """Add content archive entry for the content content_id.
-        The status is:
-        - present for all sources in sources_present.
-        - missing for all sources in sources_missing.
-
-        """
-
-        if isinstance(content_id, bytes):
-            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
-
-        copies = {}
-        num_present = 0
-        for source in sources_present:
-            copies[source] = {
-                "status": "present",
-                "mtime": int(time.time()),
-            }
-            num_present += 1
-
-        for source in sources_missing:
-            copies[source] = {
-                "status": "missing",
-            }
-
-        query = """INSERT INTO content_archive(content_id, copies, num_present)
-                   VALUES('%s', '%s', %s)
-                """ % (content_id, json.dumps(copies), num_present)
         cur = self._cursor(cur)
         cur.execute(query)
