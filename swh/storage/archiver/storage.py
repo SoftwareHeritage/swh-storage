@@ -156,28 +156,18 @@ class ArchiverStorage():
         self.db.content_archive_update(content_id, archive_id, new_status, cur)
 
     @db_transaction
-    def content_archive_insert(self, content_id, source, status, cur=None):
-        """Insert a new entry in db about content_id.
-
-        Args:
-            content_id: content concerned
-            source: name of the source
-            status: the status of the content for that source
-
-        """
-        self.db.content_archive_insert(content_id, source, status, cur)
-
-    @db_transaction
-    def content_archive_content_add(
+    def content_archive_add(
             self, content_ids, sources_present, sources_missing, cur=None):
         """Insert a new entry in db about content_id.
 
         Args:
             content_ids ([bytes|str]): content identifiers
-            sources_present: name of the source where the contents are present
-            sources_missing: name of the source where the contents are missing
+            sources_present ([str]): List of source names where
+                                     contents are present
+            sources_missing ([str]): List of sources names where
+                                     contents are missing
 
         """
         for content_id in content_ids:
-            self.db.content_archive_content_add(
+            self.db.content_archive_add(
                 content_id, sources_present, sources_missing)
