@@ -1,4 +1,4 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -300,24 +300,3 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             len(self._get_backups(['uffizi'], ['banco', 's3'])),
             1
         )
-
-    # This cannot be tested with ArchiverWithRetentionPolicyDirector
-    # (it reads from archiver db)
-    # @istest
-    # def archive_missing_content__without_row_entry_in_archive_db(self):
-    #     """ Run archiver on a missing content should archive it.
-    #     """
-    #     obj_data = b'archive_missing_content_without_row_entry_in_archive_db'
-    #     obj_id = self._add_content('uffizi', obj_data)
-    #     # One entry in archiver db but no status about its whereabouts
-    #     # Content is actually missing on banco but present on uffizi
-    #     try:
-    #         self.dest_storage.get(obj_id)
-    #     except ObjNotFoundError:
-    #         pass
-    #     else:
-    #         self.fail('Content should not be present before archival')
-    #     self.archiver.run()
-    #     # now the content should be present on remote objstorage
-    #     remote_data = self.dest_storage.get(obj_id)
-    #     self.assertEquals(obj_data, remote_data)
