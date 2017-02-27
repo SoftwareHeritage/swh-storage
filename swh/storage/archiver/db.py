@@ -244,6 +244,12 @@ class ArchiverDb(BaseDb):
 
     def content_archive_add(
             self, content_id, sources_present, sources_missing, cur=None):
+        """Add content archive entry for the content content_id.
+        The status is:
+        - present for all sources in sources_present.
+        - missing for all sources in sources_missing.
+
+        """
 
         if isinstance(content_id, bytes):
             content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
@@ -259,7 +265,7 @@ class ArchiverDb(BaseDb):
 
         for source in sources_missing:
             copies[source] = {
-                "status": "absent",
+                "status": "missing",
             }
 
         query = """INSERT INTO content_archive(content_id, copies, num_present)
