@@ -11,7 +11,7 @@ create table dbversion
 comment on table dbversion is 'Schema update tracking';
 
 INSERT INTO dbversion(version, release, description)
-VALUES(8, now(), 'Work In Progress');
+VALUES(9, now(), 'Work In Progress');
 
 CREATE TABLE archive (
   id text PRIMARY KEY

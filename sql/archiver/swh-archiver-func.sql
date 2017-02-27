@@ -90,3 +90,19 @@ create or replace function get_content_archive_counts() returns setof content_ar
 $$;
 
 comment on function get_content_archive_counts() is 'Get count for each archive';
+
+-- Add new content_archive from temporary table, skipping duplicates.
+create or replace function swh_content_archive_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into content_archive (content_id, copies, num_present)
+	select distinct content_id, copies, num_present
+	from tmp_content_archive
+        on conflict(content_id) do nothing;
+    return;
+end
+$$;
+
+comment on function swh_content_archive_add() is 'Helper function to insert new entry in content_archive';
