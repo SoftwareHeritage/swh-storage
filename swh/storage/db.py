@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -262,6 +262,11 @@ class Db(BaseDb):
         self.mktemp_bytea(cur)
         self.copy_to(({'id': elem} for elem in ids), 'tmp_bytea',
                      ['id'], cur)
+
+    def content_update_from_temp(self, keys_to_update, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("""select swh_content_update(ARRAY[%s] :: text[])""" %
+                    keys_to_update)
 
     content_get_metadata_keys = ['sha1', 'sha1_git', 'sha256', 'length',
                                  'status']

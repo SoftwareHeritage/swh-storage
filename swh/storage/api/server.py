@@ -82,6 +82,11 @@ def content_add():
     return encode_data(g.storage.content_add(**decode_request(request)))
 
 
+@app.route('/content/update', methods=['POST'])
+def content_update():
+    return encode_data(g.storage.content_update(**decode_request(request)))
+
+
 @app.route('/content/data', methods=['POST'])
 def content_get():
     return encode_data(g.storage.content_get(**decode_request(request)))
