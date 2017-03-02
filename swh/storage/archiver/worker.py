@@ -91,8 +91,8 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             if not self.need_archival(copies):
                 continue
 
-            present = copies.get('present', [])
-            missing = copies.get('missing', [])
+            present = copies.get('present', set())
+            missing = copies.get('missing', set())
             if len(present) == 0:
                 msg = 'Lost content %s' % hashutil.hash_to_hex(obj_id)
                 logger.critical(msg)
@@ -118,26 +118,25 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
             content_id: the content concerned
 
         Returns:
-            A dictionary with keys 'present' and 'missing' that are
-            mapped to lists of copies ids depending on whenever the
-            content is present or missing on the copy.
-
-            There is also the key 'ongoing' which is associated with a
-            dict that map to a copy name the mtime of the ongoing
-            status update.
-
+            A dictionary with the following keys:
+             - 'present': set of archives where the content is present
+             - 'missing': set of archives where the content is missing
+             - 'ongoing': ongoing copies: dict mapping the archive id
+                          with the time the copy supposedly started.
         """
         result = self.archiver_db.content_archive_get(content_id)
         if not result:
             return None
         _, present, ongoing = result
-        set_present = set(present)
-        set_ongoing = set(ongoing)
+        set_present = set_objstorages & set(present)
+        set_ongoing = set_objstorages & set(ongoing)
         set_missing = set_objstorages - set_present - set_ongoing
         return {
             'present': set_present,
             'missing': set_missing,
-            'ongoing': ongoing
+            'ongoing': {archive: value
+                        for archive, value in ongoing.items()
+                        if archive in set_ongoing},
         }
 
     def run_copier(self, source, destination, content_ids):

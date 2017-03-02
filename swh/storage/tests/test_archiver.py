@@ -284,6 +284,16 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """
         self._compute_copies_status('missing')
 
+    @istest
+    def compute_copies_extra_archive(self):
+        obj_id = self._add_content('banco', b'foobar')
+        self._update_status(obj_id, 'banco', 'present')
+        self._update_status(obj_id, 'random_archive', 'present')
+        worker = self._create_worker()
+        copies = worker.compute_copies(set(worker.objstorages), obj_id)
+        self.assertEqual(copies['present'], {'banco'})
+        self.assertEqual(copies['missing'], {'uffizi'})
+
     def _get_backups(self, present, missing):
         """ Return a list of the pair src/dest from the present and missing
         """
