@@ -211,17 +211,16 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         # Where the content is missing
         self.sources_missing = set(self.objstorages.keys()) - set([self.source])  # noqa
 
-    def _add_unknown_content_ids(self, content_ids, source_objstorage):
+    def _add_unknown_content_ids(self, content_ids):
         """Check whether some content_id are unknown.
         If they are, add them to the archiver db.
 
         Args:
             content_ids: List of dict with one key content_id
 
-            source_objstorage (ObjStorage): objstorage to check if
-            content_id is there
-
         """
+        source_objstorage = self.objstorages[self.source]
+
         self.archiver_storage.content_archive_add(
             (h['content_id']
              for h in content_ids
@@ -234,7 +233,6 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
             ids for ids in utils.grouper(read_sha1_from_stdin(),
                                          self.config['batch_max_size']))
 
-        source_objstorage = self.objstorages[self.source]
         if self.force_copy:
             for content_ids in gen_content_ids:
                 content_ids = list(content_ids)
@@ -243,7 +241,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
                     continue
 
                 # Add missing entries in archiver table
-                self._add_unknown_content_ids(content_ids, source_objstorage)
+                self._add_unknown_content_ids(content_ids)
 
                 print('Send %s contents to archive' % len(content_ids))
 
@@ -259,7 +257,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
                 content_ids = list(content_ids)
 
                 # Add missing entries in archiver table
-                self._add_unknown_content_ids(content_ids, source_objstorage)
+                self._add_unknown_content_ids(content_ids)
 
                 # Filter already copied data
                 content_ids = list(
