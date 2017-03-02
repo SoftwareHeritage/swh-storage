@@ -159,16 +159,13 @@ class ArchiverStorage():
 
     @db_transaction
     def content_archive_add(
-            self, content_ids, sources_present, sources_missing, cur=None):
+            self, content_ids, sources_present, cur=None):
         """Insert a new entry in db about content_id.
 
         Args:
             content_ids ([bytes|str]): content identifiers
             sources_present ([str]): List of source names where
                                      contents are present
-            sources_missing ([str]): List of sources names where
-                                     contents are missing
-
         """
         db = self.db
 
@@ -178,11 +175,6 @@ class ArchiverStorage():
             copies[source] = {
                 "status": "present",
                 "mtime": int(time.time()),
-            }
-
-        for source in sources_missing:
-            copies[source] = {
-                "status": "missing",
             }
 
         copies = json.dumps(copies)
