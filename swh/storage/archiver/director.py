@@ -154,8 +154,14 @@ def read_sha1_from_stdin():
     """Read sha1 from stdin.
 
     """
-    for sha1 in sys.stdin:
-        yield {'content_id': hashutil.hex_to_hash(sha1.rstrip())}
+    for line in sys.stdin:
+        sha1 = line.strip()
+        try:
+            yield {'content_id': hashutil.hex_to_hash(sha1)}
+        except Exception:
+            print("%s is not a valid sha1 hash, continuing" % repr(sha1),
+                  file=sys.stderr)
+            continue
 
 
 class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
