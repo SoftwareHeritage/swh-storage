@@ -17,6 +17,8 @@ class SWHArchiverContentUpdater(SWHJournalClient):
        This is a swh.journal client only dealing with contents.
 
     """
+    CONFIG_BASE_FILENAME = 'archiver/content_updater'
+
     ADDITIONAL_CONFIG = {
         'archiver_storage_conn': (
             'str', 'dbname=softwareheritage-archiver-dev user=guest'),
