@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+
 from swh.journal.client import SWHJournalClient
 
 from .storage import ArchiverStorage
@@ -37,5 +39,10 @@ class SWHArchiverContentUpdater(SWHJournalClient):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(process)d %(levelname)s %(message)s'
+    )
+
     content_updater = SWHArchiverContentUpdater()
     content_updater.process()
