@@ -4,16 +4,16 @@
 # See top-level LICENSE file for more information
 
 import click
+import re
 from flask import abort, g
 from werkzeug.routing import BaseConverter
 from swh.core import config
 from swh.core.api import (SWHServerAPIApp, error_handler,
                           encode_data_server as encode_data)
-from swh.storage import get_storage
-from swh.storage.vault.api import cooking_tasks  # NOQA
+from swh.scheduler.utils import get_task
+from swh.storage.vault.api.cooking_tasks import COOKER_TYPES
+from swh.storage.vault.api.cooking_tasks import SWHCookingTask  # noqa
 from swh.storage.vault.cache import VaultCache
-from swh.storage.vault.cooker import DirectoryVaultCooker
-from swh.scheduler.celery_backend.config import app as celery_app
 
 
 cooking_task_name = 'swh.storage.vault.api.cooking_tasks.SWHCookingTask'
@@ -34,14 +34,15 @@ DEFAULT_CONFIG = {
 }
 
 
-class RegexConverter(BaseConverter):
+class CookerConverter(BaseConverter):
     def __init__(self, url_map, *items):
         super().__init__(url_map)
-        self.regex = items[0]
+        types = [re.escape(c) for c in COOKER_TYPES]
+        self.regex = '({})'.format('|'.join(types))
 
 
 app = SWHServerAPIApp(__name__)
-app.url_map.converters['regex'] = RegexConverter
+app.url_map.converters['cooker'] = CookerConverter
 
 
 @app.errorhandler(Exception)
@@ -52,10 +53,6 @@ def my_error_handler(exception):
 @app.before_request
 def before_request():
     g.cache = VaultCache(**app.config['cache'])
-    g.cooker = DirectoryVaultCooker(
-        get_storage(**app.config['storage']),
-        g.cache
-    )
 
 
 @app.route('/')
@@ -63,7 +60,7 @@ def index():
     return 'SWH vault API server'
 
 
-@app.route('/vault/<regex("directory|revision|snapshot"):type>/',
+@app.route('/vault/<cooker:type>/',
            methods=['GET'])
 def ls_directory(type):
     return encode_data(list(
@@ -71,7 +68,7 @@ def ls_directory(type):
     ))
 
 
-@app.route('/vault/<regex("directory|revision|snapshot"):type>/<id>/',
+@app.route('/vault/<cooker:type>/<id>/',
            methods=['GET'])
 def get_cooked_directory(type, id):
     if not g.cache.is_cached(type, id):
@@ -79,10 +76,10 @@ def get_cooked_directory(type, id):
     return encode_data(g.cache.get(type, id).decode())
 
 
-@app.route('/vault/<regex("directory|revision|snapshot"):type>/<id>/',
+@app.route('/vault/<cooker:type>/<id>/',
            methods=['POST'])
 def cook_request_directory(type, id):
-    task = celery_app.tasks[cooking_task_name]
+    task = get_task(cooking_task_name)
     task.delay(type, id, app.config['storage'], app.config['cache'])
     # Return url to get the content and 201 CREATED
     return encode_data('/vault/%s/%s/' % (type, id)), 201

@@ -14,22 +14,14 @@ class RemoteVaultCache(SWHRemoteAPI):
     def __init__(self, base_url):
         super().__init__(api_exception=StorageAPIError, url=base_url)
 
-    def directory_ls(self):
-        return self.get('vault/directory/')
+    def ls(self, obj_type):
+        return self.get('vault/{}/'.format(obj_type))
 
-    def directory_get(self, obj_id):
-        return self.get('vault/directory/%s/' % (hashutil.hash_to_hex(obj_id)))
+    def get(self, obj_type, obj_id):
+        return self.get('vault/{}/{}/'.format(obj_type,
+                                              hashutil.hash_to_hex(obj_id)))
 
-    def directory_cook(self, obj_id):
-        return self.post('vault/directory/%s/' % hashutil.hash_to_hex(obj_id),
-                         data={})
-
-    def revision_ls(self):
-        return self.get('vault/revision/')
-
-    def revision_get(self, obj_id):
-        return self.get('vault/revision/%s/' % (hashutil.hash_to_hex(obj_id)))
-
-    def revision_cook(self, obj_id):
-        return self.post('vault/revision/%s/' % hashutil.hash_to_hex(obj_id),
+    def cook(self, obj_type, obj_id):
+        return self.post('vault/{}/{}/'.format(obj_type,
+                                               hashutil.hash_to_hex(obj_id)),
                          data={})

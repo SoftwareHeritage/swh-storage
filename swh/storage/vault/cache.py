@@ -9,12 +9,6 @@ from swh.core import hashutil
 from swh.objstorage import get_objstorage
 from swh.objstorage.objstorage_pathslicing import DIR_MODE
 
-BUNDLE_TYPES = {
-    'directory': 'd',
-    'revision': 'r',
-    'snapshot': 's',
-}
-
 
 class VaultCache():
     """The vault cache is an object storage that stores bundles
@@ -26,24 +20,8 @@ class VaultCache():
     """
 
     def __init__(self, root):
-        for subdir in BUNDLE_TYPES.values():
-            fp = os.path.join(root, subdir)
-            if not os.path.isdir(fp):
-                os.makedirs(fp, DIR_MODE, exist_ok=True)
-
-        self.storages = {
-            type: get_objstorage(
-                'pathslicing', {'root': os.path.join(root, subdir),
-                                'slicing': '0:1/0:5'}
-            )
-            for type, subdir in BUNDLE_TYPES.items()
-        }
-
-    def __contains__(self, obj_id):
-        for storage in self.storages:
-            if obj_id in storage:
-                return True
-        return False
+        self.root = root
+        self.storages = {}
 
     def add(self, obj_type, obj_id, content):
         storage = self._get_storage(obj_type)
@@ -63,7 +41,13 @@ class VaultCache():
 
     def _get_storage(self, obj_type):
         """Get the storage that corresponds to the object type"""
-        try:
-            return self.storages[obj_type]
-        except:
-            raise ValueError('Wrong bundle type: ' + obj_type)
+
+        if obj_type not in self.storages:
+            fp = os.path.join(self.root, obj_type)
+            if not os.path.isdir(fp):
+                os.makedirs(fp, DIR_MODE, exist_ok=True)
+
+            self.storages[obj_type] = get_objstorage(
+                'pathslicing', {'root': fp, 'slicing': '0:1/0:5'})
+
+        return self.storages[obj_type]

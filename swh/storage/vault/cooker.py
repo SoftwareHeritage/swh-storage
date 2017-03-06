@@ -79,20 +79,9 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         pass
 
 
-class DirectoryVaultCooker(BaseVaultCooker):
+class DirectoryCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
     CACHE_TYPE_KEY = 'directory'
-
-    def __init__(self, storage, cache):
-        """Initialize a cooker that create directory bundles
-
-        Args:
-            storage: source storage where content are retrieved.
-            cache: destination storage where the cooked bundle are stored.
-
-        """
-        self.storage = storage
-        self.cache = cache
 
     def cook(self, obj_id):
         """Cook the requested directory into a Bundle
@@ -106,7 +95,7 @@ class DirectoryVaultCooker(BaseVaultCooker):
         """
         # Create the bytes that corresponds to the compressed
         # directory.
-        directory_cooker = DirectoryCooker(self.storage)
+        directory_cooker = DirectoryBuilder(self.storage)
         bundle_content = directory_cooker.get_directory_bytes(obj_id)
         # Cache the bundle
         self.update_cache(obj_id, bundle_content)
@@ -122,20 +111,9 @@ class DirectoryVaultCooker(BaseVaultCooker):
         pass
 
 
-class RevisionVaultCooker(BaseVaultCooker):
+class RevisionFlatCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
-    CACHE_TYPE_KEY = 'revision'
-
-    def __init__(self, storage, cache):
-        """Initialize a cooker that create revision bundles
-
-        Args:
-            storage: source storage where content are retrieved.
-            cache: destination storage where the cooked bundle are stored.
-
-        """
-        self.storage = storage
-        self.cache = cache
+    CACHE_TYPE_KEY = 'revision_flat'
 
     def cook(self, obj_id):
         """Cook the requested revision into a Bundle
@@ -147,7 +125,7 @@ class RevisionVaultCooker(BaseVaultCooker):
             bytes that correspond to the bundle
 
         """
-        directory_cooker = DirectoryCooker(self.storage)
+        directory_cooker = DirectoryBuilder(self.storage)
         with tempfile.TemporaryDirectory(suffix='.cook') as root_tmp:
             root = Path(root_tmp)
             for revision in self.storage.revision_log([obj_id]):
@@ -171,7 +149,7 @@ class RevisionVaultCooker(BaseVaultCooker):
         pass
 
 
-class DirectoryCooker():
+class DirectoryBuilder:
     """Creates a cooked directory from its sha1_git in the db.
 
     Warning: This is NOT a directly accessible cooker, but a low-level
@@ -294,3 +272,9 @@ class DirectoryCooker():
 
         """
         return get_tar_bytes(path.decode(), hex_dir_id)
+
+
+COOKER_TYPES = {
+    'directory': DirectoryCooker,
+    'revision_flat': RevisionFlatCooker,
+}

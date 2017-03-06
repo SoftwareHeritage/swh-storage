@@ -6,14 +6,8 @@
 from swh.scheduler.task import Task
 from swh.core import hashutil
 from ..cache import VaultCache
-from ..cooker import DirectoryVaultCooker, RevisionVaultCooker
+from ..cooker import COOKER_TYPES
 from ... import get_storage
-
-
-COOKER_TYPES = {
-    'directory': DirectoryVaultCooker,
-    'revision': RevisionVaultCooker,
-}
 
 
 class SWHCookingTask(Task):
