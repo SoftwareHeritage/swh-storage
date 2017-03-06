@@ -11,9 +11,9 @@ from swh.core import config
 from swh.core.api import (SWHServerAPIApp, error_handler,
                           encode_data_server as encode_data)
 from swh.scheduler.utils import get_task
-from swh.storage.vault.api.cooking_tasks import COOKER_TYPES
 from swh.storage.vault.api.cooking_tasks import SWHCookingTask  # noqa
 from swh.storage.vault.cache import VaultCache
+from swh.storage.vault.cookers import COOKER_TYPES
 
 
 cooking_task_name = 'swh.storage.vault.api.cooking_tasks.SWHCookingTask'

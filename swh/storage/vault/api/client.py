@@ -17,7 +17,7 @@ class RemoteVaultCache(SWHRemoteAPI):
     def ls(self, obj_type):
         return self.get('vault/{}/'.format(obj_type))
 
-    def get(self, obj_type, obj_id):
+    def fetch(self, obj_type, obj_id):
         return self.get('vault/{}/{}/'.format(obj_type,
                                               hashutil.hash_to_hex(obj_id)))
 

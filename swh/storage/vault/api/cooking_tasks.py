@@ -6,7 +6,7 @@
 from swh.scheduler.task import Task
 from swh.core import hashutil
 from ..cache import VaultCache
-from ..cooker import COOKER_TYPES
+from ..cookers import COOKER_TYPES
 from ... import get_storage
 
 
