@@ -17,17 +17,17 @@ class ArchiverStorage():
     """SWH Archiver storage proxy, encompassing DB
 
     """
-    def __init__(self, db_conn):
+    def __init__(self, dbconn):
         """
         Args:
             db_conn: either a libpq connection string, or a psycopg2 connection
 
         """
         try:
-            if isinstance(db_conn, psycopg2.extensions.connection):
-                self.db = ArchiverDb(db_conn)
+            if isinstance(dbconn, psycopg2.extensions.connection):
+                self.db = ArchiverDb(dbconn)
             else:
-                self.db = ArchiverDb.connect(db_conn)
+                self.db = ArchiverDb.connect(dbconn)
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
@@ -190,3 +190,11 @@ class ArchiverStorage():
             ['content_id', 'copies', 'num_present'],
             cur)
         db.content_archive_add_from_temp(cur)
+
+
+def get_archiver_storage(cls, args):
+    """Instantiate an archiver database with the proper class and arguments"""
+    if cls == 'db':
+        return ArchiverStorage(**args)
+    else:
+        raise ValueError('Unknown Archiver Storage class `%s`' % cls)

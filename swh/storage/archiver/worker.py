@@ -16,7 +16,7 @@ from swh.objstorage import get_objstorage
 from swh.objstorage.exc import Error, ObjNotFoundError
 from swh.scheduler.utils import get_task
 
-from .storage import ArchiverStorage
+from .storage import get_archiver_storage
 from .copier import ArchiverCopier
 
 
@@ -38,7 +38,12 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
 
     """
     DEFAULT_CONFIG = {
-        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev'),
+        'archiver_storage': ('dict', {
+            'cls': 'db',
+            'args': {
+                'dbconn': 'dbname=softwareheritage-archiver-dev user=guest',
+            },
+        }),
         'storages': ('list[dict]',
                      [
                          {'host': 'uffizi',
@@ -62,7 +67,8 @@ class BaseArchiveWorker(config.SWHConfig, metaclass=abc.ABCMeta):
         self.config = self.parse_config_file(
             additional_configs=[self.ADDITIONAL_CONFIG])
         self.batch = batch
-        self.archiver_db = ArchiverStorage(self.config['dbconn'])
+        self.archiver_db = get_archiver_storage(
+            **self.config['archiver_storage'])
         self.objstorages = {
             storage['host']: get_objstorage(storage['cls'], storage['args'])
             for storage in self.config.get('storages', [])

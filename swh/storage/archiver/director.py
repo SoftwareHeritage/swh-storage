@@ -12,7 +12,7 @@ from swh.objstorage import get_objstorage
 from swh.scheduler.utils import get_task
 
 from . import tasks  # noqa
-from .storage import ArchiverStorage
+from .storage import get_archiver_storage
 
 
 class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
@@ -34,7 +34,12 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         'batch_max_size': ('int', 1500),
         'asynchronous': ('bool', True),
 
-        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest')
+        'archiver_storage': ('dict', {
+            'cls': 'db',
+            'args': {
+                'dbconn': 'dbname=softwareheritage-archiver-dev user=guest',
+            },
+        }),
     }
 
     # Destined to be overridden by subclass
@@ -58,7 +63,8 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         super().__init__()
         self.config = self.parse_config_file(
             additional_configs=[self.ADDITIONAL_CONFIG])
-        self.archiver_storage = ArchiverStorage(self.config['dbconn'])
+        self.archiver_storage = get_archiver_storage(
+            **self.config['archiver_storage'])
         self.task = get_task(self.TASK_NAME)
 
     def run(self):

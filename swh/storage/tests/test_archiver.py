@@ -114,7 +114,12 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         there is no configuration file for now.
         """
         ArchiverWithRetentionPolicyDirector.parse_config_file = lambda obj, additional_configs: {  # noqa
-            'dbconn': self.conn,
+            'archiver_storage': {
+                'cls': 'db',
+                'args': {
+                    'dbconn': self.conn,
+                },
+            },
             'batch_max_size': 5000,
             'archival_max_age': 3600,
             'retention_policy': retention_policy,
@@ -129,7 +134,12 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         ArchiverWithRetentionPolicyWorker.parse_config_file = lambda obj, additional_configs: {  # noqa
             'retention_policy': 2,
             'archival_max_age': 3600,
-            'dbconn': self.conn,
+            'archiver_storage': {
+                'cls': 'db',
+                'args': {
+                    'dbconn': self.conn,
+                },
+            },
             'storages': self.archiver_storages,
             'source': 'uffizi',
         }
