@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,10 +9,10 @@ import sys
 
 from swh.core import config, utils, hashutil
 from swh.objstorage import get_objstorage
-from swh.scheduler.celery_backend.config import app
+from swh.scheduler.utils import get_task
 
 from . import tasks  # noqa
-from .storage import ArchiverStorage
+from .storage import get_archiver_storage
 
 
 class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
@@ -34,7 +34,12 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         'batch_max_size': ('int', 1500),
         'asynchronous': ('bool', True),
 
-        'dbconn': ('str', 'dbname=softwareheritage-archiver-dev user=guest')
+        'archiver_storage': ('dict', {
+            'cls': 'db',
+            'args': {
+                'dbconn': 'dbname=softwareheritage-archiver-dev user=guest',
+            },
+        }),
     }
 
     # Destined to be overridden by subclass
@@ -58,7 +63,9 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         super().__init__()
         self.config = self.parse_config_file(
             additional_configs=[self.ADDITIONAL_CONFIG])
-        self.archiver_storage = ArchiverStorage(self.config['dbconn'])
+        self.archiver_storage = get_archiver_storage(
+            **self.config['archiver_storage'])
+        self.task = get_task(self.TASK_NAME)
 
     def run(self):
         """ Run the archiver director.
@@ -78,15 +85,13 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         """Produce a worker that will be added to the task queue.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task.delay(batch=batch)
+        self.task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
         """Run synchronously a worker on the given batch.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task(batch=batch)
+        self.task(batch=batch)
 
     def read_batch_contents(self):
         """ Create batch of contents that needs to be archived
@@ -155,8 +160,14 @@ def read_sha1_from_stdin():
     """Read sha1 from stdin.
 
     """
-    for sha1 in sys.stdin:
-        yield {'content_id': hashutil.hex_to_hash(sha1.rstrip())}
+    for line in sys.stdin:
+        sha1 = line.strip()
+        try:
+            yield {'content_id': hashutil.hex_to_hash(sha1)}
+        except Exception:
+            print("%s is not a valid sha1 hash, continuing" % repr(sha1),
+                  file=sys.stderr)
+            continue
 
 
 class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
@@ -204,31 +215,27 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         # Fallback objstorage
         self.source = self.config['source']
 
-    def _add_unknown_content_ids(self, content_ids, source_objstorage):
+    def _add_unknown_content_ids(self, content_ids):
         """Check whether some content_id are unknown.
         If they are, add them to the archiver db.
 
         Args:
             content_ids: List of dict with one key content_id
 
-            source_objstorage (ObjStorage): objstorage to check if
-            content_id is there
-
         """
-        unknowns = self.archiver_storage.content_archive_get_unknown(
-            content_ids)
-        for unknown_id in unknowns:
-            if unknown_id not in source_objstorage:
-                continue
-            self.archiver_storage.content_archive_insert(
-                unknown_id, self.source, 'present')
+        source_objstorage = self.objstorages[self.source]
+
+        self.archiver_storage.content_archive_add(
+            (h['content_id']
+             for h in content_ids
+             if h['content_id'] in source_objstorage),
+            sources_present=[self.source])
 
     def get_contents_to_archive(self):
         gen_content_ids = (
             ids for ids in utils.grouper(read_sha1_from_stdin(),
                                          self.config['batch_max_size']))
 
-        source_objstorage = self.objstorages[self.source]
         if self.force_copy:
             for content_ids in gen_content_ids:
                 content_ids = list(content_ids)
@@ -237,7 +244,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
                     continue
 
                 # Add missing entries in archiver table
-                self._add_unknown_content_ids(content_ids, source_objstorage)
+                self._add_unknown_content_ids(content_ids)
 
                 print('Send %s contents to archive' % len(content_ids))
 
@@ -253,7 +260,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
                 content_ids = list(content_ids)
 
                 # Add missing entries in archiver table
-                self._add_unknown_content_ids(content_ids, source_objstorage)
+                self._add_unknown_content_ids(content_ids)
 
                 # Filter already copied data
                 content_ids = list(
@@ -273,15 +280,13 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         """Produce a worker that will be added to the task queue.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task.delay(destination=self.destination, batch=batch)
+        self.task.delay(destination=self.destination, batch=batch)
 
     def run_sync_worker(self, batch):
         """Run synchronously a worker on the given batch.
 
         """
-        task = app.tasks[self.TASK_NAME]
-        task(destination=self.destination, batch=batch)
+        self.task(destination=self.destination, batch=batch)
 
 
 @click.command()
