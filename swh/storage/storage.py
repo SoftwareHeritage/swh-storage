@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -134,6 +134,36 @@ class Storage():
 
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)
+
+    @db_transaction
+    def content_update(self, content, keys=[], cur=None):
+        """Update content blobs to the storage. Does nothing for unknown
+        contents or skipped ones.
+
+        Args:
+            content: iterable of dictionaries representing individual pieces of
+                content to update. Each dictionary has the following keys:
+                - data (bytes): the actual content
+                - length (int): content length (default: -1)
+                - one key for each checksum algorithm in
+                  swh.core.hashutil.ALGORITHMS, mapped to the corresponding
+                  checksum
+                - status (str): one of visible, hidden, absent
+
+            keys ([str]): List of keys whose values needs an update (
+            e.g. new hash column)
+
+        """
+        db = self.db
+
+        # TODO: Add a check on input keys. How to properly implement
+        # this? We don't know yet the new columns.
+
+        db.mktemp('content')
+        select_keys = list(set(db.content_get_metadata_keys).union(set(keys)))
+        db.copy_to(content, 'tmp_content', select_keys, cur)
+        db.content_update_from_temp(keys_to_update=keys,
+                                    cur=cur)
 
     def content_get(self, content):
         """Retrieve in bulk contents and their data.

@@ -82,6 +82,11 @@ def content_add():
     return encode_data(g.storage.content_add(**decode_request(request)))
 
 
+@app.route('/content/update', methods=['POST'])
+def content_update():
+    return encode_data(g.storage.content_update(**decode_request(request)))
+
+
 @app.route('/content/data', methods=['POST'])
 def content_get():
     return encode_data(g.storage.content_get(**decode_request(request)))
@@ -396,7 +401,7 @@ def run_from_webserver(environ, start_response):
 @click.command()
 @click.argument('config-path', required=1)
 @click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', default=5000, type=click.INT,
+@click.option('--port', default=5002, type=click.INT,
               help="Binding port of the server")
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")

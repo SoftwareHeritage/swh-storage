@@ -16,7 +16,7 @@ DEFAULT_CONFIG = {
     'storage': ('dict', {
         'cls': 'remote',
         'args': {
-            'url': 'http://localhost:5000/'
+            'url': 'http://localhost:5002/'
         },
     }),
     'revision_packet_size': ('int', 100),

@@ -1,8 +1,11 @@
-swh-storage (0.0.79-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.80-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.80
+  * archiver improvements related to the mass injection of contents in
+    azure
+  * updates to the vault cooker
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 14 Feb 2017 19:37:37 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 07 Mar 2017 15:12:35 +0100
 
 swh-storage (0.0.79-1~swh1) unstable-swh; urgency=medium
 

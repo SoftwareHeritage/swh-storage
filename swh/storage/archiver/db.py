@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -177,12 +177,21 @@ class ArchiverDb(BaseDb):
         """Trigger the creation of the temporary table tmp_content_archive
         during the lifetime of the transaction.
 
+        """
+        pass
+
+    @stored_procedure('swh_content_archive_add')
+    def content_archive_add_from_temp(self, cur=None):
+        """Add new content archive entries from temporary table.
+
         Use from archiver.storage module:
             self.db.mktemp_content_archive()
             # copy data over to the temp table
             self.db.copy_to([{'colname': id0}, {'colname': id1}],
                             'tmp_cache_content',
                             ['colname'], cur)
+            # insert into the main table
+            self.db.add_content_archive_from_temp(cur)
 
         """
         pass
@@ -203,24 +212,6 @@ class ArchiverDb(BaseDb):
         cur = self._cursor(cur)
         cur.execute('select * from swh_content_archive_unknown()')
         yield from cursor_to_bytes(cur)
-
-    def content_archive_insert(self, content_id, source, status, cur=None):
-        """Insert a new entry in the db for the content_id.
-
-        Args:
-            content_id: content concerned
-            source: name of the source
-            status: the status of the content for that source
-
-        """
-        if isinstance(content_id, bytes):
-            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
-
-        query = """INSERT INTO content_archive(content_id, copies, num_present)
-                   VALUES('%s', '{"%s": {"status": "%s", "mtime": %d}}', 1)
-                    """ % (content_id, source, status, int(time.time()))
-        cur = self._cursor(cur)
-        cur.execute(query)
 
     def content_archive_update(self, content_id, archive_id,
                                new_status=None, cur=None):

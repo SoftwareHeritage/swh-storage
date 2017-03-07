@@ -20,6 +20,10 @@ class RemoteStorage(SWHRemoteAPI):
     def content_add(self, content):
         return self.post('content/add', {'content': content})
 
+    def content_update(self, content, keys=[]):
+        return self.post('content/update', {'content': content,
+                                            'keys': keys})
+
     def content_missing(self, content, key_hash='sha1'):
         return self.post('content/missing', {'content': content,
                                              'key_hash': key_hash})
