@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import glob
 import tempfile
 import shutil
 import unittest
@@ -16,6 +17,8 @@ from nose.plugins.attrib import attr
 from swh.core import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
 from server_testing import ServerTestFixture
+
+from swh.storage.archiver.storage import get_archiver_storage
 
 from swh.storage.archiver import ArchiverWithRetentionPolicyDirector
 from swh.storage.archiver import ArchiverWithRetentionPolicyWorker
@@ -323,3 +326,146 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             len(self._get_backups(['uffizi'], ['banco', 's3'])),
             1
         )
+
+
+class TestArchiverStorageStub(unittest.TestCase):
+    def setUp(self):
+        self.src_root = tempfile.mkdtemp(prefix='swh.storage.archiver.local')
+        self.dest_root = tempfile.mkdtemp(prefix='swh.storage.archiver.remote')
+        self.log_root = tempfile.mkdtemp(prefix='swh.storage.archiver.log')
+
+        src_config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': self.src_root,
+                'slicing': '0:2/2:4/4:6'
+            }
+        }
+        self.src_storage = get_objstorage(**src_config)
+
+        # Create destination storage
+        dest_config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': self.dest_root,
+                'slicing': '0:2/2:4/4:6'
+            }
+        }
+        self.dest_storage = get_objstorage(**dest_config)
+
+        self.config = {
+            'cls': 'stub',
+            'args': {
+                'archives': {
+                    'present_archive': 'http://uffizi:5003',
+                    'missing_archive': 'http://banco:5003',
+                },
+                'present': ['present_archive'],
+                'missing': ['missing_archive'],
+                'logfile_base': os.path.join(self.log_root, 'log_'),
+            }
+        }
+
+        # Generated with:
+        #
+        # id_length = 20
+        # random.getrandbits(8 * id_length).to_bytes(id_length, 'big')
+        #
+        self.content_ids = [
+            b"\xc7\xc9\x8dlk!'k\x81+\xa9\xc1lg\xc2\xcbG\r`f",
+            b'S\x03:\xc9\xd0\xa7\xf2\xcc\x8f\x86v$0\x8ccq\\\xe3\xec\x9d',
+            b'\xca\x1a\x84\xcbi\xd6co\x14\x08\\8\x9e\xc8\xc2|\xd0XS\x83',
+            b'O\xa9\xce(\xb4\x95_&\xd2\xa2e\x0c\x87\x8fw\xd0\xdfHL\xb2',
+            b'\xaaa \xd1vB\x15\xbd\xf2\xf0 \xd7\xc4_\xf4\xb9\x8a;\xb4\xcc',
+        ]
+
+        self.archiver_storage = get_archiver_storage(**self.config)
+        super().setUp()
+
+    def tearDown(self):
+        shutil.rmtree(self.src_root)
+        shutil.rmtree(self.dest_root)
+        shutil.rmtree(self.log_root)
+        super().tearDown()
+
+    @istest
+    def archive_ls(self):
+        self.assertCountEqual(
+            self.archiver_storage.archive_ls(),
+            self.config['args']['archives'].items()
+        )
+
+    @istest
+    def content_archive_get(self):
+        for content_id in self.content_ids:
+            self.assertEqual(
+                self.archiver_storage.content_archive_get(content_id),
+                (content_id, set(self.config['args']['present']), {}),
+            )
+
+    @istest
+    def content_archive_get_copies(self):
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_copies(),
+            [],
+        )
+
+    @istest
+    def content_archive_get_unarchived_copies(self):
+        retention_policy = 2
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_unarchived_copies(
+                retention_policy),
+            [],
+        )
+
+    @istest
+    def content_archive_get_missing(self):
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_missing(
+                self.content_ids,
+                'missing_archive'
+            ),
+            self.content_ids,
+        )
+
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_missing(
+                self.content_ids,
+                'present_archive'
+            ),
+            [],
+        )
+
+        with self.assertRaises(ValueError):
+            list(self.archiver_storage.content_archive_get_missing(
+                self.content_ids,
+                'unknown_archive'
+            ))
+
+    @istest
+    def content_archive_get_unknown(self):
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_unknown(
+                self.content_ids,
+            ),
+            [],
+        )
+
+    @istest
+    def content_archive_update(self):
+        for content_id in self.content_ids:
+            self.archiver_storage.content_archive_update(
+                content_id, 'present_archive', 'present')
+            self.archiver_storage.content_archive_update(
+                content_id, 'missing_archive', 'present')
+
+        self.archiver_storage.close_logfile()
+
+        # Make sure we created a logfile
+        files = glob.glob('%s*' % self.config['args']['logfile_base'])
+        self.assertEqual(len(files), 1)
+
+        # make sure the logfile contains all our lines
+        lines = open(files[0]).readlines()
+        self.assertEqual(len(lines), 2 * len(self.content_ids))
