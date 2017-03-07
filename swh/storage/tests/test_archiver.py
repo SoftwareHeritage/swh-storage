@@ -1,9 +1,11 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import glob
 import tempfile
+import shutil
 import unittest
 import os
 import time
@@ -15,6 +17,8 @@ from nose.plugins.attrib import attr
 from swh.core import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
 from server_testing import ServerTestFixture
+
+from swh.storage.archiver.storage import get_archiver_storage
 
 from swh.storage.archiver import ArchiverWithRetentionPolicyDirector
 from swh.storage.archiver import ArchiverWithRetentionPolicyWorker
@@ -44,11 +48,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     def setUp(self):
         # Launch the backup server
-        dest_root = tempfile.mkdtemp(prefix='remote')
+        self.dest_root = tempfile.mkdtemp(prefix='remote')
         self.config = {
             'cls': 'pathslicing',
             'args': {
-                'root': dest_root,
+                'root': self.dest_root,
                 'slicing': '0:2/2:4/4:6',
             }
         }
@@ -60,11 +64,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.cursor = self.cursors[0]
 
         # Create source storage
-        src_root = tempfile.mkdtemp()
+        self.src_root = tempfile.mkdtemp()
         src_config = {
             'cls': 'pathslicing',
             'args': {
-                'root': src_root,
+                'root': self.src_root,
                 'slicing': '0:2/2:4/4:6'
             }
         }
@@ -98,6 +102,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     def tearDown(self):
         self.empty_tables()
+        shutil.rmtree(self.src_root)
+        shutil.rmtree(self.dest_root)
         super().tearDown()
 
     def empty_tables(self):
@@ -111,7 +117,12 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         there is no configuration file for now.
         """
         ArchiverWithRetentionPolicyDirector.parse_config_file = lambda obj, additional_configs: {  # noqa
-            'dbconn': self.conn,
+            'archiver_storage': {
+                'cls': 'db',
+                'args': {
+                    'dbconn': self.conn,
+                },
+            },
             'batch_max_size': 5000,
             'archival_max_age': 3600,
             'retention_policy': retention_policy,
@@ -126,7 +137,12 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         ArchiverWithRetentionPolicyWorker.parse_config_file = lambda obj, additional_configs: {  # noqa
             'retention_policy': 2,
             'archival_max_age': 3600,
-            'dbconn': self.conn,
+            'archiver_storage': {
+                'cls': 'db',
+                'args': {
+                    'dbconn': self.conn,
+                },
+            },
             'storages': self.archiver_storages,
             'source': 'uffizi',
         }
@@ -284,6 +300,16 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """
         self._compute_copies_status('missing')
 
+    @istest
+    def compute_copies_extra_archive(self):
+        obj_id = self._add_content('banco', b'foobar')
+        self._update_status(obj_id, 'banco', 'present')
+        self._update_status(obj_id, 'random_archive', 'present')
+        worker = self._create_worker()
+        copies = worker.compute_copies(set(worker.objstorages), obj_id)
+        self.assertEqual(copies['present'], {'banco'})
+        self.assertEqual(copies['missing'], {'uffizi'})
+
     def _get_backups(self, present, missing):
         """ Return a list of the pair src/dest from the present and missing
         """
@@ -301,23 +327,145 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             1
         )
 
-    # This cannot be tested with ArchiverWithRetentionPolicyDirector
-    # (it reads from archiver db)
-    # @istest
-    # def archive_missing_content__without_row_entry_in_archive_db(self):
-    #     """ Run archiver on a missing content should archive it.
-    #     """
-    #     obj_data = b'archive_missing_content_without_row_entry_in_archive_db'
-    #     obj_id = self._add_content('uffizi', obj_data)
-    #     # One entry in archiver db but no status about its whereabouts
-    #     # Content is actually missing on banco but present on uffizi
-    #     try:
-    #         self.dest_storage.get(obj_id)
-    #     except ObjNotFoundError:
-    #         pass
-    #     else:
-    #         self.fail('Content should not be present before archival')
-    #     self.archiver.run()
-    #     # now the content should be present on remote objstorage
-    #     remote_data = self.dest_storage.get(obj_id)
-    #     self.assertEquals(obj_data, remote_data)
+
+class TestArchiverStorageStub(unittest.TestCase):
+    def setUp(self):
+        self.src_root = tempfile.mkdtemp(prefix='swh.storage.archiver.local')
+        self.dest_root = tempfile.mkdtemp(prefix='swh.storage.archiver.remote')
+        self.log_root = tempfile.mkdtemp(prefix='swh.storage.archiver.log')
+
+        src_config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': self.src_root,
+                'slicing': '0:2/2:4/4:6'
+            }
+        }
+        self.src_storage = get_objstorage(**src_config)
+
+        # Create destination storage
+        dest_config = {
+            'cls': 'pathslicing',
+            'args': {
+                'root': self.dest_root,
+                'slicing': '0:2/2:4/4:6'
+            }
+        }
+        self.dest_storage = get_objstorage(**dest_config)
+
+        self.config = {
+            'cls': 'stub',
+            'args': {
+                'archives': {
+                    'present_archive': 'http://uffizi:5003',
+                    'missing_archive': 'http://banco:5003',
+                },
+                'present': ['present_archive'],
+                'missing': ['missing_archive'],
+                'logfile_base': os.path.join(self.log_root, 'log_'),
+            }
+        }
+
+        # Generated with:
+        #
+        # id_length = 20
+        # random.getrandbits(8 * id_length).to_bytes(id_length, 'big')
+        #
+        self.content_ids = [
+            b"\xc7\xc9\x8dlk!'k\x81+\xa9\xc1lg\xc2\xcbG\r`f",
+            b'S\x03:\xc9\xd0\xa7\xf2\xcc\x8f\x86v$0\x8ccq\\\xe3\xec\x9d',
+            b'\xca\x1a\x84\xcbi\xd6co\x14\x08\\8\x9e\xc8\xc2|\xd0XS\x83',
+            b'O\xa9\xce(\xb4\x95_&\xd2\xa2e\x0c\x87\x8fw\xd0\xdfHL\xb2',
+            b'\xaaa \xd1vB\x15\xbd\xf2\xf0 \xd7\xc4_\xf4\xb9\x8a;\xb4\xcc',
+        ]
+
+        self.archiver_storage = get_archiver_storage(**self.config)
+        super().setUp()
+
+    def tearDown(self):
+        shutil.rmtree(self.src_root)
+        shutil.rmtree(self.dest_root)
+        shutil.rmtree(self.log_root)
+        super().tearDown()
+
+    @istest
+    def archive_ls(self):
+        self.assertCountEqual(
+            self.archiver_storage.archive_ls(),
+            self.config['args']['archives'].items()
+        )
+
+    @istest
+    def content_archive_get(self):
+        for content_id in self.content_ids:
+            self.assertEqual(
+                self.archiver_storage.content_archive_get(content_id),
+                (content_id, set(self.config['args']['present']), {}),
+            )
+
+    @istest
+    def content_archive_get_copies(self):
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_copies(),
+            [],
+        )
+
+    @istest
+    def content_archive_get_unarchived_copies(self):
+        retention_policy = 2
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_unarchived_copies(
+                retention_policy),
+            [],
+        )
+
+    @istest
+    def content_archive_get_missing(self):
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_missing(
+                self.content_ids,
+                'missing_archive'
+            ),
+            self.content_ids,
+        )
+
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_missing(
+                self.content_ids,
+                'present_archive'
+            ),
+            [],
+        )
+
+        with self.assertRaises(ValueError):
+            list(self.archiver_storage.content_archive_get_missing(
+                self.content_ids,
+                'unknown_archive'
+            ))
+
+    @istest
+    def content_archive_get_unknown(self):
+        self.assertCountEqual(
+            self.archiver_storage.content_archive_get_unknown(
+                self.content_ids,
+            ),
+            [],
+        )
+
+    @istest
+    def content_archive_update(self):
+        for content_id in self.content_ids:
+            self.archiver_storage.content_archive_update(
+                content_id, 'present_archive', 'present')
+            self.archiver_storage.content_archive_update(
+                content_id, 'missing_archive', 'present')
+
+        self.archiver_storage.close_logfile()
+
+        # Make sure we created a logfile
+        files = glob.glob('%s*' % self.config['args']['logfile_base'])
+        self.assertEqual(len(files), 1)
+
+        # make sure the logfile contains all our lines
+        lines = open(files[0]).readlines()
+        self.assertEqual(len(lines), 2 * len(self.content_ids))

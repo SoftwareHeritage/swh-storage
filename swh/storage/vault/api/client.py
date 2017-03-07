@@ -23,3 +23,13 @@ class RemoteVaultCache(SWHRemoteAPI):
     def directory_cook(self, obj_id):
         return self.post('vault/directory/%s/' % hashutil.hash_to_hex(obj_id),
                          data={})
+
+    def revision_ls(self):
+        return self.get('vault/revision/')
+
+    def revision_get(self, obj_id):
+        return self.get('vault/revision/%s/' % (hashutil.hash_to_hex(obj_id)))
+
+    def revision_cook(self, obj_id):
+        return self.post('vault/revision/%s/' % hashutil.hash_to_hex(obj_id),
+                         data={})

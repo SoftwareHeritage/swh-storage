@@ -11,7 +11,7 @@ create table dbversion
 comment on table dbversion is 'Schema update tracking';
 
 INSERT INTO dbversion(version, release, description)
-VALUES(7, now(), 'Work In Progress');
+VALUES(9, now(), 'Work In Progress');
 
 CREATE TABLE archive (
   id text PRIMARY KEY
@@ -74,7 +74,7 @@ CREATE TRIGGER update_num_present
     EXECUTE PROCEDURE update_num_present();
 
 -- keep the content_archive_counts updated
-CREATE FUNCTION update_content_archive_counts() RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+CREATE OR REPLACE FUNCTION update_content_archive_counts() RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
     DECLARE
         content_id sha1;
         content_bucket bucket;
@@ -104,7 +104,7 @@ CREATE FUNCTION update_content_archive_counts() RETURNS TRIGGER LANGUAGE PLPGSQL
             from jsonb_each(old_row.copies) o full outer join lateral jsonb_each(new_row.copies) n on o.key = n.key
       LOOP
         -- the count didn't change
-        CONTINUE WHEN copies.old_status is distinct from copies.new_status OR
+        CONTINUE WHEN copies.old_status is not distinct from copies.new_status OR
                       (copies.old_status != 'present' AND copies.new_status != 'present');
 
         update content_archive_counts cac

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -3040,3 +3040,60 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
                     'email': person1['email'],
                 },
             ])
+
+
+class AlteringSchemaTest(AbstractTestStorage, unittest.TestCase):
+    """This class is dedicated for the rare case where the schema needs to
+       be altered dynamically.
+
+       Otherwise, the tests could be blocking when ran altogether.
+
+    """
+    @istest
+    def content_update(self):
+        cont = self.cont
+
+        self.storage.content_add([cont])
+        # alter the sha1_git for example
+        cont['sha1_git'] = hex_to_hash(
+            '3a60a5275d0333bf13468e8b3dcab90f4046e654')
+
+        self.storage.content_update([cont], keys=['sha1_git'])
+
+        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
+                            ' FROM content WHERE sha1 = %s',
+                            (cont['sha1'],))
+        datum = self.cursor.fetchone()
+        self.assertEqual(
+            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+             datum[3], datum[4]),
+            (cont['sha1'], cont['sha1_git'], cont['sha256'],
+             cont['length'], 'visible'))
+
+    @istest
+    def content_update_with_new_cols(self):
+        self.cursor.execute("""alter table content
+                               add column test text default null,
+                               add column test2 text default null""")
+
+        cont = self.cont2
+        self.storage.content_add([cont])
+        cont['test'] = 'value-1'
+        cont['test2'] = 'value-2'
+
+        self.storage.content_update([cont], keys=['test', 'test2'])
+
+        self.cursor.execute(
+            'SELECT sha1, sha1_git, sha256, length, status, test, test2'
+            ' FROM content WHERE sha1 = %s',
+            (cont['sha1'],))
+
+        datum = self.cursor.fetchone()
+        self.assertEqual(
+            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+             datum[3], datum[4], datum[5], datum[6]),
+            (cont['sha1'], cont['sha1_git'], cont['sha256'],
+             cont['length'], 'visible', cont['test'], cont['test2']))
+
+        self.cursor.execute("""alter table content drop column test,
+                                                   drop column test2""")
