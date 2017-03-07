@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import tempfile
+import shutil
 import unittest
 import os
 import time
@@ -44,11 +45,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     def setUp(self):
         # Launch the backup server
-        dest_root = tempfile.mkdtemp(prefix='remote')
+        self.dest_root = tempfile.mkdtemp(prefix='remote')
         self.config = {
             'cls': 'pathslicing',
             'args': {
-                'root': dest_root,
+                'root': self.dest_root,
                 'slicing': '0:2/2:4/4:6',
             }
         }
@@ -60,11 +61,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         self.cursor = self.cursors[0]
 
         # Create source storage
-        src_root = tempfile.mkdtemp()
+        self.src_root = tempfile.mkdtemp()
         src_config = {
             'cls': 'pathslicing',
             'args': {
-                'root': src_root,
+                'root': self.src_root,
                 'slicing': '0:2/2:4/4:6'
             }
         }
@@ -98,6 +99,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     def tearDown(self):
         self.empty_tables()
+        shutil.rmtree(self.src_root)
+        shutil.rmtree(self.dest_root)
         super().tearDown()
 
     def empty_tables(self):
