@@ -163,7 +163,7 @@ def read_sha1_from_stdin():
     for line in sys.stdin:
         sha1 = line.strip()
         try:
-            yield {'content_id': hashutil.hex_to_hash(sha1)}
+            yield hashutil.hex_to_hash(sha1)
         except Exception:
             print("%s is not a valid sha1 hash, continuing" % repr(sha1),
                   file=sys.stderr)
@@ -226,9 +226,9 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
         source_objstorage = self.objstorages[self.source]
 
         self.archiver_storage.content_archive_add(
-            (h['content_id']
+            (h
              for h in content_ids
-             if h['content_id'] in source_objstorage),
+             if h in source_objstorage),
             sources_present=[self.source])
 
     def get_contents_to_archive(self):
@@ -248,8 +248,7 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 
                 print('Send %s contents to archive' % len(content_ids))
 
-                for content in content_ids:
-                    content_id = content['content_id']
+                for content_id in content_ids:
                     # force its status to missing
                     self.archiver_storage.content_archive_update(
                         content_id, self.destination, 'missing')
