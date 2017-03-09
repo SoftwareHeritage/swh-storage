@@ -25,14 +25,14 @@ class RevisionFlatCooker(BaseVaultCooker):
             bytes that correspond to the bundle
 
         """
-        directory_cooker = DirectoryBuilder(self.storage)
+        directory_builder = DirectoryBuilder(self.storage)
         with tempfile.TemporaryDirectory(suffix='.cook') as root_tmp:
             root = Path(root_tmp)
             for revision in self.storage.revision_log([obj_id]):
                 revdir = root / hashutil.hash_to_hex(revision['id'])
                 revdir.mkdir()
-                directory_cooker.build_directory(revision['directory'],
-                                                 str(revdir).encode())
+                directory_builder.build_directory(revision['directory'],
+                                                  str(revdir).encode())
             bundle_content = get_tar_bytes(root_tmp,
                                            hashutil.hash_to_hex(obj_id))
         # Cache the bundle

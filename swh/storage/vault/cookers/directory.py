@@ -23,8 +23,8 @@ class DirectoryCooker(BaseVaultCooker):
         """
         # Create the bytes that corresponds to the compressed
         # directory.
-        directory_cooker = DirectoryBuilder(self.storage)
-        bundle_content = directory_cooker.get_directory_bytes(obj_id)
+        directory_builder = DirectoryBuilder(self.storage)
+        bundle_content = directory_builder.get_directory_bytes(obj_id)
         # Cache the bundle
         self.update_cache(obj_id, bundle_content)
         # Make a notification that the bundle have been cooked
