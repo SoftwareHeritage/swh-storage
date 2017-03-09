@@ -372,9 +372,12 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         super().__init__(batch)
         self.destination = destination
         next_task = self.config['next_task']
-        destination_queue = next_task['queue']
-        self.task_destination = get_task(destination_queue)
-        self.batch_size = int(next_task['batch_size'])
+        if next_task:
+            destination_queue = next_task['queue']
+            self.task_destination = get_task(destination_queue)
+            self.batch_size = int(next_task['batch_size'])
+        else:
+            self.task_destination = self.batch_size = None
 
     def need_archival(self, content_data):
         """Indicate if the content needs to be archived.
@@ -413,9 +416,10 @@ class ArchiverToBackendWorker(BaseArchiveWorker):
         done in the destination queue.
 
         """
-        groups = []
-        for ids in utils.grouper(content_ids, self.batch_size):
-            sig_ids = self.task_destination.s(list(ids))
-            groups.append(sig_ids)
+        if self.task_destination:
+            groups = []
+            for ids in utils.grouper(content_ids, self.batch_size):
+                sig_ids = self.task_destination.s(list(ids))
+                groups.append(sig_ids)
 
-        group(groups).delay()
+            group(groups).delay()
