@@ -15,7 +15,7 @@ class RevisionFlatCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
     CACHE_TYPE_KEY = 'revision_flat'
 
-    def cook(self, obj_id):
+    def prepare_bundle(self, obj_id):
         """Cook the requested revision into a Bundle
 
         Args:
@@ -33,17 +33,4 @@ class RevisionFlatCooker(BaseVaultCooker):
                 revdir.mkdir()
                 directory_builder.build_directory(revision['directory'],
                                                   str(revdir).encode())
-            bundle_content = get_tar_bytes(root_tmp,
-                                           hashutil.hash_to_hex(obj_id))
-        # Cache the bundle
-        self.update_cache(obj_id, bundle_content)
-        # Make a notification that the bundle have been cooked
-        # NOT YET IMPLEMENTED see TODO in function.
-        self.notify_bundle_ready(
-            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
-            bundle_id=obj_id)
-
-    def notify_bundle_ready(self, notif_data, bundle_id):
-        # TODO plug this method with the notification method once
-        # done.
-        pass
+            return get_tar_bytes(root_tmp, hashutil.hash_to_hex(obj_id))

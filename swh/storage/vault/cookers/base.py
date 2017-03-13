@@ -52,6 +52,13 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         self.cache = cache
 
     @abc.abstractmethod
+    def prepare_bundle(self, obj_id):
+        """Implementation of the cooker. Returns the bundle bytes.
+
+        Override this with the cooker implementation.
+        """
+        raise NotImplemented
+
     def cook(self, obj_id):
         """Cook the requested object into a bundle
 
@@ -63,7 +70,15 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
             obj_id: id of the object to be cooked into a bundle.
 
         """
-        pass
+        bundle_content = self.prepare_bundle(obj_id)
+
+        # Cache the bundle
+        self.update_cache(obj_id, bundle_content)
+        # Make a notification that the bundle have been cooked
+        # NOT YET IMPLEMENTED see TODO in function.
+        self.notify_bundle_ready(
+            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
+            bundle_id=obj_id)
 
     def update_cache(self, id, bundle_content):
         """Update the cache with id and bundle_content.
@@ -71,11 +86,9 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
         """
         self.cache.add(self.CACHE_TYPE_KEY, id, bundle_content)
 
-    @abc.abstractmethod
     def notify_bundle_ready(self, notif_data, bundle_id):
-        """Notify the bundle bundle_id is ready.
-
-        """
+        # TODO plug this method with the notification method once
+        # done.
         pass
 
 
