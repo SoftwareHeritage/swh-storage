@@ -7,7 +7,7 @@ import logging
 
 from swh.journal.client import SWHJournalClient
 
-from .storage import ArchiverStorage
+from .storage import get_archiver_storage
 
 
 class SWHArchiverContentUpdater(SWHJournalClient):
@@ -20,8 +20,14 @@ class SWHArchiverContentUpdater(SWHJournalClient):
     CONFIG_BASE_FILENAME = 'archiver/content_updater'
 
     ADDITIONAL_CONFIG = {
-        'archiver_storage_conn': (
-            'str', 'dbname=softwareheritage-archiver-dev user=guest'),
+        'archiver_storage': (
+            'dict', {
+                'cls': 'db',
+                'args': {
+                    'dbconn': 'dbname=softwareheritage-archiver-dev '
+                              'user=guest',
+                }
+            }),
         'sources_present': ('list[str]', ['uffizi'])
     }
 
@@ -31,8 +37,8 @@ class SWHArchiverContentUpdater(SWHJournalClient):
 
         self.sources_present = self.config['sources_present']
 
-        self.archiver_storage = ArchiverStorage(
-            self.config['archiver_storage_conn'])
+        self.archiver_storage = get_archiver_storage(
+            **self.config['archiver_storage'])
 
     def process_objects(self, messages):
         self.archiver_storage.content_archive_add(
