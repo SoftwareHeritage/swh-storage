@@ -14,7 +14,7 @@ import tempfile
 
 from contextlib import contextmanager
 
-from swh.core import hashutil
+from swh.model import hashutil
 
 TMP_CONTENT_TABLE = 'tmp_content'
 

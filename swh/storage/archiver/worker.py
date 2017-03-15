@@ -11,9 +11,10 @@ import time
 from collections import defaultdict
 from celery import group
 
-from swh.core import hashutil, config, utils
+from swh.core import config, utils
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import Error, ObjNotFoundError
+from swh.model import hashutil
 from swh.scheduler.utils import get_task
 
 from .storage import get_archiver_storage

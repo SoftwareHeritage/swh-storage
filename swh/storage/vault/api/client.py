@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.core import hashutil
+from swh.model import hashutil
 from swh.core.api import SWHRemoteAPI
 from swh.storage.exc import StorageAPIError
 

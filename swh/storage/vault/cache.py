@@ -1,11 +1,11 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import os
 
-from swh.core import hashutil
+from swh.model import hashutil
 from swh.objstorage import get_objstorage
 from swh.objstorage.objstorage_pathslicing import DIR_MODE
 
@@ -29,11 +29,11 @@ class VaultCache():
 
     def get(self, obj_type, obj_id):
         storage = self._get_storage(obj_type)
-        return storage.get(hashutil.hex_to_hash(obj_id))
+        return storage.get(hashutil.hash_to_bytes(obj_id))
 
     def is_cached(self, obj_type, obj_id):
         storage = self._get_storage(obj_type)
-        return hashutil.hex_to_hash(obj_id) in storage
+        return hashutil.hash_to_bytes(obj_id) in storage
 
     def ls(self, obj_type):
         storage = self._get_storage(obj_type)

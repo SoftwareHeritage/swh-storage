@@ -10,8 +10,7 @@ import time
 
 from .db import ArchiverDb
 
-from swh.core import hashutil
-
+from swh.model import hashutil
 from swh.storage.common import db_transaction_generator, db_transaction
 from swh.storage.exc import StorageDBError
 

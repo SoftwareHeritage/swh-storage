@@ -18,8 +18,8 @@ from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from swh.core.tests.db_testing import DbTestFixture
-from swh.core.hashutil import hex_to_hash
 from swh.model import identifiers
+from swh.model.hashutil import hash_to_bytes
 
 from swh.storage import get_storage
 from swh.storage.db import cursor_to_bytes
@@ -68,11 +68,11 @@ class AbstractTestStorage(DbTestFixture):
         self.cont = {
             'data': b'42\n',
             'length': 3,
-            'sha1': hex_to_hash(
+            'sha1': hash_to_bytes(
                 '34973274ccef6ab4dfaaf86599792fa9c3fe4689'),
-            'sha1_git': hex_to_hash(
+            'sha1_git': hash_to_bytes(
                 'd81cc0710eb6cf9efd5b920a8453e1e07157b6cd'),
-            'sha256': hex_to_hash(
+            'sha256': hash_to_bytes(
                 '673650f936cb3b0a2f93ce09d81be107'
                 '48b1b203c19e8176b4eefc1964a0cf3a'),
             'status': 'visible',
@@ -81,11 +81,11 @@ class AbstractTestStorage(DbTestFixture):
         self.cont2 = {
             'data': b'4242\n',
             'length': 5,
-            'sha1': hex_to_hash(
+            'sha1': hash_to_bytes(
                 '61c2b3a30496d329e21af70dd2d7e097046d07b7'),
-            'sha1_git': hex_to_hash(
+            'sha1_git': hash_to_bytes(
                 '36fade77193cb6d2bd826161a0979d64c28ab4fa'),
-            'sha256': hex_to_hash(
+            'sha256': hash_to_bytes(
                 '859f0b154fdb2d630f45e1ecae4a8629'
                 '15435e663248bb8461d914696fc047cd'),
             'status': 'visible',
@@ -94,11 +94,11 @@ class AbstractTestStorage(DbTestFixture):
         self.cont3 = {
             'data': b'424242\n',
             'length': 7,
-            'sha1': hex_to_hash(
+            'sha1': hash_to_bytes(
                 '3e21cc4942a4234c9e5edd8a9cacd1670fe59f13'),
-            'sha1_git': hex_to_hash(
+            'sha1_git': hash_to_bytes(
                 'c932c7649c6dfa4b82327d121215116909eb3bea'),
-            'sha256': hex_to_hash(
+            'sha256': hash_to_bytes(
                 '92fb72daf8c6818288a35137b72155f5'
                 '07e5de8d892712ab96277aaed8cf8a36'),
             'status': 'visible',
@@ -107,11 +107,11 @@ class AbstractTestStorage(DbTestFixture):
         self.missing_cont = {
             'data': b'missing\n',
             'length': 8,
-            'sha1': hex_to_hash(
+            'sha1': hash_to_bytes(
                 'f9c24e2abb82063a3ba2c44efd2d3c797f28ac90'),
-            'sha1_git': hex_to_hash(
+            'sha1_git': hash_to_bytes(
                 '33e45d56f88993aae6a0198013efa80716fd8919'),
-            'sha256': hex_to_hash(
+            'sha256': hash_to_bytes(
                 '6bbd052ab054ef222c1c87be60cd191a'
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
             'status': 'absent',
@@ -119,7 +119,7 @@ class AbstractTestStorage(DbTestFixture):
 
         self.skipped_cont = {
             'length': 1024 * 1024 * 200,
-            'sha1_git': hex_to_hash(
+            'sha1_git': hash_to_bytes(
                 '33e45d56f88993aae6a0198013efa80716fd8920'),
             'reason': 'Content too long',
             'status': 'absent',
@@ -127,7 +127,7 @@ class AbstractTestStorage(DbTestFixture):
 
         self.skipped_cont2 = {
             'length': 1024 * 1024 * 300,
-            'sha1_git': hex_to_hash(
+            'sha1_git': hash_to_bytes(
                 '33e45d56f88993aae6a0198013efa80716fd8921'),
             'reason': 'Content too long',
             'status': 'absent',
@@ -164,7 +164,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.dir3 = {
-            'id': hex_to_hash('33e45d56f88993aae6a0198013efa80716fd8921'),
+            'id': hash_to_bytes('33e45d56f88993aae6a0198013efa80716fd8921'),
             'entries': [
                 {
                     'name': b'foo',
@@ -265,7 +265,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.revision3 = {
-            'id': hex_to_hash('7026b7c1a2af56521e951c01ed20f255fa054238'),
+            'id': hash_to_bytes('7026b7c1a2af56521e951c01ed20f255fa054238'),
             'message': b'a simple revision with no parents this time',
             'author': {
                 'name': b'Roberto Dicosmo',
@@ -298,7 +298,7 @@ class AbstractTestStorage(DbTestFixture):
         }
 
         self.revision4 = {
-            'id': hex_to_hash('368a48fe15b7db2383775f97c6b247011b3f14f4'),
+            'id': hash_to_bytes('368a48fe15b7db2383775f97c6b247011b3f14f4'),
             'message': b'parent of self.revision2',
             'author': {
                 'name': b'me',
@@ -3055,7 +3055,7 @@ class AlteringSchemaTest(AbstractTestStorage, unittest.TestCase):
 
         self.storage.content_add([cont])
         # alter the sha1_git for example
-        cont['sha1_git'] = hex_to_hash(
+        cont['sha1_git'] = hash_to_bytes(
             '3a60a5275d0333bf13468e8b3dcab90f4046e654')
 
         self.storage.content_update([cont], keys=['sha1_git'])
