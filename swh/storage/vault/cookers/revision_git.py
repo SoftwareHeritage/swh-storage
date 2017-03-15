@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import collections
 import fastimport.commands
 
 from .base import BaseVaultCooker
@@ -33,16 +34,25 @@ class RevisionGitCooker(BaseVaultCooker):
     def _toposort(self, rev_by_id):
         """Perform a topological sort on the revision graph.
         """
-        done = set()
-        remaining = rev_by_id.copy()
+        children = collections.defaultdict(list)
+        in_degree = collections.defaultdict(int)
+        for rev_id, rev in rev_by_id.items():
+            for parent in rev['parents']:
+                in_degree[rev_id] += 1
+                children[parent].append(rev_id)
 
-        while remaining:
-            for rev_id, rev in list(remaining.items()):
-                parents = rev['parents']
-                if set(parents) <= done:
-                    yield rev
-                    done.add(rev_id)
-                    del remaining[rev_id]
+        queue = collections.deque()
+        for rev_id in rev_by_id.keys():
+            if in_degree[rev_id] == 0:
+                queue.append(rev_id)
+
+        while queue:
+            rev_id = queue.popleft()
+            yield rev_by_id[rev_id]
+            for child in children[rev_id]:
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    queue.append(child)
 
     def mark(self, obj_id):
         """Get the mark ID as bytes of a git object.
