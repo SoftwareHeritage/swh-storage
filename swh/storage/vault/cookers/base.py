@@ -168,6 +168,7 @@ class DirectoryBuilder:
         if perms not in (0o100644, 0o100755, 0o120000):
             logging.warning('File {} has invalid permission {}, '
                             'defaulting to 644.'.format(path, perms))
+            perms = 0o100644
 
         if perms == 0o120000:  # Symbolic link
             os.symlink(content, path)
