@@ -30,18 +30,7 @@ TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
 
 
 @attr('db')
-class AbstractTestStorage(DbTestFixture):
-    """Base class for Storage testing.
-
-    This class is used as-is to test local storage (see TestStorage
-    below) and remote storage (see TestRemoteStorage in
-    test_remote_storage.py.
-
-    We need to have the two classes inherit from this base class
-    separately to avoid nosetests running the tests from the base
-    class twice.
-
-    """
+class BaseTestStorage(DbTestFixture):
     TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
 
     def setUp(self):
@@ -570,6 +559,20 @@ class AbstractTestStorage(DbTestFixture):
         self.conn.commit()
 
         super().tearDown()
+
+
+class CommonTestStorage(BaseTestStorage):
+    """Base class for Storage testing.
+
+    This class is used as-is to test local storage (see TestStorage
+    below) and remote storage (see TestRemoteStorage in
+    test_remote_storage.py.
+
+    We need to have the two classes inherit from this base class
+    separately to avoid nosetests running the tests from the base
+    class twice.
+
+    """
 
     @staticmethod
     def normalize_entity(entity):
@@ -2976,7 +2979,7 @@ class AbstractTestStorage(DbTestFixture):
         self.assertEqual(actual_licenses[0], license_v2)
 
 
-class TestStorage(AbstractTestStorage, unittest.TestCase):
+class TestLocalStorage(CommonTestStorage, unittest.TestCase):
     """Test the local storage"""
 
     # Can only be tested with local storage as you can't mock
@@ -3042,7 +3045,7 @@ class TestStorage(AbstractTestStorage, unittest.TestCase):
             ])
 
 
-class AlteringSchemaTest(AbstractTestStorage, unittest.TestCase):
+class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
     """This class is dedicated for the rare case where the schema needs to
        be altered dynamically.
 
@@ -3051,7 +3054,7 @@ class AlteringSchemaTest(AbstractTestStorage, unittest.TestCase):
     """
     @istest
     def content_update(self):
-        cont = self.cont
+        cont = copy.deepcopy(self.cont)
 
         self.storage.content_add([cont])
         # alter the sha1_git for example
@@ -3076,7 +3079,7 @@ class AlteringSchemaTest(AbstractTestStorage, unittest.TestCase):
                                add column test text default null,
                                add column test2 text default null""")
 
-        cont = self.cont2
+        cont = copy.deepcopy(self.cont2)
         self.storage.content_add([cont])
         cont['test'] = 'value-1'
         cont['test2'] = 'value-2'
