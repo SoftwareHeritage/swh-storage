@@ -5,6 +5,7 @@
 
 import copy
 import datetime
+from operator import itemgetter
 import os
 import psycopg2
 import shutil
@@ -731,19 +732,20 @@ class CommonTestStorage(BaseTestStorage):
 
         stored_data = list(self.storage.directory_ls(self.dir['id']))
 
-        data_to_store = [{
-                 'dir_id': self.dir['id'],
-                 'type': ent['type'],
-                 'target': ent['target'],
-                 'name': ent['name'],
-                 'perms': ent['perms'],
-                 'status': None,
-                 'sha1': None,
-                 'sha1_git': None,
-                 'sha256': None,
-            }
-            for ent in sorted(self.dir['entries'], key=lambda ent: ent['name'])
-        ]
+        data_to_store = []
+        for ent in sorted(self.dir['entries'], key=itemgetter('name')):
+            data_to_store.append({
+                'dir_id': self.dir['id'],
+                'type': ent['type'],
+                'target': ent['target'],
+                'name': ent['name'],
+                'perms': ent['perms'],
+                'status': None,
+                'sha1': None,
+                'sha1_git': None,
+                'sha256': None,
+                'length': None,
+            })
 
         self.assertEqual(data_to_store, stored_data)
 
@@ -769,6 +771,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha256': None,
                 'status': None,
                 'perms': 0o644,
+                'length': None,
             },
             {
                 'dir_id': self.dir3['id'],
@@ -780,6 +783,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha256': None,
                 'status': None,
                 'perms': 0o2000,
+                'length': None,
             },
             {
                 'dir_id': self.dir3['id'],
@@ -791,6 +795,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha256': None,
                 'status': None,
                 'perms': 0o644,
+                'length': None,
             },
         ]
 

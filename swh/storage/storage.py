@@ -474,6 +474,26 @@ class Storage():
             yield dict(zip(db.directory_ls_cols, line))
 
     @db_transaction
+    def directory_entry_get_by_path(self, directory, paths, cur=None):
+        """Get the directory entry (either file or dir) from directory with
+        path.
+
+        Args:
+            - directory: sha1 of the top level directory
+            - paths: path to lookup from the top level directory. From left
+            (top) to right (bottom).
+
+        Returns:
+            The corresponding directory entry if found, None otherwise.
+
+        """
+        db = self.db
+
+        res = db.directory_entry_get_by_path(directory, paths, cur)
+        if res:
+            return dict(zip(db.directory_ls_cols, res))
+
+    @db_transaction
     def cache_content_revision_add(self, revisions, cur=None):
         """Cache the current revision's current targeted arborescence directory.
         If the revision has already been cached, it just does nothing.
@@ -539,28 +559,6 @@ class Storage():
         """
         for (revision,) in self.db.cache_revision_origin_add(origin, visit):
             yield revision
-
-    @db_transaction
-    def directory_entry_get_by_path(self, directory, paths, cur=None):
-        """Get the directory entry (either file or dir) from directory with
-        path.
-
-        Args:
-            - directory: sha1 of the top level directory
-            - paths: path to lookup from the top level directory. From left
-            (top) to right (bottom).
-
-        Returns:
-            The corresponding directory entry if found, None otherwise.
-
-        """
-        db = self.db
-        keys = ('dir_id', 'type', 'target', 'name', 'perms', 'status',
-                'sha1', 'sha1_git', 'sha256')
-
-        res = db.directory_entry_get_by_path(directory, paths, cur)
-        if res:
-            return dict(zip(keys, res))
 
     def revision_add(self, revisions):
         """Add revisions to the storage
