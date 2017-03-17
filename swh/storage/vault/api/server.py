@@ -60,25 +60,22 @@ def index():
     return 'SWH vault API server'
 
 
-@app.route('/vault/<cooker:type>/',
-           methods=['GET'])
-def ls_directory(type):
+@app.route('/vault/<cooker:type>/', methods=['GET'])
+def vault_ls(type):
     return encode_data(list(
         g.cache.ls(type)
     ))
 
 
-@app.route('/vault/<cooker:type>/<id>/',
-           methods=['GET'])
-def get_cooked_directory(type, id):
+@app.route('/vault/<cooker:type>/<id>/', methods=['GET'])
+def vault_fetch(type, id):
     if not g.cache.is_cached(type, id):
         abort(404)
-    return encode_data(g.cache.get(type, id).decode())
+    return encode_data(g.cache.get(type, id))
 
 
-@app.route('/vault/<cooker:type>/<id>/',
-           methods=['POST'])
-def cook_request_directory(type, id):
+@app.route('/vault/<cooker:type>/<id>/', methods=['POST'])
+def vault_cook(type, id):
     task = get_task(cooking_task_name)
     task.delay(type, id, app.config['storage'], app.config['cache'])
     # Return url to get the content and 201 CREATED
