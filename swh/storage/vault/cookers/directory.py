@@ -10,7 +10,7 @@ class DirectoryCooker(BaseVaultCooker):
     """Cooker to create a directory bundle """
     CACHE_TYPE_KEY = 'directory'
 
-    def prepare_bundle(self, obj_id):
+    def prepare_bundle(self):
         """Cook the requested directory into a Bundle
 
         Args:
@@ -21,4 +21,4 @@ class DirectoryCooker(BaseVaultCooker):
 
         """
         directory_builder = DirectoryBuilder(self.storage)
-        return directory_builder.get_directory_bytes(obj_id)
+        return directory_builder.get_directory_bytes(self.obj_id)

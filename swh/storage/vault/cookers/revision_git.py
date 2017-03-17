@@ -13,8 +13,8 @@ class RevisionGitCooker(BaseVaultCooker):
     """Cooker to create a git fast-import bundle """
     CACHE_TYPE_KEY = 'revision_git'
 
-    def prepare_bundle(self, obj_id):
-        commands = self.fastexport(self.storage.revision_log([obj_id]))
+    def prepare_bundle(self):
+        commands = self.fastexport(self.storage.revision_log([self.obj_id]))
         bundle_content = b'\n'.join(bytes(command) for command in commands)
         return bundle_content
 

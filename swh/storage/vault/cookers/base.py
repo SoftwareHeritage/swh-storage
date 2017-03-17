@@ -40,53 +40,56 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
     To define a new cooker, inherit from this class and override:
     - CACHE_TYPE_KEY: key to use for the bundle to reference in cache
-    - def cook(obj_id): cook the object into a bundle
-    - def notify_bundle_ready(notif_data, bundle_id): notify the
+    - def cook(): cook the object into a bundle
+    - def notify_bundle_ready(notif_data): notify the
       bundle is ready.
 
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, storage, cache):
-        self.storage = storage
-        self.cache = cache
-
-    @abc.abstractmethod
-    def prepare_bundle(self, obj_id):
-        """Implementation of the cooker. Returns the bundle bytes.
-
-        Override this with the cooker implementation.
-        """
-        raise NotImplemented
-
-    def cook(self, obj_id):
-        """Cook the requested object into a bundle
+    def __init__(self, storage, cache, obj_id):
+        """Initialize the cooker.
 
         The type of the object represented by the id depends on the
         concrete class. Very likely, each type of bundle will have its
         own cooker class.
 
         Args:
+            storage: the storage object
+            cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
-
         """
-        bundle_content = self.prepare_bundle(obj_id)
+        self.storage = storage
+        self.cache = cache
+        self.obj_id = obj_id
+
+    @abc.abstractmethod
+    def prepare_bundle(self):
+        """Implementation of the cooker. Returns the bundle bytes.
+
+        Override this with the cooker implementation.
+        """
+        raise NotImplemented
+
+    def cook(self):
+        """Cook the requested object into a bundle
+        """
+        bundle_content = self.prepare_bundle()
 
         # Cache the bundle
-        self.update_cache(obj_id, bundle_content)
+        self.update_cache(bundle_content)
         # Make a notification that the bundle have been cooked
         # NOT YET IMPLEMENTED see TODO in function.
         self.notify_bundle_ready(
-            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
-            bundle_id=obj_id)
+            notif_data='Bundle %s ready' % hashutil.hash_to_hex(self.obj_id))
 
-    def update_cache(self, id, bundle_content):
+    def update_cache(self, bundle_content):
         """Update the cache with id and bundle_content.
 
         """
-        self.cache.add(self.CACHE_TYPE_KEY, id, bundle_content)
+        self.cache.add(self.CACHE_TYPE_KEY, self.obj_id, bundle_content)
 
-    def notify_bundle_ready(self, notif_data, bundle_id):
+    def notify_bundle_ready(self, notif_data):
         # TODO plug this method with the notification method once
         # done.
         pass

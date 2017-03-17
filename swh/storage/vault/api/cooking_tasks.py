@@ -21,6 +21,7 @@ class SWHCookingTask(Task):
         storage = get_storage(**storage_args)
         cache = VaultCache(**cache_args)
         # Initialize cooker
-        cooker = COOKER_TYPES[type](storage, cache)
+        obj_id = hashutil.hash_to_bytes(hex_id)
+        cooker = COOKER_TYPES[type](storage, cache, obj_id)
         # Perform the cooking
-        cooker.cook(obj_id=hashutil.hash_to_bytes(hex_id))
+        cooker.cook()
