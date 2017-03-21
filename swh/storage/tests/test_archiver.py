@@ -14,7 +14,7 @@ import json
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.core import hashutil
+from swh.model import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
 from server_testing import ServerTestFixture
 

@@ -155,6 +155,7 @@ sql/upgrades/098.sql
 sql/upgrades/099.sql
 sql/upgrades/100.sql
 sql/upgrades/101.sql
+sql/upgrades/102.sql
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
 swh.storage.egg-info/dependency_links.txt
@@ -176,6 +177,7 @@ swh/storage/archiver/db.py
 swh/storage/archiver/director.py
 swh/storage/archiver/storage.py
 swh/storage/archiver/tasks.py
+swh/storage/archiver/updater.py
 swh/storage/archiver/worker.py
 swh/storage/provenance/tasks.py
 swh/storage/tests/server_testing.py
@@ -186,9 +188,13 @@ swh/storage/tests/test_db.py
 swh/storage/tests/test_storage.py
 swh/storage/vault/cache.py
 swh/storage/vault/conf.yaml
-swh/storage/vault/cooker.py
 swh/storage/vault/api/client.py
 swh/storage/vault/api/cooking_tasks.py
 swh/storage/vault/api/server.py
+swh/storage/vault/cookers/__init__.py
+swh/storage/vault/cookers/base.py
+swh/storage/vault/cookers/directory.py
+swh/storage/vault/cookers/revision_flat.py
+swh/storage/vault/cookers/revision_git.py
 utils/dump_revisions.py
 utils/fix_revisions_from_dump.py

@@ -1,4 +1,4 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,14 +13,7 @@ import tempfile
 
 from pathlib import Path
 
-from swh.core import hashutil
-
-
-SKIPPED_MESSAGE = (b'This content have not been retrieved in '
-                   b'Software Heritage archive due to its size')
-
-
-HIDDEN_MESSAGE = (b'This content is hidden')
+from swh.model import hashutil
 
 
 def get_tar_bytes(path, arcname=None):
@@ -33,6 +26,13 @@ def get_tar_bytes(path, arcname=None):
     return tar_buffer.getbuffer()
 
 
+SKIPPED_MESSAGE = (b'This content have not been retrieved in '
+                   b'Software Heritage archive due to its size')
+
+
+HIDDEN_MESSAGE = (b'This content is hidden')
+
+
 class BaseVaultCooker(metaclass=abc.ABCMeta):
     """Abstract base class for the vault's bundle creators
 
@@ -40,138 +40,62 @@ class BaseVaultCooker(metaclass=abc.ABCMeta):
 
     To define a new cooker, inherit from this class and override:
     - CACHE_TYPE_KEY: key to use for the bundle to reference in cache
-    - def cook(obj_id): cook the object into a bundle
-    - def notify_bundle_ready(notif_data, bundle_id): notify the
+    - def cook(): cook the object into a bundle
+    - def notify_bundle_ready(notif_data): notify the
       bundle is ready.
 
     """
     CACHE_TYPE_KEY = None
 
-    def __init__(self, storage, cache):
-        self.storage = storage
-        self.cache = cache
-
-    @abc.abstractmethod
-    def cook(self, obj_id):
-        """Cook the requested object into a bundle
+    def __init__(self, storage, cache, obj_id):
+        """Initialize the cooker.
 
         The type of the object represented by the id depends on the
         concrete class. Very likely, each type of bundle will have its
         own cooker class.
 
         Args:
+            storage: the storage object
+            cache: the cache where to store the bundle
             obj_id: id of the object to be cooked into a bundle.
-
         """
-        pass
+        self.storage = storage
+        self.cache = cache
+        self.obj_id = obj_id
 
-    def update_cache(self, id, bundle_content):
+    @abc.abstractmethod
+    def prepare_bundle(self):
+        """Implementation of the cooker. Returns the bundle bytes.
+
+        Override this with the cooker implementation.
+        """
+        raise NotImplemented
+
+    def cook(self):
+        """Cook the requested object into a bundle
+        """
+        bundle_content = self.prepare_bundle()
+
+        # Cache the bundle
+        self.update_cache(bundle_content)
+        # Make a notification that the bundle have been cooked
+        # NOT YET IMPLEMENTED see TODO in function.
+        self.notify_bundle_ready(
+            notif_data='Bundle %s ready' % hashutil.hash_to_hex(self.obj_id))
+
+    def update_cache(self, bundle_content):
         """Update the cache with id and bundle_content.
 
         """
-        self.cache.add(self.CACHE_TYPE_KEY, id, bundle_content)
+        self.cache.add(self.CACHE_TYPE_KEY, self.obj_id, bundle_content)
 
-    @abc.abstractmethod
-    def notify_bundle_ready(self, notif_data, bundle_id):
-        """Notify the bundle bundle_id is ready.
-
-        """
-        pass
-
-
-class DirectoryVaultCooker(BaseVaultCooker):
-    """Cooker to create a directory bundle """
-    CACHE_TYPE_KEY = 'directory'
-
-    def __init__(self, storage, cache):
-        """Initialize a cooker that create directory bundles
-
-        Args:
-            storage: source storage where content are retrieved.
-            cache: destination storage where the cooked bundle are stored.
-
-        """
-        self.storage = storage
-        self.cache = cache
-
-    def cook(self, obj_id):
-        """Cook the requested directory into a Bundle
-
-        Args:
-            obj_id (bytes): the id of the directory to be cooked.
-
-        Returns:
-            bytes that correspond to the bundle
-
-        """
-        # Create the bytes that corresponds to the compressed
-        # directory.
-        directory_cooker = DirectoryCooker(self.storage)
-        bundle_content = directory_cooker.get_directory_bytes(obj_id)
-        # Cache the bundle
-        self.update_cache(obj_id, bundle_content)
-        # Make a notification that the bundle have been cooked
-        # NOT YET IMPLEMENTED see TODO in function.
-        self.notify_bundle_ready(
-            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
-            bundle_id=obj_id)
-
-    def notify_bundle_ready(self, notif_data, bundle_id):
+    def notify_bundle_ready(self, notif_data):
         # TODO plug this method with the notification method once
         # done.
         pass
 
 
-class RevisionVaultCooker(BaseVaultCooker):
-    """Cooker to create a directory bundle """
-    CACHE_TYPE_KEY = 'revision'
-
-    def __init__(self, storage, cache):
-        """Initialize a cooker that create revision bundles
-
-        Args:
-            storage: source storage where content are retrieved.
-            cache: destination storage where the cooked bundle are stored.
-
-        """
-        self.storage = storage
-        self.cache = cache
-
-    def cook(self, obj_id):
-        """Cook the requested revision into a Bundle
-
-        Args:
-            obj_id (bytes): the id of the revision to be cooked.
-
-        Returns:
-            bytes that correspond to the bundle
-
-        """
-        directory_cooker = DirectoryCooker(self.storage)
-        with tempfile.TemporaryDirectory(suffix='.cook') as root_tmp:
-            root = Path(root_tmp)
-            for revision in self.storage.revision_log([obj_id]):
-                revdir = root / hashutil.hash_to_hex(revision['id'])
-                revdir.mkdir()
-                directory_cooker.build_directory(revision['directory'],
-                                                 str(revdir).encode())
-            bundle_content = get_tar_bytes(root_tmp,
-                                           hashutil.hash_to_hex(obj_id))
-        # Cache the bundle
-        self.update_cache(obj_id, bundle_content)
-        # Make a notification that the bundle have been cooked
-        # NOT YET IMPLEMENTED see TODO in function.
-        self.notify_bundle_ready(
-            notif_data='Bundle %s ready' % hashutil.hash_to_hex(obj_id),
-            bundle_id=obj_id)
-
-    def notify_bundle_ready(self, notif_data, bundle_id):
-        # TODO plug this method with the notification method once
-        # done.
-        pass
-
-
-class DirectoryCooker():
+class DirectoryBuilder:
     """Creates a cooked directory from its sha1_git in the db.
 
     Warning: This is NOT a directly accessible cooker, but a low-level
@@ -247,6 +171,7 @@ class DirectoryCooker():
         if perms not in (0o100644, 0o100755, 0o120000):
             logging.warning('File {} has invalid permission {}, '
                             'defaulting to 644.'.format(path, perms))
+            perms = 0o100644
 
         if perms == 0o120000:  # Symbolic link
             os.symlink(content, path)
