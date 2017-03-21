@@ -31,9 +31,11 @@ class RevisionGitCooker(BaseVaultCooker):
         self.obj_to_mark = {}
         self.next_available_mark = 1
 
-        for i, rev in enumerate(self.rev_sorted, 1):
-            logging.info('Computing revision %d/%d', i, len(self.rev_sorted))
-            yield from self._compute_commit_command(rev)
+        with self.storage.db.transaction() as self.cursor:
+            for i, rev in enumerate(self.rev_sorted, 1):
+                logging.info('Computing revision %d/%d', i,
+                             len(self.rev_sorted))
+                yield from self._compute_commit_command(rev)
 
     def _toposort(self, rev_by_id):
         """Perform a topological sort on the revision graph.
@@ -117,7 +119,7 @@ class RevisionGitCooker(BaseVaultCooker):
 
     @functools.lru_cache(maxsize=4096)
     def _get_dir_ents(self, dir_id=None):
-        data = (self.storage.directory_ls(dir_id)
+        data = (self.storage.directory_ls(dir_id, cur=self.cursor)
                 if dir_id is not None else [])
         return {f['name']: f for f in data}
 
