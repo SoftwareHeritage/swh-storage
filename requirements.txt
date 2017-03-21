@@ -1,9 +1,6 @@
-python-dateutil
-psycopg2
-vcversioner
-
-# remote storage API server
-flask
-
-
 click
+flask
+psycopg2
+python-dateutil
+python-fastimport
+vcversioner

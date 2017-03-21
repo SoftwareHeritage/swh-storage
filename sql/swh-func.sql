@@ -150,32 +150,13 @@ create or replace function swh_content_missing()
     language plpgsql
 as $$
 begin
-    -- This query is critical for (single-algorithm) hash collision detection,
-    -- so we cannot rely only on the fact that a single hash (e.g., sha1) is
-    -- missing from the table content to conclude that a given content is
-    -- missing. Ideally, we would want to (try to) add to content all entries
-    -- in tmp_content that, when considering all columns together, are missing
-    -- from content.
-    --
-    -- But doing that naively would require a *compound* index on all checksum
-    -- columns; that index would not be significantly smaller than the content
-    -- table itself, and therefore won't be used. Therefore we union together
-    -- all contents that differ on at least one column from what is already
-    -- available. If there is a collision on some (but not all) columns, the
-    -- relevant tmp_content entry will be included in the set of content to be
-    -- added, causing a downstream violation of unicity constraint.
-    return query
-	(select sha1, sha1_git, sha256 from tmp_content as tmp
-	 where not exists
-	     (select 1 from content as c where c.sha1 = tmp.sha1))
-	union
-	(select sha1, sha1_git, sha256 from tmp_content as tmp
-	 where not exists
-	     (select 1 from content as c where c.sha1_git = tmp.sha1_git))
-	union
-	(select sha1, sha1_git, sha256 from tmp_content as tmp
-	 where not exists
-	     (select 1 from content as c where c.sha256 = tmp.sha256));
+    return query (
+      select sha1, sha1_git, sha256 from tmp_content as tmp
+      where not exists (
+        select 1 from content as c
+        where c.sha1 = tmp.sha1 and c.sha1_git = tmp.sha1_git and c.sha256 = tmp.sha256
+      )
+    );
     return;
 end
 $$;
@@ -455,7 +436,8 @@ create type directory_entry as
   status   content_status,  -- visible or absent
   sha1     sha1,            -- content if sha1 if type is not dir
   sha1_git sha1_git,        -- content's sha1 git if type is not dir
-  sha256   sha256           -- content's sha256 if type is not dir
+  sha256   sha256,          -- content's sha256 if type is not dir
+  length   bigint           -- content length if type is not dir
 );
 
 
@@ -477,20 +459,20 @@ as $$
     ls_r as (select dir_id, unnest(rev_entries) as entry_id from dir)
     (select dir_id, 'dir'::directory_entry_type as type,
             e.target, e.name, e.perms, NULL::content_status,
-            NULL::sha1, NULL::sha1_git, NULL::sha256
+            NULL::sha1, NULL::sha1_git, NULL::sha256, NULL::bigint
      from ls_d
      left join directory_entry_dir e on ls_d.entry_id = e.id)
     union
     (select dir_id, 'file'::directory_entry_type as type,
             e.target, e.name, e.perms, c.status,
-            c.sha1, c.sha1_git, c.sha256
+            c.sha1, c.sha1_git, c.sha256, c.length
      from ls_f
      left join directory_entry_file e on ls_f.entry_id = e.id
      left join content c on e.target = c.sha1_git)
     union
     (select dir_id, 'rev'::directory_entry_type as type,
             e.target, e.name, e.perms, NULL::content_status,
-            NULL::sha1, NULL::sha1_git, NULL::sha256
+            NULL::sha1, NULL::sha1_git, NULL::sha256, NULL::bigint
      from ls_r
      left join directory_entry_rev e on ls_r.entry_id = e.id)
     order by name;
@@ -504,15 +486,15 @@ create or replace function swh_directory_walk(walked_dir_id sha1_git)
 as $$
     with recursive entries as (
         select dir_id, type, target, name, perms, status, sha1, sha1_git,
-               sha256
+               sha256, length
         from swh_directory_walk_one(walked_dir_id)
         union all
         select dir_id, type, target, (dirname || '/' || name)::unix_path as name,
-               perms, status, sha1, sha1_git, sha256
+               perms, status, sha1, sha1_git, sha256, length
         from (select (swh_directory_walk_one(dirs.target)).*, dirs.name as dirname
               from (select target, name from entries where type = 'dir') as dirs) as with_parent
     )
-    select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
+    select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256, length
     from entries
 $$;
 
@@ -521,7 +503,7 @@ create or replace function swh_revision_walk(revision_id sha1_git)
   language sql
   stable
 as $$
-  select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256
+  select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256, length
   from swh_directory_walk((select directory from revision where id=revision_id))
 $$;
 

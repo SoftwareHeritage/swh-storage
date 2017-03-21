@@ -15,7 +15,7 @@ from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageDBError
 
-from swh.core.hashutil import ALGORITHMS
+from swh.model.hashutil import ALGORITHMS
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
@@ -79,7 +79,7 @@ class Storage():
                 - data (bytes): the actual content
                 - length (int): content length (default: -1)
                 - one key for each checksum algorithm in
-                  swh.core.hashutil.ALGORITHMS, mapped to the corresponding
+                  swh.model.hashutil.ALGORITHMS, mapped to the corresponding
                   checksum
                 - status (str): one of visible, hidden, absent
                 - reason (str): if status = absent, the reason why
@@ -146,7 +146,7 @@ class Storage():
                 - data (bytes): the actual content
                 - length (int): content length (default: -1)
                 - one key for each checksum algorithm in
-                  swh.core.hashutil.ALGORITHMS, mapped to the corresponding
+                  swh.model.hashutil.ALGORITHMS, mapped to the corresponding
                   checksum
                 - status (str): one of visible, hidden, absent
 
@@ -218,7 +218,7 @@ class Storage():
 
         Args:
             content: iterable of dictionaries containing one key for each
-                checksum algorithm in swh.core.hashutil.ALGORITHMS, mapped to
+                checksum algorithm in swh.model.hashutil.ALGORITHMS, mapped to
                 the corresponding checksum, and a length key mapped to the
                 content length.
             key_hash: the name of the hash used as key (default: 'sha1')
@@ -294,7 +294,7 @@ class Storage():
 
         Args:
             content: a dictionary representing one content hash, mapping
-                checksum algorithm names (see swh.core.hashutil.ALGORITHMS) to
+                checksum algorithm names (see swh.model.hashutil.ALGORITHMS) to
                 checksum values
 
         Returns:
@@ -327,7 +327,7 @@ class Storage():
 
         Args:
             content: a dictionary entry representing one content hash.
-            The dictionary key is one of swh.core.hashutil.ALGORITHMS.
+            The dictionary key is one of swh.model.hashutil.ALGORITHMS.
             The value mapped to the corresponding checksum.
 
         Yields:
@@ -474,6 +474,26 @@ class Storage():
             yield dict(zip(db.directory_ls_cols, line))
 
     @db_transaction
+    def directory_entry_get_by_path(self, directory, paths, cur=None):
+        """Get the directory entry (either file or dir) from directory with
+        path.
+
+        Args:
+            - directory: sha1 of the top level directory
+            - paths: path to lookup from the top level directory. From left
+            (top) to right (bottom).
+
+        Returns:
+            The corresponding directory entry if found, None otherwise.
+
+        """
+        db = self.db
+
+        res = db.directory_entry_get_by_path(directory, paths, cur)
+        if res:
+            return dict(zip(db.directory_ls_cols, res))
+
+    @db_transaction
     def cache_content_revision_add(self, revisions, cur=None):
         """Cache the current revision's current targeted arborescence directory.
         If the revision has already been cached, it just does nothing.
@@ -539,28 +559,6 @@ class Storage():
         """
         for (revision,) in self.db.cache_revision_origin_add(origin, visit):
             yield revision
-
-    @db_transaction
-    def directory_entry_get_by_path(self, directory, paths, cur=None):
-        """Get the directory entry (either file or dir) from directory with
-        path.
-
-        Args:
-            - directory: sha1 of the top level directory
-            - paths: path to lookup from the top level directory. From left
-            (top) to right (bottom).
-
-        Returns:
-            The corresponding directory entry if found, None otherwise.
-
-        """
-        db = self.db
-        keys = ('dir_id', 'type', 'target', 'name', 'perms', 'status',
-                'sha1', 'sha1_git', 'sha256')
-
-        res = db.directory_entry_get_by_path(directory, paths, cur)
-        if res:
-            return dict(zip(keys, res))
 
     def revision_add(self, revisions):
         """Add revisions to the storage
