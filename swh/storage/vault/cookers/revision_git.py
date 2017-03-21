@@ -85,13 +85,15 @@ class RevisionGitCooker(BaseVaultCooker):
     def _compute_commit_command(self, rev):
         """Compute a commit command from a specific revision.
         """
-        from_ = None
-        merges = None
-        parent = None
         if 'parents' in rev and rev['parents']:
             from_ = b':' + self.mark(rev['parents'][0])
             merges = [b':' + self.mark(r) for r in rev['parents'][1:]]
             parent = self.rev_by_id[rev['parents'][0]]
+        else:
+            yield fastimport.commands.ResetCommand(b'refs/heads/master', None)
+            from_ = None
+            merges = None
+            parent = None
         files = yield from self._compute_file_commands(rev, parent)
         author = (rev['author']['name'],
                   rev['author']['email'],
