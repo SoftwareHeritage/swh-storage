@@ -400,7 +400,8 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         cols = ', '.join(self.directory_ls_cols)
-        query = 'SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)' % cols
+        query = (
+            'SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)' % cols)
         cur.execute(query, (directory, paths))
 
         data = cur.fetchone()
