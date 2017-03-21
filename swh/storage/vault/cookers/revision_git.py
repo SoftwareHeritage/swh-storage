@@ -3,10 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import logging
-import os
 import collections
 import fastimport.commands
+import functools
+import logging
+import os
 
 from .base import BaseVaultCooker
 
@@ -114,6 +115,7 @@ class RevisionGitCooker(BaseVaultCooker):
             file_iter=files,
         )
 
+    @functools.lru_cache(maxsize=4096)
     def _get_dir_ents(self, dir_id=None):
         data = (self.storage.directory_ls(dir_id)
                 if dir_id is not None else [])
