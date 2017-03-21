@@ -1,19 +1,13 @@
-# Copyright (C) 2016  The Software Heritage developers
+# Copyright (C) 2016-2017  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from swh.scheduler.task import Task
-from swh.core import hashutil
+from swh.model import hashutil
 from ..cache import VaultCache
-from ..cooker import DirectoryVaultCooker, RevisionVaultCooker
+from ..cookers import COOKER_TYPES
 from ... import get_storage
-
-
-COOKER_TYPES = {
-    'directory': DirectoryVaultCooker,
-    'revision': RevisionVaultCooker,
-}
 
 
 class SWHCookingTask(Task):
@@ -27,6 +21,7 @@ class SWHCookingTask(Task):
         storage = get_storage(**storage_args)
         cache = VaultCache(**cache_args)
         # Initialize cooker
-        cooker = COOKER_TYPES[type](storage, cache)
+        obj_id = hashutil.hash_to_bytes(hex_id)
+        cooker = COOKER_TYPES[type](storage, cache, obj_id)
         # Perform the cooking
-        cooker.cook(obj_id=hashutil.hex_to_hash(hex_id))
+        cooker.cook()

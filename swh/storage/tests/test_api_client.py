@@ -6,13 +6,13 @@
 import unittest
 import tempfile
 
-from swh.storage.tests.test_storage import AbstractTestStorage
+from swh.storage.tests.test_storage import CommonTestStorage
 from swh.storage.tests.server_testing import ServerTestFixture
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
 
 
-class TestRemoteStorage(AbstractTestStorage, ServerTestFixture,
+class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
                         unittest.TestCase):
     """Test the remote storage API.
 

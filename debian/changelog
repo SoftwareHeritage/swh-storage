@@ -1,8 +1,17 @@
-swh-storage (0.0.81-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.82-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.82
+  * swh.storage.listener: Subscribe to new origin notifications
+  * sql/swh-func: improve equality check on the three columns for
+    swh_content_missing
+  * swh.storage: add length to directory listing primitives
+  * refactoring: Migrate from swh.core.hashutil to swh.model.hashutil
+  * swh.storage.archiver.updater: Create a content updater journal
+    client
+  * vault: add a git fast-import cooker
+  * vault: generic cache to allow multiple cooker types and formats
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 09 Mar 2017 11:15:28 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 21 Mar 2017 14:50:16 +0100
 
 swh-storage (0.0.81-1~swh1) unstable-swh; urgency=medium
 

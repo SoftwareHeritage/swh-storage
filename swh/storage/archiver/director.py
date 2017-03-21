@@ -7,7 +7,8 @@ import abc
 import click
 import sys
 
-from swh.core import config, utils, hashutil
+from swh.core import config, utils
+from swh.model import hashutil
 from swh.objstorage import get_objstorage
 from swh.scheduler.utils import get_task
 
@@ -163,7 +164,7 @@ def read_sha1_from_stdin():
     for line in sys.stdin:
         sha1 = line.strip()
         try:
-            yield hashutil.hex_to_hash(sha1)
+            yield hashutil.hash_to_bytes(sha1)
         except Exception:
             print("%s is not a valid sha1 hash, continuing" % repr(sha1),
                   file=sys.stderr)

@@ -6,7 +6,7 @@
 
 import time
 
-from swh.core import hashutil
+from swh.model import hashutil
 from swh.storage.db import BaseDb, cursor_to_bytes, stored_procedure
 
 

@@ -42,6 +42,7 @@ OBJECT_TYPES = {
     'revision': decode_sha,
     'release': decode_sha,
     'origin_visit': decode_json,
+    'origin': int,
 }
 
 

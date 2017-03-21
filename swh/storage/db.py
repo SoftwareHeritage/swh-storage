@@ -14,7 +14,7 @@ import tempfile
 
 from contextlib import contextmanager
 
-from swh.core import hashutil
+from swh.model import hashutil
 
 TMP_CONTENT_TABLE = 'tmp_content'
 
@@ -377,17 +377,36 @@ class Db(BaseDb):
         yield from cursor_to_bytes(cur)
 
     directory_ls_cols = ['dir_id', 'type', 'target', 'name', 'perms',
-                         'status', 'sha1', 'sha1_git', 'sha256']
+                         'status', 'sha1', 'sha1_git', 'sha256', 'length']
 
     def directory_walk_one(self, directory, cur=None):
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_directory_walk_one(%s)', (directory,))
+        cols = ', '.join(self.directory_ls_cols)
+        query = 'SELECT %s FROM swh_directory_walk_one(%%s)' % cols
+        cur.execute(query, (directory,))
         yield from cursor_to_bytes(cur)
 
     def directory_walk(self, directory, cur=None):
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_directory_walk(%s)', (directory,))
+        cols = ', '.join(self.directory_ls_cols)
+        query = 'SELECT %s FROM swh_directory_walk(%%s)' % cols
+        cur.execute(query, (directory,))
         yield from cursor_to_bytes(cur)
+
+    def directory_entry_get_by_path(self, directory, paths, cur=None):
+        """Retrieve a directory entry by path.
+
+        """
+        cur = self._cursor(cur)
+
+        cols = ', '.join(self.directory_ls_cols)
+        query = 'SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)' % cols
+        cur.execute(query, (directory, paths))
+
+        data = cur.fetchone()
+        if set(data) == {None}:
+            return None
+        return line_to_bytes(data)
 
     def revision_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -783,21 +802,6 @@ class Db(BaseDb):
 
         cur.execute(query, (origin_id, branch_name, datetime, limit))
         yield from cursor_to_bytes(cur)
-
-    def directory_entry_get_by_path(self, directory, paths, cur=None):
-        """Retrieve a directory entry by path.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT dir_id, type, target, name, perms, status, sha1,
-                       sha1_git, sha256
-                       FROM swh_find_directory_entry_by_path(%s, %s)""",
-                    (directory, paths))
-
-        data = cur.fetchone()
-        if set(data) == {None}:
-            return None
-        return line_to_bytes(data)
 
     def entity_get(self, uuid, cur=None):
         """Retrieve the entity and its parent hierarchy chain per uuid.
