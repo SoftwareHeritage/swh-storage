@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import logging
+import os
 import collections
 import fastimport.commands
 
@@ -28,8 +30,9 @@ class RevisionGitCooker(BaseVaultCooker):
         self.obj_to_mark = {}
         self.next_available_mark = 1
 
-        yield from self._compute_all_blob_commands()
-        yield from self._compute_all_commit_commands()
+        for i, rev in enumerate(self.rev_sorted, 1):
+            logging.info('Computing revision %d/%d', i, len(self.rev_sorted))
+            yield from self._compute_commit_command(rev)
 
     def _toposort(self, rev_by_id):
         """Perform a topological sort on the revision graph.
@@ -65,40 +68,19 @@ class RevisionGitCooker(BaseVaultCooker):
             self.next_available_mark += 1
         return str(self.obj_to_mark[obj_id]).encode()
 
-    def _compute_all_blob_commands(self):
-        """Compute all the blob commands to populate the empty git repository.
-
-        Mark the populated blobs so that we are able to reference them in file
-        commands.
-
+    def _compute_blob_command_content(self, file_data):
+        """Compute the blob command of a file entry if it has not been
+        computed yet.
         """
-        for rev in self.rev_sorted:
-            yield from self._compute_blob_commands_in_dir(rev['directory'])
-
-    def _compute_blob_commands_in_dir(self, dir_id):
-        """Find all the blobs in a directory and generate their blob commands.
-
-        If a blob has already been visited and marked, skip it.
-        """
-        data = self.storage.directory_ls(dir_id, recursive=True)
-        files_data = list(entry for entry in data if entry['type'] == 'file')
-        self.dir_by_id[dir_id] = files_data
-        for file_data in files_data:
-            obj_id = file_data['sha1']
-            if obj_id in self.obj_done:
-                continue
-            content = list(self.storage.content_get([obj_id]))[0]['data']
-            yield fastimport.commands.BlobCommand(
-                mark=self.mark(obj_id),
-                data=content,
-            )
-            self.obj_done.add(obj_id)
-
-    def _compute_all_commit_commands(self):
-        """Compute all the commit commands.
-        """
-        for rev in self.rev_sorted:
-            yield from self._compute_commit_command(rev)
+        obj_id = file_data['sha1']
+        if obj_id in self.obj_done:
+            return
+        content = list(self.storage.content_get([obj_id]))[0]['data']
+        yield fastimport.commands.BlobCommand(
+            mark=self.mark(obj_id),
+            data=content,
+        )
+        self.obj_done.add(obj_id)
 
     def _compute_commit_command(self, rev):
         """Compute a commit command from a specific revision.
@@ -110,7 +92,7 @@ class RevisionGitCooker(BaseVaultCooker):
             from_ = b':' + self.mark(rev['parents'][0])
             merges = [b':' + self.mark(r) for r in rev['parents'][1:]]
             parent = self.rev_by_id[rev['parents'][0]]
-        files = self._compute_file_commands(rev, parent)
+        files = yield from self._compute_file_commands(rev, parent)
         author = (rev['author']['name'],
                   rev['author']['email'],
                   rev['date']['timestamp']['seconds'],
@@ -130,33 +112,54 @@ class RevisionGitCooker(BaseVaultCooker):
             file_iter=files,
         )
 
+    def _get_dir_ents(self, dir_id=None):
+        data = (self.storage.directory_ls(dir_id)
+                if dir_id is not None else [])
+        return {f['name']: f for f in data}
+
     def _compute_file_commands(self, rev, parent=None):
         """Compute all the file commands of a revision.
 
         Generate a diff of the files between the revision and its main parent
         to find the necessary file commands to apply.
         """
-        if not parent:
-            parent_dir = []
-        else:
-            parent_dir = self.dir_by_id[parent['directory']]
-        cur_dir = self.dir_by_id[rev['directory']]
-        parent_dir = {f['name']: f for f in parent_dir}
-        cur_dir = {f['name']: f for f in cur_dir}
+        commands = []
 
-        for fname, f in cur_dir.items():
-            if ((fname not in parent_dir
-                 or f['sha1'] != parent_dir[fname]['sha1']
-                 or f['perms'] != parent_dir[fname]['perms'])):
-                yield fastimport.commands.FileModifyCommand(
-                    path=f['name'],
-                    mode=f['perms'],
-                    dataref=(b':' + self.mark(f['sha1'])),
-                    data=None,
-                )
+        cur_dir = rev['directory']
+        parent_dir = parent['directory'] if parent else None
 
-        for fname, f in parent_dir.items():
-            if fname not in cur_dir:
-                yield fastimport.commands.FileDeleteCommand(
-                    path=f['name']
-                )
+        queue = collections.deque()  # base path, rev dir id, parent dir id
+        queue.append((b'', cur_dir, parent_dir))
+
+        while queue:
+            root, cur_dir_id, prev_dir_id = queue.pop()
+            cur_dir = self._get_dir_ents(cur_dir_id)
+            prev_dir = self._get_dir_ents(prev_dir_id)
+
+            for fname, f in prev_dir.items():
+                if ((fname not in cur_dir
+                     or f['type'] != cur_dir[fname]['type'])):
+                    commands.append(fastimport.commands.FileDeleteCommand(
+                        path=os.path.join(root, fname)
+                    ))
+
+            for fname, f in cur_dir.items():
+                if (f['type'] == 'file'
+                    and (fname not in prev_dir
+                         or f['sha1'] != prev_dir[fname]['sha1']
+                         or f['perms'] != prev_dir[fname]['perms'])):
+                    yield from self._compute_blob_command_content(f)
+                    commands.append(fastimport.commands.FileModifyCommand(
+                        path=os.path.join(root, fname),
+                        mode=f['perms'],
+                        dataref=(b':' + self.mark(f['sha1'])),
+                        data=None,
+                    ))
+                elif f['type'] == 'dir':
+                    f_prev_target = None
+                    if fname in prev_dir and prev_dir[fname]['type'] == 'dir':
+                        f_prev_target = prev_dir[fname]['target']
+                    queue.append((os.path.join(root, fname),
+                                  f['target'], f_prev_target))
+
+        return commands
