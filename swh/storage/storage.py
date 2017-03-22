@@ -466,9 +466,9 @@ class Storage():
         db = self.db
 
         if recursive:
-            res_gen = db.directory_walk(directory)
+            res_gen = db.directory_walk(directory, cur=cur)
         else:
-            res_gen = db.directory_walk_one(directory)
+            res_gen = db.directory_walk_one(directory, cur=cur)
 
         for line in res_gen:
             yield dict(zip(db.directory_ls_cols, line))
