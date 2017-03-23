@@ -36,13 +36,13 @@ def decode_json(value):
 
 
 OBJECT_TYPES = {
-    'content': decode_sha,
-    'skipped_content': decode_json,
-    'directory': decode_sha,
-    'revision': decode_sha,
-    'release': decode_sha,
-    'origin_visit': decode_json,
-    'origin': int,
+    'content',
+    'skipped_content',
+    'directory',
+    'revision',
+    'release',
+    'origin_visit',
+    'origin',
 }
 
 
@@ -63,7 +63,7 @@ def dispatch_notify(topic_prefix, producer, notify):
     object_type = channel[4:]
 
     topic = '%s.%s' % (topic_prefix, object_type)
-    data = OBJECT_TYPES[object_type](notify.payload)
+    data = decode_json(notify.payload)
     producer.send(topic, value=data)
 
 

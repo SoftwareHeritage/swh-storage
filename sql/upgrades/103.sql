@@ -1,5 +1,13 @@
+-- SWH DB schema upgrade
+-- from_version: 102
+-- to_version: 103
+-- description: Update notify_new_* functions
+
+insert into dbversion(version, release, description)
+      values(103, now(), 'Work In Progress');
+
 -- Asynchronous notification of new content insertions
-create function notify_new_content()
+create or replace function notify_new_content()
   returns trigger
   language plpgsql
 as $$
@@ -13,14 +21,8 @@ as $$
   end;
 $$;
 
-create trigger notify_new_content
-  after insert on content
-  for each row
-  execute procedure notify_new_content();
-
-
 -- Asynchronous notification of new origin insertions
-create function notify_new_origin()
+create or replace function notify_new_origin()
   returns trigger
   language plpgsql
 as $$
@@ -30,14 +32,8 @@ as $$
   end;
 $$;
 
-create trigger notify_new_origin
-  after insert on origin
-  for each row
-  execute procedure notify_new_origin();
-
-
 -- Asynchronous notification of new skipped content insertions
-create function notify_new_skipped_content()
+create or replace function notify_new_skipped_content()
   returns trigger
   language plpgsql
 as $$
@@ -51,14 +47,8 @@ as $$
   end;
 $$;
 
-create trigger notify_new_skipped_content
-  after insert on skipped_content
-  for each row
-  execute procedure notify_new_skipped_content();
-
-
 -- Asynchronous notification of new directory insertions
-create function notify_new_directory()
+create or replace function notify_new_directory()
   returns trigger
   language plpgsql
 as $$
@@ -68,14 +58,8 @@ as $$
   end;
 $$;
 
-create trigger notify_new_directory
-  after insert on directory
-  for each row
-  execute procedure notify_new_directory();
-
-
 -- Asynchronous notification of new revision insertions
-create function notify_new_revision()
+create or replace function notify_new_revision()
   returns trigger
   language plpgsql
 as $$
@@ -85,14 +69,8 @@ as $$
   end;
 $$;
 
-create trigger notify_new_revision
-  after insert on revision
-  for each row
-  execute procedure notify_new_revision();
-
-
 -- Asynchronous notification of new origin visits
-create function notify_new_origin_visit()
+create or replace function notify_new_origin_visit()
   returns trigger
   language plpgsql
 as $$
@@ -105,14 +83,8 @@ as $$
   end;
 $$;
 
-create trigger notify_new_origin_visit
-  after insert on origin_visit
-  for each row
-  execute procedure notify_new_origin_visit();
-
-
 -- Asynchronous notification of new release insertions
-create function notify_new_release()
+create or replace function notify_new_release()
   returns trigger
   language plpgsql
 as $$
@@ -121,8 +93,3 @@ as $$
     return null;
   end;
 $$;
-
-create trigger notify_new_release
-  after insert on release
-  for each row
-  execute procedure notify_new_release();
