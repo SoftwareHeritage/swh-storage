@@ -135,9 +135,10 @@ $$;
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
 create type content_signature as (
-    sha1      sha1,
-    sha1_git  sha1_git,
-    sha256    sha256
+    sha1       sha1,
+    sha1_git   sha1_git,
+    sha256     sha256,
+    blake2s256 blake2s256
 );
 
 
@@ -151,10 +152,13 @@ create or replace function swh_content_missing()
 as $$
 begin
     return query (
-      select sha1, sha1_git, sha256 from tmp_content as tmp
+      select sha1, sha1_git, sha256, blake2s256 from tmp_content as tmp
       where not exists (
         select 1 from content as c
-        where c.sha1 = tmp.sha1 and c.sha1_git = tmp.sha1_git and c.sha256 = tmp.sha256
+        where c.sha1 = tmp.sha1 and
+              c.sha1_git = tmp.sha1_git and
+              c.sha256 = tmp.sha256 and
+              c.blake2s256 = tmp.blake2s256
       )
     );
     return;
@@ -189,12 +193,13 @@ create or replace function swh_skipped_content_missing()
 as $$
 begin
     return query
-	select sha1, sha1_git, sha256 from tmp_skipped_content t
+	select sha1, sha1_git, sha256, blake2s256 from tmp_skipped_content t
 	where not exists
 	(select 1 from skipped_content s where
 	    s.sha1 is not distinct from t.sha1 and
 	    s.sha1_git is not distinct from t.sha1_git and
-	    s.sha256 is not distinct from t.sha256);
+	    s.sha256 is not distinct from t.sha256 and
+            s.blake2s256 is not distinct from t.blake2s256);
     return;
 end
 $$;
@@ -210,9 +215,10 @@ $$;
 -- (e.g., for the web app), for batch lookup of missing content (e.g., to be
 -- added) see swh_content_missing
 create or replace function swh_content_find(
-    sha1      sha1     default NULL,
-    sha1_git  sha1_git default NULL,
-    sha256    sha256   default NULL
+    sha1       sha1       default NULL,
+    sha1_git   sha1_git   default NULL,
+    sha256     sha256     default NULL,
+    blake2s256 blake2s256 default NULL
 )
     returns content
     language plpgsql
@@ -230,6 +236,9 @@ begin
     end if;
     if sha256 is not null then
         filters := filters || format('sha256 = %L', sha256);
+    end if;
+    if blake2s256 is not null then
+        filters := filters || format('blake2s256 = %L', blake2s256);
     end if;
 
     if cardinality(filters) = 0 then
@@ -253,10 +262,10 @@ create or replace function swh_content_add()
     language plpgsql
 as $$
 begin
-    insert into content (sha1, sha1_git, sha256, length, status)
-	select distinct sha1, sha1_git, sha256, length, status
+    insert into content (sha1, sha1_git, sha256, blake2s256, length, status)
+        select distinct sha1, sha1_git, sha256, blake2s256, length, status
 	from tmp_content
-	where (sha1, sha1_git, sha256) in
+	where (sha1, sha1_git, sha256, blake2s256) in
 	    (select * from swh_content_missing());
 	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
 	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
@@ -275,18 +284,17 @@ create or replace function swh_skipped_content_add()
     language plpgsql
 as $$
 begin
-    insert into skipped_content (sha1, sha1_git, sha256, length, status, reason, origin)
-	select distinct sha1, sha1_git, sha256, length, status, reason, origin
+    insert into skipped_content (sha1, sha1_git, sha256, blake2s256, length, status, reason, origin)
+        select distinct sha1, sha1_git, sha256, blake2s256, length, status, reason, origin
 	from tmp_skipped_content
-	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in
-	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '') from swh_skipped_content_missing());
+	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, ''), coalesce(blake2s256)) in
+	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, ''), coalesce(blake2s256, '') from swh_skipped_content_missing());
 	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
 	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
 	    -- the extra swh_content_missing() query here.
     return;
 end
 $$;
-
 
 -- Update content entries from temporary table.
 -- (columns are potential new columns added to the schema, this cannot be empty)

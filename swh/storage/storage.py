@@ -102,7 +102,7 @@ class Storage():
 
         missing_content = set(self.content_missing(content_with_data))
         missing_skipped = set(
-            sha1_git for sha1, sha1_git, sha256
+            sha1_git for _, sha1_git, _, _
             in self.skipped_content_missing(content_without_data))
 
         with db.transaction() as cur:
@@ -118,7 +118,8 @@ class Storage():
                                     if cont['sha1'] in missing_content)
 
                 db.copy_to(content_filtered, 'tmp_content',
-                           ['sha1', 'sha1_git', 'sha256', 'length', 'status'],
+                           ['sha1', 'sha1_git', 'sha256', 'blake2s256',
+                            'length', 'status'],
                            cur, item_cb=add_to_objstorage)
 
                 # move metadata in place
@@ -127,10 +128,11 @@ class Storage():
             if missing_skipped:
                 missing_filtered = (cont for cont in content_without_data
                                     if cont['sha1_git'] in missing_skipped)
+
                 db.mktemp('skipped_content', cur)
                 db.copy_to(missing_filtered, 'tmp_skipped_content',
-                           ['sha1', 'sha1_git', 'sha256', 'length',
-                            'reason', 'status', 'origin'], cur)
+                           ['sha1', 'sha1_git', 'sha256', 'blake2s256',
+                            'length', 'reason', 'status', 'origin'], cur)
 
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)
@@ -232,7 +234,7 @@ class Storage():
         """
         db = self.db
 
-        keys = ['sha1', 'sha1_git', 'sha256']
+        keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
         if key_hash not in keys:
             raise ValueError("key_hash should be one of %s" % keys)
@@ -278,7 +280,7 @@ class Storage():
         Returns:
             an iterable of signatures missing from the storage
         """
-        keys = ['sha1', 'sha1_git', 'sha256']
+        keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
         db = self.db
 
@@ -310,15 +312,15 @@ class Storage():
 
         if not set(content).intersection(ALGORITHMS):
             raise ValueError('content keys must contain at least one of: '
-                             'sha1, sha1_git, sha256')
+                             'sha1, sha1_git, sha256, blake2s256')
 
         c = db.content_find(sha1=content.get('sha1'),
                             sha1_git=content.get('sha1_git'),
                             sha256=content.get('sha256'),
+                            blake2s256=content.get('blake2s256'),
                             cur=cur)
         if c:
-            keys = ['sha1', 'sha1_git', 'sha256', 'length', 'ctime', 'status']
-            return dict(zip(keys, c))
+            return dict(zip(db.content_find_cols, c))
         return None
 
     @db_transaction_generator

@@ -65,6 +65,8 @@ class BaseTestStorage(DbTestFixture):
             'sha256': hash_to_bytes(
                 '673650f936cb3b0a2f93ce09d81be107'
                 '48b1b203c19e8176b4eefc1964a0cf3a'),
+            'blake2s256': hash_to_bytes('d5fe1939576527e42cfd76a9455a2'
+                                        '432fe7f56669564577dd93c4280e76d661d'),
             'status': 'visible',
         }
 
@@ -78,6 +80,8 @@ class BaseTestStorage(DbTestFixture):
             'sha256': hash_to_bytes(
                 '859f0b154fdb2d630f45e1ecae4a8629'
                 '15435e663248bb8461d914696fc047cd'),
+            'blake2s256': hash_to_bytes('849c20fad132b7c2d62c15de310adfe87be'
+                                        '94a379941bed295e8141c6219810d'),
             'status': 'visible',
         }
 
@@ -91,6 +95,8 @@ class BaseTestStorage(DbTestFixture):
             'sha256': hash_to_bytes(
                 '92fb72daf8c6818288a35137b72155f5'
                 '07e5de8d892712ab96277aaed8cf8a36'),
+            'blake2s256': hash_to_bytes('76d0346f44e5a27f6bafdd9c2befd304af'
+                                        'f83780f93121d801ab6a1d4769db11'),
             'status': 'visible',
         }
 
@@ -104,6 +110,8 @@ class BaseTestStorage(DbTestFixture):
             'sha256': hash_to_bytes(
                 '6bbd052ab054ef222c1c87be60cd191a'
                 'ddedd24cc882d1f5f7f7be61dc61bb3a'),
+            'blake2s256': hash_to_bytes('306856b8fd879edb7b6f1aeaaf8db9bbecc9'
+                                        '93cd7f776c333ac3a782fa5c6eba'),
             'status': 'absent',
         }
 
@@ -627,21 +635,22 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.content_add([cont])
         self.storage.content_add([cont2])
 
-        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status,'
-                            'reason FROM skipped_content ORDER BY sha1_git')
+        self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
+                            'length, status, reason '
+                            'FROM skipped_content ORDER BY sha1_git')
 
         datum = self.cursor.fetchone()
         self.assertEqual(
             (datum[0], datum[1].tobytes(), datum[2],
-             datum[3], datum[4], datum[5]),
-            (None, cont['sha1_git'], None,
+             datum[3], datum[4], datum[5], datum[6]),
+            (None, cont['sha1_git'], None, None,
              cont['length'], 'absent', 'Content too long'))
 
         datum2 = self.cursor.fetchone()
         self.assertEqual(
             (datum2[0], datum2[1].tobytes(), datum2[2],
-             datum2[3], datum2[4], datum2[5]),
-            (None, cont2['sha1_git'], None,
+             datum2[3], datum2[4], datum2[5], datum2[6]),
+            (None, cont2['sha1_git'], None, None,
              cont2['length'], 'absent', 'Content too long'))
 
     @istest
@@ -1898,6 +1907,7 @@ class CommonTestStorage(BaseTestStorage):
             'sha1': cont['sha1'],
             'sha256': cont['sha256'],
             'sha1_git': cont['sha1_git'],
+            'blake2s256': cont['blake2s256'],
             'length': cont['length'],
             'status': 'visible'
         })
@@ -1911,6 +1921,7 @@ class CommonTestStorage(BaseTestStorage):
             'sha1': cont['sha1'],
             'sha256': cont['sha256'],
             'sha1_git': cont['sha1_git'],
+            'blake2s256': cont['blake2s256'],
             'length': cont['length'],
             'status': 'visible'
         })
@@ -1924,21 +1935,25 @@ class CommonTestStorage(BaseTestStorage):
             'sha1': cont['sha1'],
             'sha256': cont['sha256'],
             'sha1_git': cont['sha1_git'],
+            'blake2s256': cont['blake2s256'],
             'length': cont['length'],
             'status': 'visible'
         })
 
         # 4. with something to find
-        actually_present = self.storage.content_find(
-            {'sha1': cont['sha1'],
-             'sha1_git': cont['sha1_git'],
-             'sha256': cont['sha256']})
+        actually_present = self.storage.content_find({
+            'sha1': cont['sha1'],
+            'sha1_git': cont['sha1_git'],
+            'sha256': cont['sha256'],
+            'blake2s256': cont['blake2s256'],
+        })
 
         actually_present.pop('ctime')
         self.assertEqual(actually_present, {
             'sha1': cont['sha1'],
             'sha256': cont['sha256'],
             'sha1_git': cont['sha1_git'],
+            'blake2s256': cont['blake2s256'],
             'length': cont['length'],
             'status': 'visible'
         })

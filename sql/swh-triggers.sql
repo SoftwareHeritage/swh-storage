@@ -7,7 +7,8 @@ as $$
     perform pg_notify('new_content', json_build_object(
       'sha1', encode(new.sha1, 'hex'),
       'sha1_git', encode(new.sha1_git, 'hex'),
-      'sha256', encode(new.sha256, 'hex')
+      'sha256', encode(new.sha256, 'hex'),
+      'blake2s256', encode(new.blake2s256, 'hex')
     )::text);
     return null;
   end;
@@ -45,7 +46,8 @@ as $$
     perform pg_notify('new_skipped_content', json_build_object(
       'sha1', encode(new.sha1, 'hex'),
       'sha1_git', encode(new.sha1_git, 'hex'),
-      'sha256', encode(new.sha256, 'hex')
+      'sha256', encode(new.sha256, 'hex'),
+      'blake2s256', encode(new.blake2s256, 'hex')
     )::text);
     return null;
   end;
