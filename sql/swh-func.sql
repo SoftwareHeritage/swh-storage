@@ -193,13 +193,14 @@ create or replace function swh_skipped_content_missing()
 as $$
 begin
     return query
-	select sha1, sha1_git, sha256, blake2s256 from tmp_skipped_content t
+	select sha1, sha1_git, sha256, blake2s256
+        from tmp_skipped_content t
 	where not exists
-	(select 1 from skipped_content s where
-	    s.sha1 is not distinct from t.sha1 and
-	    s.sha1_git is not distinct from t.sha1_git and
-	    s.sha256 is not distinct from t.sha256 and
-            s.blake2s256 is not distinct from t.blake2s256);
+	(select 1 from skipped_content s
+         where s.sha1 is not distinct from t.sha1 and
+               s.sha1_git is not distinct from t.sha1_git and
+               s.sha256 is not distinct from t.sha256 and
+               s.blake2s256 is not distinct from t.blake2s256);
     return;
 end
 $$;
@@ -245,7 +246,7 @@ begin
         return null;
     else
         q = format('select * from content where %s',
-	        array_to_string(filters, ' and '));
+                   array_to_string(filters, ' and '));
         execute q into con;
 	return con;
     end if;
@@ -263,13 +264,9 @@ create or replace function swh_content_add()
 as $$
 begin
     insert into content (sha1, sha1_git, sha256, blake2s256, length, status)
-        select distinct sha1, sha1_git, sha256, blake2s256, length, status
-	from tmp_content
-	where (sha1, sha1_git, sha256, blake2s256) in
-	    (select * from swh_content_missing());
-	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
-	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
-	    -- the extra swh_content_missing() query here.
+       select distinct sha1, sha1_git, sha256, blake2s256, length, status
+       from tmp_content
+       on conflict (sha1, sha1_git, sha256, blake2s256) do nothing;
     return;
 end
 $$;
@@ -284,14 +281,10 @@ create or replace function swh_skipped_content_add()
     language plpgsql
 as $$
 begin
-    insert into skipped_content (sha1, sha1_git, sha256, blake2s256, length, status, reason, origin)
+    insert into skipped_content(sha1, sha1_git, sha256, blake2s256, length, status, reason, origin)
         select distinct sha1, sha1_git, sha256, blake2s256, length, status, reason, origin
 	from tmp_skipped_content
-	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, ''), coalesce(blake2s256)) in
-	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, ''), coalesce(blake2s256, '') from swh_skipped_content_missing());
-	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
-	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
-	    -- the extra swh_content_missing() query here.
+        on conflict (sha1, sha1_git, sha256, blake2s256) do nothing;
     return;
 end
 $$;

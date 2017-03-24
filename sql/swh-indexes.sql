@@ -9,6 +9,7 @@ create index concurrently on content(object_id);
 
 alter table content add primary key using index content_pkey;
 
+alter table content add constraint content_sha1_sha1_git_sha256_blake2s256_key unique (sha1, sha1_git, sha256, blake2s256);
 
 -- entity_history
 
@@ -74,7 +75,7 @@ alter table origin validate constraint origin_project_fkey;
 
 -- skipped_content
 
-alter table skipped_content add constraint skipped_content_sha1_sha1_git_sha256_key unique (sha1, sha1_git, sha256);
+alter table skipped_content add constraint skipped_content_sha1_sha1_git_sha256_blake2s256_key unique (sha1, sha1_git, sha256, blake2s256);
 
 create unique index concurrently on skipped_content(sha1);
 create unique index concurrently on skipped_content(sha1_git);
