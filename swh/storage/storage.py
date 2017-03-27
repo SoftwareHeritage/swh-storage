@@ -23,6 +23,9 @@ from swh.objstorage.exc import ObjNotFoundError
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 
+CONTENT_HASH_KEYS = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
+
+
 class Storage():
     """SWH storage proxy, encompassing DB and object storage
 
@@ -89,6 +92,15 @@ class Storage():
         """
         db = self.db
 
+        def _unique_key(hash, keys=CONTENT_HASH_KEYS):
+            """Given a hash (tuple or dict), return a unique key from the
+               aggregation of keys.
+
+            """
+            if isinstance(hash, tuple):
+                return hash
+            return tuple([hash[k] for k in keys])
+
         content_by_status = defaultdict(list)
         for d in content:
             if 'status' not in d:
@@ -101,9 +113,9 @@ class Storage():
         content_without_data = content_by_status['absent']
 
         missing_content = set(self.content_missing(content_with_data))
-        missing_skipped = set(
-            sha1_git for _, sha1_git, _, _
-            in self.skipped_content_missing(content_without_data))
+        missing_skipped = set(_unique_key(hashes) for hashes
+                              in self.skipped_content_missing(
+                                  content_without_data))
 
         with db.transaction() as cur:
             if missing_content:
@@ -126,7 +138,7 @@ class Storage():
 
             if missing_skipped:
                 missing_filtered = (cont for cont in content_without_data
-                                    if cont['sha1_git'] in missing_skipped)
+                                    if _unique_key(cont) in missing_skipped)
 
                 db.mktemp('skipped_content', cur)
                 db.copy_to(missing_filtered, 'tmp_skipped_content',
@@ -232,9 +244,9 @@ class Storage():
         """
         db = self.db
 
-        keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
+        keys = CONTENT_HASH_KEYS
 
-        if key_hash not in keys:
+        if key_hash not in CONTENT_HASH_KEYS:
             raise ValueError("key_hash should be one of %s" % keys)
 
         key_hash_idx = keys.index(key_hash)
@@ -278,7 +290,7 @@ class Storage():
         Returns:
             an iterable of signatures missing from the storage
         """
-        keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
+        keys = CONTENT_HASH_KEYS
 
         db = self.db
 

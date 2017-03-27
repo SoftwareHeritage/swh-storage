@@ -119,6 +119,14 @@ class BaseTestStorage(DbTestFixture):
             'length': 1024 * 1024 * 200,
             'sha1_git': hash_to_bytes(
                 '33e45d56f88993aae6a0198013efa80716fd8920'),
+            'sha1': hash_to_bytes(
+                '43e45d56f88993aae6a0198013efa80716fd8920'),
+            'sha256': hash_to_bytes(
+                '7bbd052ab054ef222c1c87be60cd191a'
+                'ddedd24cc882d1f5f7f7be61dc61bb3a'),
+            'blake2s256': hash_to_bytes(
+                'ade18b1adecb33f891ca36664da676e1'
+                '2c772cc193778aac9a137b8dc5834b9b'),
             'reason': 'Content too long',
             'status': 'absent',
         }
@@ -126,7 +134,15 @@ class BaseTestStorage(DbTestFixture):
         self.skipped_cont2 = {
             'length': 1024 * 1024 * 300,
             'sha1_git': hash_to_bytes(
-                '33e45d56f88993aae6a0198013efa80716fd8921'),
+                '44e45d56f88993aae6a0198013efa80716fd8921'),
+            'sha1': hash_to_bytes(
+                '54e45d56f88993aae6a0198013efa80716fd8920'),
+            'sha256': hash_to_bytes(
+                '8cbd052ab054ef222c1c87be60cd191a'
+                'ddedd24cc882d1f5f7f7be61dc61bb3a'),
+            'blake2s256': hash_to_bytes(
+                '9ce18b1adecb33f891ca36664da676e1'
+                '2c772cc193778aac9a137b8dc5834b9b'),
             'reason': 'Content too long',
             'status': 'absent',
         }
@@ -629,29 +645,36 @@ class CommonTestStorage(BaseTestStorage):
 
     @istest
     def skipped_content_add(self):
-        cont = self.skipped_cont
-        cont2 = self.skipped_cont2
+        cont = self.skipped_cont.copy()
+        cont2 = self.skipped_cont2.copy()
+        cont2['blake2s256'] = None
 
-        self.storage.content_add([cont])
-        self.storage.content_add([cont2])
+        self.storage.content_add([cont, cont, cont2])
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
                             'length, status, reason '
                             'FROM skipped_content ORDER BY sha1_git')
 
-        datum = self.cursor.fetchone()
-        self.assertEqual(
-            (datum[0], datum[1].tobytes(), datum[2],
-             datum[3], datum[4], datum[5], datum[6]),
-            (None, cont['sha1_git'], None, None,
-             cont['length'], 'absent', 'Content too long'))
+        datums = self.cursor.fetchall()
 
-        datum2 = self.cursor.fetchone()
+        self.assertEquals(2, len(datums))
+        datum = datums[0]
         self.assertEqual(
-            (datum2[0], datum2[1].tobytes(), datum2[2],
+            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+             datum[3].tobytes(), datum[4], datum[5], datum[6]),
+            (cont['sha1'], cont['sha1_git'], cont['sha256'],
+             cont['blake2s256'], cont['length'], 'absent',
+             'Content too long')
+        )
+
+        datum2 = datums[1]
+        self.assertEqual(
+            (datum2[0].tobytes(), datum2[1].tobytes(), datum2[2].tobytes(),
              datum2[3], datum2[4], datum2[5], datum2[6]),
-            (None, cont2['sha1_git'], None, None,
-             cont2['length'], 'absent', 'Content too long'))
+            (cont2['sha1'], cont2['sha1_git'], cont2['sha256'],
+             cont2['blake2s256'], cont2['length'], 'absent',
+             'Content too long')
+        )
 
     @istest
     def content_missing(self):
