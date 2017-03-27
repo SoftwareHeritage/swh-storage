@@ -157,8 +157,7 @@ begin
         select 1 from content as c
         where c.sha1 = tmp.sha1 and
               c.sha1_git = tmp.sha1_git and
-              c.sha256 = tmp.sha256 and
-              c.blake2s256 = tmp.blake2s256
+              c.sha256 = tmp.sha256
       )
     );
     return;
@@ -198,8 +197,7 @@ begin
 	(select 1 from skipped_content s where
 	    s.sha1 is not distinct from t.sha1 and
 	    s.sha1_git is not distinct from t.sha1_git and
-	    s.sha256 is not distinct from t.sha256 and
-            s.blake2s256 is not distinct from t.blake2s256);
+	    s.sha256 is not distinct from t.sha256);
     return;
 end
 $$;
@@ -245,7 +243,7 @@ begin
         return null;
     else
         q = format('select * from content where %s',
-	        array_to_string(filters, ' and '));
+                   array_to_string(filters, ' and '));
         execute q into con;
 	return con;
     end if;
@@ -265,11 +263,13 @@ begin
     insert into content (sha1, sha1_git, sha256, blake2s256, length, status)
         select distinct sha1, sha1_git, sha256, blake2s256, length, status
 	from tmp_content
-	where (sha1, sha1_git, sha256, blake2s256) in
-	    (select * from swh_content_missing());
-	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
-	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
-	    -- the extra swh_content_missing() query here.
+	where (sha1, sha1_git, sha256) in (
+            select sha1, sha1_git, sha256
+            from swh_content_missing()
+        );
+        -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
+        -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
+        -- the extra swh_content_missing() query here.
     return;
 end
 $$;
@@ -287,11 +287,13 @@ begin
     insert into skipped_content (sha1, sha1_git, sha256, blake2s256, length, status, reason, origin)
         select distinct sha1, sha1_git, sha256, blake2s256, length, status, reason, origin
 	from tmp_skipped_content
-	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, ''), coalesce(blake2s256)) in
-	    (select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, ''), coalesce(blake2s256, '') from swh_skipped_content_missing());
-	    -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
-	    -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
-	    -- the extra swh_content_missing() query here.
+	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in (
+            select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')
+            from swh_skipped_content_missing()
+        );
+        -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
+        -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
+        -- the extra swh_content_missing() query here.
     return;
 end
 $$;

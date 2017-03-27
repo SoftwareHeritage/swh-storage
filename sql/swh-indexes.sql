@@ -2,8 +2,8 @@
 
 create unique index concurrently content_pkey on content(sha1);
 create unique index concurrently on content(sha1_git);
-create unique index concurrently on content(sha256);
-create unique index concurrently on content(blake2s256);
+create index concurrently on content(sha256);
+create index concurrently on content(blake2s256);
 create index concurrently on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
 create index concurrently on content(object_id);
 
@@ -78,8 +78,8 @@ alter table skipped_content add constraint skipped_content_sha1_sha1_git_sha256_
 
 create unique index concurrently on skipped_content(sha1);
 create unique index concurrently on skipped_content(sha1_git);
-create unique index concurrently on skipped_content(sha256);
-create unique index concurrently on skipped_content(blake2s256);
+create index concurrently on skipped_content(sha256);
+create index concurrently on skipped_content(blake2s256);
 create index concurrently on skipped_content(object_id);
 
 alter table skipped_content add constraint skipped_content_origin_fkey foreign key (origin) references origin(id) not valid;
