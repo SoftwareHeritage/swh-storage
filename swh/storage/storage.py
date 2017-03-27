@@ -118,8 +118,7 @@ class Storage():
                                     if cont['sha1'] in missing_content)
 
                 db.copy_to(content_filtered, 'tmp_content',
-                           ['sha1', 'sha1_git', 'sha256', 'blake2s256',
-                            'length', 'status'],
+                           db.content_get_metadata_keys,
                            cur, item_cb=add_to_objstorage)
 
                 # move metadata in place
@@ -131,8 +130,7 @@ class Storage():
 
                 db.mktemp('skipped_content', cur)
                 db.copy_to(missing_filtered, 'tmp_skipped_content',
-                           ['sha1', 'sha1_git', 'sha256', 'blake2s256',
-                            'length', 'reason', 'status', 'origin'], cur)
+                           db.skipped_content_keys, cur)
 
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)

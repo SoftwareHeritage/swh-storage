@@ -268,8 +268,12 @@ class Db(BaseDb):
         cur.execute("""select swh_content_update(ARRAY[%s] :: text[])""" %
                     keys_to_update)
 
-    content_get_metadata_keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256',
-                                 'length', 'status']
+    content_get_metadata_keys = [
+        'sha1', 'sha1_git', 'sha256', 'blake2s256', 'length', 'status']
+
+    skipped_content_keys = [
+        'sha1', 'sha1_git', 'sha256', 'blake2s256',
+        'length', 'reason', 'status', 'origin']
 
     def content_get_metadata_from_temp(self, cur=None):
         cur = self._cursor(cur)
