@@ -268,8 +268,12 @@ class Db(BaseDb):
         cur.execute("""select swh_content_update(ARRAY[%s] :: text[])""" %
                     keys_to_update)
 
-    content_get_metadata_keys = ['sha1', 'sha1_git', 'sha256', 'length',
-                                 'status']
+    content_get_metadata_keys = [
+        'sha1', 'sha1_git', 'sha256', 'blake2s256', 'length', 'status']
+
+    skipped_content_keys = [
+        'sha1', 'sha1_git', 'sha256', 'blake2s256',
+        'length', 'reason', 'status', 'origin']
 
     def content_get_metadata_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -282,7 +286,7 @@ class Db(BaseDb):
     def content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256
+        cur.execute("""SELECT sha1, sha1_git, sha256, blake2s256
                        FROM swh_content_missing()""")
 
         yield from cursor_to_bytes(cur)
@@ -298,7 +302,7 @@ class Db(BaseDb):
     def skipped_content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256
+        cur.execute("""SELECT sha1, sha1_git, sha256, blake2s256
                        FROM swh_skipped_content_missing()""")
 
         yield from cursor_to_bytes(cur)
@@ -319,24 +323,30 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    def content_find(self, sha1=None, sha1_git=None, sha256=None, cur=None):
+    content_find_cols = ['sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
+                         'ctime', 'status']
+
+    def content_find(self, sha1=None, sha1_git=None, sha256=None,
+                     blake2s256=None, cur=None):
         """Find the content optionally on a combination of the following
-        checksums sha1, sha1_git or sha256.
+        checksums sha1, sha1_git, sha256 or blake2s256.
 
         Args:
             sha1: sha1 content
             git_sha1: the sha1 computed `a la git` sha1 of the content
             sha256: sha256 content
+            blake2s256: blake2s256 content
 
         Returns:
-            The triplet (sha1, sha1_git, sha256) if found or None.
+            The tuple (sha1, sha1_git, sha256, blake2s256) if found or None.
 
         """
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256, length, ctime, status
-                       FROM swh_content_find(%s, %s, %s)
-                       LIMIT 1""", (sha1, sha1_git, sha256))
+        cur.execute("""SELECT %s
+                       FROM swh_content_find(%%s, %%s, %%s, %%s)
+                       LIMIT 1""" % ','.join(self.content_find_cols),
+                    (sha1, sha1_git, sha256, blake2s256))
 
         content = line_to_bytes(cur.fetchone())
         if set(content) == {None}:
@@ -400,7 +410,8 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         cols = ', '.join(self.directory_ls_cols)
-        query = 'SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)' % cols
+        query = (
+            'SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)' % cols)
         cur.execute(query, (directory, paths))
 
         data = cur.fetchone()

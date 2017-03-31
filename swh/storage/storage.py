@@ -23,6 +23,9 @@ from swh.objstorage.exc import ObjNotFoundError
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 
+CONTENT_HASH_KEYS = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
+
+
 class Storage():
     """SWH storage proxy, encompassing DB and object storage
 
@@ -89,6 +92,15 @@ class Storage():
         """
         db = self.db
 
+        def _unique_key(hash, keys=CONTENT_HASH_KEYS):
+            """Given a hash (tuple or dict), return a unique key from the
+               aggregation of keys.
+
+            """
+            if isinstance(hash, tuple):
+                return hash
+            return tuple([hash[k] for k in keys])
+
         content_by_status = defaultdict(list)
         for d in content:
             if 'status' not in d:
@@ -101,9 +113,9 @@ class Storage():
         content_without_data = content_by_status['absent']
 
         missing_content = set(self.content_missing(content_with_data))
-        missing_skipped = set(
-            sha1_git for sha1, sha1_git, sha256
-            in self.skipped_content_missing(content_without_data))
+        missing_skipped = set(_unique_key(hashes) for hashes
+                              in self.skipped_content_missing(
+                                  content_without_data))
 
         with db.transaction() as cur:
             if missing_content:
@@ -118,7 +130,7 @@ class Storage():
                                     if cont['sha1'] in missing_content)
 
                 db.copy_to(content_filtered, 'tmp_content',
-                           ['sha1', 'sha1_git', 'sha256', 'length', 'status'],
+                           db.content_get_metadata_keys,
                            cur, item_cb=add_to_objstorage)
 
                 # move metadata in place
@@ -126,11 +138,11 @@ class Storage():
 
             if missing_skipped:
                 missing_filtered = (cont for cont in content_without_data
-                                    if cont['sha1_git'] in missing_skipped)
+                                    if _unique_key(cont) in missing_skipped)
+
                 db.mktemp('skipped_content', cur)
                 db.copy_to(missing_filtered, 'tmp_skipped_content',
-                           ['sha1', 'sha1_git', 'sha256', 'length',
-                            'reason', 'status', 'origin'], cur)
+                           db.skipped_content_keys, cur)
 
                 # move metadata in place
                 db.skipped_content_add_from_temp(cur)
@@ -232,9 +244,9 @@ class Storage():
         """
         db = self.db
 
-        keys = ['sha1', 'sha1_git', 'sha256']
+        keys = CONTENT_HASH_KEYS
 
-        if key_hash not in keys:
+        if key_hash not in CONTENT_HASH_KEYS:
             raise ValueError("key_hash should be one of %s" % keys)
 
         key_hash_idx = keys.index(key_hash)
@@ -278,7 +290,7 @@ class Storage():
         Returns:
             an iterable of signatures missing from the storage
         """
-        keys = ['sha1', 'sha1_git', 'sha256']
+        keys = CONTENT_HASH_KEYS
 
         db = self.db
 
@@ -310,15 +322,15 @@ class Storage():
 
         if not set(content).intersection(ALGORITHMS):
             raise ValueError('content keys must contain at least one of: '
-                             'sha1, sha1_git, sha256')
+                             'sha1, sha1_git, sha256, blake2s256')
 
         c = db.content_find(sha1=content.get('sha1'),
                             sha1_git=content.get('sha1_git'),
                             sha256=content.get('sha256'),
+                            blake2s256=content.get('blake2s256'),
                             cur=cur)
         if c:
-            keys = ['sha1', 'sha1_git', 'sha256', 'length', 'ctime', 'status']
-            return dict(zip(keys, c))
+            return dict(zip(db.content_find_cols, c))
         return None
 
     @db_transaction_generator
@@ -466,9 +478,9 @@ class Storage():
         db = self.db
 
         if recursive:
-            res_gen = db.directory_walk(directory)
+            res_gen = db.directory_walk(directory, cur=cur)
         else:
-            res_gen = db.directory_walk_one(directory)
+            res_gen = db.directory_walk_one(directory, cur=cur)
 
         for line in res_gen:
             yield dict(zip(db.directory_ls_cols, line))

@@ -4,3 +4,4 @@ psycopg2
 python-dateutil
 python-fastimport
 vcversioner
+kafka
