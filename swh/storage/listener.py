@@ -1,16 +1,17 @@
-# Copyright (C) 2016 The Software Heritage developers
+# Copyright (C) 2016-2017 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import json
 import logging
-
 import kafka
-import msgpack
+
+import swh.storage.db
 
 from swh.core.config import load_named_config
-import swh.storage.db
+from swh.journal.serializers import key_to_kafka
+
 
 CONFIG_BASENAME = 'storage/listener'
 DEFAULT_CONFIG = {
@@ -36,13 +37,13 @@ def decode_json(value):
 
 
 OBJECT_TYPES = {
-    'content': decode_sha,
-    'skipped_content': decode_json,
-    'directory': decode_sha,
-    'revision': decode_sha,
-    'release': decode_sha,
-    'origin_visit': decode_json,
-    'origin': int,
+    'content',
+    'skipped_content',
+    'directory',
+    'revision',
+    'release',
+    'origin_visit',
+    'origin',
 }
 
 
@@ -63,7 +64,7 @@ def dispatch_notify(topic_prefix, producer, notify):
     object_type = channel[4:]
 
     topic = '%s.%s' % (topic_prefix, object_type)
-    data = OBJECT_TYPES[object_type](notify.payload)
+    data = decode_json(notify.payload)
     producer.send(topic, value=data)
 
 
@@ -71,12 +72,9 @@ def run_from_config(config):
     """Run the Software Heritage listener from configuration"""
     db = swh.storage.db.Db.connect(config['database'])
 
-    def kafka_serializer(data):
-        return msgpack.dumps(data, use_bin_type=True)
-
     producer = kafka.KafkaProducer(
         bootstrap_servers=config['brokers'],
-        value_serializer=kafka_serializer,
+        value_serializer=key_to_kafka,
     )
 
     register_all_notifies(db)

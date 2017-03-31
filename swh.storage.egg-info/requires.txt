@@ -1,10 +1,12 @@
 click
 flask
+kafka
 psycopg2
 python-dateutil
 python-fastimport
 swh.core>=0.0.28
-swh.model>=0.0.14
+swh.journal>=0.0.2
+swh.model>=0.0.15
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.11
 vcversioner

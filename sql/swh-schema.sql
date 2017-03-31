@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(102, now(), 'Work In Progress');
+      values(104, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -24,6 +24,9 @@ create domain sha1_git as bytea check (length(value) = 20);
 
 -- a SHA256 checksum
 create domain sha256 as bytea check (length(value) = 32);
+
+-- a blake2 checksum
+create domain blake2s256 as bytea check (length(value) = 32);
 
 -- UNIX path (absolute, relative, individual path component, etc.)
 create domain unix_path as bytea;
@@ -37,14 +40,15 @@ create domain file_perms as int;
 -- content collisions not knowingly.
 create table content
 (
-  sha1      sha1 not null,
-  sha1_git  sha1_git not null,
-  sha256    sha256 not null,
-  length    bigint not null,
-  ctime     timestamptz not null default now(),
-            -- creation time, i.e. time of (first) injection into the storage
-  status    content_status not null default 'visible',
-  object_id bigserial
+  sha1       sha1 not null,
+  sha1_git   sha1_git not null,
+  sha256     sha256 not null,
+  blake2s256 blake2s256,
+  length     bigint not null,
+  ctime      timestamptz not null default now(),
+             -- creation time, i.e. time of (first) injection into the storage
+  status     content_status not null default 'visible',
+  object_id  bigserial
 );
 
 
@@ -165,15 +169,16 @@ create table origin
 -- out which origin contains that skipped content.
 create table skipped_content
 (
-  sha1      sha1,
-  sha1_git  sha1_git,
-  sha256    sha256,
-  length    bigint not null,
-  ctime     timestamptz not null default now(),
-  status    content_status not null default 'absent',
-  reason    text not null,
-  origin    bigint,
-  object_id bigserial
+  sha1       sha1,
+  sha1_git   sha1_git,
+  sha256     sha256,
+  blake2s256 blake2s256,
+  length     bigint not null,
+  ctime      timestamptz not null default now(),
+  status     content_status not null default 'absent',
+  reason     text not null,
+  origin     bigint,
+  object_id  bigserial
 );
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the
