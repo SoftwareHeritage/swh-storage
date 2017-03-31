@@ -43,9 +43,11 @@ class TestDb(DbTestFixture, unittest.TestCase):
             'sha256': hash_to_bytes(
                 '673650f936cb3b0a2f93ce09d81be107'
                 '48b1b203c19e8176b4eefc1964a0cf3a'),
+            'blake2s256': hash_to_bytes('69217a3079908094e11121d042354a7c'
+                                        '1f55b6482ca1a51e1b250dfd1ed0eef9'),
             'length': 3}],
                         'tmp_content',
-                        ['sha1', 'sha1_git', 'sha256', 'length'],
+                        ['sha1', 'sha1_git', 'sha256', 'blake2s256', 'length'],
                         cur)
         self.db.content_add_from_temp(cur)
         self.cursor.execute('SELECT sha1 FROM content WHERE sha1 = %s',

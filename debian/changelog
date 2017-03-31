@@ -1,8 +1,9 @@
-swh-storage (0.0.82-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.83-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.83
+  * Add blake2s256 new hash computation on content
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 21 Mar 2017 14:50:16 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 31 Mar 2017 12:27:09 +0200
 
 swh-storage (0.0.82-1~swh1) unstable-swh; urgency=medium
 
