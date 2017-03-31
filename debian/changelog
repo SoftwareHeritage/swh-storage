@@ -1,3 +1,10 @@
+swh-storage (0.0.83-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.83
+  * Add blake2s256 new hash computation on content
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 31 Mar 2017 12:27:09 +0200
+
 swh-storage (0.0.82-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.82
