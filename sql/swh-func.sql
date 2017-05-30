@@ -2042,9 +2042,9 @@ create or replace function swh_stat_counters()
     language sql
     stable
 as $$
-    select relname::text as label, reltuples::bigint as value
-    from pg_class
-    where oid in (
+    select relname::text as label, n_live_tup::bigint - n_dead_tup::bigint as value
+    from pg_stat_user_tables
+    where relid in (
         'public.content'::regclass,
         'public.directory'::regclass,
         'public.directory_entry_dir'::regclass,
