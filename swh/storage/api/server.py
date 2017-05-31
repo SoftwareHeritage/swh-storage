@@ -380,6 +380,12 @@ def content_fossology_license_get():
         g.storage.content_fossology_license_get(**decode_request(request)))
 
 
+@app.route('/indexer_configuration/data', methods=['POST'])
+def indexer_configuration_get():
+    return encode_data(g.storage.indexer_configuration_get(
+        **decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())

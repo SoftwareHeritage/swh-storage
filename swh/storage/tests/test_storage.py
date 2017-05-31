@@ -3087,6 +3087,33 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
                 },
             ])
 
+    @istest
+    def indexer_configuration_get_missing(self):
+        tool = {
+            'tool_name': 'unknown-tool',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'tool_configuration': {"command_line": "nomossa <filepath>"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        self.assertIsNone(actual_tool)
+
+    @istest
+    def indexer_configuration_get(self):
+        tool = {
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'tool_configuration': {"command_line": "nomossa <filepath>"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        expected_tool = tool.copy()
+        expected_tool['id'] = 1
+
+        self.assertEqual(expected_tool, actual_tool)
+
 
 class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
     """This class is dedicated for the rare case where the schema needs to

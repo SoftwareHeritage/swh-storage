@@ -984,3 +984,22 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         cur.execute("SELECT * FROM swh_content_fossology_license_unknown()")
         yield from cursor_to_bytes(cur)
+
+    indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
+                                  'tool_configuration']
+
+    def indexer_configuration_get(self, tool_name,
+                                  tool_version, tool_configuration, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('''select %s
+                       from indexer_configuration
+                       where tool_name=%%s and
+                             tool_version=%%s and
+                             tool_configuration=%%s''' % (
+                                 ','.join(self.indexer_configuration_cols)),
+                    (tool_name, tool_version, tool_configuration))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)

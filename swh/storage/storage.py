@@ -7,6 +7,7 @@
 from collections import defaultdict
 import datetime
 import itertools
+import json
 import dateutil.parser
 import psycopg2
 
@@ -1612,3 +1613,16 @@ class Storage():
             db.content_fossology_license_add_from_temp(conflict_update, cur)
 
         return wrong_content_licenses
+
+    @db_transaction
+    def indexer_configuration_get(self, tool, cur=None):
+        db = self.db
+        tool_conf = tool['tool_configuration']
+        if isinstance(tool_conf, dict):
+            tool_conf = json.dumps(tool_conf)
+        idx = db.indexer_configuration_get(tool['tool_name'],
+                                           tool['tool_version'],
+                                           tool_conf)
+        if not idx:
+            return None
+        return dict(zip(self.db.indexer_configuration_cols, idx))

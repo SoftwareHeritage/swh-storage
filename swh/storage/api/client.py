@@ -234,3 +234,6 @@ class RemoteStorage(SWHRemoteAPI):
 
     def content_fossology_license_get(self, ids):
         return self.post('content/fossology_license', {'ids': ids})
+
+    def indexer_configuration_get(self, tool):
+        return self.post('indexer_configuration/data', {'tool': tool})
