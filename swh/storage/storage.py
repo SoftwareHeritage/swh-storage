@@ -1380,7 +1380,7 @@ class Storage():
         db = self.db
         db.mktemp_content_language_missing(cur)
         db.copy_to(languages, 'tmp_content_language_missing',
-                   db.content_language_cols, cur)
+                   ['id', 'indexer_configuration_id'], cur)
         for obj in db.content_language_missing_from_temp(cur):
             yield obj[0]
 
@@ -1411,10 +1411,10 @@ class Storage():
             ({
                 'id': l['id'],
                 'lang': 'unknown' if not l['lang'] else l['lang'],
-                'tool_name': l['tool_name'],
-                'tool_version': l['tool_version'],
+                'indexer_configuration_id': l['indexer_configuration_id'],
             } for l in languages),
-            'tmp_content_language', db.content_language_cols, cur)
+            'tmp_content_language',
+            ['id', 'lang', 'indexer_configuration_id'], cur)
 
         db.content_language_add_from_temp(conflict_update, cur)
 

@@ -1626,9 +1626,7 @@ create or replace function swh_mktemp_content_language_missing()
 as $$
   create temporary table tmp_content_language_missing (
     id sha1,
-    lang languages,
-    tool_name text,
-    tool_version text
+    indexer_configuration_id integer
   ) on commit drop;
 $$;
 
@@ -1648,7 +1646,7 @@ begin
 	where not exists
 	    (select 1 from content_language as c
             inner join indexer_configuration i
-            on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+            on i.id = c.indexer_configuration_id
             where c.id = tmp.id);
     return;
 end
@@ -1672,20 +1670,14 @@ as $$
 begin
     if conflict_update then
         insert into content_language (id, lang, indexer_configuration_id)
-        select id, lang,
-               (select id from indexer_configuration
-               where tool_name=tcl.tool_name
-               and tool_version=tcl.tool_version)
+        select id, lang, indexer_configuration_id
     	from tmp_content_language tcl
             on conflict(id, indexer_configuration_id)
                 do update set lang = excluded.lang;
 
     else
         insert into content_language (id, lang, indexer_configuration_id)
-        select id, lang,
-               (select id from indexer_configuration
-               where tool_name=tcl.tool_name
-               and tool_version=tcl.tool_version)
+        select id, lang, indexer_configuration_id
     	from tmp_content_language tcl
             on conflict(id, indexer_configuration_id)
             do nothing;
@@ -1704,10 +1696,6 @@ as $$
   create temporary table tmp_content_language (
     like content_language including defaults
   ) on commit drop;
-  alter table tmp_content_language
-    drop column indexer_configuration_id,
-    add column tool_name text,
-    add column tool_version text;
 $$;
 
 comment on function swh_mktemp_content_language() is 'Helper table to add content language';
@@ -1715,8 +1703,10 @@ comment on function swh_mktemp_content_language() is 'Helper table to add conten
 create type content_language_signature as (
     id sha1,
     lang languages,
+    tool_id integer,
     tool_name text,
-    tool_version text
+    tool_version text,
+    tool_configuration jsonb
 );
 
 -- Retrieve list of content language from the temporary table.
@@ -1728,7 +1718,7 @@ create or replace function swh_content_language_get()
 as $$
 begin
     return query
-        select c.id, lang, tool_name, tool_version
+        select c.id, lang, i.id as tool_id, tool_name, tool_version, tool_configuration
         from tmp_bytea t
         inner join content_language c on c.id = t.id
         inner join indexer_configuration i on i.id=c.indexer_configuration_id;

@@ -236,8 +236,10 @@ class TestConverters(unittest.TestCase):
     def db_to_language(self):
         input_language = {
             'id': b'some-id',
+            'tool_id': 20,
             'tool_name': 'some-toolname',
             'tool_version': 'some-toolversion',
+            'tool_configuration': {},
             'lang': b'css',
         }
 
@@ -245,8 +247,10 @@ class TestConverters(unittest.TestCase):
             'id': b'some-id',
             'lang': b'css',
             'tool': {
+                'id': 20,
                 'name': 'some-toolname',
                 'version': 'some-toolversion',
+                'configuration': {},
             }
         }
 

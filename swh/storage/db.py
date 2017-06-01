@@ -869,7 +869,9 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
-    content_language_cols = ['id', 'lang', 'tool_name', 'tool_version']
+    content_language_cols = [
+        'id', 'lang',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
 
     @stored_procedure('swh_mktemp_content_language')
     def mktemp_content_language(self, cur=None): pass

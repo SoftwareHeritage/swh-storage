@@ -2255,13 +2255,11 @@ class CommonTestStorage(BaseTestStorage):
         languages = [
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'pygments',
-                'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+                'indexer_configuration_id': 4,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'pygments',
-                'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+                'indexer_configuration_id': 4,
             }
         ]
 
@@ -2278,8 +2276,7 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.content_language_add([{
             'id': self.cont2['sha1'],
             'lang': 'haskell',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': 4,
         }])
 
         # when
@@ -2297,8 +2294,7 @@ class CommonTestStorage(BaseTestStorage):
         language1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': 4,
         }
 
         # when
@@ -2313,8 +2309,13 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
             'tool': {
+                'id': 4,
                 'name': 'pygments',
                 'version': '2.0.1+dfsg-1.1+deb8u1',
+                'configuration': {
+                    'debian-package': 'python3-pygments',
+                    'type': 'library'
+                }
             }
         }]
 
@@ -2329,8 +2330,7 @@ class CommonTestStorage(BaseTestStorage):
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': 4,
         }
 
         # given
@@ -2345,8 +2345,13 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
             'tool': {
+                'id': 4,
                 'name': 'pygments',
                 'version': '2.0.1+dfsg-1.1+deb8u1',
+                'configuration': {
+                    'debian-package': 'python3-pygments',
+                    'type': 'library'
+                }
             }
         }]
         self.assertEqual(actual_languages, expected_languages_v1)
@@ -2374,8 +2379,7 @@ class CommonTestStorage(BaseTestStorage):
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': 4,
         }
 
         # given
@@ -2390,8 +2394,13 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
             'tool': {
+                'id': 4,
                 'name': 'pygments',
                 'version': '2.0.1+dfsg-1.1+deb8u1',
+                'configuration': {
+                    'debian-package': 'python3-pygments',
+                    'type': 'library'
+                }
             }
         }]
         self.assertEqual(actual_languages, expected_languages_v1)
@@ -2412,8 +2421,13 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
             'tool': {
+                'id': 4,
                 'name': 'pygments',
                 'version': '2.0.1+dfsg-1.1+deb8u1',
+                'configuration': {
+                    'debian-package': 'python3-pygments',
+                    'type': 'library'
+                }
             }
         }]
 

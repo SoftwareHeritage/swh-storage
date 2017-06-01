@@ -411,7 +411,9 @@ def db_to_language(language):
         'id': language['id'],
         'lang': language['lang'],
         'tool': {
+            'id': language['tool_id'],
             'name': language['tool_name'],
             'version': language['tool_version'],
+            'configuration': language['tool_configuration']
         }
     }
