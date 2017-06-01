@@ -585,6 +585,21 @@ class BaseTestStorage(DbTestFixture):
 
         super().tearDown()
 
+    def fetch_tools(self):
+        tools = {}
+        self.cursor.execute('''select tool_name, id, tool_version,
+                                      tool_configuration
+                               from indexer_configuration''')
+        for row in self.cursor.fetchall():
+            tools[row[0]] = {
+                'id': row[1],
+                'name': row[0],
+                'version': row[2],
+                'configuration': row[3]
+            }
+
+        return tools
+
 
 class CommonTestStorage(BaseTestStorage):
     """Base class for Storage testing.
@@ -2063,17 +2078,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         mimetypes = [
             {
                 'id': self.cont2['sha1'],
-                'indexer_configuration_id': 2,
+                'indexer_configuration_id': tool_id,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'indexer_configuration_id': 2,
+                'indexer_configuration_id': tool_id,
             }]
 
         # when
@@ -2090,7 +2108,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'indexer_configuration_id': 2,
+            'indexer_configuration_id': tool_id,
         }])
 
         # when
@@ -2102,6 +2120,9 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_add__drop_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2109,7 +2130,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'indexer_configuration_id': 2,
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2124,12 +2145,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool': {
-                'id': 2,
-                'name': 'file',
-                'version': '5.22',
-                'configuration': {'command_line': 'file --mime <filepath>'}
-            }
+            'tool': tools['file'],
         }]
         self.assertEqual(actual_mimetypes, expected_mimetypes_v1)
 
@@ -2151,6 +2167,8 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_add__update_in_place_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2158,7 +2176,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'indexer_configuration_id': 2,
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2172,12 +2190,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool': {
-                'id': 2,
-                'name': 'file',
-                'version': '5.22',
-                'configuration': {'command_line': 'file --mime <filepath>'}
-            }
+            'tool': tools['file'],
         }]
 
         # then
@@ -2213,6 +2226,8 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_get(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2222,7 +2237,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'indexer_configuration_id': 2,
+            'indexer_configuration_id': tool_id,
         }
 
         # when
@@ -2236,12 +2251,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool': {
-                'id': 2,
-                'name': 'file',
-                'version': '5.22',
-                'configuration': {'command_line': 'file --mime <filepath>'}
-            }
+            'tool': tools['file']
         }]
 
         self.assertEqual(actual_mimetypes, expected_mimetypes)
@@ -2249,17 +2259,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         languages = [
             {
                 'id': self.cont2['sha1'],
-                'indexer_configuration_id': 4,
+                'indexer_configuration_id': tool_id,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'indexer_configuration_id': 4,
+                'indexer_configuration_id': tool_id,
             }
         ]
 
@@ -2276,7 +2289,7 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.content_language_add([{
             'id': self.cont2['sha1'],
             'lang': 'haskell',
-            'indexer_configuration_id': 4,
+            'indexer_configuration_id': tool_id,
         }])
 
         # when
@@ -2288,13 +2301,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_get(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         language1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'indexer_configuration_id': 4,
+            'indexer_configuration_id': tool_id,
         }
 
         # when
@@ -2308,15 +2323,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages = [{
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool': {
-                'id': 4,
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-                'configuration': {
-                    'debian-package': 'python3-pygments',
-                    'type': 'library'
-                }
-            }
+            'tool': tools['pygments']
         }]
 
         self.assertEqual(actual_languages, expected_languages)
@@ -2324,13 +2331,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_add__drop_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'indexer_configuration_id': 4,
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2344,15 +2353,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages_v1 = [{
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'tool': {
-                'id': 4,
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-                'configuration': {
-                    'debian-package': 'python3-pygments',
-                    'type': 'library'
-                }
-            }
+            'tool': tools['pygments']
         }]
         self.assertEqual(actual_languages, expected_languages_v1)
 
@@ -2373,13 +2374,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_add__update_in_place_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'indexer_configuration_id': 4,
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2393,15 +2396,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages_v1 = [{
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool': {
-                'id': 4,
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-                'configuration': {
-                    'debian-package': 'python3-pygments',
-                    'type': 'library'
-                }
-            }
+            'tool': tools['pygments']
         }]
         self.assertEqual(actual_languages, expected_languages_v1)
 
@@ -2420,15 +2415,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages_v2 = [{
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'tool': {
-                'id': 4,
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-                'configuration': {
-                    'debian-package': 'python3-pygments',
-                    'type': 'library'
-                }
-            }
+            'tool': tools['pygments']
         }]
 
         # language did change as the v2 was used to overwrite v1
