@@ -1532,9 +1532,7 @@ begin
 	(select id::sha1 from tmp_content_mimetype_missing as tmp
 	 where not exists
 	     (select 1 from content_mimetype as c
-              inner join indexer_configuration i
-              on i.id=c.indexer_configuration_id
-              where c.id = tmp.id));
+              where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id));
     return;
 end
 $$;
@@ -1645,9 +1643,7 @@ begin
 	select id::sha1 from tmp_content_language_missing as tmp
 	where not exists
 	    (select 1 from content_language as c
-            inner join indexer_configuration i
-            on i.id = c.indexer_configuration_id
-            where c.id = tmp.id);
+             where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id);
     return;
 end
 $$;
@@ -1796,9 +1792,8 @@ begin
 	(select id::sha1 from tmp_content_ctags_missing as tmp
 	 where not exists
 	     (select 1 from content_ctags as c
-              inner join indexer_configuration i
-              on i.id=c.indexer_configuration_id
-              where c.id = tmp.id limit 1));
+              where c.id = tmp.id and c.indexer_configuration_id=tmp.indexer_configuration_id
+              limit 1));
     return;
 end
 $$;
