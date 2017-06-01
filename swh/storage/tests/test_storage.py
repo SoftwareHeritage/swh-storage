@@ -2424,19 +2424,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['universal-ctags']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         ctags = [
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'universal-ctags',
-                'tool_version': '~git7859817b',
+                'indexer_configuration_id': tool_id,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'universal-ctags',
-                'tool_version': '~git7859817b',
+                'indexer_configuration_id': tool_id,
             }
         ]
 
@@ -2453,8 +2454,7 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.content_ctags_add([
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'universal-ctags',
-                'tool_version': '~git7859817b',
+                'indexer_configuration_id': tool_id,
                 'ctags': [{
                     'name': 'done',
                     'kind': 'variable',
@@ -2473,6 +2473,9 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_get(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['universal-ctags']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2480,8 +2483,7 @@ class CommonTestStorage(BaseTestStorage):
 
         ctag1 = {
             'id': self.cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [
                 {
                     'name': 'done',
@@ -2508,10 +2510,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_ctags = [
             {
                 'id': self.cont2['sha1'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tools['universal-ctags'],
                 'name': 'done',
                 'kind': 'variable',
                 'line': 100,
@@ -2519,10 +2518,7 @@ class CommonTestStorage(BaseTestStorage):
             },
             {
                 'id': self.cont2['sha1'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tools['universal-ctags'],
                 'name': 'main',
                 'kind': 'function',
                 'line': 119,
@@ -2535,14 +2531,17 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_search(self):
         # 1. given
+        tools = self.fetch_tools()
+        tool = tools['universal-ctags']
+        tool_id = tool['id']
+
         cont = self.cont
         cont2 = self.cont2
         self.storage.content_add([cont, cont2])
 
         ctag1 = {
             'id': cont['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [
                 {
                     'name': 'hello',
@@ -2561,8 +2560,7 @@ class CommonTestStorage(BaseTestStorage):
 
         ctag2 = {
             'id': cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [
                 {
                     'name': 'hello',
@@ -2583,10 +2581,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag1['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'function',
                 'line': 133,
@@ -2604,10 +2599,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag2['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
@@ -2622,10 +2614,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag1['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'function',
                 'line': 133,
@@ -2633,10 +2622,7 @@ class CommonTestStorage(BaseTestStorage):
             },
             {
                 'id': ctag2['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
@@ -2650,10 +2636,7 @@ class CommonTestStorage(BaseTestStorage):
         # then
         self.assertEqual(actual_ctags, [{
             'id': ctag1['id'],
-            'tool': {
-                'name': 'universal-ctags',
-                'version': '~git7859817b',
-            },
+            'tool': tool,
             'name': 'counter',
             'kind': 'variable',
             'line': 119,
@@ -2669,13 +2652,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_add__add_new_ctags_added(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['universal-ctags']
+        tool_id = tool['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         ctag_v1 = {
             'id': self.cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [{
                 'name': 'done',
                 'kind': 'variable',
@@ -2699,10 +2684,7 @@ class CommonTestStorage(BaseTestStorage):
             'kind': 'variable',
             'line': 100,
             'lang': 'Scheme',
-            'tool': {
-                'name': 'universal-ctags',
-                'version': '~git7859817b',
-            }
+            'tool': tool,
         }]
 
         self.assertEqual(actual_ctags, expected_ctags)
@@ -2729,20 +2711,14 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             }, {
                 'id': self.cont2['sha1'],
                 'name': 'defn',
                 'kind': 'function',
                 'line': 120,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             }
         ]
 
@@ -2754,13 +2730,16 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_add__update_in_place(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['universal-ctags']
+        tool_id = tool['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         ctag_v1 = {
             'id': self.cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [{
                 'name': 'done',
                 'kind': 'variable',
@@ -2784,10 +2763,7 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                }
+                'tool': tool
             }
         ]
         self.assertEqual(actual_ctags, expected_ctags)
@@ -2824,10 +2800,7 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             },
             {
                 'id': self.cont2['sha1'],
@@ -2835,10 +2808,7 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'function',
                 'line': 120,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             }
         ]
         self.assertEqual(actual_ctags, expected_ctags)

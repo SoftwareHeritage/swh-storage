@@ -1437,7 +1437,7 @@ class Storage():
         db.mktemp_content_ctags_missing(cur)
         db.copy_to(ctags,
                    tblname='tmp_content_ctags_missing',
-                   columns=['id', 'tool_name', 'tool_version'],
+                   columns=['id', 'indexer_configuration_id'],
                    cur=cur)
         for obj in db.content_ctags_missing_from_temp(cur):
             yield obj[0]
@@ -1468,19 +1468,18 @@ class Storage():
         """
         db = self.db
 
-        def _convert_ctags(ctags):
-            """Convert ctags to list of ctags.
+        def _convert_ctags(__ctags):
+            """Convert ctags dict to list of ctags.
 
             """
-            res = []
-            for ctag in ctags:
-                res.extend(converters.ctags_to_db(ctag))
-            return res
+            for ctags in __ctags:
+                yield from converters.ctags_to_db(ctags)
 
         db.mktemp_content_ctags(cur)
-        db.copy_to(_convert_ctags(ctags),
+        db.copy_to(list(_convert_ctags(ctags)),
                    tblname='tmp_content_ctags',
-                   columns=db.content_ctags_cols,
+                   columns=['id', 'name', 'kind', 'line',
+                            'lang', 'indexer_configuration_id'],
                    cur=cur)
 
         db.content_ctags_add_from_temp(conflict_update, cur)

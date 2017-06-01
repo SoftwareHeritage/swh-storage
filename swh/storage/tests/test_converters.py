@@ -133,8 +133,7 @@ class TestConverters(unittest.TestCase):
     def ctags_to_db(self):
         input_ctag = {
             'id': b'some-id',
-            'tool_name': 'some-toolname',
-            'tool_version': 'some-toolversion',
+            'indexer_configuration_id': 100,
             'ctags': [
                 {
                     'name': 'some-name',
@@ -157,20 +156,18 @@ class TestConverters(unittest.TestCase):
                 'kind': 'some-kind',
                 'line': 10,
                 'lang': 'Yaml',
-                'tool_name': 'some-toolname',
-                'tool_version': 'some-toolversion',
+                'indexer_configuration_id': 100,
             }, {
                 'id': b'some-id',
                 'name': 'main',
                 'kind': 'function',
                 'line': 12,
                 'lang': 'Yaml',
-                'tool_name': 'some-toolname',
-                'tool_version': 'some-toolversion',
+                'indexer_configuration_id': 100,
             }]
 
         # when
-        actual_ctags = converters.ctags_to_db(input_ctag)
+        actual_ctags = list(converters.ctags_to_db(input_ctag))
 
         # then
         self.assertEquals(actual_ctags, expected_ctags)
@@ -179,12 +176,14 @@ class TestConverters(unittest.TestCase):
     def db_to_ctags(self):
         input_ctags = {
             'id': b'some-id',
-            'tool_name': 'some-toolname',
-            'tool_version': 'some-toolversion',
             'name': 'some-name',
             'kind': 'some-kind',
             'line': 10,
             'lang': 'Yaml',
+            'tool_id': 200,
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'tool_configuration': {}
         }
         expected_ctags = {
             'id': b'some-id',
@@ -193,8 +192,10 @@ class TestConverters(unittest.TestCase):
             'line': 10,
             'lang': 'Yaml',
             'tool': {
+                'id': 200,
                 'name': 'some-toolname',
-                'version': 'some-toolversion'
+                'version': 'some-toolversion',
+                'configuration': {},
             }
         }
 

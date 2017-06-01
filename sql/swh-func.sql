@@ -1737,10 +1737,6 @@ as $$
   create temporary table tmp_content_ctags (
     like content_ctags including defaults
   ) on commit drop;
-  alter table tmp_content_ctags
-    drop column indexer_configuration_id,
-    add column tool_name text,
-    add column tool_version text;
 $$;
 
 comment on function swh_mktemp_content_ctags() is 'Helper table to add content ctags';
@@ -1760,14 +1756,11 @@ begin
         delete from content_ctags
         where id in (select tmp.id
                      from tmp_content_ctags tmp
-                     inner join indexer_configuration i on (i.tool_name=tmp.tool_name and i.tool_version = tmp.tool_version));
+                     inner join indexer_configuration i on i.id=tmp.indexer_configuration_id);
     end if;
 
     insert into content_ctags (id, name, kind, line, lang, indexer_configuration_id)
-    select id, name, kind, line, lang,
-           (select id from indexer_configuration
-            where tool_name=tct.tool_name
-            and tool_version=tct.tool_version)
+    select id, name, kind, line, lang, indexer_configuration_id
     from tmp_content_ctags tct
         on conflict(id, hash_sha1(name), kind, line, lang, indexer_configuration_id)
         do nothing;
@@ -1784,8 +1777,7 @@ create or replace function swh_mktemp_content_ctags_missing()
 as $$
   create temporary table tmp_content_ctags_missing (
     id           sha1,
-    tool_name    text,
-    tool_version text
+    indexer_configuration_id    integer
   ) on commit drop;
 $$;
 
@@ -1805,7 +1797,7 @@ begin
 	 where not exists
 	     (select 1 from content_ctags as c
               inner join indexer_configuration i
-              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
+              on i.id=c.indexer_configuration_id
               where c.id = tmp.id limit 1));
     return;
 end
@@ -1819,8 +1811,10 @@ create type content_ctags_signature as (
   kind text,
   line bigint,
   lang ctags_languages,
+  tool_id integer,
   tool_name text,
-  tool_version text
+  tool_version text,
+  tool_configuration jsonb
 );
 
 -- Retrieve list of content ctags from the temporary table.
@@ -1832,7 +1826,8 @@ create or replace function swh_content_ctags_get()
 as $$
 begin
     return query
-        select c.id, c.name, c.kind, c.line, c.lang, i.tool_name, i.tool_version
+        select c.id, c.name, c.kind, c.line, c.lang,
+               i.id as tool_id, i.tool_name, i.tool_version, i.tool_configuration
         from tmp_bytea t
         inner join content_ctags c using(id)
         inner join indexer_configuration i on i.id = c.indexer_configuration_id
@@ -1852,7 +1847,8 @@ create or replace function swh_content_ctags_search(
     returns setof content_ctags_signature
     language sql
 as $$
-    select c.id, name, kind, line, lang, tool_name, tool_version
+    select c.id, name, kind, line, lang,
+           i.id as tool_id, tool_name, tool_version, tool_configuration
     from content_ctags c
     inner join indexer_configuration i on i.id = c.indexer_configuration_id
     where hash_sha1(name) = hash_sha1(expression)
