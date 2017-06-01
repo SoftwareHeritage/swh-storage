@@ -2069,13 +2069,11 @@ class CommonTestStorage(BaseTestStorage):
         mimetypes = [
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'file',
-                'tool_version': '5.22',
+                'indexer_configuration_id': 2,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'file',
-                'tool_version': '5.22',
+                'indexer_configuration_id': 2,
             }]
 
         # when
@@ -2092,8 +2090,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': 2,
         }])
 
         # when
@@ -2112,8 +2109,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': 2,
         }
 
         # given
@@ -2129,8 +2125,10 @@ class CommonTestStorage(BaseTestStorage):
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
             'tool': {
+                'id': 2,
                 'name': 'file',
                 'version': '5.22',
+                'configuration': {'command_line': 'file --mime <filepath>'}
             }
         }]
         self.assertEqual(actual_mimetypes, expected_mimetypes_v1)
@@ -2160,8 +2158,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': 2,
         }
 
         # given
@@ -2176,8 +2173,10 @@ class CommonTestStorage(BaseTestStorage):
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
             'tool': {
+                'id': 2,
                 'name': 'file',
                 'version': '5.22',
+                'configuration': {'command_line': 'file --mime <filepath>'}
             }
         }]
 
@@ -2201,8 +2200,10 @@ class CommonTestStorage(BaseTestStorage):
             'mimetype': b'text/html',
             'encoding': b'us-ascii',
             'tool': {
+                'id': 2,
                 'name': 'file',
                 'version': '5.22',
+                'configuration': {'command_line': 'file --mime <filepath>'}
             }
         }]
 
@@ -2221,8 +2222,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': 2,
         }
 
         # when
@@ -2237,8 +2237,10 @@ class CommonTestStorage(BaseTestStorage):
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
             'tool': {
+                'id': 2,
                 'name': 'file',
                 'version': '5.22',
+                'configuration': {'command_line': 'file --mime <filepath>'}
             }
         }]
 

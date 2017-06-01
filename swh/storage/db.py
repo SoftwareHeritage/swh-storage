@@ -840,8 +840,9 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    content_mimetype_cols = ['id', 'mimetype', 'encoding',
-                             'tool_name', 'tool_version']
+    content_mimetype_cols = [
+        'id', 'mimetype', 'encoding',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
 
     @stored_procedure('swh_mktemp_content_mimetype_missing')
     def mktemp_content_mimetype_missing(self, cur=None): pass
@@ -861,17 +862,17 @@ class Db(BaseDb):
         self._cursor(cur).execute("SELECT swh_content_mimetype_add(%s)",
                                   (conflict_update, ))
 
-    content_language_cols = ['id', 'lang', 'tool_name', 'tool_version']
-
-    @stored_procedure('swh_mktemp_content_language')
-    def mktemp_content_language(self, cur=None): pass
-
     def content_mimetype_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
         query = "SELECT %s FROM swh_content_mimetype_get()" % (
             ','.join(self.content_mimetype_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
+
+    content_language_cols = ['id', 'lang', 'tool_name', 'tool_version']
+
+    @stored_procedure('swh_mktemp_content_language')
+    def mktemp_content_language(self, cur=None): pass
 
     @stored_procedure('swh_mktemp_content_language_missing')
     def mktemp_content_language_missing(self, cur=None): pass

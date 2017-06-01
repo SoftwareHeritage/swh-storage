@@ -395,8 +395,10 @@ def db_to_mimetype(mimetype):
         'encoding': mimetype['encoding'],
         'mimetype': mimetype['mimetype'],
         'tool': {
+            'id': mimetype['tool_id'],
             'name': mimetype['tool_name'],
             'version': mimetype['tool_version'],
+            'configuration': mimetype['tool_configuration']
         }
     }
 

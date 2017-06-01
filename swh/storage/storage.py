@@ -1328,7 +1328,7 @@ class Storage():
         db = self.db
         db.mktemp_content_mimetype_missing(cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype_missing',
-                   ['id', 'tool_name', 'tool_version'],
+                   ['id', 'indexer_configuration_id'],
                    cur)
         for obj in db.content_mimetype_missing_from_temp(cur):
             yield obj[0]
@@ -1342,16 +1342,16 @@ class Storage():
             - id (bytes): sha1 identifier
             - mimetype (bytes): raw content's mimetype
             - encoding (bytes): raw content's encoding
-            - tool_name (str): tool used to compute the results
-            - tool_version (str): associated tool's version
-            conflict_update: Flag to determine if we want to overwrite (true)
-            or skip duplicates (false, the default)
+            - indexer_configuration_id (int): tool's id used to
+              compute the results
+            - conflict_update: Flag to determine if we want to
+              overwrite (true) or skip duplicates (false, the default)
 
         """
         db = self.db
         db.mktemp_content_mimetype(cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype',
-                   db.content_mimetype_cols,
+                   ['id', 'mimetype', 'encoding', 'indexer_configuration_id'],
                    cur)
         db.content_mimetype_add_from_temp(conflict_update, cur)
 

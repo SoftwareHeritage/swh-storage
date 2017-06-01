@@ -208,8 +208,10 @@ class TestConverters(unittest.TestCase):
     def db_to_mimetype(self):
         input_mimetype = {
             'id': b'some-id',
+            'tool_id': 10,
             'tool_name': 'some-toolname',
             'tool_version': 'some-toolversion',
+            'tool_configuration': {},
             'encoding': b'ascii',
             'mimetype': b'text/plain',
         }
@@ -219,8 +221,10 @@ class TestConverters(unittest.TestCase):
             'encoding': b'ascii',
             'mimetype': b'text/plain',
             'tool': {
+                'id': 10,
                 'name': 'some-toolname',
                 'version': 'some-toolversion',
+                'configuration': {},
             }
         }
 
