@@ -941,8 +941,9 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    content_fossology_license_cols = ['id', 'tool_name', 'tool_version',
-                                      'licenses']
+    content_fossology_license_cols = [
+        'id', 'tool_id', 'tool_name', 'tool_version', 'tool_configuration',
+        'licenses']
 
     @stored_procedure('swh_mktemp_content_fossology_license_missing')
     def mktemp_content_fossology_license_missing(self, cur=None): pass

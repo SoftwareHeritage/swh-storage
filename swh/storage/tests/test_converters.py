@@ -258,3 +258,29 @@ class TestConverters(unittest.TestCase):
         actual_language = converters.db_to_language(input_language)
 
         self.assertEquals(actual_language, expected_language)
+
+    @istest
+    def db_to_fossology_license(self):
+        input_license = {
+            'id': b'some-id',
+            'tool_id': 20,
+            'tool_name': 'nomossa',
+            'tool_version': '5.22',
+            'tool_configuration': {},
+            'licenses': ['GPL2.0'],
+        }
+
+        expected_license = {
+            'id': b'some-id',
+            'licenses': ['GPL2.0'],
+            'tool': {
+                'id': 20,
+                'name': 'nomossa',
+                'version': '5.22',
+                'configuration': {},
+            }
+        }
+
+        actual_license = converters.db_to_fossology_license(input_license)
+
+        self.assertEquals(actual_license, expected_license)

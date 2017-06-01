@@ -1860,9 +1860,8 @@ create or replace function swh_mktemp_content_fossology_license_missing()
     language sql
 as $$
   create temporary table tmp_content_fossology_license_missing (
-    id bytea,
-    tool_name text,
-    tool_version text
+    id                       bytea,
+    indexer_configuration_id integer
   ) on commit drop;
 $$;
 
@@ -1878,8 +1877,7 @@ begin
 	(select id::sha1 from tmp_content_fossology_license_missing as tmp
 	 where not exists
 	     (select 1 from content_fossology_license as c
-              inner join indexer_configuration i on i.id=c.indexer_configuration_id
-              where c.id = tmp.id));
+              where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id));
     return;
 end
 $$;
@@ -1892,10 +1890,9 @@ create or replace function swh_mktemp_content_fossology_license()
     language sql
 as $$
   create temporary table tmp_content_fossology_license (
-    id           sha1,
-    tool_name    text,
-    tool_version text,
-    license      text
+    id                       sha1,
+    license                  text,
+    indexer_configuration_id integer
   ) on commit drop;
 $$;
 
@@ -1918,19 +1915,17 @@ begin
     if conflict_update then
         -- delete from content_fossology_license c
         --   using tmp_content_fossology_license tmp, indexer_configuration i
-        --   where c.id = tmp.id and i.tool_name = tmp.tool_name and i.tool_version = tmp.tool_version;
+        --   where c.id = tmp.id and i.id=tmp.indexer_configuration_id
         delete from content_fossology_license
         where id in (select tmp.id
                      from tmp_content_fossology_license tmp
-                     inner join indexer_configuration i on (i.tool_name=tmp.tool_name and i.tool_version = tmp.tool_version));
+                     inner join indexer_configuration i on i.id=tmp.indexer_configuration_id);
     end if;
 
     insert into content_fossology_license (id, license_id, indexer_configuration_id)
     select tcl.id,
           (select id from fossology_license where name = tcl.license) as license,
-          (select id from indexer_configuration where tool_name = tcl.tool_name
-                                                and tool_version = tcl.tool_version)
-                          as indexer_configuration_id
+          indexer_configuration_id
     from tmp_content_fossology_license tcl
         on conflict(id, license_id, indexer_configuration_id)
         do nothing;
@@ -1967,10 +1962,12 @@ $$;
 comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
 
 create type content_fossology_license_signature as (
-  id           sha1,
-  tool_name    text,
-  tool_version text,
-  licenses     text[]
+  id                 sha1,
+  tool_id            integer,
+  tool_name          text,
+  tool_version       text,
+  tool_configuration jsonb,
+  licenses           text[]
 );
 
 -- Retrieve list of content license from the temporary table.
@@ -1984,15 +1981,17 @@ as $$
 begin
     return query
       select cl.id,
+             ic.id as tool_id,
              ic.tool_name,
              ic.tool_version,
+             ic.tool_configuration,
              array(select name
                    from fossology_license
                    where id = ANY(array_agg(cl.license_id))) as licenses
       from tmp_bytea tcl
       inner join content_fossology_license cl using(id)
       inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
-      group by cl.id, ic.tool_name, ic.tool_version;
+      group by cl.id, ic.id, ic.tool_name, ic.tool_version, ic.tool_configuration;
     return;
 end
 $$;

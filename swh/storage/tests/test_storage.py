@@ -2816,18 +2816,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_fossology_license_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         licenses = [
             {
                 'id': cont['sha1'],
-                'tool_name': 'nomos',
-                'tool_version': '3.1.0rc2-31-ga2cbb8c',
+                'indexer_configuration_id': tool_id,
             }, {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'nomos',
-                'tool_version': '3.1.0rc2-31-ga2cbb8c',
+                'indexer_configuration_id': tool_id,
             }
         ]
 
@@ -2845,8 +2847,7 @@ class CommonTestStorage(BaseTestStorage):
         r = self.storage.content_fossology_license_add([{
             'id': cont['sha1'],
             'licenses': ['GPL-2.0', 'GPL-2.0+'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }])
 
         self.assertEqual(r, [])
@@ -2861,16 +2862,17 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_fossology_license_get(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
-
-        licenses = [cont['sha1'], self.missing_cont['sha1']]
 
         license1 = {
             'id': cont['sha1'],
             'licenses': ['GPL-2.0+'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # when
@@ -2880,29 +2882,39 @@ class CommonTestStorage(BaseTestStorage):
 
         # then
         actual_licenses = list(self.storage.content_fossology_license_get(
-            licenses))
+            [cont['sha1'], self.missing_cont['sha1']]))
+
+        expected_license = {
+            'id': cont['sha1'],
+            'licenses': ['GPL-2.0+'],
+            'tool': tool,
+        }
 
         # then
-        self.assertEqual(actual_licenses, [license1])
+        self.assertEqual(actual_licenses, [expected_license])
 
     @istest
     def content_fossology_license_add__wrong_license(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
             'licenses': ['blackhole'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
-        r = self.storage.content_fossology_license_add([license_v1])
+        actual_licenses = self.storage.content_fossology_license_add(
+            [license_v1])
 
         # then
-        self.assertEqual(r, [license_v1])
+        self.assertEqual(actual_licenses, [license_v1])
 
         # when
         actual_licenses = list(self.storage.content_fossology_license_get(
@@ -2914,14 +2926,17 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_fossology_license_add__new_license_added(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
             'licenses': ['Apache-2.0'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2934,7 +2949,12 @@ class CommonTestStorage(BaseTestStorage):
             [cont['sha1']]))
 
         # then
-        self.assertEqual(actual_licenses[0], license_v1)
+        expected_license = {
+            'id': cont['sha1'],
+            'licenses': ['Apache-2.0'],
+            'tool': tool,
+        }
+        self.assertEqual(actual_licenses, [expected_license])
 
         # given
         license_v2 = license_v1.copy()
@@ -2947,24 +2967,27 @@ class CommonTestStorage(BaseTestStorage):
         actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
-        expected_license = license_v1.copy()
         expected_license.update({
             'licenses': ['Apache-2.0', 'BSD-2-Clause'],
         })
+
         # license did not change as the v2 was dropped.
-        self.assertEqual(actual_licenses[0], expected_license)
+        self.assertEqual(actual_licenses, [expected_license])
 
     @istest
     def content_fossology_license_add__update_in_place_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
             'licenses': ['CECILL'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2977,7 +3000,12 @@ class CommonTestStorage(BaseTestStorage):
             [cont['sha1']]))
 
         # then
-        self.assertEqual(actual_licenses[0], license_v1)
+        expected_license = {
+            'id': cont['sha1'],
+            'licenses': ['CECILL'],
+            'tool': tool,
+        }
+        self.assertEqual(actual_licenses, [expected_license])
 
         # given
         license_v2 = license_v1.copy()
@@ -2992,7 +3020,10 @@ class CommonTestStorage(BaseTestStorage):
             [cont['sha1']]))
 
         # license did change as the v2 was used to overwrite v1
-        self.assertEqual(actual_licenses[0], license_v2)
+        expected_license.update({
+            'licenses': ['CECILL-2.0']
+        })
+        self.assertEqual(actual_licenses, [expected_license])
 
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):

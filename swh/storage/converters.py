@@ -414,3 +414,16 @@ def db_to_language(language):
             'configuration': language['tool_configuration']
         }
     }
+
+
+def db_to_fossology_license(license):
+    return {
+        'id': license['id'],
+        'licenses': license['licenses'],
+        'tool': {
+            'id': license['tool_id'],
+            'name': license['tool_name'],
+            'version': license['tool_version'],
+            'configuration': license['tool_configuration'],
+        }
+    }

@@ -1518,7 +1518,7 @@ class Storage():
         db = self.db
         db.mktemp_content_fossology_license_missing(cur)
         db.copy_to(licenses, 'tmp_content_fossology_license_missing',
-                   ['id', 'tool_name', 'tool_version'],
+                   ['id', 'indexer_configuration_id'],
                    cur)
         for obj in db.content_fossology_license_missing_from_temp(cur):
             yield obj[0]
@@ -1540,7 +1540,8 @@ class Storage():
         db.store_tmp_bytea(ids, cur)
 
         for c in db.content_fossology_license_get_from_temp():
-            yield dict(zip(db.content_fossology_license_cols, c))
+            license = dict(zip(db.content_fossology_license_cols, c))
+            yield converters.db_to_fossology_license(license)
 
     @db_transaction
     def content_fossology_license_add(self, licenses,
@@ -1601,13 +1602,12 @@ class Storage():
             db.copy_to(
                 ({
                     'id': c['id'],
-                    'tool_name': c['tool_name'],
-                    'tool_version': c['tool_version'],
+                    'indexer_configuration_id': c['indexer_configuration_id'],
                     'license': license,
                   } for c in content_licenses_to_add.values()
                     for license in c['licenses']),
                 tblname='tmp_content_fossology_license',
-                columns=['id', 'tool_name', 'tool_version', 'license'],
+                columns=['id', 'license', 'indexer_configuration_id'],
                 cur=cur)
             db.content_fossology_license_add_from_temp(conflict_update, cur)
 
