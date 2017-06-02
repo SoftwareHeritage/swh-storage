@@ -16,7 +16,7 @@ from nose.plugins.attrib import attr
 
 from swh.model import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
-from server_testing import ServerTestFixtureAsync
+from server_testing import ServerTestFixture
 
 from swh.storage.archiver.storage import get_archiver_storage
 
@@ -24,14 +24,14 @@ from swh.storage.archiver import ArchiverWithRetentionPolicyDirector
 from swh.storage.archiver import ArchiverWithRetentionPolicyWorker
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
-from swh.objstorage.api.server import make_app
+from swh.objstorage.api.server import app
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
 
 
 @attr('db')
-class TestArchiver(DbsTestFixture, ServerTestFixtureAsync,
+class TestArchiver(DbsTestFixture, ServerTestFixture,
                    unittest.TestCase):
     """ Test the objstorage archiver.
     """
@@ -56,7 +56,7 @@ class TestArchiver(DbsTestFixture, ServerTestFixtureAsync,
                 'slicing': '0:2/2:4/4:6',
             }
         }
-        self.app = make_app(self.config)
+        self.app = app
         super().setUp()
 
         # Retrieve connection (depends on the order in TEST_DB_NAMES)
