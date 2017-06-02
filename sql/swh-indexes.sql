@@ -221,7 +221,7 @@ create index concurrently on cache_revision_origin(revision);
 create unique index concurrently indexer_configuration_pkey on indexer_configuration(id);
 alter table indexer_configuration add primary key using index indexer_configuration_pkey;
 
-create unique index on indexer_configuration(tool_name, tool_version);
+create unique index on indexer_configuration(tool_name, tool_version, tool_configuration);
 
 -- content_mimetype
 create unique index concurrently content_mimetype_pkey on content_mimetype(id, indexer_configuration_id);

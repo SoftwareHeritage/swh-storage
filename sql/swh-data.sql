@@ -869,3 +869,6 @@ values ('universal-ctags', '~git7859817b', '{"command_line": "ctags --fields=+ln
 
 insert into indexer_configuration(tool_name, tool_version, tool_configuration)
 values ('pygments', '2.0.1+dfsg-1.1+deb8u1', '{"type": "library", "debian-package": "python3-pygments"}');
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('pygments', '2.0.1+dfsg-1.1+deb8u1', '{"type": "library", "debian-package": "python3-pygments", "max_content_size": 10240}');

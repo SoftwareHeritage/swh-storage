@@ -1513,8 +1513,7 @@ create or replace function swh_mktemp_content_mimetype_missing()
 as $$
   create temporary table tmp_content_mimetype_missing (
     id sha1,
-    tool_name text,
-    tool_version text
+    indexer_configuration_id bigint
   ) on commit drop;
 $$;
 
@@ -1533,16 +1532,14 @@ begin
 	(select id::sha1 from tmp_content_mimetype_missing as tmp
 	 where not exists
 	     (select 1 from content_mimetype as c
-              inner join indexer_configuration i
-              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
-              where c.id = tmp.id));
+              where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id));
     return;
 end
 $$;
 
 comment on function swh_content_mimetype_missing() is 'Filter existing mimetype information';
 
--- create a temporary table for content_ctags tmp_content_mimetype,
+-- create a temporary table for content_mimetype tmp_content_mimetype,
 create or replace function swh_mktemp_content_mimetype()
     returns void
     language sql
@@ -1550,10 +1547,6 @@ as $$
   create temporary table tmp_content_mimetype (
     like content_mimetype including defaults
   ) on commit drop;
-  alter table tmp_content_mimetype
-    drop column indexer_configuration_id,
-    add column tool_name text,
-    add column tool_version text;
 $$;
 
 comment on function swh_mktemp_content_mimetype() IS 'Helper table to add mimetype information';
@@ -1575,10 +1568,7 @@ as $$
 begin
     if conflict_update then
         insert into content_mimetype (id, mimetype, encoding, indexer_configuration_id)
-        select id, mimetype, encoding,
-               (select id from indexer_configuration
-               where tool_name=tcm.tool_name
-               and tool_version=tcm.tool_version)
+        select id, mimetype, encoding, indexer_configuration_id
         from tmp_content_mimetype tcm
             on conflict(id, indexer_configuration_id)
                 do update set mimetype = excluded.mimetype,
@@ -1586,12 +1576,9 @@ begin
 
     else
         insert into content_mimetype (id, mimetype, encoding, indexer_configuration_id)
-        select id, mimetype, encoding,
-               (select id from indexer_configuration
-               where tool_name=tcm.tool_name
-               and tool_version=tcm.tool_version)
-         from tmp_content_mimetype tcm
-             on conflict(id, indexer_configuration_id) do nothing;
+        select id, mimetype, encoding, indexer_configuration_id
+        from tmp_content_mimetype tcm
+            on conflict(id, indexer_configuration_id) do nothing;
     end if;
     return;
 end
@@ -1603,8 +1590,10 @@ create type content_mimetype_signature as(
     id sha1,
     mimetype bytea,
     encoding bytea,
+    tool_id integer,
     tool_name text,
-    tool_version text
+    tool_version text,
+    tool_configuration jsonb
 );
 
 -- Retrieve list of content mimetype from the temporary table.
@@ -1617,7 +1606,8 @@ create or replace function swh_content_mimetype_get()
 as $$
 begin
     return query
-        select c.id, mimetype, encoding, tool_name, tool_version
+        select c.id, mimetype, encoding,
+               i.id as tool_id, tool_name, tool_version, tool_configuration
         from tmp_bytea t
         inner join content_mimetype c on c.id=t.id
         inner join indexer_configuration i on c.indexer_configuration_id=i.id;
@@ -1634,9 +1624,7 @@ create or replace function swh_mktemp_content_language_missing()
 as $$
   create temporary table tmp_content_language_missing (
     id sha1,
-    lang languages,
-    tool_name text,
-    tool_version text
+    indexer_configuration_id integer
   ) on commit drop;
 $$;
 
@@ -1655,9 +1643,7 @@ begin
 	select id::sha1 from tmp_content_language_missing as tmp
 	where not exists
 	    (select 1 from content_language as c
-            inner join indexer_configuration i
-            on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
-            where c.id = tmp.id);
+             where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id);
     return;
 end
 $$;
@@ -1680,20 +1666,14 @@ as $$
 begin
     if conflict_update then
         insert into content_language (id, lang, indexer_configuration_id)
-        select id, lang,
-               (select id from indexer_configuration
-               where tool_name=tcl.tool_name
-               and tool_version=tcl.tool_version)
+        select id, lang, indexer_configuration_id
     	from tmp_content_language tcl
             on conflict(id, indexer_configuration_id)
                 do update set lang = excluded.lang;
 
     else
         insert into content_language (id, lang, indexer_configuration_id)
-        select id, lang,
-               (select id from indexer_configuration
-               where tool_name=tcl.tool_name
-               and tool_version=tcl.tool_version)
+        select id, lang, indexer_configuration_id
     	from tmp_content_language tcl
             on conflict(id, indexer_configuration_id)
             do nothing;
@@ -1712,10 +1692,6 @@ as $$
   create temporary table tmp_content_language (
     like content_language including defaults
   ) on commit drop;
-  alter table tmp_content_language
-    drop column indexer_configuration_id,
-    add column tool_name text,
-    add column tool_version text;
 $$;
 
 comment on function swh_mktemp_content_language() is 'Helper table to add content language';
@@ -1723,8 +1699,10 @@ comment on function swh_mktemp_content_language() is 'Helper table to add conten
 create type content_language_signature as (
     id sha1,
     lang languages,
+    tool_id integer,
     tool_name text,
-    tool_version text
+    tool_version text,
+    tool_configuration jsonb
 );
 
 -- Retrieve list of content language from the temporary table.
@@ -1736,7 +1714,7 @@ create or replace function swh_content_language_get()
 as $$
 begin
     return query
-        select c.id, lang, tool_name, tool_version
+        select c.id, lang, i.id as tool_id, tool_name, tool_version, tool_configuration
         from tmp_bytea t
         inner join content_language c on c.id = t.id
         inner join indexer_configuration i on i.id=c.indexer_configuration_id;
@@ -1755,10 +1733,6 @@ as $$
   create temporary table tmp_content_ctags (
     like content_ctags including defaults
   ) on commit drop;
-  alter table tmp_content_ctags
-    drop column indexer_configuration_id,
-    add column tool_name text,
-    add column tool_version text;
 $$;
 
 comment on function swh_mktemp_content_ctags() is 'Helper table to add content ctags';
@@ -1778,14 +1752,11 @@ begin
         delete from content_ctags
         where id in (select tmp.id
                      from tmp_content_ctags tmp
-                     inner join indexer_configuration i on (i.tool_name=tmp.tool_name and i.tool_version = tmp.tool_version));
+                     inner join indexer_configuration i on i.id=tmp.indexer_configuration_id);
     end if;
 
     insert into content_ctags (id, name, kind, line, lang, indexer_configuration_id)
-    select id, name, kind, line, lang,
-           (select id from indexer_configuration
-            where tool_name=tct.tool_name
-            and tool_version=tct.tool_version)
+    select id, name, kind, line, lang, indexer_configuration_id
     from tmp_content_ctags tct
         on conflict(id, hash_sha1(name), kind, line, lang, indexer_configuration_id)
         do nothing;
@@ -1802,8 +1773,7 @@ create or replace function swh_mktemp_content_ctags_missing()
 as $$
   create temporary table tmp_content_ctags_missing (
     id           sha1,
-    tool_name    text,
-    tool_version text
+    indexer_configuration_id    integer
   ) on commit drop;
 $$;
 
@@ -1822,9 +1792,8 @@ begin
 	(select id::sha1 from tmp_content_ctags_missing as tmp
 	 where not exists
 	     (select 1 from content_ctags as c
-              inner join indexer_configuration i
-              on (tmp.tool_name = i.tool_name and tmp.tool_version = i.tool_version)
-              where c.id = tmp.id limit 1));
+              where c.id = tmp.id and c.indexer_configuration_id=tmp.indexer_configuration_id
+              limit 1));
     return;
 end
 $$;
@@ -1837,8 +1806,10 @@ create type content_ctags_signature as (
   kind text,
   line bigint,
   lang ctags_languages,
+  tool_id integer,
   tool_name text,
-  tool_version text
+  tool_version text,
+  tool_configuration jsonb
 );
 
 -- Retrieve list of content ctags from the temporary table.
@@ -1850,7 +1821,8 @@ create or replace function swh_content_ctags_get()
 as $$
 begin
     return query
-        select c.id, c.name, c.kind, c.line, c.lang, i.tool_name, i.tool_version
+        select c.id, c.name, c.kind, c.line, c.lang,
+               i.id as tool_id, i.tool_name, i.tool_version, i.tool_configuration
         from tmp_bytea t
         inner join content_ctags c using(id)
         inner join indexer_configuration i on i.id = c.indexer_configuration_id
@@ -1870,7 +1842,8 @@ create or replace function swh_content_ctags_search(
     returns setof content_ctags_signature
     language sql
 as $$
-    select c.id, name, kind, line, lang, tool_name, tool_version
+    select c.id, name, kind, line, lang,
+           i.id as tool_id, tool_name, tool_version, tool_configuration
     from content_ctags c
     inner join indexer_configuration i on i.id = c.indexer_configuration_id
     where hash_sha1(name) = hash_sha1(expression)
@@ -1887,9 +1860,8 @@ create or replace function swh_mktemp_content_fossology_license_missing()
     language sql
 as $$
   create temporary table tmp_content_fossology_license_missing (
-    id bytea,
-    tool_name text,
-    tool_version text
+    id                       bytea,
+    indexer_configuration_id integer
   ) on commit drop;
 $$;
 
@@ -1905,8 +1877,7 @@ begin
 	(select id::sha1 from tmp_content_fossology_license_missing as tmp
 	 where not exists
 	     (select 1 from content_fossology_license as c
-              inner join indexer_configuration i on i.id=c.indexer_configuration_id
-              where c.id = tmp.id));
+              where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id));
     return;
 end
 $$;
@@ -1919,10 +1890,9 @@ create or replace function swh_mktemp_content_fossology_license()
     language sql
 as $$
   create temporary table tmp_content_fossology_license (
-    id           sha1,
-    tool_name    text,
-    tool_version text,
-    license      text
+    id                       sha1,
+    license                  text,
+    indexer_configuration_id integer
   ) on commit drop;
 $$;
 
@@ -1945,19 +1915,17 @@ begin
     if conflict_update then
         -- delete from content_fossology_license c
         --   using tmp_content_fossology_license tmp, indexer_configuration i
-        --   where c.id = tmp.id and i.tool_name = tmp.tool_name and i.tool_version = tmp.tool_version;
+        --   where c.id = tmp.id and i.id=tmp.indexer_configuration_id
         delete from content_fossology_license
         where id in (select tmp.id
                      from tmp_content_fossology_license tmp
-                     inner join indexer_configuration i on (i.tool_name=tmp.tool_name and i.tool_version = tmp.tool_version));
+                     inner join indexer_configuration i on i.id=tmp.indexer_configuration_id);
     end if;
 
     insert into content_fossology_license (id, license_id, indexer_configuration_id)
     select tcl.id,
           (select id from fossology_license where name = tcl.license) as license,
-          (select id from indexer_configuration where tool_name = tcl.tool_name
-                                                and tool_version = tcl.tool_version)
-                          as indexer_configuration_id
+          indexer_configuration_id
     from tmp_content_fossology_license tcl
         on conflict(id, license_id, indexer_configuration_id)
         do nothing;
@@ -1994,10 +1962,12 @@ $$;
 comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
 
 create type content_fossology_license_signature as (
-  id           sha1,
-  tool_name    text,
-  tool_version text,
-  licenses     text[]
+  id                 sha1,
+  tool_id            integer,
+  tool_name          text,
+  tool_version       text,
+  tool_configuration jsonb,
+  licenses           text[]
 );
 
 -- Retrieve list of content license from the temporary table.
@@ -2011,15 +1981,17 @@ as $$
 begin
     return query
       select cl.id,
+             ic.id as tool_id,
              ic.tool_name,
              ic.tool_version,
+             ic.tool_configuration,
              array(select name
                    from fossology_license
                    where id = ANY(array_agg(cl.license_id))) as licenses
       from tmp_bytea tcl
       inner join content_fossology_license cl using(id)
       inner join indexer_configuration ic on ic.id=cl.indexer_configuration_id
-      group by cl.id, ic.tool_name, ic.tool_version;
+      group by cl.id, ic.id, ic.tool_name, ic.tool_version, ic.tool_configuration;
     return;
 end
 $$;
@@ -2042,9 +2014,9 @@ create or replace function swh_stat_counters()
     language sql
     stable
 as $$
-    select relname::text as label, reltuples::bigint as value
-    from pg_class
-    where oid in (
+    select relname::text as label, n_live_tup::bigint - n_dead_tup::bigint as value
+    from pg_stat_user_tables
+    where relid in (
         'public.content'::regclass,
         'public.directory'::regclass,
         'public.directory_entry_dir'::regclass,

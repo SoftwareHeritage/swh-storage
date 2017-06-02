@@ -585,6 +585,21 @@ class BaseTestStorage(DbTestFixture):
 
         super().tearDown()
 
+    def fetch_tools(self):
+        tools = {}
+        self.cursor.execute('''select tool_name, id, tool_version,
+                                      tool_configuration
+                               from indexer_configuration''')
+        for row in self.cursor.fetchall():
+            tools[row[0]] = {
+                'id': row[1],
+                'name': row[0],
+                'version': row[2],
+                'configuration': row[3]
+            }
+
+        return tools
+
 
 class CommonTestStorage(BaseTestStorage):
     """Base class for Storage testing.
@@ -2063,19 +2078,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         mimetypes = [
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'file',
-                'tool_version': '5.22',
+                'indexer_configuration_id': tool_id,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'file',
-                'tool_version': '5.22',
+                'indexer_configuration_id': tool_id,
             }]
 
         # when
@@ -2092,8 +2108,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': tool_id,
         }])
 
         # when
@@ -2105,6 +2120,9 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_add__drop_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2112,8 +2130,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2128,10 +2145,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool': {
-                'name': 'file',
-                'version': '5.22',
-            }
+            'tool': tools['file'],
         }]
         self.assertEqual(actual_mimetypes, expected_mimetypes_v1)
 
@@ -2153,6 +2167,8 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_add__update_in_place_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2160,8 +2176,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2175,10 +2190,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool': {
-                'name': 'file',
-                'version': '5.22',
-            }
+            'tool': tools['file'],
         }]
 
         # then
@@ -2201,8 +2213,10 @@ class CommonTestStorage(BaseTestStorage):
             'mimetype': b'text/html',
             'encoding': b'us-ascii',
             'tool': {
+                'id': 2,
                 'name': 'file',
                 'version': '5.22',
+                'configuration': {'command_line': 'file --mime <filepath>'}
             }
         }]
 
@@ -2212,6 +2226,8 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_mimetype_get(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['file']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2221,8 +2237,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool_name': 'file',
-            'tool_version': '5.22',
+            'indexer_configuration_id': tool_id,
         }
 
         # when
@@ -2236,10 +2251,7 @@ class CommonTestStorage(BaseTestStorage):
             'id': self.cont2['sha1'],
             'mimetype': b'text/plain',
             'encoding': b'utf-8',
-            'tool': {
-                'name': 'file',
-                'version': '5.22',
-            }
+            'tool': tools['file']
         }]
 
         self.assertEqual(actual_mimetypes, expected_mimetypes)
@@ -2247,19 +2259,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         languages = [
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'pygments',
-                'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+                'indexer_configuration_id': tool_id,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'pygments',
-                'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+                'indexer_configuration_id': tool_id,
             }
         ]
 
@@ -2276,8 +2289,7 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.content_language_add([{
             'id': self.cont2['sha1'],
             'lang': 'haskell',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': tool_id,
         }])
 
         # when
@@ -2289,14 +2301,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_get(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         language1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': tool_id,
         }
 
         # when
@@ -2310,10 +2323,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages = [{
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool': {
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-            }
+            'tool': tools['pygments']
         }]
 
         self.assertEqual(actual_languages, expected_languages)
@@ -2321,14 +2331,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_add__drop_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2342,10 +2353,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages_v1 = [{
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'tool': {
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-            }
+            'tool': tools['pygments']
         }]
         self.assertEqual(actual_languages, expected_languages_v1)
 
@@ -2366,14 +2374,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_language_add__update_in_place_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['pygments']['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         language_v1 = {
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool_name': 'pygments',
-            'tool_version': '2.0.1+dfsg-1.1+deb8u1',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2387,10 +2396,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages_v1 = [{
             'id': self.cont2['sha1'],
             'lang': 'common-lisp',
-            'tool': {
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-            }
+            'tool': tools['pygments']
         }]
         self.assertEqual(actual_languages, expected_languages_v1)
 
@@ -2409,10 +2415,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_languages_v2 = [{
             'id': self.cont2['sha1'],
             'lang': 'emacslisp',
-            'tool': {
-                'name': 'pygments',
-                'version': '2.0.1+dfsg-1.1+deb8u1',
-            }
+            'tool': tools['pygments']
         }]
 
         # language did change as the v2 was used to overwrite v1
@@ -2421,19 +2424,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['universal-ctags']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         ctags = [
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'universal-ctags',
-                'tool_version': '~git7859817b',
+                'indexer_configuration_id': tool_id,
             },
             {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'universal-ctags',
-                'tool_version': '~git7859817b',
+                'indexer_configuration_id': tool_id,
             }
         ]
 
@@ -2450,8 +2454,7 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.content_ctags_add([
             {
                 'id': self.cont2['sha1'],
-                'tool_name': 'universal-ctags',
-                'tool_version': '~git7859817b',
+                'indexer_configuration_id': tool_id,
                 'ctags': [{
                     'name': 'done',
                     'kind': 'variable',
@@ -2470,6 +2473,9 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_get(self):
         # given
+        tools = self.fetch_tools()
+        tool_id = tools['universal-ctags']['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
@@ -2477,8 +2483,7 @@ class CommonTestStorage(BaseTestStorage):
 
         ctag1 = {
             'id': self.cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [
                 {
                     'name': 'done',
@@ -2505,10 +2510,7 @@ class CommonTestStorage(BaseTestStorage):
         expected_ctags = [
             {
                 'id': self.cont2['sha1'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tools['universal-ctags'],
                 'name': 'done',
                 'kind': 'variable',
                 'line': 100,
@@ -2516,10 +2518,7 @@ class CommonTestStorage(BaseTestStorage):
             },
             {
                 'id': self.cont2['sha1'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tools['universal-ctags'],
                 'name': 'main',
                 'kind': 'function',
                 'line': 119,
@@ -2532,14 +2531,17 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_search(self):
         # 1. given
+        tools = self.fetch_tools()
+        tool = tools['universal-ctags']
+        tool_id = tool['id']
+
         cont = self.cont
         cont2 = self.cont2
         self.storage.content_add([cont, cont2])
 
         ctag1 = {
             'id': cont['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [
                 {
                     'name': 'hello',
@@ -2558,8 +2560,7 @@ class CommonTestStorage(BaseTestStorage):
 
         ctag2 = {
             'id': cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [
                 {
                     'name': 'hello',
@@ -2580,10 +2581,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag1['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'function',
                 'line': 133,
@@ -2601,10 +2599,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag2['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
@@ -2619,10 +2614,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, [
             {
                 'id': ctag1['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'function',
                 'line': 133,
@@ -2630,10 +2622,7 @@ class CommonTestStorage(BaseTestStorage):
             },
             {
                 'id': ctag2['id'],
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
                 'name': 'hello',
                 'kind': 'variable',
                 'line': 100,
@@ -2647,10 +2636,7 @@ class CommonTestStorage(BaseTestStorage):
         # then
         self.assertEqual(actual_ctags, [{
             'id': ctag1['id'],
-            'tool': {
-                'name': 'universal-ctags',
-                'version': '~git7859817b',
-            },
+            'tool': tool,
             'name': 'counter',
             'kind': 'variable',
             'line': 119,
@@ -2666,13 +2652,15 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_add__add_new_ctags_added(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['universal-ctags']
+        tool_id = tool['id']
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         ctag_v1 = {
             'id': self.cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [{
                 'name': 'done',
                 'kind': 'variable',
@@ -2696,10 +2684,7 @@ class CommonTestStorage(BaseTestStorage):
             'kind': 'variable',
             'line': 100,
             'lang': 'Scheme',
-            'tool': {
-                'name': 'universal-ctags',
-                'version': '~git7859817b',
-            }
+            'tool': tool,
         }]
 
         self.assertEqual(actual_ctags, expected_ctags)
@@ -2726,20 +2711,14 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             }, {
                 'id': self.cont2['sha1'],
                 'name': 'defn',
                 'kind': 'function',
                 'line': 120,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             }
         ]
 
@@ -2751,13 +2730,16 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_ctags_add__update_in_place(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['universal-ctags']
+        tool_id = tool['id']
+
         cont2 = self.cont2
         self.storage.content_add([cont2])
 
         ctag_v1 = {
             'id': self.cont2['sha1'],
-            'tool_name': 'universal-ctags',
-            'tool_version': '~git7859817b',
+            'indexer_configuration_id': tool_id,
             'ctags': [{
                 'name': 'done',
                 'kind': 'variable',
@@ -2781,10 +2763,7 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                }
+                'tool': tool
             }
         ]
         self.assertEqual(actual_ctags, expected_ctags)
@@ -2821,10 +2800,7 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'variable',
                 'line': 100,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             },
             {
                 'id': self.cont2['sha1'],
@@ -2832,10 +2808,7 @@ class CommonTestStorage(BaseTestStorage):
                 'kind': 'function',
                 'line': 120,
                 'lang': 'Scheme',
-                'tool': {
-                    'name': 'universal-ctags',
-                    'version': '~git7859817b',
-                },
+                'tool': tool,
             }
         ]
         self.assertEqual(actual_ctags, expected_ctags)
@@ -2843,18 +2816,20 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_fossology_license_missing(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         licenses = [
             {
                 'id': cont['sha1'],
-                'tool_name': 'nomos',
-                'tool_version': '3.1.0rc2-31-ga2cbb8c',
+                'indexer_configuration_id': tool_id,
             }, {
                 'id': self.missing_cont['sha1'],
-                'tool_name': 'nomos',
-                'tool_version': '3.1.0rc2-31-ga2cbb8c',
+                'indexer_configuration_id': tool_id,
             }
         ]
 
@@ -2872,8 +2847,7 @@ class CommonTestStorage(BaseTestStorage):
         r = self.storage.content_fossology_license_add([{
             'id': cont['sha1'],
             'licenses': ['GPL-2.0', 'GPL-2.0+'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }])
 
         self.assertEqual(r, [])
@@ -2888,16 +2862,17 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_fossology_license_get(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
-
-        licenses = [cont['sha1'], self.missing_cont['sha1']]
 
         license1 = {
             'id': cont['sha1'],
             'licenses': ['GPL-2.0+'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # when
@@ -2907,29 +2882,39 @@ class CommonTestStorage(BaseTestStorage):
 
         # then
         actual_licenses = list(self.storage.content_fossology_license_get(
-            licenses))
+            [cont['sha1'], self.missing_cont['sha1']]))
+
+        expected_license = {
+            'id': cont['sha1'],
+            'licenses': ['GPL-2.0+'],
+            'tool': tool,
+        }
 
         # then
-        self.assertEqual(actual_licenses, [license1])
+        self.assertEqual(actual_licenses, [expected_license])
 
     @istest
     def content_fossology_license_add__wrong_license(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
             'licenses': ['blackhole'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
-        r = self.storage.content_fossology_license_add([license_v1])
+        actual_licenses = self.storage.content_fossology_license_add(
+            [license_v1])
 
         # then
-        self.assertEqual(r, [license_v1])
+        self.assertEqual(actual_licenses, [license_v1])
 
         # when
         actual_licenses = list(self.storage.content_fossology_license_get(
@@ -2941,14 +2926,17 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def content_fossology_license_add__new_license_added(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
             'licenses': ['Apache-2.0'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -2961,7 +2949,12 @@ class CommonTestStorage(BaseTestStorage):
             [cont['sha1']]))
 
         # then
-        self.assertEqual(actual_licenses[0], license_v1)
+        expected_license = {
+            'id': cont['sha1'],
+            'licenses': ['Apache-2.0'],
+            'tool': tool,
+        }
+        self.assertEqual(actual_licenses, [expected_license])
 
         # given
         license_v2 = license_v1.copy()
@@ -2974,24 +2967,27 @@ class CommonTestStorage(BaseTestStorage):
         actual_licenses = list(self.storage.content_fossology_license_get(
             [cont['sha1']]))
 
-        expected_license = license_v1.copy()
         expected_license.update({
             'licenses': ['Apache-2.0', 'BSD-2-Clause'],
         })
+
         # license did not change as the v2 was dropped.
-        self.assertEqual(actual_licenses[0], expected_license)
+        self.assertEqual(actual_licenses, [expected_license])
 
     @istest
     def content_fossology_license_add__update_in_place_duplicate(self):
         # given
+        tools = self.fetch_tools()
+        tool = tools['nomos']
+        tool_id = tool['id']
+
         cont = self.cont
         self.storage.content_add([cont])
 
         license_v1 = {
             'id': cont['sha1'],
             'licenses': ['CECILL'],
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'indexer_configuration_id': tool_id,
         }
 
         # given
@@ -3004,7 +3000,12 @@ class CommonTestStorage(BaseTestStorage):
             [cont['sha1']]))
 
         # then
-        self.assertEqual(actual_licenses[0], license_v1)
+        expected_license = {
+            'id': cont['sha1'],
+            'licenses': ['CECILL'],
+            'tool': tool,
+        }
+        self.assertEqual(actual_licenses, [expected_license])
 
         # given
         license_v2 = license_v1.copy()
@@ -3019,7 +3020,10 @@ class CommonTestStorage(BaseTestStorage):
             [cont['sha1']]))
 
         # license did change as the v2 was used to overwrite v1
-        self.assertEqual(actual_licenses[0], license_v2)
+        expected_license.update({
+            'licenses': ['CECILL-2.0']
+        })
+        self.assertEqual(actual_licenses, [expected_license])
 
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
@@ -3086,6 +3090,33 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
                     'email': person1['email'],
                 },
             ])
+
+    @istest
+    def indexer_configuration_get_missing(self):
+        tool = {
+            'tool_name': 'unknown-tool',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'tool_configuration': {"command_line": "nomossa <filepath>"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        self.assertIsNone(actual_tool)
+
+    @istest
+    def indexer_configuration_get(self):
+        tool = {
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'tool_configuration': {"command_line": "nomossa <filepath>"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        expected_tool = tool.copy()
+        expected_tool['id'] = 1
+
+        self.assertEqual(expected_tool, actual_tool)
 
 
 class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):

@@ -1,8 +1,10 @@
-swh-storage (0.0.83-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.84-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.84
+  * Update indexer endpoints to use indexer configuration id
+  * Add indexer configuration endpoint
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 31 Mar 2017 12:27:09 +0200
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 02 Jun 2017 16:16:47 +0200
 
 swh-storage (0.0.83-1~swh1) unstable-swh; urgency=medium
 

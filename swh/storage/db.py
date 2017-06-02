@@ -840,8 +840,9 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    content_mimetype_cols = ['id', 'mimetype', 'encoding',
-                             'tool_name', 'tool_version']
+    content_mimetype_cols = [
+        'id', 'mimetype', 'encoding',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
 
     @stored_procedure('swh_mktemp_content_mimetype_missing')
     def mktemp_content_mimetype_missing(self, cur=None): pass
@@ -861,17 +862,19 @@ class Db(BaseDb):
         self._cursor(cur).execute("SELECT swh_content_mimetype_add(%s)",
                                   (conflict_update, ))
 
-    content_language_cols = ['id', 'lang', 'tool_name', 'tool_version']
-
-    @stored_procedure('swh_mktemp_content_language')
-    def mktemp_content_language(self, cur=None): pass
-
     def content_mimetype_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
         query = "SELECT %s FROM swh_content_mimetype_get()" % (
             ','.join(self.content_mimetype_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
+
+    content_language_cols = [
+        'id', 'lang',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
+
+    @stored_procedure('swh_mktemp_content_language')
+    def mktemp_content_language(self, cur=None): pass
 
     @stored_procedure('swh_mktemp_content_language_missing')
     def mktemp_content_language_missing(self, cur=None): pass
@@ -895,6 +898,10 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
+    content_ctags_cols = [
+        'id', 'name', 'kind', 'line', 'lang',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
+
     def content_ctags_missing_from_temp(self, cur=None):
         """List missing ctags.
 
@@ -906,9 +913,6 @@ class Db(BaseDb):
     def content_ctags_add_from_temp(self, conflict_update, cur=None):
         self._cursor(cur).execute("SELECT swh_content_ctags_add(%s)",
                                   (conflict_update, ))
-
-    content_ctags_cols = ['id', 'name', 'kind', 'line', 'lang',
-                          'tool_name', 'tool_version']
 
     def content_ctags_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -937,8 +941,9 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    content_fossology_license_cols = ['id', 'tool_name', 'tool_version',
-                                      'licenses']
+    content_fossology_license_cols = [
+        'id', 'tool_id', 'tool_name', 'tool_version', 'tool_configuration',
+        'licenses']
 
     @stored_procedure('swh_mktemp_content_fossology_license_missing')
     def mktemp_content_fossology_license_missing(self, cur=None): pass
@@ -984,3 +989,22 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         cur.execute("SELECT * FROM swh_content_fossology_license_unknown()")
         yield from cursor_to_bytes(cur)
+
+    indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
+                                  'tool_configuration']
+
+    def indexer_configuration_get(self, tool_name,
+                                  tool_version, tool_configuration, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('''select %s
+                       from indexer_configuration
+                       where tool_name=%%s and
+                             tool_version=%%s and
+                             tool_configuration=%%s''' % (
+                                 ','.join(self.indexer_configuration_cols)),
+                    (tool_name, tool_version, tool_configuration))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)
