@@ -7,6 +7,7 @@
 from collections import defaultdict
 import datetime
 import itertools
+import json
 import dateutil.parser
 import psycopg2
 
@@ -1327,7 +1328,7 @@ class Storage():
         db = self.db
         db.mktemp_content_mimetype_missing(cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype_missing',
-                   ['id', 'tool_name', 'tool_version'],
+                   ['id', 'indexer_configuration_id'],
                    cur)
         for obj in db.content_mimetype_missing_from_temp(cur):
             yield obj[0]
@@ -1341,16 +1342,16 @@ class Storage():
             - id (bytes): sha1 identifier
             - mimetype (bytes): raw content's mimetype
             - encoding (bytes): raw content's encoding
-            - tool_name (str): tool used to compute the results
-            - tool_version (str): associated tool's version
-            conflict_update: Flag to determine if we want to overwrite (true)
-            or skip duplicates (false, the default)
+            - indexer_configuration_id (int): tool's id used to
+              compute the results
+            - conflict_update: Flag to determine if we want to
+              overwrite (true) or skip duplicates (false, the default)
 
         """
         db = self.db
         db.mktemp_content_mimetype(cur)
         db.copy_to(mimetypes, 'tmp_content_mimetype',
-                   db.content_mimetype_cols,
+                   ['id', 'mimetype', 'encoding', 'indexer_configuration_id'],
                    cur)
         db.content_mimetype_add_from_temp(conflict_update, cur)
 
@@ -1379,7 +1380,7 @@ class Storage():
         db = self.db
         db.mktemp_content_language_missing(cur)
         db.copy_to(languages, 'tmp_content_language_missing',
-                   db.content_language_cols, cur)
+                   ['id', 'indexer_configuration_id'], cur)
         for obj in db.content_language_missing_from_temp(cur):
             yield obj[0]
 
@@ -1410,10 +1411,10 @@ class Storage():
             ({
                 'id': l['id'],
                 'lang': 'unknown' if not l['lang'] else l['lang'],
-                'tool_name': l['tool_name'],
-                'tool_version': l['tool_version'],
+                'indexer_configuration_id': l['indexer_configuration_id'],
             } for l in languages),
-            'tmp_content_language', db.content_language_cols, cur)
+            'tmp_content_language',
+            ['id', 'lang', 'indexer_configuration_id'], cur)
 
         db.content_language_add_from_temp(conflict_update, cur)
 
@@ -1436,7 +1437,7 @@ class Storage():
         db.mktemp_content_ctags_missing(cur)
         db.copy_to(ctags,
                    tblname='tmp_content_ctags_missing',
-                   columns=['id', 'tool_name', 'tool_version'],
+                   columns=['id', 'indexer_configuration_id'],
                    cur=cur)
         for obj in db.content_ctags_missing_from_temp(cur):
             yield obj[0]
@@ -1467,19 +1468,18 @@ class Storage():
         """
         db = self.db
 
-        def _convert_ctags(ctags):
-            """Convert ctags to list of ctags.
+        def _convert_ctags(__ctags):
+            """Convert ctags dict to list of ctags.
 
             """
-            res = []
-            for ctag in ctags:
-                res.extend(converters.ctags_to_db(ctag))
-            return res
+            for ctags in __ctags:
+                yield from converters.ctags_to_db(ctags)
 
         db.mktemp_content_ctags(cur)
-        db.copy_to(_convert_ctags(ctags),
+        db.copy_to(list(_convert_ctags(ctags)),
                    tblname='tmp_content_ctags',
-                   columns=db.content_ctags_cols,
+                   columns=['id', 'name', 'kind', 'line',
+                            'lang', 'indexer_configuration_id'],
                    cur=cur)
 
         db.content_ctags_add_from_temp(conflict_update, cur)
@@ -1518,7 +1518,7 @@ class Storage():
         db = self.db
         db.mktemp_content_fossology_license_missing(cur)
         db.copy_to(licenses, 'tmp_content_fossology_license_missing',
-                   ['id', 'tool_name', 'tool_version'],
+                   ['id', 'indexer_configuration_id'],
                    cur)
         for obj in db.content_fossology_license_missing_from_temp(cur):
             yield obj[0]
@@ -1540,7 +1540,8 @@ class Storage():
         db.store_tmp_bytea(ids, cur)
 
         for c in db.content_fossology_license_get_from_temp():
-            yield dict(zip(db.content_fossology_license_cols, c))
+            license = dict(zip(db.content_fossology_license_cols, c))
+            yield converters.db_to_fossology_license(license)
 
     @db_transaction
     def content_fossology_license_add(self, licenses,
@@ -1601,14 +1602,26 @@ class Storage():
             db.copy_to(
                 ({
                     'id': c['id'],
-                    'tool_name': c['tool_name'],
-                    'tool_version': c['tool_version'],
+                    'indexer_configuration_id': c['indexer_configuration_id'],
                     'license': license,
                   } for c in content_licenses_to_add.values()
                     for license in c['licenses']),
                 tblname='tmp_content_fossology_license',
-                columns=['id', 'tool_name', 'tool_version', 'license'],
+                columns=['id', 'license', 'indexer_configuration_id'],
                 cur=cur)
             db.content_fossology_license_add_from_temp(conflict_update, cur)
 
         return wrong_content_licenses
+
+    @db_transaction
+    def indexer_configuration_get(self, tool, cur=None):
+        db = self.db
+        tool_conf = tool['tool_configuration']
+        if isinstance(tool_conf, dict):
+            tool_conf = json.dumps(tool_conf)
+        idx = db.indexer_configuration_get(tool['tool_name'],
+                                           tool['tool_version'],
+                                           tool_conf)
+        if not idx:
+            return None
+        return dict(zip(self.db.indexer_configuration_cols, idx))

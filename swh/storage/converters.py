@@ -318,8 +318,7 @@ def ctags_to_db(ctags):
     Args:
         ctags (dict): ctags entry with the following keys:
         - id (bytes): content's identifier
-        - tool_name (str): tool name used to compute ctags
-        - tool_version (str): associated tool's version
+        - indexer_configuration_id (int): tool id used to compute ctags
         - ctags ([dict]): List of dictionary with the following keys:
           - name (str): symbol's name
           - kind (str): symbol's kind
@@ -332,25 +331,20 @@ def ctags_to_db(ctags):
         - name (str): symbol's name
         - kind (str): symbol's kind
         - language (str): language for that content
-        - tool_name (str): tool name used to compute ctags
-        - tool_version (str): associated tool's version
+        - indexer_configuration_id (int): tool id used to compute ctags
 
     """
-    res = []
     id = ctags['id']
-    tool_name = ctags['tool_name']
-    tool_version = ctags['tool_version']
+    tool_id = ctags['indexer_configuration_id']
     for ctag in ctags['ctags']:
-        res.append({
+        yield {
             'id': id,
             'name': ctag['name'],
             'kind': ctag['kind'],
             'line': ctag['line'],
             'lang': ctag['lang'],
-            'tool_name': tool_name,
-            'tool_version': tool_version,
-        })
-    return res
+            'indexer_configuration_id': tool_id,
+        }
 
 
 def db_to_ctags(ctag):
@@ -371,6 +365,7 @@ def db_to_ctags(ctag):
         - name (str): symbol's name
         - kind (str): symbol's kind
         - language (str): language for that content
+        - tool (dict): tool used to compute the ctags
 
     """
     return {
@@ -380,8 +375,10 @@ def db_to_ctags(ctag):
         'line': ctag['line'],
         'lang': ctag['lang'],
         'tool': {
+            'id': ctag['tool_id'],
             'name': ctag['tool_name'],
             'version': ctag['tool_version'],
+            'configuration': ctag['tool_configuration']
         }
     }
 
@@ -395,8 +392,10 @@ def db_to_mimetype(mimetype):
         'encoding': mimetype['encoding'],
         'mimetype': mimetype['mimetype'],
         'tool': {
+            'id': mimetype['tool_id'],
             'name': mimetype['tool_name'],
             'version': mimetype['tool_version'],
+            'configuration': mimetype['tool_configuration']
         }
     }
 
@@ -409,7 +408,22 @@ def db_to_language(language):
         'id': language['id'],
         'lang': language['lang'],
         'tool': {
+            'id': language['tool_id'],
             'name': language['tool_name'],
             'version': language['tool_version'],
+            'configuration': language['tool_configuration']
+        }
+    }
+
+
+def db_to_fossology_license(license):
+    return {
+        'id': license['id'],
+        'licenses': license['licenses'],
+        'tool': {
+            'id': license['tool_id'],
+            'name': license['tool_name'],
+            'version': license['tool_version'],
+            'configuration': license['tool_configuration'],
         }
     }
