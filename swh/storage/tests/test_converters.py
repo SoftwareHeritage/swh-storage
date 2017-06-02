@@ -133,8 +133,7 @@ class TestConverters(unittest.TestCase):
     def ctags_to_db(self):
         input_ctag = {
             'id': b'some-id',
-            'tool_name': 'some-toolname',
-            'tool_version': 'some-toolversion',
+            'indexer_configuration_id': 100,
             'ctags': [
                 {
                     'name': 'some-name',
@@ -157,20 +156,18 @@ class TestConverters(unittest.TestCase):
                 'kind': 'some-kind',
                 'line': 10,
                 'lang': 'Yaml',
-                'tool_name': 'some-toolname',
-                'tool_version': 'some-toolversion',
+                'indexer_configuration_id': 100,
             }, {
                 'id': b'some-id',
                 'name': 'main',
                 'kind': 'function',
                 'line': 12,
                 'lang': 'Yaml',
-                'tool_name': 'some-toolname',
-                'tool_version': 'some-toolversion',
+                'indexer_configuration_id': 100,
             }]
 
         # when
-        actual_ctags = converters.ctags_to_db(input_ctag)
+        actual_ctags = list(converters.ctags_to_db(input_ctag))
 
         # then
         self.assertEquals(actual_ctags, expected_ctags)
@@ -179,12 +176,14 @@ class TestConverters(unittest.TestCase):
     def db_to_ctags(self):
         input_ctags = {
             'id': b'some-id',
-            'tool_name': 'some-toolname',
-            'tool_version': 'some-toolversion',
             'name': 'some-name',
             'kind': 'some-kind',
             'line': 10,
             'lang': 'Yaml',
+            'tool_id': 200,
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'tool_configuration': {}
         }
         expected_ctags = {
             'id': b'some-id',
@@ -193,8 +192,10 @@ class TestConverters(unittest.TestCase):
             'line': 10,
             'lang': 'Yaml',
             'tool': {
+                'id': 200,
                 'name': 'some-toolname',
-                'version': 'some-toolversion'
+                'version': 'some-toolversion',
+                'configuration': {},
             }
         }
 
@@ -208,8 +209,10 @@ class TestConverters(unittest.TestCase):
     def db_to_mimetype(self):
         input_mimetype = {
             'id': b'some-id',
+            'tool_id': 10,
             'tool_name': 'some-toolname',
             'tool_version': 'some-toolversion',
+            'tool_configuration': {},
             'encoding': b'ascii',
             'mimetype': b'text/plain',
         }
@@ -219,8 +222,10 @@ class TestConverters(unittest.TestCase):
             'encoding': b'ascii',
             'mimetype': b'text/plain',
             'tool': {
+                'id': 10,
                 'name': 'some-toolname',
                 'version': 'some-toolversion',
+                'configuration': {},
             }
         }
 
@@ -232,8 +237,10 @@ class TestConverters(unittest.TestCase):
     def db_to_language(self):
         input_language = {
             'id': b'some-id',
+            'tool_id': 20,
             'tool_name': 'some-toolname',
             'tool_version': 'some-toolversion',
+            'tool_configuration': {},
             'lang': b'css',
         }
 
@@ -241,11 +248,39 @@ class TestConverters(unittest.TestCase):
             'id': b'some-id',
             'lang': b'css',
             'tool': {
+                'id': 20,
                 'name': 'some-toolname',
                 'version': 'some-toolversion',
+                'configuration': {},
             }
         }
 
         actual_language = converters.db_to_language(input_language)
 
         self.assertEquals(actual_language, expected_language)
+
+    @istest
+    def db_to_fossology_license(self):
+        input_license = {
+            'id': b'some-id',
+            'tool_id': 20,
+            'tool_name': 'nomossa',
+            'tool_version': '5.22',
+            'tool_configuration': {},
+            'licenses': ['GPL2.0'],
+        }
+
+        expected_license = {
+            'id': b'some-id',
+            'licenses': ['GPL2.0'],
+            'tool': {
+                'id': 20,
+                'name': 'nomossa',
+                'version': '5.22',
+                'configuration': {},
+            }
+        }
+
+        actual_license = converters.db_to_fossology_license(input_license)
+
+        self.assertEquals(actual_license, expected_license)
