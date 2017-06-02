@@ -1,3 +1,11 @@
+swh-storage (0.0.84-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.84
+  * Update indexer endpoints to use indexer configuration id
+  * Add indexer configuration endpoint
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 02 Jun 2017 16:16:47 +0200
+
 swh-storage (0.0.83-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.83
