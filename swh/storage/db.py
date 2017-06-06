@@ -945,22 +945,8 @@ class Db(BaseDb):
         'id', 'tool_id', 'tool_name', 'tool_version', 'tool_configuration',
         'licenses']
 
-    @stored_procedure('swh_mktemp_content_fossology_license_missing')
-    def mktemp_content_fossology_license_missing(self, cur=None): pass
-
-    def content_fossology_license_missing_from_temp(self, cur=None):
-        """List missing licenses.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_content_fossology_license_missing()")
-        yield from cursor_to_bytes(cur)
-
     @stored_procedure('swh_mktemp_content_fossology_license')
     def mktemp_content_fossology_license(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_content_fossology_license_unknown')
-    def mktemp_content_fossology_license_unknown(self, cur=None): pass
 
     def content_fossology_license_add_from_temp(self, conflict_update,
                                                 cur=None):
@@ -979,15 +965,6 @@ class Db(BaseDb):
         query = "SELECT %s FROM swh_content_fossology_license_get()" % (
             ','.join(self.content_fossology_license_cols))
         cur.execute(query)
-        yield from cursor_to_bytes(cur)
-
-    def content_fossology_license_unknown(self, cur=None):
-        """Returns the unknown licenses from
-           tmp_content_fossology_license_unknown.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_content_fossology_license_unknown()")
         yield from cursor_to_bytes(cur)
 
     indexer_configuration_cols = ['id', 'tool_name', 'tool_version',

@@ -228,10 +228,6 @@ class RemoteStorage(SWHRemoteAPI):
             'conflict_update': conflict_update,
         })
 
-    def content_fossology_license_missing(self, licenses):
-        return self.post('content/fossology_license/missing', {
-            'licenses': licenses})
-
     def content_fossology_license_get(self, ids):
         return self.post('content/fossology_license', {'ids': ids})
 

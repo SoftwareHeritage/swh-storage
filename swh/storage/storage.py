@@ -1505,25 +1505,6 @@ class Storage():
             yield converters.db_to_ctags(dict(zip(db.content_ctags_cols, obj)))
 
     @db_transaction_generator
-    def content_fossology_license_missing(self, licenses, cur=None):
-        """List license missing from storage.
-
-        Args:
-            licenses ([bytes]): iterable of sha1
-
-        Returns:
-            an iterable of missing id
-
-        """
-        db = self.db
-        db.mktemp_content_fossology_license_missing(cur)
-        db.copy_to(licenses, 'tmp_content_fossology_license_missing',
-                   ['id', 'indexer_configuration_id'],
-                   cur)
-        for obj in db.content_fossology_license_missing_from_temp(cur):
-            yield obj[0]
-
-    @db_transaction_generator
     def content_fossology_license_get(self, ids, cur=None):
         """Retrieve licenses per id.
 
@@ -1563,55 +1544,19 @@ class Storage():
         """
         db = self.db
 
-        # First, we check the licenses are ok
-        licenses_to_check = set()      # set of licenses to check
-        content_licenses_to_add = {}   # content_licenses to add
-        names_to_content_license = {}  # map from names to content licenses
-
-        for c in licenses:
-            id = c['id']
-
-            for name in c['licenses']:
-                licenses_to_check.add(name)
-                l = names_to_content_license.get(name, [])
-                l.append(id)
-                names_to_content_license[name] = l
-
-            content_licenses_to_add[id] = c
-
-        db.mktemp_content_fossology_license_unknown()
-        db.copy_to(({'name': name} for name in licenses_to_check),
-                   tblname='tmp_content_fossology_license_unknown',
-                   columns=['name'],
-                   cur=cur)
-        unknown_licenses = db.content_fossology_license_unknown(cur)
-
-        # We filter out wrong content_license (this will be the result)
-        wrong_content_licenses = []
-        for name, in unknown_licenses:
-            for id in names_to_content_license[name]:
-                # we can remove it multiple times since one content
-                # can have multiple licenses
-                content_license = content_licenses_to_add.pop(id, None)
-                if content_license:
-                    wrong_content_licenses.append(content_license)
-
-        if content_licenses_to_add:
-            # Then, we add the correct ones
-            db.mktemp_content_fossology_license(cur)
-            db.copy_to(
-                ({
-                    'id': c['id'],
-                    'indexer_configuration_id': c['indexer_configuration_id'],
-                    'license': license,
-                  } for c in content_licenses_to_add.values()
-                    for license in c['licenses']),
-                tblname='tmp_content_fossology_license',
-                columns=['id', 'license', 'indexer_configuration_id'],
-                cur=cur)
-            db.content_fossology_license_add_from_temp(conflict_update, cur)
-
-        return wrong_content_licenses
+        # Then, we add the correct ones
+        db.mktemp_content_fossology_license(cur)
+        db.copy_to(
+            ({
+                'id': sha1['id'],
+                'indexer_configuration_id': sha1['indexer_configuration_id'],
+                'license': license,
+              } for sha1 in licenses
+                for license in sha1['licenses']),
+            tblname='tmp_content_fossology_license',
+            columns=['id', 'license', 'indexer_configuration_id'],
+            cur=cur)
+        db.content_fossology_license_add_from_temp(conflict_update, cur)
 
     @db_transaction
     def indexer_configuration_get(self, tool, cur=None):
