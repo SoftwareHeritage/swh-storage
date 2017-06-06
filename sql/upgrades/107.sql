@@ -6,6 +6,8 @@
 insert into dbversion(version, release, description)
       values(107, now(), 'Work In Progress');
 
+DROP FUNCTION swh_content_fossology_license_missing();
+
 DROP FUNCTION swh_content_fossology_license_unknown();
 
 DROP FUNCTION swh_mktemp_content_fossology_license_unknown();
@@ -16,7 +18,7 @@ CREATE OR REPLACE FUNCTION swh_content_fossology_license_add(conflict_update boo
 begin
     -- insert unknown licenses first
     insert into fossology_license (name)
-    select license from tmp_content_fossology_license tmp
+    select distinct license from tmp_content_fossology_license tmp
     where not exists (select 1 from fossology_license where name=tmp.license)
     on conflict(name) do nothing;
 
