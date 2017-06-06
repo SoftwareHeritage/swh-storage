@@ -3,11 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 
-import time
-
-from swh.model import hashutil
 from swh.storage.db import BaseDb, cursor_to_bytes, stored_procedure
+
+
+def utcnow():
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class ArchiverDb(BaseDb):
@@ -38,36 +40,25 @@ class ArchiverDb(BaseDb):
             A tuple (content_id, present_copies, ongoing_copies), where
             ongoing_copies is a dict mapping copy to mtime.
         """
-        query = """SELECT content_id,
-                          array(
-                            SELECT key
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'present'
-                            ORDER BY key
-                          ) AS present,
-                          array(
-                            SELECT key
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'ongoing'
-                            ORDER BY key
-                          ) AS ongoing,
-                          array(
-                            SELECT value->'mtime'
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'ongoing'
-                            ORDER BY key
-                          ) AS ongoing_mtime
-                   FROM content_archive
-                   WHERE content_id = %s
-                   ORDER BY content_id
+        query = """select archive.name, status, mtime
+                   from content_copies
+                   left join archive on content_copies.archive_id = archive.id
+                   where content_copies.content_id = (
+                          select id from content where sha1 = %s)
         """
         cur = self._cursor(cur)
         cur.execute(query, (content_id,))
-        row = cur.fetchone()
-        if not row:
+        rows = cur.fetchall()
+        if not rows:
             return None
-        content_id, present, ongoing, mtimes = row
-        return (content_id, present, dict(zip(ongoing, mtimes)))
+        present = []
+        ongoing = {}
+        for archive, status, mtime in rows:
+            if status == 'present':
+                present.append(archive)
+            elif status == 'ongoing':
+                ongoing[archive] = mtime
+        return (content_id, present, ongoing)
 
     def content_archive_get_copies(self, last_content=None, limit=1000,
                                    cur=None):
@@ -86,38 +77,32 @@ class ArchiverDb(BaseDb):
 
         """
 
-        query = """SELECT content_id,
-                          array(
-                            SELECT key
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'present'
-                            ORDER BY key
-                          ) AS present,
-                          array(
-                            SELECT key
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'ongoing'
-                            ORDER BY key
-                          ) AS ongoing,
-                          array(
-                            SELECT value->'mtime'
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'ongoing'
-                            ORDER BY key
-                          ) AS ongoing_mtime
-                   FROM content_archive
-                   WHERE content_id > %s
-                   ORDER BY content_id
-                   LIMIT %s
-        """
+        vars = {
+            'limit': limit,
+        }
 
         if last_content is None:
-            last_content = b''
+            last_content_clause = 'true'
+        else:
+            last_content_clause = """content_id > (
+                                      select id from content
+                                      where sha1 = %(last_content)s)"""
+            vars['last_content'] = last_content
+
+        query = """select
+                       (select sha1 from content where id = content_id),
+                       array_agg((select name from archive
+                                  where id = archive_id))
+                   from content_copies
+                   where status = 'present' and %s
+                   group by content_id
+                   order by content_id
+                   limit %%(limit)s""" % last_content_clause
 
         cur = self._cursor(cur)
-        cur.execute(query, (last_content, limit))
-        for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
-            yield (content_id, present, dict(zip(ongoing, mtimes)))
+        cur.execute(query, vars)
+        for content_id, present in cursor_to_bytes(cur):
+            yield (content_id, present, {})
 
     def content_archive_get_unarchived_copies(
             self, retention_policy, last_content=None,
@@ -139,38 +124,34 @@ class ArchiverDb(BaseDb):
 
         """
 
-        query = """SELECT content_id,
-                          array(
-                            SELECT key
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'present'
-                            ORDER BY key
-                          ) AS present,
-                          array(
-                            SELECT key
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'ongoing'
-                            ORDER BY key
-                          ) AS ongoing,
-                          array(
-                            SELECT value->'mtime'
-                            FROM jsonb_each(copies)
-                            WHERE value->>'status' = 'ongoing'
-                            ORDER BY key
-                          ) AS ongoing_mtime
-                   FROM content_archive
-                   WHERE content_id > %s AND num_present < %s
-                   ORDER BY content_id
-                   LIMIT %s
-        """
+        vars = {
+            'limit': limit,
+            'retention_policy': retention_policy,
+        }
 
         if last_content is None:
-            last_content = b''
+            last_content_clause = 'true'
+        else:
+            last_content_clause = """content_id > (
+                                      select id from content
+                                      where sha1 = %(last_content)s)"""
+            vars['last_content'] = last_content
+
+        query = """select
+                       (select sha1 from content where id = content_id),
+                       array_agg((select name from archive
+                                  where id = archive_id))
+                   from content_copies
+                   where status = 'present' and %s
+                   group by content_id
+                   having count(archive_id) < %%(retention_policy)s
+                   order by content_id
+                   limit %%(limit)s""" % last_content_clause
 
         cur = self._cursor(cur)
-        cur.execute(query, (last_content, retention_policy, limit))
-        for content_id, present, ongoing, mtimes in cursor_to_bytes(cur):
-            yield (content_id, present, dict(zip(ongoing, mtimes)))
+        cur.execute(query, vars)
+        for content_id, present in cursor_to_bytes(cur):
+            yield (content_id, present, {})
 
     @stored_procedure('swh_mktemp_content_archive')
     def mktemp_content_archive(self, cur=None):
@@ -228,24 +209,16 @@ class ArchiverDb(BaseDb):
                 the function only change the mtime of the content for the
                 given archive.
         """
-        if isinstance(content_id, bytes):
-            content_id = '\\x%s' % hashutil.hash_to_hex(content_id)
+        assert isinstance(content_id, bytes)
+        assert new_status is not None
 
-        if new_status is not None:
-            query = """UPDATE content_archive
-                    SET copies=jsonb_set(
-                        copies, '{%s}',
-                        '{"status":"%s", "mtime":%d}'
-                    )
-                    WHERE content_id='%s'
-                    """ % (archive_id,
-                           new_status, int(time.time()),
-                           content_id)
-        else:
-            query = """ UPDATE content_archive
-                    SET copies=jsonb_set(copies, '{%s,mtime}', '%d')
-                    WHERE content_id='%s'
-                    """ % (archive_id, int(time.time()))
+        query = """insert into content_copies (archive_id, content_id, status, mtime)
+                   values ((select id from archive where name=%s),
+                           (select id from content where sha1=%s),
+                           %s, %s)
+                   on conflict (archive_id, content_id) do
+                   update set status = excluded.status, mtime = excluded.mtime
+        """
 
         cur = self._cursor(cur)
-        cur.execute(query)
+        cur.execute(query, (archive_id, content_id, new_status, utcnow()))
