@@ -1,3 +1,3 @@
-INSERT INTO archive(id) VALUES('uffizi');
-INSERT INTO archive(id) VALUES('banco');
-INSERT INTO archive(id) VALUES('azure');
+INSERT INTO archive(name) VALUES('uffizi');
+INSERT INTO archive(name) VALUES('banco');
+INSERT INTO archive(name) VALUES('azure');
