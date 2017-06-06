@@ -9,12 +9,10 @@ import shutil
 import unittest
 import os
 import time
-import json
 
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.model import hashutil
 from swh.core.tests.db_testing import DbsTestFixture
 
 from swh.storage.archiver.storage import get_archiver_storage
@@ -120,7 +118,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     def empty_tables(self):
         # Remove all content
-        self.cursor.execute('DELETE FROM content_archive')
+        self.cursor.execute('DELETE FROM content')
+        self.cursor.execute('DELETE FROM content_copies')
         self.conn.commit()
 
     def _override_director_config(self, retention_policy=2):
@@ -178,10 +177,9 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         """
         # Add the content to the storage
         obj_id = self.storages[storage_name].add(content_data)
-        db_obj_id = r'\x' + hashutil.hash_to_hex(obj_id)
-        self.cursor.execute(""" INSERT INTO content_archive
-                                VALUES('%s', '{}')
-                            """ % (db_obj_id))
+        self.cursor.execute(""" INSERT INTO content (sha1)
+                                VALUES (%s)
+                            """, (obj_id,))
         return obj_id
 
     def _update_status(self, obj_id, storage_name, status, date=None):
@@ -189,21 +187,13 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
         This does not create the content in the storage.
         """
-        db_obj_id = r'\x' + hashutil.hash_to_hex(obj_id)
+        self.cursor.execute("""insert into archive (name)
+                               values (%s)
+                               on conflict do nothing""", (storage_name,))
+
         self.archiver.archiver_storage.content_archive_update(
-            db_obj_id, storage_name, status
+            obj_id, storage_name, status
         )
-
-    def _add_dated_content(self, obj_id, copies={}):
-        """ Fully erase the previous copies field for the given content id
-
-        This does not alter the contents into the objstorages.
-        """
-        db_obj_id = r'\x' + hashutil.hash_to_hex(obj_id)
-        self.cursor.execute(""" UPDATE TABLE content_archive
-                                SET copies='%s'
-                                WHERE content_id='%s'
-                            """ % (json.dumps(copies), db_obj_id))
 
     # Integration test
     @istest
@@ -250,6 +240,19 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
         director.run()
         with self.assertRaises(ObjNotFoundError):
             self.dest_storage.get(obj_id)
+
+    @istest
+    def content_archive_get_copies(self):
+        self.assertCountEqual(
+            self.archiver.archiver_storage.content_archive_get_copies(),
+            [],
+        )
+        obj_id = self._add_content('uffizi', b'archive_alread_enough')
+        self._update_status(obj_id, 'uffizi', 'present')
+        self.assertCountEqual(
+            self.archiver.archiver_storage.content_archive_get_copies(),
+            [(obj_id, ['uffizi'], {})],
+        )
 
     # Unit tests for archive worker
 

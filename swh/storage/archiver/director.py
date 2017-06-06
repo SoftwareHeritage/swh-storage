@@ -149,7 +149,8 @@ class ArchiverWithRetentionPolicyDirector(ArchiverDirectorBase):
             archiver_contents = list(
                 self.archiver_storage.content_archive_get_unarchived_copies(
                     last_content=last_content,
-                    retention_policy=self.config['retention_policy']))
+                    retention_policy=self.config['retention_policy'],
+                    limit=self.config['batch_max_size']))
             if not archiver_contents:
                 return
             for content_id, _, _ in archiver_contents:
