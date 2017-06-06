@@ -2814,52 +2814,6 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_ctags, expected_ctags)
 
     @istest
-    def content_fossology_license_missing(self):
-        # given
-        tools = self.fetch_tools()
-        tool = tools['nomos']
-        tool_id = tool['id']
-
-        cont = self.cont
-        self.storage.content_add([cont])
-
-        licenses = [
-            {
-                'id': cont['sha1'],
-                'indexer_configuration_id': tool_id,
-            }, {
-                'id': self.missing_cont['sha1'],
-                'indexer_configuration_id': tool_id,
-            }
-        ]
-
-        # when
-        actual_missing = list(self.storage.content_fossology_license_missing(
-            licenses))
-
-        # then
-        self.assertEqual(actual_missing, [
-            cont['sha1'],
-            self.missing_cont['sha1']
-        ])
-
-        # given
-        r = self.storage.content_fossology_license_add([{
-            'id': cont['sha1'],
-            'licenses': ['GPL-2.0', 'GPL-2.0+'],
-            'indexer_configuration_id': tool_id,
-        }])
-
-        self.assertEqual(r, [])
-
-        # when
-        actual_missing = list(self.storage.content_fossology_license_missing(
-            licenses))
-
-        # then
-        self.assertEqual(actual_missing, [self.missing_cont['sha1']])
-
-    @istest
     def content_fossology_license_get(self):
         # given
         tools = self.fetch_tools()
@@ -2876,9 +2830,7 @@ class CommonTestStorage(BaseTestStorage):
         }
 
         # when
-        r = self.storage.content_fossology_license_add([license1])
-
-        self.assertEquals(r, [])
+        self.storage.content_fossology_license_add([license1])
 
         # then
         actual_licenses = list(self.storage.content_fossology_license_get(
@@ -2892,36 +2844,6 @@ class CommonTestStorage(BaseTestStorage):
 
         # then
         self.assertEqual(actual_licenses, [expected_license])
-
-    @istest
-    def content_fossology_license_add__wrong_license(self):
-        # given
-        tools = self.fetch_tools()
-        tool = tools['nomos']
-        tool_id = tool['id']
-
-        cont = self.cont
-        self.storage.content_add([cont])
-
-        license_v1 = {
-            'id': cont['sha1'],
-            'licenses': ['blackhole'],
-            'indexer_configuration_id': tool_id,
-        }
-
-        # given
-        actual_licenses = self.storage.content_fossology_license_add(
-            [license_v1])
-
-        # then
-        self.assertEqual(actual_licenses, [license_v1])
-
-        # when
-        actual_licenses = list(self.storage.content_fossology_license_get(
-            [cont['sha1']]))
-
-        # then
-        self.assertEqual(actual_licenses, [])
 
     @istest
     def content_fossology_license_add__new_license_added(self):
