@@ -368,12 +368,6 @@ def content_fossology_license_add():
         g.storage.content_fossology_license_add(**decode_request(request)))
 
 
-@app.route('/content/fossology_license/missing', methods=['POST'])
-def content_fossology_license_missing():
-    return encode_data(
-        g.storage.content_fossology_license_missing(**decode_request(request)))
-
-
 @app.route('/content/fossology_license', methods=['POST'])
 def content_fossology_license_get():
     return encode_data(

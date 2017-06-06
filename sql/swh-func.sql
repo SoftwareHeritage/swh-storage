@@ -1912,6 +1912,12 @@ create or replace function swh_content_fossology_license_add(conflict_update boo
     language plpgsql
 as $$
 begin
+    -- insert unknown licenses first
+    insert into fossology_license (name)
+    select license from tmp_content_fossology_license tmp
+    where not exists (select 1 from fossology_license where name=tmp.license)
+    on conflict(name) do nothing;
+
     if conflict_update then
         -- delete from content_fossology_license c
         --   using tmp_content_fossology_license tmp, indexer_configuration i
@@ -1934,32 +1940,6 @@ end
 $$;
 
 comment on function swh_content_fossology_license_add(boolean) IS 'Add new content licenses';
-
-create or replace function swh_content_fossology_license_unknown()
-    returns setof text
-    language plpgsql
-as $$
-begin
-    return query
-        select name from tmp_content_fossology_license_unknown t where not exists (
-            select 1 from fossology_license where name=t.name
-        );
-end
-$$;
-
-comment on function swh_content_fossology_license_unknown() IS 'List unknown licenses';
-
--- create a temporary table for checking licenses' name
-create or replace function swh_mktemp_content_fossology_license_unknown()
-    returns void
-    language sql
-as $$
-  create temporary table tmp_content_fossology_license_unknown (
-    name       text not null
-  ) on commit drop;
-$$;
-
-comment on function swh_mktemp_content_fossology_license_unknown() is 'Helper table to list unknown licenses';
 
 create type content_fossology_license_signature as (
   id                 sha1,
