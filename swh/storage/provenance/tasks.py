@@ -34,7 +34,7 @@ class PopulateCacheContentRevision(Task):
             self.__config = load_named_config(BASE_CONFIG_PATH, DEFAULT_CONFIG)
         return self.__config
 
-    def run(self, revisions):
+    def run_task(self, revisions):
         """Cache the cache_content_revision table for the revisions provided.
 
         Args:
@@ -61,7 +61,7 @@ class PopulateCacheRevisionOrigin(Task):
             self.__config = load_named_config(BASE_CONFIG_PATH, DEFAULT_CONFIG)
         return self.__config
 
-    def run(self, origin_id, visit_id):
+    def run_task(self, origin_id, visit_id):
         """Cache the cache_revision_origin for the given origin visit
 
         Args:
