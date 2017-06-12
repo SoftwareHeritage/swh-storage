@@ -14,7 +14,7 @@ class SWHArchiverWithRetentionPolicyTask(Task):
     """
     task_queue = 'swh_storage_archive_worker'
 
-    def run(self, *args, **kwargs):
+    def run_task(self, *args, **kwargs):
         ArchiverWithRetentionPolicyWorker(*args, **kwargs).run()
 
 
@@ -24,5 +24,5 @@ class SWHArchiverToBackendTask(Task):
     """
     task_queue = 'swh_storage_archive_worker_to_backend'
 
-    def run(self, *args, **kwargs):
+    def run_task(self, *args, **kwargs):
         ArchiverToBackendWorker(*args, **kwargs).run()
