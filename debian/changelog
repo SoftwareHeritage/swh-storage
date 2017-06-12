@@ -1,3 +1,10 @@
+swh-storage (0.0.87-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.87
+  * update tasks to new swh.scheduler api
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Mon, 12 Jun 2017 17:54:11 +0200
+
 swh-storage (0.0.86-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.86
