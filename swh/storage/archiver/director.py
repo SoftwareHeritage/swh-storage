@@ -4,8 +4,11 @@
 # See top-level LICENSE file for more information
 
 import abc
-import click
+import logging
 import sys
+import time
+
+import click
 
 from swh.core import config, utils
 from swh.model import hashutil
@@ -34,6 +37,8 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
     DEFAULT_CONFIG = {
         'batch_max_size': ('int', 1500),
         'asynchronous': ('bool', True),
+        'max_queue_length': ('int', 100000),
+        'queue_throttling_delay': ('int', 120),
 
         'archiver_storage': ('dict', {
             'cls': 'db',
@@ -67,6 +72,8 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         self.archiver_storage = get_archiver_storage(
             **self.config['archiver_storage'])
         self.task = get_task(self.TASK_NAME)
+        self.max_queue_length = self.config['max_queue_length']
+        self.throttling_delay = self.config['queue_throttling_delay']
 
     def run(self):
         """ Run the archiver director.
@@ -86,6 +93,23 @@ class ArchiverDirectorBase(config.SWHConfig, metaclass=abc.ABCMeta):
         """Produce a worker that will be added to the task queue.
 
         """
+        max_length = self.max_queue_length
+        throttling_delay = self.throttling_delay
+
+        while True:
+            length = self.task.app.get_queue_length(self.task.task_queue)
+            if length >= max_length:
+                logging.info(
+                    'queue length %s >= %s, throttling for %s seconds' % (
+                        length,
+                        max_length,
+                        throttling_delay,
+                    )
+                )
+                time.sleep(throttling_delay)
+            else:
+                break
+
         self.task.delay(batch=batch)
 
     def run_sync_worker(self, batch):
