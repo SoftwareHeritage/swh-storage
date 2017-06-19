@@ -270,6 +270,7 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
     ADDITIONAL_CONFIG = {
         'retention_policy': ('int', 2),
         'archival_max_age': ('int', 3600),
+        'sources': ('list[str]', ['uffizi', 'banco']),
     }
 
     def __init__(self, batch):
@@ -282,6 +283,7 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         config = self.config
         self.retention_policy = config['retention_policy']
         self.archival_max_age = config['archival_max_age']
+        self.sources = config['sources']
 
         if len(self.objstorages) < self.retention_policy:
             raise ValueError('Retention policy is too high for the number of '
@@ -337,9 +339,10 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         # Transform from set to list to allow random selections
         missing = list(missing)
         present = list(present)
+        all_sources = [source for source in present if source in self.sources]
         nb_required = self.retention_policy - len(present)
         destinations = random.sample(missing, nb_required)
-        sources = [random.choice(present) for dest in destinations]
+        sources = [random.choice(all_sources) for dest in destinations]
         yield from zip(sources, destinations)
 
 
