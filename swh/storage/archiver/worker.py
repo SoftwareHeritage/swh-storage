@@ -4,9 +4,9 @@
 # See top-level LICENSE file for more information
 
 import abc
+import datetime
 import logging
 import random
-import time
 
 from collections import defaultdict
 from celery import group
@@ -310,8 +310,8 @@ class ArchiverWithRetentionPolicyWorker(BaseArchiveWorker):
         Returns:
             True if the archival delay is elasped, False otherwise
         """
-        elapsed = time.time() - start_time
-        return elapsed > self.archival_max_age
+        elapsed = datetime.datetime.now(tz=datetime.timezone.utc) - start_time
+        return elapsed > datetime.timedelta(seconds=self.archival_max_age)
 
     def choose_backup_servers(self, present, missing):
         """Choose and yield the required amount of couple source/destination
