@@ -51,6 +51,6 @@ class ArchiverCopier():
                     continue
                 self.destination.add(content, content_id)
         except Exception as e:
-            logging.error('Problem during copy: %s' % e)
+            logger.exception('Problem during copy: %s' % e)
             return False
         return True
