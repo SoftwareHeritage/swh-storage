@@ -135,6 +135,10 @@ class ArchiverWithRetentionPolicyDirector(ArchiverDirectorBase):
 
     TASK_NAME = 'swh.storage.archiver.tasks.SWHArchiverWithRetentionPolicyTask'
 
+    def __init__(self, start_id):
+        super().__init__()
+        self.start_id = hashutil.hash_to_bytes(start_id)
+
     def get_contents_to_archive(self):
         """Create batch of contents that needs to be archived
 
@@ -144,7 +148,7 @@ class ArchiverWithRetentionPolicyDirector(ArchiverDirectorBase):
             is a dict mapping copy to mtime.
 
          """
-        last_content = None
+        last_content = self.start_id
         while True:
             archiver_contents = list(
                 self.archiver_storage.content_archive_get_unarchived_copies(
@@ -294,11 +298,12 @@ class ArchiverStdinToBackendDirector(ArchiverDirectorBase):
 @click.option('--direct', is_flag=True,
               help="""The archiver sends content for backup to
 one storage.""")
-def launch(direct):
+@click.option('--start-id', default=None, help="The first id to process")
+def launch(direct, start_id):
     if direct:
         archiver = ArchiverStdinToBackendDirector()
     else:
-        archiver = ArchiverWithRetentionPolicyDirector()
+        archiver = ArchiverWithRetentionPolicyDirector(start_id)
 
     archiver.run()
 
