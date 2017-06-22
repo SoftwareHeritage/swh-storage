@@ -3,12 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import glob
 import tempfile
 import shutil
 import unittest
 import os
-import time
 
 from nose.tools import istest
 from nose.plugins.attrib import attr
@@ -19,6 +19,8 @@ from swh.storage.archiver.storage import get_archiver_storage
 
 from swh.storage.archiver import ArchiverWithRetentionPolicyDirector
 from swh.storage.archiver import ArchiverWithRetentionPolicyWorker
+from swh.storage.archiver.db import utcnow
+
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
@@ -138,6 +140,8 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             'archival_max_age': 3600,
             'retention_policy': retention_policy,
             'asynchronous': False,
+            'max_queue_length': 100000,
+            'queue_throttling_delay': 120,
         }
 
     def _override_worker_config(self):
@@ -156,10 +160,11 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
             },
             'storages': self.archiver_storages,
             'source': 'uffizi',
+            'sources': ['uffizi'],
         }
 
     def _create_director(self):
-        return ArchiverWithRetentionPolicyDirector()
+        return ArchiverWithRetentionPolicyDirector(start_id=None)
 
     def _create_worker(self, batch={}):
         return ArchiverWithRetentionPolicyWorker(batch)
@@ -261,13 +266,13 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
 
     @istest
     def vstatus_ongoing_remaining(self):
-        self.assertFalse(self.archival_elapsed(time.time()))
+        self.assertFalse(self.archival_elapsed(utcnow()))
 
     @istest
     def vstatus_ongoing_elapsed(self):
-        past_time = (
-            time.time() - self._create_worker().archival_max_age
-        )
+        past_time = (utcnow()
+                     - datetime.timedelta(
+                         seconds=self._create_worker().archival_max_age))
         self.assertTrue(self.archival_elapsed(past_time))
 
     def _status(self, status, mtime=None):
