@@ -161,7 +161,10 @@ class ArchiverWithRetentionPolicyDirector(ArchiverDirectorBase):
 
     def __init__(self, start_id):
         super().__init__()
-        self.start_id = hashutil.hash_to_bytes(start_id)
+        if start_id is not None:
+            self.start_id = hashutil.hash_to_bytes(start_id)
+        else:
+            self.start_id = None
 
     def get_contents_to_archive(self):
         """Create batch of contents that needs to be archived
