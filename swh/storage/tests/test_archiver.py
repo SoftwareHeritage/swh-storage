@@ -275,11 +275,6 @@ class TestArchiver(DbsTestFixture, ServerTestFixture,
                          seconds=self._create_worker().archival_max_age))
         self.assertTrue(self.archival_elapsed(past_time))
 
-    def _status(self, status, mtime=None):
-        """ Get a dict that match the copies structure
-        """
-        return {'status': status, 'mtime': mtime or time.time()}
-
     @istest
     def need_archival_missing(self):
         """ A content should need archival when it is missing.
