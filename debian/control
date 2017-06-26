@@ -39,15 +39,6 @@ Depends: python3-swh.journal (>= 0.0.2~),
          ${python3:Depends}
 Description: Software Heritage storage listener
 
-Package: python3-swh.storage.archiver
-Architecture: all
-Depends: python3-swh.scheduler (>= 0.0.14~),
-         python3-swh.journal,
-         python3-swh.storage (= ${binary:Version}),
-         ${misc:Depends},
-         ${python3:Depends}
-Description: Software Heritage storage Archiver
-
 Package: python3-swh.storage.provenance
 Architecture: all
 Depends: python3-swh.scheduler (>= 0.0.14~),
