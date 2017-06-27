@@ -1945,6 +1945,116 @@ $$;
 
 comment on function swh_content_fossology_license_get() IS 'List content licenses';
 
+-- content_metadata functions
+--
+-- create a temporary table for content_metadata tmp_content_metadata,
+create or replace function swh_mktemp_content_metadata_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_metadata_missing (
+    id sha1,
+    indexer_configuration_id integer
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_metadata_missing() is 'Helper table to filter missing metadata in content_metadata';
+
+-- check which entries of tmp_bytea are missing from content_metadata
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_content_metadata_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	select id::sha1 from tmp_content_metadata_missing as tmp
+	where not exists
+	    (select 1 from content_metadata as c
+             where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id);
+    return;
+end
+$$;
+
+comment on function swh_content_metadata_missing() IS 'Filter missing content metadata';
+
+-- add tmp_content_metadata entries to content_metadata, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_content_metadata_missing must take place before calling this
+-- function.
+--
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to
+-- tmp_content_metadata, 2. call this function
+create or replace function swh_content_metadata_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+        insert into content_metadata (id, translated_metadata, indexer_configuration_id)
+        select id, translated_metadata, indexer_configuration_id
+    	from tmp_content_metadata tcm
+            on conflict(id, indexer_configuration_id)
+                do update set translated_metadata = excluded.translated_metadata;
+
+    else
+        insert into content_metadata (id, translated_metadata, indexer_configuration_id)
+        select id, translated_metadata, indexer_configuration_id
+    	from tmp_content_metadata tcm
+            on conflict(id, indexer_configuration_id)
+            do nothing;
+    end if;
+    return;
+end
+$$;
+
+comment on function swh_content_metadata_add(boolean) IS 'Add new content metadata';
+
+-- create a temporary table for retrieving content_metadata
+create or replace function swh_mktemp_content_metadata()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_content_metadata (
+    like content_metadata including defaults
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_content_metadata() is 'Helper table to add content metadata';
+
+--
+create type content_metadata_signature as (
+    id sha1,
+    translated_metadata jsonb,
+    tool_id integer,
+    tool_name text,
+    tool_version text,
+    tool_configuration jsonb
+);
+
+-- Retrieve list of content metadata from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_content_metadata_get()
+    returns setof content_metadata_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select c.id, translated_metadata, i.id as tool_id, tool_name, tool_version, tool_configuration
+        from tmp_bytea t
+        inner join content_metadata c on c.id = t.id
+        inner join indexer_configuration i on i.id=c.indexer_configuration_id;
+    return;
+end
+$$;
+
+comment on function swh_content_metadata_get() is 'List content''s metadata';
+-- end content_metadata functions
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

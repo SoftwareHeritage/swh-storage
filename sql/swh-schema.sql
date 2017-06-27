@@ -463,3 +463,54 @@ comment on table content_fossology_license is 'license associated to a raw conte
 comment on column content_fossology_license.id is 'Raw content identifier';
 comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
 comment on column content_fossology_license.indexer_configuration_id is 'Tool used to compute the information';
+
+
+-- The table content_metadata provides a translation to files
+-- identified as potentially containning metadata with a translation tool (indexer_configuration_id)
+create table content_metadata(
+  id                       sha1   not null,
+  translated_metadata      jsonb  not null,
+  indexer_configuration_id bigint not null
+);
+
+comment on table content_metadata is 'metadata semantically translated from a content file';
+comment on column content_metadata.id is 'sha1 of content file';
+comment on column content_metadata.translated_metadata is 'result of translation with defined format';
+comment on column content_metadata.indexer_configuration_id is 'tool used for translation';
+
+
+-- Discovery of metadata during a listing or a deposit of an origin
+-- also provides a translation to a defined json schema using a translation tool (indexer_configuration_id)
+create table origin_metadata_history(
+  origin_id                   bigint        not null,
+  discovery_date              timestamptz   not null,
+  translation_date            timestamptz,
+  provenance_type             text          not null, -- TODO use an enum (?)
+  raw_metadata                jsonb         not null,
+  translated_metadata         jsonb,
+  indexer_configuration_id    bigint,
+  object_id                   bigserial     -- short object identifier
+);
+
+
+comment on table origin_metadata_history is 'keeps latest metadata concerning an origin';
+comment on column origin_metadata_history.origin_id is 'the origin id for which the metadata was found';
+comment on column origin_metadata_history.discovery_date is 'the date of retrieval';
+comment on column origin_metadata_history.translation_date is 'the date of translation';
+comment on column origin_metadata_history.provenance_type is 'lister, publisher,  etc';
+comment on column origin_metadata_history.raw_metadata is 'metadata in json format but with original terms';
+comment on column origin_metadata_history.translated_metadata is 'metadata in defined terms in json schema';
+comment on column origin_metadata_history.indexer_configuration_id is 'tool used for translation';
+
+
+-- Materialized view of origin_metadata_history, storing the *current* value of
+-- metadata, as last seen by SWH.
+create table origin_metadata(
+  origin_id                   bigint        not null,
+  discovery_date              timestamptz   not null,
+  translation_date            timestamptz,
+  provenance_type             text          not null, -- TODO use an enum (?)
+  raw_metadata                jsonb         not null,
+  translated_metadata         jsonb,
+  indexer_configuration_id    bigint
+);

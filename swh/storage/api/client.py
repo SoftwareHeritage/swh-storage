@@ -231,5 +231,17 @@ class RemoteStorage(SWHRemoteAPI):
     def content_fossology_license_get(self, ids):
         return self.post('content/fossology_license', {'ids': ids})
 
+    def content_metadata_add(self, metadatas, conflict_update=False):
+        return self.post('content_metadata/add', {
+            'metadatas': metadatas,
+            'conflict_update': conflict_update,
+        })
+
+    def content_metadata_missing(self, metadatas):
+        return self.post('content_metadata/missing', {'metadatas': metadatas})
+
+    def content_metadata_get(self, ids):
+        return self.post('content_metadata', {'ids': ids})
+
     def indexer_configuration_get(self, tool):
         return self.post('indexer_configuration/data', {'tool': tool})

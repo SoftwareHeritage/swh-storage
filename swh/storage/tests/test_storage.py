@@ -2947,6 +2947,225 @@ class CommonTestStorage(BaseTestStorage):
         })
         self.assertEqual(actual_licenses, [expected_license])
 
+    @istest
+    def content_metadata_missing(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadatas = [
+            {
+                'id': self.cont2['sha1'],
+                'indexer_configuration_id': tool_id,
+            },
+            {
+                'id': self.missing_cont['sha1'],
+                'indexer_configuration_id': tool_id,
+            }
+        ]
+
+        # when
+        actual_missing = list(self.storage.content_metadata_missing(metadatas))
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            self.cont2['sha1'],
+            self.missing_cont['sha1'],
+        ])
+
+        # given
+        self.storage.content_metadata_add([{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'codeRepository': {
+                    'type': 'git',
+                    'url': 'https://github.com/moranegg/metadata_test'
+                },
+                'description': 'Simple package.json test for indexer',
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id
+        }])
+
+        # when
+        actual_missing = list(self.storage.content_metadata_missing(metadatas))
+
+        # then
+        self.assertEqual(actual_missing, [self.missing_cont['sha1']])
+
+    @istest
+    def content_metadata_get(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadata1 = {
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'codeRepository': {
+                    'type': 'git',
+                    'url': 'https://github.com/moranegg/metadata_test'
+                },
+                'description': 'Simple package.json test for indexer',
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # when
+        self.storage.content_metadata_add([metadata1])
+
+        # then
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1'], self.missing_cont['sha1']]))
+
+        expected_metadatas = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'codeRepository': {
+                    'type': 'git',
+                    'url': 'https://github.com/moranegg/metadata_test'
+                },
+                'description': 'Simple package.json test for indexer',
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas)
+
+    @istest
+    def content_metadata_add_drop_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadata_v1 = {
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.content_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        expected_metadatas_v1 = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_drop_duplicated_metadata',
+                'version': '0.0.1'
+            },
+        })
+
+        self.storage.content_metadata_add([metadata_v2])
+
+        # then
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        # metadata did not change as the v2 was dropped.
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+    @istest
+    def content_metadata_add_update_in_place_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadata_v1 = {
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.content_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        # then
+        expected_metadatas_v1 = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_update_duplicated_metadata',
+                'version': '0.0.1'
+            },
+        })
+        self.storage.content_metadata_add([metadata_v2], conflict_update=True)
+
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        # language did not change as the v2 was dropped.
+        expected_metadatas_v2 = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_update_duplicated_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+
+        # language did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_metadatas, expected_metadatas_v2)
+
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
     """Test the local storage"""
@@ -3037,6 +3256,33 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
 
         expected_tool = tool.copy()
         expected_tool['id'] = 1
+
+        self.assertEqual(expected_tool, actual_tool)
+
+    @istest
+    def indexer_configuration_metadata_get_missing_context(self):
+        tool = {
+            'tool_name': 'swh-metadata-translator',
+            'tool_version': '0.0.1',
+            'tool_configuration': {"context": "unknown-context"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        self.assertIsNone(actual_tool)
+
+    @istest
+    def indexer_configuration_metadata_get(self):
+        tool = {
+            'tool_name': 'swh-metadata-translator',
+            'tool_version': '0.0.1',
+            'tool_configuration': {"type": "local", "context": "npm"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        expected_tool = tool.copy()
+        expected_tool['id'] = actual_tool['id']
 
         self.assertEqual(expected_tool, actual_tool)
 

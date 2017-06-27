@@ -380,6 +380,24 @@ def indexer_configuration_get():
         **decode_request(request)))
 
 
+@app.route('/content_metadata/add', methods=['POST'])
+def content_metadata_add():
+    return encode_data(
+        g.storage.content_metadata_add(**decode_request(request)))
+
+
+@app.route('/content_metadata/missing', methods=['POST'])
+def content_metadata_missing():
+    return encode_data(
+        g.storage.content_metadata_missing(**decode_request(request)))
+
+
+@app.route('/content_metadata', methods=['POST'])
+def content_metadata_get():
+    return encode_data(
+        g.storage.content_metadata_get(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())
