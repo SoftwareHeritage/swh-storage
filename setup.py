@@ -23,7 +23,6 @@ setup(
     url='https://forge.softwareheritage.org/diffusion/DSTO/',
     packages=[
         'swh.storage',
-        'swh.storage.archiver',
         'swh.storage.api',
         'swh.storage.provenance',
         'swh.storage.tests',

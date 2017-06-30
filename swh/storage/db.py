@@ -73,7 +73,7 @@ def cursor_to_bytes(cursor):
 class BaseDb:
     """Base class for swh.storage.*Db.
 
-    cf. swh.storage.db.Db, swh.storage.archiver.db.ArchiverDb
+    cf. swh.storage.db.Db, swh.archiver.db.ArchiverDb
 
     """
 
