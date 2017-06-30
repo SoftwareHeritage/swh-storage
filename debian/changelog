@@ -1,3 +1,11 @@
+swh-storage (0.0.88-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.88
+  * Move the archiver to its own module
+  * Prepare building for stretch
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 30 Jun 2017 14:52:12 +0200
+
 swh-storage (0.0.87-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.87
