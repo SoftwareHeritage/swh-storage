@@ -4,7 +4,6 @@ flask
 kafka
 psycopg2
 python-dateutil
-python-fastimport
 swh.core>=0.0.28
 swh.journal>=0.0.2
 swh.model>=0.0.15
