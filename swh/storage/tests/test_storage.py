@@ -6,10 +6,7 @@
 import copy
 import datetime
 from operator import itemgetter
-import os
 import psycopg2
-import shutil
-import tempfile
 import unittest
 from uuid import UUID
 
@@ -18,42 +15,23 @@ from unittest.mock import patch
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.core.tests.db_testing import DbTestFixture
 from swh.model import identifiers
 from swh.model.hashutil import hash_to_bytes
-
-from swh.storage import get_storage
 from swh.storage.db import cursor_to_bytes
-
-
-TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
+from swh.core.tests.db_testing import DbTestFixture
+from swh.storage.tests.storage_testing import StorageTestFixture
 
 
 @attr('db')
-class BaseTestStorage(DbTestFixture):
-    TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
-
+class BaseTestStorage(StorageTestFixture, DbTestFixture):
     def setUp(self):
         super().setUp()
+
+        db = self.test_db[self.TEST_STORAGE_DB_NAME]
+        self.conn = db.conn
+        self.cursor = db.cursor
+
         self.maxDiff = None
-        self.objroot = tempfile.mkdtemp()
-
-        storage_conf = {
-            'cls': 'local',
-            'args': {
-                'db': self.conn,
-                'objstorage': {
-                    'cls': 'pathslicing',
-                    'args': {
-                        'root': self.objroot,
-                        'slicing': '0:2/2:4/4:6',
-                    },
-                },
-            },
-        }
-
-        self.storage = get_storage(**storage_conf)
 
         self.cont = {
             'data': b'42\n',
@@ -567,8 +545,6 @@ class BaseTestStorage(DbTestFixture):
         }
 
     def tearDown(self):
-        shutil.rmtree(self.objroot)
-
         self.cursor.execute("""SELECT table_name FROM information_schema.tables
                                WHERE table_schema = %s""", ('public',))
 
