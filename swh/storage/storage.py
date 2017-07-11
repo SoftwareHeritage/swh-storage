@@ -1602,15 +1602,10 @@ class Storage():
         db = self.db
         db.mktemp_content_metadata(cur)
         # empty metadata is mapped to 'unknown'
-        db.copy_to(
-            ({
-                'id': m['id'],
-                'translated_metadata': m['translated_metadata'],
-                'indexer_configuration_id': m['indexer_configuration_id'],
-            } for m in metadatas),
-            'tmp_content_metadata',
-            ['id', 'translated_metadata', 'indexer_configuration_id'], cur)
 
+        db.copy_to(metadatas, 'tmp_content_metadata',
+                   ['id', 'translated_metadata', 'indexer_configuration_id'],
+                   cur)
         db.content_metadata_add_from_temp(conflict_update, cur)
 
     @db_transaction

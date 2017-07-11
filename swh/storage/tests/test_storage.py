@@ -3163,7 +3163,7 @@ class CommonTestStorage(BaseTestStorage):
             'tool': tools['swh-metadata-translator']
         }]
 
-        # language did change as the v2 was used to overwrite v1
+        # metadata did change as the v2 was used to overwrite v1
         self.assertEqual(actual_metadatas, expected_metadatas_v2)
 
 
