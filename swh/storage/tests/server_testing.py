@@ -140,6 +140,7 @@ class ServerTestFixtureAsync(ServerTestFixtureBaseClass):
     """
     def define_worker_function(self):
         def worker(app, port):
-            return aiohttp.web.run_app(app, port=int(port))
+            return aiohttp.web.run_app(app, port=int(port),
+                                       print=lambda *_: None)
 
         return worker
