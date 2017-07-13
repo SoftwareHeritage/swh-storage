@@ -416,6 +416,22 @@ def db_to_language(language):
     }
 
 
+def db_to_metadata(metadata):
+    """Convert a metadata entry into a ready metadata output.
+
+    """
+    return {
+        'id': metadata['id'],
+        'translated_metadata': metadata['translated_metadata'],
+        'tool': {
+            'id': metadata['tool_id'],
+            'name': metadata['tool_name'],
+            'version': metadata['tool_version'],
+            'configuration': metadata['tool_configuration']
+        }
+    }
+
+
 def db_to_fossology_license(license):
     return {
         'id': license['id'],

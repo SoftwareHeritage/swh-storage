@@ -284,3 +284,29 @@ class TestConverters(unittest.TestCase):
         actual_license = converters.db_to_fossology_license(input_license)
 
         self.assertEquals(actual_license, expected_license)
+
+    @istest
+    def db_to_metadata(self):
+        input_metadata = {
+            'id': b'some-id',
+            'tool_id': 20,
+            'tool_name': 'some-toolname',
+            'tool_version': 'some-toolversion',
+            'tool_configuration': {},
+            'translated_metadata': b'translated_metadata',
+        }
+
+        expected_metadata = {
+            'id': b'some-id',
+            'translated_metadata': b'translated_metadata',
+            'tool': {
+                'id': 20,
+                'name': 'some-toolname',
+                'version': 'some-toolversion',
+                'configuration': {},
+            }
+        }
+
+        actual_metadata = converters.db_to_metadata(input_metadata)
+
+        self.assertEquals(actual_metadata, expected_metadata)

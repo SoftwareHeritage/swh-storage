@@ -463,3 +463,17 @@ comment on table content_fossology_license is 'license associated to a raw conte
 comment on column content_fossology_license.id is 'Raw content identifier';
 comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
 comment on column content_fossology_license.indexer_configuration_id is 'Tool used to compute the information';
+
+
+-- The table content_metadata provides a translation to files
+-- identified as potentially containning metadata with a translation tool (indexer_configuration_id)
+create table content_metadata(
+  id                       sha1   not null,
+  translated_metadata      jsonb  not null,
+  indexer_configuration_id bigint not null
+);
+
+comment on table content_metadata is 'metadata semantically translated from a content file';
+comment on column content_metadata.id is 'sha1 of content file';
+comment on column content_metadata.translated_metadata is 'result of translation with defined format';
+comment on column content_metadata.indexer_configuration_id is 'tool used for translation';

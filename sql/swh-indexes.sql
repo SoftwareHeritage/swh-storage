@@ -272,3 +272,17 @@ alter table content_fossology_license validate constraint content_fossology_lice
 
 alter table content_fossology_license add constraint content_fossology_license_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table content_fossology_license validate constraint content_fossology_license_indexer_configuration_id_fkey;
+
+-- content_metadata
+create unique index concurrently content_metadata_pkey on content_metadata(id, indexer_configuration_id);
+alter table content_metadata add primary key using index content_metadata_pkey;
+
+alter table content_metadata add constraint content_metadata_id_fkey foreign key (id) references content(sha1) not valid;
+alter table content_metadata validate constraint content_metadata_id_fkey;
+
+alter table content_metadata add constraint content_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
+alter table content_metadata validate constraint content_metadata_indexer_configuration_id_fkey;
+
+-- origin_metadata_history and origin_metadata
+-- TODO PK: origin_id, discovery_date
+-- TODO FK: origin_id, indexer_configuration_id
