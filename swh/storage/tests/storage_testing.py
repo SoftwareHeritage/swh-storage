@@ -38,7 +38,7 @@ class StorageTestFixture:
         super().setUp()
         self.objtmp = tempfile.TemporaryDirectory()
 
-        storage_conf = {
+        self.storage_config = {
             'cls': 'local',
             'args': {
                 'db': self.test_db[self.TEST_STORAGE_DB_NAME].conn,
@@ -51,7 +51,7 @@ class StorageTestFixture:
                 },
             },
         }
-        self.storage = get_storage(**storage_conf)
+        self.storage = get_storage(**self.storage_config)
 
     def tearDown(self):
         self.objtmp.cleanup()
