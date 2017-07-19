@@ -545,20 +545,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         }
 
     def tearDown(self):
-        self.cursor.execute("""SELECT table_name FROM information_schema.tables
-                               WHERE table_schema = %s""", ('public',))
-
-        tables = set(table for (table,) in self.cursor.fetchall())
-        tables -= {'dbversion', 'entity', 'entity_history', 'listable_entity',
-                   'fossology_license', 'indexer_configuration'}
-
-        for table in tables:
-            self.cursor.execute('truncate table %s cascade' % table)
-
-        self.cursor.execute('delete from entity where generated=true')
-        self.cursor.execute('delete from entity_history where generated=true')
-        self.conn.commit()
-
+        self.reset_tables()
         super().tearDown()
 
     def fetch_tools(self):

@@ -56,3 +56,22 @@ class StorageTestFixture:
     def tearDown(self):
         self.objtmp.cleanup()
         super().tearDown()
+
+    def reset_tables(self):
+        db = self.test_db[self.TEST_STORAGE_DB_NAME]
+        conn = db.conn
+        cursor = db.cursor
+
+        cursor.execute("""SELECT table_name FROM information_schema.tables
+                               WHERE table_schema = %s""", ('public',))
+
+        tables = set(table for (table,) in cursor.fetchall())
+        tables -= {'dbversion', 'entity', 'entity_history', 'listable_entity',
+                   'fossology_license', 'indexer_configuration'}
+
+        for table in tables:
+            cursor.execute('truncate table %s cascade' % table)
+
+        cursor.execute('delete from entity where generated=true')
+        cursor.execute('delete from entity_history where generated=true')
+        conn.commit()
