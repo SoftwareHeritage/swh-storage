@@ -398,6 +398,24 @@ def content_metadata_get():
         g.storage.content_metadata_get(**decode_request(request)))
 
 
+@app.route('/revision_metadata/add', methods=['POST'])
+def revision_metadata_add():
+    return encode_data(
+        g.storage.revision_metadata_add(**decode_request(request)))
+
+
+@app.route('/revision_metadata/missing', methods=['POST'])
+def revision_metadata_missing():
+    return encode_data(
+        g.storage.revision_metadata_missing(**decode_request(request)))
+
+
+@app.route('/revision_metadata', methods=['POST'])
+def revision_metadata_get():
+    return encode_data(
+        g.storage.revision_metadata_get(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())

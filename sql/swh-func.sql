@@ -1665,8 +1665,8 @@ create or replace function swh_content_language_add(conflict_update boolean)
 as $$
 begin
     if conflict_update then
-        insert into content_language (id, lang, indexer_configuration_id)
-        select id, lang, indexer_configuration_id
+      insert into content_language (id, lang, indexer_configuration_id)
+      select id, lang, indexer_configuration_id
     	from tmp_content_language tcl
             on conflict(id, indexer_configuration_id)
                 do update set lang = excluded.lang;
@@ -1674,7 +1674,7 @@ begin
     else
         insert into content_language (id, lang, indexer_configuration_id)
         select id, lang, indexer_configuration_id
-    	from tmp_content_language tcl
+    	  from tmp_content_language tcl
             on conflict(id, indexer_configuration_id)
             do nothing;
     end if;
@@ -1995,8 +1995,8 @@ create or replace function swh_content_metadata_add(conflict_update boolean)
 as $$
 begin
     if conflict_update then
-        insert into content_metadata (id, translated_metadata, indexer_configuration_id)
-        select id, translated_metadata, indexer_configuration_id
+      insert into content_metadata (id, translated_metadata, indexer_configuration_id)
+      select id, translated_metadata, indexer_configuration_id
     	from tmp_content_metadata tcm
             on conflict(id, indexer_configuration_id)
                 do update set translated_metadata = excluded.translated_metadata;
@@ -2055,6 +2055,117 @@ $$;
 
 comment on function swh_content_metadata_get() is 'List content''s metadata';
 -- end content_metadata functions
+
+-- revision_metadata functions
+--
+-- create a temporary table for revision_metadata tmp_revision_metadata,
+create or replace function swh_mktemp_revision_metadata_missing()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_revision_metadata_missing (
+    id sha1_git,
+    indexer_configuration_id integer
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_revision_metadata_missing() is 'Helper table to filter missing metadata in revision_metadata';
+
+-- check which entries of tmp_bytea are missing from revision_metadata
+--
+-- operates in bulk: 0. swh_mktemp_bytea(), 1. COPY to tmp_bytea,
+-- 2. call this function
+create or replace function swh_revision_metadata_missing()
+    returns setof sha1
+    language plpgsql
+as $$
+begin
+    return query
+	select id::sha1 from tmp_revision_metadata_missing as tmp
+	where not exists
+	    (select 1 from revision_metadata as c
+             where c.id = tmp.id and c.indexer_configuration_id = tmp.indexer_configuration_id);
+    return;
+end
+$$;
+
+comment on function swh_revision_metadata_missing() IS 'Filter missing content metadata';
+
+-- add tmp_revision_metadata entries to revision_metadata, overwriting
+-- duplicates if conflict_update is true, skipping duplicates otherwise.
+--
+-- If filtering duplicates is in order, the call to
+-- swh_revision_metadata_missing must take place before calling this
+-- function.
+--
+-- operates in bulk: 0. swh_mktemp(content_language), 1. COPY to
+-- tmp_revision_metadata, 2. call this function
+create or replace function swh_revision_metadata_add(conflict_update boolean)
+    returns void
+    language plpgsql
+as $$
+begin
+    if conflict_update then
+      insert into revision_metadata (id, translated_metadata, indexer_configuration_id)
+      select id, translated_metadata, indexer_configuration_id
+    	from tmp_revision_metadata tcm
+            on conflict(id, indexer_configuration_id)
+                do update set translated_metadata = excluded.translated_metadata;
+
+    else
+        insert into revision_metadata (id, translated_metadata, indexer_configuration_id)
+        select id, translated_metadata, indexer_configuration_id
+    	from tmp_revision_metadata tcm
+            on conflict(id, indexer_configuration_id)
+            do nothing;
+    end if;
+    return;
+end
+$$;
+
+comment on function swh_revision_metadata_add(boolean) IS 'Add new revision metadata';
+
+-- create a temporary table for retrieving revision_metadata
+create or replace function swh_mktemp_revision_metadata()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_revision_metadata (
+    like revision_metadata including defaults
+  ) on commit drop;
+$$;
+
+comment on function swh_mktemp_revision_metadata() is 'Helper table to add revision metadata';
+
+--
+create type revision_metadata_signature as (
+    id sha1_git,
+    translated_metadata jsonb,
+    tool_id integer,
+    tool_name text,
+    tool_version text,
+    tool_configuration jsonb
+);
+
+-- Retrieve list of revision metadata from the temporary table.
+--
+-- operates in bulk: 0. mktemp(tmp_bytea), 1. COPY to tmp_bytea, 2. call this function
+create or replace function swh_revision_metadata_get()
+    returns setof revision_metadata_signature
+    language plpgsql
+as $$
+begin
+    return query
+        select c.id, translated_metadata, i.id as tool_id, tool_name, tool_version, tool_configuration
+        from tmp_bytea t
+        inner join revision_metadata c on c.id = t.id
+        inner join indexer_configuration i on i.id=c.indexer_configuration_id;
+    return;
+end
+$$;
+
+comment on function swh_revision_metadata_get() is 'List revision''s metadata';
+-- end revision_metadata functions
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

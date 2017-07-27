@@ -875,3 +875,6 @@ values ('pygments', '2.0.1+dfsg-1.1+deb8u1', '{"type": "library", "debian-packag
 
 insert into indexer_configuration(tool_name, tool_version, tool_configuration)
 values ('swh-metadata-translator', '0.0.1', '{"type": "local", "context": "npm"}');
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('swh-metadata-detector', '0.0.1', '{"type": "local", "context": ["npm", "codemeta"]}');

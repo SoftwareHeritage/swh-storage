@@ -283,6 +283,13 @@ alter table content_metadata validate constraint content_metadata_id_fkey;
 alter table content_metadata add constraint content_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table content_metadata validate constraint content_metadata_indexer_configuration_id_fkey;
 
--- origin_metadata_history and origin_metadata
--- TODO PK: origin_id, discovery_date
--- TODO FK: origin_id, indexer_configuration_id
+
+-- revision_metadata
+create unique index concurrently revision_metadata_pkey on revision_metadata(id, indexer_configuration_id);
+alter table revision_metadata add primary key using index revision_metadata_pkey;
+
+alter table revision_metadata add constraint revision_metadata_id_fkey foreign key (id) references revision(id) not valid;
+alter table revision_metadata validate constraint revision_metadata_id_fkey;
+
+alter table revision_metadata add constraint revision_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
+alter table revision_metadata validate constraint revision_metadata_indexer_configuration_id_fkey;

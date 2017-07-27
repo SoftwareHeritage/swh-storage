@@ -1608,6 +1608,57 @@ class Storage():
                    cur)
         db.content_metadata_add_from_temp(conflict_update, cur)
 
+    @db_transaction_generator
+    def revision_metadata_missing(self, metadatas, cur=None):
+        """List metadatas missing from storage.
+
+        Args:
+            metadatas: iterable of dict with keys:
+            - id (bytes): sha1_git revision identifier
+            - tool_name (str): tool used to compute the results
+            - tool_version (str): associated tool's version
+
+        Returns:
+            an iterable of missing id
+
+        """
+        db = self.db
+        db.mktemp_revision_metadata_missing(cur)
+        db.copy_to(metadatas, 'tmp_revision_metadata_missing',
+                   ['id', 'indexer_configuration_id'], cur)
+        for obj in db.revision_metadata_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
+    def revision_metadata_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.revision_metadata_get_from_temp():
+            yield converters.db_to_metadata(
+                dict(zip(db.revision_metadata_cols, c)))
+
+    @db_transaction
+    def revision_metadata_add(self, metadatas,
+                              conflict_update=False, cur=None):
+        """Add metadatas not present in storage.
+
+        Args:
+            metadatas: iterable of dictionary with keys:
+            - id: sha1_git of revision
+            - translated_metadata: bytes / jsonb ?
+            conflict_update: Flag to determine if we want to overwrite (true)
+            or skip duplicates (false, the default)
+
+        """
+        db = self.db
+        db.mktemp_revision_metadata(cur)
+        # empty metadata is mapped to 'unknown'
+
+        db.copy_to(metadatas, 'tmp_revision_metadata',
+                   ['id', 'translated_metadata', 'indexer_configuration_id'],
+                   cur)
+        db.revision_metadata_add_from_temp(conflict_update, cur)
+
     @db_transaction
     def indexer_configuration_get(self, tool, cur=None):
         db = self.db

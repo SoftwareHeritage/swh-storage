@@ -243,5 +243,17 @@ class RemoteStorage(SWHRemoteAPI):
     def content_metadata_get(self, ids):
         return self.post('content_metadata', {'ids': ids})
 
+    def revision_metadata_add(self, metadatas, conflict_update=False):
+        return self.post('revision_metadata/add', {
+            'metadatas': metadatas,
+            'conflict_update': conflict_update,
+        })
+
+    def revision_metadata_missing(self, metadatas):
+        return self.post('revision_metadata/missing', {'metadatas': metadatas})
+
+    def revision_metadata_get(self, ids):
+        return self.post('revision_metadata', {'ids': ids})
+
     def indexer_configuration_get(self, tool):
         return self.post('indexer_configuration/data', {'tool': tool})

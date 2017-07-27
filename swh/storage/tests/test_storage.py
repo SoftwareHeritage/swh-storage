@@ -3129,6 +3129,247 @@ class CommonTestStorage(BaseTestStorage):
         # metadata did change as the v2 was used to overwrite v1
         self.assertEqual(actual_metadatas, expected_metadatas_v2)
 
+    @istest
+    def revision_metadata_missing(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+
+        rev = self.revision
+        missing_rev = self.revision2
+        self.storage.revision_add([rev])
+
+        metadatas = [
+            {
+                'id': rev['id'],
+                'indexer_configuration_id': tool_id,
+            },
+            {
+                'id': missing_rev['id'],
+                'indexer_configuration_id': tool_id,
+            }
+        ]
+
+        # when
+        actual_missing = list(self.storage.revision_metadata_missing(
+                              metadatas))
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            rev['id'],
+            missing_rev['id'],
+        ])
+
+        # given
+        self.storage.revision_metadata_add([{
+            'id': rev['id'],
+            'translated_metadata': {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id
+        }])
+
+        # when
+        actual_missing = list(self.storage.revision_metadata_missing(
+                              metadatas))
+
+        # then
+        self.assertEqual(actual_missing, [missing_rev['id']])
+
+    @istest
+    def revision_metadata_get(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+        rev = self.revision2
+        self.storage.revision_add([rev])
+
+        metadata_rev = {
+            'id': rev['id'],
+            'translated_metadata': {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id
+        }
+
+        # when
+        self.storage.revision_metadata_add([metadata_rev])
+
+        # then
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision2['id'], self.revision['id']]))
+
+        expected_metadatas = [{
+            'id': rev['id'],
+            'translated_metadata': metadata_rev['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas)
+
+    @istest
+    def revision_metadata_add_drop_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+        revision = self.revision
+        self.storage.revision_add([revision])
+
+        metadata_v1 = {
+            'id': self.revision['id'],
+            'translated_metadata':  {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.revision_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision['id']]))
+
+        expected_metadatas_v1 = [{
+            'id': self.revision['id'],
+            'translated_metadata':  metadata_v1['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata':  {
+                'name': 'test_metadata',
+                'author': 'MG',
+            },
+        })
+
+        self.storage.revision_metadata_add([metadata_v2])
+
+        # then
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision['id']]))
+
+        # metadata did not change as the v2 was dropped.
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+    @istest
+    def revision_metadata_add_update_in_place_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+        revision = self.revision2
+        self.storage.revision_add([revision])
+
+        metadata_v1 = {
+            'id': self.revision2['id'],
+            'translated_metadata': {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.revision_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision2['id']]))
+
+        # then
+        expected_metadatas_v1 = [{
+            'id': self.revision2['id'],
+            'translated_metadata':  metadata_v1['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata':  {
+                'name': 'test_update_duplicated_metadata',
+                'author': 'MG'
+            },
+        })
+        self.storage.revision_metadata_add([metadata_v2], conflict_update=True)
+
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision2['id']]))
+
+        # language did not change as the v2 was dropped.
+        expected_metadatas_v2 = [{
+            'id': self.revision2['id'],
+            'translated_metadata': metadata_v2['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+
+        # metadata did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_metadatas, expected_metadatas_v2)
+
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
     """Test the local storage"""

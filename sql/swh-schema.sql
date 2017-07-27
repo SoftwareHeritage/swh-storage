@@ -477,3 +477,17 @@ comment on table content_metadata is 'metadata semantically translated from a co
 comment on column content_metadata.id is 'sha1 of content file';
 comment on column content_metadata.translated_metadata is 'result of translation with defined format';
 comment on column content_metadata.indexer_configuration_id is 'tool used for translation';
+
+-- The table revision_metadata provides a minimal set of intrinsic metadata
+-- detected with the detection  tool (indexer_configuration_id) and aggregated
+-- from the content_metadata translation.
+create table revision_metadata(
+  id                       sha1_git   not null,
+  translated_metadata      jsonb      not null,
+  indexer_configuration_id bigint     not null
+);
+
+comment on table revision_metadata is 'metadata semantically detected and translated in a revision';
+comment on column revision_metadata.id is 'sha1_git of revision';
+comment on column revision_metadata.translated_metadata is 'result of detection and translation with defined format';
+comment on column revision_metadata.indexer_configuration_id is 'tool used for detection';
