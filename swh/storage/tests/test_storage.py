@@ -545,7 +545,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         }
 
     def tearDown(self):
-        self.reset_tables()
+        self.reset_storage_tables()
         super().tearDown()
 
     def fetch_tools(self):
