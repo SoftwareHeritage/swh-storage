@@ -3370,72 +3370,6 @@ class CommonTestStorage(BaseTestStorage):
         # metadata did change as the v2 was used to overwrite v1
         self.assertEqual(actual_metadatas, expected_metadatas_v2)
 
-
-class TestLocalStorage(CommonTestStorage, unittest.TestCase):
-    """Test the local storage"""
-
-    # Can only be tested with local storage as you can't mock
-    # datetimes for the remote server
-    @istest
-    def fetch_history(self):
-        origin = self.storage.origin_add_one(self.origin)
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = self.fetch_history_date
-            fetch_history_id = self.storage.fetch_history_start(origin)
-            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
-
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = self.fetch_history_end
-            self.storage.fetch_history_end(fetch_history_id,
-                                           self.fetch_history_data)
-
-        fetch_history = self.storage.fetch_history_get(fetch_history_id)
-        expected_fetch_history = self.fetch_history_data.copy()
-
-        expected_fetch_history['id'] = fetch_history_id
-        expected_fetch_history['origin'] = origin
-        expected_fetch_history['date'] = self.fetch_history_date
-        expected_fetch_history['duration'] = self.fetch_history_duration
-
-        self.assertEqual(expected_fetch_history, fetch_history)
-
-    @istest
-    def person_get(self):
-        # given
-        person0 = {
-            'fullname': b'bob <alice@bob>',
-            'name': b'bob',
-            'email': b'alice@bob',
-        }
-        id0 = self.storage._person_add(person0)
-
-        person1 = {
-            'fullname': b'tony <tony@bob>',
-            'name': b'tony',
-            'email': b'tony@bob',
-        }
-        id1 = self.storage._person_add(person1)
-
-        # when
-        actual_persons = self.storage.person_get([id0, id1])
-
-        # given (person injection through release for example)
-        self.assertEqual(
-            list(actual_persons), [
-                {
-                    'id': id0,
-                    'fullname': person0['fullname'],
-                    'name': person0['name'],
-                    'email': person0['email'],
-                },
-                {
-                    'id': id1,
-                    'fullname': person1['fullname'],
-                    'name': person1['name'],
-                    'email': person1['email'],
-                },
-            ])
-
     @istest
     def indexer_configuration_get_missing(self):
         tool = {
@@ -3489,6 +3423,73 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
         expected_tool['id'] = actual_tool['id']
 
         self.assertEqual(expected_tool, actual_tool)
+
+
+class TestLocalStorage(CommonTestStorage, unittest.TestCase):
+    """Test the local storage"""
+
+    # Can only be tested with local storage as you can't mock
+    # datetimes for the remote server
+    @istest
+    def fetch_history(self):
+        origin = self.storage.origin_add_one(self.origin)
+        with patch('datetime.datetime'):
+            datetime.datetime.now.return_value = self.fetch_history_date
+            fetch_history_id = self.storage.fetch_history_start(origin)
+            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
+
+        with patch('datetime.datetime'):
+            datetime.datetime.now.return_value = self.fetch_history_end
+            self.storage.fetch_history_end(fetch_history_id,
+                                           self.fetch_history_data)
+
+        fetch_history = self.storage.fetch_history_get(fetch_history_id)
+        expected_fetch_history = self.fetch_history_data.copy()
+
+        expected_fetch_history['id'] = fetch_history_id
+        expected_fetch_history['origin'] = origin
+        expected_fetch_history['date'] = self.fetch_history_date
+        expected_fetch_history['duration'] = self.fetch_history_duration
+
+        self.assertEqual(expected_fetch_history, fetch_history)
+
+    # The remote API doesn't expose _person_add
+    @istest
+    def person_get(self):
+        # given
+        person0 = {
+            'fullname': b'bob <alice@bob>',
+            'name': b'bob',
+            'email': b'alice@bob',
+        }
+        id0 = self.storage._person_add(person0)
+
+        person1 = {
+            'fullname': b'tony <tony@bob>',
+            'name': b'tony',
+            'email': b'tony@bob',
+        }
+        id1 = self.storage._person_add(person1)
+
+        # when
+        actual_persons = self.storage.person_get([id0, id1])
+
+        # given (person injection through release for example)
+        self.assertEqual(
+            list(actual_persons), [
+                {
+                    'id': id0,
+                    'fullname': person0['fullname'],
+                    'name': person0['name'],
+                    'email': person0['email'],
+                },
+                {
+                    'id': id1,
+                    'fullname': person1['fullname'],
+                    'name': person1['name'],
+                    'email': person1['email'],
+                },
+            ])
 
 
 class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
