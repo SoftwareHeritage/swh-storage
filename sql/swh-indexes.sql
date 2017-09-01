@@ -293,3 +293,7 @@ alter table revision_metadata validate constraint revision_metadata_id_fkey;
 
 alter table revision_metadata add constraint revision_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table revision_metadata validate constraint revision_metadata_indexer_configuration_id_fkey;
+
+-- object_counts
+create unique index concurrently object_counts_pkey on object_counts(object_type);
+alter table object_counts add primary key using index object_counts_pkey;

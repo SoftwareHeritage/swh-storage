@@ -1890,6 +1890,11 @@ class CommonTestStorage(BaseTestStorage):
     def stat_counters(self):
         expected_keys = ['content', 'directory', 'directory_entry_dir',
                          'occurrence', 'origin', 'person', 'revision']
+
+        for key in expected_keys:
+            self.cursor.execute('select * from swh_update_counter(%s)', (key,))
+        self.conn.commit()
+
         counters = self.storage.stat_counters()
 
         self.assertTrue(set(expected_keys) <= set(counters))

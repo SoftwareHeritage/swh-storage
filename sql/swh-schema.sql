@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(107, now(), 'Work In Progress');
+      values(108, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -491,3 +491,10 @@ comment on table revision_metadata is 'metadata semantically detected and transl
 comment on column revision_metadata.id is 'sha1_git of revision';
 comment on column revision_metadata.translated_metadata is 'result of detection and translation with defined format';
 comment on column revision_metadata.indexer_configuration_id is 'tool used for detection';
+
+-- Keep a cache of object counts
+create table object_counts (
+  object_type text,
+  value bigint,
+  last_update timestamptz
+);

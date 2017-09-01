@@ -2182,23 +2182,41 @@ create or replace function swh_stat_counters()
     language sql
     stable
 as $$
-    select relname::text as label, n_live_tup::bigint - n_dead_tup::bigint as value
-    from pg_stat_user_tables
-    where relid in (
-        'public.content'::regclass,
-        'public.directory'::regclass,
-        'public.directory_entry_dir'::regclass,
-        'public.directory_entry_file'::regclass,
-        'public.directory_entry_rev'::regclass,
-        'public.occurrence'::regclass,
-        'public.occurrence_history'::regclass,
-        'public.origin'::regclass,
-        'public.person'::regclass,
-        'public.entity'::regclass,
-        'public.entity_history'::regclass,
-        'public.release'::regclass,
-        'public.revision'::regclass,
-        'public.revision_history'::regclass,
-        'public.skipped_content'::regclass
+    select object_type as label, value as value
+    from object_counts
+    where object_type in (
+        'content',
+        'directory',
+        'directory_entry_dir',
+        'directory_entry_file',
+        'directory_entry_rev',
+        'occurrence',
+        'occurrence_history',
+        'origin',
+        'person',
+        'entity',
+        'entity_history',
+        'release',
+        'revision',
+        'revision_history',
+        'skipped_content'
     );
+$$;
+
+create or replace function swh_update_counter(object_type text)
+    returns void
+    language plpgsql
+as $$
+begin
+    execute format('
+	insert into object_counts
+    (value, last_update, object_type)
+  values
+    ((select count(*) from %1$I), NOW(), %1$L)
+  on conflict (object_type) do update set
+    value = excluded.value,
+    last_update = excluded.last_update',
+  object_type);
+    return;
+end;
 $$;
