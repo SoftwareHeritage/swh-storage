@@ -2193,6 +2193,7 @@ as $$
         'occurrence',
         'occurrence_history',
         'origin',
+        'origin_visit',
         'person',
         'entity',
         'entity_history',
