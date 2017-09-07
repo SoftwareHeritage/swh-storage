@@ -25,9 +25,12 @@ DEFAULT_DATE = {
 def author_to_db(author):
     """Convert a swh-model author to its DB representation.
 
-    Args: a swh-model compatible author
+    Args:
+        autohr: a :mod:`swh.model` compatible author
+
     Returns:
-        a dict containing three keys: author, fullname and email
+        dict: a dictionary with three keys: author, fullname and email
+
     """
     if author is None:
         return DEFAULT_AUTHOR
@@ -45,8 +48,8 @@ def db_to_author(id, fullname, name, email):
         email (bytes): the author's email
 
     Returns:
-        a dict with four keys: id, fullname, name and email, or None if the id
-        is None
+        dict: a dictionary with four keys: id, fullname, name and email, or
+        None if the id is None
     """
 
     if id is None:
@@ -98,10 +101,12 @@ def db_to_date(date, offset, neg_utc_offset):
         neg_utc_offset (boolean): whether an utc offset is negative
 
     Returns:
-        a dict with three keys:
-            timestamp: a timestamp from UTC
-            offset: the number of minutes since UTC
-            negative_utc: whether a null UTC offset is negative
+        dict: a dict with three keys:
+
+            - timestamp: a timestamp from UTC
+            - offset: the number of minutes since UTC
+            - negative_utc: whether a null UTC offset is negative
+
     """
 
     if date is None:
@@ -120,13 +125,16 @@ def db_to_date(date, offset, neg_utc_offset):
 def date_to_db(date_offset):
     """Convert a swh-model date_offset to its DB representation.
 
-    Args: a swh-model compatible date_offset
+    Args:
+        date_offset: a :mod:`swh.model` compatible date_offset
+
     Returns:
-        a dict with three keys:
-            timestamp: a date in ISO format
-            offset: the UTC offset in minutes
-            neg_utc_offset: a boolean indicating whether a null offset is
-                            negative or positive.
+        dict: a dictionary with three keys:
+
+            - timestamp: a date in ISO format
+            - offset: the UTC offset in minutes
+            - neg_utc_offset: a boolean indicating whether a null offset is
+              negative or positive.
 
     """
 
@@ -317,21 +325,24 @@ def ctags_to_db(ctags):
 
     Args:
         ctags (dict): ctags entry with the following keys:
-        - id (bytes): content's identifier
-        - indexer_configuration_id (int): tool id used to compute ctags
-        - ctags ([dict]): List of dictionary with the following keys:
-          - name (str): symbol's name
-          - kind (str): symbol's kind
-          - line (int): symbol's line in the content
-          - language (str): language
+
+            - id (bytes): content's identifier
+            - indexer_configuration_id (int): tool id used to compute ctags
+            - ctags ([dict]): List of dictionary with the following keys:
+
+              - name (str): symbol's name
+              - kind (str): symbol's kind
+              - line (int): symbol's line in the content
+              - language (str): language
 
     Returns:
-        List of ctags ready entry (dict with the following keys):
-        - id (bytes): content's identifier
-        - name (str): symbol's name
-        - kind (str): symbol's kind
-        - language (str): language for that content
-        - indexer_configuration_id (int): tool id used to compute ctags
+        list: list of ctags entries as dicts with the following keys:
+
+            - id (bytes): content's identifier
+            - name (str): symbol's name
+            - kind (str): symbol's kind
+            - language (str): language for that content
+            - indexer_configuration_id (int): tool id used to compute ctags
 
     """
     id = ctags['id']
