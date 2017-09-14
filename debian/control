@@ -4,6 +4,7 @@ Section: python
 Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python,
+               python3-aiohttp,
                python3-all,
                python3-click,
                python3-dateutil,
@@ -16,7 +17,6 @@ Build-Depends: debhelper (>= 9),
                python3-swh.model (>= 0.0.15~),
                python3-swh.objstorage (>= 0.0.17~),
                python3-swh.scheduler (>= 0.0.14~),
-               python3-aiohttp,
                python3-vcversioner
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
@@ -32,8 +32,8 @@ Description: Software Heritage storage utilities
 
 Package: python3-swh.storage.listener
 Architecture: all
-Depends: python3-swh.journal (>= 0.0.2~),
-         python3-kafka (>= 1.3.1~),
+Depends: python3-kafka (>= 1.3.1~),
+         python3-swh.journal (>= 0.0.2~),
          python3-swh.storage (= ${binary:Version}),
          ${misc:Depends},
          ${python3:Depends}
