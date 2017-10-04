@@ -255,5 +255,22 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_metadata_get(self, ids):
         return self.post('revision_metadata', {'ids': ids})
 
+    def origin_metadata_add(self, origin, ts, provenance, metadata):
+        return self.post('/origin/metadata/add', {'origin': origin,
+                                                  'ts': ts,
+                                                  'provenance': provenance,
+                                                  'metadata': metadata})
+
+    def origin_metadata_get(self, origin_metadata_id):
+        return self.post('/origin/metadata/get', {'id': origin_metadata_id})
+
+    def origin_metadata_get_all(self, origin_id):
+        return self.post('/origin/metadata/getall', {'origin_id': origin_id})
+
+    def origin_metadata_get_by_provenance(self, origin_id, provenance):
+        return self.post('/origin/metadata/getbyprovenance', {
+                          'origin_id': origin_id,
+                          'provenance': provenance})
+
     def indexer_configuration_get(self, tool):
         return self.post('indexer_configuration/data', {'tool': tool})

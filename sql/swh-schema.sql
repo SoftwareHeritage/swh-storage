@@ -492,6 +492,34 @@ comment on column revision_metadata.id is 'sha1_git of revision';
 comment on column revision_metadata.translated_metadata is 'result of detection and translation with defined format';
 comment on column revision_metadata.indexer_configuration_id is 'tool used for detection';
 
+-- Discovery of metadata during a listing, loading, deposit or external_catalog of an origin
+-- also provides a translation to a defined json schema using a translation tool (indexer_configuration_id)
+create table origin_metadata(
+  id                          bigserial     not null  -- PK object identifier
+  origin_id                   bigint        not null  -- references origin(id),
+  date                        timestamptz   not null, -- when it was extracted
+  provenance                  text          not null, -- ex: 'deposit-hal', 'lister-github', 'loader-github'
+  metadata                    jsonb         not null,
+);
+
+comment on table origin_metadata is 'keeps all metadata found concerning an origin';
+comment on column origin_metadata.id is 'the origin_metadata object''s id';
+comment on column origin_metadata.origin_id is 'the origin id for which the metadata was found';
+comment on column origin_metadata.date is 'the date of retrieval';
+comment on column origin_metadata.provenance is 'the type of metadata provenance: deposit, lister, loader, publisher,  etc';
+comment on column origin_metadata.metadata is 'metadata in json format but with original terms';
+
+create table origin_metadata_translation(
+  id                          bigserial     not null  -- PK origin_metadata identifier
+  result                      jsonb,
+  indexer_configuration_id    bigint,
+);
+
+comment on table origin_metadata_translation is 'keeps translated for an origin_metadata entry';
+comment on column origin_metadata_translation.id is 'the entry id in origin_metadata';
+comment on column origin_metadata_translation.result is 'translated_metadata result after translation with tool';
+comment on column origin_metadata_translation.indexer_configuration_id is 'tool used for translation';
+
 -- Keep a cache of object counts
 create table object_counts (
   object_type text,

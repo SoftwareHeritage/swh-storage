@@ -416,6 +416,30 @@ def revision_metadata_get():
         g.storage.revision_metadata_get(**decode_request(request)))
 
 
+@app.route('/origin/metadata/add', methods=['POST'])
+def origin_metadata_add():
+    return encode_data(g.storage.origin_metadata_add(**decode_request(
+                                                       request)))
+
+
+@app.route('/origin/metadata/get', methods=['POST'])
+def origin_metadata_get():
+    return encode_data(g.storage.origin_metadata_get(**decode_request(
+                                                       request)))
+
+
+@app.route('/origin/metadata/getall', methods=['POST'])
+def origin_metadata_getall():
+    return encode_data(g.storage.origin_metadata_get_all(**decode_request(
+                                                           request)))
+
+
+@app.route('/origin/metadata/getbyprovenance', methods=['POST'])
+def origin_metadata_get_by():
+    return encode_data(
+        g.storage.origin_metadata_get_by_provenance(**decode_request(request)))
+
+
 @app.route('/stat/counters', methods=['GET'])
 def stat_counters():
     return encode_data(g.storage.stat_counters())

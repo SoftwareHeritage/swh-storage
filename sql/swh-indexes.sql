@@ -294,6 +294,22 @@ alter table revision_metadata validate constraint revision_metadata_id_fkey;
 alter table revision_metadata add constraint revision_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table revision_metadata validate constraint revision_metadata_indexer_configuration_id_fkey;
 
+-- origin_metadata
+create unique index concurrently origin_metadata_pkey on origin_metadata(id);
+alter table origin_metadata add primary key using index origin_metadata_pkey;
+
+create index concurrently on origin_metadata(origin_id, provenance);
+
+alter table origin_metadata add constraint origin_metadata_origin_fkey foreign key (origin_id) references origin(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_origin_fkey;
+
+-- origin_metadata_translation
+create unique index concurrently origin_metadata_translation_pkey on origin_metadata_translation(id, indexer_configuration_id);
+alter table origin_metadata_translation add primary key using index origin_metadata_translation_pkey;
+
+alter table origin_metadata_translation add constraint origin_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
+alter table origin_metadata_translation validate constraint origin_metadata_indexer_configuration_id_fkey;
+
 -- object_counts
 create unique index concurrently object_counts_pkey on object_counts(object_type);
 alter table object_counts add primary key using index object_counts_pkey;

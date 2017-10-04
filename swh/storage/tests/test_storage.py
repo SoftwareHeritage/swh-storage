@@ -335,6 +335,28 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'type': 'git',
         }
 
+        self.origin_metadata = {
+            'origin': self.origin,
+            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'provenance': 'deposit-hal',
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+             }
+        }
+
+        self.origin_metadata2 = {
+            'origin': self.origin,
+            'date': datetime.datetime(2017, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'provenance': 'lister-github',
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+             }
+        }
+
         self.date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
@@ -3428,6 +3450,68 @@ class CommonTestStorage(BaseTestStorage):
         expected_tool['id'] = actual_tool['id']
 
         self.assertEqual(expected_tool, actual_tool)
+
+    @istest
+    def origin_metadata_add(self):
+        # given
+        origin_metadata0 = self.storage.origin_metadata_get(self.origin)
+        self.assertIsNone(origin_metadata0)
+
+        origin_id = self.storage.origin_add([self.origin])
+
+        # when adding for the same origin 2 metadatas
+        o_m_id1 = self.storage.origin_metadata_add(self.origin_metadata)
+        o_m_id2 = self.storage.origin_metadata_add(self.origin_metadata2)
+        actual_origin_metadata1 = self.storage.origin_metadata_get(o_m_id1)
+        actual_origin_metadata2 = self.storage.origin_metadata_get(o_m_id2)
+
+        # then
+        self.assertEqual(actual_origin_metadata1['id'], o_m_id1)
+        self.assertEqual(actual_origin_metadata2['id'], o_m_id2)
+        self.assertEqual(actual_origin_metadata1['origin_id'], origin_id)
+        self.assertEqual(actual_origin_metadata2['origin_id'], origin_id)
+
+    @istest
+    def origin_metadata_get(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])
+
+        # when adding for the same origin 2 metadatas
+        o_m_id1 = self.storage.origin_metadata_add(self.origin_metadata)
+        o_m_id2 = self.storage.origin_metadata_add(self.origin_metadata2)
+        all_metadatas = self.storage.origin_metadata_get_all({
+            'origin_id': origin_id,
+        })
+        m_by_provenance = self.storage.origin_metadata_get_by_provenance({
+            'origin_id': origin_id,
+            'provenance': self.origin_metadata['provenance']
+        })
+        expected_results = [{
+            'id': o_m_id1,
+            'origin_id': origin_id,
+            'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'provenance': 'deposit-hal',
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            }
+        }, {
+            'id': o_m_id2,
+            'origin_id': origin_id,
+            'date': datetime.datetime(2017, 1, 1, 23, 0, 0,
+                                      tzinfo=datetime.timezone.utc),
+            'provenance': 'lister-hal',
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            }
+        }]
+
+        # then
+        self.assertEqual(len(all_metadatas), 2)
+        self.assertEqual(len(m_by_provenance), 1)
+        self.assertEqual(all_metadatas, expected_results)
 
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
