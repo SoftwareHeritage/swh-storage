@@ -1724,7 +1724,8 @@ class Storage():
         db.revision_metadata_add_from_temp(conflict_update, cur)
 
     @db_transaction
-    def origin_metadata_add(self, origin_id, ts, provenance, metadata, cur=None):
+    def origin_metadata_add(self, origin_id, ts, provenance, metadata,
+                            cur=None):
         """ Add an origin_metadata for the origin at ts with provenance and
         metadata.
 
@@ -1766,8 +1767,8 @@ class Storage():
             return dict(zip(self.db.origin_metadata_get_cols, om))
         return None
 
-    @db_transaction
-    def origin_metadata_get_all(self, origin_id, limit=None, cur=None):
+    @db_transaction_generator
+    def origin_metadata_get_all(self, origin_id, cur=None):
         """Retrieve list of all origin_metadata entries for the origin_id
 
         Returns:
@@ -1781,15 +1782,31 @@ class Storage():
 
         """
         db = self.db
-        for line in db.origin_metadata_get_all(origin_id,
-                                               limit=limit, cur=cur):
+        for line in db.origin_metadata_get_all(origin_id, cur):
             data = dict(zip(self.db.origin_metadata_get_cols, line))
+            yield data
 
-        om = db.origin_metadata_get_all(id, cur)
+    @db_transaction_generator
+    def origin_metadata_get_by_provenance(self, origin_id, provenance,
+                                          cur=None):
+        """Retrieve list of origin_metadata entries for an origin and
+        a specific provenance
 
-        if om:
-            return dict(zip(keys, om))
-        return None
+        Returns:
+            list of dicts: the origin_metadata dictionary with the keys:
+
+            - id: origin_metadata's id
+            - origin_id: origin's id
+            - discovery_date: timestamp of discovery
+            - provenance (text): metadata's provenance
+            - metadata (jsonb):
+
+        """
+        db = self.db
+        for line in db.origin_metadata_get_by_provenance(origin_id, provenance,
+                                                         cur):
+            data = dict(zip(self.db.origin_metadata_get_cols, line))
+            yield data
 
     @db_transaction
     def indexer_configuration_get(self, tool, cur=None):

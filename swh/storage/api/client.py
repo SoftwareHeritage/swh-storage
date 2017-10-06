@@ -257,9 +257,9 @@ class RemoteStorage(SWHRemoteAPI):
 
     def origin_metadata_add(self, origin_id, ts, provenance, metadata):
         return self.post('origin/metadata/add', {'origin_id': origin_id,
-                                                  'ts': ts,
-                                                  'provenance': provenance,
-                                                  'metadata': metadata})
+                                                 'ts': ts,
+                                                 'provenance': provenance,
+                                                 'metadata': metadata})
 
     def origin_metadata_get(self, id):
         return self.post('origin/metadata/get', {'id': id})

@@ -1070,7 +1070,7 @@ class Db(BaseDb):
         return cur.fetchone()[0]
 
     origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
-                                        'provenance', 'metadata']
+                                'provenance', 'metadata']
 
     def origin_metadata_get(self, id, cur=None):
         """Retrieve the unique entry of one origin_metadata by its identifier
@@ -1091,44 +1091,34 @@ class Db(BaseDb):
             return None
         return line_to_bytes(r)
 
-    def origin_metadata_get_all(self, origin_id, limit=None, cur=None):
+    def origin_metadata_get_all(self, origin_id, cur=None):
         """Retrieve all origin_metadata entries for one origin_id
 
         """
         cur = self._cursor(cur)
 
-        query_suffix = ''
-        if limit:
-            query_suffix += ' LIMIT %s' % limit
-
         query = """\
         SELECT %s
         FROM origin_metadata
-        WHERE origin_id=%%s %s""" % (
-            ', '.join(self.origin_metadata_get_cols), query_suffix)
+        WHERE origin_id=%%s """ % (
+            ', '.join(self.origin_metadata_get_cols))
 
-
-        cur.execute(query, (origin_id,))
+        cur.execute(query, (origin_id, ))
 
         yield from cursor_to_bytes(cur)
 
     def origin_metadata_get_by_provenance(self, origin_id, provenance,
-                                          limit=None, cur=None):
+                                          cur=None):
         """Retrieve all entries for one origin_id and from one provenance
 
         """
         cur = self._cursor(cur)
 
-        query_suffix = ''
-        if limit:
-            query_suffix += ' LIMIT %s' % limit
-
         query = """\
         SELECT %s
         FROM origin_metadata
-        WHERE origin_id=%%s AND visit=%%s
-        """ % (', '.join(self.origin_metadata_get_cols), query_suffix)
-
+        WHERE origin_id=%%s AND provenance=%%s
+        """ % (', '.join(self.origin_metadata_get_cols))
 
         cur.execute(query, (origin_id, provenance))
 

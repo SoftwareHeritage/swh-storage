@@ -338,7 +338,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         self.origin_metadata = {
             'origin': self.origin,
             'discovery_date': datetime.datetime(2015, 1, 1, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
+                                                tzinfo=datetime.timezone.utc),
             'provenance': 'deposit-hal',
             'metadata': {
                 'name': 'test_origin_metadata',
@@ -349,7 +349,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         self.origin_metadata2 = {
             'origin': self.origin,
             'discovery_date': datetime.datetime(2017, 1, 1, 23, 0, 0,
-                                      tzinfo=datetime.timezone.utc),
+                                                tzinfo=datetime.timezone.utc),
             'provenance': 'lister-github',
             'metadata': {
                 'name': 'test_origin_metadata',
@@ -3458,71 +3458,110 @@ class CommonTestStorage(BaseTestStorage):
         origin_metadata0 = self.storage.origin_metadata_get(metadata_id)
         self.assertIsNone(origin_metadata0)
 
-        origin = self.storage.origin_add([self.origin])[0]
+        origin_id = self.storage.origin_add([self.origin])[0]
         # when adding for the same origin 2 metadatas
-        o_m1 = self.storage.origin_metadata_add(origin,
-                              self.origin_metadata['discovery_date'],
-                              self.origin_metadata['provenance'],
-                              self.origin_metadata['metadata'])
-        o_m2 = self.storage.origin_metadata_add(origin,
-                              self.origin_metadata2['discovery_date'],
-                              self.origin_metadata2['provenance'],
-                              self.origin_metadata2['metadata'])
+        o_m1 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata['discovery_date'],
+                    self.origin_metadata['provenance'],
+                    self.origin_metadata['metadata'])
+        o_m2 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata2['discovery_date'],
+                    self.origin_metadata2['provenance'],
+                    self.origin_metadata2['metadata'])
         actual_om1 = self.storage.origin_metadata_get(o_m1)
         actual_om2 = self.storage.origin_metadata_get(o_m2)
 
         # then
         self.assertEqual(actual_om1['id'], o_m1)
         self.assertEqual(actual_om2['id'], o_m2)
-        self.assertEqual(actual_om1['origin_id'], origin)
-        self.assertEqual(actual_om2['origin_id'], origin)
+        self.assertEqual(actual_om1['origin_id'], origin_id)
+        self.assertEqual(actual_om2['origin_id'], origin_id)
 
-    # @istest
-    # def origin_metadata_get(self):
-    #     # given
-    #     origin_id = self.storage.origin_add([self.origin])[0]
-    #
-    #     # when adding for the same origin 2 metadatas
-    #     o_m1 = self.storage.origin_metadata_add(origin_id,
-    #                           self.origin_metadata['discovery_date'],
-    #                           self.origin_metadata['provenance'],
-    #                           self.origin_metadata['metadata'])
-    #     o_m2 = self.storage.origin_metadata_add(origin_id,
-    #                           self.origin_metadata2['discovery_date'],
-    #                           self.origin_metadata2['provenance'],
-    #                           self.origin_metadata2['metadata'])
-    #     all_metadatas = self.storage.origin_metadata_get_all(origin_id,
-    #                                                          limit=1)
-    #     m_by_provenance = self.storage.origin_metadata_get_by_provenance({
-    #         'origin_id': origin_id,
-    #         'provenance': self.origin_metadata['provenance']
-    #     })
-    #     expected_results = [{
-    #         'id': o_m1,
-    #         'origin_id': origin_id,
-    #         'date': datetime.datetime(2015, 1, 1, 23, 0, 0,
-    #                                   tzinfo=datetime.timezone.utc),
-    #         'provenance': 'deposit-hal',
-    #         'metadata': {
-    #             'name': 'test_origin_metadata',
-    #             'version': '0.0.1'
-    #         }
-    #     }, {
-    #         'id': o_m2,
-    #         'origin_id': origin_id,
-    #         'date': datetime.datetime(2017, 1, 1, 23, 0, 0,
-    #                                   tzinfo=datetime.timezone.utc),
-    #         'provenance': 'lister-hal',
-    #         'metadata': {
-    #             'name': 'test_origin_metadata',
-    #             'version': '0.0.1'
-    #         }
-    #     }]
-    #
-    #     # then
-    #     self.assertEqual(len(all_metadatas), 2)
-    #     self.assertEqual(len(m_by_provenance), 1)
-    #     self.assertEqual(all_metadatas, expected_results)
+    @istest
+    def origin_metadata_get_all(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])[0]
+
+        # when adding for the same origin 2 metadatas
+        o_m1 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata['discovery_date'],
+                    self.origin_metadata['provenance'],
+                    self.origin_metadata['metadata'])
+        o_m2 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata2['discovery_date'],
+                    self.origin_metadata2['provenance'],
+                    self.origin_metadata2['metadata'])
+        all_metadatas = list(self.storage.origin_metadata_get_all(origin_id))
+
+        expected_results = [{
+            'origin_id': origin_id,
+            'discovery_date': datetime.datetime(
+                                2015, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m1,
+            'provenance': 'deposit-hal'
+        }, {
+            'origin_id': origin_id,
+            'discovery_date': datetime.datetime(
+                                2017, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m2,
+            'provenance': 'lister-github'
+        }]
+
+        # then
+        self.assertEqual(len(all_metadatas), 2)
+        # self.assertEqual(len(m_by_provenance), 1)
+        self.assertEqual(all_metadatas, expected_results)
+
+    @istest
+    def origin_metadata_get_by_provenance(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])[0]
+
+        # when adding for the same origin 2 metadatas
+        o_m1 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata['discovery_date'],
+                    self.origin_metadata['provenance'],
+                    self.origin_metadata['metadata'])
+        m_by_provenance = list(self.storage.origin_metadata_get_by_provenance(
+                             origin_id, self.origin_metadata['provenance']))
+
+        expected_results = [{
+            'origin_id': origin_id,
+            'discovery_date': datetime.datetime(
+                                2015, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m1,
+            'provenance': 'deposit-hal'
+        }]
+        # then
+
+        self.assertEqual(len(m_by_provenance), 1)
+        self.assertEqual(m_by_provenance, expected_results)
 
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
