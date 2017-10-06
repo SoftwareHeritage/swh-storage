@@ -1724,6 +1724,74 @@ class Storage():
         db.revision_metadata_add_from_temp(conflict_update, cur)
 
     @db_transaction
+    def origin_metadata_add(self, origin_id, ts, provenance, metadata, cur=None):
+        """ Add an origin_metadata for the origin at ts with provenance and
+        metadata.
+
+        Args:
+            origin_id: the origin's id for which the metadata is added
+            ts: timestamp of the found metadata
+            provenance (text): the tool and location where it was found
+                        (ex:'deposit-hal')
+            metadata (jsonb): the metadata retrieved at the time and location
+
+        Returns:
+            id (int): the origin_metadata unique id
+        """
+        if isinstance(ts, str):
+            ts = dateutil.parser.parse(ts)
+
+        return self.db.origin_metadata_add(origin_id, ts, provenance,
+                                           metadata, cur)
+
+    @db_transaction
+    def origin_metadata_get(self, id, cur=None):
+        """Return the origin_metadata entry for the unique id
+
+        Returns:
+            dict: the origin_metadata dictionary with the keys:
+
+            - id: origin_metadata's id
+            - origin_id: origin's id
+            - discovery_date: timestamp of discovery
+            - provenance (text): metadata's provenance
+            - metadata (jsonb):
+
+        """
+        db = self.db
+
+        om = db.origin_metadata_get(id, cur)
+
+        if om:
+            return dict(zip(self.db.origin_metadata_get_cols, om))
+        return None
+
+    @db_transaction
+    def origin_metadata_get_all(self, origin_id, limit=None, cur=None):
+        """Retrieve list of all origin_metadata entries for the origin_id
+
+        Returns:
+            list of dicts: the origin_metadata dictionary with the keys:
+
+            - id: origin_metadata's id
+            - origin_id: origin's id
+            - discovery_date: timestamp of discovery
+            - provenance (text): metadata's provenance
+            - metadata (jsonb):
+
+        """
+        db = self.db
+        for line in db.origin_metadata_get_all(origin_id,
+                                               limit=limit, cur=cur):
+            data = dict(zip(self.db.origin_metadata_get_cols, line))
+
+        om = db.origin_metadata_get_all(id, cur)
+
+        if om:
+            return dict(zip(keys, om))
+        return None
+
+    @db_transaction
     def indexer_configuration_get(self, tool, cur=None):
         db = self.db
         tool_conf = tool['tool_configuration']
