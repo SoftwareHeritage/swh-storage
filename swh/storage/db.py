@@ -5,6 +5,7 @@
 
 import binascii
 import datetime
+import enum
 import functools
 import json
 import psycopg2
@@ -168,6 +169,8 @@ class BaseDb:
                         ']' if data.upper_inc else ')',
                     )
                 )
+            elif isinstance(data, enum.IntEnum):
+                return escape(int(data))
             else:
                 # We don't escape here to make sure we pass literals properly
                 return str(data)
