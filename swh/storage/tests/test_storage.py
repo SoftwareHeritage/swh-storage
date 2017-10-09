@@ -15,7 +15,7 @@ from unittest.mock import patch
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.model import identifiers
+from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.db import cursor_to_bytes
 from swh.core.tests.db_testing import DbTestFixture
@@ -132,13 +132,13 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
                     'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
-                    'perms': 0o2000,
+                    'perms': from_disk.DentryPerms.directory,
                 },
             ],
         }
@@ -150,7 +150,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
                     'name': b'oof',
                     'type': 'file',
                     'target': self.cont2['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 }
             ],
         }
@@ -162,19 +162,19 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
                     'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'bar',
                     'type': 'dir',
                     'target': b'12345678901234560000',
-                    'perms': 0o2000,
+                    'perms': from_disk.DentryPerms.directory,
                 },
                 {
                     'name': b'hello',
                     'type': 'file',
                     'target': b'12345678901234567890',
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
 
             ],
@@ -780,7 +780,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha1_git': None,
                 'sha256': None,
                 'status': None,
-                'perms': 0o644,
+                'perms': from_disk.DentryPerms.content,
                 'length': None,
             },
             {
@@ -792,7 +792,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha1_git': None,
                 'sha256': None,
                 'status': None,
-                'perms': 0o2000,
+                'perms': from_disk.DentryPerms.directory,
                 'length': None,
             },
             {
@@ -804,7 +804,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha1_git': None,
                 'sha256': None,
                 'status': None,
-                'perms': 0o644,
+                'perms': from_disk.DentryPerms.content,
                 'length': None,
             },
         ]
@@ -843,19 +843,19 @@ class CommonTestStorage(BaseTestStorage):
                     'name': b'bar',
                     'type': 'file',
                     'target': self.cont2['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
-                    'perms': 0o2000,
+                    'perms': from_disk.DentryPerms.directory,
                 },
             ],
         }
@@ -866,7 +866,7 @@ class CommonTestStorage(BaseTestStorage):
             'name': b'foo',
             'type': 'file',
             'target': self.cont3['sha1_git'],
-            'perms': 0o644,
+            'perms': from_disk.DentryPerms.content,
         }
 
         self.storage.directory_add([directory, directory2])
