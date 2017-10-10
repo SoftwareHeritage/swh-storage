@@ -3,6 +3,7 @@
 # See top-level LICENSE file for more information
 
 import binascii
+from collections import defaultdict
 import datetime
 
 from sqlalchemy import (
@@ -117,15 +118,15 @@ class Package(SQLBase):
     def distribution(self):
         return self.area.distribution
 
-    def fetch_uris(self):
-        """Get the URIs to fetch the files associated with the package"""
+    def fetch_uri(self, filename):
+        """Get the URI to fetch the `filename` file associated with the
+        package"""
         if self.distribution.type == 'deb':
-            for file in self.files:
-                yield '%s/%s/%s' % (
-                    self.distribution.mirror_uri,
-                    self.directory,
-                    file,
-                )
+            return '%s/%s/%s' % (
+                self.distribution.mirror_uri,
+                self.directory,
+                filename,
+            )
         else:
             raise NotImplementedError(
                 'Do not know how to build fetch URI for Distribution type %s' %
@@ -141,10 +142,16 @@ class Package(SQLBase):
         if self.revision_id:
             ret['revision_id'] = binascii.hexlify(self.revision_id).decode()
         else:
+            files = {
+                name: checksums.copy()
+                for name, checksums in self.files.items()
+            }
+            for name in files:
+                files[name]['uri'] = self.fetch_uri(name)
+
             ret.update({
                 'revision_id': None,
-                'files': self.files,
-                'fetch_uris': list(self.fetch_uris()),
+                'files': files,
             })
         return ret
 
@@ -188,6 +195,16 @@ class DistributionSnapshot(SQLBase):
                 },
             }
         }
+
+    def get_packages(self):
+        packages = defaultdict(dict)
+        for area_snapshot in self.areas:
+            area_name = area_snapshot.area.name
+            for package in area_snapshot.packages:
+                ref_name = '%s/%s' % (area_name, package.version)
+                packages[package.name][ref_name] = package.loader_dict()
+
+        return packages
 
 
 area_snapshot_package_assoc = Table(
