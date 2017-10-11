@@ -26,7 +26,7 @@ def author_to_db(author):
     """Convert a swh-model author to its DB representation.
 
     Args:
-        autohr: a :mod:`swh.model` compatible author
+        author: a :mod:`swh.model` compatible author
 
     Returns:
         dict: a dictionary with three keys: author, fullname and email
