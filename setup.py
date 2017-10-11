@@ -34,6 +34,7 @@ setup(
     install_requires=parse_requirements(),
     extras_require={
         'schemata': ['SQLAlchemy'],
+        'listener': ['kafka_python'],
     },
     setup_requires=['vcversioner'],
     vcversioner={},
