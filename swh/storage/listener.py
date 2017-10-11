@@ -5,12 +5,13 @@
 
 import json
 import logging
+
 import kafka
+import msgpack
 
 import swh.storage.db
 
 from swh.core.config import load_named_config
-from swh.journal.serializers import key_to_kafka
 
 
 CONFIG_BASENAME = 'storage/listener'
@@ -71,6 +72,16 @@ def dispatch_notify(topic_prefix, producer, notify):
 def run_from_config(config):
     """Run the Software Heritage listener from configuration"""
     db = swh.storage.db.Db.connect(config['database'])
+
+    def key_to_kafka(key):
+        """Serialize a key, possibly a dict, in a predictable way.
+
+        Duplicated from swh.journal to avoid a cyclic dependency."""
+        p = msgpack.Packer(use_bin_type=True)
+        if isinstance(key, dict):
+            return p.pack_map_pairs(sorted(key.items()))
+        else:
+            return p.pack(key)
 
     producer = kafka.KafkaProducer(
         bootstrap_servers=config['brokers'],
