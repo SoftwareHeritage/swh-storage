@@ -1,12 +1,14 @@
 aiohttp
 click
 flask
-kafka
+kafka_python
 psycopg2
 python-dateutil
 swh.core>=0.0.28
-swh.journal>=0.0.2
-swh.model>=0.0.15
+swh.model>=0.0.18
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.14
 vcversioner
+
+[schemata]
+SQLAlchemy

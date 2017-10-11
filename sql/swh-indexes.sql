@@ -272,3 +272,28 @@ alter table content_fossology_license validate constraint content_fossology_lice
 
 alter table content_fossology_license add constraint content_fossology_license_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table content_fossology_license validate constraint content_fossology_license_indexer_configuration_id_fkey;
+
+-- content_metadata
+create unique index concurrently content_metadata_pkey on content_metadata(id, indexer_configuration_id);
+alter table content_metadata add primary key using index content_metadata_pkey;
+
+alter table content_metadata add constraint content_metadata_id_fkey foreign key (id) references content(sha1) not valid;
+alter table content_metadata validate constraint content_metadata_id_fkey;
+
+alter table content_metadata add constraint content_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
+alter table content_metadata validate constraint content_metadata_indexer_configuration_id_fkey;
+
+
+-- revision_metadata
+create unique index concurrently revision_metadata_pkey on revision_metadata(id, indexer_configuration_id);
+alter table revision_metadata add primary key using index revision_metadata_pkey;
+
+alter table revision_metadata add constraint revision_metadata_id_fkey foreign key (id) references revision(id) not valid;
+alter table revision_metadata validate constraint revision_metadata_id_fkey;
+
+alter table revision_metadata add constraint revision_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
+alter table revision_metadata validate constraint revision_metadata_indexer_configuration_id_fkey;
+
+-- object_counts
+create unique index concurrently object_counts_pkey on object_counts(object_type);
+alter table object_counts add primary key using index object_counts_pkey;

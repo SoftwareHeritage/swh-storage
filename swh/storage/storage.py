@@ -78,13 +78,15 @@ class Storage():
         object storage is idempotent, that should not be a problem.
 
         Args:
-            content: iterable of dictionaries representing individual pieces of
-                content to add. Each dictionary has the following keys:
+            content (iterable): iterable of dictionaries representing
+                individual pieces of content to add. Each dictionary has the
+                following keys:
+
                 - data (bytes): the actual content
                 - length (int): content length (default: -1)
                 - one key for each checksum algorithm in
-                  swh.model.hashutil.ALGORITHMS, mapped to the corresponding
-                  checksum
+                  :data:`swh.model.hashutil.ALGORITHMS`, mapped to the
+                  corresponding checksum
                 - status (str): one of visible, hidden, absent
                 - reason (str): if status = absent, the reason why
                 - origin (int): if status = absent, the origin we saw the
@@ -154,17 +156,19 @@ class Storage():
         contents or skipped ones.
 
         Args:
-            content: iterable of dictionaries representing individual pieces of
-                content to update. Each dictionary has the following keys:
+            content (iterable): iterable of dictionaries representing
+                individual pieces of content to update. Each dictionary has the
+                following keys:
+
                 - data (bytes): the actual content
                 - length (int): content length (default: -1)
                 - one key for each checksum algorithm in
-                  swh.model.hashutil.ALGORITHMS, mapped to the corresponding
-                  checksum
+                  :data:`swh.model.hashutil.ALGORITHMS`, mapped to the
+                  corresponding checksum
                 - status (str): one of visible, hidden, absent
 
-            keys ([str]): List of keys whose values needs an update (
-            e.g. new hash column)
+            keys (list): List of keys (str) whose values needs an update, e.g.,
+                new hash column
 
         """
         db = self.db
@@ -184,10 +188,11 @@ class Storage():
         Args:
             content: iterables of sha1
 
-        Returns:
-            Generates streams of contents as dict with their raw data:
-            - sha1: sha1's content
-            - data: bytes data of the content
+        Yields:
+            dict: Generates streams of contents as dict with their raw data:
+
+                - sha1: sha1's content
+                - data: bytes data of the content
 
         Raises:
             ValueError in case of too much contents are required.
@@ -231,13 +236,13 @@ class Storage():
 
         Args:
             content: iterable of dictionaries containing one key for each
-                checksum algorithm in swh.model.hashutil.ALGORITHMS, mapped to
-                the corresponding checksum, and a length key mapped to the
-                content length.
+                checksum algorithm in :data:`swh.model.hashutil.ALGORITHMS`,
+                mapped to the corresponding checksum, and a length key mapped
+                to the content length.
             key_hash: the name of the hash used as key (default: 'sha1')
 
         Returns:
-            an iterable of `key_hash`es missing from the storage
+            iterable: missing ids
 
         Raises:
             TODO: an exception when we get a hash collision.
@@ -268,7 +273,7 @@ class Storage():
             contents: Iterable of sha1 to check for absence.
 
         Returns:
-            an iterable of `sha1`s missing from the storage.
+            iterable: missing ids
 
         Raises:
             TODO: an exception when we get a hash collision.
@@ -289,7 +294,8 @@ class Storage():
                 checksum algorithm.
 
         Returns:
-            an iterable of signatures missing from the storage
+            iterable: missing signatures
+
         """
         keys = CONTENT_HASH_KEYS
 
@@ -315,8 +321,8 @@ class Storage():
             or None otherwise.
 
         Raises:
-            ValueError in case the key of the dictionary is not sha1, sha1_git
-            nor sha256.
+            ValueError: in case the key of the dictionary is not sha1, sha1_git
+                nor sha256.
 
         """
         db = self.db
@@ -339,9 +345,9 @@ class Storage():
         """Find content's provenance information.
 
         Args:
-            content: a dictionary entry representing one content hash.
-            The dictionary key is one of swh.model.hashutil.ALGORITHMS.
-            The value mapped to the corresponding checksum.
+            content: a dictionary entry representing one content hash.  The
+                dictionary key is one of :data:`swh.model.hashutil.ALGORITHMS`.
+                The value mapped to the corresponding checksum.
 
         Yields:
             The provenance information on content.
@@ -363,17 +369,20 @@ class Storage():
         """Add directories to the storage
 
         Args:
-            directories: iterable of dictionaries representing the individual
-                directories to add. Each dict has the following keys:
+            directories (iterable): iterable of dictionaries representing the
+                individual directories to add. Each dict has the following
+                keys:
+
                 - id (sha1_git): the id of the directory to add
                 - entries (list): list of dicts for each entry in the
-                    directory.  Each dict has the following keys:
-                    - name (bytes)
-                    - type (one of 'file', 'dir', 'rev'):
-                        type of the directory entry (file, directory, revision)
-                    - target (sha1_git): id of the object pointed at by the
-                          directory entry
-                    - perms (int): entry permissions
+                      directory.  Each dict has the following keys:
+
+                      - name (bytes)
+                      - type (one of 'file', 'dir', 'rev'): type of the
+                        directory entry (file, directory, revision)
+                      - target (sha1_git): id of the object pointed at by the
+                        directory entry
+                      - perms (int): entry permissions
         """
         dirs = set()
         dir_entries = {
@@ -425,8 +434,12 @@ class Storage():
     def directory_missing(self, directories, cur):
         """List directories missing from storage
 
-        Args: an iterable of directory ids
-        Returns: a list of missing directory ids
+        Args:
+            directories (iterable): an iterable of directory ids
+
+        Yields:
+            missing directory ids
+
         """
         db = self.db
 
@@ -488,13 +501,12 @@ class Storage():
 
     @db_transaction
     def directory_entry_get_by_path(self, directory, paths, cur=None):
-        """Get the directory entry (either file or dir) from directory with
-        path.
+        """Get the directory entry (either file or dir) from directory with path.
 
         Args:
             - directory: sha1 of the top level directory
             - paths: path to lookup from the top level directory. From left
-            (top) to right (bottom).
+              (top) to right (bottom).
 
         Returns:
             The corresponding directory entry if found, None otherwise.
@@ -508,11 +520,11 @@ class Storage():
 
     @db_transaction
     def cache_content_revision_add(self, revisions, cur=None):
-        """Cache the current revision's current targeted arborescence directory.
-        If the revision has already been cached, it just does nothing.
+        """Cache the current revision's current targeted arborescence directory.  If
+        the revision has already been cached, it just does nothing.
 
         Args:
-            - revisions: the revisions to cache
+            revisions: the revisions to cache
 
         Returns:
             None
@@ -542,7 +554,7 @@ class Storage():
             content (dict): content with checkums
 
         Returns:
-            Its properties (sha1, sha1_git, sha256, revision_paths)
+            Content properties (sha1, sha1_git, sha256, revision_paths)
 
         """
         if 'sha1_git' in content:
@@ -563,8 +575,8 @@ class Storage():
         """Cache the list of revisions the given visit added to the origin.
 
         Args:
-            - origin: the id of the origin
-            - visit: the id of the visit
+            origin: the id of the origin
+            visit: the id of the visit
 
         Returns:
             The list of new revisions
@@ -577,20 +589,21 @@ class Storage():
         """Add revisions to the storage
 
         Args:
-            revisions: iterable of dictionaries representing the individual
-                revisions to add. Each dict has the following keys:
+            revisions (iterable): iterable of dictionaries representing the
+                individual revisions to add. Each dict has the following keys:
+
                 - id (sha1_git): id of the revision to add
                 - date (datetime.DateTime): date the revision was written
                 - date_offset (int): offset from UTC in minutes the revision
-                    was written
+                  was written
                 - date_neg_utc_offset (boolean): whether a null date_offset
-                    represents a negative UTC offset
+                  represents a negative UTC offset
                 - committer_date (datetime.DateTime): date the revision got
-                    added to the origin
+                  added to the origin
                 - committer_date_offset (int): offset from UTC in minutes the
-                    revision was added to the origin
+                  revision was added to the origin
                 - committer_date_neg_utc_offset (boolean): whether a null
-                    committer_date_offset represents a negative UTC offset
+                  committer_date_offset represents a negative UTC offset
                 - type (one of 'git', 'tar'): type of the revision added
                 - directory (sha1_git): the directory the revision points at
                 - message (bytes): the message associated with the revision
@@ -600,8 +613,9 @@ class Storage():
                 - committer_email (bytes): the email of the revision committer
                 - metadata (jsonb): extra information as dictionary
                 - synthetic (bool): revision's nature (tarball, directory
-                    creates synthetic revision)
+                  creates synthetic revision)
                 - parents (list of sha1_git): the parents of this revision
+
         """
         db = self.db
 
@@ -634,9 +648,12 @@ class Storage():
     def revision_missing(self, revisions, cur=None):
         """List revisions missing from storage
 
-        Args: an iterable of revision ids
+        Args:
+            revisions (iterable): revision ids
 
-        Returns: a list of missing revision ids
+        Yields:
+            missing revision ids
+
         """
         db = self.db
 
@@ -648,9 +665,14 @@ class Storage():
     @db_transaction_generator
     def revision_get(self, revisions, cur):
         """Get all revisions from storage
-           Args: an iterable of revision ids
-           Returns: an iterable of revisions as dictionaries
-                    (or None if the revision doesn't exist)
+
+        Args:
+            revisions: an iterable of revision ids
+
+        Returns:
+            iterable: an iterable of revisions as dictionaries (or None if the
+                revision doesn't exist)
+
         """
 
         db = self.db
@@ -671,8 +693,8 @@ class Storage():
         """Fetch revision entry from the given root revisions.
 
         Args:
-            - revisions: array of root revision to lookup
-            - limit: limitation on the output result. Default to null.
+            revisions: array of root revision to lookup
+            limit: limitation on the output result. Default to None.
 
         Yields:
             List of revision log from such revisions root.
@@ -699,6 +721,7 @@ class Storage():
 
         Yields:
             a list of (id, parents) tuples.
+
         """
 
         db = self.db
@@ -711,17 +734,18 @@ class Storage():
         """Fetch revision entry from the actual origin_id's latest revision.
 
         Args:
-            - origin_id: the origin id from which deriving the revision
-            - branch_name: (optional) occurrence's branch name
-            - timestamp: (optional) occurrence's time
-            - limit: (optional) depth limitation for the
-              output. Default to None.
+            origin_id: the origin id from which deriving the revision
+            branch_name: (optional) occurrence's branch name
+            timestamp: (optional) occurrence's time
+            limit: (optional) depth limitation for the
+                output. Default to None.
 
         Yields:
             The revision log starting from the revision derived from
             the (origin, branch_name, timestamp) combination if any.
-            Returns the [] if no revision matching this combination is
-            found.
+
+        Returns:
+            None if no revision matching this combination is found.
 
         """
         db = self.db
@@ -741,20 +765,21 @@ class Storage():
         """Add releases to the storage
 
         Args:
-            releases: iterable of dictionaries representing the individual
-                releases to add. Each dict has the following keys:
+            releases (iterable): iterable of dictionaries representing the
+                individual releases to add. Each dict has the following keys:
+
                 - id (sha1_git): id of the release to add
-                - revision (sha1_git): id of the revision the release points
-                    to
+                - revision (sha1_git): id of the revision the release points to
                 - date (datetime.DateTime): the date the release was made
                 - date_offset (int): offset from UTC in minutes the release was
-                    made
+                  made
                 - date_neg_utc_offset (boolean): whether a null date_offset
-                    represents a negative UTC offset
+                  represents a negative UTC offset
                 - name (bytes): the name of the release
                 - comment (bytes): the comment associated with the release
                 - author_name (bytes): the name of the release author
                 - author_email (bytes): the email of the release author
+
         """
         db = self.db
 
@@ -781,8 +806,12 @@ class Storage():
     def release_missing(self, releases, cur=None):
         """List releases missing from storage
 
-        Args: an iterable of release ids
-        Returns: a list of missing release ids
+        Args:
+            releases: an iterable of release ids
+
+        Returns:
+            a list of missing release ids
+
         """
         db = self.db
 
@@ -799,8 +828,9 @@ class Storage():
         Args:
             releases: list of sha1s
 
-        Returns:
-            Generates the list of releases dict with the following keys:
+        Yields:
+            releases: list of releases as dicts with the following keys:
+
             - id: origin's id
             - revision: origin's type
             - url: origin's url
@@ -808,7 +838,7 @@ class Storage():
             - project: project's uuid (FIXME, retrieve this information)
 
         Raises:
-            ValueError if the keys does not match (url and type) nor id.
+            ValueError: if the keys does not match (url and type) nor id.
 
         """
         db = self.db
@@ -828,13 +858,15 @@ class Storage():
         Args:
             occurrences: iterable of dictionaries representing the individual
                 occurrences to add. Each dict has the following keys:
+
                 - origin (int): id of the origin corresponding to the
-                    occurrence
+                  occurrence
                 - branch (str): the reference name of the occurrence
                 - target (sha1_git): the id of the object pointed to by
-                    the occurrence
+                  the occurrence
                 - target_type (str): the type of object pointed to by the
-                    occurrence
+                  occurrence
+
         """
         db = self.db
 
@@ -873,7 +905,8 @@ class Storage():
             ts: timestamp of such visit
 
         Returns:
-            Dict with keys origin and visit where:
+            dict: dictionary with keys origin and visit where:
+
             - origin: origin identifier
             - visit: the visit identifier for the new visit occurrence
             - ts (datetime.DateTime): the visit date
@@ -912,9 +945,9 @@ class Storage():
         Args:
             origin (int): The occurrence's origin (identifier).
             last_visit (int): Starting point from which listing the next visits
-                              Default to None
+                Default to None
             limit (int): Number of results to return from the last visit.
-                         Default to None
+                Default to None
 
         Yields:
             List of visits.
@@ -1018,13 +1051,16 @@ class Storage():
 
         Args:
             ids: a generator of sha1_gits
+
         Returns:
-            a dict mapping the id to the list of objects found. Each object
+            dict: a mapping from id to the list of objects found. Each object
             found is itself a dict with keys:
-                sha1_git: the input id
-                type: the type of object found
-                id: the id of the object found
-                object_id: the numeric id of the object found.
+
+            - sha1_git: the input id
+            - type: the type of object found
+            - id: the id of the object found
+            - object_id: the numeric id of the object found.
+
         """
         db = self.db
 
@@ -1043,16 +1079,19 @@ class Storage():
         (type, url).
 
         Args:
-            origin: dictionary representing the individual
-                origin to find.
+            origin: dictionary representing the individual origin to find.
                 This dict has either the keys type and url:
+
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
-                either the id:
+
+                or the id:
+
                 - id: the origin id
 
         Returns:
-            the origin dict with the keys:
+            dict: the origin dictionary with the keys:
+
             - id: origin's id
             - type: origin's type
             - url: origin's url
@@ -1060,7 +1099,7 @@ class Storage():
             - project: project's uuid (FIXME, retrieve this information)
 
         Raises:
-            ValueError if the keys does not match (url and type) nor id.
+            ValueError: if the keys does not match (url and type) nor id.
 
         """
         db = self.db
@@ -1083,12 +1122,13 @@ class Storage():
     def _person_add(self, person, cur=None):
         """Add a person in storage.
 
-        BEWARE: Internal function for now.
+        Note: Internal function for now, do not use outside of this module.
+
         Do not do anything fancy in case a person already exists.
         Please adapt code if more checks are needed.
 
         Args:
-            person dictionary with keys name and email.
+            person: dictionary with keys name and email.
 
         Returns:
             Id of the new person.
@@ -1120,11 +1160,14 @@ class Storage():
 
         Args:
             origins: list of dictionaries representing the individual origins,
-            with the following keys:
-                type: the origin type ('git', 'svn', 'deb', ...)
-                url (bytes): the url the origin points to
+                with the following keys:
+
+                - type: the origin type ('git', 'svn', 'deb', ...)
+                - url (bytes): the url the origin points to
+
         Returns:
-            The array of ids corresponding to the given origins
+            list: ids corresponding to the given origins
+
         """
 
         ret = []
@@ -1138,8 +1181,9 @@ class Storage():
         """Add origin to the storage
 
         Args:
-            origin: dictionary representing the individual
-                origin to add. This dict has the following keys:
+            origin: dictionary representing the individual origin to add. This
+                dict has the following keys:
+
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
@@ -1196,13 +1240,15 @@ class Storage():
         """Add the given entitites to the database (in entity_history).
 
         Args:
-            - entities: iterable of dictionaries containing the following keys:
+            entities (iterable): iterable of dictionaries with the following
+                keys:
+
                 - uuid (uuid): id of the entity
                 - parent (uuid): id of the parent entity
                 - name (str): name of the entity
                 - type (str): type of entity (one of 'organization',
-                    'group_of_entities', 'hosting', 'group_of_persons',
-                    'person', 'project')
+                  'group_of_entities', 'hosting', 'group_of_persons', 'person',
+                  'project')
                 - description (str, optional): description of the entity
                 - homepage (str): url of the entity's homepage
                 - active (bool): whether the entity is active
@@ -1210,7 +1256,8 @@ class Storage():
                 - lister_metadata (dict): lister-specific entity metadata
                 - metadata (dict): other metadata for the entity
                 - validity (datetime.DateTime array): timestamps at which we
-                    listed the entity.
+                  listed the entity.
+
         """
         db = self.db
 
@@ -1227,11 +1274,13 @@ class Storage():
            associated metadata.
 
         Args:
-            entities: iterable of dictionaries containing the lister metadata
-               to look for. Useful keys are 'lister', 'type', 'id', ...
-        Returns:
-            A generator of fetched entities with all their attributes. If no
-            match was found, the returned entity is None.
+            entities (iterable): dictionaries containing the lister metadata to
+               look for. Useful keys are 'lister', 'type', 'id', ...
+
+        Yields:
+            fetched entities with all their attributes. If no match was found,
+            the returned entity is None.
+
         """
 
         db = self.db
@@ -1304,8 +1353,8 @@ class Storage():
         """compute statistics about the number of tuples in various tables
 
         Returns:
-            a dictionary mapping textual labels (e.g., content) to integer
-            values (e.g., the number of tuples in table content)
+            dict: a dictionary mapping textual labels (e.g., content) to
+            integer values (e.g., the number of tuples in table content)
 
         """
         return {k: v for (k, v) in self.db.stat_counters()}
@@ -1315,14 +1364,15 @@ class Storage():
         """List mimetypes missing from storage.
 
         Args:
-            mimetypes: iterable of dict with keys:
-            - id (bytes): sha1 identifier
-            - tool_name (str): tool used to compute the results
-            - tool_version (str): associated tool's version
+            mimetypes (iterable): iterable of dict with keys:
+
+                - id (bytes): sha1 identifier
+                - tool_name (str): tool used to compute the results
+                - tool_version (str): associated tool's version
 
         Returns:
-            an iterable of missing id for the triplets id,
-            tool_name, tool_version
+            iterable: an iterable of missing id for the triplets id, tool_name,
+            tool_version
 
         """
         db = self.db
@@ -1338,14 +1388,15 @@ class Storage():
         """Add mimetypes not present in storage.
 
         Args:
-            mimetypes: iterable of dictionary with keys:
-            - id (bytes): sha1 identifier
-            - mimetype (bytes): raw content's mimetype
-            - encoding (bytes): raw content's encoding
-            - indexer_configuration_id (int): tool's id used to
-              compute the results
-            - conflict_update: Flag to determine if we want to
-              overwrite (true) or skip duplicates (false, the default)
+            mimetypes (iterable): dictionaries with keys:
+
+                - id (bytes): sha1 identifier
+                - mimetype (bytes): raw content's mimetype
+                - encoding (bytes): raw content's encoding
+                - indexer_configuration_id (int): tool's id used to
+                  compute the results
+                - conflict_update: Flag to determine if we want to
+                  overwrite (true) or skip duplicates (false, the default)
 
         """
         db = self.db
@@ -1368,13 +1419,14 @@ class Storage():
         """List languages missing from storage.
 
         Args:
-            languages: iterable of dict with keys:
-            - id (bytes): sha1 identifier
-            - tool_name (str): tool used to compute the results
-            - tool_version (str): associated tool's version
+            languages (iterable): dictionaries with keys:
+
+                - id (bytes): sha1 identifier
+                - tool_name (str): tool used to compute the results
+                - tool_version (str): associated tool's version
 
         Returns:
-            an iterable of missing id
+            iterable: identifiers of missing languages
 
         """
         db = self.db
@@ -1397,11 +1449,13 @@ class Storage():
         """Add languages not present in storage.
 
         Args:
-            languages: iterable of dictionary with keys:
-            - id: sha1
-            - lang: bytes
+            languages (iterable): dictionaries with keys:
+
+                - id: sha1
+                - lang: bytes
+
             conflict_update: Flag to determine if we want to overwrite (true)
-            or skip duplicates (false, the default)
+                or skip duplicates (false, the default)
 
         """
         db = self.db
@@ -1423,7 +1477,8 @@ class Storage():
         """List ctags missing from storage.
 
         Args:
-            ctags: iterable of dict with keys:
+            ctags (iterable): dicts with keys:
+
             - id (bytes): sha1 identifier
             - tool_name (str): tool name used
             - tool_version (str): associated version
@@ -1447,7 +1502,7 @@ class Storage():
         """Retrieve ctags per id.
 
         Args:
-            ids ([sha1]): Iterable of sha1
+            ids (iterable): sha1 checksums
 
         """
         db = self.db
@@ -1460,10 +1515,11 @@ class Storage():
         """Add ctags not present in storage
 
         Args:
-            ctags: iterable of dictionaries with keys:
-            - id (bytes): sha1
-            - ctags ([dict]): List of dictionary with keys (name,
-            kind, line, language)
+            ctags (iterable): dictionaries with keys:
+
+                - id (bytes): sha1
+                - ctags ([list): List of dictionary with keys: name, kind,
+                  line, language
 
         """
         db = self.db
@@ -1509,10 +1565,11 @@ class Storage():
         """Retrieve licenses per id.
 
         Args:
-            ids ([sha1]): Iterable of sha1
+            ids (iterable): sha1 checksums
 
         Yields:
-            List of dict with the following keys:
+            list: dictionaries with the following keys:
+
             - id (bytes)
             - licenses ([str]): associated licenses for that content
 
@@ -1530,16 +1587,17 @@ class Storage():
         """Add licenses not present in storage.
 
         Args:
-            licenses ([dict]): iterable of dict with keys:
+            licenses (iterable): dictionaries with keys:
+
                 - id: sha1
                 - license ([bytes]): List of licenses associated to sha1
                 - tool (str): nomossa
+
             conflict_update: Flag to determine if we want to overwrite (true)
-            or skip duplicates (false, the default)
+                or skip duplicates (false, the default)
 
         Returns:
-            List of content_license entries which failed due to
-            unknown licenses
+            list: content_license entries which failed due to unknown licenses
 
         """
         db = self.db
@@ -1557,6 +1615,113 @@ class Storage():
             columns=['id', 'license', 'indexer_configuration_id'],
             cur=cur)
         db.content_fossology_license_add_from_temp(conflict_update, cur)
+
+    @db_transaction_generator
+    def content_metadata_missing(self, metadatas, cur=None):
+        """List metadatas missing from storage.
+
+        Args:
+            metadatas (iterable): dictionaries with keys:
+
+                - id (bytes): sha1 identifier
+                - tool_name (str): tool used to compute the results
+                - tool_version (str): associated tool's version
+
+        Returns:
+            iterable: missing ids
+
+        """
+        db = self.db
+        db.mktemp_content_metadata_missing(cur)
+        db.copy_to(metadatas, 'tmp_content_metadata_missing',
+                   ['id', 'indexer_configuration_id'], cur)
+        for obj in db.content_metadata_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
+    def content_metadata_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.content_metadata_get_from_temp():
+            yield converters.db_to_metadata(
+                dict(zip(db.content_metadata_cols, c)))
+
+    @db_transaction
+    def content_metadata_add(self, metadatas, conflict_update=False, cur=None):
+        """Add metadatas not present in storage.
+
+        Args:
+            metadatas (iterable): dictionaries with keys:
+
+                - id: sha1
+                - translated_metadata: bytes / jsonb ?
+
+            conflict_update: Flag to determine if we want to overwrite (true)
+                or skip duplicates (false, the default)
+
+        """
+        db = self.db
+        db.mktemp_content_metadata(cur)
+        # empty metadata is mapped to 'unknown'
+
+        db.copy_to(metadatas, 'tmp_content_metadata',
+                   ['id', 'translated_metadata', 'indexer_configuration_id'],
+                   cur)
+        db.content_metadata_add_from_temp(conflict_update, cur)
+
+    @db_transaction_generator
+    def revision_metadata_missing(self, metadatas, cur=None):
+        """List metadatas missing from storage.
+
+        Args:
+            metadatas (iterable): dictionaries with keys:
+
+               - id (bytes): sha1_git revision identifier
+               - tool_name (str): tool used to compute the results
+               - tool_version (str): associated tool's version
+
+        Returns:
+            iterable: missing ids
+
+        """
+        db = self.db
+        db.mktemp_revision_metadata_missing(cur)
+        db.copy_to(metadatas, 'tmp_revision_metadata_missing',
+                   ['id', 'indexer_configuration_id'], cur)
+        for obj in db.revision_metadata_missing_from_temp(cur):
+            yield obj[0]
+
+    @db_transaction_generator
+    def revision_metadata_get(self, ids, cur=None):
+        db = self.db
+        db.store_tmp_bytea(ids, cur)
+        for c in db.revision_metadata_get_from_temp():
+            yield converters.db_to_metadata(
+                dict(zip(db.revision_metadata_cols, c)))
+
+    @db_transaction
+    def revision_metadata_add(self, metadatas,
+                              conflict_update=False, cur=None):
+        """Add metadatas not present in storage.
+
+        Args:
+            metadatas (iterable): dictionaries with keys:
+
+                - id: sha1_git of revision
+                - translated_metadata: bytes / jsonb ?
+
+            conflict_update: Flag to determine if we want to overwrite (true)
+              or skip duplicates (false, the default)
+
+        """
+        db = self.db
+        db.mktemp_revision_metadata(cur)
+        # empty metadata is mapped to 'unknown'
+
+        db.copy_to(metadatas, 'tmp_revision_metadata',
+                   ['id', 'translated_metadata', 'indexer_configuration_id'],
+                   cur)
+        db.revision_metadata_add_from_temp(conflict_update, cur)
 
     @db_transaction
     def indexer_configuration_get(self, tool, cur=None):

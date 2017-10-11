@@ -25,12 +25,16 @@ setup(
         'swh.storage',
         'swh.storage.api',
         'swh.storage.provenance',
+        'swh.storage.schemata',
         'swh.storage.tests',
     ],
     scripts=[
         'bin/swh-storage-add-dir',
     ],
     install_requires=parse_requirements(),
+    extras_require={
+        'schemata': ['SQLAlchemy'],
+    },
     setup_requires=['vcversioner'],
     vcversioner={},
     include_package_data=True,

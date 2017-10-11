@@ -1,8 +1,11 @@
-swh-storage (0.0.88-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.89-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.89
+  * Add new package for ancillary schemata
+  * Add new metadata-related entry points
+  * Update for new swh.model
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Fri, 30 Jun 2017 14:52:12 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 11 Oct 2017 17:39:29 +0200
 
 swh-storage (0.0.88-1~swh1) unstable-swh; urgency=medium
 

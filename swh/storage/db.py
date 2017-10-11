@@ -5,6 +5,7 @@
 
 import binascii
 import datetime
+import enum
 import functools
 import json
 import psycopg2
@@ -168,6 +169,8 @@ class BaseDb:
                         ']' if data.upper_inc else ')',
                     )
                 )
+            elif isinstance(data, enum.IntEnum):
+                return escape(int(data))
             else:
                 # We don't escape here to make sure we pass literals properly
                 return str(data)
@@ -964,6 +967,64 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         query = "SELECT %s FROM swh_content_fossology_license_get()" % (
             ','.join(self.content_fossology_license_cols))
+        cur.execute(query)
+        yield from cursor_to_bytes(cur)
+
+    content_metadata_cols = [
+        'id', 'translated_metadata',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
+
+    @stored_procedure('swh_mktemp_content_metadata')
+    def mktemp_content_metadata(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_content_metadata_missing')
+    def mktemp_content_metadata_missing(self, cur=None): pass
+
+    def content_metadata_missing_from_temp(self, cur=None):
+        """List missing metadatas.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("SELECT * FROM swh_content_metadata_missing()")
+        yield from cursor_to_bytes(cur)
+
+    def content_metadata_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_content_metadata_add(%s)",
+                                  (conflict_update, ))
+
+    def content_metadata_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        query = "SELECT %s FROM swh_content_metadata_get()" % (
+            ','.join(self.content_metadata_cols))
+        cur.execute(query)
+        yield from cursor_to_bytes(cur)
+
+    revision_metadata_cols = [
+        'id', 'translated_metadata',
+        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
+
+    @stored_procedure('swh_mktemp_revision_metadata')
+    def mktemp_revision_metadata(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_revision_metadata_missing')
+    def mktemp_revision_metadata_missing(self, cur=None): pass
+
+    def revision_metadata_missing_from_temp(self, cur=None):
+        """List missing metadatas.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute("SELECT * FROM swh_revision_metadata_missing()")
+        yield from cursor_to_bytes(cur)
+
+    def revision_metadata_add_from_temp(self, conflict_update, cur=None):
+        self._cursor(cur).execute("SELECT swh_revision_metadata_add(%s)",
+                                  (conflict_update, ))
+
+    def revision_metadata_get_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        query = "SELECT %s FROM swh_revision_metadata_get()" % (
+            ','.join(self.revision_metadata_cols))
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
