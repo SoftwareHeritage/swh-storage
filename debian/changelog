@@ -1,3 +1,9 @@
+swh-storage (0.0.89-1~swh1~bpo9+1) stretch-swh; urgency=medium
+
+  * Rebuild for stretch-backports.
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 11 Oct 2017 17:39:29 +0200
+
 swh-storage (0.0.89-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.89
