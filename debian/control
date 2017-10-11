@@ -3,20 +3,22 @@ Maintainer: Software Heritage developers <swh-devel@inria.fr>
 Section: python
 Priority: optional
 Build-Depends: debhelper (>= 9),
-               dh-python,
+               dh-python (>= 2),
+               python3-aiohttp,
                python3-all,
                python3-click,
                python3-dateutil,
                python3-flask,
+               python3-kafka,
                python3-nose,
                python3-psycopg2,
                python3-requests,
                python3-setuptools,
+               python3-sqlalchemy,
                python3-swh.core (>= 0.0.28~),
-               python3-swh.model (>= 0.0.15~),
+               python3-swh.model (>= 0.0.18~),
                python3-swh.objstorage (>= 0.0.17~),
                python3-swh.scheduler (>= 0.0.14~),
-               python3-aiohttp,
                python3-vcversioner
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
@@ -24,7 +26,7 @@ Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
 Package: python3-swh.storage
 Architecture: all
 Depends: python3-swh.core (>= 0.0.28~),
-         python3-swh.model (>= 0.0.15~),
+         python3-swh.model (>= 0.0.18~),
          python3-swh.objstorage (>= 0.0.17~),
          ${misc:Depends},
          ${python3:Depends}
@@ -32,8 +34,8 @@ Description: Software Heritage storage utilities
 
 Package: python3-swh.storage.listener
 Architecture: all
-Depends: python3-swh.journal (>= 0.0.2~),
-         python3-kafka (>= 1.3.1~),
+Depends: python3-kafka (>= 1.3.1~),
+         python3-swh.journal (>= 0.0.2~),
          python3-swh.storage (= ${binary:Version}),
          ${misc:Depends},
          ${python3:Depends}
@@ -46,3 +48,11 @@ Depends: python3-swh.scheduler (>= 0.0.14~),
          ${misc:Depends},
          ${python3:Depends}
 Description: Software Heritage storage Provenance
+
+Package: python3-swh.storage.schemata
+Architecture: all
+Depends: python3-sqlalchemy,
+         python3-swh.storage (= ${binary:Version}),
+         ${misc:Depends},
+         ${python3:Depends}
+Description: Ancillary schemata for Software Heritage

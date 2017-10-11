@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(107, now(), 'Work In Progress');
+      values(109, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -463,3 +463,38 @@ comment on table content_fossology_license is 'license associated to a raw conte
 comment on column content_fossology_license.id is 'Raw content identifier';
 comment on column content_fossology_license.license_id is 'One of the content''s license identifier';
 comment on column content_fossology_license.indexer_configuration_id is 'Tool used to compute the information';
+
+
+-- The table content_metadata provides a translation to files
+-- identified as potentially containning metadata with a translation tool (indexer_configuration_id)
+create table content_metadata(
+  id                       sha1   not null,
+  translated_metadata      jsonb  not null,
+  indexer_configuration_id bigint not null
+);
+
+comment on table content_metadata is 'metadata semantically translated from a content file';
+comment on column content_metadata.id is 'sha1 of content file';
+comment on column content_metadata.translated_metadata is 'result of translation with defined format';
+comment on column content_metadata.indexer_configuration_id is 'tool used for translation';
+
+-- The table revision_metadata provides a minimal set of intrinsic metadata
+-- detected with the detection  tool (indexer_configuration_id) and aggregated
+-- from the content_metadata translation.
+create table revision_metadata(
+  id                       sha1_git   not null,
+  translated_metadata      jsonb      not null,
+  indexer_configuration_id bigint     not null
+);
+
+comment on table revision_metadata is 'metadata semantically detected and translated in a revision';
+comment on column revision_metadata.id is 'sha1_git of revision';
+comment on column revision_metadata.translated_metadata is 'result of detection and translation with defined format';
+comment on column revision_metadata.indexer_configuration_id is 'tool used for detection';
+
+-- Keep a cache of object counts
+create table object_counts (
+  object_type text,
+  value bigint,
+  last_update timestamptz
+);

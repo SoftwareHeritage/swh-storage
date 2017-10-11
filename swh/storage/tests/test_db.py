@@ -9,7 +9,7 @@ import unittest
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.core.tests.db_testing import DbTestFixture
+from swh.core.tests.db_testing import SingleDbTestFixture
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.db import Db
 
@@ -19,7 +19,7 @@ TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
 
 
 @attr('db')
-class TestDb(DbTestFixture, unittest.TestCase):
+class TestDb(SingleDbTestFixture, unittest.TestCase):
 
     TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
 

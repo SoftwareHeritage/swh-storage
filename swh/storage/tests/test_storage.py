@@ -6,10 +6,7 @@
 import copy
 import datetime
 from operator import itemgetter
-import os
 import psycopg2
-import shutil
-import tempfile
 import unittest
 from uuid import UUID
 
@@ -18,42 +15,23 @@ from unittest.mock import patch
 from nose.tools import istest
 from nose.plugins.attrib import attr
 
-from swh.core.tests.db_testing import DbTestFixture
-from swh.model import identifiers
+from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-
-from swh.storage import get_storage
 from swh.storage.db import cursor_to_bytes
-
-
-TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
+from swh.core.tests.db_testing import DbTestFixture
+from swh.storage.tests.storage_testing import StorageTestFixture
 
 
 @attr('db')
-class BaseTestStorage(DbTestFixture):
-    TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
-
+class BaseTestStorage(StorageTestFixture, DbTestFixture):
     def setUp(self):
         super().setUp()
+
+        db = self.test_db[self.TEST_STORAGE_DB_NAME]
+        self.conn = db.conn
+        self.cursor = db.cursor
+
         self.maxDiff = None
-        self.objroot = tempfile.mkdtemp()
-
-        storage_conf = {
-            'cls': 'local',
-            'args': {
-                'db': self.conn,
-                'objstorage': {
-                    'cls': 'pathslicing',
-                    'args': {
-                        'root': self.objroot,
-                        'slicing': '0:2/2:4/4:6',
-                    },
-                },
-            },
-        }
-
-        self.storage = get_storage(**storage_conf)
 
         self.cont = {
             'data': b'42\n',
@@ -154,13 +132,13 @@ class BaseTestStorage(DbTestFixture):
                     'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
-                    'perms': 0o2000,
+                    'perms': from_disk.DentryPerms.directory,
                 },
             ],
         }
@@ -172,7 +150,7 @@ class BaseTestStorage(DbTestFixture):
                     'name': b'oof',
                     'type': 'file',
                     'target': self.cont2['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 }
             ],
         }
@@ -184,19 +162,19 @@ class BaseTestStorage(DbTestFixture):
                     'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'bar',
                     'type': 'dir',
                     'target': b'12345678901234560000',
-                    'perms': 0o2000,
+                    'perms': from_disk.DentryPerms.directory,
                 },
                 {
                     'name': b'hello',
                     'type': 'file',
                     'target': b'12345678901234567890',
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
 
             ],
@@ -567,22 +545,7 @@ class BaseTestStorage(DbTestFixture):
         }
 
     def tearDown(self):
-        shutil.rmtree(self.objroot)
-
-        self.cursor.execute("""SELECT table_name FROM information_schema.tables
-                               WHERE table_schema = %s""", ('public',))
-
-        tables = set(table for (table,) in self.cursor.fetchall())
-        tables -= {'dbversion', 'entity', 'entity_history', 'listable_entity',
-                   'fossology_license', 'indexer_configuration'}
-
-        for table in tables:
-            self.cursor.execute('truncate table %s cascade' % table)
-
-        self.cursor.execute('delete from entity where generated=true')
-        self.cursor.execute('delete from entity_history where generated=true')
-        self.conn.commit()
-
+        self.reset_storage_tables()
         super().tearDown()
 
     def fetch_tools(self):
@@ -817,7 +780,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha1_git': None,
                 'sha256': None,
                 'status': None,
-                'perms': 0o644,
+                'perms': from_disk.DentryPerms.content,
                 'length': None,
             },
             {
@@ -829,7 +792,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha1_git': None,
                 'sha256': None,
                 'status': None,
-                'perms': 0o2000,
+                'perms': from_disk.DentryPerms.directory,
                 'length': None,
             },
             {
@@ -841,7 +804,7 @@ class CommonTestStorage(BaseTestStorage):
                 'sha1_git': None,
                 'sha256': None,
                 'status': None,
-                'perms': 0o644,
+                'perms': from_disk.DentryPerms.content,
                 'length': None,
             },
         ]
@@ -880,19 +843,19 @@ class CommonTestStorage(BaseTestStorage):
                     'name': b'bar',
                     'type': 'file',
                     'target': self.cont2['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'foo',
                     'type': 'file',
                     'target': self.cont['sha1_git'],
-                    'perms': 0o644,
+                    'perms': from_disk.DentryPerms.content,
                 },
                 {
                     'name': b'bar\xc3',
                     'type': 'dir',
                     'target': b'12345678901234567890',
-                    'perms': 0o2000,
+                    'perms': from_disk.DentryPerms.directory,
                 },
             ],
         }
@@ -903,7 +866,7 @@ class CommonTestStorage(BaseTestStorage):
             'name': b'foo',
             'type': 'file',
             'target': self.cont3['sha1_git'],
-            'perms': 0o644,
+            'perms': from_disk.DentryPerms.content,
         }
 
         self.storage.directory_add([directory, directory2])
@@ -1927,6 +1890,11 @@ class CommonTestStorage(BaseTestStorage):
     def stat_counters(self):
         expected_keys = ['content', 'directory', 'directory_entry_dir',
                          'occurrence', 'origin', 'person', 'revision']
+
+        for key in expected_keys:
+            self.cursor.execute('select * from swh_update_counter(%s)', (key,))
+        self.conn.commit()
+
         counters = self.storage.stat_counters()
 
         self.assertTrue(set(expected_keys) <= set(counters))
@@ -2947,6 +2915,520 @@ class CommonTestStorage(BaseTestStorage):
         })
         self.assertEqual(actual_licenses, [expected_license])
 
+    @istest
+    def content_metadata_missing(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadatas = [
+            {
+                'id': self.cont2['sha1'],
+                'indexer_configuration_id': tool_id,
+            },
+            {
+                'id': self.missing_cont['sha1'],
+                'indexer_configuration_id': tool_id,
+            }
+        ]
+
+        # when
+        actual_missing = list(self.storage.content_metadata_missing(metadatas))
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            self.cont2['sha1'],
+            self.missing_cont['sha1'],
+        ])
+
+        # given
+        self.storage.content_metadata_add([{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'codeRepository': {
+                    'type': 'git',
+                    'url': 'https://github.com/moranegg/metadata_test'
+                },
+                'description': 'Simple package.json test for indexer',
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id
+        }])
+
+        # when
+        actual_missing = list(self.storage.content_metadata_missing(metadatas))
+
+        # then
+        self.assertEqual(actual_missing, [self.missing_cont['sha1']])
+
+    @istest
+    def content_metadata_get(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadata1 = {
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'codeRepository': {
+                    'type': 'git',
+                    'url': 'https://github.com/moranegg/metadata_test'
+                },
+                'description': 'Simple package.json test for indexer',
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # when
+        self.storage.content_metadata_add([metadata1])
+
+        # then
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1'], self.missing_cont['sha1']]))
+
+        expected_metadatas = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'codeRepository': {
+                    'type': 'git',
+                    'url': 'https://github.com/moranegg/metadata_test'
+                },
+                'description': 'Simple package.json test for indexer',
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas)
+
+    @istest
+    def content_metadata_add_drop_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadata_v1 = {
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.content_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        expected_metadatas_v1 = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_drop_duplicated_metadata',
+                'version': '0.0.1'
+            },
+        })
+
+        self.storage.content_metadata_add([metadata_v2])
+
+        # then
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        # metadata did not change as the v2 was dropped.
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+    @istest
+    def content_metadata_add_update_in_place_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-translator']['id']
+        cont2 = self.cont2
+        self.storage.content_add([cont2])
+
+        metadata_v1 = {
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.content_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        # then
+        expected_metadatas_v1 = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_update_duplicated_metadata',
+                'version': '0.0.1'
+            },
+        })
+        self.storage.content_metadata_add([metadata_v2], conflict_update=True)
+
+        actual_metadatas = list(self.storage.content_metadata_get(
+            [self.cont2['sha1']]))
+
+        # language did not change as the v2 was dropped.
+        expected_metadatas_v2 = [{
+            'id': self.cont2['sha1'],
+            'translated_metadata': {
+                'other': {},
+                'name': 'test_update_duplicated_metadata',
+                'version': '0.0.1'
+            },
+            'tool': tools['swh-metadata-translator']
+        }]
+
+        # metadata did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_metadatas, expected_metadatas_v2)
+
+    @istest
+    def revision_metadata_missing(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+
+        rev = self.revision
+        missing_rev = self.revision2
+        self.storage.revision_add([rev])
+
+        metadatas = [
+            {
+                'id': rev['id'],
+                'indexer_configuration_id': tool_id,
+            },
+            {
+                'id': missing_rev['id'],
+                'indexer_configuration_id': tool_id,
+            }
+        ]
+
+        # when
+        actual_missing = list(self.storage.revision_metadata_missing(
+                              metadatas))
+
+        # then
+        self.assertEqual(list(actual_missing), [
+            rev['id'],
+            missing_rev['id'],
+        ])
+
+        # given
+        self.storage.revision_metadata_add([{
+            'id': rev['id'],
+            'translated_metadata': {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id
+        }])
+
+        # when
+        actual_missing = list(self.storage.revision_metadata_missing(
+                              metadatas))
+
+        # then
+        self.assertEqual(actual_missing, [missing_rev['id']])
+
+    @istest
+    def revision_metadata_get(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+        rev = self.revision2
+        self.storage.revision_add([rev])
+
+        metadata_rev = {
+            'id': rev['id'],
+            'translated_metadata': {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id
+        }
+
+        # when
+        self.storage.revision_metadata_add([metadata_rev])
+
+        # then
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision2['id'], self.revision['id']]))
+
+        expected_metadatas = [{
+            'id': rev['id'],
+            'translated_metadata': metadata_rev['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas)
+
+    @istest
+    def revision_metadata_add_drop_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+        revision = self.revision
+        self.storage.revision_add([revision])
+
+        metadata_v1 = {
+            'id': self.revision['id'],
+            'translated_metadata':  {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.revision_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision['id']]))
+
+        expected_metadatas_v1 = [{
+            'id': self.revision['id'],
+            'translated_metadata':  metadata_v1['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata':  {
+                'name': 'test_metadata',
+                'author': 'MG',
+            },
+        })
+
+        self.storage.revision_metadata_add([metadata_v2])
+
+        # then
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision['id']]))
+
+        # metadata did not change as the v2 was dropped.
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+    @istest
+    def revision_metadata_add_update_in_place_duplicate(self):
+        # given
+        tools = self.fetch_tools()
+        tool_id = tools['swh-metadata-detector']['id']
+        revision = self.revision2
+        self.storage.revision_add([revision])
+
+        metadata_v1 = {
+            'id': self.revision2['id'],
+            'translated_metadata': {
+                'developmentStatus': None,
+                'version': None,
+                'operatingSystem': None,
+                'description': None,
+                'keywords': None,
+                'issueTracker': None,
+                'name': None,
+                'author': None,
+                'relatedLink': None,
+                'url': None,
+                'type': None,
+                'license': None,
+                'maintainer': None,
+                'email': None,
+                'softwareRequirements': None,
+                'identifier': None
+            },
+            'indexer_configuration_id': tool_id,
+        }
+
+        # given
+        self.storage.revision_metadata_add([metadata_v1])
+
+        # when
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision2['id']]))
+
+        # then
+        expected_metadatas_v1 = [{
+            'id': self.revision2['id'],
+            'translated_metadata':  metadata_v1['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+        self.assertEqual(actual_metadatas, expected_metadatas_v1)
+
+        # given
+        metadata_v2 = metadata_v1.copy()
+        metadata_v2.update({
+            'translated_metadata':  {
+                'name': 'test_update_duplicated_metadata',
+                'author': 'MG'
+            },
+        })
+        self.storage.revision_metadata_add([metadata_v2], conflict_update=True)
+
+        actual_metadatas = list(self.storage.revision_metadata_get(
+            [self.revision2['id']]))
+
+        # language did not change as the v2 was dropped.
+        expected_metadatas_v2 = [{
+            'id': self.revision2['id'],
+            'translated_metadata': metadata_v2['translated_metadata'],
+            'tool': tools['swh-metadata-detector']
+        }]
+
+        # metadata did change as the v2 was used to overwrite v1
+        self.assertEqual(actual_metadatas, expected_metadatas_v2)
+
+    @istest
+    def indexer_configuration_get_missing(self):
+        tool = {
+            'tool_name': 'unknown-tool',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'tool_configuration': {"command_line": "nomossa <filepath>"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        self.assertIsNone(actual_tool)
+
+    @istest
+    def indexer_configuration_get(self):
+        tool = {
+            'tool_name': 'nomos',
+            'tool_version': '3.1.0rc2-31-ga2cbb8c',
+            'tool_configuration': {"command_line": "nomossa <filepath>"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        expected_tool = tool.copy()
+        expected_tool['id'] = 1
+
+        self.assertEqual(expected_tool, actual_tool)
+
+    @istest
+    def indexer_configuration_metadata_get_missing_context(self):
+        tool = {
+            'tool_name': 'swh-metadata-translator',
+            'tool_version': '0.0.1',
+            'tool_configuration': {"context": "unknown-context"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        self.assertIsNone(actual_tool)
+
+    @istest
+    def indexer_configuration_metadata_get(self):
+        tool = {
+            'tool_name': 'swh-metadata-translator',
+            'tool_version': '0.0.1',
+            'tool_configuration': {"type": "local", "context": "npm"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+
+        expected_tool = tool.copy()
+        expected_tool['id'] = actual_tool['id']
+
+        self.assertEqual(expected_tool, actual_tool)
+
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
     """Test the local storage"""
@@ -2976,6 +3458,7 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
 
         self.assertEqual(expected_fetch_history, fetch_history)
 
+    # The remote API doesn't expose _person_add
     @istest
     def person_get(self):
         # given
@@ -3012,33 +3495,6 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
                     'email': person1['email'],
                 },
             ])
-
-    @istest
-    def indexer_configuration_get_missing(self):
-        tool = {
-            'tool_name': 'unknown-tool',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
-            'tool_configuration': {"command_line": "nomossa <filepath>"},
-        }
-
-        actual_tool = self.storage.indexer_configuration_get(tool)
-
-        self.assertIsNone(actual_tool)
-
-    @istest
-    def indexer_configuration_get(self):
-        tool = {
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
-            'tool_configuration': {"command_line": "nomossa <filepath>"},
-        }
-
-        actual_tool = self.storage.indexer_configuration_get(tool)
-
-        expected_tool = tool.copy()
-        expected_tool['id'] = 1
-
-        self.assertEqual(expected_tool, actual_tool)
 
 
 class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):

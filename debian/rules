@@ -1,6 +1,7 @@
 #!/usr/bin/make -f
 
 export PYBUILD_NAME=swh.storage
+export PYBUILD_TEST_ARGS=-sv -a !db,!fs swh/storage
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
@@ -14,10 +15,8 @@ override_dh_install:
 		   $(CURDIR)/debian/python3-swh.storage.listener/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \
 		mkdir -p $(CURDIR)/debian/python3-swh.storage.provenance/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance ; \
 		mv $(CURDIR)/debian/python3-swh.storage/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance/* \
-		$(CURDIR)/debian/python3-swh.storage.provenance/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance/ ; \
+		   $(CURDIR)/debian/python3-swh.storage.provenance/usr/lib/python$$pyvers/dist-packages/swh/storage/provenance/ ; \
+		mkdir -p $(CURDIR)/debian/python3-swh.storage.schemata/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \
+		mv $(CURDIR)/debian/python3-swh.storage/usr/lib/python$$pyvers/dist-packages/swh/storage/schemata \
+		   $(CURDIR)/debian/python3-swh.storage.schemata/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \
 	done
-
-override_dh_auto_test:
-	PYBUILD_SYSTEM=custom \
-        PYBUILD_TEST_ARGS="cd {build_dir}; python{version} -m nose swh -sva '!db'" \
-        dh_auto_test
