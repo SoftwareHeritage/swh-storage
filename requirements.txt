@@ -3,5 +3,5 @@ flask
 psycopg2
 python-dateutil
 vcversioner
-kafka
+kafka_python
 aiohttp
