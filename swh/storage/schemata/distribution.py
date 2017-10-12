@@ -13,12 +13,18 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
-    JSON,
     LargeBinary,
     String,
     Table,
     UniqueConstraint,
 )
+
+try:
+    from sqlalchemy import JSON
+except ImportError:
+    # SQLAlchemy < 1.1
+    from sqlalchemy.dialects.postgresql import JSONB as JSON
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
