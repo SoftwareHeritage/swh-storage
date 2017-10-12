@@ -1,8 +1,9 @@
-swh-storage (0.0.90-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.91-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage version 0.0.91
+  * Update packaging runes
 
- -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 11 Oct 2017 18:53:22 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 12 Oct 2017 18:41:46 +0200
 
 swh-storage (0.0.90-1~swh1) unstable-swh; urgency=medium
 
