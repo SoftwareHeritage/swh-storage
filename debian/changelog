@@ -1,3 +1,10 @@
+swh-storage (0.0.91-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage version 0.0.91
+  * Update packaging runes
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 12 Oct 2017 18:41:46 +0200
+
 swh-storage (0.0.90-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.90
