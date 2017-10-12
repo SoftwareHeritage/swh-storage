@@ -14,7 +14,7 @@ Build-Depends: debhelper (>= 9),
                python3-psycopg2,
                python3-requests,
                python3-setuptools,
-               python3-sqlalchemy,
+               python3-sqlalchemy (>= 1.0),
                python3-swh.core (>= 0.0.28~),
                python3-swh.model (>= 0.0.18~),
                python3-swh.objstorage (>= 0.0.17~),
@@ -51,7 +51,7 @@ Description: Software Heritage storage Provenance
 
 Package: python3-swh.storage.schemata
 Architecture: all
-Depends: python3-sqlalchemy,
+Depends: python3-sqlalchemy (>= 1.0),
          python3-swh.storage (= ${binary:Version}),
          ${misc:Depends},
          ${python3:Depends}
