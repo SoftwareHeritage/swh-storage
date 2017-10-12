@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def parse_requirements():
@@ -21,13 +21,7 @@ setup(
     author='Software Heritage developers',
     author_email='swh-devel@inria.fr',
     url='https://forge.softwareheritage.org/diffusion/DSTO/',
-    packages=[
-        'swh.storage',
-        'swh.storage.api',
-        'swh.storage.provenance',
-        'swh.storage.schemata',
-        'swh.storage.tests',
-    ],
+    packages=find_packages(),
     scripts=[
         'bin/swh-storage-add-dir',
     ],
