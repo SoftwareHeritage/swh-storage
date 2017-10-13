@@ -294,14 +294,26 @@ alter table revision_metadata validate constraint revision_metadata_id_fkey;
 alter table revision_metadata add constraint revision_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table revision_metadata validate constraint revision_metadata_indexer_configuration_id_fkey;
 
+-- metadata_provider
+create unique index concurrently metadata_provider_pkey on metadata_provider(id);
+alter table metadata_provider add primary key using index metadata_provider_pkey;
+
+create index concurrently on metadata_provider(provider_name, provider_url);
+
 -- origin_metadata
 create unique index concurrently origin_metadata_pkey on origin_metadata(id);
 alter table origin_metadata add primary key using index origin_metadata_pkey;
 
-create index concurrently on origin_metadata(origin_id, provenance);
+create index concurrently on origin_metadata(origin_id, provider_id, tool_id);
 
 alter table origin_metadata add constraint origin_metadata_origin_fkey foreign key (origin_id) references origin(id) not valid;
 alter table origin_metadata validate constraint origin_metadata_origin_fkey;
+
+alter table origin_metadata add constraint origin_metadata_provider_fkey foreign key (provider_id) references metadata_provider(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_provider_fkey;
+
+alter table origin_metadata add constraint origin_metadata_tool_fkey foreign key (tool_id) references indexer_configuration(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_tool_fkey;
 
 -- origin_metadata_translation
 create unique index concurrently origin_metadata_translation_pkey on origin_metadata_translation(id, indexer_configuration_id);

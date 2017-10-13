@@ -1028,6 +1028,84 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
+    def origin_metadata_add(self, origin, ts, provider, tool,
+                            metadata, cur=None):
+        """ Add an origin_metadata for the origin at ts with provider, tooland
+        metadata.
+
+        Args:
+            origin (int): the origin's id for which the metadata is added
+            ts (date): timestamp of the found metadata
+            provider (int): the metadata provider identifier
+            tool (int): the tool's identifier used to extract metadata
+            metadata (jsonb): the metadata retrieved at the time and location
+
+        Returns:
+            id (int): the origin_metadata unique id
+
+        """
+        insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
+                    provider_id, tool_id, metadata) values (%s, %s, %s, %s, %s)
+                    RETURNING id"""
+        cur.execute(insert, (origin, ts, provider, tool, jsonize(metadata)))
+
+        return cur.fetchone()[0]
+
+    origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
+                                'provider_id', 'tool_id', 'metadata']
+
+    def origin_metadata_get(self, id, cur=None):
+        """Retrieve the unique entry of one origin_metadata by its identifier
+
+        """
+        cur = self._cursor(cur)
+
+        query = """SELECT %s
+                   FROM origin_metadata
+                   WHERE id=%%s
+                   """ % (', '.join(self.origin_metadata_get_cols))
+
+        cur.execute(query, (id, ))
+
+        r = cur.fetchone()
+        if not r:
+            return None
+        return line_to_bytes(r)
+
+    def origin_metadata_get_all(self, origin_id, cur=None):
+        """Retrieve all origin_metadata entries for one origin_id
+
+        """
+        cur = self._cursor(cur)
+
+        query = """SELECT %s
+                   FROM origin_metadata
+                   WHERE origin_id=%%s """ % (
+                   ', '.join(self.origin_metadata_get_cols))
+
+        cur.execute(query, (origin_id, ))
+
+        yield from cursor_to_bytes(cur)
+
+    origin_metadata_provider_cols = ['id', 'origin_id', 'discovery_date',
+                                     'tool_id', 'metadata', 'provider_id',
+                                     'provider_name', 'provider_type',
+                                     'provider_url']
+
+    def origin_metadata_get_by_provider_type(self, origin_id, provider_type,
+                                             cur=None):
+        """Retrieve all entries for one origin_id and from one provider
+
+        """
+        cur = self._cursor(cur)
+        query = '''SELECT %s
+                   FROM swh_origin_metadata_get_by_provider_type(
+                        %%s, %%s)''' % (','.join(
+                                      self.origin_metadata_provider_cols))
+
+        cur.execute(query, (origin_id, provider_type))
+        yield from cursor_to_bytes(cur)
+
     indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
                                   'tool_configuration']
 
@@ -1047,79 +1125,29 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    def origin_metadata_add(self, origin, ts, provenance, metadata, cur=None):
-        """ Add an origin_metadata for the origin at ts with provenance and
-        metadata.
+    metadata_provider_cols = ['id', 'provider_name', 'provider_type',
+                              'provider_url', 'metadata']
 
-        Args:
-            origin: the origin's id for which the metadata is added
-            ts: timestamp of the found metadata
-            provenance (text): the tool and location where it was found
-                        (ex:'deposit-hal')
-            metadata (jsonb): the metadata retrieved at the time and location
-
-        Returns:
-            id (int): the origin_metadata unique id
-
-        """
-        insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
-                    provenance, metadata) values (%s, %s, %s, %s)
-                    RETURNING id"""
-        cur.execute(insert, (origin, ts, provenance, jsonize(metadata)))
-
-        return cur.fetchone()[0]
-
-    origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
-                                'provenance', 'metadata']
-
-    def origin_metadata_get(self, id, cur=None):
-        """Retrieve the unique entry of one origin_metadata by its identifier
-
-        """
+    def metadata_provider_get(self, provider_id, cur=None):
         cur = self._cursor(cur)
+        cur.execute('''select %s
+                       from metadata_provider
+                       where provider_id=%%s ''' % (
+                                 ','.join(self.metadata_provider_cols)),
+                    (provider_id, ))
 
-        query = """\
-            SELECT %s
-            FROM origin_metadata
-            WHERE id=%%s
-            """ % (', '.join(self.origin_metadata_get_cols))
-
-        cur.execute(query, (id, ))
-
-        r = cur.fetchone()
-        if not r:
+        data = cur.fetchone()
+        if not data:
             return None
-        return line_to_bytes(r)
+        return line_to_bytes(data)
 
-    def origin_metadata_get_all(self, origin_id, cur=None):
-        """Retrieve all origin_metadata entries for one origin_id
+    def metadata_provider_add(self, provider_name, provider_type,
+                              provider_url, metadata, cur=None):
+        """Insert a new provider and return the new identifier."""
+        insert = """INSERT INTO metadata_provider (provider_name, provider_type,
+                    provider_url, metadata) values (%s, %s, %s, %s)
+                    RETURNING id"""
 
-        """
-        cur = self._cursor(cur)
-
-        query = """\
-        SELECT %s
-        FROM origin_metadata
-        WHERE origin_id=%%s """ % (
-            ', '.join(self.origin_metadata_get_cols))
-
-        cur.execute(query, (origin_id, ))
-
-        yield from cursor_to_bytes(cur)
-
-    def origin_metadata_get_by_provenance(self, origin_id, provenance,
-                                          cur=None):
-        """Retrieve all entries for one origin_id and from one provenance
-
-        """
-        cur = self._cursor(cur)
-
-        query = """\
-        SELECT %s
-        FROM origin_metadata
-        WHERE origin_id=%%s AND provenance=%%s
-        """ % (', '.join(self.origin_metadata_get_cols))
-
-        cur.execute(query, (origin_id, provenance))
-
-        yield from cursor_to_bytes(cur)
+        cur.execute(insert, (provider_name, provider_type, provider_url,
+                    jsonize(metadata)))
+        return cur.fetchone()[0]

@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(110, now(), 'Work In Progress');
+      values(111, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -492,13 +492,30 @@ comment on column revision_metadata.id is 'sha1_git of revision';
 comment on column revision_metadata.translated_metadata is 'result of detection and translation with defined format';
 comment on column revision_metadata.indexer_configuration_id is 'tool used for detection';
 
+
+create table metadata_provider (
+  id            serial not null,
+  provider_name text   not null,
+  provider_type text   not null,
+  provider_url  text,
+  metadata      jsonb
+);
+
+comment on table metadata_provider is 'Metadata provider information';
+comment on column metadata_provider.id is 'Provider''s identifier';
+comment on column metadata_provider.provider_name is 'Provider''s name';
+comment on column metadata_provider.provider_url is 'Provider''s url';
+comment on column metadata_provider.metadata is 'Other metadata about provider';
+
+
 -- Discovery of metadata during a listing, loading, deposit or external_catalog of an origin
 -- also provides a translation to a defined json schema using a translation tool (indexer_configuration_id)
 create table origin_metadata(
   id                          bigserial     not null,  -- PK object identifier
   origin_id                   bigint        not null, -- references origin(id)
   discovery_date              timestamptz   not null, -- when it was extracted
-  provenance                  text          not null, -- ex: 'deposit-hal', 'lister-github', 'loader-github'
+  provider_id                 bigint        not null, -- ex: 'hal', 'lister-github', 'loader-github'
+  tool_id                     bigint        not null,
   metadata                    jsonb         not null
 );
 
@@ -506,7 +523,8 @@ comment on table origin_metadata is 'keeps all metadata found concerning an orig
 comment on column origin_metadata.id is 'the origin_metadata object''s id';
 comment on column origin_metadata.origin_id is 'the origin id for which the metadata was found';
 comment on column origin_metadata.discovery_date is 'the date of retrieval';
-comment on column origin_metadata.provenance is 'the type of metadata provenance: deposit, lister, loader, publisher,  etc';
+comment on column origin_metadata.provider_id is 'the metadata provider: github, openhub, deposit, etc.';
+comment on column origin_metadata.tool_id is 'the tool used for extracting metadata: lister-github, etc.';
 comment on column origin_metadata.metadata is 'metadata in json format but with original terms';
 
 create table origin_metadata_translation(

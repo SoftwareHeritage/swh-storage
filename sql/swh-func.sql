@@ -2166,6 +2166,36 @@ $$;
 
 comment on function swh_revision_metadata_get() is 'List revision''s metadata';
 -- end revision_metadata functions
+-- origin_metadata functions
+create type origin_metadata_signature as (
+    id bigint,
+    origin_id bigint,
+    discovery_date timestamptz,
+    tool_id bigint,
+    metadata jsonb,
+    provider_id integer,
+    provider_name text,
+    provider_type text,
+    provider_url  text
+);
+
+
+create or replace function swh_origin_metadata_get_by_provider_type(
+       origin integer,
+       type text)
+    returns setof origin_metadata_signature
+    language sql
+    stable
+as $$
+    select om.id as id, origin_id, discovery_date, tool_id, om.metadata,
+           mp.id as provider_id, provider_name, provider_type, provider_url
+    from origin_metadata as om
+    inner join metadata_provider mp on om.provider_id = mp.id
+    where om.origin_id = origin
+    and mp.provider_type = type
+    order by discovery_date desc;
+$$;
+-- end origin_metadata functions
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

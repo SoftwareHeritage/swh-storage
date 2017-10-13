@@ -1724,16 +1724,16 @@ class Storage():
         db.revision_metadata_add_from_temp(conflict_update, cur)
 
     @db_transaction
-    def origin_metadata_add(self, origin_id, ts, provenance, metadata,
+    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata,
                             cur=None):
         """ Add an origin_metadata for the origin at ts with provenance and
         metadata.
 
         Args:
-            origin_id: the origin's id for which the metadata is added
-            ts: timestamp of the found metadata
-            provenance (text): the tool and location where it was found
-                        (ex:'deposit-hal')
+            origin_id (int): the origin's id for which the metadata is added
+            ts (datetime): timestamp of the found metadata
+            provider (int): the provider of metadata (ex:'hal')
+            tool (int): tool used to extract metadata
             metadata (jsonb): the metadata retrieved at the time and location
 
         Returns:
@@ -1742,12 +1742,15 @@ class Storage():
         if isinstance(ts, str):
             ts = dateutil.parser.parse(ts)
 
-        return self.db.origin_metadata_add(origin_id, ts, provenance,
+        return self.db.origin_metadata_add(origin_id, ts, provider, tool,
                                            metadata, cur)
 
     @db_transaction
     def origin_metadata_get(self, id, cur=None):
         """Return the origin_metadata entry for the unique id
+
+        Args:
+            origin_metadata_id (int): the unique metadata identifier
 
         Returns:
             dict: the origin_metadata dictionary with the keys:
@@ -1755,8 +1758,9 @@ class Storage():
             - id: origin_metadata's id
             - origin_id: origin's id
             - discovery_date: timestamp of discovery
-            - provenance (text): metadata's provenance
-            - metadata (jsonb):
+            - provider (int): metadata's provider
+            - tool (int): tool used for this metadata
+            - metadata (jsonb)
 
         """
         db = self.db
@@ -1764,48 +1768,61 @@ class Storage():
         om = db.origin_metadata_get(id, cur)
 
         if om:
-            return dict(zip(self.db.origin_metadata_get_cols, om))
+            return dict(zip(db.origin_metadata_get_cols, om))
         return None
 
     @db_transaction_generator
     def origin_metadata_get_all(self, origin_id, cur=None):
         """Retrieve list of all origin_metadata entries for the origin_id
 
+        Args:
+            origin_id (int): the unique origin identifier
+
         Returns:
             list of dicts: the origin_metadata dictionary with the keys:
 
             - id: origin_metadata's id
             - origin_id: origin's id
             - discovery_date: timestamp of discovery
-            - provenance (text): metadata's provenance
+            - provider (id): metadata's provider
+            - tool (int): tool used for this metadata
             - metadata (jsonb):
 
         """
         db = self.db
         for line in db.origin_metadata_get_all(origin_id, cur):
-            data = dict(zip(self.db.origin_metadata_get_cols, line))
+            data = dict(zip(db.origin_metadata_get_cols, line))
             yield data
 
     @db_transaction_generator
-    def origin_metadata_get_by_provenance(self, origin_id, provenance,
-                                          cur=None):
+    def origin_metadata_get_by_provider_type(self, origin_id, provider_type,
+                                             cur=None):
         """Retrieve list of origin_metadata entries for an origin and
-        a specific provenance
+        a specific provider_type (e.g: 'registry', 'deposit-client')
+
+        Args:
+            origin_id (int): the unique origin identifier
+            provider_type (text): the type of provider
 
         Returns:
             list of dicts: the origin_metadata dictionary with the keys:
 
-            - id: origin_metadata's id
-            - origin_id: origin's id
-            - discovery_date: timestamp of discovery
-            - provenance (text): metadata's provenance
-            - metadata (jsonb):
+            - id (int): origin_metadata's id
+            - origin_id (int): origin's id
+            - discovery_date (datetime): timestamp of discovery
+            - tool_id (int): metadata's extracting tool
+            - metadata (jsonb)
+            - provider_id (int): metadata's provider
+            - provider_name (str)
+            - provider_type (str)
+            - provider_url (str)
 
         """
         db = self.db
-        for line in db.origin_metadata_get_by_provenance(origin_id, provenance,
-                                                         cur):
-            data = dict(zip(self.db.origin_metadata_get_cols, line))
+        for line in db.origin_metadata_get_by_provider_type(origin_id,
+                                                            provider_type,
+                                                            cur):
+            data = dict(zip(self.db.origin_metadata_provider_cols, line))
             yield data
 
     @db_transaction
@@ -1820,3 +1837,18 @@ class Storage():
         if not idx:
             return None
         return dict(zip(self.db.indexer_configuration_cols, idx))
+
+    @db_transaction
+    def metadata_provider_add(self, provider_name, provider_type, provider_url,
+                              metadata, cur=None):
+        db = self.db
+        return db.metadata_provider_add(provider_name, provider_type,
+                                        provider_url, metadata, cur)
+
+    @db_transaction
+    def metadata_provider_get(self, provider_id, cur=None):
+        db = self.db
+        result = db.metadata_provider_get(provider_id)
+        if not result:
+            return None
+        return dict(zip(self.db.metadata_provider_cols, result))

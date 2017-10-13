@@ -255,10 +255,14 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_metadata_get(self, ids):
         return self.post('revision_metadata', {'ids': ids})
 
-    def origin_metadata_add(self, origin_id, ts, provenance, metadata):
+    def indexer_configuration_get(self, tool):
+        return self.post('indexer_configuration/data', {'tool': tool})
+
+    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata):
         return self.post('origin/metadata/add', {'origin_id': origin_id,
                                                  'ts': ts,
-                                                 'provenance': provenance,
+                                                 'provider': provider,
+                                                 'tool': tool,
                                                  'metadata': metadata})
 
     def origin_metadata_get(self, id):
@@ -267,10 +271,17 @@ class RemoteStorage(SWHRemoteAPI):
     def origin_metadata_get_all(self, origin_id):
         return self.post('origin/metadata/getall', {'origin_id': origin_id})
 
-    def origin_metadata_get_by_provenance(self, origin_id, provenance):
-        return self.post('origin/metadata/getbyprovenance', {
-                         'origin_id': origin_id,
-                         'provenance': provenance})
+    def origin_metadata_get_by_provider_type(self, origin_id, provider_type):
+        return self.post('origin/metadata/byprovidertype', {
+                                         'origin_id': origin_id,
+                                         'provider_type': provider_type})
 
-    def indexer_configuration_get(self, tool):
-        return self.post('indexer_configuration/data', {'tool': tool})
+    def metadata_provider_add(self, provider_name, provider_type, provider_url,
+                              metadata):
+        return self.post('provider/add', {'provider_name': provider_name,
+                                          'provider_type': provider_type,
+                                          'provider_url': provider_url,
+                                          'metadata': metadata})
+
+    def metadata_provider_get(self, provider_id):
+        return self.post('provider/data', {'provider_id': provider_id})

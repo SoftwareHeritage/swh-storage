@@ -335,11 +335,29 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'type': 'git',
         }
 
+        self.provider = {
+            'name': 'hal',
+            'type': 'deposit-client',
+            'url': 'http:///hal/inria',
+            'metadata': {
+                'location': 'France'
+            }
+        }
+
+        self.metadata_tool = {
+            'tool_name': 'swh-deposit',
+            'tool_version': '0.0.1',
+            'tool_configuration': {
+                'sword_version': '2'
+            }
+        }
+
         self.origin_metadata = {
             'origin': self.origin,
             'discovery_date': datetime.datetime(2015, 1, 1, 23, 0, 0,
                                                 tzinfo=datetime.timezone.utc),
-            'provenance': 'deposit-hal',
+            'provider': self.provider,
+            'tool': 'swh-deposit',
             'metadata': {
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
@@ -350,7 +368,8 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'origin': self.origin,
             'discovery_date': datetime.datetime(2017, 1, 1, 23, 0, 0,
                                                 tzinfo=datetime.timezone.utc),
-            'provenance': 'lister-github',
+            'provider': self.provider,
+            'tool': 'swh-deposit',
             'metadata': {
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
@@ -3459,16 +3478,25 @@ class CommonTestStorage(BaseTestStorage):
         self.assertIsNone(origin_metadata0)
 
         origin_id = self.storage.origin_add([self.origin])[0]
+        provider_id = self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
-                    self.origin_metadata['provenance'],
+                    provider_id,
+                    tool['id'],
                     self.origin_metadata['metadata'])
         o_m2 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata2['discovery_date'],
-                    self.origin_metadata2['provenance'],
+                    provider_id,
+                    tool['id'],
                     self.origin_metadata2['metadata'])
         actual_om1 = self.storage.origin_metadata_get(o_m1)
         actual_om2 = self.storage.origin_metadata_get(o_m2)
@@ -3483,20 +3511,36 @@ class CommonTestStorage(BaseTestStorage):
     def origin_metadata_get_all(self):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]
+        origin_id2 = self.storage.origin_add([self.origin2])[0]
 
+        provider_id = self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+        tool = self.storage.indexer_configuration_get(self.metadata_tool)
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
-                    self.origin_metadata['provenance'],
+                    provider_id,
+                    tool['id'],
                     self.origin_metadata['metadata'])
         o_m2 = self.storage.origin_metadata_add(
+                    origin_id2,
+                    self.origin_metadata2['discovery_date'],
+                    provider_id,
+                    tool['id'],
+                    self.origin_metadata2['metadata'])
+        o_m3 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata2['discovery_date'],
-                    self.origin_metadata2['provenance'],
+                    provider_id,
+                    tool['id'],
                     self.origin_metadata2['metadata'])
         all_metadatas = list(self.storage.origin_metadata_get_all(origin_id))
-
+        metadatas_for_origin2 = list(self.storage.origin_metadata_get_all(
+                                          origin_id2))
         expected_results = [{
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
@@ -3509,7 +3553,8 @@ class CommonTestStorage(BaseTestStorage):
                 'version': '0.0.1'
             },
             'id': o_m1,
-            'provenance': 'deposit-hal'
+            'provider_id': provider_id,
+            'tool_id': tool['id']
         }, {
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
@@ -3521,33 +3566,61 @@ class CommonTestStorage(BaseTestStorage):
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
             },
-            'id': o_m2,
-            'provenance': 'lister-github'
+            'id': o_m3,
+            'provider_id': provider_id,
+            'tool_id': tool['id']
         }]
 
         # then
         self.assertEqual(len(all_metadatas), 2)
-        # self.assertEqual(len(m_by_provenance), 1)
+        self.assertEqual(len(metadatas_for_origin2), 1)
+        self.assertEqual(metadatas_for_origin2[0]['id'], o_m2)
         self.assertEqual(all_metadatas, expected_results)
 
     @istest
-    def origin_metadata_get_by_provenance(self):
+    def origin_metadata_get_by_provider_type(self):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]
+        origin_id2 = self.storage.origin_add([self.origin2])[0]
+        provider_id = self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+
+        provider_id2 = self.storage.metadata_provider_add(
+                            'swMATH',
+                            'registry',
+                            'http://www.swmath.org/',
+                            {'email': 'contact@swmath.org',
+                             'license': 'All rights reserved'})
+
+        # using the only tool now inserted in the data.sql, but for this
+        # provider should be a crawler tool (not yet implemented)
+        tool = self.storage.indexer_configuration_get(self.metadata_tool)
 
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
-                    self.origin_metadata['provenance'],
+                    provider_id,
+                    tool['id'],
                     self.origin_metadata['metadata'])
-        m_by_provenance = list(self.storage.origin_metadata_get_by_provenance(
-                             origin_id, self.origin_metadata['provenance']))
-
+        o_m2 = self.storage.origin_metadata_add(
+                    origin_id2,
+                    self.origin_metadata2['discovery_date'],
+                    provider_id2,
+                    tool['id'],
+                    self.origin_metadata2['metadata'])
+        provider_type = 'registry'
+        m_by_provider = list(self.storage.
+                             origin_metadata_get_by_provider_type(
+                                origin_id2,
+                                provider_type))
         expected_results = [{
-            'origin_id': origin_id,
+            'origin_id': origin_id2,
             'discovery_date': datetime.datetime(
-                                2015, 1, 2, 0, 0,
+                                2017, 1, 2, 0, 0,
                                 tzinfo=psycopg2.tz.FixedOffsetTimezone(
                                     offset=60,
                                     name=None)),
@@ -3555,13 +3628,19 @@ class CommonTestStorage(BaseTestStorage):
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
             },
-            'id': o_m1,
-            'provenance': 'deposit-hal'
+            'id': o_m2,
+            'provider_id': provider_id2,
+            'provider_name': 'swMATH',
+            'provider_type': provider_type,
+            'provider_url': 'http://www.swmath.org/',
+            'tool_id': tool['id']
         }]
         # then
 
-        self.assertEqual(len(m_by_provenance), 1)
-        self.assertEqual(m_by_provenance, expected_results)
+        self.assertEqual(len(m_by_provider), 1)
+        self.assertEqual(m_by_provider, expected_results)
+        self.assertEqual(m_by_provider[0]['id'], o_m2)
+        self.assertIsNotNone(o_m1)
 
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
