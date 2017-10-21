@@ -6,6 +6,12 @@ Software Heritage - Development Documentation
    :caption: Contents:
 
 
+High-level storage
+------------------
+
+* :ref:`sql-storage`
+
+
 Low-level object storage
 ------------------------
 
