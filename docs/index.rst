@@ -6,6 +6,11 @@ Software Heritage - Development Documentation
    :caption: Contents:
 
 
+Low-level object storage
+------------------------
+
+* :ref:`swh-archiver-blueprint`
+
 
 Indices and tables
 ==================
