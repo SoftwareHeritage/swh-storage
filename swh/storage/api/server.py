@@ -423,21 +423,8 @@ def origin_metadata_add():
 
 
 @app.route('/origin/metadata/get', methods=['POST'])
-def origin_metadata_get():
-    return encode_data(g.storage.origin_metadata_get(**decode_request(
-                                                       request)))
-
-
-@app.route('/origin/metadata/getall', methods=['POST'])
-def origin_metadata_getall():
-    return encode_data(g.storage.origin_metadata_get_all(**decode_request(
-                                                           request)))
-
-
-@app.route('/origin/metadata/byprovidertype', methods=['POST'])
-def origin_metadata_get_by_provider():
-    return encode_data(
-        g.storage.origin_metadata_get_by_provider_type(**decode_request(
+def origin_metadata_get_by():
+    return encode_data(g.storage.origin_metadata_get_by(**decode_request(
                                                        request)))
 
 
@@ -450,6 +437,12 @@ def metadata_provider_add():
 @app.route('/provider/get', methods=['POST'])
 def metadata_provider_get():
     return encode_data(g.storage.metadata_provider_get(**decode_request(
+                                                       request)))
+
+
+@app.route('/provider/getby', methods=['POST'])
+def metadata_provider_get_by():
+    return encode_data(g.storage.metadata_provider_get_by(**decode_request(
                                                        request)))
 
 

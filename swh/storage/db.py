@@ -1030,12 +1030,12 @@ class Db(BaseDb):
 
     def origin_metadata_add(self, origin, ts, provider, tool,
                             metadata, cur=None):
-        """ Add an origin_metadata for the origin at ts with provider, tooland
+        """ Add an origin_metadata for the origin at ts with provider, tool and
         metadata.
 
         Args:
             origin (int): the origin's id for which the metadata is added
-            ts (date): timestamp of the found metadata
+            ts (datetime): time when the metadata was found
             provider (int): the metadata provider identifier
             tool (int): the tool's identifier used to extract metadata
             metadata (jsonb): the metadata retrieved at the time and location
@@ -1044,6 +1044,7 @@ class Db(BaseDb):
             id (int): the origin_metadata unique id
 
         """
+        cur = self._cursor(cur)
         insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
                     provider_id, tool_id, metadata) values (%s, %s, %s, %s, %s)
                     RETURNING id"""
@@ -1052,58 +1053,31 @@ class Db(BaseDb):
         return cur.fetchone()[0]
 
     origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
-                                'provider_id', 'tool_id', 'metadata']
+                                'tool_id', 'metadata', 'provider_id',
+                                'provider_name', 'provider_type',
+                                'provider_url']
 
-    def origin_metadata_get(self, id, cur=None):
-        """Retrieve the unique entry of one origin_metadata by its identifier
-
-        """
-        cur = self._cursor(cur)
-
-        query = """SELECT %s
-                   FROM origin_metadata
-                   WHERE id=%%s
-                   """ % (', '.join(self.origin_metadata_get_cols))
-
-        cur.execute(query, (id, ))
-
-        r = cur.fetchone()
-        if not r:
-            return None
-        return line_to_bytes(r)
-
-    def origin_metadata_get_all(self, origin_id, cur=None):
+    def origin_metadata_get_by(self, origin_id, provider_type=None, cur=None):
         """Retrieve all origin_metadata entries for one origin_id
 
         """
         cur = self._cursor(cur)
+        if not provider_type:
+            query = '''SELECT %s
+                       FROM swh_origin_metadata_get_by_origin(
+                            %%s)''' % (','.join(
+                                          self.origin_metadata_get_cols))
 
-        query = """SELECT %s
-                   FROM origin_metadata
-                   WHERE origin_id=%%s """ % (
-                   ', '.join(self.origin_metadata_get_cols))
+            cur.execute(query, (origin_id, ))
 
-        cur.execute(query, (origin_id, ))
+        else:
+            query = '''SELECT %s
+                       FROM swh_origin_metadata_get_by_provider_type(
+                            %%s, %%s)''' % (','.join(
+                                          self.origin_metadata_get_cols))
 
-        yield from cursor_to_bytes(cur)
+            cur.execute(query, (origin_id, provider_type))
 
-    origin_metadata_provider_cols = ['id', 'origin_id', 'discovery_date',
-                                     'tool_id', 'metadata', 'provider_id',
-                                     'provider_name', 'provider_type',
-                                     'provider_url']
-
-    def origin_metadata_get_by_provider_type(self, origin_id, provider_type,
-                                             cur=None):
-        """Retrieve all entries for one origin_id and from one provider
-
-        """
-        cur = self._cursor(cur)
-        query = '''SELECT %s
-                   FROM swh_origin_metadata_get_by_provider_type(
-                        %%s, %%s)''' % (','.join(
-                                      self.origin_metadata_provider_cols))
-
-        cur.execute(query, (origin_id, provider_type))
         yield from cursor_to_bytes(cur)
 
     indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
@@ -1128,6 +1102,18 @@ class Db(BaseDb):
     metadata_provider_cols = ['id', 'provider_name', 'provider_type',
                               'provider_url', 'metadata']
 
+    def metadata_provider_add(self, provider_name, provider_type,
+                              provider_url, metadata, cur=None):
+        """Insert a new provider and return the new identifier."""
+        cur = self._cursor(cur)
+        insert = """INSERT INTO metadata_provider (provider_name, provider_type,
+                    provider_url, metadata) values (%s, %s, %s, %s)
+                    RETURNING id"""
+
+        cur.execute(insert, (provider_name, provider_type, provider_url,
+                    jsonize(metadata)))
+        return cur.fetchone()[0]
+
     def metadata_provider_get(self, provider_id, cur=None):
         cur = self._cursor(cur)
         cur.execute('''select %s
@@ -1141,13 +1127,17 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    def metadata_provider_add(self, provider_name, provider_type,
-                              provider_url, metadata, cur=None):
-        """Insert a new provider and return the new identifier."""
-        insert = """INSERT INTO metadata_provider (provider_name, provider_type,
-                    provider_url, metadata) values (%s, %s, %s, %s)
-                    RETURNING id"""
+    def metadata_provider_get_by(self, provider_name, provider_url,
+                                 cur=None):
+        cur = self._cursor(cur)
+        cur.execute('''select %s
+                       from metadata_provider
+                       where provider_name=%%s and
+                             provider_url=%%s''' % (
+                                 ','.join(self.metadata_provider_cols)),
+                    (provider_name, provider_url))
 
-        cur.execute(insert, (provider_name, provider_type, provider_url,
-                    jsonize(metadata)))
-        return cur.fetchone()[0]
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)

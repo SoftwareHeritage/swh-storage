@@ -265,16 +265,11 @@ class RemoteStorage(SWHRemoteAPI):
                                                  'tool': tool,
                                                  'metadata': metadata})
 
-    def origin_metadata_get(self, id):
-        return self.post('origin/metadata/get', {'id': id})
-
-    def origin_metadata_get_all(self, origin_id):
-        return self.post('origin/metadata/getall', {'origin_id': origin_id})
-
-    def origin_metadata_get_by_provider_type(self, origin_id, provider_type):
-        return self.post('origin/metadata/byprovidertype', {
-                                         'origin_id': origin_id,
-                                         'provider_type': provider_type})
+    def origin_metadata_get_by(self, origin_id, provider_type=None):
+        return self.post('origin/metadata/get', {
+            'origin_id': origin_id,
+            'provider_type': provider_type
+        })
 
     def metadata_provider_add(self, provider_name, provider_type, provider_url,
                               metadata):
@@ -284,4 +279,7 @@ class RemoteStorage(SWHRemoteAPI):
                                           'metadata': metadata})
 
     def metadata_provider_get(self, provider_id):
-        return self.post('provider/data', {'provider_id': provider_id})
+        return self.post('provider/get', {'provider_id': provider_id})
+
+    def metadata_provider_get_by(self, provider):
+        return self.post('provider/getby', {'provider': provider})

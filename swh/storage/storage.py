@@ -1745,64 +1745,13 @@ class Storage():
         return self.db.origin_metadata_add(origin_id, ts, provider, tool,
                                            metadata, cur)
 
-    @db_transaction
-    def origin_metadata_get(self, id, cur=None):
-        """Return the origin_metadata entry for the unique id
-
-        Args:
-            origin_metadata_id (int): the unique metadata identifier
-
-        Returns:
-            dict: the origin_metadata dictionary with the keys:
-
-            - id: origin_metadata's id
-            - origin_id: origin's id
-            - discovery_date: timestamp of discovery
-            - provider (int): metadata's provider
-            - tool (int): tool used for this metadata
-            - metadata (jsonb)
-
-        """
-        db = self.db
-
-        om = db.origin_metadata_get(id, cur)
-
-        if om:
-            return dict(zip(db.origin_metadata_get_cols, om))
-        return None
-
     @db_transaction_generator
-    def origin_metadata_get_all(self, origin_id, cur=None):
+    def origin_metadata_get_by(self, origin_id, provider_type=None, cur=None):
         """Retrieve list of all origin_metadata entries for the origin_id
 
         Args:
             origin_id (int): the unique origin identifier
-
-        Returns:
-            list of dicts: the origin_metadata dictionary with the keys:
-
-            - id: origin_metadata's id
-            - origin_id: origin's id
-            - discovery_date: timestamp of discovery
-            - provider (id): metadata's provider
-            - tool (int): tool used for this metadata
-            - metadata (jsonb):
-
-        """
-        db = self.db
-        for line in db.origin_metadata_get_all(origin_id, cur):
-            data = dict(zip(db.origin_metadata_get_cols, line))
-            yield data
-
-    @db_transaction_generator
-    def origin_metadata_get_by_provider_type(self, origin_id, provider_type,
-                                             cur=None):
-        """Retrieve list of origin_metadata entries for an origin and
-        a specific provider_type (e.g: 'registry', 'deposit-client')
-
-        Args:
-            origin_id (int): the unique origin identifier
-            provider_type (text): the type of provider
+            provider_type (str): (optional) type of provider
 
         Returns:
             list of dicts: the origin_metadata dictionary with the keys:
@@ -1819,11 +1768,8 @@ class Storage():
 
         """
         db = self.db
-        for line in db.origin_metadata_get_by_provider_type(origin_id,
-                                                            provider_type,
-                                                            cur):
-            data = dict(zip(self.db.origin_metadata_provider_cols, line))
-            yield data
+        for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
+            yield dict(zip(db.origin_metadata_get_cols, line))
 
     @db_transaction
     def indexer_configuration_get(self, tool, cur=None):
@@ -1849,6 +1795,15 @@ class Storage():
     def metadata_provider_get(self, provider_id, cur=None):
         db = self.db
         result = db.metadata_provider_get(provider_id)
+        if not result:
+            return None
+        return dict(zip(self.db.metadata_provider_cols, result))
+
+    @db_transaction
+    def metadata_provider_get_by(self, provider, cur=None):
+        db = self.db
+        result = db.metadata_provider_get_by(provider['provider_name'],
+                                             provider['provider_url'])
         if not result:
             return None
         return dict(zip(self.db.metadata_provider_cols, result))

@@ -2178,7 +2178,19 @@ create type origin_metadata_signature as (
     provider_type text,
     provider_url  text
 );
-
+create or replace function swh_origin_metadata_get_by_origin(
+       origin integer)
+    returns setof origin_metadata_signature
+    language sql
+    stable
+as $$
+    select om.id as id, origin_id, discovery_date, tool_id, om.metadata,
+           mp.id as provider_id, provider_name, provider_type, provider_url
+    from origin_metadata as om
+    inner join metadata_provider mp on om.provider_id = mp.id
+    where om.origin_id = origin
+    order by discovery_date desc;
+$$;
 
 create or replace function swh_origin_metadata_get_by_provider_type(
        origin integer,

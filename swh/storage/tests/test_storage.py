@@ -3471,91 +3471,96 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(expected_tool, actual_tool)
 
     @istest
-    def origin_metadata_add(self):
+    def metadata_provider_get_by(self):
         # given
-        metadata_id = 1
-        origin_metadata0 = self.storage.origin_metadata_get(metadata_id)
-        self.assertIsNone(origin_metadata0)
-
-        origin_id = self.storage.origin_add([self.origin])[0]
+        no_provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                      })
+        self.assertIsNone(no_provider)
+        # when
         provider_id = self.storage.metadata_provider_add(
                            self.provider['name'],
                            self.provider['type'],
                            self.provider['url'],
                            self.provider['metadata'])
+
+        actual_provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                           })
+        # then
+        self.assertTrue(provider_id, actual_provider['id'])
+
+    @istest
+    def origin_metadata_add(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])[0]
+        origin_metadata0 = list(self.storage.origin_metadata_get_by(origin_id))
+        self.assertTrue(len(origin_metadata0) == 0)
+
+        self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+        provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                      })
         tool = self.storage.indexer_configuration_get(self.metadata_tool)
 
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
-                    provider_id,
+                    provider['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
-        o_m2 = self.storage.origin_metadata_add(
-                    origin_id,
-                    self.origin_metadata2['discovery_date'],
-                    provider_id,
-                    tool['id'],
-                    self.origin_metadata2['metadata'])
-        actual_om1 = self.storage.origin_metadata_get(o_m1)
-        actual_om2 = self.storage.origin_metadata_get(o_m2)
-
+        actual_om1 = list(self.storage.origin_metadata_get_by(origin_id))
         # then
-        self.assertEqual(actual_om1['id'], o_m1)
-        self.assertEqual(actual_om2['id'], o_m2)
-        self.assertEqual(actual_om1['origin_id'], origin_id)
-        self.assertEqual(actual_om2['origin_id'], origin_id)
+        self.assertEqual(actual_om1[0]['id'], o_m1)
+        self.assertEqual(len(actual_om1), 1)
+        self.assertEqual(actual_om1[0]['origin_id'], origin_id)
 
     @istest
-    def origin_metadata_get_all(self):
+    def origin_metadata_get(self):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]
         origin_id2 = self.storage.origin_add([self.origin2])[0]
 
-        provider_id = self.storage.metadata_provider_add(
-                           self.provider['name'],
-                           self.provider['type'],
-                           self.provider['url'],
-                           self.provider['metadata'])
+        self.storage.metadata_provider_add(self.provider['name'],
+                                           self.provider['type'],
+                                           self.provider['url'],
+                                           self.provider['metadata'])
+        provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                   })
         tool = self.storage.indexer_configuration_get(self.metadata_tool)
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
-                    provider_id,
+                    provider['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
         o_m2 = self.storage.origin_metadata_add(
                     origin_id2,
                     self.origin_metadata2['discovery_date'],
-                    provider_id,
+                    provider['id'],
                     tool['id'],
                     self.origin_metadata2['metadata'])
         o_m3 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata2['discovery_date'],
-                    provider_id,
+                    provider['id'],
                     tool['id'],
                     self.origin_metadata2['metadata'])
-        all_metadatas = list(self.storage.origin_metadata_get_all(origin_id))
-        metadatas_for_origin2 = list(self.storage.origin_metadata_get_all(
+        all_metadatas = list(self.storage.origin_metadata_get_by(origin_id))
+        metadatas_for_origin2 = list(self.storage.origin_metadata_get_by(
                                           origin_id2))
         expected_results = [{
-            'origin_id': origin_id,
-            'discovery_date': datetime.datetime(
-                                2015, 1, 2, 0, 0,
-                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
-                                    offset=60,
-                                    name=None)),
-            'metadata': {
-                'name': 'test_origin_metadata',
-                'version': '0.0.1'
-            },
-            'id': o_m1,
-            'provider_id': provider_id,
-            'tool_id': tool['id']
-        }, {
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
                                 2017, 1, 2, 0, 0,
@@ -3567,7 +3572,27 @@ class CommonTestStorage(BaseTestStorage):
                 'version': '0.0.1'
             },
             'id': o_m3,
-            'provider_id': provider_id,
+            'provider_id': provider['id'],
+            'provider_name': 'hal',
+            'provider_type': 'deposit-client',
+            'provider_url': 'http:///hal/inria',
+            'tool_id': tool['id']
+        }, {
+            'origin_id': origin_id,
+            'discovery_date': datetime.datetime(
+                                2015, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m1,
+            'provider_id': provider['id'],
+            'provider_name': 'hal',
+            'provider_type': 'deposit-client',
+            'provider_url': 'http:///hal/inria',
             'tool_id': tool['id']
         }]
 
@@ -3582,18 +3607,26 @@ class CommonTestStorage(BaseTestStorage):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]
         origin_id2 = self.storage.origin_add([self.origin2])[0]
-        provider_id = self.storage.metadata_provider_add(
+        self.storage.metadata_provider_add(
                            self.provider['name'],
                            self.provider['type'],
                            self.provider['url'],
                            self.provider['metadata'])
+        provider1 = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                   })
 
-        provider_id2 = self.storage.metadata_provider_add(
+        self.storage.metadata_provider_add(
                             'swMATH',
                             'registry',
                             'http://www.swmath.org/',
                             {'email': 'contact@swmath.org',
                              'license': 'All rights reserved'})
+        provider2 = self.storage.metadata_provider_get_by({
+                            'provider_name': 'swMATH',
+                            'provider_url': 'http://www.swmath.org/'
+                   })
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)
@@ -3603,18 +3636,18 @@ class CommonTestStorage(BaseTestStorage):
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
-                    provider_id,
+                    provider1['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
         o_m2 = self.storage.origin_metadata_add(
                     origin_id2,
                     self.origin_metadata2['discovery_date'],
-                    provider_id2,
+                    provider2['id'],
                     tool['id'],
                     self.origin_metadata2['metadata'])
         provider_type = 'registry'
         m_by_provider = list(self.storage.
-                             origin_metadata_get_by_provider_type(
+                             origin_metadata_get_by(
                                 origin_id2,
                                 provider_type))
         expected_results = [{
@@ -3629,7 +3662,7 @@ class CommonTestStorage(BaseTestStorage):
                 'version': '0.0.1'
             },
             'id': o_m2,
-            'provider_id': provider_id2,
+            'provider_id': provider2['id'],
             'provider_name': 'swMATH',
             'provider_type': provider_type,
             'provider_url': 'http://www.swmath.org/',
