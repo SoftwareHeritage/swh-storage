@@ -1,3 +1,5 @@
+.. _swh-storage:
+
 Software Heritage - Development Documentation
 =============================================
 
