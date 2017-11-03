@@ -71,12 +71,6 @@ def content_find():
     return encode_data(g.storage.content_find(**decode_request(request)))
 
 
-@app.route('/content/provenance', methods=['POST'])
-def content_find_provenance():
-    res = g.storage.content_find_provenance(**decode_request(request))
-    return encode_data(res)
-
-
 @app.route('/content/add', methods=['POST'])
 def content_add():
     return encode_data(g.storage.content_add(**decode_request(request)))
@@ -159,29 +153,6 @@ def revision_shortlog():
 @app.route('/revision/missing', methods=['POST'])
 def revision_missing():
     return encode_data(g.storage.revision_missing(**decode_request(request)))
-
-
-@app.route('/cache/content_revision', methods=['POST'])
-def cache_content_revision_add():
-    return encode_data(g.storage.cache_content_revision_add(
-        **decode_request(request)))
-
-
-@app.route('/cache/contents', methods=['GET'])
-def cache_content_get_all():
-    return encode_data(g.storage.cache_content_get_all())
-
-
-@app.route('/cache/content', methods=['POST'])
-def cache_content_get():
-    return encode_data(g.storage.cache_content_get(
-        **decode_request(request)))
-
-
-@app.route('/cache/revision_origin', methods=['POST'])
-def cache_revision_origin_add():
-    return encode_data(g.storage.cache_revision_origin_add(
-        **decode_request(request)))
 
 
 @app.route('/release/add', methods=['POST'])

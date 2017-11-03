@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(110, now(), 'Work In Progress');
+      values(111, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -352,39 +352,6 @@ create table release
   object_id   bigserial,
   target_type object_type not null,
   date_neg_utc_offset  boolean
-);
-
-
--- Content provenance information caches
--- https://forge.softwareheritage.org/T547
---
--- Those tables aren't expected to be exhaustive, and get filled on a case by
--- case basis: absence of data doesn't mean the data is not there
-
--- content <-> revision mapping cache
---
--- semantics: "we have seen the content with given id in the given path inside
--- the given revision"
-
-create table cache_content_revision (
-    content         sha1_git not null,
-    blacklisted     boolean default false,
-    revision_paths  bytea[][]
-);
-
-create table cache_content_revision_processed (
-    revision  sha1_git not null
-);
-
--- revision <-> origin_visit mapping cache
---
--- semantics: "we have seen the given revision in the given origin during the
--- given visit"
-
-create table cache_revision_origin (
-   revision  sha1_git not null,
-   origin    bigint not null,
-   visit     bigint not null
 );
 
 -- Computing metadata on sha1's contents

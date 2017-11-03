@@ -255,9 +255,6 @@ class Db(BaseDb):
     @stored_procedure('swh_entity_history_add')
     def entity_history_add_from_temp(self, cur=None): pass
 
-    @stored_procedure('swh_cache_content_revision_add')
-    def cache_content_revision_add(self, cur=None): pass
-
     def store_tmp_bytea(self, ids, cur=None):
         """Store the given identifiers in a new tmp_bytea table"""
         cur = self._cursor(cur)
@@ -356,27 +353,6 @@ class Db(BaseDb):
             return None
         else:
             return content
-
-    provenance_cols = ['content', 'revision', 'origin', 'visit', 'path']
-
-    def content_find_provenance(self, sha1_git, cur=None):
-        """Find content's provenance information
-
-        Args:
-            sha1: sha1_git content
-            cur: cursor to use
-
-        Returns:
-            Provenance information on such content
-
-        """
-        cur = self._cursor(cur)
-
-        cur.execute("""SELECT content, revision, origin, visit, path
-                       FROM swh_content_find_provenance(%s)""",
-                    (sha1_git, ))
-
-        yield from cursor_to_bytes(cur)
 
     def directory_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -573,36 +549,6 @@ class Db(BaseDb):
                 """ % ', '.join(self.revision_shortlog_cols)
 
         cur.execute(query, (root_revisions, limit))
-        yield from cursor_to_bytes(cur)
-
-    cache_content_get_cols = [
-        'sha1', 'sha1_git', 'sha256', 'revision_paths']
-
-    def cache_content_get_all(self, cur=None):
-        """Retrieve cache contents' sha1, sha256, sha1_git
-
-        """
-        cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_content_get_all()')
-        yield from cursor_to_bytes(cur)
-
-    def cache_content_get(self, sha1_git, cur=None):
-        """Retrieve cache content information sh.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_content_get(%s)', (sha1_git, ))
-        data = cur.fetchone()
-        if data:
-            return line_to_bytes(data)
-        return None
-
-    def cache_revision_origin_add(self, origin, visit, cur=None):
-        """Populate the content provenance information cache for the given
-           (origin, visit) couple."""
-        cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_revision_origin_add(%s, %s)',
-                    (origin, visit))
         yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):

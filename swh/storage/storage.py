@@ -340,31 +340,6 @@ class Storage():
             return dict(zip(db.content_find_cols, c))
         return None
 
-    @db_transaction_generator
-    def content_find_provenance(self, content, cur=None):
-        """Find content's provenance information.
-
-        Args:
-            content: a dictionary entry representing one content hash.  The
-                dictionary key is one of :data:`swh.model.hashutil.ALGORITHMS`.
-                The value mapped to the corresponding checksum.
-
-        Yields:
-            The provenance information on content.
-
-        """
-        db = self.db
-
-        c = self.content_find(content)
-
-        if not c:
-            return []
-
-        sha1_git = c['sha1_git']
-
-        for provenance in db.content_find_provenance(sha1_git, cur=cur):
-            yield dict(zip(db.provenance_cols, provenance))
-
     def directory_add(self, directories):
         """Add directories to the storage
 
@@ -517,73 +492,6 @@ class Storage():
         res = db.directory_entry_get_by_path(directory, paths, cur)
         if res:
             return dict(zip(db.directory_ls_cols, res))
-
-    @db_transaction
-    def cache_content_revision_add(self, revisions, cur=None):
-        """Cache the current revision's current targeted arborescence directory.  If
-        the revision has already been cached, it just does nothing.
-
-        Args:
-            revisions: the revisions to cache
-
-        Returns:
-            None
-
-        """
-        db = self.db
-
-        db.store_tmp_bytea(revisions, cur)
-        db.cache_content_revision_add()
-
-    @db_transaction_generator
-    def cache_content_get_all(self, cur=None):
-        """Read the distinct contents in the cache table.
-
-        Yields:
-            contents from cache
-
-        """
-        for content in self.db.cache_content_get_all(cur):
-            yield dict(zip(self.db.cache_content_get_cols, content))
-
-    @db_transaction
-    def cache_content_get(self, content, cur=None):
-        """Retrieve information on content.
-
-        Args:
-            content (dict): content with checkums
-
-        Returns:
-            Content properties (sha1, sha1_git, sha256, revision_paths)
-
-        """
-        if 'sha1_git' in content:
-            sha1_git = content['sha1_git']
-        else:
-            c = self.content_find(content)
-            if not c:
-                return None
-            sha1_git = c['sha1_git']
-
-        c = self.db.cache_content_get(sha1_git, cur=cur)
-        if not c:
-            return None
-        return dict(zip(self.db.cache_content_get_cols, c))
-
-    @db_transaction_generator
-    def cache_revision_origin_add(self, origin, visit, cur=None):
-        """Cache the list of revisions the given visit added to the origin.
-
-        Args:
-            origin: the id of the origin
-            visit: the id of the visit
-
-        Returns:
-            The list of new revisions
-
-        """
-        for (revision,) in self.db.cache_revision_origin_add(origin, visit):
-            yield revision
 
     def revision_add(self, revisions):
         """Add revisions to the storage

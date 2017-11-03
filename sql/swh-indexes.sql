@@ -191,32 +191,6 @@ create index concurrently on release(object_id);
 alter table release add constraint release_author_fkey foreign key (author) references person(id) not valid;
 alter table release validate constraint release_author_fkey;
 
--- cache_content_revision
-create unique index concurrently cache_content_revision_pkey on cache_content_revision(content);
-alter table cache_content_revision add primary key using index cache_content_revision_pkey;
-
-alter table cache_content_revision add constraint cache_content_revision_content_fkey foreign key (content) references content(sha1_git) not valid;
-alter table cache_content_revision validate constraint cache_content_revision_content_fkey;
-
--- cache_content_revision_processed
-create unique index concurrently cache_content_revision_processed_pkey on cache_content_revision_processed(revision);
-alter table cache_content_revision_processed add primary key using index cache_content_revision_processed_pkey;
-
-alter table cache_content_revision_processed add constraint cache_content_revision_processed_revision_fkey foreign key (revision) references revision(id) not valid;
-alter table cache_content_revision_processed validate constraint cache_content_revision_processed_revision_fkey;
-
--- cache_revision_origin
-create unique index concurrently cache_revision_origin_pkey on cache_revision_origin(revision, origin, visit);
-alter table cache_revision_origin add primary key using index cache_revision_origin_pkey;
-
-alter table cache_revision_origin add constraint cache_revision_origin_revision_fkey foreign key (revision) references revision(id) not valid;
-alter table cache_revision_origin validate constraint cache_revision_origin_revision_fkey;
-
-alter table cache_revision_origin add constraint cache_revision_origin_origin_fkey foreign key (origin, visit) references origin_visit(origin, visit) not valid;
-alter table cache_revision_origin validate constraint cache_revision_origin_origin_fkey;
-
-create index concurrently on cache_revision_origin(revision);
-
 -- indexer_configuration
 create unique index concurrently indexer_configuration_pkey on indexer_configuration(id);
 alter table indexer_configuration add primary key using index indexer_configuration_pkey;

@@ -40,9 +40,6 @@ class RemoteStorage(SWHRemoteAPI):
     def content_find(self, content):
         return self.post('content/present', {'content': content})
 
-    def content_find_provenance(self, content):
-        return self.post('content/provenance', {'content': content})
-
     def directory_add(self, directories):
         return self.post('directory/add', {'directories': directories})
 
@@ -78,19 +75,6 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_shortlog(self, revisions, limit=None):
         return self.post('revision/shortlog', {'revisions': revisions,
                                                'limit': limit})
-
-    def cache_content_revision_add(self, revisions):
-        return self.post('cache/content_revision', {'revisions': revisions})
-
-    def cache_content_get_all(self):
-        return self.get('cache/contents')
-
-    def cache_content_get(self, content):
-        return self.post('cache/content', {'content': content})
-
-    def cache_revision_origin_add(self, origin, visit):
-        return self.post('cache/revision_origin', {'origin': origin,
-                                                   'visit': visit})
 
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
