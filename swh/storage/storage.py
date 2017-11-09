@@ -769,6 +769,8 @@ class Storage():
 
                 - origin (int): id of the origin corresponding to the
                   occurrence
+                - visit (int): id of the visit corresponding to the
+                  occurrence
                 - branch (str): the reference name of the occurrence
                 - target (sha1_git): the id of the object pointed to by
                   the occurrence
