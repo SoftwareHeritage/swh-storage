@@ -760,6 +760,134 @@ class Storage():
             )
 
     @db_transaction
+    def snapshot_add(self, origin, visit, snapshot, cur=None):
+        """Add a snapshot for the given origin/visit couple
+
+        Args:
+            origin (int): id of the origin
+            visit (int): id of the visit
+            snapshot (dict): the snapshot to add to the visit, containing the
+              following keys:
+
+              - **id** (:class:`bytes`): id of the snapshot
+              - **branches** (:class:`dict`): branches the snapshot contains,
+                mapping the branch name (:class:`bytes`) to the branch target,
+                itself a :class:`dict` (or ``None`` if the branch points to an
+                unknown object)
+
+                - **target_type** (:class:`str`): one of ``content``,
+                  ``directory``, ``revision``, ``release``,
+                  ``snapshot``, ``alias``
+                - **target** (:class:`bytes`): identifier of the target
+                  (currently a ``sha1_git`` for all object kinds, or the name
+                  of the target branch for aliases)
+        """
+        db = self.db
+
+        if not db.snapshot_exists(snapshot['id'], cur):
+            db.mktemp_snapshot_branch(cur)
+            db.copy_to(
+                (
+                    {
+                        'name': name,
+                        'target': info['target'] if info else None,
+                        'target_type': info['target_type'] if info else None,
+                    }
+                    for name, info in snapshot['branches'].items()
+                ),
+                'tmp_snapshot_branch',
+                ['name', 'target', 'target_type'],
+                cur,
+            )
+
+        db.snapshot_add(origin, visit, snapshot['id'], cur)
+
+        # TODO: drop this compat feature
+        occurrences = []
+        for name, info in snapshot['branches'].items():
+            if not info:
+                target = b'\x00' * 20
+                target_type = 'revision'
+            elif info['target_type'] == 'alias':
+                continue
+            else:
+                target = info['target']
+                target_type = info['target_type']
+
+            occurrences.append({
+                'origin': origin,
+                'visit': visit,
+                'branch': name,
+                'target': target,
+                'target_type': target_type,
+            })
+
+        self.occurrence_add(occurrences)
+
+    @db_transaction
+    def snapshot_get(self, snapshot_id, cur=None):
+        """Get the snapshot with the given id
+
+        Args:
+           snapshot_id (bytes): id of the snapshot
+        Returns:
+           dict: a snapshot with two keys:
+             id:: identifier for the snapshot
+             branches:: a list of branches contained by the snapshot
+
+        """
+        db = self.db
+
+        branches = {}
+        for branch in db.snapshot_get_by_id(snapshot_id, cur):
+            branch = dict(zip(db.snapshot_get_cols, branch))
+            del branch['snapshot_id']
+            name = branch.pop('name')
+            if branch == {'target': None, 'target_type': None}:
+                branch = None
+            branches[name] = branch
+
+        if branches:
+            return {'id': snapshot_id, 'branches': branches}
+
+        if db.snapshot_exists(snapshot_id, cur):
+            # empty snapshot
+            return {'id': snapshot_id, 'branches': {}}
+
+        return None
+
+    @db_transaction
+    def snapshot_get_by_origin_visit(self, origin, visit, cur=None):
+        """Get the snapshot for the given origin visit
+
+        Args:
+           origin (int): the origin identifier
+           visit (int): the visit identifier
+        Returns:
+           dict: a snapshot with two keys:
+             id:: identifier for the snapshot
+             branches:: a dictionary containing the snapshot branch information
+
+        """
+        db = self.db
+
+        snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
+
+        if snapshot_id:
+            return self.snapshot_get(snapshot_id, cur=cur)
+        else:
+            # compatibility code during the snapshot migration
+            origin_visit_info = self.origin_visit_get_by(origin, visit,
+                                                         cur=cur)
+            if origin_visit_info is None:
+                return None
+            ret = {'id': None}
+            ret['branches'] = origin_visit_info['occurrences']
+            return ret
+
+        return None
+
+    @db_transaction
     def occurrence_add(self, occurrences, cur=None):
         """Add occurrences to the storage
 

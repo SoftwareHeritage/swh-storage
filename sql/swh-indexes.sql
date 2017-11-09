@@ -153,6 +153,34 @@ create index concurrently on revision_history(parent_id);
 alter table revision_history add constraint revision_history_id_fkey foreign key (id) references revision(id) not valid;
 alter table revision_history validate constraint revision_history_id_fkey;
 
+-- snapshot
+create unique index concurrently snapshot_pkey on snapshot(object_id);
+alter table snapshot add primary key using index snapshot_pkey;
+
+create unique index concurrently on snapshot(id);
+
+-- snapshot_branch
+create unique index concurrently snapshot_branch_pkey on snapshot_branch(object_id);
+alter table snapshot_branch add primary key using index snapshot_branch_pkey;
+
+create unique index concurrently on snapshot_branch (target_type, target, name);
+alter table snapshot_branch add constraint snapshot_branch_target_check check ((target_type is null) = (target is null)) not valid;
+alter table snapshot_branch validate constraint snapshot_branch_target_check;
+alter table snapshot_branch add constraint snapshot_target_check check (target_type not in ('content', 'directory', 'revision', 'release', 'snapshot') or length(target) = 20) not valid;
+alter table snapshot_branch validate constraint snapshot_target_check;
+
+create unique index concurrently on snapshot_branch (name) where target_type is null and target is null;
+
+-- snapshot_branches
+create unique index concurrently snapshot_branches_pkey on snapshot_branches(snapshot_id, branch_id);
+alter table snapshot_branches add primary key using index snapshot_branches_pkey;
+
+alter table snapshot_branches add constraint snapshot_branches_snapshot_id_fkey foreign key (snapshot_id) references snapshot(object_id) not valid;
+alter table snapshot_branches validate constraint snapshot_branches_snapshot_id_fkey;
+
+alter table snapshot_branches add constraint snapshot_branches_branch_id_fkey foreign key (branch_id) references snapshot_branch(object_id) not valid;
+alter table snapshot_branches validate constraint snapshot_branches_branch_id_fkey;
+
 -- origin_visit
 create unique index concurrently origin_visit_pkey on origin_visit(origin, visit);
 alter table origin_visit add primary key using index origin_visit_pkey;
@@ -161,6 +189,9 @@ create index concurrently on origin_visit(date);
 
 alter table origin_visit add constraint origin_visit_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table origin_visit validate constraint origin_visit_origin_fkey;
+
+alter table origin_visit add constraint origin_visit_snapshot_id_fkey foreign key (snapshot_id) references snapshot(object_id) not valid;
+alter table origin_visit validate constraint origin_visit_snapshot_id_fkey;
 
 -- occurrence_history
 create unique index concurrently occurrence_history_pkey on occurrence_history(object_id);
@@ -179,7 +210,6 @@ alter table occurrence add primary key using index occurrence_pkey;
 
 alter table occurrence add constraint occurrence_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table occurrence validate constraint occurrence_origin_fkey;
-
 
 -- release
 create unique index concurrently release_pkey on release(id);

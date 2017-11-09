@@ -192,6 +192,22 @@ def occurrence_add():
     return encode_data(g.storage.occurrence_add(**decode_request(request)))
 
 
+@app.route('/snapshot/add', methods=['POST'])
+def snapshot_add():
+    return encode_data(g.storage.snapshot_add(**decode_request(request)))
+
+
+@app.route('/snapshot', methods=['POST'])
+def snapshot_get():
+    return encode_data(g.storage.snapshot_get(**decode_request(request)))
+
+
+@app.route('/snapshot/by_origin_visit', methods=['POST'])
+def snapshot_get_by_origin_visit():
+    return encode_data(g.storage.snapshot_get_by_origin_visit(
+        **decode_request(request)))
+
+
 @app.route('/origin/get', methods=['POST'])
 def origin_get():
     return encode_data(g.storage.origin_get(**decode_request(request)))
