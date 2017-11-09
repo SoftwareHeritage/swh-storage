@@ -457,20 +457,23 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
-        query_suffix = ''
         if last_visit:
-            query_suffix += ' AND %s < visit' % last_visit
-
-        if limit:
-            query_suffix += ' LIMIT %s' % limit
+            extra_condition = 'and visit > %s'
+            args = (origin_id, last_visit, limit)
+        else:
+            extra_condition = ''
+            args = (origin_id, limit)
 
         query = """\
         SELECT %s
         FROM origin_visit
-        WHERE origin=%%s %s""" % (
-            ', '.join(self.origin_visit_get_cols), query_suffix)
+        WHERE origin=%%s %s
+        order by date, visit asc
+        limit %%s""" % (
+            ', '.join(self.origin_visit_get_cols), extra_condition
+        )
 
-        cur.execute(query, (origin_id, ))
+        cur.execute(query, args)
 
         yield from cursor_to_bytes(cur)
 
