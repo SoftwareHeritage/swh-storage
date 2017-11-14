@@ -18,7 +18,7 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
 
     This class doesn't define any tests as we want identical
     functionality between local and remote storage. All the tests are
-    therefore defined in AbstractTestStorage.
+    therefore defined in CommonTestStorage.
     """
 
     def setUp(self):
