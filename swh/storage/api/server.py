@@ -351,6 +351,12 @@ def indexer_configuration_get():
         **decode_request(request)))
 
 
+@app.route('/indexer_configuration/add', methods=['POST'])
+def indexer_configuration_add():
+    return encode_data(g.storage.indexer_configuration_add(
+        **decode_request(request)))
+
+
 @app.route('/content_metadata/add', methods=['POST'])
 def content_metadata_add():
     return encode_data(

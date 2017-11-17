@@ -1032,6 +1032,16 @@ class Db(BaseDb):
     indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
                                   'tool_configuration']
 
+    @stored_procedure('swh_mktemp_indexer_configuration')
+    def mktemp_indexer_configuration(self, cur=None):
+        pass
+
+    def indexer_configuration_add_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("SELECT %s from swh_indexer_configuration_add()" % (
+            ','.join(self.indexer_configuration_cols), ))
+        yield from cursor_to_bytes(cur)
+
     def indexer_configuration_get(self, tool_name,
                                   tool_version, tool_configuration, cur=None):
         cur = self._cursor(cur)

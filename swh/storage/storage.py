@@ -1681,8 +1681,52 @@ class Storage():
         for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
             yield dict(zip(db.origin_metadata_get_cols, line))
 
+    @db_transaction_generator
+    def indexer_configuration_add(self, tools, cur=None):
+        """Add new tools to the storage.
+
+        Args:
+            tools ([dict]): List of dictionary representing tool to
+            insert in the db. Dictionary with the following keys::
+
+                tool_name (str): tool's name
+                tool_version (str): tool's version
+                tool_configuration (dict): tool's configuration (free form
+                                           dict)
+
+        Returns:
+            List of dict inserted in the db (holding the id key as
+            well).  The order of the list is not guaranteed to match
+            the order of the initial list.
+
+        """
+        db = self.db
+        db.mktemp_indexer_configuration(cur)
+        db.copy_to(tools, 'tmp_indexer_configuration',
+                   ['tool_name', 'tool_version', 'tool_configuration'],
+                   cur)
+
+        tools = db.indexer_configuration_add_from_temp(cur)
+        for line in tools:
+            yield dict(zip(db.indexer_configuration_cols, line))
+
     @db_transaction
     def indexer_configuration_get(self, tool, cur=None):
+        """Retrieve tool information.
+
+        Args:
+            tool (dict): Dictionary representing a tool with the
+            following keys::
+
+                tool_name (str): tool's name
+                tool_version (str): tool's version
+                tool_configuration (dict): tool's configuration (free form
+                                           dict)
+
+        Returns:
+            The identifier of the tool if it exists, None otherwise.
+
+        """
         db = self.db
         tool_conf = tool['tool_configuration']
         if isinstance(tool_conf, dict):

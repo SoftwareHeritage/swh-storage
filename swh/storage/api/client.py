@@ -239,6 +239,9 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_metadata_get(self, ids):
         return self.post('revision_metadata', {'ids': ids})
 
+    def indexer_configuration_add(self, tools):
+        return self.post('indexer_configuration/add', {'tools': tools})
+
     def indexer_configuration_get(self, tool):
         return self.post('indexer_configuration/data', {'tool': tool})
 

@@ -3134,6 +3134,60 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_metadatas, expected_metadatas_v2)
 
     @istest
+    def indexer_configuration_add(self):
+        tool = {
+            'tool_name': 'some-unknown-tool',
+            'tool_version': 'some-version',
+            'tool_configuration': {"debian-package": "some-package"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+        self.assertIsNone(actual_tool)  # does not exist
+
+        # add it
+        actual_tools = list(self.storage.indexer_configuration_add([tool]))
+
+        self.assertEquals(len(actual_tools), 1)
+        actual_tool = actual_tools[0]
+        self.assertIsNotNone(actual_tool)  # now it exists
+        new_id = actual_tool.pop('id')
+        self.assertEquals(actual_tool, tool)
+
+        actual_tools2 = list(self.storage.indexer_configuration_add([tool]))
+        actual_tool2 = actual_tools2[0]
+        self.assertIsNotNone(actual_tool2)  # now it exists
+        new_id2 = actual_tool2.pop('id')
+
+        self.assertEqual(new_id, new_id2)
+        self.assertEqual(actual_tool, actual_tool2)
+
+    @istest
+    def indexer_configuration_add_multiple(self):
+        tool = {
+            'tool_name': 'some-unknown-tool',
+            'tool_version': 'some-version',
+            'tool_configuration': {"debian-package": "some-package"},
+        }
+
+        actual_tools = list(self.storage.indexer_configuration_add([tool]))
+        self.assertEqual(len(actual_tools), 1)
+
+        new_tools = [tool, {
+            'tool_name': 'yet-another-tool',
+            'tool_version': 'version',
+            'tool_configuration': {},
+        }]
+
+        actual_tools = list(self.storage.indexer_configuration_add(new_tools))
+        self.assertEqual(len(actual_tools), 2)
+
+        # order not guaranteed, so we iterate over results to check
+        for tool in actual_tools:
+            _id = tool.pop('id')
+            self.assertIsNotNone(_id)
+            self.assertIn(tool, new_tools)
+
+    @istest
     def indexer_configuration_get_missing(self):
         tool = {
             'tool_name': 'unknown-tool',

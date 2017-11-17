@@ -131,6 +131,17 @@ as $$
 $$;
 
 
+create or replace function swh_mktemp_indexer_configuration()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_indexer_configuration (
+      like indexer_configuration including defaults
+    ) on commit drop;
+    alter table tmp_indexer_configuration drop column id;
+$$;
+
+
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
@@ -2009,6 +2020,30 @@ as $$
     order by discovery_date desc;
 $$;
 -- end origin_metadata functions
+
+-- add tmp_indexer_configuration entries to indexer_configuration,
+-- skipping duplicates if any.
+--
+-- operates in bulk: 0. create temporary tmp_indexer_configuration, 1. COPY to
+-- it, 2. call this function to insert and filtering out duplicates
+create or replace function swh_indexer_configuration_add()
+    returns setof indexer_configuration
+    language plpgsql
+as $$
+begin
+      insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+      select tool_name, tool_version, tool_configuration from tmp_indexer_configuration tmp
+      on conflict(tool_name, tool_version, tool_configuration) do nothing;
+
+      return query
+          select id, tool_name, tool_version, tool_configuration
+          from tmp_indexer_configuration join indexer_configuration
+              using(tool_name, tool_version, tool_configuration);
+
+      return;
+end
+$$;
+
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (
