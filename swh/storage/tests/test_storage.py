@@ -590,11 +590,15 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
 
     def fetch_tools(self):
         tools = {}
-        self.cursor.execute('''select tool_name, id, tool_version,
-                                      tool_configuration
-                               from indexer_configuration''')
+        self.cursor.execute('''
+            select tool_name, id, tool_version, tool_configuration
+            from indexer_configuration
+            order by id''')
         for row in self.cursor.fetchall():
-            tools[row[0]] = {
+            key = row[0]
+            while key in tools:
+                key = '_' + key
+            tools[key] = {
                 'id': row[1],
                 'name': row[0],
                 'version': row[2],
