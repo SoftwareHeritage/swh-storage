@@ -40,9 +40,6 @@ class RemoteStorage(SWHRemoteAPI):
     def content_find(self, content):
         return self.post('content/present', {'content': content})
 
-    def content_find_provenance(self, content):
-        return self.post('content/provenance', {'content': content})
-
     def directory_add(self, directories):
         return self.post('directory/add', {'directories': directories})
 
@@ -78,19 +75,6 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_shortlog(self, revisions, limit=None):
         return self.post('revision/shortlog', {'revisions': revisions,
                                                'limit': limit})
-
-    def cache_content_revision_add(self, revisions):
-        return self.post('cache/content_revision', {'revisions': revisions})
-
-    def cache_content_get_all(self):
-        return self.get('cache/contents')
-
-    def cache_content_get(self, content):
-        return self.post('cache/content', {'content': content})
-
-    def cache_revision_origin_add(self, origin, visit):
-        return self.post('cache/revision_origin', {'origin': origin,
-                                                   'visit': visit})
 
     def revision_add(self, revisions):
         return self.post('revision/add', {'revisions': revisions})
@@ -255,5 +239,34 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_metadata_get(self, ids):
         return self.post('revision_metadata', {'ids': ids})
 
+    def indexer_configuration_add(self, tools):
+        return self.post('indexer_configuration/add', {'tools': tools})
+
     def indexer_configuration_get(self, tool):
         return self.post('indexer_configuration/data', {'tool': tool})
+
+    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata):
+        return self.post('origin/metadata/add', {'origin_id': origin_id,
+                                                 'ts': ts,
+                                                 'provider': provider,
+                                                 'tool': tool,
+                                                 'metadata': metadata})
+
+    def origin_metadata_get_by(self, origin_id, provider_type=None):
+        return self.post('origin/metadata/get', {
+            'origin_id': origin_id,
+            'provider_type': provider_type
+        })
+
+    def metadata_provider_add(self, provider_name, provider_type, provider_url,
+                              metadata):
+        return self.post('provider/add', {'provider_name': provider_name,
+                                          'provider_type': provider_type,
+                                          'provider_url': provider_url,
+                                          'metadata': metadata})
+
+    def metadata_provider_get(self, provider_id):
+        return self.post('provider/get', {'provider_id': provider_id})
+
+    def metadata_provider_get_by(self, provider):
+        return self.post('provider/getby', {'provider': provider})

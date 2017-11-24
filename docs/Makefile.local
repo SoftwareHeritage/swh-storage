@@ -1,0 +1,9 @@
+sphinx/html: sql-autodoc
+sql-autodoc:
+	make -C ../sql/ doc
+
+.PHONY: sql-autodoc
+
+# Local Variables:
+# mode: makefile
+# End:
