@@ -131,6 +131,17 @@ as $$
 $$;
 
 
+create or replace function swh_mktemp_indexer_configuration()
+    returns void
+    language sql
+as $$
+    create temporary table tmp_indexer_configuration (
+      like indexer_configuration including defaults
+    ) on commit drop;
+    alter table tmp_indexer_configuration drop column id;
+$$;
+
+
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
@@ -1104,37 +1115,6 @@ as $$
 $$;
 
 
-create type content_provenance as (
-  content  sha1_git,
-  revision sha1_git,
-  origin   bigint,
-  visit    bigint,
-  path     unix_path
-);
-
-COMMENT ON TYPE content_provenance IS 'Provenance information on content';
-
-create or replace function swh_content_find_provenance(content_id sha1_git)
-    returns setof content_provenance
-    language sql
-as $$
-    with subscripted_paths as (
-        select content, revision_paths, generate_subscripts(revision_paths, 1) as s
-        from cache_content_revision
-        where content = content_id
-    ),
-    cleaned_up_contents as (
-        select content, revision_paths[s][1]::sha1_git as revision, revision_paths[s][2]::unix_path as path
-        from subscripted_paths
-    )
-    select cuc.content, cuc.revision, cro.origin, cro.visit, cuc.path
-    from cleaned_up_contents cuc
-    inner join cache_revision_origin cro using(revision)
-$$;
-
-COMMENT ON FUNCTION swh_content_find_provenance(sha1_git) IS 'Given a content, provide provenance information on it';
-
-
 create type object_found as (
     sha1_git   sha1_git,
     type       object_type,
@@ -1329,75 +1309,6 @@ as $$
 $$;
 
 
-create or replace function swh_cache_content_revision_add()
-    returns void
-    language plpgsql
-as $$
-declare
-  cnt bigint;
-  d sha1_git;
-begin
-  delete from tmp_bytea t where exists (select 1 from cache_content_revision_processed ccrp where t.id = ccrp.revision);
-
-  select count(*) from tmp_bytea into cnt;
-  if cnt <> 0 then
-    create temporary table tmp_ccr (
-        content sha1_git,
-        directory sha1_git,
-        path unix_path
-    ) on commit drop;
-
-    create temporary table tmp_ccrd (
-        directory sha1_git,
-        revision sha1_git
-    ) on commit drop;
-
-    insert into tmp_ccrd
-      select directory, id as revision
-      from tmp_bytea
-      inner join revision using(id);
-
-    insert into cache_content_revision_processed
-      select distinct id from tmp_bytea order by id;
-
-    for d in
-      select distinct directory from tmp_ccrd
-    loop
-      insert into tmp_ccr
-        select sha1_git as content, d as directory, name as path
-        from swh_directory_walk(d)
-        where type='file';
-    end loop;
-
-    with revision_contents as (
-      select content, false as blacklisted, array_agg(ARRAY[revision::bytea, path::bytea]) as revision_paths
-      from tmp_ccr
-      inner join tmp_ccrd using (directory)
-      group by content
-      order by content
-    ), updated_cache_entries as (
-      update cache_content_revision ccr
-      set revision_paths = ccr.revision_paths || rc.revision_paths
-      from revision_contents rc
-      where ccr.content = rc.content and ccr.blacklisted = false
-      returning ccr.content
-    ) insert into cache_content_revision
-        select * from revision_contents rc
-        where not exists (select 1 from updated_cache_entries uce where uce.content = rc.content)
-        order by rc.content
-      on conflict (content) do update
-        set revision_paths = cache_content_revision.revision_paths || EXCLUDED.revision_paths
-        where cache_content_revision.blacklisted = false;
-    return;
-  else
-    return;
-  end if;
-end
-$$;
-
-COMMENT ON FUNCTION swh_cache_content_revision_add() IS 'Cache the revisions from tmp_bytea into cache_content_revision';
-
-
 create or replace function swh_occurrence_by_origin_visit(origin_id bigint, visit_id bigint)
     returns setof occurrence
     language sql
@@ -1405,105 +1316,6 @@ create or replace function swh_occurrence_by_origin_visit(origin_id bigint, visi
 as $$
   select origin, branch, target, target_type from occurrence_history
   where origin = origin_id and visit_id = ANY(visits);
-$$;
-
-create type cache_content_signature as (
-  sha1      sha1,
-  sha1_git  sha1_git,
-  sha256    sha256,
-  revision_paths  bytea[][]
-);
-
-create or replace function swh_cache_content_get_all()
-       returns setof cache_content_signature
-       language sql
-       stable
-as $$
-    SELECT c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
-    FROM cache_content_revision ccr
-    INNER JOIN content as c
-    ON ccr.content = c.sha1_git
-$$;
-
-COMMENT ON FUNCTION swh_cache_content_get_all() IS 'Retrieve batch of contents';
-
-
-create or replace function swh_cache_content_get(target sha1_git)
-       returns setof cache_content_signature
-       language sql
-       stable
-as $$
-    SELECT c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
-    FROM cache_content_revision ccr
-    INNER JOIN content as c
-    ON ccr.content = c.sha1_git
-    where ccr.content = target
-$$;
-
-COMMENT ON FUNCTION swh_cache_content_get(sha1_git) IS 'Retrieve cache content information';
-
-create or replace function swh_revision_from_target(target sha1_git, target_type object_type)
-    returns sha1_git
-    language plpgsql
-as $$
-#variable_conflict use_variable
-begin
-   while target_type = 'release' loop
-       select r.target, r.target_type from release r where r.id = target into target, target_type;
-   end loop;
-   if target_type = 'revision' then
-       return target;
-   else
-       return null;
-   end if;
-end
-$$;
-
-create or replace function swh_cache_revision_origin_add(origin_id bigint, visit_id bigint)
-    returns setof sha1_git
-    language plpgsql
-as $$
-declare
-    visit_exists bool;
-begin
-  select true from origin_visit where origin = origin_id and visit = visit_id into visit_exists;
-
-  if not visit_exists then
-      return;
-  end if;
-
-  visit_exists := null;
-
-  select true from cache_revision_origin where origin = origin_id and visit = visit_id limit 1 into visit_exists;
-
-  if visit_exists then
-      return;
-  end if;
-
-  return query with new_pointed_revs as (
-    select swh_revision_from_target(target, target_type) as id
-    from swh_occurrence_by_origin_visit(origin_id, visit_id)
-  ),
-  old_pointed_revs as (
-    select swh_revision_from_target(target, target_type) as id
-    from swh_occurrence_by_origin_visit(origin_id,
-      (select visit from origin_visit where origin = origin_id and visit < visit_id order by visit desc limit 1))
-  ),
-  new_revs as (
-    select distinct id
-    from swh_revision_list(array(select id::bytea from new_pointed_revs where id is not null))
-  ),
-  old_revs as (
-    select distinct id
-    from swh_revision_list(array(select id::bytea from old_pointed_revs where id is not null))
-  )
-  insert into cache_revision_origin (revision, origin, visit)
-  select n.id as revision, origin_id, visit_id from new_revs n
-    where not exists (
-    select 1 from old_revs o
-    where o.id = n.id)
-   returning revision;
-end
 $$;
 
 -- create a temporary table for content_ctags tmp_content_mimetype_missing,
@@ -2166,6 +1978,72 @@ $$;
 
 comment on function swh_revision_metadata_get() is 'List revision''s metadata';
 -- end revision_metadata functions
+-- origin_metadata functions
+create type origin_metadata_signature as (
+    id bigint,
+    origin_id bigint,
+    discovery_date timestamptz,
+    tool_id bigint,
+    metadata jsonb,
+    provider_id integer,
+    provider_name text,
+    provider_type text,
+    provider_url  text
+);
+create or replace function swh_origin_metadata_get_by_origin(
+       origin integer)
+    returns setof origin_metadata_signature
+    language sql
+    stable
+as $$
+    select om.id as id, origin_id, discovery_date, tool_id, om.metadata,
+           mp.id as provider_id, provider_name, provider_type, provider_url
+    from origin_metadata as om
+    inner join metadata_provider mp on om.provider_id = mp.id
+    where om.origin_id = origin
+    order by discovery_date desc;
+$$;
+
+create or replace function swh_origin_metadata_get_by_provider_type(
+       origin integer,
+       type text)
+    returns setof origin_metadata_signature
+    language sql
+    stable
+as $$
+    select om.id as id, origin_id, discovery_date, tool_id, om.metadata,
+           mp.id as provider_id, provider_name, provider_type, provider_url
+    from origin_metadata as om
+    inner join metadata_provider mp on om.provider_id = mp.id
+    where om.origin_id = origin
+    and mp.provider_type = type
+    order by discovery_date desc;
+$$;
+-- end origin_metadata functions
+
+-- add tmp_indexer_configuration entries to indexer_configuration,
+-- skipping duplicates if any.
+--
+-- operates in bulk: 0. create temporary tmp_indexer_configuration, 1. COPY to
+-- it, 2. call this function to insert and filtering out duplicates
+create or replace function swh_indexer_configuration_add()
+    returns setof indexer_configuration
+    language plpgsql
+as $$
+begin
+      insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+      select tool_name, tool_version, tool_configuration from tmp_indexer_configuration tmp
+      on conflict(tool_name, tool_version, tool_configuration) do nothing;
+
+      return query
+          select id, tool_name, tool_version, tool_configuration
+          from tmp_indexer_configuration join indexer_configuration
+              using(tool_name, tool_version, tool_configuration);
+
+      return;
+end
+$$;
+
 
 -- simple counter mapping a textual label to an integer value
 create type counter as (

@@ -5,7 +5,7 @@ create unique index concurrently on content(sha1_git);
 create index concurrently on content(sha256);
 create index concurrently on content(blake2s256);
 create index concurrently on content(ctime);  -- TODO use a BRIN index here (postgres >= 9.5)
-create index concurrently on content(object_id);
+create unique index concurrently on content(object_id);
 
 alter table content add primary key using index content_pkey;
 
@@ -76,11 +76,11 @@ alter table origin validate constraint origin_project_fkey;
 
 alter table skipped_content add constraint skipped_content_sha1_sha1_git_sha256_key unique (sha1, sha1_git, sha256);
 
-create unique index concurrently on skipped_content(sha1);
-create unique index concurrently on skipped_content(sha1_git);
+create index concurrently on skipped_content(sha1);
+create index concurrently on skipped_content(sha1_git);
 create index concurrently on skipped_content(sha256);
 create index concurrently on skipped_content(blake2s256);
-create index concurrently on skipped_content(object_id);
+create unique index concurrently on skipped_content(object_id);
 
 alter table skipped_content add constraint skipped_content_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table skipped_content validate constraint skipped_content_origin_fkey;
@@ -101,7 +101,7 @@ alter table directory add primary key using index directory_pkey;
 create index concurrently on directory using gin (dir_entries);
 create index concurrently on directory using gin (file_entries);
 create index concurrently on directory using gin (rev_entries);
-create index concurrently on directory(object_id);
+create unique index concurrently on directory(object_id);
 
 -- directory_entry_dir
 
@@ -142,7 +142,7 @@ alter table revision add constraint revision_committer_fkey foreign key (committ
 alter table revision validate constraint revision_committer_fkey;
 
 create index concurrently on revision(directory);
-create index concurrently on revision(object_id);
+create unique index concurrently on revision(object_id);
 
 -- revision_history
 create unique index concurrently revision_history_pkey on revision_history(id, parent_rank);
@@ -186,36 +186,10 @@ create unique index concurrently release_pkey on release(id);
 alter table release add primary key using index release_pkey;
 
 create index concurrently on release(target, target_type);
-create index concurrently on release(object_id);
+create unique index concurrently on release(object_id);
 
 alter table release add constraint release_author_fkey foreign key (author) references person(id) not valid;
 alter table release validate constraint release_author_fkey;
-
--- cache_content_revision
-create unique index concurrently cache_content_revision_pkey on cache_content_revision(content);
-alter table cache_content_revision add primary key using index cache_content_revision_pkey;
-
-alter table cache_content_revision add constraint cache_content_revision_content_fkey foreign key (content) references content(sha1_git) not valid;
-alter table cache_content_revision validate constraint cache_content_revision_content_fkey;
-
--- cache_content_revision_processed
-create unique index concurrently cache_content_revision_processed_pkey on cache_content_revision_processed(revision);
-alter table cache_content_revision_processed add primary key using index cache_content_revision_processed_pkey;
-
-alter table cache_content_revision_processed add constraint cache_content_revision_processed_revision_fkey foreign key (revision) references revision(id) not valid;
-alter table cache_content_revision_processed validate constraint cache_content_revision_processed_revision_fkey;
-
--- cache_revision_origin
-create unique index concurrently cache_revision_origin_pkey on cache_revision_origin(revision, origin, visit);
-alter table cache_revision_origin add primary key using index cache_revision_origin_pkey;
-
-alter table cache_revision_origin add constraint cache_revision_origin_revision_fkey foreign key (revision) references revision(id) not valid;
-alter table cache_revision_origin validate constraint cache_revision_origin_revision_fkey;
-
-alter table cache_revision_origin add constraint cache_revision_origin_origin_fkey foreign key (origin, visit) references origin_visit(origin, visit) not valid;
-alter table cache_revision_origin validate constraint cache_revision_origin_origin_fkey;
-
-create index concurrently on cache_revision_origin(revision);
 
 -- indexer_configuration
 create unique index concurrently indexer_configuration_pkey on indexer_configuration(id);
@@ -293,6 +267,34 @@ alter table revision_metadata validate constraint revision_metadata_id_fkey;
 
 alter table revision_metadata add constraint revision_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
 alter table revision_metadata validate constraint revision_metadata_indexer_configuration_id_fkey;
+
+-- metadata_provider
+create unique index concurrently metadata_provider_pkey on metadata_provider(id);
+alter table metadata_provider add primary key using index metadata_provider_pkey;
+
+create index concurrently on metadata_provider(provider_name, provider_url);
+
+-- origin_metadata
+create unique index concurrently origin_metadata_pkey on origin_metadata(id);
+alter table origin_metadata add primary key using index origin_metadata_pkey;
+
+create index concurrently on origin_metadata(origin_id, provider_id, tool_id);
+
+alter table origin_metadata add constraint origin_metadata_origin_fkey foreign key (origin_id) references origin(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_origin_fkey;
+
+alter table origin_metadata add constraint origin_metadata_provider_fkey foreign key (provider_id) references metadata_provider(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_provider_fkey;
+
+alter table origin_metadata add constraint origin_metadata_tool_fkey foreign key (tool_id) references indexer_configuration(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_tool_fkey;
+
+-- origin_metadata_translation
+create unique index concurrently origin_metadata_translation_pkey on origin_metadata_translation(id, indexer_configuration_id);
+alter table origin_metadata_translation add primary key using index origin_metadata_translation_pkey;
+
+alter table origin_metadata_translation add constraint origin_metadata_indexer_configuration_id_fkey foreign key (indexer_configuration_id) references indexer_configuration(id) not valid;
+alter table origin_metadata_translation validate constraint origin_metadata_indexer_configuration_id_fkey;
 
 -- object_counts
 create unique index concurrently object_counts_pkey on object_counts(object_type);

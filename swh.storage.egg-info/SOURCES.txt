@@ -19,9 +19,11 @@ debian/rules
 debian/source/format
 docs/.gitignore
 docs/Makefile
-docs/archiver-blueprint.md
+docs/Makefile.local
+docs/archiver-blueprint.rst
 docs/conf.py
 docs/index.rst
+docs/sql-storage.rst
 docs/_static/.placeholder
 docs/_templates/.placeholder
 sql/.gitignore
@@ -158,6 +160,10 @@ sql/upgrades/106.sql
 sql/upgrades/107.sql
 sql/upgrades/108.sql
 sql/upgrades/109.sql
+sql/upgrades/110.sql
+sql/upgrades/111.sql
+sql/upgrades/112.sql
+sql/upgrades/113.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -174,8 +180,9 @@ swh/storage/storage.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
 swh/storage/api/server.py
-swh/storage/provenance/tasks.py
+swh/storage/schemata/__init__.py
 swh/storage/schemata/distribution.py
+swh/storage/tests/__init__.py
 swh/storage/tests/server_testing.py
 swh/storage/tests/storage_testing.py
 swh/storage/tests/test_api_client.py

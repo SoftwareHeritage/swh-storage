@@ -17,7 +17,6 @@ from nose.plugins.attrib import attr
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.storage.db import cursor_to_bytes
 from swh.core.tests.db_testing import DbTestFixture
 from swh.storage.tests.storage_testing import StorageTestFixture
 
@@ -335,6 +334,47 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'type': 'git',
         }
 
+        self.provider = {
+            'name': 'hal',
+            'type': 'deposit-client',
+            'url': 'http:///hal/inria',
+            'metadata': {
+                'location': 'France'
+            }
+        }
+
+        self.metadata_tool = {
+            'tool_name': 'swh-deposit',
+            'tool_version': '0.0.1',
+            'tool_configuration': {
+                'sword_version': '2'
+            }
+        }
+
+        self.origin_metadata = {
+            'origin': self.origin,
+            'discovery_date': datetime.datetime(2015, 1, 1, 23, 0, 0,
+                                                tzinfo=datetime.timezone.utc),
+            'provider': self.provider,
+            'tool': 'swh-deposit',
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+             }
+        }
+
+        self.origin_metadata2 = {
+            'origin': self.origin,
+            'discovery_date': datetime.datetime(2017, 1, 1, 23, 0, 0,
+                                                tzinfo=datetime.timezone.utc),
+            'provider': self.provider,
+            'tool': 'swh-deposit',
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+             }
+        }
+
         self.date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
@@ -550,11 +590,15 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
 
     def fetch_tools(self):
         tools = {}
-        self.cursor.execute('''select tool_name, id, tool_version,
-                                      tool_configuration
-                               from indexer_configuration''')
+        self.cursor.execute('''
+            select tool_name, id, tool_version, tool_configuration
+            from indexer_configuration
+            order by id''')
         for row in self.cursor.fetchall():
-            tools[row[0]] = {
+            key = row[0]
+            while key in tools:
+                key = '_' + key
+            tools[key] = {
                 'id': row[1],
                 'name': row[0],
                 'version': row[2],
@@ -833,186 +877,6 @@ class CommonTestStorage(BaseTestStorage):
 
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
-
-    def cache_content_revision_objects(self):
-        self.storage.content_add([self.cont, self.cont2, self.cont3])
-        directory = {
-            'id': b'4\x013\x422\x531\x000\xf51\xe62\xa73\xff7\xc3\xa90',
-            'entries': [
-                {
-                    'name': b'bar',
-                    'type': 'file',
-                    'target': self.cont2['sha1_git'],
-                    'perms': from_disk.DentryPerms.content,
-                },
-                {
-                    'name': b'foo',
-                    'type': 'file',
-                    'target': self.cont['sha1_git'],
-                    'perms': from_disk.DentryPerms.content,
-                },
-                {
-                    'name': b'bar\xc3',
-                    'type': 'dir',
-                    'target': b'12345678901234567890',
-                    'perms': from_disk.DentryPerms.directory,
-                },
-            ],
-        }
-        directory2 = copy.deepcopy(directory)
-        directory2['id'] = (directory2['id'][:-1] +
-                            bytes([(directory2['id'][-1] + 1) % 256]))
-        directory2['entries'][1] = {
-            'name': b'foo',
-            'type': 'file',
-            'target': self.cont3['sha1_git'],
-            'perms': from_disk.DentryPerms.content,
-        }
-
-        self.storage.directory_add([directory, directory2])
-        revision = self.revision.copy()
-        revision['directory'] = directory['id']
-        revision2 = copy.deepcopy(revision)
-        revision2['parents'] = [revision['id']]
-        revision2['directory'] = directory2['id']
-        revision2['id'] = (revision2['id'][:-1] +
-                           bytes([(revision2['id'][-1] + 1) % 256]))
-        self.storage.revision_add([revision, revision2])
-        return (directory, directory2, revision, revision2)
-
-    @istest
-    def cache_content_revision_add(self):
-        # Create a real arborescence tree (contents + directory) and a
-        # revision targeting that directory.
-        # Assert the cache is empty for that revision
-        # Then create that revision
-        # Trigger the cache population for that revision
-        # Assert the cache now contains information for that revision
-        # Trigger again the cache population for that revision
-        # Assert the cache is not modified
-
-        # given ()
-        (directory, directory2,
-         revision, revision2) = self.cache_content_revision_objects()
-
-        # assert nothing in cache yet
-        count_query = '''select count(*)
-                         from cache_content_revision'''
-        self.cursor.execute(count_query)
-        ret = self.cursor.fetchone()
-        self.assertEqual(ret, (0, ))
-
-        # when, triggered the first time, we cache the revision
-        self.storage.cache_content_revision_add([revision['id']])
-        # the second time, we do nothing as this is already done
-        self.storage.cache_content_revision_add([revision['id']])
-
-        # then
-        self.cursor.execute(count_query)
-        ret = self.cursor.fetchone()
-        # only 2 contents exists for that revision (the second call to
-        # revision_cache discards as the revision is already cached)
-        self.assertEqual(ret, (2, ))
-
-        self.cursor.execute('select * from cache_content_revision')
-        ret = self.cursor.fetchall()
-
-        expected_cache_entries = [
-            (directory['entries'][0]['target'], False,
-             [[revision['id'], directory['entries'][0]['name']]]),
-            (directory['entries'][1]['target'], False,
-             [[revision['id'], directory['entries'][1]['name']]])
-        ]
-        for i, expected_entry in enumerate(expected_cache_entries):
-            ret_entry = (ret[i][0].tobytes(), ret[i][1],
-                         [[ret[i][2][0][0].tobytes(),
-                           ret[i][2][0][1].tobytes()]])
-            self.assertEquals(ret_entry, expected_entry)
-
-    @istest
-    def cache_content_revision_add_twice(self):
-        # given ()
-        (directory, directory2,
-         revision, revision2) = self.cache_content_revision_objects()
-
-        # assert nothing in cache yet
-        count_query = '''select count(*)
-                         from cache_content_revision'''
-        self.cursor.execute(count_query)
-        ret = self.cursor.fetchone()
-        self.assertEqual(ret, (0, ))
-
-        # when, triggered the first time, we cache the revision
-        self.storage.cache_content_revision_add([revision['id']])
-        # the second time, we do nothing as this is already done
-        self.storage.cache_content_revision_add([revision2['id']])
-
-        # then
-        self.cursor.execute('select * from cache_content_revision')
-        cache_entries = {
-            content.tobytes(): [[rev.tobytes(), path.tobytes()]
-                                for rev, path in rev_paths]
-            for content, blacklisted, rev_paths in self.cursor.fetchall()
-        }
-
-        self.assertEquals(len(cache_entries), 3)
-        self.assertEquals(len(cache_entries[self.cont['sha1_git']]), 1)
-        self.assertEquals(len(cache_entries[self.cont2['sha1_git']]), 2)
-        self.assertEquals(len(cache_entries[self.cont3['sha1_git']]), 1)
-
-    @istest
-    def cache_content_get_all(self):
-        # given
-        (directory, directory2,
-         revision, revision2) = self.cache_content_revision_objects()
-
-        # assert nothing in cache yet
-        test_query = '''select sha1, sha1_git, sha256, ccr.revision_paths
-                        from cache_content_revision ccr
-                        inner join content c on c.sha1_git=ccr.content'''
-
-        self.storage.cache_content_revision_add([revision['id']])
-        self.cursor.execute(test_query, (revision['id'],))
-        ret = list(cursor_to_bytes(self.cursor))
-
-        self.assertEqual(len(ret), 2)
-
-        expected_contents = []
-        for entry in ret:
-            expected_contents.append(dict(
-                zip(['sha1', 'sha1_git', 'sha256', 'revision_paths'], entry)))
-
-        # 1. default filters gives everything
-        actual_cache_contents = list(self.storage.cache_content_get_all())
-
-        self.assertEquals(actual_cache_contents, expected_contents)
-
-    @istest
-    def cache_content_get(self):
-        # given
-        (directory, directory2,
-         revision, revision2) = self.cache_content_revision_objects()
-
-        # assert nothing in cache yet
-        test_query = '''select c.sha1, c.sha1_git, c.sha256, ccr.revision_paths
-                        from cache_content_revision ccr
-                        inner join content c on c.sha1_git=ccr.content
-                        where ccr.content=%s'''
-
-        self.storage.cache_content_revision_add([revision['id']])
-        self.cursor.execute(test_query, (self.cont2['sha1_git'],))
-        ret = list(cursor_to_bytes(self.cursor))[0]
-
-        self.assertIsNotNone(ret)
-
-        expected_content = dict(
-            zip(['sha1', 'sha1_git', 'sha256', 'revision_paths'], ret))
-
-        # when
-        actual_cache_content = self.storage.cache_content_get(self.cont2)
-
-        # then
-        self.assertEquals(actual_cache_content, expected_content)
 
     @istest
     def revision_log(self):
@@ -1696,112 +1560,6 @@ class CommonTestStorage(BaseTestStorage):
         })
         self.assertEquals(len(actual_occurrence), 1)
         self.assertEquals(actual_occurrence[0], expected_occurrence)
-
-    def _trigger_cache_provenance(self, origin_visit):
-        """Trigger cache population for cache_content_revision.
-
-        """
-        ret = list(self.storage.cache_revision_origin_add(
-                origin_visit['origin'],
-                origin_visit['visit'],
-        ))
-
-        for revision_id in ret:
-            self.storage.cache_content_revision_add([revision_id])
-
-        return ret
-
-    @istest
-    def content_find_provenance_with_present_content(self):
-        # 1. with something to find
-        # given
-        origin_id = self.storage.origin_add_one(self.origin2)
-        self.storage.content_add([self.cont2])
-        self.storage.directory_add([self.dir2])  # point to self.cont
-        self.storage.revision_add([self.revision3])  # points to self.dir
-
-        occurrence = self.occurrence3.copy()
-        occurrence['target'] = self.revision3['id']
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit2)
-        occurrence.update({
-            'origin': origin_id,
-            'visit': origin_visit1['visit'],
-        })
-
-        self.storage.occurrence_add([occurrence])
-
-        # Trigger cache population for cache_content_revision
-        cached_revisions = self._trigger_cache_provenance(origin_visit1)
-
-        self.assertIn(self.revision3['id'], cached_revisions)
-
-        # when
-        occs = list(self.storage.content_find_provenance(
-            {'sha1': self.cont2['sha1']}))
-
-        # then
-        self.assertEquals(len(occs), 1)
-        self.assertEquals(occs[0]['origin'], origin_visit1['origin'])
-        self.assertEquals(occs[0]['visit'], origin_visit1['visit'])
-        self.assertEquals(occs[0]['revision'], self.revision3['id'])
-        self.assertEquals(occs[0]['path'], self.dir2['entries'][0]['name'])
-
-        occs2 = list(self.storage.content_find_provenance(
-            {'sha1_git': self.cont2['sha1_git']}))
-
-        self.assertEquals(len(occs2), 1)
-        self.assertEquals(occs2[0]['origin'], origin_visit1['origin'])
-        self.assertEquals(occs2[0]['visit'], origin_visit1['visit'])
-        self.assertEquals(occs2[0]['revision'], self.revision3['id'])
-        self.assertEquals(occs2[0]['path'], self.dir2['entries'][0]['name'])
-
-        occs3 = list(self.storage.content_find_provenance(
-            {'sha256': self.cont2['sha256']}))
-
-        self.assertEquals(len(occs3), 1)
-        self.assertEquals(occs3[0]['origin'], origin_visit1['origin'])
-        self.assertEquals(occs3[0]['visit'], origin_visit1['visit'])
-        self.assertEquals(occs3[0]['revision'], self.revision3['id'])
-        self.assertEquals(occs3[0]['path'], self.dir2['entries'][0]['name'])
-
-    @istest
-    def content_find_provenance_with_non_present_content(self):
-        # 1. with something that does not exist
-        missing_cont = self.missing_cont
-
-        occ = list(self.storage.content_find_provenance(
-            {'sha1': missing_cont['sha1']}))
-
-        self.assertEquals(occ, [],
-                          "Content does not exist so no occurrence")
-
-        # 2. with something that does not exist
-        occ = list(self.storage.content_find_provenance(
-            {'sha1_git': missing_cont['sha1_git']}))
-
-        self.assertEquals(occ, [],
-                          "Content does not exist so no occurrence")
-
-        # 3. with something that does not exist
-        occ = list(self.storage.content_find_provenance(
-            {'sha256': missing_cont['sha256']}))
-
-        self.assertEquals(occ, [],
-                          "Content does not exist so no occurrence")
-
-    @istest
-    def content_find_occurrence_bad_input(self):
-        # 1. with bad input
-        with self.assertRaises(ValueError) as cm:
-            list(self.storage.content_find_provenance({}))  # empty is bad
-        self.assertIn('content keys', cm.exception.args[0])
-
-        # 2. with bad input
-        with self.assertRaises(ValueError) as cm:
-            list(self.storage.content_find_provenance(
-                {'unknown-sha1': 'something'}))  # not the right key
-        self.assertIn('content keys', cm.exception.args[0])
 
     @istest
     def entity_get_from_lister_metadata(self):
@@ -3376,6 +3134,60 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_metadatas, expected_metadatas_v2)
 
     @istest
+    def indexer_configuration_add(self):
+        tool = {
+            'tool_name': 'some-unknown-tool',
+            'tool_version': 'some-version',
+            'tool_configuration': {"debian-package": "some-package"},
+        }
+
+        actual_tool = self.storage.indexer_configuration_get(tool)
+        self.assertIsNone(actual_tool)  # does not exist
+
+        # add it
+        actual_tools = list(self.storage.indexer_configuration_add([tool]))
+
+        self.assertEquals(len(actual_tools), 1)
+        actual_tool = actual_tools[0]
+        self.assertIsNotNone(actual_tool)  # now it exists
+        new_id = actual_tool.pop('id')
+        self.assertEquals(actual_tool, tool)
+
+        actual_tools2 = list(self.storage.indexer_configuration_add([tool]))
+        actual_tool2 = actual_tools2[0]
+        self.assertIsNotNone(actual_tool2)  # now it exists
+        new_id2 = actual_tool2.pop('id')
+
+        self.assertEqual(new_id, new_id2)
+        self.assertEqual(actual_tool, actual_tool2)
+
+    @istest
+    def indexer_configuration_add_multiple(self):
+        tool = {
+            'tool_name': 'some-unknown-tool',
+            'tool_version': 'some-version',
+            'tool_configuration': {"debian-package": "some-package"},
+        }
+
+        actual_tools = list(self.storage.indexer_configuration_add([tool]))
+        self.assertEqual(len(actual_tools), 1)
+
+        new_tools = [tool, {
+            'tool_name': 'yet-another-tool',
+            'tool_version': 'version',
+            'tool_configuration': {},
+        }]
+
+        actual_tools = list(self.storage.indexer_configuration_add(new_tools))
+        self.assertEqual(len(actual_tools), 2)
+
+        # order not guaranteed, so we iterate over results to check
+        for tool in actual_tools:
+            _id = tool.pop('id')
+            self.assertIsNotNone(_id)
+            self.assertIn(tool, new_tools)
+
+    @istest
     def indexer_configuration_get_missing(self):
         tool = {
             'tool_name': 'unknown-tool',
@@ -3428,6 +3240,211 @@ class CommonTestStorage(BaseTestStorage):
         expected_tool['id'] = actual_tool['id']
 
         self.assertEqual(expected_tool, actual_tool)
+
+    @istest
+    def metadata_provider_get_by(self):
+        # given
+        no_provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                      })
+        self.assertIsNone(no_provider)
+        # when
+        provider_id = self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+
+        actual_provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                           })
+        # then
+        self.assertTrue(provider_id, actual_provider['id'])
+
+    @istest
+    def origin_metadata_add(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])[0]
+        origin_metadata0 = list(self.storage.origin_metadata_get_by(origin_id))
+        self.assertTrue(len(origin_metadata0) == 0)
+
+        self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+        provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                      })
+        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+
+        # when adding for the same origin 2 metadatas
+        o_m1 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata['discovery_date'],
+                    provider['id'],
+                    tool['id'],
+                    self.origin_metadata['metadata'])
+        actual_om1 = list(self.storage.origin_metadata_get_by(origin_id))
+        # then
+        self.assertEqual(actual_om1[0]['id'], o_m1)
+        self.assertEqual(len(actual_om1), 1)
+        self.assertEqual(actual_om1[0]['origin_id'], origin_id)
+
+    @istest
+    def origin_metadata_get(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])[0]
+        origin_id2 = self.storage.origin_add([self.origin2])[0]
+
+        self.storage.metadata_provider_add(self.provider['name'],
+                                           self.provider['type'],
+                                           self.provider['url'],
+                                           self.provider['metadata'])
+        provider = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                   })
+        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+        # when adding for the same origin 2 metadatas
+        o_m1 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata['discovery_date'],
+                    provider['id'],
+                    tool['id'],
+                    self.origin_metadata['metadata'])
+        o_m2 = self.storage.origin_metadata_add(
+                    origin_id2,
+                    self.origin_metadata2['discovery_date'],
+                    provider['id'],
+                    tool['id'],
+                    self.origin_metadata2['metadata'])
+        o_m3 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata2['discovery_date'],
+                    provider['id'],
+                    tool['id'],
+                    self.origin_metadata2['metadata'])
+        all_metadatas = list(self.storage.origin_metadata_get_by(origin_id))
+        metadatas_for_origin2 = list(self.storage.origin_metadata_get_by(
+                                          origin_id2))
+        expected_results = [{
+            'origin_id': origin_id,
+            'discovery_date': datetime.datetime(
+                                2017, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m3,
+            'provider_id': provider['id'],
+            'provider_name': 'hal',
+            'provider_type': 'deposit-client',
+            'provider_url': 'http:///hal/inria',
+            'tool_id': tool['id']
+        }, {
+            'origin_id': origin_id,
+            'discovery_date': datetime.datetime(
+                                2015, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m1,
+            'provider_id': provider['id'],
+            'provider_name': 'hal',
+            'provider_type': 'deposit-client',
+            'provider_url': 'http:///hal/inria',
+            'tool_id': tool['id']
+        }]
+
+        # then
+        self.assertEqual(len(all_metadatas), 2)
+        self.assertEqual(len(metadatas_for_origin2), 1)
+        self.assertEqual(metadatas_for_origin2[0]['id'], o_m2)
+        self.assertEqual(all_metadatas, expected_results)
+
+    @istest
+    def origin_metadata_get_by_provider_type(self):
+        # given
+        origin_id = self.storage.origin_add([self.origin])[0]
+        origin_id2 = self.storage.origin_add([self.origin2])[0]
+        self.storage.metadata_provider_add(
+                           self.provider['name'],
+                           self.provider['type'],
+                           self.provider['url'],
+                           self.provider['metadata'])
+        provider1 = self.storage.metadata_provider_get_by({
+                            'provider_name': self.provider['name'],
+                            'provider_url': self.provider['url']
+                   })
+
+        self.storage.metadata_provider_add(
+                            'swMATH',
+                            'registry',
+                            'http://www.swmath.org/',
+                            {'email': 'contact@swmath.org',
+                             'license': 'All rights reserved'})
+        provider2 = self.storage.metadata_provider_get_by({
+                            'provider_name': 'swMATH',
+                            'provider_url': 'http://www.swmath.org/'
+                   })
+
+        # using the only tool now inserted in the data.sql, but for this
+        # provider should be a crawler tool (not yet implemented)
+        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+
+        # when adding for the same origin 2 metadatas
+        o_m1 = self.storage.origin_metadata_add(
+                    origin_id,
+                    self.origin_metadata['discovery_date'],
+                    provider1['id'],
+                    tool['id'],
+                    self.origin_metadata['metadata'])
+        o_m2 = self.storage.origin_metadata_add(
+                    origin_id2,
+                    self.origin_metadata2['discovery_date'],
+                    provider2['id'],
+                    tool['id'],
+                    self.origin_metadata2['metadata'])
+        provider_type = 'registry'
+        m_by_provider = list(self.storage.
+                             origin_metadata_get_by(
+                                origin_id2,
+                                provider_type))
+        expected_results = [{
+            'origin_id': origin_id2,
+            'discovery_date': datetime.datetime(
+                                2017, 1, 2, 0, 0,
+                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
+                                    offset=60,
+                                    name=None)),
+            'metadata': {
+                'name': 'test_origin_metadata',
+                'version': '0.0.1'
+            },
+            'id': o_m2,
+            'provider_id': provider2['id'],
+            'provider_name': 'swMATH',
+            'provider_type': provider_type,
+            'provider_url': 'http://www.swmath.org/',
+            'tool_id': tool['id']
+        }]
+        # then
+
+        self.assertEqual(len(m_by_provider), 1)
+        self.assertEqual(m_by_provider, expected_results)
+        self.assertEqual(m_by_provider[0]['id'], o_m2)
+        self.assertIsNotNone(o_m1)
 
 
 class TestLocalStorage(CommonTestStorage, unittest.TestCase):
