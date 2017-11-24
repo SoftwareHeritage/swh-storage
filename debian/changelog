@@ -1,3 +1,15 @@
+swh-storage (0.0.93-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.93
+  * swh.storage: Open indexer_configuration_add endpoint
+  * swh-data: Update content mimetype indexer configuration
+  * origin_visit_get: make order repeatable
+  * db: Make unique indices actually unique and vice versa
+  * Add origin_metadata endpoints (add, get, etc...)
+  * cleanup: Remove unused content provenance cache tables
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 24 Nov 2017 11:14:11 +0100
+
 swh-storage (0.0.92-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.92
