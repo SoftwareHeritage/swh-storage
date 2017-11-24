@@ -71,12 +71,6 @@ def content_find():
     return encode_data(g.storage.content_find(**decode_request(request)))
 
 
-@app.route('/content/provenance', methods=['POST'])
-def content_find_provenance():
-    res = g.storage.content_find_provenance(**decode_request(request))
-    return encode_data(res)
-
-
 @app.route('/content/add', methods=['POST'])
 def content_add():
     return encode_data(g.storage.content_add(**decode_request(request)))
@@ -159,29 +153,6 @@ def revision_shortlog():
 @app.route('/revision/missing', methods=['POST'])
 def revision_missing():
     return encode_data(g.storage.revision_missing(**decode_request(request)))
-
-
-@app.route('/cache/content_revision', methods=['POST'])
-def cache_content_revision_add():
-    return encode_data(g.storage.cache_content_revision_add(
-        **decode_request(request)))
-
-
-@app.route('/cache/contents', methods=['GET'])
-def cache_content_get_all():
-    return encode_data(g.storage.cache_content_get_all())
-
-
-@app.route('/cache/content', methods=['POST'])
-def cache_content_get():
-    return encode_data(g.storage.cache_content_get(
-        **decode_request(request)))
-
-
-@app.route('/cache/revision_origin', methods=['POST'])
-def cache_revision_origin_add():
-    return encode_data(g.storage.cache_revision_origin_add(
-        **decode_request(request)))
 
 
 @app.route('/release/add', methods=['POST'])
@@ -380,6 +351,12 @@ def indexer_configuration_get():
         **decode_request(request)))
 
 
+@app.route('/indexer_configuration/add', methods=['POST'])
+def indexer_configuration_add():
+    return encode_data(g.storage.indexer_configuration_add(
+        **decode_request(request)))
+
+
 @app.route('/content_metadata/add', methods=['POST'])
 def content_metadata_add():
     return encode_data(
@@ -414,6 +391,36 @@ def revision_metadata_missing():
 def revision_metadata_get():
     return encode_data(
         g.storage.revision_metadata_get(**decode_request(request)))
+
+
+@app.route('/origin/metadata/add', methods=['POST'])
+def origin_metadata_add():
+    return encode_data(g.storage.origin_metadata_add(**decode_request(
+                                                       request)))
+
+
+@app.route('/origin/metadata/get', methods=['POST'])
+def origin_metadata_get_by():
+    return encode_data(g.storage.origin_metadata_get_by(**decode_request(
+                                                       request)))
+
+
+@app.route('/provider/add', methods=['POST'])
+def metadata_provider_add():
+    return encode_data(g.storage.metadata_provider_add(**decode_request(
+                                                       request)))
+
+
+@app.route('/provider/get', methods=['POST'])
+def metadata_provider_get():
+    return encode_data(g.storage.metadata_provider_get(**decode_request(
+                                                       request)))
+
+
+@app.route('/provider/getby', methods=['POST'])
+def metadata_provider_get_by():
+    return encode_data(g.storage.metadata_provider_get_by(**decode_request(
+                                                       request)))
 
 
 @app.route('/stat/counters', methods=['GET'])

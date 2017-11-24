@@ -5,7 +5,7 @@ subgraph "logical_grouping" {
 	color = gray;
 	
 	subgraph cluster_meta {
-		label = <<b>meta</b><br /> version: @@VERSION@@>;
+		label = <<b>schema versioning</b><br /> version: @@VERSION@@>;
 		dbversion;
 	}
 
@@ -35,8 +35,8 @@ subgraph "logical_grouping" {
 		release;
 	}
 
-	subgraph cluster_occurrences {
-		label = <<b>occurrences</b>>;
+	subgraph cluster_snapshots {
+		label = <<b>snapshots</b>>;
 		occurrence;
 		occurrence_history;
 	}
@@ -64,8 +64,8 @@ subgraph "logical_grouping" {
 		cache_content_revision_processed;
 	}
 
-        subgraph cluster_content_indexer {
-                label = <<b>content_indexer</b>>;
+        subgraph cluster_data_mining {
+                label = <<b>data mining</b>>;
                 content_mimetype;
                 content_ctags;
                 content_language;
@@ -93,6 +93,17 @@ subgraph "logical_grouping" {
 		"revision_history":rtcol2 -> "revision":ltcol1;
 		"entity_history":rtcol3 -> "entity_history":ltcol2;
 		"entity_history":rtcol10 -> "listable_entity":ltcol1;
+	}
+
+	subgraph cluster_metadata {
+                label = <<b>metadata</b>>;
+                content_metadata;
+                revision_metadata;
+	}
+
+	subgraph cluster_statistics {
+                label = <<b>statistics</b>>;
+                object_counts;
 	}
 
 }

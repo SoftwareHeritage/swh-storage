@@ -255,9 +255,6 @@ class Db(BaseDb):
     @stored_procedure('swh_entity_history_add')
     def entity_history_add_from_temp(self, cur=None): pass
 
-    @stored_procedure('swh_cache_content_revision_add')
-    def cache_content_revision_add(self, cur=None): pass
-
     def store_tmp_bytea(self, ids, cur=None):
         """Store the given identifiers in a new tmp_bytea table"""
         cur = self._cursor(cur)
@@ -356,27 +353,6 @@ class Db(BaseDb):
             return None
         else:
             return content
-
-    provenance_cols = ['content', 'revision', 'origin', 'visit', 'path']
-
-    def content_find_provenance(self, sha1_git, cur=None):
-        """Find content's provenance information
-
-        Args:
-            sha1: sha1_git content
-            cur: cursor to use
-
-        Returns:
-            Provenance information on such content
-
-        """
-        cur = self._cursor(cur)
-
-        cur.execute("""SELECT content, revision, origin, visit, path
-                       FROM swh_content_find_provenance(%s)""",
-                    (sha1_git, ))
-
-        yield from cursor_to_bytes(cur)
 
     def directory_get_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -481,20 +457,23 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
-        query_suffix = ''
         if last_visit:
-            query_suffix += ' AND %s < visit' % last_visit
-
-        if limit:
-            query_suffix += ' LIMIT %s' % limit
+            extra_condition = 'and visit > %s'
+            args = (origin_id, last_visit, limit)
+        else:
+            extra_condition = ''
+            args = (origin_id, limit)
 
         query = """\
         SELECT %s
         FROM origin_visit
-        WHERE origin=%%s %s""" % (
-            ', '.join(self.origin_visit_get_cols), query_suffix)
+        WHERE origin=%%s %s
+        order by date, visit asc
+        limit %%s""" % (
+            ', '.join(self.origin_visit_get_cols), extra_condition
+        )
 
-        cur.execute(query, (origin_id, ))
+        cur.execute(query, args)
 
         yield from cursor_to_bytes(cur)
 
@@ -573,36 +552,6 @@ class Db(BaseDb):
                 """ % ', '.join(self.revision_shortlog_cols)
 
         cur.execute(query, (root_revisions, limit))
-        yield from cursor_to_bytes(cur)
-
-    cache_content_get_cols = [
-        'sha1', 'sha1_git', 'sha256', 'revision_paths']
-
-    def cache_content_get_all(self, cur=None):
-        """Retrieve cache contents' sha1, sha256, sha1_git
-
-        """
-        cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_content_get_all()')
-        yield from cursor_to_bytes(cur)
-
-    def cache_content_get(self, sha1_git, cur=None):
-        """Retrieve cache content information sh.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_content_get(%s)', (sha1_git, ))
-        data = cur.fetchone()
-        if data:
-            return line_to_bytes(data)
-        return None
-
-    def cache_revision_origin_add(self, origin, visit, cur=None):
-        """Populate the content provenance information cache for the given
-           (origin, visit) couple."""
-        cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_cache_revision_origin_add(%s, %s)',
-                    (origin, visit))
         yield from cursor_to_bytes(cur)
 
     def release_missing_from_temp(self, cur=None):
@@ -1028,8 +977,70 @@ class Db(BaseDb):
         cur.execute(query)
         yield from cursor_to_bytes(cur)
 
+    def origin_metadata_add(self, origin, ts, provider, tool,
+                            metadata, cur=None):
+        """ Add an origin_metadata for the origin at ts with provider, tool and
+        metadata.
+
+        Args:
+            origin (int): the origin's id for which the metadata is added
+            ts (datetime): time when the metadata was found
+            provider (int): the metadata provider identifier
+            tool (int): the tool's identifier used to extract metadata
+            metadata (jsonb): the metadata retrieved at the time and location
+
+        Returns:
+            id (int): the origin_metadata unique id
+
+        """
+        cur = self._cursor(cur)
+        insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
+                    provider_id, tool_id, metadata) values (%s, %s, %s, %s, %s)
+                    RETURNING id"""
+        cur.execute(insert, (origin, ts, provider, tool, jsonize(metadata)))
+
+        return cur.fetchone()[0]
+
+    origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
+                                'tool_id', 'metadata', 'provider_id',
+                                'provider_name', 'provider_type',
+                                'provider_url']
+
+    def origin_metadata_get_by(self, origin_id, provider_type=None, cur=None):
+        """Retrieve all origin_metadata entries for one origin_id
+
+        """
+        cur = self._cursor(cur)
+        if not provider_type:
+            query = '''SELECT %s
+                       FROM swh_origin_metadata_get_by_origin(
+                            %%s)''' % (','.join(
+                                          self.origin_metadata_get_cols))
+
+            cur.execute(query, (origin_id, ))
+
+        else:
+            query = '''SELECT %s
+                       FROM swh_origin_metadata_get_by_provider_type(
+                            %%s, %%s)''' % (','.join(
+                                          self.origin_metadata_get_cols))
+
+            cur.execute(query, (origin_id, provider_type))
+
+        yield from cursor_to_bytes(cur)
+
     indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
                                   'tool_configuration']
+
+    @stored_procedure('swh_mktemp_indexer_configuration')
+    def mktemp_indexer_configuration(self, cur=None):
+        pass
+
+    def indexer_configuration_add_from_temp(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("SELECT %s from swh_indexer_configuration_add()" % (
+            ','.join(self.indexer_configuration_cols), ))
+        yield from cursor_to_bytes(cur)
 
     def indexer_configuration_get(self, tool_name,
                                   tool_version, tool_configuration, cur=None):
@@ -1041,6 +1052,49 @@ class Db(BaseDb):
                              tool_configuration=%%s''' % (
                                  ','.join(self.indexer_configuration_cols)),
                     (tool_name, tool_version, tool_configuration))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)
+
+    metadata_provider_cols = ['id', 'provider_name', 'provider_type',
+                              'provider_url', 'metadata']
+
+    def metadata_provider_add(self, provider_name, provider_type,
+                              provider_url, metadata, cur=None):
+        """Insert a new provider and return the new identifier."""
+        cur = self._cursor(cur)
+        insert = """INSERT INTO metadata_provider (provider_name, provider_type,
+                    provider_url, metadata) values (%s, %s, %s, %s)
+                    RETURNING id"""
+
+        cur.execute(insert, (provider_name, provider_type, provider_url,
+                    jsonize(metadata)))
+        return cur.fetchone()[0]
+
+    def metadata_provider_get(self, provider_id, cur=None):
+        cur = self._cursor(cur)
+        cur.execute('''select %s
+                       from metadata_provider
+                       where provider_id=%%s ''' % (
+                                 ','.join(self.metadata_provider_cols)),
+                    (provider_id, ))
+
+        data = cur.fetchone()
+        if not data:
+            return None
+        return line_to_bytes(data)
+
+    def metadata_provider_get_by(self, provider_name, provider_url,
+                                 cur=None):
+        cur = self._cursor(cur)
+        cur.execute('''select %s
+                       from metadata_provider
+                       where provider_name=%%s and
+                             provider_url=%%s''' % (
+                                 ','.join(self.metadata_provider_cols)),
+                    (provider_name, provider_url))
 
         data = cur.fetchone()
         if not data:

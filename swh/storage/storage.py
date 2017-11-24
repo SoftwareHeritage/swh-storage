@@ -340,31 +340,6 @@ class Storage():
             return dict(zip(db.content_find_cols, c))
         return None
 
-    @db_transaction_generator
-    def content_find_provenance(self, content, cur=None):
-        """Find content's provenance information.
-
-        Args:
-            content: a dictionary entry representing one content hash.  The
-                dictionary key is one of :data:`swh.model.hashutil.ALGORITHMS`.
-                The value mapped to the corresponding checksum.
-
-        Yields:
-            The provenance information on content.
-
-        """
-        db = self.db
-
-        c = self.content_find(content)
-
-        if not c:
-            return []
-
-        sha1_git = c['sha1_git']
-
-        for provenance in db.content_find_provenance(sha1_git, cur=cur):
-            yield dict(zip(db.provenance_cols, provenance))
-
     def directory_add(self, directories):
         """Add directories to the storage
 
@@ -517,73 +492,6 @@ class Storage():
         res = db.directory_entry_get_by_path(directory, paths, cur)
         if res:
             return dict(zip(db.directory_ls_cols, res))
-
-    @db_transaction
-    def cache_content_revision_add(self, revisions, cur=None):
-        """Cache the current revision's current targeted arborescence directory.  If
-        the revision has already been cached, it just does nothing.
-
-        Args:
-            revisions: the revisions to cache
-
-        Returns:
-            None
-
-        """
-        db = self.db
-
-        db.store_tmp_bytea(revisions, cur)
-        db.cache_content_revision_add()
-
-    @db_transaction_generator
-    def cache_content_get_all(self, cur=None):
-        """Read the distinct contents in the cache table.
-
-        Yields:
-            contents from cache
-
-        """
-        for content in self.db.cache_content_get_all(cur):
-            yield dict(zip(self.db.cache_content_get_cols, content))
-
-    @db_transaction
-    def cache_content_get(self, content, cur=None):
-        """Retrieve information on content.
-
-        Args:
-            content (dict): content with checkums
-
-        Returns:
-            Content properties (sha1, sha1_git, sha256, revision_paths)
-
-        """
-        if 'sha1_git' in content:
-            sha1_git = content['sha1_git']
-        else:
-            c = self.content_find(content)
-            if not c:
-                return None
-            sha1_git = c['sha1_git']
-
-        c = self.db.cache_content_get(sha1_git, cur=cur)
-        if not c:
-            return None
-        return dict(zip(self.db.cache_content_get_cols, c))
-
-    @db_transaction_generator
-    def cache_revision_origin_add(self, origin, visit, cur=None):
-        """Cache the list of revisions the given visit added to the origin.
-
-        Args:
-            origin: the id of the origin
-            visit: the id of the visit
-
-        Returns:
-            The list of new revisions
-
-        """
-        for (revision,) in self.db.cache_revision_origin_add(origin, visit):
-            yield revision
 
     def revision_add(self, revisions):
         """Add revisions to the storage
@@ -860,6 +768,8 @@ class Storage():
                 occurrences to add. Each dict has the following keys:
 
                 - origin (int): id of the origin corresponding to the
+                  occurrence
+                - visit (int): id of the visit corresponding to the
                   occurrence
                 - branch (str): the reference name of the occurrence
                 - target (sha1_git): the id of the object pointed to by
@@ -1724,7 +1634,99 @@ class Storage():
         db.revision_metadata_add_from_temp(conflict_update, cur)
 
     @db_transaction
+    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata,
+                            cur=None):
+        """ Add an origin_metadata for the origin at ts with provenance and
+        metadata.
+
+        Args:
+            origin_id (int): the origin's id for which the metadata is added
+            ts (datetime): timestamp of the found metadata
+            provider (int): the provider of metadata (ex:'hal')
+            tool (int): tool used to extract metadata
+            metadata (jsonb): the metadata retrieved at the time and location
+
+        Returns:
+            id (int): the origin_metadata unique id
+        """
+        if isinstance(ts, str):
+            ts = dateutil.parser.parse(ts)
+
+        return self.db.origin_metadata_add(origin_id, ts, provider, tool,
+                                           metadata, cur)
+
+    @db_transaction_generator
+    def origin_metadata_get_by(self, origin_id, provider_type=None, cur=None):
+        """Retrieve list of all origin_metadata entries for the origin_id
+
+        Args:
+            origin_id (int): the unique origin identifier
+            provider_type (str): (optional) type of provider
+
+        Returns:
+            list of dicts: the origin_metadata dictionary with the keys:
+
+            - id (int): origin_metadata's id
+            - origin_id (int): origin's id
+            - discovery_date (datetime): timestamp of discovery
+            - tool_id (int): metadata's extracting tool
+            - metadata (jsonb)
+            - provider_id (int): metadata's provider
+            - provider_name (str)
+            - provider_type (str)
+            - provider_url (str)
+
+        """
+        db = self.db
+        for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
+            yield dict(zip(db.origin_metadata_get_cols, line))
+
+    @db_transaction_generator
+    def indexer_configuration_add(self, tools, cur=None):
+        """Add new tools to the storage.
+
+        Args:
+            tools ([dict]): List of dictionary representing tool to
+            insert in the db. Dictionary with the following keys::
+
+                tool_name (str): tool's name
+                tool_version (str): tool's version
+                tool_configuration (dict): tool's configuration (free form
+                                           dict)
+
+        Returns:
+            List of dict inserted in the db (holding the id key as
+            well).  The order of the list is not guaranteed to match
+            the order of the initial list.
+
+        """
+        db = self.db
+        db.mktemp_indexer_configuration(cur)
+        db.copy_to(tools, 'tmp_indexer_configuration',
+                   ['tool_name', 'tool_version', 'tool_configuration'],
+                   cur)
+
+        tools = db.indexer_configuration_add_from_temp(cur)
+        for line in tools:
+            yield dict(zip(db.indexer_configuration_cols, line))
+
+    @db_transaction
     def indexer_configuration_get(self, tool, cur=None):
+        """Retrieve tool information.
+
+        Args:
+            tool (dict): Dictionary representing a tool with the
+            following keys::
+
+                tool_name (str): tool's name
+                tool_version (str): tool's version
+                tool_configuration (dict): tool's configuration (free form
+                                           dict)
+
+        Returns:
+            The identifier of the tool if it exists, None otherwise.
+
+        """
         db = self.db
         tool_conf = tool['tool_configuration']
         if isinstance(tool_conf, dict):
@@ -1735,3 +1737,27 @@ class Storage():
         if not idx:
             return None
         return dict(zip(self.db.indexer_configuration_cols, idx))
+
+    @db_transaction
+    def metadata_provider_add(self, provider_name, provider_type, provider_url,
+                              metadata, cur=None):
+        db = self.db
+        return db.metadata_provider_add(provider_name, provider_type,
+                                        provider_url, metadata, cur)
+
+    @db_transaction
+    def metadata_provider_get(self, provider_id, cur=None):
+        db = self.db
+        result = db.metadata_provider_get(provider_id)
+        if not result:
+            return None
+        return dict(zip(self.db.metadata_provider_cols, result))
+
+    @db_transaction
+    def metadata_provider_get_by(self, provider, cur=None):
+        db = self.db
+        result = db.metadata_provider_get_by(provider['provider_name'],
+                                             provider['provider_url'])
+        if not result:
+            return None
+        return dict(zip(self.db.metadata_provider_cols, result))

@@ -878,3 +878,12 @@ values ('swh-metadata-translator', '0.0.1', '{"type": "local", "context": "npm"}
 
 insert into indexer_configuration(tool_name, tool_version, tool_configuration)
 values ('swh-metadata-detector', '0.0.1', '{"type": "local", "context": ["npm", "codemeta"]}');
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('swh-deposit', '0.0.1', '{"sword_version": "2"}');
+
+insert into metadata_provider(provider_name, provider_type, provider_url, metadata)
+values ('Hal-Inria', 'deposit-client', 'https://hal.inria.fr/', '{}');
+
+insert into indexer_configuration(tool_name, tool_version, tool_configuration)
+values ('file', '1:5.30-1+deb9u1', '{"type": "library", "debian-package": "python3-magic"}');
