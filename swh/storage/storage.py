@@ -983,6 +983,8 @@ class Storage():
 
         return ret
 
+    origin_keys = ['id', 'type', 'url', 'lister', 'project']
+
     @db_transaction
     def origin_get(self, origin, cur=None):
         """Return the origin either identified by its id or its tuple
@@ -1014,8 +1016,6 @@ class Storage():
         """
         db = self.db
 
-        keys = ['id', 'type', 'url', 'lister', 'project']
-
         origin_id = origin.get('id')
         if origin_id:  # check lookup per id first
             ori = db.origin_get(origin_id, cur)
@@ -1025,8 +1025,32 @@ class Storage():
             raise ValueError('Origin must have either id or (type and url).')
 
         if ori:
-            return dict(zip(keys, ori))
+            return dict(zip(self.origin_keys, ori))
         return None
+
+    @db_transaction_generator
+    def origin_search(self, url_pattern, offset=0, limit=50,
+                      regexp=False, cur=None):
+        """Search for origins whose urls contain a provided string pattern
+        or match a provided regular expression.
+        The search is performed in a case insensitive way.
+
+        Args:
+            url_pattern: the string pattern to search for in origin urls
+            offset: number of found origins to skip before returning results
+            limit: the maximum number of found origins to return
+            regexp: if True, consider the provided pattern as a regular
+                expression and return origins whose urls match it
+
+        Returns:
+            An iterable of dict containing origin information as returned
+            by :meth:`swh.storage.storage.Storage.origin_get`.
+        """
+        db = self.db
+
+        for origin in db.origin_search(url_pattern, offset, limit,
+                                       regexp, cur):
+            yield dict(zip(self.origin_keys, origin))
 
     @db_transaction
     def _person_add(self, person, cur=None):
