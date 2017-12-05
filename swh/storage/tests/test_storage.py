@@ -611,7 +611,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
 class CommonTestStorage(BaseTestStorage):
     """Base class for Storage testing.
 
-    This class is used as-is to test local storage (see TestStorage
+    This class is used as-is to test local storage (see TestLocalStorage
     below) and remote storage (see TestRemoteStorage in
     test_remote_storage.py.
 
@@ -1302,6 +1302,67 @@ class CommonTestStorage(BaseTestStorage):
                                           'url': self.origin['url'],
                                           'lister': None,
                                           'project': None})
+
+    @istest
+    def origin_search(self):
+        found_origins = list(self.storage.origin_search(self.origin['url']))
+        self.assertEqual(len(found_origins), 0)
+
+        found_origins = list(self.storage.origin_search(self.origin['url'],
+                                                        regexp=True))
+        self.assertEqual(len(found_origins), 0)
+
+        id = self.storage.origin_add_one(self.origin)
+        origin_data = {'id': id,
+                       'type': self.origin['type'],
+                       'url': self.origin['url'],
+                       'lister': None,
+                       'project': None}
+        found_origins = list(self.storage.origin_search(self.origin['url']))
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin_data)
+
+        found_origins = list(self.storage.origin_search(
+            '.' + self.origin['url'][1:-1] + '.', regexp=True))
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin_data)
+
+        id2 = self.storage.origin_add_one(self.origin2)
+        origin2_data = {'id': id2,
+                        'type': self.origin2['type'],
+                        'url': self.origin2['url'],
+                        'lister': None,
+                        'project': None}
+        found_origins = list(self.storage.origin_search(self.origin2['url']))
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin2_data)
+
+        found_origins = list(self.storage.origin_search(
+            '.' + self.origin2['url'][1:-1] + '.', regexp=True))
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin2_data)
+
+        found_origins = list(self.storage.origin_search('/'))
+        self.assertEqual(len(found_origins), 2)
+
+        found_origins = list(self.storage.origin_search('.*/.*', regexp=True))
+        self.assertEqual(len(found_origins), 2)
+
+        found_origins = list(self.storage.origin_search('/', offset=0, limit=1)) # noqa
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin_data)
+
+        found_origins = list(self.storage.origin_search('.*/.*', offset=0, limit=1, regexp=True)) # noqa
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin_data)
+
+        found_origins = list(self.storage.origin_search('/', offset=1, limit=1)) # noqa
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin2_data)
+
+        found_origins = list(self.storage.origin_search('.*/.*', offset=1, limit=1, regexp=True)) # noqa
+        self.assertEqual(len(found_origins), 1)
+        self.assertEqual(found_origins[0], origin2_data)
 
     @istest
     def origin_visit_add(self):
