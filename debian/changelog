@@ -1,3 +1,10 @@
+swh-storage (0.0.94-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.94
+  * Open searching origins methods to storage
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 05 Dec 2017 12:32:57 +0100
+
 swh-storage (0.0.93-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.93
