@@ -639,13 +639,16 @@ class Db(BaseDb):
         cur.execute(insert, (type, url))
         return cur.fetchone()[0]
 
+    origin_cols = ['id', 'type', 'url', 'lister', 'project']
+
     def origin_get_with(self, type, url, cur=None):
         """Retrieve the origin id from its type and url if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT id, type, url, lister, project
+        query = """SELECT %s
                    FROM origin
-                   WHERE type=%s AND url=%s"""
+                   WHERE type=%%s AND url=%%s
+                """ % ','.join(self.origin_cols)
 
         cur.execute(query, (type, url))
         data = cur.fetchone()
@@ -659,13 +662,46 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
-        query = "SELECT id, type, url, lister, project FROM origin WHERE id=%s"
+        query = """SELECT %s
+                   FROM origin WHERE id=%%s
+                """ % ','.join(self.origin_cols)
 
         cur.execute(query, (id,))
         data = cur.fetchone()
         if data:
             return line_to_bytes(data)
         return None
+
+    def origin_search(self, url_pattern, offset=0, limit=50,
+                      regexp=False, cur=None):
+        """Search for origins whose urls contain a provided string pattern
+        or match a provided regular expression.
+        The search is performed in a case insensitive way.
+
+        Args:
+            url_pattern: the string pattern to search for in origin urls
+            offset: number of found origins to skip before returning results
+            limit: the maximum number of found origins to return
+            regexp: if True, consider the provided pattern as a regular
+                expression and returns origins whose urls match it
+
+        """
+        cur = self._cursor(cur)
+        origin_cols = ','.join(self.origin_cols)
+        query = """SELECT %s
+                   FROM origin WHERE url %s %%s
+                   ORDER BY id
+                   OFFSET %%s LIMIT %%s"""
+
+        if not regexp:
+            query = query % (origin_cols, 'ILIKE')
+            query_params = ('%'+url_pattern+'%', offset, limit)
+        else:
+            query = query % (origin_cols, '~*')
+            query_params = (url_pattern, offset, limit)
+
+        cur.execute(query, query_params)
+        yield from cursor_to_bytes(cur)
 
     person_cols = ['fullname', 'name', 'email']
     person_get_cols = person_cols + ['id']
