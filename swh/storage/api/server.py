@@ -278,124 +278,16 @@ def entity_from_lister_metadata():
         g.storage.entity_get_from_lister_metadata(**decode_request(request)))
 
 
-@app.route('/content_mimetype/add', methods=['POST'])
-def content_mimetype_add():
-    return encode_data(
-        g.storage.content_mimetype_add(**decode_request(request)))
-
-
-@app.route('/content_mimetype/missing', methods=['POST'])
-def content_mimetype_missing():
-    return encode_data(
-        g.storage.content_mimetype_missing(**decode_request(request)))
-
-
-@app.route('/content_mimetype', methods=['POST'])
-def content_mimetype_get():
-    return encode_data(
-        g.storage.content_mimetype_get(**decode_request(request)))
-
-
-@app.route('/content_language/add', methods=['POST'])
-def content_language_add():
-    return encode_data(
-        g.storage.content_language_add(**decode_request(request)))
-
-
-@app.route('/content_language/missing', methods=['POST'])
-def content_language_missing():
-    return encode_data(
-        g.storage.content_language_missing(**decode_request(request)))
-
-
-@app.route('/content_language', methods=['POST'])
-def content_language_get():
-    return encode_data(
-        g.storage.content_language_get(**decode_request(request)))
-
-
-@app.route('/content/ctags/add', methods=['POST'])
-def content_ctags_add():
-    return encode_data(
-        g.storage.content_ctags_add(**decode_request(request)))
-
-
-@app.route('/content/ctags/search', methods=['POST'])
-def content_ctags_search():
-    return encode_data(
-        g.storage.content_ctags_search(**decode_request(request)))
-
-
-@app.route('/content/ctags/missing', methods=['POST'])
-def content_ctags_missing():
-    return encode_data(
-        g.storage.content_ctags_missing(**decode_request(request)))
-
-
-@app.route('/content/ctags', methods=['POST'])
-def content_ctags_get():
-    return encode_data(
-        g.storage.content_ctags_get(**decode_request(request)))
-
-
-@app.route('/content/fossology_license/add', methods=['POST'])
-def content_fossology_license_add():
-    return encode_data(
-        g.storage.content_fossology_license_add(**decode_request(request)))
-
-
-@app.route('/content/fossology_license', methods=['POST'])
-def content_fossology_license_get():
-    return encode_data(
-        g.storage.content_fossology_license_get(**decode_request(request)))
-
-
-@app.route('/indexer_configuration/data', methods=['POST'])
-def indexer_configuration_get():
-    return encode_data(g.storage.indexer_configuration_get(
+@app.route('/tool/data', methods=['POST'])
+def tool_get():
+    return encode_data(g.storage.tool_get(
         **decode_request(request)))
 
 
-@app.route('/indexer_configuration/add', methods=['POST'])
-def indexer_configuration_add():
-    return encode_data(g.storage.indexer_configuration_add(
+@app.route('/tool/add', methods=['POST'])
+def tool_add():
+    return encode_data(g.storage.tool_add(
         **decode_request(request)))
-
-
-@app.route('/content_metadata/add', methods=['POST'])
-def content_metadata_add():
-    return encode_data(
-        g.storage.content_metadata_add(**decode_request(request)))
-
-
-@app.route('/content_metadata/missing', methods=['POST'])
-def content_metadata_missing():
-    return encode_data(
-        g.storage.content_metadata_missing(**decode_request(request)))
-
-
-@app.route('/content_metadata', methods=['POST'])
-def content_metadata_get():
-    return encode_data(
-        g.storage.content_metadata_get(**decode_request(request)))
-
-
-@app.route('/revision_metadata/add', methods=['POST'])
-def revision_metadata_add():
-    return encode_data(
-        g.storage.revision_metadata_add(**decode_request(request)))
-
-
-@app.route('/revision_metadata/missing', methods=['POST'])
-def revision_metadata_missing():
-    return encode_data(
-        g.storage.revision_metadata_missing(**decode_request(request)))
-
-
-@app.route('/revision_metadata', methods=['POST'])
-def revision_metadata_get():
-    return encode_data(
-        g.storage.revision_metadata_get(**decode_request(request)))
 
 
 @app.route('/origin/metadata/add', methods=['POST'])
