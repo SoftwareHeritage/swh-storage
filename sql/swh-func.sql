@@ -131,14 +131,14 @@ as $$
 $$;
 
 
-create or replace function swh_mktemp_indexer_configuration()
+create or replace function swh_mktemp_tool()
     returns void
     language sql
 as $$
-    create temporary table tmp_indexer_configuration (
-      like indexer_configuration including defaults
+    create temporary table tmp_tool (
+      like tool including defaults
     ) on commit drop;
-    alter table tmp_indexer_configuration drop column id;
+    alter table tmp_tool drop column id;
 $$;
 
 
@@ -1362,24 +1362,24 @@ as $$
 $$;
 -- end origin_metadata functions
 
--- add tmp_indexer_configuration entries to indexer_configuration,
+-- add tmp_tool entries to tool,
 -- skipping duplicates if any.
 --
--- operates in bulk: 0. create temporary tmp_indexer_configuration, 1. COPY to
+-- operates in bulk: 0. create temporary tmp_tool, 1. COPY to
 -- it, 2. call this function to insert and filtering out duplicates
-create or replace function swh_indexer_configuration_add()
-    returns setof indexer_configuration
+create or replace function swh_tool_add()
+    returns setof tool
     language plpgsql
 as $$
 begin
-      insert into indexer_configuration(tool_name, tool_version, tool_configuration)
-      select tool_name, tool_version, tool_configuration from tmp_indexer_configuration tmp
-      on conflict(tool_name, tool_version, tool_configuration) do nothing;
+      insert into tool(name, version, configuration)
+      select name, version, configuration from tmp_tool tmp
+      on conflict(name, version, configuration) do nothing;
 
       return query
-          select id, tool_name, tool_version, tool_configuration
-          from tmp_indexer_configuration join indexer_configuration
-              using(tool_name, tool_version, tool_configuration);
+          select id, name, version, configuration
+          from tmp_tool join tool
+              using(name, version, configuration);
 
       return;
 end

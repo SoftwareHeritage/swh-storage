@@ -821,10 +821,6 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    content_mimetype_cols = [
-        'id', 'mimetype', 'encoding',
-        'tool_id', 'tool_name', 'tool_version', 'tool_configuration']
-
     def origin_metadata_add(self, origin, ts, provider, tool,
                             metadata, cur=None):
         """ Add an origin_metadata for the origin at ts with provider, tool and
@@ -877,29 +873,27 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    indexer_configuration_cols = ['id', 'tool_name', 'tool_version',
-                                  'tool_configuration']
+    tool_cols = ['id', 'name', 'version', 'configuration']
 
-    @stored_procedure('swh_mktemp_indexer_configuration')
-    def mktemp_indexer_configuration(self, cur=None):
+    @stored_procedure('swh_mktemp_tool')
+    def mktemp_tool(self, cur=None):
         pass
 
-    def indexer_configuration_add_from_temp(self, cur=None):
+    def tool_add_from_temp(self, cur=None):
         cur = self._cursor(cur)
-        cur.execute("SELECT %s from swh_indexer_configuration_add()" % (
-            ','.join(self.indexer_configuration_cols), ))
+        cur.execute("SELECT %s from swh_tool_add()" % (
+            ','.join(self.tool_cols), ))
         yield from cursor_to_bytes(cur)
 
-    def indexer_configuration_get(self, tool_name,
-                                  tool_version, tool_configuration, cur=None):
+    def tool_get(self, name, version, configuration, cur=None):
         cur = self._cursor(cur)
         cur.execute('''select %s
-                       from indexer_configuration
-                       where tool_name=%%s and
-                             tool_version=%%s and
-                             tool_configuration=%%s''' % (
-                                 ','.join(self.indexer_configuration_cols)),
-                    (tool_name, tool_version, tool_configuration))
+                       from tool
+                       where name=%%s and
+                             version=%%s and
+                             configuration=%%s''' % (
+                                 ','.join(self.tool_cols)),
+                    (name, version, configuration))
 
         data = cur.fetchone()
         if not data:

@@ -1342,7 +1342,7 @@ class Storage():
             yield dict(zip(db.origin_metadata_get_cols, line))
 
     @db_transaction_generator
-    def indexer_configuration_add(self, tools, cur=None):
+    def tool_add(self, tools, cur=None):
         """Add new tools to the storage.
 
         Args:
@@ -1361,17 +1361,17 @@ class Storage():
 
         """
         db = self.db
-        db.mktemp_indexer_configuration(cur)
-        db.copy_to(tools, 'tmp_indexer_configuration',
-                   ['tool_name', 'tool_version', 'tool_configuration'],
+        db.mktemp_tool(cur)
+        db.copy_to(tools, 'tmp_tool',
+                   ['name', 'version', 'configuration'],
                    cur)
 
-        tools = db.indexer_configuration_add_from_temp(cur)
+        tools = db.tool_add_from_temp(cur)
         for line in tools:
-            yield dict(zip(db.indexer_configuration_cols, line))
+            yield dict(zip(db.tool_cols, line))
 
     @db_transaction
-    def indexer_configuration_get(self, tool, cur=None):
+    def tool_get(self, tool, cur=None):
         """Retrieve tool information.
 
         Args:
@@ -1388,15 +1388,16 @@ class Storage():
 
         """
         db = self.db
-        tool_conf = tool['tool_configuration']
+        tool_conf = tool['configuration']
         if isinstance(tool_conf, dict):
             tool_conf = json.dumps(tool_conf)
-        idx = db.indexer_configuration_get(tool['tool_name'],
-                                           tool['tool_version'],
-                                           tool_conf)
+
+        idx = db.tool_get(tool['name'],
+                          tool['version'],
+                          tool_conf)
         if not idx:
             return None
-        return dict(zip(self.db.indexer_configuration_cols, idx))
+        return dict(zip(self.db.tool_cols, idx))
 
     @db_transaction
     def metadata_provider_add(self, provider_name, provider_type, provider_url,

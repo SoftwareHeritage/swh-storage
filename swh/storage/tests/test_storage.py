@@ -344,9 +344,9 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         }
 
         self.metadata_tool = {
-            'tool_name': 'swh-deposit',
-            'tool_version': '0.0.1',
-            'tool_configuration': {
+            'name': 'swh-deposit',
+            'version': '0.0.1',
+            'configuration': {
                 'sword_version': '2'
             }
         }
@@ -1844,18 +1844,18 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(expected, ret)
 
     @istest
-    def indexer_configuration_add(self):
+    def tool_add(self):
         tool = {
-            'tool_name': 'some-unknown-tool',
-            'tool_version': 'some-version',
-            'tool_configuration': {"debian-package": "some-package"},
+            'name': 'some-unknown-tool',
+            'version': 'some-version',
+            'configuration': {"debian-package": "some-package"},
         }
 
-        actual_tool = self.storage.indexer_configuration_get(tool)
+        actual_tool = self.storage.tool_get(tool)
         self.assertIsNone(actual_tool)  # does not exist
 
         # add it
-        actual_tools = list(self.storage.indexer_configuration_add([tool]))
+        actual_tools = list(self.storage.tool_add([tool]))
 
         self.assertEquals(len(actual_tools), 1)
         actual_tool = actual_tools[0]
@@ -1863,7 +1863,7 @@ class CommonTestStorage(BaseTestStorage):
         new_id = actual_tool.pop('id')
         self.assertEquals(actual_tool, tool)
 
-        actual_tools2 = list(self.storage.indexer_configuration_add([tool]))
+        actual_tools2 = list(self.storage.tool_add([tool]))
         actual_tool2 = actual_tools2[0]
         self.assertIsNotNone(actual_tool2)  # now it exists
         new_id2 = actual_tool2.pop('id')
@@ -1872,23 +1872,23 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(actual_tool, actual_tool2)
 
     @istest
-    def indexer_configuration_add_multiple(self):
+    def tool_add_multiple(self):
         tool = {
-            'tool_name': 'some-unknown-tool',
-            'tool_version': 'some-version',
-            'tool_configuration': {"debian-package": "some-package"},
+            'name': 'some-unknown-tool',
+            'version': 'some-version',
+            'configuration': {"debian-package": "some-package"},
         }
 
-        actual_tools = list(self.storage.indexer_configuration_add([tool]))
+        actual_tools = list(self.storage.tool_add([tool]))
         self.assertEqual(len(actual_tools), 1)
 
         new_tools = [tool, {
-            'tool_name': 'yet-another-tool',
-            'tool_version': 'version',
-            'tool_configuration': {},
+            'name': 'yet-another-tool',
+            'version': 'version',
+            'configuration': {},
         }]
 
-        actual_tools = list(self.storage.indexer_configuration_add(new_tools))
+        actual_tools = list(self.storage.tool_add(new_tools))
         self.assertEqual(len(actual_tools), 2)
 
         # order not guaranteed, so we iterate over results to check
@@ -1898,78 +1898,65 @@ class CommonTestStorage(BaseTestStorage):
             self.assertIn(tool, new_tools)
 
     @istest
-    def indexer_configuration_get_missing(self):
+    def tool_get_missing(self):
         tool = {
-            'tool_name': 'unknown-tool',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
-            'tool_configuration': {"command_line": "nomossa <filepath>"},
+            'name': 'unknown-tool',
+            'version': '3.1.0rc2-31-ga2cbb8c',
+            'configuration': {"command_line": "nomossa <filepath>"},
         }
 
-        actual_tool = self.storage.indexer_configuration_get(tool)
+        actual_tool = self.storage.tool_get(tool)
 
         self.assertIsNone(actual_tool)
 
     @istest
-    def indexer_configuration_get(self):
+    def tool_metadata_get_missing_context(self):
         tool = {
-            'tool_name': 'nomos',
-            'tool_version': '3.1.0rc2-31-ga2cbb8c',
-            'tool_configuration': {"command_line": "nomossa <filepath>"},
+            'name': 'swh-metadata-translator',
+            'version': '0.0.1',
+            'configuration': {"context": "unknown-context"},
         }
 
-        actual_tool = self.storage.indexer_configuration_get(tool)
-
-        expected_tool = tool.copy()
-        expected_tool['id'] = 1
-
-        self.assertEqual(expected_tool, actual_tool)
-
-    @istest
-    def indexer_configuration_metadata_get_missing_context(self):
-        tool = {
-            'tool_name': 'swh-metadata-translator',
-            'tool_version': '0.0.1',
-            'tool_configuration': {"context": "unknown-context"},
-        }
-
-        actual_tool = self.storage.indexer_configuration_get(tool)
+        actual_tool = self.storage.tool_get(tool)
 
         self.assertIsNone(actual_tool)
 
     @istest
-    def indexer_configuration_metadata_get(self):
+    def tool_metadata_get(self):
         tool = {
-            'tool_name': 'swh-metadata-translator',
-            'tool_version': '0.0.1',
-            'tool_configuration': {"type": "local", "context": "npm"},
+            'name': 'swh-metadata-translator',
+            'version': '0.0.1',
+            'configuration': {"type": "local", "context": "npm"},
         }
 
-        actual_tool = self.storage.indexer_configuration_get(tool)
+        tools = list(self.storage.tool_add([tool]))
+        expected_tool = tools[0]
 
-        expected_tool = tool.copy()
-        expected_tool['id'] = actual_tool['id']
+        # when
+        actual_tool = self.storage.tool_get(tool)
 
+        # then
         self.assertEqual(expected_tool, actual_tool)
 
     @istest
     def metadata_provider_get_by(self):
         # given
         no_provider = self.storage.metadata_provider_get_by({
-                            'provider_name': self.provider['name'],
-                            'provider_url': self.provider['url']
-                      })
+            'provider_name': self.provider['name'],
+            'provider_url': self.provider['url']
+        })
         self.assertIsNone(no_provider)
         # when
         provider_id = self.storage.metadata_provider_add(
-                           self.provider['name'],
-                           self.provider['type'],
-                           self.provider['url'],
-                           self.provider['metadata'])
+            self.provider['name'],
+            self.provider['type'],
+            self.provider['url'],
+            self.provider['metadata'])
 
         actual_provider = self.storage.metadata_provider_get_by({
-                            'provider_name': self.provider['name'],
-                            'provider_url': self.provider['url']
-                           })
+            'provider_name': self.provider['name'],
+            'provider_url': self.provider['url']
+        })
         # then
         self.assertTrue(provider_id, actual_provider['id'])
 
@@ -1980,6 +1967,9 @@ class CommonTestStorage(BaseTestStorage):
         origin_metadata0 = list(self.storage.origin_metadata_get_by(origin_id))
         self.assertTrue(len(origin_metadata0) == 0)
 
+        tools = list(self.storage.tool_add([self.metadata_tool]))
+        tool = tools[0]
+
         self.storage.metadata_provider_add(
                            self.provider['name'],
                            self.provider['type'],
@@ -1989,7 +1979,7 @@ class CommonTestStorage(BaseTestStorage):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                       })
-        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+        tool = self.storage.tool_get(self.metadata_tool)
 
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
@@ -2018,7 +2008,7 @@ class CommonTestStorage(BaseTestStorage):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                    })
-        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+        tool = self.storage.tool_get(self.metadata_tool)
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(
                     origin_id,
@@ -2111,7 +2101,7 @@ class CommonTestStorage(BaseTestStorage):
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)
-        tool = self.storage.indexer_configuration_get(self.metadata_tool)
+        tool = self.storage.tool_get(self.metadata_tool)
 
         # when adding for the same origin 2 metadatas
         o_m1 = self.storage.origin_metadata_add(

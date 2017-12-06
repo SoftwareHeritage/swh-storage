@@ -192,10 +192,10 @@ alter table release add constraint release_author_fkey foreign key (author) refe
 alter table release validate constraint release_author_fkey;
 
 -- tool
-create unique index concurrently tool_pkey on tool(id);
+create unique index tool_pkey on tool(id);
 alter table tool add primary key using index tool_pkey;
 
-create unique index on tool(tool_name, tool_version, tool_configuration);
+create unique index on tool(name, version, configuration);
 
 -- metadata_provider
 create unique index concurrently metadata_provider_pkey on metadata_provider(id);

@@ -358,16 +358,16 @@ create table release
 
 create table tool (
   id serial not null,
-  tool_name text not null,
-  tool_version text not null,
-  tool_configuration jsonb
+  name text not null,
+  version text not null,
+  configuration jsonb
 );
 
-comment on table tool is 'Indexer''s configuration version';
+comment on table tool is 'Tool information';
 comment on column tool.id is 'Tool identifier';
-comment on column tool.tool_version is 'Tool name';
-comment on column tool.tool_version is 'Tool version';
-comment on column tool.tool_configuration is 'Tool configuration: command line, flags, etc...';
+comment on column tool.version is 'Tool name';
+comment on column tool.version is 'Tool version';
+comment on column tool.configuration is 'Tool configuration: command line, flags, etc...';
 
 
 create table metadata_provider (
@@ -386,7 +386,7 @@ comment on column metadata_provider.metadata is 'Other metadata about provider';
 
 
 -- Discovery of metadata during a listing, loading, deposit or external_catalog of an origin
--- also provides a translation to a defined json schema using a translation tool (indexer_configuration_id)
+-- also provides a translation to a defined json schema using a translation tool (tool_id)
 create table origin_metadata(
   id             bigserial     not null,  -- PK object identifier
   origin_id      bigint        not null, -- references origin(id)
