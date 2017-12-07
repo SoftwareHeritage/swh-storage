@@ -15,6 +15,7 @@ from swh.core.api import (SWHServerAPIApp, decode_request,
                           error_handler,
                           encode_data_server as encode_data)
 
+DEFAULT_CONFIG_PATH = 'storage/storage'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
         'cls': 'local',
@@ -325,16 +326,13 @@ def stat_counters():
     return encode_data(g.storage.stat_counters())
 
 
-def run_from_webserver(environ, start_response):
+def run_from_webserver(environ, start_response,
+                       config_path=DEFAULT_CONFIG_PATH):
     """Run the WSGI app from the webserver, loading the configuration."""
-
-    config_path = '/etc/softwareheritage/storage/storage.yml'
-
-    app.config.update(config.read(config_path, DEFAULT_CONFIG))
-
+    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
+    app.config.update(cfg)
     handler = logging.StreamHandler()
     app.logger.addHandler(handler)
-
     return app(environ, start_response)
 
 
