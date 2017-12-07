@@ -59,7 +59,7 @@ class StorageTestFixture:
 
     def reset_storage_tables(self):
         excluded = {'dbversion', 'entity', 'entity_history', 'listable_entity',
-                    'fossology_license', 'indexer_configuration'}
+                    'tool'}
         self.reset_db_tables(self.TEST_STORAGE_DB_NAME, excluded=excluded)
 
         db = self.test_db[self.TEST_STORAGE_DB_NAME]

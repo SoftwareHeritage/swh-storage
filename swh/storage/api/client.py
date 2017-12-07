@@ -169,87 +169,11 @@ class RemoteStorage(SWHRemoteAPI):
         return self.post('directory/path', dict(directory=directory,
                                                 paths=paths))
 
-    def content_mimetype_add(self, mimetypes, conflict_update=False):
-        return self.post('content_mimetype/add', {
-            'mimetypes': mimetypes,
-            'conflict_update': conflict_update,
-        })
+    def tool_add(self, tools):
+        return self.post('tool/add', {'tools': tools})
 
-    def content_mimetype_missing(self, mimetypes):
-        return self.post('content_mimetype/missing', {'mimetypes': mimetypes})
-
-    def content_mimetype_get(self, ids):
-        return self.post('content_mimetype', {'ids': ids})
-
-    def content_language_add(self, languages, conflict_update=False):
-        return self.post('content_language/add', {
-            'languages': languages,
-            'conflict_update': conflict_update,
-        })
-
-    def content_language_missing(self, languages):
-        return self.post('content_language/missing', {'languages': languages})
-
-    def content_language_get(self, ids):
-        return self.post('content_language', {'ids': ids})
-
-    def content_ctags_add(self, ctags, conflict_update=False):
-        return self.post('content/ctags/add', {
-            'ctags': ctags,
-            'conflict_update': conflict_update,
-        })
-
-    def content_ctags_missing(self, ctags):
-        return self.post('content/ctags/missing', {'ctags': ctags})
-
-    def content_ctags_get(self, ids):
-        return self.post('content/ctags', {'ids': ids})
-
-    def content_ctags_search(self, expression, limit=10, last_sha1=None):
-        return self.post('content/ctags/search', {
-            'expression': expression,
-            'limit': limit,
-            'last_sha1': last_sha1,
-        })
-
-    def content_fossology_license_add(self, licenses, conflict_update=False):
-        return self.post('content/fossology_license/add', {
-            'licenses': licenses,
-            'conflict_update': conflict_update,
-        })
-
-    def content_fossology_license_get(self, ids):
-        return self.post('content/fossology_license', {'ids': ids})
-
-    def content_metadata_add(self, metadatas, conflict_update=False):
-        return self.post('content_metadata/add', {
-            'metadatas': metadatas,
-            'conflict_update': conflict_update,
-        })
-
-    def content_metadata_missing(self, metadatas):
-        return self.post('content_metadata/missing', {'metadatas': metadatas})
-
-    def content_metadata_get(self, ids):
-        return self.post('content_metadata', {'ids': ids})
-
-    def revision_metadata_add(self, metadatas, conflict_update=False):
-        return self.post('revision_metadata/add', {
-            'metadatas': metadatas,
-            'conflict_update': conflict_update,
-        })
-
-    def revision_metadata_missing(self, metadatas):
-        return self.post('revision_metadata/missing', {'metadatas': metadatas})
-
-    def revision_metadata_get(self, ids):
-        return self.post('revision_metadata', {'ids': ids})
-
-    def indexer_configuration_add(self, tools):
-        return self.post('indexer_configuration/add', {'tools': tools})
-
-    def indexer_configuration_get(self, tool):
-        return self.post('indexer_configuration/data', {'tool': tool})
+    def tool_get(self, tool):
+        return self.post('tool/data', {'tool': tool})
 
     def origin_metadata_add(self, origin_id, ts, provider, tool, metadata):
         return self.post('origin/metadata/add', {'origin_id': origin_id,
