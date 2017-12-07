@@ -47,12 +47,10 @@ sql/doc/json/entity.metadata.schema.json
 sql/doc/json/entity_history.lister_metadata.schema.json
 sql/doc/json/entity_history.metadata.schema.json
 sql/doc/json/fetch_history.result.schema.json
-sql/doc/json/indexer_configuration.tool_configuration.schema.json
 sql/doc/json/list_history.result.schema.json
 sql/doc/json/listable_entity.list_params.schema.json
 sql/doc/json/origin_visit.metadata.json
-sql/doc/json/revision.metadata.schema.json
-sql/doc/json/revision_metadata.translated_metadata.json
+sql/doc/json/tool.tool_configuration.schema.json
 sql/json/.gitignore
 sql/json/Makefile
 sql/json/entity.lister_metadata.schema.json
@@ -60,12 +58,10 @@ sql/json/entity.metadata.schema.json
 sql/json/entity_history.lister_metadata.schema.json
 sql/json/entity_history.metadata.schema.json
 sql/json/fetch_history.result.schema.json
-sql/json/indexer_configuration.tool_configuration.schema.json
 sql/json/list_history.result.schema.json
 sql/json/listable_entity.list_params.schema.json
 sql/json/origin_visit.metadata.json
-sql/json/revision.metadata.schema.json
-sql/json/revision_metadata.translated_metadata.json
+sql/json/tool.tool_configuration.schema.json
 sql/upgrades/015.sql
 sql/upgrades/016.sql
 sql/upgrades/017.sql
@@ -164,6 +160,7 @@ sql/upgrades/110.sql
 sql/upgrades/111.sql
 sql/upgrades/112.sql
 sql/upgrades/113.sql
+sql/upgrades/114.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
