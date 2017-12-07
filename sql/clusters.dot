@@ -64,16 +64,6 @@ subgraph "logical_grouping" {
 		cache_content_revision_processed;
 	}
 
-        subgraph cluster_data_mining {
-                label = <<b>data mining</b>>;
-                content_mimetype;
-                content_ctags;
-                content_language;
-                fossology_license;
-                content_fossology_license;
-                indexer_configuration;
-        }
-
 	{
 		edge [style = dashed];
 
