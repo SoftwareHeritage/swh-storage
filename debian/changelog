@@ -1,3 +1,11 @@
+swh-storage (0.0.95-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.95
+  * swh.storage: Rename indexer_configuration to tool
+  * swh.storage: Migrate indexer model to its own model
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 07 Dec 2017 09:56:31 +0100
+
 swh-storage (0.0.94-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.94
