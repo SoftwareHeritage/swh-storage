@@ -1474,18 +1474,18 @@ class Storage():
         """Add new tools to the storage.
 
         Args:
-            tools ([dict]): List of dictionary representing tool to
-            insert in the db. Dictionary with the following keys::
+            tools (iterable of :class:`dict`): Tool information to add to
+              storage. Each tool is a :class:`dict` with the following keys:
 
-                tool_name (str): tool's name
-                tool_version (str): tool's version
-                tool_configuration (dict): tool's configuration (free form
-                                           dict)
+              - tool_name (:class:`str`): name of the tool
+              - tool_version (:class:`str`): version of the tool
+              - tool_configuration (:class:`dict`): configuration of the tool,
+                must be json-encodable
 
         Returns:
-            List of dict inserted in the db (holding the id key as
-            well).  The order of the list is not guaranteed to match
-            the order of the initial list.
+            `iterable` of :class:`dict`: All the tools inserted in storage
+            (including the internal ``id``). The order of the list is not
+            guaranteed to match the order of the initial list.
 
         """
         db = self.db
@@ -1503,16 +1503,12 @@ class Storage():
         """Retrieve tool information.
 
         Args:
-            tool (dict): Dictionary representing a tool with the
-            following keys::
-
-                tool_name (str): tool's name
-                tool_version (str): tool's version
-                tool_configuration (dict): tool's configuration (free form
-                                           dict)
+            tool (dict): Tool information we want to retrieve from storage.
+              The dicts have the same keys as those used in :func:`tool_add`.
 
         Returns:
-            The identifier of the tool if it exists, None otherwise.
+            dict: The full tool information if it exists (``id`` included),
+            None otherwise.
 
         """
         db = self.db
