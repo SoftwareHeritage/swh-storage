@@ -37,7 +37,7 @@ create type entity_type as enum (
 );
 comment on type entity_type is 'Entity types';
 
-create type revision_type as enum ('git', 'tar', 'dsc', 'svn');
+create type revision_type as enum ('git', 'tar', 'dsc', 'svn', 'hg');
 comment on type revision_type is 'Possible revision types';
 
 create type object_type as enum ('content', 'directory', 'revision', 'release', 'snapshot');
