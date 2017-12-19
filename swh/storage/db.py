@@ -126,7 +126,7 @@ class BaseDb:
             try:
                 yield cur
                 self.conn.commit()
-            except:
+            except Exception:
                 if not self.conn.closed:
                     self.conn.rollback()
                 raise
