@@ -380,7 +380,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
 
         self.occurrence = {
             'branch': b'master',
-            'target': b'67890123456789012345',
+            'target': self.revision['id'],
             'target_type': 'revision',
         }
 
@@ -582,6 +582,57 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
                 'id': 216766,
                 'type': 'user',
             },
+        }
+
+        self.snapshot = {
+            'id': hash_to_bytes('2498dbf535f882bc7f9a18fb16c9ad27fda7bab7'),
+            'branches': {
+                self.occurrence['branch']: {
+                    'target': self.occurrence['target'],
+                    'target_type': self.occurrence['target_type'],
+                },
+            },
+        }
+
+        self.empty_snapshot = {
+            'id': hash_to_bytes('1a8893e6a86f444e8be8e7bda6cb34fb1735a00e'),
+            'branches': {},
+        }
+
+        self.complete_snapshot = {
+            'id': hash_to_bytes('6e65b86363953b780d92b0a928f3e8fcdd10db36'),
+            'branches': {
+                b'directory': {
+                    'target': hash_to_bytes(
+                        '1bd0e65f7d2ff14ae994de17a1e7fe65111dcad8'),
+                    'target_type': 'directory',
+                },
+                b'content': {
+                    'target': hash_to_bytes(
+                        'fe95a46679d128ff167b7c55df5d02356c5a1ae1'),
+                    'target_type': 'content',
+                },
+                b'alias': {
+                    'target': b'revision',
+                    'target_type': 'alias',
+                },
+                b'revision': {
+                    'target': hash_to_bytes(
+                        'aafb16d69fd30ff58afdd69036a26047f3aebdc6'),
+                    'target_type': 'revision',
+                },
+                b'release': {
+                    'target': hash_to_bytes(
+                        '7045404f3d1c54e6473c71bbb716529fbad4be24'),
+                    'target_type': 'release',
+                },
+                b'snapshot': {
+                    'target': hash_to_bytes(
+                        '1a8893e6a86f444e8be8e7bda6cb34fb1735a00e'),
+                    'target_type': 'snapshot',
+                },
+                b'dangling': None,
+            }
         }
 
     def tearDown(self):
@@ -1602,6 +1653,129 @@ class CommonTestStorage(BaseTestStorage):
         })
         self.assertEquals(len(actual_occurrence), 1)
         self.assertEquals(actual_occurrence[0], expected_occurrence)
+
+    @istest
+    def snapshot_add_get_empty(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.empty_snapshot)
+
+        by_id = self.storage.snapshot_get(self.empty_snapshot['id'])
+        self.assertEqual(by_id, self.empty_snapshot)
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        self.assertEqual(by_ov, self.empty_snapshot)
+
+    @istest
+    def snapshot_add_get_complete(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+
+        by_id = self.storage.snapshot_get(self.complete_snapshot['id'])
+        self.assertEqual(by_id, self.complete_snapshot)
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        self.assertEqual(by_ov, self.complete_snapshot)
+
+    @istest
+    def snapshot_add_get(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.snapshot)
+
+        by_id = self.storage.snapshot_get(self.snapshot['id'])
+        self.assertEqual(by_id, self.snapshot)
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        self.assertEqual(by_ov, self.snapshot)
+
+        # retrocompat test
+        origin_visit_info = self.storage.origin_visit_get_by(origin_id,
+                                                             visit_id)
+        self.assertEqual(origin_visit_info['occurrences'],
+                         self.snapshot['branches'])
+
+    @istest
+    def snapshot_add_twice(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        self.storage.snapshot_add(origin_id, visit1_id, self.snapshot)
+
+        by_ov1 = self.storage.snapshot_get_by_origin_visit(origin_id,
+                                                           visit1_id)
+        self.assertEqual(by_ov1, self.snapshot)
+
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        self.storage.snapshot_add(origin_id, visit2_id, self.snapshot)
+
+        by_ov2 = self.storage.snapshot_get_by_origin_visit(origin_id,
+                                                           visit2_id)
+        self.assertEqual(by_ov2, self.snapshot)
+
+    @istest
+    def snapshot_get_nonexistent(self):
+        bogus_snapshot_id = b'bogus snapshot id 00'
+        bogus_origin_id = 1
+        bogus_visit_id = 1
+
+        by_id = self.storage.snapshot_get(bogus_snapshot_id)
+        self.assertIsNone(by_id)
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(bogus_origin_id,
+                                                          bogus_visit_id)
+        self.assertIsNone(by_ov)
+
+    @istest
+    def snapshot_get_retrocompat(self):
+        empty_retro_snapshot = {
+            'id': None,
+            'branches': {},
+        }
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+
+        self.assertEqual(by_ov, empty_retro_snapshot)
+
+        self.storage.revision_add([self.revision])
+        self.storage.occurrence_add([{
+            'origin': origin_id,
+            'visit': visit_id,
+            'branch': self.occurrence['branch'],
+            'target': self.occurrence['target'],
+            'target_type': self.occurrence['target_type'],
+        }])
+
+        one_branch_retro_snapshot = {
+            'id': None,
+            'branches': {
+                self.occurrence['branch']: {
+                    'target': self.occurrence['target'],
+                    'target_type': self.occurrence['target_type'],
+                },
+            },
+        }
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        self.assertEqual(by_ov, one_branch_retro_snapshot)
 
     @istest
     def entity_get_from_lister_metadata(self):
