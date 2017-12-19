@@ -15,6 +15,7 @@ from swh.core.api import (SWHServerAPIApp, decode_request,
                           error_handler,
                           encode_data_server as encode_data)
 
+DEFAULT_CONFIG_PATH = 'storage/storage'
 DEFAULT_CONFIG = {
     'storage': ('dict', {
         'cls': 'local',
@@ -191,6 +192,22 @@ def occurrence_add():
     return encode_data(g.storage.occurrence_add(**decode_request(request)))
 
 
+@app.route('/snapshot/add', methods=['POST'])
+def snapshot_add():
+    return encode_data(g.storage.snapshot_add(**decode_request(request)))
+
+
+@app.route('/snapshot', methods=['POST'])
+def snapshot_get():
+    return encode_data(g.storage.snapshot_get(**decode_request(request)))
+
+
+@app.route('/snapshot/by_origin_visit', methods=['POST'])
+def snapshot_get_by_origin_visit():
+    return encode_data(g.storage.snapshot_get_by_origin_visit(
+        **decode_request(request)))
+
+
 @app.route('/origin/get', methods=['POST'])
 def origin_get():
     return encode_data(g.storage.origin_get(**decode_request(request)))
@@ -325,16 +342,13 @@ def stat_counters():
     return encode_data(g.storage.stat_counters())
 
 
-def run_from_webserver(environ, start_response):
+def run_from_webserver(environ, start_response,
+                       config_path=DEFAULT_CONFIG_PATH):
     """Run the WSGI app from the webserver, loading the configuration."""
-
-    config_path = '/etc/softwareheritage/storage/storage.yml'
-
-    app.config.update(config.read(config_path, DEFAULT_CONFIG))
-
+    cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
+    app.config.update(cfg)
     handler = logging.StreamHandler()
     app.logger.addHandler(handler)
-
     return app(environ, start_response)
 
 

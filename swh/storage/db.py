@@ -126,7 +126,7 @@ class BaseDb:
             try:
                 yield cur
                 self.conn.commit()
-            except:
+            except Exception:
                 if not self.conn.closed:
                     self.conn.rollback()
                 raise
@@ -204,6 +204,9 @@ class Db(BaseDb):
 
     @stored_procedure('swh_mktemp_occurrence_history')
     def mktemp_occurrence_history(self, cur=None): pass
+
+    @stored_procedure('swh_mktemp_snapshot_branch')
+    def mktemp_snapshot_branch(self, cur=None): pass
 
     @stored_procedure('swh_mktemp_entity_lister')
     def mktemp_entity_lister(self, cur=None): pass
@@ -315,6 +318,44 @@ class Db(BaseDb):
                     (origin_id, origin_id))
 
         yield from cursor_to_bytes(cur)
+
+    def snapshot_exists(self, snapshot_id, cur=None):
+        """Check whether a snapshot with the given id exists"""
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT 1 FROM snapshot where id=%s""", (snapshot_id,))
+
+        return bool(cur.fetchone())
+
+    def snapshot_add(self, origin, visit, snapshot_id, cur=None):
+        """Add a snapshot for origin/visit from the temporary table"""
+        cur = self._cursor(cur)
+
+        cur.execute("""SELECT swh_snapshot_add(%s, %s, %s)""",
+                    (origin, visit, snapshot_id))
+
+    snapshot_get_cols = ['snapshot_id', 'name', 'target', 'target_type']
+
+    def snapshot_get_by_id(self, snapshot_id, cur=None):
+        cur = self._cursor(cur)
+        query = """\
+           SELECT %s FROM swh_snapshot_get_by_id(%%s)
+        """ % ', '.join(self.snapshot_get_cols)
+
+        cur.execute(query, (snapshot_id,))
+
+        yield from cursor_to_bytes(cur)
+
+    def snapshot_get_by_origin_visit(self, origin_id, visit_id, cur=None):
+        cur = self._cursor(cur)
+        query = """\
+           SELECT swh_snapshot_get_by_origin_visit(%s, %s)
+        """
+
+        cur.execute(query, (origin_id, visit_id))
+        ret = cur.fetchone()
+        if ret:
+            return line_to_bytes(ret)[0]
 
     content_find_cols = ['sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
                          'ctime', 'status']

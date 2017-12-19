@@ -3,17 +3,8 @@
 -- to_version: 114
 -- description: Delete indexer's data model and data
 
-drop table fossology_license;
-drop table content_mimetype;
-drop table content_language;
-drop table content_ctags;
-drop table content_fossology_license;
-drop table revision_metadata;
-drop table content_metadata;
-drop table indexer_configuration;
-
-drop type ctags_languages;
-drop type languages;
+insert into dbversion(version, release, description)
+values(114, now(), 'Work In Progress');
 
 -- Tools
 
@@ -34,3 +25,29 @@ create unique index tool_pkey on tool(id);
 alter table tool add primary key using index tool_pkey;
 
 create unique index on tool(tool_name, tool_version, tool_configuration);
+
+alter table origin_metadata add constraint origin_metadata_tool_key foreign key (tool_id) references tool(id) not valid;
+
+-- clean up
+
+drop table content_fossology_license cascade;
+drop table content_mimetype cascade;
+drop table content_language cascade;
+drop table content_ctags cascade;
+drop table revision_metadata cascade;
+drop table content_metadata cascade;
+drop table fossology_license cascade;
+
+drop type content_language_signature cascade;
+drop type content_mimetype_signature cascade;
+drop type content_ctags_signature cascade;
+drop type content_fossology_license_signature cascade;
+drop type content_metadata_signature cascade;
+drop type revision_metadata_signature cascade;
+
+drop type languages cascade;
+drop type ctags_languages cascade;
+
+alter table origin_metadata drop constraint origin_metadata_tool_fkey;
+
+drop table indexer_configuration cascade;

@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(114, now(), 'Work In Progress');
+      values(116, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -293,11 +293,12 @@ create table revision_history
 -- The timestamps at which Software Heritage has made a visit of the given origin.
 create table origin_visit
 (
-  origin    bigint not null,
-  visit     bigint not null,
-  date      timestamptz not null,
-  status    origin_visit_status not null,
-  metadata  jsonb
+  origin       bigint not null,
+  visit        bigint not null,
+  date         timestamptz not null,
+  status       origin_visit_status not null,
+  metadata     jsonb,
+  snapshot_id  bigint
 );
 
 comment on column origin_visit.origin is 'Visited origin';
@@ -305,6 +306,7 @@ comment on column origin_visit.visit is 'Visit number the visit occurred for tha
 comment on column origin_visit.date is 'Visit date for that origin';
 comment on column origin_visit.status is 'Visit status for that origin';
 comment on column origin_visit.metadata is 'Metadata associated with the visit';
+comment on column origin_visit.snapshot_id is 'id of the snapshot associated with the visit';
 
 
 -- The content of software origins is indexed starting from top-level pointers
@@ -321,7 +323,8 @@ create table occurrence_history
   target_type  object_type not null,  -- ref target type
   visits       bigint[] not null,     -- the visits where that occurrence was valid. References
                                       -- origin_visit(visit), where o_h.origin = origin_visit.origin.
-  object_id    bigserial not null     -- short object identifier
+  object_id    bigserial not null,    -- short object identifier
+  snapshot_branch_id bigint
 );
 
 -- Materialized view of occurrence_history, storing the *current* value of each
@@ -333,6 +336,25 @@ create table occurrence
   target    sha1_git not null,
   target_type object_type not null
 );
+
+
+create table snapshot (
+  object_id  bigserial not null,
+  id         sha1_git
+);
+
+create table snapshot_branch (
+  object_id    bigserial not null,
+  name         bytea not null,
+  target       bytea,
+  target_type  snapshot_target
+);
+
+create table snapshot_branches (
+  snapshot_id  bigint not null,
+  branch_id    bigint not null
+);
+
 
 -- A "memorable" point in the development history of a project.
 --

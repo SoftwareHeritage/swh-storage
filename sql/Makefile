@@ -35,19 +35,19 @@ dumpdb: swh.dump
 swh.dump: filldb-stamp
 	pg_dump -Fc $(DBNAME) > $@
 
-doc: autodoc-stamp $(DOCDIR)/swh.pdf $(DOCDIR)/swh.svg
+doc: autodoc-stamp $(DOCDIR)/db-schema.pdf $(DOCDIR)/db-schema.svg
 autodoc-stamp: filldb-stamp
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
-	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/swh
-	cp -a $(DOCDIR)/swh.dot $(DOCDIR)/swh.dot.orig
+	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/db-schema
+	cp -a $(DOCDIR)/db-schema.dot $(DOCDIR)/db-schema.dot.orig
 	touch $@
 
-$(DOCDIR)/swh.dot: clusters.dot autodoc-stamp
-	bin/dot_add_content $(DOCDIR)/swh.dot.orig clusters.dot > $(DOCDIR)/swh.dot
+$(DOCDIR)/db-schema.dot: clusters.dot autodoc-stamp
+	bin/dot_add_content $(DOCDIR)/db-schema.dot.orig clusters.dot > $(DOCDIR)/db-schema.dot
 
-$(DOCDIR)/swh.pdf: $(DOCDIR)/swh.dot
+$(DOCDIR)/db-schema.pdf: $(DOCDIR)/db-schema.dot
 	dot -T pdf $< > $@
-$(DOCDIR)/swh.svg: $(DOCDIR)/swh.dot
+$(DOCDIR)/db-schema.svg: $(DOCDIR)/db-schema.dot
 	dot -T svg $< > $@
 
 clean:

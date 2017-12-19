@@ -1,8 +1,10 @@
-swh-storage (0.0.95-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.96-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.96
+  * Add snapshot models
+  * Add support for hg revision type
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 07 Dec 2017 09:56:31 +0100
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 19 Dec 2017 16:25:57 +0100
 
 swh-storage (0.0.95-1~swh1) unstable-swh; urgency=medium
 
