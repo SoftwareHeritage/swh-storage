@@ -130,6 +130,17 @@ as $$
   ) on commit drop;
 $$;
 
+-- create a temporary table for the branches of a snapshot
+create or replace function swh_mktemp_snapshot_branch()
+    returns void
+    language sql
+as $$
+  create temporary table tmp_snapshot_branch (
+      name bytea not null,
+      target bytea,
+      target_type snapshot_target
+  ) on commit drop;
+$$;
 
 create or replace function swh_mktemp_tool()
     returns void
@@ -937,6 +948,70 @@ begin
 end
 $$;
 
+create or replace function swh_snapshot_add(origin bigint, visit bigint, snapshot_id snapshot.id%type)
+  returns void
+  language plpgsql
+as $$
+declare
+  snapshot_object_id snapshot.object_id%type;
+begin
+  select object_id from snapshot where id = snapshot_id into snapshot_object_id;
+  if snapshot_object_id is null then
+     insert into snapshot (id) values (snapshot_id) returning object_id into snapshot_object_id;
+     with all_branches(name, target_type, target) as (
+       select name, target_type, target from tmp_snapshot_branch
+     ), inserted as (
+       insert into snapshot_branch (name, target_type, target)
+       select name, target_type, target from all_branches
+       on conflict do nothing
+       returning object_id
+     )
+     insert into snapshot_branches (snapshot_id, branch_id)
+     select snapshot_object_id, object_id as branch_id from inserted
+     union all
+     select snapshot_object_id, object_id as branch_id
+       from all_branches ab
+       join snapshot_branch sb
+         on sb.name = ab.name
+           and sb.target_type is not distinct from ab.target_type
+           and sb.target is not distinct from ab.target;
+  end if;
+  update origin_visit ov
+    set snapshot_id = snapshot_object_id
+    where ov.origin=swh_snapshot_add.origin and ov.visit=swh_snapshot_add.visit;
+end;
+$$;
+
+create type snapshot_result as (
+  snapshot_id  sha1_git,
+  name         bytea,
+  target       bytea,
+  target_type  snapshot_target
+);
+
+create or replace function swh_snapshot_get_by_id(id snapshot.id%type)
+  returns setof snapshot_result
+  language sql
+  stable
+as $$
+  select
+    swh_snapshot_get_by_id.id as snapshot_id, name, target, target_type
+  from snapshot_branches
+  inner join snapshot_branch on snapshot_branches.branch_id = snapshot_branch.object_id
+  where snapshot_id = (select object_id from snapshot where snapshot.id = swh_snapshot_get_by_id.id)
+$$;
+
+create or replace function swh_snapshot_get_by_origin_visit(origin_id bigint, visit_id bigint)
+  returns snapshot.id%type
+  language sql
+  stable
+as $$
+  select snapshot.id
+  from origin_visit
+  left join snapshot
+  on snapshot.object_id = origin_visit.snapshot_id
+  where origin_visit.origin=origin_id and origin_visit.visit=visit_id;
+$$;
 
 -- Absolute path: directory reference + complete path relative to it
 create type content_dir as (
