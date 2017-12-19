@@ -1,3 +1,11 @@
+swh-storage (0.0.96-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.96
+  * Add snapshot models
+  * Add support for hg revision type
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 19 Dec 2017 16:25:57 +0100
+
 swh-storage (0.0.95-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.95
