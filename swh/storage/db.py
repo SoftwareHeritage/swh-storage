@@ -8,8 +8,9 @@ import datetime
 import enum
 import functools
 import json
+import os
 import select
-import tempfile
+import threading
 
 from contextlib import contextmanager
 
@@ -174,16 +175,27 @@ class BaseDb:
             else:
                 # We don't escape here to make sure we pass literals properly
                 return str(data)
-        with tempfile.TemporaryFile('w+') as f:
+
+        read_file, write_file = os.pipe()
+
+        def writer():
+            cursor = self._cursor(cur)
+            with open(read_file, 'r') as f:
+                cursor.copy_expert('COPY %s (%s) FROM STDIN CSV' % (
+                    tblname, ', '.join(columns)), f)
+
+        write_thread = threading.Thread(target=writer)
+        write_thread.start()
+
+        with open(write_file, 'w') as f:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
                 line = [escape(d.get(k)) for k in columns]
                 f.write(','.join(line))
                 f.write('\n')
-            f.seek(0)
-            self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
-                tblname, ', '.join(columns)), f)
+
+        write_thread.join()
 
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
