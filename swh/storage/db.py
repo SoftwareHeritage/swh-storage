@@ -8,12 +8,13 @@ import datetime
 import enum
 import functools
 import json
-import psycopg2
-import psycopg2.extras
 import select
 import tempfile
 
 from contextlib import contextmanager
+
+import psycopg2
+import psycopg2.extras
 
 
 TMP_CONTENT_TABLE = 'tmp_content'
