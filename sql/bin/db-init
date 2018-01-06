@@ -46,7 +46,9 @@ echo "I: initializing DB ${db_name} ..."
 psql $conn_flags ${sqls_flags} "$db_name"
 
 echo "I: granting privileges to user ${db_user} on DB ${db_name} ..."
-echo "grant all privileges on schema public to ${db_user}" | \
+echo "grant all privileges on all tables in schema public to ${db_user}" | \
+    psql $conn_flags "$db_name"
+echo "grant all privileges on all sequences in schema public to ${db_user}" | \
     psql $conn_flags "$db_name"
 
 echo "I: all done."
