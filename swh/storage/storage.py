@@ -1477,9 +1477,9 @@ class Storage():
             tools (iterable of :class:`dict`): Tool information to add to
               storage. Each tool is a :class:`dict` with the following keys:
 
-              - tool_name (:class:`str`): name of the tool
-              - tool_version (:class:`str`): version of the tool
-              - tool_configuration (:class:`dict`): configuration of the tool,
+              - name (:class:`str`): name of the tool
+              - version (:class:`str`): version of the tool
+              - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
         Returns:
