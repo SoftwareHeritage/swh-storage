@@ -14,6 +14,10 @@ ROOT_SQLS="$SQL_INIT"
 USER_SQLS="$SQL_ENUMS $SQL_SCHEMA $SQL_FUNC $SQL_INDEX $SQL_TRIGGER $SQL_DATA"
 SQLS="$ROOT_SQLS $USER_SQLS"
 
+DB_ENCODING="UTF-8"
+DB_LOCALE="C.UTF-8"
+DB_TEMPLATE="template0"
+
 if ! [ -f "$SQL_INIT" ] ; then
     echo "Cannot find $SQL_INIT. Abort."
     echo "Note: db-init should usually be run from swh-storage/sql as bin/db-init."
@@ -35,7 +39,10 @@ echo "I: creating Postgres user ${db_user} ..."
 createuser $conn_flags --pwprompt "$db_user" || true
 
 echo "I: creating Postgres database ${db_name} ..."
-createdb $conn_flags --owner "$db_user" "$db_name"
+createdb $conn_flags \
+         --encoding "$DB_ENCODING" --locale "$DB_LOCALE" \
+         --template "$DB_TEMPLATE" \
+         --owner "$db_user" "$db_name"
 
 sqls_flags=''
 for f in $SQLS ; do
