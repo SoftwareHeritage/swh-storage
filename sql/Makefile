@@ -45,9 +45,9 @@ autodoc-stamp: filldb-stamp
 $(DOCDIR)/db-schema.dot: clusters.dot autodoc-stamp
 	bin/dot_add_content $(DOCDIR)/db-schema.dot.orig clusters.dot > $(DOCDIR)/db-schema.dot
 
-$(DOCDIR)/db-schema.pdf: $(DOCDIR)/db-schema.dot
+$(DOCDIR)/db-schema.pdf: $(DOCDIR)/db-schema.dot autodoc-stamp
 	dot -T pdf $< > $@
-$(DOCDIR)/db-schema.svg: $(DOCDIR)/db-schema.dot
+$(DOCDIR)/db-schema.svg: $(DOCDIR)/db-schema.dot autodoc-stamp
 	dot -T svg $< > $@
 
 clean:
