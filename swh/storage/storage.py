@@ -760,7 +760,8 @@ class Storage():
             )
 
     @db_transaction
-    def snapshot_add(self, origin, visit, snapshot, cur=None):
+    def snapshot_add(self, origin, visit, snapshot, back_compat=True,
+                     cur=None):
         """Add a snapshot for the given origin/visit couple
 
         Args:
@@ -781,6 +782,8 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
+            back_compat (bool): whether to add the occurrences for
+              backwards-compatibility
         """
         db = self.db
 
@@ -801,6 +804,9 @@ class Storage():
             )
 
         db.snapshot_add(origin, visit, snapshot['id'], cur)
+
+        if not back_compat:
+            return
 
         # TODO: drop this compat feature
         occurrences = []

@@ -1778,6 +1778,33 @@ class CommonTestStorage(BaseTestStorage):
         self.assertEqual(by_ov, one_branch_retro_snapshot)
 
     @istest
+    def snapshot_add_back_compat(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
+                                  back_compat=True)
+
+        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
+        for branch, target in self.complete_snapshot['branches'].items():
+            if target and target['target_type'] == 'alias':
+                continue
+            if not target:
+                target = {'target_type': 'revision', 'target': b'\x00' * 20}
+
+            self.assertEquals(ov['occurrences'][branch], target)
+
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit_id = origin_visit2['visit']
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
+                                  back_compat=False)
+
+        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
+        self.assertEquals(ov['occurrences'], {})
+
+    @istest
     def entity_get_from_lister_metadata(self):
         self.storage.entity_add([self.entity1])
 
