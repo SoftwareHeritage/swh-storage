@@ -35,14 +35,16 @@ dumpdb: swh.dump
 swh.dump: filldb-stamp
 	pg_dump -Fc $(DBNAME) > $@
 
-doc: autodoc-stamp $(DOCDIR)/db-schema.pdf $(DOCDIR)/db-schema.svg
-autodoc-stamp: filldb-stamp
+$(DOCDIR):
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
+
+doc: autodoc-stamp $(DOCDIR)/db-schema.pdf $(DOCDIR)/db-schema.svg
+autodoc-stamp: filldb-stamp $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/db-schema
 	cp -a $(DOCDIR)/db-schema.dot $(DOCDIR)/db-schema.dot.orig
 	touch $@
 
-$(DOCDIR)/db-schema.dot: clusters.dot autodoc-stamp
+$(DOCDIR)/db-schema.dot: clusters.dot autodoc-stamp $(DOCDIR)
 	bin/dot_add_content $(DOCDIR)/db-schema.dot.orig clusters.dot > $(DOCDIR)/db-schema.dot
 
 $(DOCDIR)/db-schema.pdf: $(DOCDIR)/db-schema.dot autodoc-stamp
