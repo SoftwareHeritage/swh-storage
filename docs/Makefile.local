@@ -2,7 +2,11 @@ sphinx/html: sql-autodoc
 sql-autodoc:
 	make -C ../sql/ doc
 
-.PHONY: sql-autodoc
+clean: clean-sql-autodoc
+clean-sql-autodoc:
+	make -C ../sql/ clean
+
+.PHONY: sql-autodoc clean-sql-autodoc
 
 # Local Variables:
 # mode: makefile
