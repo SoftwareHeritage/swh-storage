@@ -20,6 +20,7 @@ all:
 
 createdb: createdb-stamp
 createdb-stamp: $(SQL_INIT)
+	-dropdb $(DBNAME)
 	createdb $(DBNAME)
 	touch $@
 
