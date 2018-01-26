@@ -1022,6 +1022,12 @@ class Storage():
 
         ori_visit = dict(zip(self.db.origin_visit_get_cols, ori_visit))
 
+        if ori_visit['snapshot']:
+            ori_visit['occurrences'] = self.snapshot_get(ori_visit['snapshot'],
+                                                         cur=cur)['branches']
+            return ori_visit
+
+        # TODO: remove Backwards compatibility after snapshot migration
         occs = {}
         for occ in db.occurrence_by_origin_visit(origin, visit):
             _, branch_name, target, target_type = occ
@@ -1030,9 +1036,7 @@ class Storage():
                 'target_type': target_type
             }
 
-        ori_visit.update({
-            'occurrences': occs
-        })
+        ori_visit['occurrences'] = occs
 
         return ori_visit
 

@@ -1422,6 +1422,7 @@ class CommonTestStorage(BaseTestStorage):
                               'visit': origin_visit1['visit'],
                               'status': 'ongoing',
                               'metadata': None,
+                              'snapshot': None,
                           }])
 
     @istest
@@ -1455,21 +1456,21 @@ class CommonTestStorage(BaseTestStorage):
 
         # then
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(actual_origin_visits,
-                          [{
-                              'origin': origin_visit2['origin'],
-                              'date': self.date_visit2,
-                              'visit': origin_visit1['visit'],
-                              'status': 'full',
-                              'metadata': visit1_metadata,
-                          },
-                           {
-                               'origin': origin_visit2['origin'],
-                               'date': self.date_visit3,
-                               'visit': origin_visit2['visit'],
-                               'status': 'ongoing',
-                               'metadata': None,
-                           }])
+        self.assertEquals(actual_origin_visits, [{
+            'origin': origin_visit2['origin'],
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'status': 'full',
+            'metadata': visit1_metadata,
+            'snapshot': None,
+        }, {
+            'origin': origin_visit2['origin'],
+            'date': self.date_visit3,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }])
 
         actual_origin_visits_bis = list(self.storage.origin_visit_get(
             origin_id, limit=1))
@@ -1480,18 +1481,20 @@ class CommonTestStorage(BaseTestStorage):
                               'visit': origin_visit1['visit'],
                               'status': 'full',
                               'metadata': visit1_metadata,
+                              'snapshot': None,
                           }])
 
         actual_origin_visits_ter = list(self.storage.origin_visit_get(
             origin_id, last_visit=origin_visit1['visit']))
         self.assertEquals(actual_origin_visits_ter,
                           [{
-                               'origin': origin_visit2['origin'],
-                               'date': self.date_visit3,
-                               'visit': origin_visit2['visit'],
-                               'status': 'ongoing',
-                               'metadata': None,
-                           }])
+                              'origin': origin_visit2['origin'],
+                              'date': self.date_visit3,
+                              'visit': origin_visit2['visit'],
+                              'status': 'ongoing',
+                              'metadata': None,
+                              'snapshot': None,
+                          }])
 
         actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
         self.assertEquals(actual_origin_visits2,
@@ -1501,6 +1504,7 @@ class CommonTestStorage(BaseTestStorage):
                               'visit': origin_visit3['visit'],
                               'status': 'partial',
                               'metadata': None,
+                              'snapshot': None,
                           }])
 
     @istest
@@ -1546,7 +1550,8 @@ class CommonTestStorage(BaseTestStorage):
                     'target': occurrence2['target'],
                     'target_type': occurrence2['target_type'],
                 }
-            }
+            },
+            'snapshot': None,
         })
 
         # when
@@ -1787,13 +1792,10 @@ class CommonTestStorage(BaseTestStorage):
                                   back_compat=True)
 
         ov = self.storage.origin_visit_get_by(origin_id, visit_id)
-        for branch, target in self.complete_snapshot['branches'].items():
-            if target and target['target_type'] == 'alias':
-                continue
-            if not target:
-                target = {'target_type': 'revision', 'target': b'\x00' * 20}
-
-            self.assertEquals(ov['occurrences'][branch], target)
+        self.assertEquals(ov['occurrences'],
+                          self.complete_snapshot['branches'])
+        self.assertEquals(ov['snapshot'],
+                          self.complete_snapshot['id'])
 
         origin_visit2 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit2)
@@ -1802,7 +1804,10 @@ class CommonTestStorage(BaseTestStorage):
                                   back_compat=False)
 
         ov = self.storage.origin_visit_get_by(origin_id, visit_id)
-        self.assertEquals(ov['occurrences'], {})
+        self.assertEquals(ov['occurrences'],
+                          self.complete_snapshot['branches'])
+        self.assertEquals(ov['snapshot'],
+                          self.complete_snapshot['id'])
 
     @istest
     def entity_get_from_lister_metadata(self):

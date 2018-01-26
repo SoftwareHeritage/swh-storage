@@ -489,7 +489,8 @@ class Db(BaseDb):
                     WHERE origin=%s AND visit=%s"""
         cur.execute(update, (status, jsonize(metadata), origin, visit_id))
 
-    origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata']
+    origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
+                             'snapshot']
 
     def origin_visit_get_all(self, origin_id,
                              last_visit=None, limit=None, cur=None):
@@ -512,12 +513,13 @@ class Db(BaseDb):
             args = (origin_id, limit)
 
         query = """\
-        SELECT %s
+        SELECT %s,
+            (select id from snapshot where object_id = snapshot_id) as snapshot
         FROM origin_visit
         WHERE origin=%%s %s
         order by date, visit asc
         limit %%s""" % (
-            ', '.join(self.origin_visit_get_cols), extra_condition
+            ', '.join(self.origin_visit_get_cols[:-1]), extra_condition
         )
 
         cur.execute(query, args)
@@ -538,10 +540,12 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query = """\
-            SELECT %s
+            SELECT %s,
+                (select id from snapshot where object_id = snapshot_id)
+                as snapshot
             FROM origin_visit
             WHERE origin = %%s AND visit = %%s
-            """ % (', '.join(self.origin_visit_get_cols))
+            """ % (', '.join(self.origin_visit_get_cols[:-1]))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
