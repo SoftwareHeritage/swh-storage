@@ -553,6 +553,42 @@ class Db(BaseDb):
             return None
         return line_to_bytes(r[0])
 
+    def origin_visit_get_latest_snapshot(self, origin_id,
+                                         allowed_statuses=None,
+                                         cur=None):
+        """Retrieve the most recent origin_visit which references a snapshot
+
+        Args:
+            origin_id: the origin concerned
+            allowed_statuses: the visit statuses allowed for the returned visit
+
+        Returns:
+            The origin_visit information, or None if no visit matches.
+        """
+        cur = self._cursor(cur)
+
+        extra_clause = ""
+        if allowed_statuses:
+            extra_clause = cur.mogrify("AND status IN %s",
+                                       (tuple(allowed_statuses),)).decode()
+
+        query = """\
+            SELECT %s,
+                (select id from snapshot where object_id = snapshot_id)
+                as snapshot
+            FROM origin_visit
+            WHERE
+                origin = %%s AND snapshot_id is not null %s
+            ORDER BY date, visit DESC
+            LIMIT 1
+            """ % (', '.join(self.origin_visit_get_cols[:-1]), extra_clause)
+
+        cur.execute(query, (origin_id,))
+        r = cur.fetchone()
+        if not r:
+            return None
+        return line_to_bytes(r)
+
     occurrence_cols = ['origin', 'branch', 'target', 'target_type']
 
     def occurrence_by_origin_visit(self, origin_id, visit_id, cur=None):

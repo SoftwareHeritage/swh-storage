@@ -116,6 +116,12 @@ class RemoteStorage(SWHRemoteAPI):
         return self.post('snapshot/by_origin_visit', {'origin': origin,
                                                       'visit': visit})
 
+    def snapshot_get_latest(self, origin, allowed_statuses=None):
+        return self.post('snapshot/latest', {
+            'origin': origin,
+            'allowed_statuses': allowed_statuses
+        })
+
     def origin_get(self, origin):
         return self.post('origin/get', {'origin': origin})
 

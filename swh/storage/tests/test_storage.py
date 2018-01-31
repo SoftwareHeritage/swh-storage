@@ -1810,6 +1810,51 @@ class CommonTestStorage(BaseTestStorage):
                           self.complete_snapshot['id'])
 
     @istest
+    def snapshot_get_latest(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Two visits, both with no snapshot: latest snapshot is None
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        self.storage.snapshot_add(origin_id, visit1_id, self.complete_snapshot)
+        self.assertEquals(self.complete_snapshot,
+                          self.storage.snapshot_get_latest(origin_id))
+
+        # Status filter: both visits are status=ongoing, so no snapshot
+        # returned
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_id, visit1_id, status='full')
+        self.assertEquals(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit2 and check that the new snapshot is returned
+        self.storage.snapshot_add(origin_id, visit2_id, self.empty_snapshot)
+        self.assertEquals(self.empty_snapshot,
+                          self.storage.snapshot_get_latest(origin_id))
+
+        # Check that the status filter is still working
+        self.assertEquals(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+    @istest
     def entity_get_from_lister_metadata(self):
         self.storage.entity_add([self.entity1])
 

@@ -894,6 +894,31 @@ class Storage():
         return None
 
     @db_transaction
+    def snapshot_get_latest(self, origin, allowed_statuses=None, cur=None):
+        """Get the latest snapshot for the given origin, optionally only from visits
+        that have one of the given allowed_statuses.
+
+        Args:
+            origin (int): the origin identifier
+            allowed_statuses (list of str): list of visit statuses considered
+              to find the latest snapshot for the visit. For instance,
+              ``allowed_statuses=['full']`` will only consider visits that
+              have successfully run to completion.
+
+        Returns:
+           dict: a snapshot with two keys:
+             id:: identifier for the snapshot
+             branches:: a dictionary containing the snapshot branch information
+        """
+        db = self.db
+
+        origin_visit = db.origin_visit_get_latest_snapshot(
+            origin, allowed_statuses=allowed_statuses, cur=cur)
+        if origin_visit:
+            origin_visit = dict(zip(db.origin_visit_get_cols, origin_visit))
+            return self.snapshot_get(origin_visit['snapshot'], cur=cur)
+
+    @db_transaction
     def occurrence_add(self, occurrences, cur=None):
         """Add occurrences to the storage
 
