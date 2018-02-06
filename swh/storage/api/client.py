@@ -104,7 +104,7 @@ class RemoteStorage(SWHRemoteAPI):
     def occurrence_add(self, occurrences):
         return self.post('occurrence/add', {'occurrences': occurrences})
 
-    def snapshot_add(self, origin, visit, snapshot, back_compat=True):
+    def snapshot_add(self, origin, visit, snapshot, back_compat=False):
         return self.post('snapshot/add', {
             'origin': origin, 'visit': visit, 'snapshot': snapshot,
             'back_compat': back_compat})
