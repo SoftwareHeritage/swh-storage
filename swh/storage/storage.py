@@ -760,7 +760,8 @@ class Storage():
             )
 
     @db_transaction
-    def snapshot_add(self, origin, visit, snapshot, cur=None):
+    def snapshot_add(self, origin, visit, snapshot, back_compat=True,
+                     cur=None):
         """Add a snapshot for the given origin/visit couple
 
         Args:
@@ -781,6 +782,8 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
+            back_compat (bool): whether to add the occurrences for
+              backwards-compatibility
         """
         db = self.db
 
@@ -801,6 +804,9 @@ class Storage():
             )
 
         db.snapshot_add(origin, visit, snapshot['id'], cur)
+
+        if not back_compat:
+            return
 
         # TODO: drop this compat feature
         occurrences = []
@@ -886,6 +892,31 @@ class Storage():
             return ret
 
         return None
+
+    @db_transaction
+    def snapshot_get_latest(self, origin, allowed_statuses=None, cur=None):
+        """Get the latest snapshot for the given origin, optionally only from visits
+        that have one of the given allowed_statuses.
+
+        Args:
+            origin (int): the origin identifier
+            allowed_statuses (list of str): list of visit statuses considered
+              to find the latest snapshot for the visit. For instance,
+              ``allowed_statuses=['full']`` will only consider visits that
+              have successfully run to completion.
+
+        Returns:
+           dict: a snapshot with two keys:
+             id:: identifier for the snapshot
+             branches:: a dictionary containing the snapshot branch information
+        """
+        db = self.db
+
+        origin_visit = db.origin_visit_get_latest_snapshot(
+            origin, allowed_statuses=allowed_statuses, cur=cur)
+        if origin_visit:
+            origin_visit = dict(zip(db.origin_visit_get_cols, origin_visit))
+            return self.snapshot_get(origin_visit['snapshot'], cur=cur)
 
     @db_transaction
     def occurrence_add(self, occurrences, cur=None):
@@ -1016,6 +1047,12 @@ class Storage():
 
         ori_visit = dict(zip(self.db.origin_visit_get_cols, ori_visit))
 
+        if ori_visit['snapshot']:
+            ori_visit['occurrences'] = self.snapshot_get(ori_visit['snapshot'],
+                                                         cur=cur)['branches']
+            return ori_visit
+
+        # TODO: remove Backwards compatibility after snapshot migration
         occs = {}
         for occ in db.occurrence_by_origin_visit(origin, visit):
             _, branch_name, target, target_type = occ
@@ -1024,9 +1061,7 @@ class Storage():
                 'target_type': target_type
             }
 
-        ori_visit.update({
-            'occurrences': occs
-        })
+        ori_visit['occurrences'] = occs
 
         return ori_visit
 
@@ -1477,9 +1512,9 @@ class Storage():
             tools (iterable of :class:`dict`): Tool information to add to
               storage. Each tool is a :class:`dict` with the following keys:
 
-              - tool_name (:class:`str`): name of the tool
-              - tool_version (:class:`str`): version of the tool
-              - tool_configuration (:class:`dict`): configuration of the tool,
+              - name (:class:`str`): name of the tool
+              - version (:class:`str`): version of the tool
+              - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
         Returns:

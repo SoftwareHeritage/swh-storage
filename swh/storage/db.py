@@ -8,12 +8,14 @@ import datetime
 import enum
 import functools
 import json
-import psycopg2
-import psycopg2.extras
+import os
 import select
-import tempfile
+import threading
 
 from contextlib import contextmanager
+
+import psycopg2
+import psycopg2.extras
 
 
 TMP_CONTENT_TABLE = 'tmp_content'
@@ -173,16 +175,27 @@ class BaseDb:
             else:
                 # We don't escape here to make sure we pass literals properly
                 return str(data)
-        with tempfile.TemporaryFile('w+') as f:
+
+        read_file, write_file = os.pipe()
+
+        def writer():
+            cursor = self._cursor(cur)
+            with open(read_file, 'r') as f:
+                cursor.copy_expert('COPY %s (%s) FROM STDIN CSV' % (
+                    tblname, ', '.join(columns)), f)
+
+        write_thread = threading.Thread(target=writer)
+        write_thread.start()
+
+        with open(write_file, 'w') as f:
             for d in items:
                 if item_cb is not None:
                     item_cb(d)
                 line = [escape(d.get(k)) for k in columns]
                 f.write(','.join(line))
                 f.write('\n')
-            f.seek(0)
-            self._cursor(cur).copy_expert('COPY %s (%s) FROM STDIN CSV' % (
-                tblname, ', '.join(columns)), f)
+
+        write_thread.join()
 
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
@@ -476,7 +489,8 @@ class Db(BaseDb):
                     WHERE origin=%s AND visit=%s"""
         cur.execute(update, (status, jsonize(metadata), origin, visit_id))
 
-    origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata']
+    origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
+                             'snapshot']
 
     def origin_visit_get_all(self, origin_id,
                              last_visit=None, limit=None, cur=None):
@@ -499,12 +513,13 @@ class Db(BaseDb):
             args = (origin_id, limit)
 
         query = """\
-        SELECT %s
+        SELECT %s,
+            (select id from snapshot where object_id = snapshot_id) as snapshot
         FROM origin_visit
         WHERE origin=%%s %s
         order by date, visit asc
         limit %%s""" % (
-            ', '.join(self.origin_visit_get_cols), extra_condition
+            ', '.join(self.origin_visit_get_cols[:-1]), extra_condition
         )
 
         cur.execute(query, args)
@@ -525,16 +540,54 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query = """\
-            SELECT %s
+            SELECT %s,
+                (select id from snapshot where object_id = snapshot_id)
+                as snapshot
             FROM origin_visit
             WHERE origin = %%s AND visit = %%s
-            """ % (', '.join(self.origin_visit_get_cols))
+            """ % (', '.join(self.origin_visit_get_cols[:-1]))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
         if not r:
             return None
         return line_to_bytes(r[0])
+
+    def origin_visit_get_latest_snapshot(self, origin_id,
+                                         allowed_statuses=None,
+                                         cur=None):
+        """Retrieve the most recent origin_visit which references a snapshot
+
+        Args:
+            origin_id: the origin concerned
+            allowed_statuses: the visit statuses allowed for the returned visit
+
+        Returns:
+            The origin_visit information, or None if no visit matches.
+        """
+        cur = self._cursor(cur)
+
+        extra_clause = ""
+        if allowed_statuses:
+            extra_clause = cur.mogrify("AND status IN %s",
+                                       (tuple(allowed_statuses),)).decode()
+
+        query = """\
+            SELECT %s,
+                (select id from snapshot where object_id = snapshot_id)
+                as snapshot
+            FROM origin_visit
+            WHERE
+                origin = %%s AND snapshot_id is not null %s
+            ORDER BY date, visit DESC
+            LIMIT 1
+            """ % (', '.join(self.origin_visit_get_cols[:-1]), extra_clause)
+
+        cur.execute(query, (origin_id,))
+        r = cur.fetchone()
+        if not r:
+            return None
+        return line_to_bytes(r)
 
     occurrence_cols = ['origin', 'branch', 'target', 'target_type']
 
