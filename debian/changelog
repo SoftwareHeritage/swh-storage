@@ -1,3 +1,13 @@
+swh-storage (0.0.97-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.97
+  * refactor database initialization
+  * use a separate thread instead of a temporary file for COPY
+    operations
+  * add more snapshot-related endpoints
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Tue, 06 Feb 2018 14:07:07 +0100
+
 swh-storage (0.0.96-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.96
