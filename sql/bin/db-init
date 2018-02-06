@@ -1,0 +1,61 @@
+#!/bin/bash
+set -e
+
+# Must be run as (a) Postgres super user
+
+SQL_INIT=swh-init.sql
+SQL_ENUMS=swh-enums.sql
+SQL_SCHEMA=swh-schema.sql
+SQL_FUNC=swh-func.sql
+SQL_INDEX=swh-indexes.sql
+SQL_TRIGGER=swh-triggers.sql
+SQL_DATA=swh-data.sql
+ROOT_SQLS="$SQL_INIT"
+USER_SQLS="$SQL_ENUMS $SQL_SCHEMA $SQL_FUNC $SQL_INDEX $SQL_TRIGGER $SQL_DATA"
+SQLS="$ROOT_SQLS $USER_SQLS"
+
+DB_ENCODING="UTF-8"
+DB_LOCALE="C.UTF-8"
+DB_TEMPLATE="template0"
+
+if ! [ -f "$SQL_INIT" ] ; then
+    echo "Cannot find $SQL_INIT. Abort."
+    echo "Note: db-init should usually be run from swh-storage/sql as bin/db-init."
+    exit 2
+fi
+
+if [ -z "$1" -o -z "$2" -o -z "$3" ] ; then
+    echo "Usage: bin/db-init DB_PORT DB_NAME DB_USER"
+    echo "Example: bin/db-init 5432 softwareheritage-dev swhdev"
+    echo "Note: DB_NAME should not exist and will be created; DB_USER can exist."
+    exit 2
+fi
+db_port="$1"
+db_name="$2"
+db_user="$3"
+conn_flags="--port ${db_port}"
+
+echo "I: creating Postgres user ${db_user} ..."
+createuser $conn_flags --pwprompt "$db_user" || true
+
+echo "I: creating Postgres database ${db_name} ..."
+createdb $conn_flags \
+         --encoding "$DB_ENCODING" --locale "$DB_LOCALE" \
+         --template "$DB_TEMPLATE" \
+         --owner "$db_user" "$db_name"
+
+sqls_flags=''
+for f in $SQLS ; do
+    sqls_flags="${sqls_flags} --file ${f}"
+done
+
+echo "I: initializing DB ${db_name} ..."
+psql $conn_flags ${sqls_flags} "$db_name"
+
+echo "I: granting privileges to user ${db_user} on DB ${db_name} ..."
+echo "grant all privileges on all tables in schema public to ${db_user}" | \
+    psql $conn_flags "$db_name"
+echo "grant all privileges on all sequences in schema public to ${db_user}" | \
+    psql $conn_flags "$db_name"
+
+echo "I: all done."

@@ -37,6 +37,7 @@ sql/swh-indexes.sql
 sql/swh-init.sql
 sql/swh-schema.sql
 sql/swh-triggers.sql
+sql/bin/db-init
 sql/bin/db-upgrade
 sql/bin/dot_add_content
 sql/doc/json
@@ -163,6 +164,7 @@ sql/upgrades/113.sql
 sql/upgrades/114.sql
 sql/upgrades/115.sql
 sql/upgrades/116.sql
+sql/upgrades/117.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt

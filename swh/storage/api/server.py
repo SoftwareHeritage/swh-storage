@@ -208,6 +208,12 @@ def snapshot_get_by_origin_visit():
         **decode_request(request)))
 
 
+@app.route('/snapshot/latest', methods=['POST'])
+def snapshot_get_latest():
+    return encode_data(g.storage.snapshot_get_latest(
+        **decode_request(request)))
+
+
 @app.route('/origin/get', methods=['POST'])
 def origin_get():
     return encode_data(g.storage.origin_get(**decode_request(request)))
