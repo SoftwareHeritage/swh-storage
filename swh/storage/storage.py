@@ -760,7 +760,7 @@ class Storage():
             )
 
     @db_transaction
-    def snapshot_add(self, origin, visit, snapshot, back_compat=True,
+    def snapshot_add(self, origin, visit, snapshot, back_compat=False,
                      cur=None):
         """Add a snapshot for the given origin/visit couple
 
