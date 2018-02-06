@@ -1,3 +1,12 @@
+
+create or replace function hash_sha1(text)
+       returns text
+as $$
+   select encode(digest($1, 'sha1'), 'hex')
+$$ language sql strict immutable;
+
+comment on function hash_sha1(text) is 'Compute SHA1 hash as text';
+
 -- create a temporary table called tmp_TBLNAME, mimicking existing table
 -- TBLNAME
 --
@@ -958,23 +967,29 @@ begin
   select object_id from snapshot where id = snapshot_id into snapshot_object_id;
   if snapshot_object_id is null then
      insert into snapshot (id) values (snapshot_id) returning object_id into snapshot_object_id;
-     with all_branches(name, target_type, target) as (
-       select name, target_type, target from tmp_snapshot_branch
-     ), inserted as (
-       insert into snapshot_branch (name, target_type, target)
-       select name, target_type, target from all_branches
-       on conflict do nothing
-       returning object_id
-     )
+     insert into snapshot_branch (name, target_type, target)
+       select name, target_type, target from tmp_snapshot_branch tmp
+       where not exists (
+         select 1
+         from snapshot_branch sb
+         where sb.name = tmp.name
+           and sb.target = tmp.target
+           and sb.target_type = tmp.target_type
+       )
+       on conflict do nothing;
      insert into snapshot_branches (snapshot_id, branch_id)
-     select snapshot_object_id, object_id as branch_id from inserted
-     union all
-     select snapshot_object_id, object_id as branch_id
-       from all_branches ab
+     select snapshot_object_id, sb.object_id as branch_id
+       from tmp_snapshot_branch tmp
        join snapshot_branch sb
-         on sb.name = ab.name
-           and sb.target_type is not distinct from ab.target_type
-           and sb.target is not distinct from ab.target;
+       using (name, target, target_type)
+       where tmp.target is not null and tmp.target_type is not null
+     union
+     select snapshot_object_id, sb.object_id as branch_id
+       from tmp_snapshot_branch tmp
+       join snapshot_branch sb
+       using (name)
+       where tmp.target is null and tmp.target_type is null
+         and sb.target is null and sb.target_type is null;
   end if;
   update origin_visit ov
     set snapshot_id = snapshot_object_id

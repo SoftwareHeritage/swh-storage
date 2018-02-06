@@ -1422,6 +1422,7 @@ class CommonTestStorage(BaseTestStorage):
                               'visit': origin_visit1['visit'],
                               'status': 'ongoing',
                               'metadata': None,
+                              'snapshot': None,
                           }])
 
     @istest
@@ -1455,21 +1456,21 @@ class CommonTestStorage(BaseTestStorage):
 
         # then
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(actual_origin_visits,
-                          [{
-                              'origin': origin_visit2['origin'],
-                              'date': self.date_visit2,
-                              'visit': origin_visit1['visit'],
-                              'status': 'full',
-                              'metadata': visit1_metadata,
-                          },
-                           {
-                               'origin': origin_visit2['origin'],
-                               'date': self.date_visit3,
-                               'visit': origin_visit2['visit'],
-                               'status': 'ongoing',
-                               'metadata': None,
-                           }])
+        self.assertEquals(actual_origin_visits, [{
+            'origin': origin_visit2['origin'],
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'status': 'full',
+            'metadata': visit1_metadata,
+            'snapshot': None,
+        }, {
+            'origin': origin_visit2['origin'],
+            'date': self.date_visit3,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }])
 
         actual_origin_visits_bis = list(self.storage.origin_visit_get(
             origin_id, limit=1))
@@ -1480,18 +1481,20 @@ class CommonTestStorage(BaseTestStorage):
                               'visit': origin_visit1['visit'],
                               'status': 'full',
                               'metadata': visit1_metadata,
+                              'snapshot': None,
                           }])
 
         actual_origin_visits_ter = list(self.storage.origin_visit_get(
             origin_id, last_visit=origin_visit1['visit']))
         self.assertEquals(actual_origin_visits_ter,
                           [{
-                               'origin': origin_visit2['origin'],
-                               'date': self.date_visit3,
-                               'visit': origin_visit2['visit'],
-                               'status': 'ongoing',
-                               'metadata': None,
-                           }])
+                              'origin': origin_visit2['origin'],
+                              'date': self.date_visit3,
+                              'visit': origin_visit2['visit'],
+                              'status': 'ongoing',
+                              'metadata': None,
+                              'snapshot': None,
+                          }])
 
         actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
         self.assertEquals(actual_origin_visits2,
@@ -1501,6 +1504,7 @@ class CommonTestStorage(BaseTestStorage):
                               'visit': origin_visit3['visit'],
                               'status': 'partial',
                               'metadata': None,
+                              'snapshot': None,
                           }])
 
     @istest
@@ -1546,7 +1550,8 @@ class CommonTestStorage(BaseTestStorage):
                     'target': occurrence2['target'],
                     'target_type': occurrence2['target_type'],
                 }
-            }
+            },
+            'snapshot': None,
         })
 
         # when
@@ -1776,6 +1781,78 @@ class CommonTestStorage(BaseTestStorage):
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, one_branch_retro_snapshot)
+
+    @istest
+    def snapshot_add_back_compat(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
+                                  back_compat=True)
+
+        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
+        self.assertEquals(ov['occurrences'],
+                          self.complete_snapshot['branches'])
+        self.assertEquals(ov['snapshot'],
+                          self.complete_snapshot['id'])
+
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit_id = origin_visit2['visit']
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
+                                  back_compat=False)
+
+        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
+        self.assertEquals(ov['occurrences'],
+                          self.complete_snapshot['branches'])
+        self.assertEquals(ov['snapshot'],
+                          self.complete_snapshot['id'])
+
+    @istest
+    def snapshot_get_latest(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Two visits, both with no snapshot: latest snapshot is None
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        self.storage.snapshot_add(origin_id, visit1_id, self.complete_snapshot)
+        self.assertEquals(self.complete_snapshot,
+                          self.storage.snapshot_get_latest(origin_id))
+
+        # Status filter: both visits are status=ongoing, so no snapshot
+        # returned
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_id, visit1_id, status='full')
+        self.assertEquals(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit2 and check that the new snapshot is returned
+        self.storage.snapshot_add(origin_id, visit2_id, self.empty_snapshot)
+        self.assertEquals(self.empty_snapshot,
+                          self.storage.snapshot_get_latest(origin_id))
+
+        # Check that the status filter is still working
+        self.assertEquals(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
 
     @istest
     def entity_get_from_lister_metadata(self):

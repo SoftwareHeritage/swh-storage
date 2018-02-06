@@ -104,9 +104,10 @@ class RemoteStorage(SWHRemoteAPI):
     def occurrence_add(self, occurrences):
         return self.post('occurrence/add', {'occurrences': occurrences})
 
-    def snapshot_add(self, origin, visit, snapshot):
-        return self.post('snapshot/add', {'origin': origin, 'visit': visit,
-                                          'snapshot': snapshot})
+    def snapshot_add(self, origin, visit, snapshot, back_compat=True):
+        return self.post('snapshot/add', {
+            'origin': origin, 'visit': visit, 'snapshot': snapshot,
+            'back_compat': back_compat})
 
     def snapshot_get(self, snapshot_id):
         return self.post('snapshot', {'snapshot_id': snapshot_id})
@@ -114,6 +115,12 @@ class RemoteStorage(SWHRemoteAPI):
     def snapshot_get_by_origin_visit(self, origin, visit):
         return self.post('snapshot/by_origin_visit', {'origin': origin,
                                                       'visit': visit})
+
+    def snapshot_get_latest(self, origin, allowed_statuses=None):
+        return self.post('snapshot/latest', {
+            'origin': origin,
+            'allowed_statuses': allowed_statuses
+        })
 
     def origin_get(self, origin):
         return self.post('origin/get', {'origin': origin})
