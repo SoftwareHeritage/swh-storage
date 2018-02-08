@@ -235,14 +235,19 @@ class Storage():
         """List content missing from storage
 
         Args:
-            content: iterable of dictionaries containing one key for each
-                checksum algorithm in :data:`swh.model.hashutil.ALGORITHMS`,
-                mapped to the corresponding checksum, and a length key mapped
-                to the content length.
-            key_hash: the name of the hash used as key (default: 'sha1')
+            content ([dict]): iterable of dictionaries containing one
+                              key for each checksum algorithm in
+                              :data:`swh.model.hashutil.ALGORITHMS`,
+                              mapped to the corresponding checksum,
+                              and a length key mapped to the content
+                              length.
+
+            key_hash (str): name of the column to use as hash id
+                            result (default: 'sha1')
 
         Returns:
-            iterable: missing ids
+            iterable ([bytes]): missing content ids (as per the
+            key_hash column)
 
         Raises:
             TODO: an exception when we get a hash collision.
