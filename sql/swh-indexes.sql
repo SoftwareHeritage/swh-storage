@@ -251,3 +251,7 @@ alter table origin_metadata validate constraint origin_metadata_tool_fkey;
 -- object_counts
 create unique index concurrently object_counts_pkey on object_counts(object_type);
 alter table object_counts add primary key using index object_counts_pkey;
+
+-- object_counts_bucketed
+create unique index concurrently object_counts_bucketed_pkey on object_counts_bucketed(line);
+alter table object_counts_bucketed add primary key using index object_counts_bucketed_pkey;
