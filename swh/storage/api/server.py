@@ -348,6 +348,21 @@ def stat_counters():
     return encode_data(g.storage.stat_counters())
 
 
+@app.route('/algos/diff_directories', methods=['POST'])
+def diff_directories():
+    return encode_data(g.storage.diff_directories(**decode_request(request)))
+
+
+@app.route('/algos/diff_revisions', methods=['POST'])
+def diff_revisions():
+    return encode_data(g.storage.diff_revisions(**decode_request(request)))
+
+
+@app.route('/algos/diff_revision', methods=['POST'])
+def diff_revision():
+    return encode_data(g.storage.diff_revision(**decode_request(request)))
+
+
 def run_from_webserver(environ, start_response,
                        config_path=DEFAULT_CONFIG_PATH):
     """Run the WSGI app from the webserver, loading the configuration."""
