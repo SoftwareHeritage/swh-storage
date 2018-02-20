@@ -1,3 +1,13 @@
+swh-storage (0.0.99-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.99
+  * storage: Add methods to compute directories/revisions diff
+  * Add a new table for "bucketed" object counts
+  * doc: update table clusters in SQL diagram
+  * swh.storage.content_missing: Improve docstring
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 20 Feb 2018 13:32:25 +0100
+
 swh-storage (0.0.98-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.98
