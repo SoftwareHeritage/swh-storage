@@ -14,7 +14,7 @@ create table dbversion
 );
 
 insert into dbversion(version, release, description)
-      values(117, now(), 'Work In Progress');
+      values(118, now(), 'Work In Progress');
 
 -- a SHA1 checksum (not necessarily originating from Git)
 create domain sha1 as bytea check (length(value) = 20);
@@ -428,7 +428,18 @@ comment on column origin_metadata.metadata is 'metadata in json format but with 
 
 -- Keep a cache of object counts
 create table object_counts (
-  object_type text,
-  value bigint,
-  last_update timestamptz
+  object_type text,             -- table for which we're counting objects (PK)
+  value bigint,                 -- count of objects in the table
+  last_update timestamptz,      -- last update for the object count in this table
+  single_update boolean         -- whether we update this table standalone (true) or through bucketed counts (false)
+);
+
+CREATE TABLE object_counts_bucketed (
+    line serial NOT NULL,       -- PK
+    object_type text NOT NULL,  -- table for which we're counting objects
+    identifier text NOT NULL,   -- identifier across which we're bucketing objects
+    bucket_start bytea,         -- lower bound (inclusive) for the bucket
+    bucket_end bytea,           -- upper bound (exclusive) for the bucket
+    value bigint,               -- count of objects in the bucket
+    last_update timestamptz     -- last update for the object count in this bucket
 );

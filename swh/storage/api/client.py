@@ -218,3 +218,20 @@ class RemoteStorage(SWHRemoteAPI):
 
     def metadata_provider_get_by(self, provider):
         return self.post('provider/getby', {'provider': provider})
+
+    def diff_directories(self, from_dir, to_dir, track_renaming=False):
+        return self.post('algos/diff_directories',
+                         {'from_dir': from_dir,
+                          'to_dir': to_dir,
+                          'track_renaming': track_renaming})
+
+    def diff_revisions(self, from_rev, to_rev, track_renaming=False):
+        return self.post('algos/diff_revisions',
+                         {'from_rev': from_rev,
+                          'to_rev': to_rev,
+                          'track_renaming': track_renaming})
+
+    def diff_revision(self, revision, track_renaming=False):
+        return self.post('algos/diff_revision',
+                         {'revision': revision,
+                          'track_renaming': track_renaming})

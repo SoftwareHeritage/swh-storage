@@ -39,6 +39,9 @@ subgraph "logical_grouping" {
 		label = <<b>snapshots</b>>;
 		occurrence;
 		occurrence_history;
+		snapshot;
+		snapshot_branch;
+		snapshot_branches;
 	}
 
 	subgraph cluster_origins {
@@ -57,11 +60,16 @@ subgraph "logical_grouping" {
 		list_history;
 	}
 
-	subgraph cluster_provenance {
-		label = <<b>provenance</b>>;
-		cache_revision_origin;
-		cache_content_revision;
-		cache_content_revision_processed;
+	subgraph cluster_metadata {
+                label = <<b>metadata</b>>;
+                metadata_provider;
+                origin_metadata;
+		tool;
+	}
+
+	subgraph cluster_statistics {
+                label = <<b>statistics</b>>;
+                object_counts;
 	}
 
 	{
@@ -84,16 +92,4 @@ subgraph "logical_grouping" {
 		"entity_history":rtcol3 -> "entity_history":ltcol2;
 		"entity_history":rtcol10 -> "listable_entity":ltcol1;
 	}
-
-	subgraph cluster_metadata {
-                label = <<b>metadata</b>>;
-                content_metadata;
-                revision_metadata;
-	}
-
-	subgraph cluster_statistics {
-                label = <<b>statistics</b>>;
-                object_counts;
-	}
-
 }

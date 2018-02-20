@@ -10,6 +10,7 @@ requirements-swh.txt
 requirements.txt
 setup.py
 version.txt
+.vscode/settings.json
 bin/swh-storage-add-dir
 debian/changelog
 debian/compat
@@ -165,6 +166,7 @@ sql/upgrades/114.sql
 sql/upgrades/115.sql
 sql/upgrades/116.sql
 sql/upgrades/117.sql
+sql/upgrades/118.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -178,6 +180,9 @@ swh/storage/db.py
 swh/storage/exc.py
 swh/storage/listener.py
 swh/storage/storage.py
+swh/storage/algos/__init__.py
+swh/storage/algos/diff.py
+swh/storage/algos/dir_iterators.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
 swh/storage/api/server.py
@@ -190,5 +195,7 @@ swh/storage/tests/test_api_client.py
 swh/storage/tests/test_converters.py
 swh/storage/tests/test_db.py
 swh/storage/tests/test_storage.py
+swh/storage/tests/algos/__init__.py
+swh/storage/tests/algos/test_diff.py
 utils/dump_revisions.py
 utils/fix_revisions_from_dump.py
