@@ -26,7 +26,7 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
         # setUp() method, but this field is defined in
         # AbstractTestStorage's setUp()
         # To avoid confusion, override the self.objroot to a
-        # one choosen in this class.
+        # one chosen in this class.
         storage_base = tempfile.mkdtemp()
         self.config = {
             'storage': {

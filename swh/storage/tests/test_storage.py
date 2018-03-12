@@ -436,7 +436,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             },
             'target': b'432109\xa9765432\xc309\x00765',
             'target_type': 'revision',
-            'message': b'v0.0.2\nMisc performance improvments + bug fixes',
+            'message': b'v0.0.2\nMisc performance improvements + bug fixes',
             'synthetic': False
         }
 
@@ -1113,7 +1113,7 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def revision_get_by_multiple_occurrence(self):
         # 2 occurrences pointing to 2 different revisions
-        # each occurence have 1 day delta
+        # each occurrence have 1 day delta
         # the api must return the revision whose occurrence is the nearest.
 
         # given
