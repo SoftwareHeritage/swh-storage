@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,8 +6,8 @@
 import unittest
 import tempfile
 
+from swh.core.tests.server_testing import ServerTestFixture
 from swh.storage.tests.test_storage import CommonTestStorage
-from swh.storage.tests.server_testing import ServerTestFixture
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
 
