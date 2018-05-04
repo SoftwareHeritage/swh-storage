@@ -55,6 +55,7 @@ class StorageTestFixture:
 
     def tearDown(self):
         self.objtmp.cleanup()
+        self.storage = None
         super().tearDown()
 
     def reset_storage_tables(self):
