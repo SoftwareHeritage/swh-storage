@@ -2483,10 +2483,12 @@ class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
 
         self.storage.content_update([cont], keys=['sha1_git'])
 
-        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
-                            ' FROM content WHERE sha1 = %s',
-                            (cont['sha1'],))
-        datum = self.cursor.fetchone()
+        with self.storage.db.transaction() as cur:
+            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
+                        ' FROM content WHERE sha1 = %s',
+                        (cont['sha1'],))
+            datum = cur.fetchone()
+
         self.assertEqual(
             (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
              datum[3], datum[4]),
@@ -2495,9 +2497,10 @@ class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
 
     @istest
     def content_update_with_new_cols(self):
-        self.cursor.execute("""alter table content
-                               add column test text default null,
-                               add column test2 text default null""")
+        with self.storage.db.transaction() as cur:
+            cur.execute("""alter table content
+                           add column test text default null,
+                           add column test2 text default null""")
 
         cont = copy.deepcopy(self.cont2)
         self.storage.content_add([cont])
@@ -2505,18 +2508,20 @@ class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
         cont['test2'] = 'value-2'
 
         self.storage.content_update([cont], keys=['test', 'test2'])
+        with self.storage.db.transaction() as cur:
+            cur.execute(
+                'SELECT sha1, sha1_git, sha256, length, status, test, test2'
+                ' FROM content WHERE sha1 = %s',
+                (cont['sha1'],))
 
-        self.cursor.execute(
-            'SELECT sha1, sha1_git, sha256, length, status, test, test2'
-            ' FROM content WHERE sha1 = %s',
-            (cont['sha1'],))
+            datum = cur.fetchone()
 
-        datum = self.cursor.fetchone()
         self.assertEqual(
             (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
              datum[3], datum[4], datum[5], datum[6]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible', cont['test'], cont['test2']))
 
-        self.cursor.execute("""alter table content drop column test,
-                                                   drop column test2""")
+        with self.storage.db.transaction() as cur:
+            cur.execute("""alter table content drop column test,
+                           drop column test2""")
