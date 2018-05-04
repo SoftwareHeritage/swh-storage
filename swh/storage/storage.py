@@ -177,7 +177,7 @@ class Storage():
         # TODO: Add a check on input keys. How to properly implement
         # this? We don't know yet the new columns.
 
-        db.mktemp('content')
+        db.mktemp('content', cur)
         select_keys = list(set(db.content_get_metadata_keys).union(set(keys)))
         db.copy_to(content, 'tmp_content', select_keys, cur)
         db.content_update_from_temp(keys_to_update=keys,
@@ -666,14 +666,14 @@ class Storage():
 
         # Retrieve the revision by criterion
         revisions = list(db.revision_get_by(
-            origin_id, branch_name, timestamp, limit=1))
+            origin_id, branch_name, timestamp, limit=1, cur=cur))
 
         if not revisions:
             return None
 
         revision_id = revisions[0][0]
         # otherwise, retrieve the revision log from that revision
-        yield from self.revision_log([revision_id], limit)
+        yield from self.revision_log([revision_id], limit, cur=cur)
 
     def release_add(self, releases):
         """Add releases to the storage
@@ -834,7 +834,7 @@ class Storage():
                 'target_type': target_type,
             })
 
-        self.occurrence_add(occurrences)
+        self.occurrence_add(occurrences, cur=cur)
 
     @db_transaction
     def snapshot_get(self, snapshot_id, cur=None):
@@ -1104,7 +1104,8 @@ class Storage():
                 continue
             yield data
 
-    def release_get_by(self, origin_id, limit=None):
+    @db_transaction_generator
+    def release_get_by(self, origin_id, limit=None, cur=None):
         """Given an origin id, return all the tag objects pointing to heads of
         origin_id.
 
@@ -1118,7 +1119,7 @@ class Storage():
 
         """
 
-        for line in self.db.release_get_by(origin_id, limit=limit):
+        for line in self.db.release_get_by(origin_id, limit=limit, cur=cur):
             data = converters.db_to_release(
                 dict(zip(self.db.release_get_cols, line))
             )
@@ -1145,7 +1146,7 @@ class Storage():
 
         ret = {id: [] for id in ids}
 
-        for retval in db.object_find_by_sha1_git(ids):
+        for retval in db.object_find_by_sha1_git(ids, cur=cur):
             if retval[1]:
                 ret[retval[0]].append(dict(zip(db.object_find_by_sha1_git_cols,
                                                retval)))
