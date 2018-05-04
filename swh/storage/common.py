@@ -16,8 +16,9 @@ def db_transaction(meth):
         if 'cur' in kwargs and kwargs['cur']:
             return meth(self, *args, **kwargs)
         else:
-            with self.db.transaction() as cur:
-                return meth(self, *args, cur=cur, **kwargs)
+            db = self.get_db()
+            with db.transaction() as cur:
+                return meth(self, *args, db=db, cur=cur, **kwargs)
     return _meth
 
 
@@ -33,6 +34,7 @@ def db_transaction_generator(meth):
         if 'cur' in kwargs and kwargs['cur']:
             yield from meth(self, *args, **kwargs)
         else:
-            with self.db.transaction() as cur:
-                yield from meth(self, *args, cur=cur, **kwargs)
+            db = self.get_db()
+            with db.transaction() as cur:
+                yield from meth(self, *args, db=db, cur=cur, **kwargs)
     return _meth
