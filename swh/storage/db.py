@@ -93,6 +93,10 @@ class BaseDb:
         conn = psycopg2.connect(*args, **kwargs)
         return cls(conn)
 
+    @classmethod
+    def from_pool(cls, pool):
+        return cls(pool.getconn(), pool=pool)
+
     def _cursor(self, cur_arg):
         """get a cursor: from cur_arg if given, or a fresh one otherwise
 
@@ -107,14 +111,20 @@ class BaseDb:
         else:
             return self.conn.cursor()
 
-    def __init__(self, conn):
+    def __init__(self, conn, pool=None):
         """create a DB proxy
 
         Args:
             conn: psycopg2 connection to the SWH DB
+            pool: psycopg2 pool of connections
 
         """
         self.conn = conn
+        self.pool = pool
+
+    def __del__(self):
+        if self.pool:
+            self.pool.putconn(self.conn)
 
     @contextmanager
     def transaction(self):
