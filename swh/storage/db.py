@@ -197,15 +197,19 @@ class BaseDb:
         write_thread = threading.Thread(target=writer)
         write_thread.start()
 
-        with open(write_file, 'w') as f:
-            for d in items:
-                if item_cb is not None:
-                    item_cb(d)
-                line = [escape(d.get(k)) for k in columns]
-                f.write(','.join(line))
-                f.write('\n')
-
-        write_thread.join()
+        try:
+            with open(write_file, 'w') as f:
+                for d in items:
+                    if item_cb is not None:
+                        item_cb(d)
+                    line = [escape(d.get(k)) for k in columns]
+                    f.write(','.join(line))
+                    f.write('\n')
+        finally:
+            # No problem bubbling up exceptions, but we still need to make sure
+            # we finish copying, even though we're probably going to cancel the
+            # transaction.
+            write_thread.join()
 
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))

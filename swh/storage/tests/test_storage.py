@@ -10,7 +10,7 @@ import psycopg2
 import unittest
 from uuid import UUID
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from nose.tools import istest
 from nose.plugins.attrib import attr
@@ -2463,6 +2463,21 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
                     'email': person1['email'],
                 },
             ])
+
+    # This test is only relevant on the local storage, with an actual
+    # objstorage raising an exception
+    @istest
+    def content_add_objstorage_exception(self):
+        self.storage.objstorage.add = Mock(
+            side_effect=Exception('mocked broken objstorage')
+        )
+
+        with self.assertRaises(Exception) as e:
+            self.storage.content_add([self.cont])
+
+        self.assertEqual(e.exception.args, ('mocked broken objstorage',))
+        missing = list(self.storage.content_missing([self.cont]))
+        self.assertEqual(missing, [self.cont['sha1']])
 
 
 class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
