@@ -1,13 +1,14 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import unittest
+import shutil
 import tempfile
+import unittest
 
+from swh.core.tests.server_testing import ServerTestFixture
 from swh.storage.tests.test_storage import CommonTestStorage
-from swh.storage.tests.server_testing import ServerTestFixture
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
 
@@ -26,8 +27,8 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
         # setUp() method, but this field is defined in
         # AbstractTestStorage's setUp()
         # To avoid confusion, override the self.objroot to a
-        # one choosen in this class.
-        storage_base = tempfile.mkdtemp()
+        # one chosen in this class.
+        self.storage_base = tempfile.mkdtemp()
         self.config = {
             'storage': {
                 'cls': 'local',
@@ -36,8 +37,8 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
                     'objstorage': {
                         'cls': 'pathslicing',
                         'args': {
-                            'root': storage_base,
-                            'slicing': '0:2/2:4/4:6',
+                            'root': self.storage_base,
+                            'slicing': '0:2',
                         },
                     },
                 }
@@ -46,4 +47,8 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
         self.app = app
         super().setUp()
         self.storage = RemoteStorage(self.url())
-        self.objroot = storage_base
+        self.objroot = self.storage_base
+
+    def tearDown(self):
+        super().tearDown()
+        shutil.rmtree(self.storage_base)

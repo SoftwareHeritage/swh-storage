@@ -10,7 +10,7 @@ import psycopg2
 import unittest
 from uuid import UUID
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from nose.tools import istest
 from nose.plugins.attrib import attr
@@ -436,7 +436,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             },
             'target': b'432109\xa9765432\xc309\x00765',
             'target_type': 'revision',
-            'message': b'v0.0.2\nMisc performance improvments + bug fixes',
+            'message': b'v0.0.2\nMisc performance improvements + bug fixes',
             'synthetic': False
         }
 
@@ -1113,7 +1113,7 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def revision_get_by_multiple_occurrence(self):
         # 2 occurrences pointing to 2 different revisions
-        # each occurence have 1 day delta
+        # each occurrence have 1 day delta
         # the api must return the revision whose occurrence is the nearest.
 
         # given
@@ -2464,6 +2464,21 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
                 },
             ])
 
+    # This test is only relevant on the local storage, with an actual
+    # objstorage raising an exception
+    @istest
+    def content_add_objstorage_exception(self):
+        self.storage.objstorage.add = Mock(
+            side_effect=Exception('mocked broken objstorage')
+        )
+
+        with self.assertRaises(Exception) as e:
+            self.storage.content_add([self.cont])
+
+        self.assertEqual(e.exception.args, ('mocked broken objstorage',))
+        missing = list(self.storage.content_missing([self.cont]))
+        self.assertEqual(missing, [self.cont['sha1']])
+
 
 class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
     """This class is dedicated for the rare case where the schema needs to
@@ -2483,10 +2498,12 @@ class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
 
         self.storage.content_update([cont], keys=['sha1_git'])
 
-        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
-                            ' FROM content WHERE sha1 = %s',
-                            (cont['sha1'],))
-        datum = self.cursor.fetchone()
+        with self.storage.get_db().transaction() as cur:
+            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
+                        ' FROM content WHERE sha1 = %s',
+                        (cont['sha1'],))
+            datum = cur.fetchone()
+
         self.assertEqual(
             (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
              datum[3], datum[4]),
@@ -2495,9 +2512,10 @@ class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
 
     @istest
     def content_update_with_new_cols(self):
-        self.cursor.execute("""alter table content
-                               add column test text default null,
-                               add column test2 text default null""")
+        with self.storage.get_db().transaction() as cur:
+            cur.execute("""alter table content
+                           add column test text default null,
+                           add column test2 text default null""")
 
         cont = copy.deepcopy(self.cont2)
         self.storage.content_add([cont])
@@ -2505,18 +2523,20 @@ class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
         cont['test2'] = 'value-2'
 
         self.storage.content_update([cont], keys=['test', 'test2'])
+        with self.storage.get_db().transaction() as cur:
+            cur.execute(
+                'SELECT sha1, sha1_git, sha256, length, status, test, test2'
+                ' FROM content WHERE sha1 = %s',
+                (cont['sha1'],))
 
-        self.cursor.execute(
-            'SELECT sha1, sha1_git, sha256, length, status, test, test2'
-            ' FROM content WHERE sha1 = %s',
-            (cont['sha1'],))
+            datum = cur.fetchone()
 
-        datum = self.cursor.fetchone()
         self.assertEqual(
             (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
              datum[3], datum[4], datum[5], datum[6]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible', cont['test'], cont['test2']))
 
-        self.cursor.execute("""alter table content drop column test,
-                                                   drop column test2""")
+        with self.storage.get_db().transaction() as cur:
+            cur.execute("""alter table content drop column test,
+                           drop column test2""")
