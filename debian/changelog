@@ -1,3 +1,13 @@
+swh-storage (0.0.100-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.100
+  * remote api: only instantiate storage once per import
+  * add thread-awareness to the storage implementation
+  * properly cleanup after tests
+  * parallelize objstorage and storage additions
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Sat, 12 May 2018 18:12:40 +0200
+
 swh-storage (0.0.99-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.99
