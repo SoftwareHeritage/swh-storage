@@ -41,7 +41,7 @@ class StorageTestFixture:
         self.storage_config = {
             'cls': 'local',
             'args': {
-                'db': self.test_db[self.TEST_STORAGE_DB_NAME].conn,
+                'db': 'dbname=%s' % self.TEST_STORAGE_DB_NAME,
                 'objstorage': {
                     'cls': 'pathslicing',
                     'args': {
@@ -55,6 +55,7 @@ class StorageTestFixture:
 
     def tearDown(self):
         self.objtmp.cleanup()
+        self.storage = None
         super().tearDown()
 
     def reset_storage_tables(self):

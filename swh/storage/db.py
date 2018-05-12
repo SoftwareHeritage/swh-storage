@@ -93,6 +93,10 @@ class BaseDb:
         conn = psycopg2.connect(*args, **kwargs)
         return cls(conn)
 
+    @classmethod
+    def from_pool(cls, pool):
+        return cls(pool.getconn(), pool=pool)
+
     def _cursor(self, cur_arg):
         """get a cursor: from cur_arg if given, or a fresh one otherwise
 
@@ -107,14 +111,20 @@ class BaseDb:
         else:
             return self.conn.cursor()
 
-    def __init__(self, conn):
+    def __init__(self, conn, pool=None):
         """create a DB proxy
 
         Args:
             conn: psycopg2 connection to the SWH DB
+            pool: psycopg2 pool of connections
 
         """
         self.conn = conn
+        self.pool = pool
+
+    def __del__(self):
+        if self.pool:
+            self.pool.putconn(self.conn)
 
     @contextmanager
     def transaction(self):
@@ -187,15 +197,19 @@ class BaseDb:
         write_thread = threading.Thread(target=writer)
         write_thread.start()
 
-        with open(write_file, 'w') as f:
-            for d in items:
-                if item_cb is not None:
-                    item_cb(d)
-                line = [escape(d.get(k)) for k in columns]
-                f.write(','.join(line))
-                f.write('\n')
-
-        write_thread.join()
+        try:
+            with open(write_file, 'w') as f:
+                for d in items:
+                    if item_cb is not None:
+                        item_cb(d)
+                    line = [escape(d.get(k)) for k in columns]
+                    f.write(','.join(line))
+                    f.write('\n')
+        finally:
+            # No problem bubbling up exceptions, but we still need to make sure
+            # we finish copying, even though we're probably going to cancel the
+            # transaction.
+            write_thread.join()
 
     def mktemp(self, tblname, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))

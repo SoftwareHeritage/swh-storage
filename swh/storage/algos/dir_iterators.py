@@ -32,7 +32,7 @@ class DirectoryIterator(object):
     way with some additionnal features:
         - sibling nodes are iterated in lexicographic order by name
         - it is possible to skip the visit of sub-directories nodes
-          for efficency reasons when comparing two trees (no need to
+          for efficiency reasons when comparing two trees (no need to
           go deeper if two directories have the same hash)
     """
 

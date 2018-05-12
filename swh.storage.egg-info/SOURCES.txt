@@ -10,7 +10,6 @@ requirements-swh.txt
 requirements.txt
 setup.py
 version.txt
-.vscode/settings.json
 bin/swh-storage-add-dir
 debian/changelog
 debian/compat
@@ -189,7 +188,6 @@ swh/storage/api/server.py
 swh/storage/schemata/__init__.py
 swh/storage/schemata/distribution.py
 swh/storage/tests/__init__.py
-swh/storage/tests/server_testing.py
 swh/storage/tests/storage_testing.py
 swh/storage/tests/test_api_client.py
 swh/storage/tests/test_converters.py
