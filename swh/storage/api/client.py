@@ -11,8 +11,9 @@ from ..exc import StorageAPIError
 
 class RemoteStorage(SWHRemoteAPI):
     """Proxy to a remote storage API"""
-    def __init__(self, url):
-        super().__init__(api_exception=StorageAPIError, url=url)
+    def __init__(self, url, timeout=None):
+        super().__init__(
+            api_exception=StorageAPIError, url=url, timeout=timeout)
 
     def check_config(self, *, check_write):
         return self.post('check_config', {'check_write': check_write})
