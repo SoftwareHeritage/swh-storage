@@ -1,3 +1,10 @@
+swh-storage (0.0.101-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.101
+  * swh.storage.api.client: Permit to specify the query timeout option
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 24 May 2018 12:13:51 +0200
+
 swh-storage (0.0.100-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.100
