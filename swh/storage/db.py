@@ -298,11 +298,16 @@ class Db(BaseDb):
         'sha1', 'sha1_git', 'sha256', 'blake2s256',
         'length', 'reason', 'status', 'origin']
 
-    def content_get_metadata_from_temp(self, cur=None):
+    def content_get_metadata_from_sha1s(self, sha1s, cur=None):
         cur = self._cursor(cur)
-        cur.execute("""select t.id as sha1, %s from tmp_bytea t
-                       left join content on t.id = content.sha1
-                    """ % ', '.join(self.content_get_metadata_keys[1:]))
+
+        psycopg2.extras.execute_values(
+            cur, """
+            select t.sha1, %s from (values %%s) as t (sha1)
+            left join content using (sha1)
+            """ % ', '.join(self.content_get_metadata_keys[1:]),
+            ((sha1,) for sha1 in sha1s),
+        )
 
         yield from cursor_to_bytes(cur)
 

@@ -765,7 +765,7 @@ class CommonTestStorage(BaseTestStorage):
         cont1.pop('data')
         cont2.pop('data')
 
-        self.assertEqual(list(gen), [cont1, cont2])
+        self.assertCountEqual(list(gen), [cont1, cont2])
 
     @istest
     def content_get_metadata_missing_sha1(self):

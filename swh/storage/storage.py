@@ -246,9 +246,7 @@ class Storage():
         Returns:
             an iterable with content metadata corresponding to the given ids
         """
-        db.store_tmp_bytea(content, cur)
-
-        for content_metadata in db.content_get_metadata_from_temp(cur):
+        for content_metadata in db.content_get_metadata_from_sha1s(content, cur):
             yield dict(zip(db.content_get_metadata_keys, content_metadata))
 
     @db_transaction_generator()
