@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import defaultdict
 import copy
 import datetime
 from operator import itemgetter
@@ -735,9 +736,25 @@ class CommonTestStorage(BaseTestStorage):
         cont2 = self.cont2
         missing_cont = self.missing_cont
         self.storage.content_add([cont2])
-        gen = self.storage.content_missing([cont2, missing_cont])
+        test_contents = [cont2]
+        missing_per_hash = defaultdict(list)
+        for i in range(256):
+            test_content = missing_cont.copy()
+            for hash in ['sha1', 'sha256', 'sha1_git', 'blake2s256']:
+                test_content[hash] = bytes([i]) + test_content[hash][1:]
+                missing_per_hash[hash].append(test_content[hash])
+            test_contents.append(test_content)
 
-        self.assertEqual(list(gen), [missing_cont['sha1']])
+        self.assertCountEqual(
+            self.storage.content_missing(test_contents),
+            missing_per_hash['sha1']
+        )
+
+        for hash in ['sha1', 'sha256', 'sha1_git', 'blake2s256']:
+            self.assertCountEqual(
+                self.storage.content_missing(test_contents, key_hash=hash),
+                missing_per_hash[hash]
+            )
 
     @istest
     def content_missing_per_sha1(self):
