@@ -173,7 +173,7 @@ class Storage():
 
                 # Wait for objstorage addition before returning from the
                 # transaction, bubbling up any exception
-                _ = added_to_objstorage.result()
+                added_to_objstorage.result()
 
     @db_transaction()
     def content_update(self, content, keys=[], db=None, cur=None):
