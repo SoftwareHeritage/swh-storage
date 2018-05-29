@@ -5,7 +5,7 @@
 
 
 from collections import defaultdict
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import itertools
 import json
@@ -143,7 +143,7 @@ class Storage():
             self.objstorage.add_batch(data)
 
         with db.transaction() as cur:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 added_to_objstorage = executor.submit(add_to_objstorage)
                 if missing_content:
                     # create temporary table for metadata injection
