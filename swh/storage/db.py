@@ -536,7 +536,7 @@ class Db(BaseDb):
             (select id from snapshot where object_id = snapshot_id) as snapshot
         FROM origin_visit
         WHERE origin=%%s %s
-        order by date, visit asc
+        order by visit asc
         limit %%s""" % (
             ', '.join(self.origin_visit_get_cols[:-1]), extra_condition
         )
