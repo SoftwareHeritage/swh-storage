@@ -28,9 +28,6 @@ from swh.objstorage.exc import ObjNotFoundError
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 
-CONTENT_HASH_KEYS = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
-
-
 class Storage():
     """SWH storage proxy, encompassing DB and object storage
 
@@ -109,7 +106,7 @@ class Storage():
         """
         db = self.get_db()
 
-        def _unique_key(hash, keys=CONTENT_HASH_KEYS):
+        def _unique_key(hash, keys=db.content_hash_keys):
             """Given a hash (tuple or dict), return a unique key from the
                aggregation of keys.
 
@@ -246,8 +243,8 @@ class Storage():
         Returns:
             an iterable with content metadata corresponding to the given ids
         """
-        for content_metadata in db.content_get_metadata_from_sha1s(content, cur):
-            yield dict(zip(db.content_get_metadata_keys, content_metadata))
+        for metadata in db.content_get_metadata_from_sha1s(content, cur):
+            yield dict(zip(db.content_get_metadata_keys, metadata))
 
     @db_transaction_generator()
     def content_missing(self, content, key_hash='sha1', db=None, cur=None):
@@ -272,19 +269,17 @@ class Storage():
             TODO: an exception when we get a hash collision.
 
         """
-        keys = CONTENT_HASH_KEYS
+        keys = db.content_hash_keys
 
-        if key_hash not in CONTENT_HASH_KEYS:
+        if key_hash not in keys:
             raise ValueError("key_hash should be one of %s" % keys)
 
         key_hash_idx = keys.index(key_hash)
 
-        # Create temporary table for metadata injection
-        db.mktemp('content', cur)
+        if not content:
+            return
 
-        db.copy_to(content, 'tmp_content', keys + ['length'], cur)
-
-        for obj in db.content_missing_from_temp(cur):
+        for obj in db.content_missing_from_list(content, cur):
             yield obj[key_hash_idx]
 
     @db_transaction_generator()
@@ -301,8 +296,7 @@ class Storage():
             TODO: an exception when we get a hash collision.
 
         """
-        db.store_tmp_bytea(contents, cur)
-        for obj in db.content_missing_per_sha1_from_temp(cur):
+        for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
 
     @db_transaction_generator()
@@ -317,7 +311,7 @@ class Storage():
             iterable: missing signatures
 
         """
-        keys = CONTENT_HASH_KEYS
+        keys = db.content_hash_keys
 
         db.mktemp('skipped_content', cur)
         db.copy_to(content, 'tmp_skipped_content',
@@ -432,14 +426,7 @@ class Storage():
             missing directory ids
 
         """
-        # Create temporary table for metadata injection
-        db.mktemp('directory', cur)
-
-        directories_dicts = ({'id': dir} for dir in directories)
-
-        db.copy_to(directories_dicts, 'tmp_directory', ['id'], cur)
-
-        for obj in db.directory_missing_from_temp(cur):
+        for obj in db.directory_missing_from_list(directories, cur):
             yield obj[0]
 
     @db_transaction_generator(statement_timeout=2000)
@@ -549,9 +536,10 @@ class Storage():
             missing revision ids
 
         """
-        db.store_tmp_bytea(revisions, cur)
+        if not revisions:
+            return
 
-        for obj in db.revision_missing_from_temp(cur):
+        for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]
 
     @db_transaction_generator(statement_timeout=500)
@@ -566,9 +554,7 @@ class Storage():
                 revision doesn't exist)
 
         """
-        db.store_tmp_bytea(revisions, cur)
-
-        for line in db.revision_get_from_temp(cur):
+        for line in db.revision_get_from_list(revisions, cur):
             data = converters.db_to_revision(
                 dict(zip(db.revision_get_cols, line))
             )
@@ -696,10 +682,10 @@ class Storage():
             a list of missing release ids
 
         """
-        # Create temporary table for metadata injection
-        db.store_tmp_bytea(releases, cur)
+        if not releases:
+            return
 
-        for obj in db.release_missing_from_temp(cur):
+        for obj in db.release_missing_from_list(releases, cur):
             yield obj[0]
 
     @db_transaction_generator(statement_timeout=500)
@@ -722,10 +708,7 @@ class Storage():
             ValueError: if the keys does not match (url and type) nor id.
 
         """
-        # Create temporary table for metadata injection
-        db.store_tmp_bytea(releases, cur)
-
-        for release in db.release_get_from_temp(cur):
+        for release in db.release_get_from_list(releases, cur):
             yield converters.db_to_release(
                 dict(zip(db.release_get_cols, release))
             )

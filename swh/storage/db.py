@@ -17,6 +17,7 @@ from contextlib import contextmanager
 import psycopg2
 import psycopg2.extras
 
+from .db_utils import execute_values_generator
 
 TMP_CONTENT_TABLE = 'tmp_content'
 
@@ -70,6 +71,11 @@ def line_to_bytes(line):
 def cursor_to_bytes(cursor):
     """Yield all the data from a cursor as bytes"""
     yield from (line_to_bytes(line) for line in cursor)
+
+
+def execute_values_to_bytes(*args, **kwargs):
+    for line in execute_values_generator(*args, **kwargs):
+        yield line_to_bytes(line)
 
 
 class BaseDb:
@@ -241,9 +247,6 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_entity_history')
     def mktemp_entity_history(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_bytea')
-    def mktemp_bytea(self, cur=None): pass
-
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
         self._cursor(cur).execute("LISTEN %s" % notify_queue)
@@ -278,14 +281,6 @@ class Db(BaseDb):
     @stored_procedure('swh_entity_history_add')
     def entity_history_add_from_temp(self, cur=None): pass
 
-    def store_tmp_bytea(self, ids, cur=None):
-        """Store the given identifiers in a new tmp_bytea table"""
-        cur = self._cursor(cur)
-
-        self.mktemp_bytea(cur)
-        self.copy_to(({'id': elem} for elem in ids), 'tmp_bytea',
-                     ['id'], cur)
-
     def content_update_from_temp(self, keys_to_update, cur=None):
         cur = self._cursor(cur)
         cur.execute("""select swh_content_update(ARRAY[%s] :: text[])""" %
@@ -301,7 +296,7 @@ class Db(BaseDb):
     def content_get_metadata_from_sha1s(self, sha1s, cur=None):
         cur = self._cursor(cur)
 
-        psycopg2.extras.execute_values(
+        yield from execute_values_to_bytes(
             cur, """
             select t.sha1, %s from (values %%s) as t (sha1)
             left join content using (sha1)
@@ -309,23 +304,37 @@ class Db(BaseDb):
             ((sha1,) for sha1 in sha1s),
         )
 
-        yield from cursor_to_bytes(cur)
+    content_hash_keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
-    def content_missing_from_temp(self, cur=None):
+    def content_missing_from_list(self, contents, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256, blake2s256
-                       FROM swh_content_missing()""")
+        keys = ', '.join(self.content_hash_keys)
+        equality = ' AND '.join(
+            ('t.%s = c.%s' % (key, key))
+            for key in self.content_hash_keys
+        )
 
-        yield from cursor_to_bytes(cur)
+        yield from execute_values_to_bytes(
+            cur, """
+            SELECT %s
+            FROM (VALUES %%s) as t(%s)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM content c
+                WHERE %s
+            )
+            """ % (keys, keys, equality),
+            (tuple(c[key] for key in self.content_hash_keys) for c in contents)
+        )
 
-    def content_missing_per_sha1_from_temp(self, cur=None):
+    def content_missing_per_sha1(self, sha1s, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT *
-                       FROM swh_content_missing_per_sha1()""")
-
-        yield from cursor_to_bytes(cur)
+        yield from execute_values_to_bytes(cur, """
+        SELECT t.sha1 FROM (VALUES %s) AS t(sha1)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM content c WHERE c.sha1 = t.sha1
+        )""", ((sha1,) for sha1 in sha1s))
 
     def skipped_content_missing_from_temp(self, cur=None):
         cur = self._cursor(cur)
@@ -420,10 +429,15 @@ class Db(BaseDb):
         else:
             return content
 
-    def directory_missing_from_temp(self, cur=None):
+    def directory_missing_from_list(self, directories, cur=None):
         cur = self._cursor(cur)
-        cur.execute('SELECT * FROM swh_directory_missing()')
-        yield from cursor_to_bytes(cur)
+        yield from execute_values_to_bytes(
+            cur, """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM directory d WHERE d.id = t.id
+            )
+            """, ((id,) for id in directories))
 
     directory_ls_cols = ['dir_id', 'type', 'target', 'name', 'perms',
                          'status', 'sha1', 'sha1_git', 'sha256', 'length']
@@ -458,12 +472,16 @@ class Db(BaseDb):
             return None
         return line_to_bytes(data)
 
-    def revision_missing_from_temp(self, cur=None):
+    def revision_missing_from_list(self, revisions, cur=None):
         cur = self._cursor(cur)
 
-        cur.execute('SELECT id FROM swh_revision_missing() as r(id)')
-
-        yield from cursor_to_bytes(cur)
+        yield from execute_values_to_bytes(
+            cur, """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM revision r WHERE r.id = t.id
+            )
+            """, ((id,) for id in revisions))
 
     revision_add_cols = [
         'id', 'date', 'date_offset', 'date_neg_utc_offset', 'committer_date',
@@ -625,12 +643,44 @@ class Db(BaseDb):
         cur.execute(query, (origin_id, visit_id))
         yield from cursor_to_bytes(cur)
 
-    def revision_get_from_temp(self, cur=None):
+    @staticmethod
+    def mangle_query_key(key, main_table):
+        if key == 'id':
+            return 't.id'
+        if key == 'parents':
+            return '''
+            ARRAY(
+            SELECT rh.parent_id::bytea
+            FROM revision_history rh
+            WHERE rh.id = t.id
+            ORDER BY rh.parent_rank
+            )'''
+        if '_' not in key:
+            return '%s.%s' % (main_table, key)
+
+        head, tail = key.split('_', 1)
+        if (head in ('author', 'committer')
+                and tail in ('name', 'email', 'id', 'fullname')):
+            return '%s.%s' % (head, tail)
+
+        return '%s.%s' % (main_table, key)
+
+    def revision_get_from_list(self, revisions, cur=None):
         cur = self._cursor(cur)
-        query = 'SELECT %s FROM swh_revision_get()' % (
-            ', '.join(self.revision_get_cols))
-        cur.execute(query)
-        yield from cursor_to_bytes(cur)
+
+        query_keys = ', '.join(
+            self.mangle_query_key(k, 'revision')
+            for k in self.revision_get_cols
+        )
+
+        yield from execute_values_to_bytes(
+            cur, """
+            SELECT %s FROM (VALUES %%s) as t(id)
+            LEFT JOIN revision ON t.id = revision.id
+            LEFT JOIN person author ON revision.author = author.id
+            LEFT JOIN person committer ON revision.committer = committer.id
+            """ % query_keys,
+            ((id,) for id in revisions))
 
     def revision_log(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
@@ -654,23 +704,63 @@ class Db(BaseDb):
         cur.execute(query, (root_revisions, limit))
         yield from cursor_to_bytes(cur)
 
-    def release_missing_from_temp(self, cur=None):
+    def release_missing_from_list(self, releases, cur=None):
         cur = self._cursor(cur)
-        cur.execute('SELECT id FROM swh_release_missing() as r(id)')
-        yield from cursor_to_bytes(cur)
+        yield from execute_values_to_bytes(
+            cur, """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM release r WHERE r.id = t.id
+            )
+            """, ((id,) for id in releases))
 
     object_find_by_sha1_git_cols = ['sha1_git', 'type', 'id', 'object_id']
 
     def object_find_by_sha1_git(self, ids, cur=None):
         cur = self._cursor(cur)
 
-        self.store_tmp_bytea(ids, cur)
-        query = 'select %s from swh_object_find_by_sha1_git()' % (
-            ', '.join(self.object_find_by_sha1_git_cols)
+        yield from execute_values_to_bytes(
+            cur, """
+            WITH t (id) AS (VALUES %s),
+            known_objects as ((
+                select
+                  id as sha1_git,
+                  'release'::object_type as type,
+                  id,
+                  object_id
+                from release r
+                where exists (select 1 from t where t.id = r.id)
+            ) union all (
+                select
+                  id as sha1_git,
+                  'revision'::object_type as type,
+                  id,
+                  object_id
+                from revision r
+                where exists (select 1 from t where t.id = r.id)
+            ) union all (
+                select
+                  id as sha1_git,
+                  'directory'::object_type as type,
+                  id,
+                  object_id
+                from directory d
+                where exists (select 1 from t where t.id = d.id)
+            ) union all (
+                select
+                  sha1_git as sha1_git,
+                  'content'::object_type as type,
+                  sha1 as id,
+                  object_id
+                from content c
+                where exists (select 1 from t where t.id = c.sha1_git)
+            ))
+            select t.id as sha1_git, k.type, k.id, k.object_id
+            from t
+            left join known_objects k on t.id = k.sha1_git
+            """,
+            ((id,) for id in ids)
         )
-        cur.execute(query)
-
-        yield from cursor_to_bytes(cur)
 
     def stat_counters(self, cur=None):
         cur = self._cursor(cur)
@@ -846,14 +936,20 @@ class Db(BaseDb):
     ]
     release_get_cols = release_add_cols + ['author_id']
 
-    def release_get_from_temp(self, cur=None):
+    def release_get_from_list(self, releases, cur=None):
         cur = self._cursor(cur)
-        query = '''
-        SELECT %s
-            FROM swh_release_get()
-        ''' % ', '.join(self.release_get_cols)
-        cur.execute(query)
-        yield from cursor_to_bytes(cur)
+        query_keys = ', '.join(
+            self.mangle_query_key(k, 'release')
+            for k in self.release_get_cols
+        )
+
+        yield from execute_values_to_bytes(
+            cur, """
+            SELECT %s FROM (VALUES %%s) as t(id)
+            LEFT JOIN release ON t.id = release.id
+            LEFT JOIN person author ON release.author = author.id
+            """ % query_keys,
+            ((id,) for id in releases))
 
     def release_get_by(self,
                        origin_id,

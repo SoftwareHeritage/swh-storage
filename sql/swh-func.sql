@@ -92,16 +92,6 @@ as $$
     alter table tmp_release drop column object_id;
 $$;
 
--- create a temporary table with a single "bytea" column for fast object lookup.
-create or replace function swh_mktemp_bytea()
-    returns void
-    language sql
-as $$
-    create temporary table tmp_bytea (
-      id bytea
-    ) on commit drop;
-$$;
-
 -- create a temporary table for occurrence_history
 create or replace function swh_mktemp_occurrence_history()
     returns void
@@ -171,46 +161,6 @@ create type content_signature as (
     sha256     sha256,
     blake2s256 blake2s256
 );
-
-
--- check which entries of tmp_content are missing from content
---
--- operates in bulk: 0. swh_mktemp(content), 1. COPY to tmp_content,
--- 2. call this function
-create or replace function swh_content_missing()
-    returns setof content_signature
-    language plpgsql
-as $$
-begin
-    return query (
-      select sha1, sha1_git, sha256, blake2s256 from tmp_content as tmp
-      where not exists (
-        select 1 from content as c
-        where c.sha1 = tmp.sha1 and
-              c.sha1_git = tmp.sha1_git and
-              c.sha256 = tmp.sha256
-      )
-    );
-    return;
-end
-$$;
-
--- check which entries of tmp_content_sha1 are missing from content
---
--- operates in bulk: 0. swh_mktemp_content_sha1(), 1. COPY to tmp_content_sha1,
--- 2. call this function
-create or replace function swh_content_missing_per_sha1()
-    returns setof sha1
-    language plpgsql
-as $$
-begin
-    return query
-           (select id::sha1
-            from tmp_bytea as tmp
-            where not exists
-            (select 1 from content as c where c.sha1=tmp.id));
-end
-$$;
 
 
 -- check which entries of tmp_skipped_content are missing from skipped_content
@@ -292,15 +242,7 @@ create or replace function swh_content_add()
 as $$
 begin
     insert into content (sha1, sha1_git, sha256, blake2s256, length, status)
-        select distinct sha1, sha1_git, sha256, blake2s256, length, status
-	from tmp_content
-	where (sha1, sha1_git, sha256) in (
-            select sha1, sha1_git, sha256
-            from swh_content_missing()
-        );
-        -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
-        -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
-        -- the extra swh_content_missing() query here.
+        select distinct sha1, sha1_git, sha256, blake2s256, length, status from tmp_content;
     return;
 end
 $$;
@@ -689,42 +631,6 @@ as $$
 $$;
 
 
--- Retrieve revisions from tmp_bytea in bulk
-create or replace function swh_revision_get()
-    returns setof revision_entry
-    language plpgsql
-as $$
-begin
-    return query
-        select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
-               r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
-               r.type, r.directory, r.message,
-               a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
-         array(select rh.parent_id::bytea from revision_history rh where rh.id = t.id order by rh.parent_rank)
-                   as parents, r.object_id
-        from tmp_bytea t
-        left join revision r on t.id = r.id
-        left join person a on a.id = r.author
-        left join person c on c.id = r.committer;
-    return;
-end
-$$;
-
--- List missing revisions from tmp_bytea
-create or replace function swh_revision_missing()
-    returns setof sha1_git
-    language plpgsql
-as $$
-begin
-    return query
-        select id::sha1_git from tmp_bytea t
-	where not exists (
-	    select 1 from revision r
-	    where r.id = t.id);
-    return;
-end
-$$;
-
 -- Detailed entry for a release
 create type release_entry as
 (
@@ -743,22 +649,6 @@ create type release_entry as
   author_email         bytea,
   object_id            bigint
 );
-
--- Detailed entry for release
-create or replace function swh_release_get()
-    returns setof release_entry
-    language plpgsql
-as $$
-begin
-    return query
-        select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset, r.name, r.comment,
-               r.synthetic, p.id as author_id, p.fullname as author_fullname, p.name as author_name, p.email as author_email, r.object_id
-        from tmp_bytea t
-        inner join release r on t.id = r.id
-        inner join person p on p.id = r.author;
-    return;
-end
-$$;
 
 -- Create entries in person from tmp_revision
 create or replace function swh_person_add_from_revision()
@@ -796,21 +686,6 @@ begin
     left join person a on a.fullname = t.author_fullname
     left join person c on c.fullname = t.committer_fullname;
     return;
-end
-$$;
-
-
--- List missing releases from tmp_bytea
-create or replace function swh_release_missing()
-    returns setof sha1_git
-    language plpgsql
-as $$
-begin
-  return query
-    select id::sha1_git from tmp_bytea t
-    where not exists (
-      select 1 from release r
-      where r.id = t.id);
 end
 $$;
 
@@ -1187,39 +1062,6 @@ as $$
     inner join occurrence_history occ on occ.target = r.target
     left join person a on a.id = r.author
     where occ.origin = origin_id and occ.target_type = 'revision' and r.target_type = 'revision';
-$$;
-
-
-create type object_found as (
-    sha1_git   sha1_git,
-    type       object_type,
-    id         bytea,       -- sha1 or sha1_git depending on object_type
-    object_id  bigint
-);
-
--- Find objects by sha1_git, return their type and their main identifier
-create or replace function swh_object_find_by_sha1_git()
-    returns setof object_found
-    language plpgsql
-as $$
-begin
-    return query
-    with known_objects as ((
-        select id as sha1_git, 'release'::object_type as type, id, object_id from release r
-        where exists (select 1 from tmp_bytea t where t.id = r.id)
-    ) union all (
-        select id as sha1_git, 'revision'::object_type as type, id, object_id from revision r
-        where exists (select 1 from tmp_bytea t where t.id = r.id)
-    ) union all (
-        select id as sha1_git, 'directory'::object_type as type, id, object_id from directory d
-        where exists (select 1 from tmp_bytea t where t.id = d.id)
-    ) union all (
-        select sha1_git as sha1_git, 'content'::object_type as type, sha1 as id, object_id from content c
-        where exists (select 1 from tmp_bytea t where t.id = c.sha1_git)
-    ))
-    select t.id::sha1_git as sha1_git, k.type, k.id, k.object_id from tmp_bytea t
-      left join known_objects k on t.id = k.sha1_git;
-end
 $$;
 
 -- Create entries in entity_history from tmp_entity_history
