@@ -377,21 +377,6 @@ end
 $$;
 
 
--- Retrieve information on directory from temporary table
-create or replace function swh_directory_get()
-    returns setof directory
-    language plpgsql
-as $$
-begin
-    return query
-	select d.*
-        from tmp_directory t
-        inner join directory d on t.id = d.id;
-    return;
-end
-$$;
-
-
 create type directory_entry_type as enum('file', 'dir', 'rev');
 
 
