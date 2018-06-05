@@ -6,35 +6,66 @@
 import functools
 
 
-def db_transaction(meth):
+def apply_options(cursor, options):
+    """Applies the given postgresql client options to the given cursor.
+
+    Returns a dictionary with the old values if they changed."""
+    old_options = {}
+    for option, value in options.items():
+        cursor.execute('SHOW %s' % option)
+        old_value = cursor.fetchall()[0][0]
+        if old_value != value:
+            cursor.execute('SET LOCAL %s TO %%s' % option, (value,))
+            old_options[option] = old_value
+    return old_options
+
+
+def db_transaction(**client_options):
     """decorator to execute Storage methods within DB transactions
 
-    The decorated method must accept a `cur` keyword argument
+    The decorated method must accept a `cur` and `db` keyword argument
+
+    Client options are passed as `set` options to the postgresql server
     """
-    @functools.wraps(meth)
-    def _meth(self, *args, **kwargs):
-        if 'cur' in kwargs and kwargs['cur']:
-            return meth(self, *args, **kwargs)
-        else:
-            db = self.get_db()
-            with db.transaction() as cur:
-                return meth(self, *args, db=db, cur=cur, **kwargs)
-    return _meth
+    def decorator(meth, __client_options=client_options):
+        @functools.wraps(meth)
+        def _meth(self, *args, **kwargs):
+            if 'cur' in kwargs and kwargs['cur']:
+                cur = kwargs['cur']
+                old_options = apply_options(cur, __client_options)
+                ret = meth(self, *args, **kwargs)
+                apply_options(cur, old_options)
+                return ret
+            else:
+                db = self.get_db()
+                with db.transaction() as cur:
+                    apply_options(cur, __client_options)
+                    return meth(self, *args, db=db, cur=cur, **kwargs)
+        return _meth
+
+    return decorator
 
 
-def db_transaction_generator(meth):
+def db_transaction_generator(**client_options):
     """decorator to execute Storage methods within DB transactions, while
     returning a generator
 
-    The decorated method must accept a `cur` keyword argument
+    The decorated method must accept a `cur` and `db` keyword argument
 
+    Client options are passed as `set` options to the postgresql server
     """
-    @functools.wraps(meth)
-    def _meth(self, *args, **kwargs):
-        if 'cur' in kwargs and kwargs['cur']:
-            yield from meth(self, *args, **kwargs)
-        else:
-            db = self.get_db()
-            with db.transaction() as cur:
-                yield from meth(self, *args, db=db, cur=cur, **kwargs)
-    return _meth
+    def decorator(meth, __client_options=client_options):
+        @functools.wraps(meth)
+        def _meth(self, *args, **kwargs):
+            if 'cur' in kwargs and kwargs['cur']:
+                cur = kwargs['cur']
+                old_options = apply_options(cur, __client_options)
+                yield from meth(self, *args, **kwargs)
+                apply_options(cur, old_options)
+            else:
+                db = self.get_db()
+                with db.transaction() as cur:
+                    apply_options(cur, __client_options)
+                    yield from meth(self, *args, db=db, cur=cur, **kwargs)
+        return _meth
+    return decorator
