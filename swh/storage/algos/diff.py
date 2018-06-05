@@ -96,7 +96,7 @@ class _RevisionChangesList(object):
         # if the current file has been previously marked as inserted,
         # the file has been renamed
         if self.track_renaming and self.inserted_hash_idx[from_hash]:
-            # pop the insert chnage index in the same order it was inserted
+            # pop the insert change index in the same order it was inserted
             change = self.result[self.inserted_hash_idx[from_hash].pop(0)]
             # change the insert change as a rename one
             change['type'] = 'rename'
