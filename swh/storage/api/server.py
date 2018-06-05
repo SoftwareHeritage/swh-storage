@@ -98,11 +98,6 @@ def content_get_metadata():
         **decode_request(request)))
 
 
-@app.route('/directory', methods=['POST'])
-def directory_get():
-    return encode_data(get_storage().directory_get(**decode_request(request)))
-
-
 @app.route('/directory/missing', methods=['POST'])
 def directory_missing():
     return encode_data(get_storage().directory_missing(
