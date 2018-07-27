@@ -1192,15 +1192,12 @@ class Storage():
                 - url (bytes): the url the origin points to
 
         Returns:
-            list: ids corresponding to the given origins
+            list: given origins as dict updated with their id
 
         """
-
-        ret = []
         for origin in origins:
-            ret.append(self.origin_add_one(origin, db=db, cur=cur))
-
-        return ret
+            origin['id'] = self.origin_add_one(origin, db=db, cur=cur)
+        return origins
 
     @db_transaction()
     def origin_add_one(self, origin, db=None, cur=None):
