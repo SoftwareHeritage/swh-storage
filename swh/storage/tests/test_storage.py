@@ -1289,19 +1289,19 @@ class CommonTestStorage(BaseTestStorage):
         origin0 = self.storage.origin_get(self.origin)
         self.assertIsNone(origin0)
 
-        id1, id2 = self.storage.origin_add([self.origin, self.origin2])
+        origin1, origin2 = self.storage.origin_add([self.origin, self.origin2])
 
         actual_origin = self.storage.origin_get({
             'url': self.origin['url'],
             'type': self.origin['type'],
         })
-        self.assertEqual(actual_origin['id'], id1)
+        self.assertEqual(actual_origin['id'], origin1['id'])
 
         actual_origin2 = self.storage.origin_get({
             'url': self.origin2['url'],
             'type': self.origin2['type'],
         })
-        self.assertEqual(actual_origin2['id'], id2)
+        self.assertEqual(actual_origin2['id'], origin2['id'])
 
     @istest
     def origin_add_twice(self):
@@ -2208,7 +2208,7 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def origin_metadata_add(self):
         # given
-        origin_id = self.storage.origin_add([self.origin])[0]
+        origin_id = self.storage.origin_add([self.origin])[0]['id']
         origin_metadata0 = list(self.storage.origin_metadata_get_by(origin_id))
         self.assertTrue(len(origin_metadata0) == 0)
 
@@ -2242,8 +2242,8 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def origin_metadata_get(self):
         # given
-        origin_id = self.storage.origin_add([self.origin])[0]
-        origin_id2 = self.storage.origin_add([self.origin2])[0]
+        origin_id = self.storage.origin_add([self.origin])[0]['id']
+        origin_id2 = self.storage.origin_add([self.origin2])[0]['id']
 
         self.storage.metadata_provider_add(self.provider['name'],
                                            self.provider['type'],
@@ -2321,8 +2321,8 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def origin_metadata_get_by_provider_type(self):
         # given
-        origin_id = self.storage.origin_add([self.origin])[0]
-        origin_id2 = self.storage.origin_add([self.origin2])[0]
+        origin_id = self.storage.origin_add([self.origin])[0]['id']
+        origin_id2 = self.storage.origin_add([self.origin2])[0]['id']
         self.storage.metadata_provider_add(
                            self.provider['name'],
                            self.provider['type'],
