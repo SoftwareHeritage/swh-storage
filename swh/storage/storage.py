@@ -1128,24 +1128,26 @@ class Storage():
 
     @db_transaction_generator()
     def origin_search(self, url_pattern, offset=0, limit=50,
-                      regexp=False, db=None, cur=None):
+                      regexp=False, with_visit=False, db=None, cur=None):
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
 
         Args:
-            url_pattern: the string pattern to search for in origin urls
-            offset: number of found origins to skip before returning results
-            limit: the maximum number of found origins to return
-            regexp: if True, consider the provided pattern as a regular
+            url_pattern (str): the string pattern to search for in origin urls
+            offset (int): number of found origins to skip before returning
+                results
+            limit (int): the maximum number of found origins to return
+            regexp (bool): if True, consider the provided pattern as a regular
                 expression and return origins whose urls match it
+            with_visit (bool): if True, filter out origins with no visit
 
         Returns:
             An iterable of dict containing origin information as returned
             by :meth:`swh.storage.storage.Storage.origin_get`.
         """
         for origin in db.origin_search(url_pattern, offset, limit,
-                                       regexp, cur):
+                                       regexp, with_visit, cur):
             yield dict(zip(self.origin_keys, origin))
 
     @db_transaction()

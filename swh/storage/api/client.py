@@ -123,11 +123,13 @@ class RemoteStorage(SWHRemoteAPI):
     def origin_get(self, origin):
         return self.post('origin/get', {'origin': origin})
 
-    def origin_search(self, url_pattern, offset=0, limit=50, regexp=False):
+    def origin_search(self, url_pattern, offset=0, limit=50, regexp=False,
+                      with_visit=False):
         return self.post('origin/search', {'url_pattern': url_pattern,
                                            'offset': offset,
                                            'limit': limit,
-                                           'regexp': regexp})
+                                           'regexp': regexp,
+                                           'with_visit': with_visit})
 
     def origin_add(self, origins):
         return self.post('origin/add_multi', {'origins': origins})
