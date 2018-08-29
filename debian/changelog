@@ -1,8 +1,8 @@
-swh-storage (0.0.103-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.104-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * version 0.0.104
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 30 Jul 2018 11:47:53 +0200
+ -- Antoine Lambert <antoine.lambert@inria.fr>  Wed, 29 Aug 2018 15:55:37 +0200
 
 swh-storage (0.0.103-1~swh1) unstable-swh; urgency=medium
 

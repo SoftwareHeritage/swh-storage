@@ -863,23 +863,32 @@ class Db(BaseDb):
         return None
 
     def origin_search(self, url_pattern, offset=0, limit=50,
-                      regexp=False, cur=None):
+                      regexp=False, with_visit=False, cur=None):
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
 
         Args:
-            url_pattern: the string pattern to search for in origin urls
-            offset: number of found origins to skip before returning results
-            limit: the maximum number of found origins to return
-            regexp: if True, consider the provided pattern as a regular
+            url_pattern (str): the string pattern to search for in origin urls
+            offset (int): number of found origins to skip before returning
+                results
+            limit (int): the maximum number of found origins to return
+            regexp (bool): if True, consider the provided pattern as a regular
                 expression and returns origins whose urls match it
+            with_visit (bool): if True, filter out origins with no visit
 
         """
         cur = self._cursor(cur)
         origin_cols = ','.join(self.origin_cols)
         query = """SELECT %s
-                   FROM origin WHERE url %s %%s
+                   FROM origin
+                   WHERE """
+        if with_visit:
+            query += """
+                   EXISTS (SELECT 1 from origin_visit WHERE origin=origin.id)
+                   AND """
+        query += """
+                   url %s %%s
                    ORDER BY id
                    OFFSET %%s LIMIT %%s"""
 
