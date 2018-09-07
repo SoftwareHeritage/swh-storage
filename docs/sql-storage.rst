@@ -1,7 +1,7 @@
 .. _sql-storage:
 
-Software Heritage SQL storage
-=============================
+SQL storage
+===========
 
 Postgres DB schema
 ------------------
