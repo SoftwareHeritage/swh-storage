@@ -26,6 +26,12 @@ Database schema
 * :ref:`sql-storage`
 
 
+Archive copies
+--------------
+
+* :ref:`archive-copies`
+
+
 Indices and tables
 ==================
 
