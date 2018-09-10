@@ -286,7 +286,7 @@ def _diff_elts(changes, it):
     if c < 0:
         changes.add_recursive_delete(it.it_from)
         it.next_from()
-    # current from path is greather than the current to path:
+    # current from path is greater than the current to path:
     # the to path has been inserted
     elif c > 0:
         changes.add_recursive_insert(it.it_to)
