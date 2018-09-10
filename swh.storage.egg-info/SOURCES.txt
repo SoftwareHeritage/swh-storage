@@ -20,7 +20,6 @@ debian/source/format
 docs/.gitignore
 docs/Makefile
 docs/Makefile.local
-docs/archiver-blueprint.rst
 docs/conf.py
 docs/index.rst
 docs/sql-storage.rst
@@ -167,6 +166,7 @@ sql/upgrades/116.sql
 sql/upgrades/117.sql
 sql/upgrades/118.sql
 sql/upgrades/119.sql
+sql/upgrades/120.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt

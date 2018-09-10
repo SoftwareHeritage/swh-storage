@@ -1,4 +1,3 @@
-
 create or replace function hash_sha1(text)
        returns text
 as $$
@@ -1336,7 +1335,8 @@ as $$
         'release',
         'revision',
         'revision_history',
-        'skipped_content'
+        'skipped_content',
+        'snapshot'
     );
 $$;
 

@@ -429,7 +429,7 @@ class Storage():
         for obj in db.directory_missing_from_list(directories, cur):
             yield obj[0]
 
-    @db_transaction_generator(statement_timeout=2000)
+    @db_transaction_generator(statement_timeout=20000)
     def directory_ls(self, directory, recursive=False, db=None, cur=None):
         """Get entries for one directory.
 
