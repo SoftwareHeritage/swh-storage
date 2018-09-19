@@ -385,7 +385,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'target_type': 'revision',
         }
 
-        self.date_visit2 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+        self.date_visit2 = datetime.datetime(2017, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
         self.occurrence2 = {
@@ -394,7 +394,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'target_type': 'revision',
         }
 
-        self.date_visit3 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+        self.date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
         # template occurrence to be filled in test (cf. revision_log_by)

@@ -610,7 +610,7 @@ class Db(BaseDb):
             FROM origin_visit
             WHERE
                 origin = %%s AND snapshot_id is not null %s
-            ORDER BY date, visit DESC
+            ORDER BY date DESC, visit DESC
             LIMIT 1
             """ % (', '.join(self.origin_visit_get_cols[:-1]), extra_clause)
 
