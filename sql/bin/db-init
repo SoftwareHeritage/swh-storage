@@ -26,31 +26,20 @@ if ! [ -f "$SQL_INIT" ] ; then
 fi
 
 if [ -z "$1" ] ; then
-    echo "Usage: bin/db-init DB_NAME [DB_USER [DB_PORT]]"
+    echo "Usage: bin/db-init DB_NAME [DB_PORT]"
     echo "Example: bin/db-init softwareheritage-dev"
-    echo "Note: DB_NAME should not exist and will be created; DB_USER can exist."
+    echo "Note: DB_NAME should not exist and will be created"
     exit 2
 fi
 db_name="$1"
-db_user="${2:-$USER}"
+port=${2:-5432}
 
-conn_flags=""
-if [ -n "$3" ]; then
-    conn_flags="--port $3"
-fi
-
-user_exists=$( psql postgres -tAc "SELECT 1 FROM pg_roles
-                                   WHERE rolname='$db_user'" )
-if [ "$user_exists" != "1" ]; then
-    echo "I: creating Postgres user ${db_user} ..."
-    createuser $conn_flags --pwprompt "$db_user" || true
-fi
+conn_flags="--port $port"
 
 echo "I: creating Postgres database ${db_name} ..."
 createdb $conn_flags \
          --encoding "$DB_ENCODING" --locale "$DB_LOCALE" \
-         --template "$DB_TEMPLATE" \
-         --owner "$db_user" "$db_name"
+         --template "$DB_TEMPLATE" "$db_name"
 
 sqls_flags=''
 for f in $SQLS ; do
@@ -59,11 +48,5 @@ done
 
 echo "I: initializing DB ${db_name} ..."
 psql $conn_flags ${sqls_flags} "$db_name"
-
-echo "I: granting privileges to user ${db_user} on DB ${db_name} ..."
-echo "grant all privileges on all tables in schema public to ${db_user}" | \
-    psql $conn_flags "$db_name"
-echo "grant all privileges on all sequences in schema public to ${db_user}" | \
-    psql $conn_flags "$db_name"
 
 echo "I: all done."
