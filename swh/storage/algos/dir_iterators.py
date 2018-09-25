@@ -13,10 +13,11 @@
 
 from enum import Enum
 
+from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier
 
 # get the hash identifier for an empty directory
-_empty_dir_hash = directory_identifier({'entries': []})
+_empty_dir_hash = hash_to_bytes(directory_identifier({'entries': []}))
 
 
 def _get_dir(storage, dir_id):
@@ -69,19 +70,15 @@ class DirectoryIterator(object):
         Args:
             dir_id (bytes): identifier of a root directory
         """
-        if dir_id:
-            if dir_id == _empty_dir_hash:
-                self.frames.append([])
-            else:
-                # get directory entries
-                dir_data = _get_dir(self.storage, dir_id)
-                # sort them in lexicographical order
-                dir_data = sorted(dir_data, key=lambda e: e['name'])
-                # reverse the ordering in order to unstack the "smallest"
-                # entry each time the iterator advances
-                dir_data.reverse()
-                # push the directory frame to the main stack
-                self.frames.append(dir_data)
+        # get directory entries
+        dir_data = _get_dir(self.storage, dir_id)
+        # sort them in lexicographical order
+        dir_data = sorted(dir_data, key=lambda e: e['name'])
+        # reverse the ordering in order to unstack the "smallest"
+        # entry each time the iterator advances
+        dir_data.reverse()
+        # push the directory frame to the main stack
+        self.frames.append(dir_data)
 
     def top(self):
         """
@@ -157,7 +154,8 @@ class DirectoryIterator(object):
             self.has_started = True
             return current
 
-        if descend and self.current_is_dir():
+        if descend and self.current_is_dir() \
+                and current['target'] != _empty_dir_hash:
             self._push_dir_frame(current['target'])
         else:
             self.drop()
