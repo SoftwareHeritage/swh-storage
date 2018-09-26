@@ -72,11 +72,10 @@ class DirectoryIterator(object):
         """
         # get directory entries
         dir_data = _get_dir(self.storage, dir_id)
-        # sort them in lexicographical order
-        dir_data = sorted(dir_data, key=lambda e: e['name'])
-        # reverse the ordering in order to unstack the "smallest"
-        # entry each time the iterator advances
-        dir_data.reverse()
+        # sort them in lexicographical order and reverse the ordering
+        # in order to unstack the "smallest" entry each time the
+        # iterator advances
+        dir_data = sorted(dir_data, key=lambda e: e['name'], reverse=True)
         # push the directory frame to the main stack
         self.frames.append(dir_data)
 
@@ -198,6 +197,36 @@ class DirectoryIterator(object):
         if not frame:
             self.frames.pop()
             self.drop()
+
+    def __next__(self):
+        entry = self.step()
+        if not entry:
+            raise StopIteration
+        entry['path'] = self.current_path()
+        return entry
+
+    def __iter__(self):
+        return DirectoryIterator(self.storage, self.root_dir_id,
+                                 self.base_path)
+
+
+def dir_iterator(storage, dir_id):
+    """
+    Return an iterator for recursively visiting a directory and
+    its sub-directories. The associated paths are visited in
+    lexicographic depth-first search order.
+
+    Args:
+        storage (swh.storage.Storage): an instance of a swh storage
+        dir_id (bytes): a directory identifier
+
+    Returns:
+        swh.storage.algos.dir_iterators.DirectoryIterator: an iterator
+            returning a dict at each iteration step describing a directory
+            entry. A 'path' field is added in that dict to store the
+            absolute path of the entry.
+    """
+    return DirectoryIterator(storage, dir_id)
 
 
 class Remaining(Enum):
