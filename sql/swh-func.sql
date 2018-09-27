@@ -91,20 +91,6 @@ as $$
     alter table tmp_release drop column object_id;
 $$;
 
--- create a temporary table for occurrence_history
-create or replace function swh_mktemp_occurrence_history()
-    returns void
-    language sql
-as $$
-    create temporary table tmp_occurrence_history(
-        like occurrence_history including defaults,
-        visit bigint not null
-    ) on commit drop;
-    alter table tmp_occurrence_history
-      drop column visits,
-      drop column object_id;
-$$;
-
 -- create a temporary table for entity_history, sans id
 create or replace function swh_mktemp_entity_history()
     returns void
@@ -725,37 +711,6 @@ begin
 end
 $$;
 
-create or replace function swh_occurrence_update_for_origin(origin_id bigint)
-  returns void
-  language sql
-as $$
-  delete from occurrence where origin = origin_id;
-  insert into occurrence (origin, branch, target, target_type)
-    select origin, branch, target, target_type
-    from occurrence_history
-    where origin = origin_id and
-          (select visit from origin_visit
-           where origin = origin_id
-           order by date desc
-           limit 1) = any(visits);
-$$;
-
-create or replace function swh_occurrence_update_all()
-  returns void
-  language plpgsql
-as $$
-declare
-  origin_id origin.id%type;
-begin
-  for origin_id in
-    select distinct id from origin
-  loop
-    perform swh_occurrence_update_for_origin(origin_id);
-  end loop;
-  return;
-end;
-$$;
-
 -- add a new origin_visit for origin origin_id at date.
 --
 -- Returns the new visit id.
@@ -771,49 +726,6 @@ as $$
   insert into origin_visit (origin, date, visit, status)
   values (origin_id, date, (select visit from last_known_visit) + 1, 'ongoing')
   returning visit;
-$$;
-
--- add tmp_occurrence_history entries to occurrence_history
---
--- operates in bulk: 0. swh_mktemp(occurrence_history), 1. COPY to tmp_occurrence_history,
--- 2. call this function
-create or replace function swh_occurrence_history_add()
-    returns void
-    language plpgsql
-as $$
-declare
-  origin_id origin.id%type;
-begin
-  -- Create or update occurrence_history
-  with occurrence_history_id_visit as (
-    select tmp_occurrence_history.*, object_id, visits from tmp_occurrence_history
-    left join occurrence_history using(origin, branch, target, target_type)
-  ),
-  occurrences_to_update as (
-    select object_id, visit from occurrence_history_id_visit where object_id is not null
-  ),
-  update_occurrences as (
-    update occurrence_history
-    set visits = array(select unnest(occurrence_history.visits) as e
-                        union
-                       select occurrences_to_update.visit as e
-                       order by e)
-    from occurrences_to_update
-    where occurrence_history.object_id = occurrences_to_update.object_id
-  )
-  insert into occurrence_history (origin, branch, target, target_type, visits)
-    select origin, branch, target, target_type, ARRAY[visit]
-      from occurrence_history_id_visit
-      where object_id is null;
-
-  -- update occurrence
-  for origin_id in
-    select distinct origin from tmp_occurrence_history
-  loop
-    perform swh_occurrence_update_for_origin(origin_id);
-  end loop;
-  return;
-end
 $$;
 
 create or replace function swh_snapshot_add(origin bigint, visit bigint, snapshot_id snapshot.id%type)
@@ -932,23 +844,6 @@ as $$
 $$;
 
 
--- Walk the revision history starting from a given revision, until a matching
--- occurrence is found. Return all occurrence information if one is found, NULL
--- otherwise.
-create or replace function swh_revision_find_occurrence(revision_id sha1_git)
-    returns occurrence
-    language sql
-    stable
-as $$
-	select origin, branch, target, target_type
-  from swh_revision_list_children(ARRAY[revision_id] :: bytea[]) as rev_list
-	left join occurrence_history occ_hist
-  on rev_list.id = occ_hist.target
-	where occ_hist.origin is not null and
-        occ_hist.target_type = 'revision'
-	limit 1;
-$$;
-
 -- Find the visit of origin id closest to date visit_date
 create or replace function swh_visit_find_by_date(origin bigint, visit_date timestamptz default NOW())
     returns origin_visit
@@ -984,84 +879,6 @@ as $$
     order by date desc
 $$;
 
-
--- Retrieve occurrence by filtering on origin_id and optionally on
--- branch_name and/or validity range
-create or replace function swh_occurrence_get_by(
-       origin_id bigint,
-       branch_name bytea default NULL,
-       date timestamptz default NULL)
-    returns setof occurrence_history
-    language plpgsql
-as $$
-declare
-    filters text[] := array[] :: text[];  -- AND-clauses used to filter content
-    visit_id bigint;
-    q text;
-begin
-    if origin_id is null then
-        raise exception 'Needs an origin_id to get an occurrence.';
-    end if;
-    filters := filters || format('origin = %L', origin_id);
-    if branch_name is not null then
-        filters := filters || format('branch = %L', branch_name);
-    end if;
-    if date is not null then
-        select visit from swh_visit_find_by_date(origin_id, date) into visit_id;
-    else
-        select visit from origin_visit where origin = origin_id order by origin_visit.date desc limit 1 into visit_id;
-    end if;
-    if visit_id is null then
-        return;
-    end if;
-    filters := filters || format('%L = any(visits)', visit_id);
-
-    q = format('select * from occurrence_history where %s',
-               array_to_string(filters, ' and '));
-    return query execute q;
-end
-$$;
-
-
--- Retrieve revisions by occurrence criterion filtering
-create or replace function swh_revision_get_by(
-       origin_id bigint,
-       branch_name bytea default NULL,
-       date timestamptz default NULL)
-    returns setof revision_entry
-    language sql
-    stable
-as $$
-    select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
-        r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
-        r.type, r.directory, r.message,
-        a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
-        array(select rh.parent_id::bytea
-            from revision_history rh
-            where rh.id = r.id
-            order by rh.parent_rank
-        ) as parents, r.object_id
-    from swh_occurrence_get_by(origin_id, branch_name, date) as occ
-    inner join revision r on occ.target = r.id
-    left join person a on a.id = r.author
-    left join person c on c.id = r.committer;
-$$;
-
--- Retrieve a release by occurrence criterion
-create or replace function swh_release_get_by(
-       origin_id bigint)
-    returns setof release_entry
-    language sql
-    stable
-as $$
-   select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset,
-        r.name, r.comment, r.synthetic, a.id as author_id, a.fullname as author_fullname,
-        a.name as author_name, a.email as author_email, r.object_id
-    from release r
-    inner join occurrence_history occ on occ.target = r.target
-    left join person a on a.id = r.author
-    where occ.origin = origin_id and occ.target_type = 'revision' and r.target_type = 'revision';
-$$;
 
 -- Create entries in entity_history from tmp_entity_history
 --
@@ -1225,15 +1042,6 @@ as $$
 $$;
 
 
-create or replace function swh_occurrence_by_origin_visit(origin_id bigint, visit_id bigint)
-    returns setof occurrence
-    language sql
-    stable
-as $$
-  select origin, branch, target, target_type from occurrence_history
-  where origin = origin_id and visit_id = ANY(visits);
-$$;
-
 -- end revision_metadata functions
 -- origin_metadata functions
 create type origin_metadata_signature as (
@@ -1325,8 +1133,6 @@ as $$
         'directory_entry_dir',
         'directory_entry_file',
         'directory_entry_rev',
-        'occurrence',
-        'occurrence_history',
         'origin',
         'origin_visit',
         'person',
