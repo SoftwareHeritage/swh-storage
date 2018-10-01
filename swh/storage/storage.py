@@ -866,50 +866,6 @@ class Storage():
             return self.snapshot_get(origin_visit['snapshot'], db=db, cur=cur)
 
     @db_transaction()
-    def occurrence_add(self, occurrences, db=None, cur=None):
-        """Add occurrences to the storage
-
-        Args:
-            occurrences: iterable of dictionaries representing the individual
-                occurrences to add. Each dict has the following keys:
-
-                - origin (int): id of the origin corresponding to the
-                  occurrence
-                - visit (int): id of the visit corresponding to the
-                  occurrence
-                - branch (str): the reference name of the occurrence
-                - target (sha1_git): the id of the object pointed to by
-                  the occurrence
-                - target_type (str): the type of object pointed to by the
-                  occurrence
-
-        """
-        db.mktemp_occurrence_history(cur)
-        db.copy_to(occurrences, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'target', 'target_type', 'visit'], cur)
-
-        db.occurrence_history_add_from_temp(cur)
-
-    @db_transaction_generator(statement_timeout=2000)
-    def occurrence_get(self, origin_id, db=None, cur=None):
-        """Retrieve occurrence information per origin_id.
-
-        Args:
-            origin_id: The occurrence's origin.
-
-        Yields:
-            List of occurrences matching criterion.
-
-        """
-        for line in db.occurrence_get(origin_id, cur):
-            yield {
-                'origin': line[0],
-                'branch': line[1],
-                'target': line[2],
-                'target_type': line[3],
-            }
-
-    @db_transaction()
     def origin_visit_add(self, origin, ts, db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
@@ -921,7 +877,7 @@ class Storage():
             dict: dictionary with keys origin and visit where:
 
             - origin: origin identifier
-            - visit: the visit identifier for the new visit occurrence
+            - visit: visit identifier
             - ts (datetime.DateTime): the visit date
 
         """
@@ -956,7 +912,7 @@ class Storage():
         """Retrieve all the origin's visit's information.
 
         Args:
-            origin (int): The occurrence's origin (identifier).
+            origin (int): origin identifier
             last_visit (int): Starting point from which listing the next visits
                 Default to None
             limit (int): Number of results to return from the last visit.
@@ -976,7 +932,7 @@ class Storage():
         """Retrieve origin visit's information.
 
         Args:
-            origin: The occurrence's origin (identifier).
+            origin (int): origin identifier
 
         Returns:
             The information on that particular (origin, visit)
@@ -988,22 +944,8 @@ class Storage():
 
         ori_visit = dict(zip(db.origin_visit_get_cols, ori_visit))
 
-        if ori_visit['snapshot']:
-            ori_visit['occurrences'] = self.snapshot_get(
-                ori_visit['snapshot'], db=db, cur=cur)['branches']
-            return ori_visit
-
-        # TODO: remove Backwards compatibility after snapshot migration
-        occs = {}
-        for occ in db.occurrence_by_origin_visit(origin, visit):
-            _, branch_name, target, target_type = occ
-            occs[branch_name] = {
-                'target': target,
-                'target_type': target_type
-            }
-
-        ori_visit['occurrences'] = occs
-
+        ori_visit['occurrences'] = self.snapshot_get(
+            ori_visit['snapshot'], db=db, cur=cur)['branches']
         return ori_visit
 
     @db_transaction_generator(statement_timeout=500)

@@ -96,12 +96,6 @@ class RemoteStorage(SWHRemoteAPI):
     def object_find_by_sha1_git(self, ids):
         return self.post('object/find_by_sha1_git', {'ids': ids})
 
-    def occurrence_get(self, origin_id):
-        return self.post('occurrence', {'origin_id': origin_id})
-
-    def occurrence_add(self, occurrences):
-        return self.post('occurrence/add', {'occurrences': occurrences})
-
     def snapshot_add(self, origin, visit, snapshot, back_compat=False):
         return self.post('snapshot/add', {
             'origin': origin, 'visit': visit, 'snapshot': snapshot,

@@ -235,9 +235,6 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_occurrence_history')
-    def mktemp_occurrence_history(self, cur=None): pass
-
     @stored_procedure('swh_mktemp_snapshot_branch')
     def mktemp_snapshot_branch(self, cur=None): pass
 
@@ -274,9 +271,6 @@ class Db(BaseDb):
 
     @stored_procedure('swh_release_add')
     def release_add_from_temp(self, cur=None): pass
-
-    @stored_procedure('swh_occurrence_history_add')
-    def occurrence_history_add_from_temp(self, cur=None): pass
 
     @stored_procedure('swh_entity_history_add')
     def entity_history_add_from_temp(self, cur=None): pass
@@ -341,22 +335,6 @@ class Db(BaseDb):
 
         cur.execute("""SELECT sha1, sha1_git, sha256, blake2s256
                        FROM swh_skipped_content_missing()""")
-
-        yield from cursor_to_bytes(cur)
-
-    def occurrence_get(self, origin_id, cur=None):
-        """Retrieve latest occurrence's information by origin_id.
-
-        """
-        cur = self._cursor(cur)
-
-        cur.execute("""SELECT origin, branch, target, target_type,
-                              (select max(date) from origin_visit
-                               where origin=%s) as date
-                       FROM occurrence
-                       WHERE origin=%s
-                    """,
-                    (origin_id, origin_id))
 
         yield from cursor_to_bytes(cur)
 
@@ -528,10 +506,10 @@ class Db(BaseDb):
         """Retrieve all visits for origin with id origin_id.
 
         Args:
-            origin_id: The occurrence's origin
+            origin_id: ID of the requested origin
 
         Yields:
-            The occurrence's history visits
+            IDs of snapshots retrieved when visiting origin
 
         """
         cur = self._cursor(cur)
@@ -619,29 +597,6 @@ class Db(BaseDb):
         if not r:
             return None
         return line_to_bytes(r)
-
-    occurrence_cols = ['origin', 'branch', 'target', 'target_type']
-
-    def occurrence_by_origin_visit(self, origin_id, visit_id, cur=None):
-        """Retrieve all occurrences for a particular origin_visit.
-
-        Args:
-            origin_id: the origin concerned
-            visit_id: The visit step for that origin
-
-        Yields:
-            The occurrence's history visits
-
-        """
-        cur = self._cursor(cur)
-
-        query = """\
-            SELECT %s
-            FROM swh_occurrence_by_origin_visit(%%s, %%s)
-            """ % (', '.join(self.occurrence_cols))
-
-        cur.execute(query, (origin_id, visit_id))
-        yield from cursor_to_bytes(cur)
 
     @staticmethod
     def mangle_query_key(key, main_table):
@@ -964,7 +919,7 @@ class Db(BaseDb):
                        origin_id,
                        limit=None,
                        cur=None):
-        """Retrieve a release by occurrence criterion (only origin right now)
+        """Retrieve a release by visit criterion (only origin right now)
 
         Args:
             - origin_id: The origin to look for.
@@ -985,7 +940,7 @@ class Db(BaseDb):
                         datetime,
                         limit=None,
                         cur=None):
-        """Retrieve a revision by occurrence criterion.
+        """Retrieve a revision by visit criterion.
 
         Args:
             - origin_id: The origin to look for
