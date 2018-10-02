@@ -52,7 +52,16 @@ def get_storage():
 
 @app.route('/')
 def index():
-    return 'SWH Storage API server'
+    return '''<html>
+<head><title>Software Heritage storage server</title></head>
+<body>
+<p>You have reached the
+<a href="https://www.softwareheritage.org/">Software Heritage</a>
+storage server.<br />
+See its
+<a href="https://docs.softwareheritage.org/devel/swh-storage/">documentation
+and API</a> for more information</p>
+</html>'''
 
 
 @app.route('/check_config', methods=['POST'])
