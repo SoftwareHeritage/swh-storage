@@ -5,18 +5,11 @@ BUILD_TARGETS += swh-archive-copies.pdf swh-archive-copies.svg
 all: $(BUILD_TARGETS)
 
 
-# dia exporters
-
-%.eps: %.dia
-	dia -t eps --export $@ $<
-
 %.svg: %.dia
-	dia -t svg --export $@ $<
+	inkscape -l $@ $<
 
-# generic converters
-
-%.pdf: %.eps
-	epstopdf $<
+%.pdf: %.dia
+	inkscape -A $@ $<
 
 
 clean:
