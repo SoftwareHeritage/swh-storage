@@ -826,7 +826,9 @@ create type snapshot_result as (
   target_type  snapshot_target
 );
 
-create or replace function swh_snapshot_get_by_id(id snapshot.id%type)
+create or replace function swh_snapshot_get_by_id(id snapshot.id%type,
+    branches_from bytea default '', branches_count bigint default null,
+    target_types snapshot_target[] default NULL)
   returns setof snapshot_result
   language sql
   stable
@@ -836,6 +838,24 @@ as $$
   from snapshot_branches
   inner join snapshot_branch on snapshot_branches.branch_id = snapshot_branch.object_id
   where snapshot_id = (select object_id from snapshot where snapshot.id = swh_snapshot_get_by_id.id)
+    and (target_types is null or target_type = any(target_types))
+    and name >= branches_from
+  order by name limit branches_count
+$$;
+
+create type snapshot_size as (
+  target_type snapshot_target,
+  count bigint
+);
+
+create or replace function swh_snapshot_count_branches(id snapshot.id%type)
+  returns setof snapshot_size
+  language sql
+  stable
+as $$
+  SELECT target_type, count(name)
+  from swh_snapshot_get_by_id(swh_snapshot_count_branches.id)
+  group by target_type;
 $$;
 
 create or replace function swh_snapshot_get_by_origin_visit(origin_id bigint, visit_id bigint)

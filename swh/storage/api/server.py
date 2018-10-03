@@ -219,6 +219,18 @@ def snapshot_get_latest():
         **decode_request(request)))
 
 
+@app.route('/snapshot/count_branches', methods=['POST'])
+def snapshot_count_branches():
+    return encode_data(get_storage().snapshot_count_branches(
+        **decode_request(request)))
+
+
+@app.route('/snapshot/get_branches', methods=['POST'])
+def snapshot_get_branches():
+    return encode_data(get_storage().snapshot_get_branches(
+        **decode_request(request)))
+
+
 @app.route('/origin/get', methods=['POST'])
 def origin_get():
     return encode_data(get_storage().origin_get(**decode_request(request)))

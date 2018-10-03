@@ -12,7 +12,7 @@ create table dbversion
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(123, now(), 'Work In Progress');
+      values(124, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);

@@ -757,18 +757,33 @@ class Storage():
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
-        """Get the snapshot with the given id
+        """Get the content, possibly partial, of a snapshot with the given id
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        .. warning:: At most 1000 branches contained in the snapshot will be
+            returned for performance reasons. In order to browse the whole
+            set of branches, the method :meth:`snapshot_get_branches`
+            should be used instead.
 
         Args:
-           snapshot_id (bytes): id of the snapshot
+            snapshot_id (bytes): identifier of the snapshot
         Returns:
-           dict: a snapshot with two keys:
-             id:: identifier for the snapshot
-             branches:: a list of branches contained by the snapshot
-
+            dict: a dict with three keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+                * **next_branch**: the name of the first branch not returned
+                  or :const:`None` if the snapshot has less than 1000
+                  branches.
         """
+        max_branches = 1000
         branches = {}
-        for branch in db.snapshot_get_by_id(snapshot_id, cur):
+        next_branch = None
+        fetched_branches = list(db.snapshot_get_by_id(
+            snapshot_id, branches_count=max_branches+1, cur=cur))
+        for branch in fetched_branches[:max_branches]:
             branch = dict(zip(db.snapshot_get_cols, branch))
             del branch['snapshot_id']
             name = branch.pop('name')
@@ -776,26 +791,50 @@ class Storage():
                 branch = None
             branches[name] = branch
 
+        if len(fetched_branches) > max_branches:
+            branch = dict(zip(db.snapshot_get_cols, fetched_branches[-1]))
+            next_branch = branch['name']
+
         if branches:
-            return {'id': snapshot_id, 'branches': branches}
+            return {
+                'id': snapshot_id,
+                'branches': branches,
+                'next_branch': next_branch
+            }
 
         if db.snapshot_exists(snapshot_id, cur):
             # empty snapshot
-            return {'id': snapshot_id, 'branches': {}}
+            return {
+                'id': snapshot_id,
+                'branches': {},
+                'next_branch': None
+            }
 
         return None
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get_by_origin_visit(self, origin, visit, db=None, cur=None):
-        """Get the snapshot for the given origin visit
+        """Get the content, possibly partial, of a snapshot for the given origin visit
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        .. warning:: At most 1000 branches contained in the snapshot will be
+            returned for performance reasons. In order to browse the whole
+            set of branches, the method :meth:`snapshot_get_branches`
+            should be used instead.
 
         Args:
-           origin (int): the origin identifier
-           visit (int): the visit identifier
+            origin (int): the origin identifier
+            visit (int): the visit identifier
         Returns:
-           dict: a snapshot with two keys:
-             id:: identifier for the snapshot
-             branches:: a dictionary containing the snapshot branch information
+            dict: a dict with three keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+                * **next_branch**: the name of the first branch not returned
+                  or :const:`None` if the snapshot has less than 1000
+                  branches.
 
         """
         snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
@@ -817,26 +856,95 @@ class Storage():
     @db_transaction(statement_timeout=2000)
     def snapshot_get_latest(self, origin, allowed_statuses=None, db=None,
                             cur=None):
-        """Get the latest snapshot for the given origin, optionally only from visits
-        that have one of the given allowed_statuses.
+        """Get the content, possibly partial, of the latest snapshot for the
+        given origin, optionally only from visits that have one of the given
+        allowed_statuses
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        .. warning:: At most 1000 branches contained in the snapshot will be
+            returned for performance reasons. In order to browse the whole
+            set of branches, the method :meth:`snapshot_get_branches`
+            should be used instead.
 
         Args:
             origin (int): the origin identifier
             allowed_statuses (list of str): list of visit statuses considered
-              to find the latest snapshot for the visit. For instance,
-              ``allowed_statuses=['full']`` will only consider visits that
-              have successfully run to completion.
-
+                to find the latest snapshot for the visit. For instance,
+                ``allowed_statuses=['full']`` will only consider visits that
+                have successfully run to completion.
         Returns:
-           dict: a snapshot with two keys:
-             id:: identifier for the snapshot
-             branches:: a dictionary containing the snapshot branch information
+            dict: a dict with three keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+                * **next_branch**: the name of the first branch not returned
+                  or :const:`None` if the snapshot has less than 1000
+                  branches.
         """
         origin_visit = db.origin_visit_get_latest_snapshot(
             origin, allowed_statuses=allowed_statuses, cur=cur)
         if origin_visit:
             origin_visit = dict(zip(db.origin_visit_get_cols, origin_visit))
             return self.snapshot_get(origin_visit['snapshot'], db=db, cur=cur)
+
+    @db_transaction(statement_timeout=2000)
+    def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
+        """Count the number of branches in the snapshot with the given id
+
+        Args:
+            snapshot_id (bytes): identifier of the snapshot
+
+        Returns:
+            dict: A dict whose keys are the target types of branches and
+            values their corresponding amount
+        """
+        return dict([bc for bc in
+                     db.snapshot_count_branches(snapshot_id, cur)])
+
+    @db_transaction(statement_timeout=2000)
+    def snapshot_get_branches(self, snapshot_id, branches_from=b'',
+                              branches_count=None, target_types=None,
+                              db=None, cur=None):
+        """Get the content, possibly partial, of a snapshot with the given id
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        Args:
+            snapshot_id (bytes): identifier of the snapshot
+            branches_from (bytes): optional parameter used to skip branches
+                whose name is lesser than it before returning them
+            branches_count (int): optional parameter used to restrain
+                the amount of returned branches
+            target_types (list): optional parameter used to filter the
+                target types of branch to return (possible values that can be
+                contained in that list are `'content', 'directory',
+                'revision', 'release', 'snapshot', 'alias'`)
+        Returns:
+            dict: a dict with two keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+        """
+        branches = {}
+        for branch in db.snapshot_get_by_id(snapshot_id, branches_from,
+                                            branches_count, target_types, cur):
+            branch = dict(zip(db.snapshot_get_cols, branch))
+            del branch['snapshot_id']
+            name = branch.pop('name')
+            if branch == {'target': None, 'target_type': None}:
+                branch = None
+            branches[name] = branch
+
+        if branches:
+            return {'id': snapshot_id, 'branches': branches}
+
+        if db.snapshot_exists(snapshot_id, cur):
+            return {'id': snapshot_id, 'branches': {}}
+
+        return None
 
     @db_transaction()
     def occurrence_add(self, occurrences, db=None, cur=None):

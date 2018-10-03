@@ -359,15 +359,31 @@ class Db(BaseDb):
         cur.execute("""SELECT swh_snapshot_add(%s, %s, %s)""",
                     (origin, visit, snapshot_id))
 
-    snapshot_get_cols = ['snapshot_id', 'name', 'target', 'target_type']
+    snapshot_count_cols = ['target_type', 'count']
 
-    def snapshot_get_by_id(self, snapshot_id, cur=None):
+    def snapshot_count_branches(self, snapshot_id, cur=None):
         cur = self._cursor(cur)
         query = """\
-           SELECT %s FROM swh_snapshot_get_by_id(%%s)
-        """ % ', '.join(self.snapshot_get_cols)
+           SELECT %s FROM swh_snapshot_count_branches(%%s)
+        """ % ', '.join(self.snapshot_count_cols)
 
         cur.execute(query, (snapshot_id,))
+
+        yield from cursor_to_bytes(cur)
+
+    snapshot_get_cols = ['snapshot_id', 'name', 'target', 'target_type']
+
+    def snapshot_get_by_id(self, snapshot_id, branches_from=b'',
+                           branches_count=None, target_types=None,
+                           cur=None):
+        cur = self._cursor(cur)
+        query = """\
+           SELECT %s
+           FROM swh_snapshot_get_by_id(%%s, %%s, %%s, %%s :: snapshot_target[])
+        """ % ', '.join(self.snapshot_get_cols)
+
+        cur.execute(query, (snapshot_id, branches_from, branches_count,
+                            target_types))
 
         yield from cursor_to_bytes(cur)
 
