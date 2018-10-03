@@ -863,25 +863,6 @@ class Storage():
 
         db.occurrence_history_add_from_temp(cur)
 
-    @db_transaction_generator(statement_timeout=2000)
-    def occurrence_get(self, origin_id, db=None, cur=None):
-        """Retrieve occurrence information per origin_id.
-
-        Args:
-            origin_id: The occurrence's origin.
-
-        Yields:
-            List of occurrences matching criterion.
-
-        """
-        for line in db.occurrence_get(origin_id, cur):
-            yield {
-                'origin': line[0],
-                'branch': line[1],
-                'target': line[2],
-                'target_type': line[3],
-            }
-
     @db_transaction()
     def origin_visit_add(self, origin, ts, db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.

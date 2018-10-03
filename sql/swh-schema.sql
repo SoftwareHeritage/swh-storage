@@ -12,7 +12,7 @@ create table dbversion
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(122, now(), 'Work In Progress');
+      values(123, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -335,16 +335,6 @@ create table occurrence_history
                                       -- origin_visit(visit), where o_h.origin = origin_visit.origin.
   object_id    bigserial not null,    -- short object identifier
   snapshot_branch_id bigint
-);
-
--- Materialized view of occurrence_history, storing the *current* value of each
--- branch, as last seen by SWH.
-create table occurrence
-(
-  origin    bigint,
-  branch    bytea not null,
-  target    sha1_git not null,
-  target_type object_type not null
 );
 
 -- END legacy section (T830)

@@ -1583,36 +1583,6 @@ class CommonTestStorage(BaseTestStorage):
              occur2['target_type'], date_visit2))
 
     @istest
-    def occurrence_get(self):
-        # given
-        occur = self.occurrence.copy()
-        origin_id = self.storage.origin_add_one(self.origin2)
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit1)
-
-        revision = self.revision.copy()
-        revision['id'] = occur['target']
-        self.storage.revision_add([revision])
-
-        occur.update({
-            'origin': origin_id,
-            'visit': origin_visit1['visit'],
-        })
-        self.storage.occurrence_add([occur])
-        self.storage.occurrence_add([occur])
-
-        # when
-        actual_occurrence = list(self.storage.occurrence_get(origin_id))
-
-        # then
-        expected_occurrence = self.occurrence.copy()
-        expected_occurrence.update({
-            'origin': origin_id
-        })
-        self.assertEquals(len(actual_occurrence), 1)
-        self.assertEquals(actual_occurrence[0], expected_occurrence)
-
-    @istest
     def snapshot_add_get_empty(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
@@ -1827,7 +1797,7 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def stat_counters(self):
         expected_keys = ['content', 'directory', 'directory_entry_dir',
-                         'occurrence', 'origin', 'person', 'revision']
+                         'origin', 'person', 'revision']
 
         for key in expected_keys:
             self.cursor.execute('select * from swh_update_counter(%s)', (key,))

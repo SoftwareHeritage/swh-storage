@@ -725,36 +725,6 @@ begin
 end
 $$;
 
-create or replace function swh_occurrence_update_for_origin(origin_id bigint)
-  returns void
-  language sql
-as $$
-  delete from occurrence where origin = origin_id;
-  insert into occurrence (origin, branch, target, target_type)
-    select origin, branch, target, target_type
-    from occurrence_history
-    where origin = origin_id and
-          (select visit from origin_visit
-           where origin = origin_id
-           order by date desc
-           limit 1) = any(visits);
-$$;
-
-create or replace function swh_occurrence_update_all()
-  returns void
-  language plpgsql
-as $$
-declare
-  origin_id origin.id%type;
-begin
-  for origin_id in
-    select distinct id from origin
-  loop
-    perform swh_occurrence_update_for_origin(origin_id);
-  end loop;
-  return;
-end;
-$$;
 
 -- add a new origin_visit for origin origin_id at date.
 --
@@ -805,13 +775,6 @@ begin
     select origin, branch, target, target_type, ARRAY[visit]
       from occurrence_history_id_visit
       where object_id is null;
-
-  -- update occurrence
-  for origin_id in
-    select distinct origin from tmp_occurrence_history
-  loop
-    perform swh_occurrence_update_for_origin(origin_id);
-  end loop;
   return;
 end
 $$;
@@ -1282,7 +1245,6 @@ as $$
         'directory_entry_dir',
         'directory_entry_file',
         'directory_entry_rev',
-        'occurrence',
         'occurrence_history',
         'origin',
         'origin_visit',

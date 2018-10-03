@@ -344,22 +344,6 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    def occurrence_get(self, origin_id, cur=None):
-        """Retrieve latest occurrence's information by origin_id.
-
-        """
-        cur = self._cursor(cur)
-
-        cur.execute("""SELECT origin, branch, target, target_type,
-                              (select max(date) from origin_visit
-                               where origin=%s) as date
-                       FROM occurrence
-                       WHERE origin=%s
-                    """,
-                    (origin_id, origin_id))
-
-        yield from cursor_to_bytes(cur)
-
     def snapshot_exists(self, snapshot_id, cur=None):
         """Check whether a snapshot with the given id exists"""
         cur = self._cursor(cur)
