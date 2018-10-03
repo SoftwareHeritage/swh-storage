@@ -1047,22 +1047,6 @@ as $$
     left join person c on c.id = r.committer;
 $$;
 
--- Retrieve a release by occurrence criterion
-create or replace function swh_release_get_by(
-       origin_id bigint)
-    returns setof release_entry
-    language sql
-    stable
-as $$
-   select r.id, r.target, r.target_type, r.date, r.date_offset, r.date_neg_utc_offset,
-        r.name, r.comment, r.synthetic, a.id as author_id, a.fullname as author_fullname,
-        a.name as author_name, a.email as author_email, r.object_id
-    from release r
-    inner join occurrence_history occ on occ.target = r.target
-    left join person a on a.id = r.author
-    where occ.origin = origin_id and occ.target_type = 'revision' and r.target_type = 'revision';
-$$;
-
 -- Create entries in entity_history from tmp_entity_history
 --
 -- TODO: do something smarter to compress the entries if the data

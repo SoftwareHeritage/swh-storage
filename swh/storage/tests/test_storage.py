@@ -1240,36 +1240,6 @@ class CommonTestStorage(BaseTestStorage):
                           [actual_releases[0], actual_releases[1]])
 
     @istest
-    def release_get_by(self):
-        # given
-        self.storage.revision_add([self.revision2])  # points to self.dir
-        self.storage.release_add([self.release3])
-        origin_id = self.storage.origin_add_one(self.origin2)
-
-        # occurrence2 points to 'revision2' with branch 'master', we
-        # need to point to the right origin
-        origin_visit = self.storage.origin_visit_add(origin_id,
-                                                     self.date_visit2)
-        occurrence2 = self.occurrence2.copy()
-        occurrence2.update({
-            'origin': origin_id,
-            'visit': origin_visit['visit'],
-        })
-
-        self.storage.occurrence_add([occurrence2])
-
-        # we want only revision 2
-        expected_releases = list(self.storage.release_get(
-            [self.release3['id']]))
-
-        # when
-        actual_results = list(self.storage.release_get_by(
-            occurrence2['origin']))
-
-        # then
-        self.assertEqual(actual_results[0], expected_releases[0])
-
-    @istest
     def origin_add_one(self):
         origin0 = self.storage.origin_get(self.origin)
         self.assertIsNone(origin0)

@@ -1037,26 +1037,6 @@ class Storage():
                 continue
             yield data
 
-    @db_transaction_generator(statement_timeout=500)
-    def release_get_by(self, origin_id, limit=None, db=None, cur=None):
-        """Given an origin id, return all the tag objects pointing to heads of
-        origin_id.
-
-        Args:
-            origin_id: the origin to filter on.
-            limit: None by default
-
-        Yields:
-            List of releases matching the criterions or None if nothing is
-            found.
-
-        """
-        for line in db.release_get_by(origin_id, limit=limit, cur=cur):
-            data = converters.db_to_release(
-                dict(zip(db.release_get_cols, line))
-            )
-            yield data
-
     @db_transaction(statement_timeout=2000)
     def object_find_by_sha1_git(self, ids, db=None, cur=None):
         """Return the objects found with the given ids.

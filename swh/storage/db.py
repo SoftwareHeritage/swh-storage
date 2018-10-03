@@ -960,25 +960,6 @@ class Db(BaseDb):
             """ % query_keys,
             ((id,) for id in releases))
 
-    def release_get_by(self,
-                       origin_id,
-                       limit=None,
-                       cur=None):
-        """Retrieve a release by occurrence criterion (only origin right now)
-
-        Args:
-            - origin_id: The origin to look for.
-
-        """
-        cur = self._cursor(cur)
-        query = """
-        SELECT %s
-            FROM swh_release_get_by(%%s)
-            LIMIT %%s
-        """ % ', '.join(self.release_get_cols)
-        cur.execute(query, (origin_id, limit))
-        yield from cursor_to_bytes(cur)
-
     def revision_get_by(self,
                         origin_id,
                         branch_name,

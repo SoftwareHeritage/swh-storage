@@ -180,11 +180,6 @@ def release_get():
     return encode_data(get_storage().release_get(**decode_request(request)))
 
 
-@app.route('/release/by', methods=['POST'])
-def release_get_by():
-    return encode_data(get_storage().release_get_by(**decode_request(request)))
-
-
 @app.route('/release/missing', methods=['POST'])
 def release_missing():
     return encode_data(get_storage().release_missing(
