@@ -714,7 +714,7 @@ class Storage():
             )
 
     @db_transaction()
-    def snapshot_add(self, origin, visit, snapshot, back_compat=False,
+    def snapshot_add(self, origin, visit, snapshot,
                      db=None, cur=None):
         """Add a snapshot for the given origin/visit couple
 
@@ -736,8 +736,6 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
-            back_compat (bool): whether to add the occurrences for
-              backwards-compatibility
         """
         if not db.snapshot_exists(snapshot['id'], cur):
             db.mktemp_snapshot_branch(cur)
@@ -756,31 +754,6 @@ class Storage():
             )
 
         db.snapshot_add(origin, visit, snapshot['id'], cur)
-
-        if not back_compat:
-            return
-
-        # TODO: drop this compat feature
-        occurrences = []
-        for name, info in snapshot['branches'].items():
-            if not info:
-                target = b'\x00' * 20
-                target_type = 'revision'
-            elif info['target_type'] == 'alias':
-                continue
-            else:
-                target = info['target']
-                target_type = info['target_type']
-
-            occurrences.append({
-                'origin': origin,
-                'visit': visit,
-                'branch': name,
-                'target': target,
-                'target_type': target_type,
-            })
-
-        self.occurrence_add(occurrences, db=db, cur=cur)
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
@@ -971,7 +944,7 @@ class Storage():
             data = dict(zip(db.origin_visit_get_cols, line))
             yield data
 
-    @db_transaction(statement_timeout=2000)
+    @db_transaction(statement_timeout=500)
     def origin_visit_get_by(self, origin, visit, db=None, cur=None):
         """Retrieve origin visit's information.
 
@@ -986,25 +959,7 @@ class Storage():
         if not ori_visit:
             return None
 
-        ori_visit = dict(zip(db.origin_visit_get_cols, ori_visit))
-
-        if ori_visit['snapshot']:
-            ori_visit['occurrences'] = self.snapshot_get(
-                ori_visit['snapshot'], db=db, cur=cur)['branches']
-            return ori_visit
-
-        # TODO: remove Backwards compatibility after snapshot migration
-        occs = {}
-        for occ in db.occurrence_by_origin_visit(origin, visit):
-            _, branch_name, target, target_type = occ
-            occs[branch_name] = {
-                'target': target,
-                'target_type': target_type
-            }
-
-        ori_visit['occurrences'] = occs
-
-        return ori_visit
+        return dict(zip(db.origin_visit_get_cols, ori_visit))
 
     @db_transaction_generator(statement_timeout=500)
     def revision_get_by(self,

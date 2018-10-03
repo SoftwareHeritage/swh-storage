@@ -1480,13 +1480,8 @@ class CommonTestStorage(BaseTestStorage):
             origin_id,
             ts=self.date_visit2)
 
-        occurrence2 = self.occurrence2.copy()
-        occurrence2.update({
-            'origin': origin_id,
-            'visit': origin_visit1['visit'],
-        })
-
-        self.storage.occurrence_add([occurrence2])
+        self.storage.snapshot_add(origin_id, origin_visit1['visit'],
+                                  self.snapshot)
 
         # Add some other {origin, visit} entries
         self.storage.origin_visit_add(origin_id, ts=self.date_visit3)
@@ -1509,13 +1504,7 @@ class CommonTestStorage(BaseTestStorage):
             'date': self.date_visit2,
             'metadata': visit1_metadata,
             'status': 'full',
-            'occurrences': {
-                occurrence2['branch']: {
-                    'target': occurrence2['target'],
-                    'target_type': occurrence2['target_type'],
-                }
-            },
-            'snapshot': None,
+            'snapshot': self.snapshot['id'],
         })
 
         # when
@@ -1668,11 +1657,9 @@ class CommonTestStorage(BaseTestStorage):
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.snapshot)
 
-        # retrocompat test
         origin_visit_info = self.storage.origin_visit_get_by(origin_id,
                                                              visit_id)
-        self.assertEqual(origin_visit_info['occurrences'],
-                         self.snapshot['branches'])
+        self.assertEqual(origin_visit_info['snapshot'], self.snapshot['id'])
 
     @istest
     def snapshot_add_twice(self):
@@ -1708,70 +1695,6 @@ class CommonTestStorage(BaseTestStorage):
         by_ov = self.storage.snapshot_get_by_origin_visit(bogus_origin_id,
                                                           bogus_visit_id)
         self.assertIsNone(by_ov)
-
-    @istest
-    def snapshot_get_retrocompat(self):
-        empty_retro_snapshot = {
-            'id': None,
-            'branches': {},
-        }
-        origin_id = self.storage.origin_add_one(self.origin)
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit1)
-        visit_id = origin_visit1['visit']
-
-        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-
-        self.assertEqual(by_ov, empty_retro_snapshot)
-
-        self.storage.revision_add([self.revision])
-        self.storage.occurrence_add([{
-            'origin': origin_id,
-            'visit': visit_id,
-            'branch': self.occurrence['branch'],
-            'target': self.occurrence['target'],
-            'target_type': self.occurrence['target_type'],
-        }])
-
-        one_branch_retro_snapshot = {
-            'id': None,
-            'branches': {
-                self.occurrence['branch']: {
-                    'target': self.occurrence['target'],
-                    'target_type': self.occurrence['target_type'],
-                },
-            },
-        }
-
-        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-        self.assertEqual(by_ov, one_branch_retro_snapshot)
-
-    @istest
-    def snapshot_add_back_compat(self):
-        origin_id = self.storage.origin_add_one(self.origin)
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit1)
-        visit_id = origin_visit1['visit']
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
-                                  back_compat=True)
-
-        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
-        self.assertEquals(ov['occurrences'],
-                          self.complete_snapshot['branches'])
-        self.assertEquals(ov['snapshot'],
-                          self.complete_snapshot['id'])
-
-        origin_visit2 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit2)
-        visit_id = origin_visit2['visit']
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
-                                  back_compat=False)
-
-        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
-        self.assertEquals(ov['occurrences'],
-                          self.complete_snapshot['branches'])
-        self.assertEquals(ov['snapshot'],
-                          self.complete_snapshot['id'])
 
     @istest
     def snapshot_get_latest(self):
