@@ -622,27 +622,6 @@ class Db(BaseDb):
 
     occurrence_cols = ['origin', 'branch', 'target', 'target_type']
 
-    def occurrence_by_origin_visit(self, origin_id, visit_id, cur=None):
-        """Retrieve all occurrences for a particular origin_visit.
-
-        Args:
-            origin_id: the origin concerned
-            visit_id: The visit step for that origin
-
-        Yields:
-            The occurrence's history visits
-
-        """
-        cur = self._cursor(cur)
-
-        query = """\
-            SELECT %s
-            FROM swh_occurrence_by_origin_visit(%%s, %%s)
-            """ % (', '.join(self.occurrence_cols))
-
-        cur.execute(query, (origin_id, visit_id))
-        yield from cursor_to_bytes(cur)
-
     @staticmethod
     def mangle_query_key(key, main_table):
         if key == 'id':

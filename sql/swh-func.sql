@@ -931,24 +931,6 @@ as $$
     select dir_id, name from path order by depth desc limit 1;
 $$;
 
-
--- Walk the revision history starting from a given revision, until a matching
--- occurrence is found. Return all occurrence information if one is found, NULL
--- otherwise.
-create or replace function swh_revision_find_occurrence(revision_id sha1_git)
-    returns occurrence
-    language sql
-    stable
-as $$
-	select origin, branch, target, target_type
-  from swh_revision_list_children(ARRAY[revision_id] :: bytea[]) as rev_list
-	left join occurrence_history occ_hist
-  on rev_list.id = occ_hist.target
-	where occ_hist.origin is not null and
-        occ_hist.target_type = 'revision'
-	limit 1;
-$$;
-
 -- Find the visit of origin id closest to date visit_date
 create or replace function swh_visit_find_by_date(origin bigint, visit_date timestamptz default NOW())
     returns origin_visit
@@ -1208,15 +1190,6 @@ as $$
     order by r.object_id;
 $$;
 
-
-create or replace function swh_occurrence_by_origin_visit(origin_id bigint, visit_id bigint)
-    returns setof occurrence
-    language sql
-    stable
-as $$
-  select origin, branch, target, target_type from occurrence_history
-  where origin = origin_id and visit_id = ANY(visits);
-$$;
 
 -- end revision_metadata functions
 -- origin_metadata functions
