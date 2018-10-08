@@ -4,9 +4,9 @@ LICENSE
 MANIFEST.in
 Makefile
 Makefile.local
-README.db_testing
-README.dev
+README.md
 requirements-swh.txt
+requirements-test.txt
 requirements.txt
 setup.py
 version.txt
@@ -20,11 +20,17 @@ debian/source/format
 docs/.gitignore
 docs/Makefile
 docs/Makefile.local
+docs/archive-copies.rst
 docs/conf.py
 docs/index.rst
 docs/sql-storage.rst
 docs/_static/.placeholder
 docs/_templates/.placeholder
+docs/images/.gitignore
+docs/images/Makefile
+docs/images/swh-archive-copies.dia
+docs/images/swh-archive-copies.pdf
+docs/images/swh-archive-copies.svg
 sql/.gitignore
 sql/Makefile
 sql/TODO
@@ -167,6 +173,9 @@ sql/upgrades/117.sql
 sql/upgrades/118.sql
 sql/upgrades/119.sql
 sql/upgrades/120.sql
+sql/upgrades/121.sql
+sql/upgrades/122.sql
+sql/upgrades/123.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -197,5 +206,6 @@ swh/storage/tests/test_db.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py
+swh/storage/tests/algos/test_dir_iterator.py
 utils/dump_revisions.py
 utils/fix_revisions_from_dump.py

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg width="68cm" height="26cm" viewBox="-19 79 1360 520" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs/>
+  <g id="Background">
+    <rect style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke-linejoin: round; stroke-dasharray: 10 2 2 2 2 2; stroke: #4d4d4d" x="260" y="80" width="1080" height="500" rx="10" ry="10"/>
+    <rect style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke-linejoin: round; stroke-dasharray: 10; stroke: #4d4d4d" x="820" y="100" width="500" height="380" rx="10" ry="10"/>
+    <rect style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke-linejoin: round; stroke-dasharray: 10; stroke: #4d4d4d" x="280" y="100" width="500" height="440" rx="10" ry="10"/>
+    <rect style="fill: #b9d3ee; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke-linejoin: round; stroke: #b9d3ee" x="300" y="142.56" width="460" height="320" rx="10" ry="10"/>
+    <g>
+      <path style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke: #000000" fill-rule="evenodd" d="M 587.004 295.467 C 608.202,285.787 618.802,282.56 640,282.56 C 661.198,282.56 671.798,285.787 692.996,295.467 L 692.996,347.093 C 671.798,356.773 661.198,360 640,360 C 618.802,360 608.202,356.773 587.004,347.093 L 587.004,295.467z"/>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke: #000000" d="M 587.004 295.467 C 608.202,305.147 618.802,308.373 640,308.373 C 661.198,308.373 671.798,305.147 692.996,295.467"/>
+      <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="640" y="333.378">
+        <tspan x="640" y="333.378">Postgres</tspan>
+      </text>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:start;font-family:sans-serif;font-style:italic;font-weight:normal" x="300" y="138.26">
+      <tspan x="300" y="138.26">Primary copy</tspan>
+    </text>
+    <g>
+      <path style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke: #000000" fill-rule="evenodd" d="M 367.004 202.993 C 388.202,187.668 398.802,182.56 420,182.56 C 441.198,182.56 451.798,187.668 472.996,202.993 L 472.996,284.723 C 451.798,300.047 441.198,305.156 420,305.156 C 398.802,305.156 388.202,300.047 367.004,284.723 L 367.004,202.993z"/>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke: #000000" d="M 367.004 202.993 C 388.202,218.317 398.802,223.425 420,223.425 C 441.198,223.425 451.798,218.317 472.996,202.993"/>
+      <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="420" y="248.43">
+        <tspan x="420" y="248.43">Object</tspan>
+        <tspan x="420" y="271.008">storage</tspan>
+      </text>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="420" y="321.956">
+      <tspan x="420" y="321.956">~200 TB</tspan>
+      <tspan x="420" y="344.534">~5 B contents</tspan>
+      <tspan x="420" y="367.112">(i.e., "blobs")</tspan>
+    </text>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="640" y="376.8">
+      <tspan x="640" y="376.8">~8 TB</tspan>
+      <tspan x="640" y="399.378">Merkle DAG</tspan>
+      <tspan x="640" y="421.956">~10 B nodes</tspan>
+      <tspan x="640" y="444.533">~100 B edges</tspan>
+    </text>
+    <rect style="fill: #b9d3ee; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke-linejoin: round; stroke: #b9d3ee" x="840" y="140" width="460" height="320" rx="10" ry="10"/>
+    <g>
+      <path style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke: #000000" fill-rule="evenodd" d="M 1140 312.907 C 1161.2,303.227 1171.8,300 1193,300 C 1214.19,300 1224.79,303.227 1245.99,312.907 L 1245.99,364.533 C 1224.79,374.213 1214.19,377.44 1193,377.44 C 1171.8,377.44 1161.2,374.213 1140,364.533 L 1140,312.907z"/>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke: #000000" d="M 1140 312.907 C 1161.2,322.587 1171.8,325.813 1193,325.813 C 1214.19,325.813 1224.79,322.587 1245.99,312.907"/>
+      <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1193" y="350.818">
+        <tspan x="1193" y="350.818">Postgres</tspan>
+      </text>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:start;font-family:sans-serif;font-style:italic;font-weight:normal" x="840" y="135.7">
+      <tspan x="840" y="135.7">Secondary copy</tspan>
+    </text>
+    <g>
+      <path style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke: #000000" fill-rule="evenodd" d="M 900 200.433 C 921.198,185.108 931.798,180 952.996,180 C 974.194,180 984.794,185.108 1005.99,200.433 L 1005.99,282.163 C 984.794,297.487 974.194,302.595 952.996,302.595 C 931.798,302.595 921.198,297.487 900,282.163 L 900,200.433z"/>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke: #000000" d="M 900 200.433 C 921.198,215.757 931.798,220.865 952.996,220.865 C 974.194,220.865 984.794,215.757 1005.99,200.433"/>
+      <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="952.996" y="245.87">
+        <tspan x="952.996" y="245.87">Object</tspan>
+        <tspan x="952.996" y="268.447">storage</tspan>
+      </text>
+    </g>
+    <g>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 6; stroke: #4d4d4d" d="M 692.996,347.094 A 467.785,467.785 0 0 0 1127.59,345.857"/>
+      <polygon style="fill: #4d4d4d; fill-opacity: 1; stroke-opacity: 1; stroke-width: 6; stroke: #4d4d4d" fill-rule="evenodd" points="1130.13,350.371 1136.38,341.102 1125.22,341.662 "/>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="1000" y="426.25">
+      <tspan x="1000" y="426.25">replication</tspan>
+    </text>
+    <g>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 6; stroke: #4d4d4d" d="M 473.999,243.573 A 552.07,552.07 0 0 1 886.92,236.728"/>
+      <polygon style="fill: #4d4d4d; fill-opacity: 1; stroke-opacity: 1; stroke-width: 6; stroke: #4d4d4d" fill-rule="evenodd" points="885.073,241.209 896.223,240.39 888.877,231.961 "/>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="680" y="186.25">
+      <tspan x="680" y="186.25">archiver</tspan>
+    </text>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="1193" y="394.24">
+      <tspan x="1193" y="394.24">hosted on</tspan>
+      <tspan x="1193" y="416.818">Azure VM</tspan>
+    </text>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="952.996" y="319.396">
+      <tspan x="952.996" y="319.396">hosted on</tspan>
+      <tspan x="952.996" y="341.974">Azure blob storage</tspan>
+    </text>
+    <text font-size="15.8044" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:start;font-family:sans-serif;font-style:italic;font-weight:normal" x="280" y="554.7">
+      <tspan x="280" y="554.7">located at Rocquencourt, France</tspan>
+    </text>
+    <text font-size="15.8044" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:start;font-family:sans-serif;font-style:italic;font-weight:normal" x="820" y="494.7">
+      <tspan x="820" y="494.7">located in Azure Europe West region</tspan>
+    </text>
+    <text font-size="15.8044" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:end;font-family:sans-serif;font-style:italic;font-weight:normal" x="1340" y="594.7">
+      <tspan x="1340" y="594.7">managed by Software Heritage team at Inria</tspan>
+    </text>
+    <g>
+      <ellipse style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke: #000000" cx="456.852" cy="500.208" rx="56.8519" ry="20.2077"/>
+      <line style="fill: none; stroke-opacity: 1; stroke-width: 2; stroke: #000000" x1="456.852" y1="520.415" x2="513.704" y2="520.415"/>
+      <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="456.852" y="505.852">
+        <tspan x="456.852" y="505.852">Backup</tspan>
+      </text>
+    </g>
+    <g>
+      <path style="fill: none; stroke-opacity: 1; stroke-width: 6; stroke: #4d4d4d" d="M 587.004,347.094 A 250.281,250.281 0 0 0 481.191,468.313"/>
+      <polygon style="fill: #4d4d4d; fill-opacity: 1; stroke-opacity: 1; stroke-width: 6; stroke: #4d4d4d" fill-rule="evenodd" points="476.163,466.524 477.559,477.617 485.596,469.844 "/>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="440" y="446.25">
+      <tspan x="440" y="446.25">barman</tspan>
+    </text>
+    <g>
+      <path style="fill: #ffffff; fill-opacity: 1; stroke-opacity: 1; stroke-width: 2; stroke: #000000" fill-rule="evenodd" d="M 18.5897 269.24 C 5.37247,268.727 -20.2609,279.506 -16.6562,302.604 C -13.0516,325.703 4.1709,330.836 11.3803,324.163 C 18.5897,317.49 0.165675,356.501 35.4116,366.767 C 70.6573,377.033 88.6808,360.607 83.474,348.801 C 78.2672,336.995 114.314,376.519 131.136,353.934 C 147.958,331.349 113.914,309.791 121.123,312.87 C 128.333,315.95 150.361,311.844 143.152,273.346 C 135.942,234.849 71.0578,264.62 78.2672,258.974 C 85.4766,253.328 67.4531,225.096 45.0242,230.742 C 22.5949,236.389 21.0041,246.635 18.6009,269.22 L 18.5897,269.24z"/>
+      <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="69.6239" y="298.098">
+        <tspan x="69.6239" y="298.098">software</tspan>
+        <tspan x="69.6239" y="320.676">origins</tspan>
+      </text>
+    </g>
+    <g>
+      <line style="fill: none; stroke-opacity: 1; stroke-width: 10; stroke: #4d4d4d" x1="143.204" y1="301.19" x2="285.001" y2="302.429"/>
+      <polygon style="fill: #4d4d4d; fill-opacity: 1; stroke-opacity: 1; stroke-width: 10; stroke: #4d4d4d" fill-rule="evenodd" points="284.957,307.429 295,302.516 285.044,297.429 "/>
+    </g>
+    <text font-size="18.0622" style="fill: #000000; fill-opacity: 1; stroke: none;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="221.602" y="274.998">
+      <tspan x="221.602" y="274.998">ingestion       </tspan>
+      <tspan x="221.602" y="297.576"></tspan>
+    </text>
+  </g>
+</svg>

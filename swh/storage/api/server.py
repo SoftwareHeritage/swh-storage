@@ -52,7 +52,16 @@ def get_storage():
 
 @app.route('/')
 def index():
-    return 'SWH Storage API server'
+    return '''<html>
+<head><title>Software Heritage storage server</title></head>
+<body>
+<p>You have reached the
+<a href="https://www.softwareheritage.org/">Software Heritage</a>
+storage server.<br />
+See its
+<a href="https://docs.softwareheritage.org/devel/swh-storage/">documentation
+and API</a> for more information</p>
+</html>'''
 
 
 @app.route('/check_config', methods=['POST'])
@@ -171,11 +180,6 @@ def release_get():
     return encode_data(get_storage().release_get(**decode_request(request)))
 
 
-@app.route('/release/by', methods=['POST'])
-def release_get_by():
-    return encode_data(get_storage().release_get_by(**decode_request(request)))
-
-
 @app.route('/release/missing', methods=['POST'])
 def release_missing():
     return encode_data(get_storage().release_missing(
@@ -186,11 +190,6 @@ def release_missing():
 def object_find_by_sha1_git():
     return encode_data(get_storage().object_find_by_sha1_git(
         **decode_request(request)))
-
-
-@app.route('/occurrence', methods=['POST'])
-def occurrence_get():
-    return encode_data(get_storage().occurrence_get(**decode_request(request)))
 
 
 @app.route('/occurrence/add', methods=['POST'])

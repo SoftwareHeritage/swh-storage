@@ -1,12 +1,20 @@
-sphinx/html: sql-autodoc
+sphinx/html: sql-autodoc images
+sphinx/clean: clean-sql-autodoc clean-images
+
 sql-autodoc:
 	make -C ../sql/ doc
 
-clean: clean-sql-autodoc
+images:
+	make -C images/
+clean-images:
+	make -C images/ clean
+
+clean: clean-sql-autodoc clean-images
 clean-sql-autodoc:
 	make -C ../sql/ clean
 
-.PHONY: sql-autodoc clean-sql-autodoc
+.PHONY: sql-autodoc clean-sql-autodoc images clean-images
+
 
 # Local Variables:
 # mode: makefile
