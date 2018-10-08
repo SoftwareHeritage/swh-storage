@@ -1,7 +1,11 @@
 .. _swh-storage:
 
-Software Heritage - Development Documentation
-=============================================
+Software Heritage - Storage
+===========================
+
+Abstraction layer over the archive, allowing to access all stored source code
+artifacts as well as their metadata
+
 
 .. toctree::
    :maxdepth: 2
@@ -24,6 +28,12 @@ Database schema
 ---------------
 
 * :ref:`sql-storage`
+
+
+Archive copies
+--------------
+
+* :ref:`archive-copies`
 
 
 Indices and tables

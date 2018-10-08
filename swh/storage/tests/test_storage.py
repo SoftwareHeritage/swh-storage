@@ -385,7 +385,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'target_type': 'revision',
         }
 
-        self.date_visit2 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+        self.date_visit2 = datetime.datetime(2017, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
         self.occurrence2 = {
@@ -394,7 +394,7 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'target_type': 'revision',
         }
 
-        self.date_visit3 = datetime.datetime(2015, 1, 1, 23, 0, 0,
+        self.date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
         # template occurrence to be filled in test (cf. revision_log_by)
@@ -1240,36 +1240,6 @@ class CommonTestStorage(BaseTestStorage):
                           [actual_releases[0], actual_releases[1]])
 
     @istest
-    def release_get_by(self):
-        # given
-        self.storage.revision_add([self.revision2])  # points to self.dir
-        self.storage.release_add([self.release3])
-        origin_id = self.storage.origin_add_one(self.origin2)
-
-        # occurrence2 points to 'revision2' with branch 'master', we
-        # need to point to the right origin
-        origin_visit = self.storage.origin_visit_add(origin_id,
-                                                     self.date_visit2)
-        occurrence2 = self.occurrence2.copy()
-        occurrence2.update({
-            'origin': origin_id,
-            'visit': origin_visit['visit'],
-        })
-
-        self.storage.occurrence_add([occurrence2])
-
-        # we want only revision 2
-        expected_releases = list(self.storage.release_get(
-            [self.release3['id']]))
-
-        # when
-        actual_results = list(self.storage.release_get_by(
-            occurrence2['origin']))
-
-        # then
-        self.assertEqual(actual_results[0], expected_releases[0])
-
-    @istest
     def origin_add_one(self):
         origin0 = self.storage.origin_get(self.origin)
         self.assertIsNone(origin0)
@@ -1510,13 +1480,8 @@ class CommonTestStorage(BaseTestStorage):
             origin_id,
             ts=self.date_visit2)
 
-        occurrence2 = self.occurrence2.copy()
-        occurrence2.update({
-            'origin': origin_id,
-            'visit': origin_visit1['visit'],
-        })
-
-        self.storage.occurrence_add([occurrence2])
+        self.storage.snapshot_add(origin_id, origin_visit1['visit'],
+                                  self.snapshot)
 
         # Add some other {origin, visit} entries
         self.storage.origin_visit_add(origin_id, ts=self.date_visit3)
@@ -1539,13 +1504,7 @@ class CommonTestStorage(BaseTestStorage):
             'date': self.date_visit2,
             'metadata': visit1_metadata,
             'status': 'full',
-            'occurrences': {
-                occurrence2['branch']: {
-                    'target': occurrence2['target'],
-                    'target_type': occurrence2['target_type'],
-                }
-            },
-            'snapshot': None,
+            'snapshot': self.snapshot['id'],
         })
 
         # when
@@ -1624,36 +1583,6 @@ class CommonTestStorage(BaseTestStorage):
              occur2['target_type'], date_visit2))
 
     @istest
-    def occurrence_get(self):
-        # given
-        occur = self.occurrence.copy()
-        origin_id = self.storage.origin_add_one(self.origin2)
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit1)
-
-        revision = self.revision.copy()
-        revision['id'] = occur['target']
-        self.storage.revision_add([revision])
-
-        occur.update({
-            'origin': origin_id,
-            'visit': origin_visit1['visit'],
-        })
-        self.storage.occurrence_add([occur])
-        self.storage.occurrence_add([occur])
-
-        # when
-        actual_occurrence = list(self.storage.occurrence_get(origin_id))
-
-        # then
-        expected_occurrence = self.occurrence.copy()
-        expected_occurrence.update({
-            'origin': origin_id
-        })
-        self.assertEquals(len(actual_occurrence), 1)
-        self.assertEquals(actual_occurrence[0], expected_occurrence)
-
-    @istest
     def snapshot_add_get_empty(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
@@ -1698,11 +1627,9 @@ class CommonTestStorage(BaseTestStorage):
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.snapshot)
 
-        # retrocompat test
         origin_visit_info = self.storage.origin_visit_get_by(origin_id,
                                                              visit_id)
-        self.assertEqual(origin_visit_info['occurrences'],
-                         self.snapshot['branches'])
+        self.assertEqual(origin_visit_info['snapshot'], self.snapshot['id'])
 
     @istest
     def snapshot_add_twice(self):
@@ -1738,70 +1665,6 @@ class CommonTestStorage(BaseTestStorage):
         by_ov = self.storage.snapshot_get_by_origin_visit(bogus_origin_id,
                                                           bogus_visit_id)
         self.assertIsNone(by_ov)
-
-    @istest
-    def snapshot_get_retrocompat(self):
-        empty_retro_snapshot = {
-            'id': None,
-            'branches': {},
-        }
-        origin_id = self.storage.origin_add_one(self.origin)
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit1)
-        visit_id = origin_visit1['visit']
-
-        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-
-        self.assertEqual(by_ov, empty_retro_snapshot)
-
-        self.storage.revision_add([self.revision])
-        self.storage.occurrence_add([{
-            'origin': origin_id,
-            'visit': visit_id,
-            'branch': self.occurrence['branch'],
-            'target': self.occurrence['target'],
-            'target_type': self.occurrence['target_type'],
-        }])
-
-        one_branch_retro_snapshot = {
-            'id': None,
-            'branches': {
-                self.occurrence['branch']: {
-                    'target': self.occurrence['target'],
-                    'target_type': self.occurrence['target_type'],
-                },
-            },
-        }
-
-        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-        self.assertEqual(by_ov, one_branch_retro_snapshot)
-
-    @istest
-    def snapshot_add_back_compat(self):
-        origin_id = self.storage.origin_add_one(self.origin)
-        origin_visit1 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit1)
-        visit_id = origin_visit1['visit']
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
-                                  back_compat=True)
-
-        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
-        self.assertEquals(ov['occurrences'],
-                          self.complete_snapshot['branches'])
-        self.assertEquals(ov['snapshot'],
-                          self.complete_snapshot['id'])
-
-        origin_visit2 = self.storage.origin_visit_add(origin_id,
-                                                      self.date_visit2)
-        visit_id = origin_visit2['visit']
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot,
-                                  back_compat=False)
-
-        ov = self.storage.origin_visit_get_by(origin_id, visit_id)
-        self.assertEquals(ov['occurrences'],
-                          self.complete_snapshot['branches'])
-        self.assertEquals(ov['snapshot'],
-                          self.complete_snapshot['id'])
 
     @istest
     def snapshot_get_latest(self):
@@ -1934,7 +1797,7 @@ class CommonTestStorage(BaseTestStorage):
     @istest
     def stat_counters(self):
         expected_keys = ['content', 'directory', 'directory_entry_dir',
-                         'occurrence', 'origin', 'person', 'revision']
+                         'origin', 'person', 'revision']
 
         for key in expected_keys:
             self.cursor.execute('select * from swh_update_counter(%s)', (key,))

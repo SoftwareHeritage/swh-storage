@@ -7,84 +7,15 @@
 
 import unittest
 
-from nose.tools import istest, nottest
 from unittest.mock import patch
 
+from nose.tools import istest, nottest
+
+from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier
 from swh.storage.algos import diff
 
-
-class DirectoryModel(object):
-    """
-    Quick and dirty directory model to ease the writing
-    of revision trees differential tests.
-    """
-    def __init__(self, name=''):
-        self.data = {}
-        self.data['name'] = name
-        self.data['perms'] = 16384
-        self.data['type'] = 'dir'
-        self.data['entries'] = []
-        self.data['entry_idx'] = {}
-
-    def __getitem__(self, item):
-        if item == 'target':
-            return directory_identifier(self)
-        else:
-            return self.data[item]
-
-    def add_file(self, path, sha1=None):
-        path_parts = path.split(b'/')
-        if len(path_parts) == 1:
-            self['entry_idx'][path] = len(self['entries'])
-            self['entries'].append({
-                'target': sha1,
-                'name': path,
-                'perms': 33188,
-                'type': 'file'
-            })
-        else:
-            if not path_parts[0] in self['entry_idx']:
-                self['entry_idx'][path_parts[0]] = len(self['entries'])
-                self['entries'].append(DirectoryModel(path_parts[0]))
-            if path_parts[1]:
-                dir_idx = self['entry_idx'][path_parts[0]]
-                self['entries'][dir_idx].add_file(b'/'.join(path_parts[1:]), sha1)
-
-    def get_hash_data(self, entry_hash):
-        if self['target'] == entry_hash:
-            ret = []
-            for e in self['entries']:
-                ret.append({
-                    'target': e['target'],
-                    'name': e['name'],
-                    'perms': e['perms'],
-                    'type': e['type']
-                })
-            return ret
-        else:
-            for e in self['entries']:
-                if e['type'] == 'file' and e['target'] == entry_hash:
-                    return e
-                elif e['type'] == 'dir':
-                    data = e.get_hash_data(entry_hash)
-                    if data:
-                        return data
-            return None
-
-    def get_path_data(self, path):
-        path_parts = path.split(b'/')
-        entry_idx = self['entry_idx'][path_parts[0]]
-        entry = self['entries'][entry_idx]
-        if len(path_parts) == 1:
-            return {
-                'target': entry['target'],
-                'name': entry['name'],
-                'perms': entry['perms'],
-                'type': entry['type']
-            }
-        else:
-            return entry.get_path_data(b'/'.join(path_parts[1:]))
+from .test_dir_iterator import DirectoryModel
 
 
 @patch('swh.storage.algos.diff._get_rev')
@@ -95,20 +26,25 @@ class TestDiffRevisions(unittest.TestCase):
     def diff_revisions(self, rev_from, rev_to, from_dir_model, to_dir_model,
                        expected_changes, mock_get_dir, mock_get_rev):
 
+        rev_from_bytes = hash_to_bytes(rev_from)
+        rev_to_bytes = hash_to_bytes(rev_to)
+
         def _get_rev(*args, **kwargs):
-            if args[1] == rev_from:
+            if args[1] == rev_from_bytes:
                 return {'directory': from_dir_model['target']}
             else:
                 return {'directory': to_dir_model['target']}
 
         def _get_dir(*args, **kwargs):
-            return from_dir_model.get_hash_data(args[1]) or \
-                   to_dir_model.get_hash_data(args[1])
+            from_dir = from_dir_model.get_hash_data(args[1])
+            to_dir = to_dir_model.get_hash_data(args[1])
+            return from_dir if from_dir != None else to_dir
 
         mock_get_rev.side_effect = _get_rev
         mock_get_dir.side_effect = _get_dir
 
-        changes = diff.diff_revisions(None, rev_from, rev_to, track_renaming=True)
+        changes = diff.diff_revisions(None, rev_from_bytes, rev_to_bytes,
+                                      track_renaming=True)
 
         self.assertEqual(changes, expected_changes)
 

@@ -1,11 +1,8 @@
 ---
---- Software Heritage Data Model
+--- SQL implementation of the Software Heritage data model
 ---
 
--- drop schema if exists swh cascade;
--- create schema swh;
--- set search_path to swh;
-
+-- schema versions
 create table dbversion
 (
   version     int primary key,
@@ -13,13 +10,14 @@ create table dbversion
   description text
 );
 
+-- latest schema version
 insert into dbversion(version, release, description)
-      values(120, now(), 'Work In Progress');
+      values(123, now(), 'Work In Progress');
 
--- a SHA1 checksum (not necessarily originating from Git)
+-- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
 
--- a Git object ID, i.e., a SHA1 checksum
+-- a Git object ID, i.e., a Git-style salted SHA1 checksum
 create domain sha1_git as bytea check (length(value) = 20);
 
 -- a SHA256 checksum
@@ -33,6 +31,7 @@ create domain unix_path as bytea;
 
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
+
 
 -- Checksums about actual file content. Note that the content itself is not
 -- stored in the DB, but on external (key-value) storage. A single checksum is
@@ -145,12 +144,13 @@ create table list_history
 );
 
 
--- An origin is a place, identified by an URL, where software can be found. We
--- support different kinds of origins, e.g., git and other VCS repositories,
--- web pages that list tarballs URLs (e.g., http://www.kernel.org), indirect
--- tarball URLs (e.g., http://www.example.org/latest.tar.gz), etc. The key
--- feature of an origin is that it can be *fetched* (wget, git clone, svn
--- checkout, etc.) to retrieve all the contained software.
+-- An origin is a place, identified by an URL, where software source code
+-- artifacts can be found. We support different kinds of origins, e.g., git and
+-- other VCS repositories, web pages that list tarballs URLs (e.g.,
+-- http://www.kernel.org), indirect tarball URLs (e.g.,
+-- http://www.example.org/latest.tar.gz), etc. The key feature of an origin is
+-- that it can be *fetched* from (wget, git clone, svn checkout, etc.) to
+-- retrieve all the contained software.
 create table origin
 (
   id       bigserial not null,
@@ -160,13 +160,14 @@ create table origin
   project  uuid
 );
 
--- Content we have seen but skipped for some reason. This table is
--- separate from the content table as we might not have the sha1
--- checksum of that data (for instance when we inject git
--- repositories, objects that are too big will be skipped here, and we
--- will only know their sha1_git). 'reason' contains the reason the
--- content was skipped. origin is a nullable column allowing to find
--- out which origin contains that skipped content.
+
+-- Content blobs observed somewhere, but not ingested into the archive for
+-- whatever reason. This table is separate from the content table as we might
+-- not have the sha1 checksum of skipped contents (for instance when we inject
+-- git repositories, objects that are too big will be skipped here, and we will
+-- only know their sha1_git). 'reason' contains the reason the content was
+-- skipped. origin is a nullable column allowing to find out which origin
+-- contains that skipped content.
 create table skipped_content
 (
   sha1       sha1,
@@ -180,6 +181,7 @@ create table skipped_content
   origin     bigint,
   object_id  bigserial
 );
+
 
 -- Log of all origin fetches (i.e., origin crawling) that have been done in the
 -- past, or are still ongoing. Similar to list_history, but for origins.
@@ -216,7 +218,7 @@ create table directory
   object_id     bigserial  -- short object identifier
 );
 
--- A directory entry pointing to a sub-directory.
+-- A directory entry pointing to a (sub-)directory.
 create table directory_entry_dir
 (
   id      bigserial,
@@ -225,7 +227,7 @@ create table directory_entry_dir
   perms   file_perms  -- unix-like permissions
 );
 
--- A directory entry pointing to a file.
+-- A directory entry pointing to a file content.
 create table directory_entry_file
 (
   id      bigserial,
@@ -243,6 +245,9 @@ create table directory_entry_rev
   perms   file_perms  -- unix-like permissions
 );
 
+
+-- A person referenced by some source code artifacts, e.g., a VCS revision or
+-- release metadata.
 create table person
 (
   id        bigserial,
@@ -252,7 +257,8 @@ create table person
                             --     will usually be of the form 'name <email>'
 );
 
--- A snapshot of a software project at a specific point in time.
+
+-- The state of a source code tree at a specific point in time.
 --
 -- Synonyms/mappings:
 -- * git / subversion / etc: commit
@@ -269,17 +275,16 @@ create table revision
   committer_date        timestamptz,
   committer_date_offset smallint,
   type                  revision_type not null,
-  directory             sha1_git,  -- file-system tree
+  directory             sha1_git,  -- source code "root" directory
   message               bytea,
   author                bigint,
   committer             bigint,
-  synthetic             boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
-  metadata              jsonb, -- extra metadata (tarball checksums, extra commit information, etc...)
+  synthetic             boolean not null default false,  -- true iff revision has been created by Software Heritage
+  metadata              jsonb,  -- extra metadata (tarball checksums, extra commit information, etc...)
   object_id             bigserial,
   date_neg_utc_offset   boolean,
   committer_date_neg_utc_offset boolean
 );
-
 
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
@@ -290,7 +295,10 @@ create table revision_history
     -- parent position in merge commits, 0-based
 );
 
--- The timestamps at which Software Heritage has made a visit of the given origin.
+
+-- Crawling history of software origins visited by Software Heritage. Each
+-- visit is a 3-way mapping between a software origin, a timestamp, and a
+-- snapshot object capturing the full-state of the origin at visit time.
 create table origin_visit
 (
   origin       bigint not null,
@@ -302,12 +310,14 @@ create table origin_visit
 );
 
 comment on column origin_visit.origin is 'Visited origin';
-comment on column origin_visit.visit is 'Visit number the visit occurred for that origin';
-comment on column origin_visit.date is 'Visit date for that origin';
-comment on column origin_visit.status is 'Visit status for that origin';
-comment on column origin_visit.metadata is 'Metadata associated with the visit';
-comment on column origin_visit.snapshot_id is 'id of the snapshot associated with the visit';
+comment on column origin_visit.visit is 'Sequential visit number for the origin';
+comment on column origin_visit.date is 'Visit timestamp';
+comment on column origin_visit.status is 'Visit result';
+comment on column origin_visit.metadata is 'Origin metadata at visit time';
+comment on column origin_visit.snapshot_id is 'Origin snapshot at visit time';
 
+
+-- BEGIN legacy section (T830)
 
 -- The content of software origins is indexed starting from top-level pointers
 -- called "branches". Every time we fetch some origin we store in this table
@@ -327,36 +337,38 @@ create table occurrence_history
   snapshot_branch_id bigint
 );
 
--- Materialized view of occurrence_history, storing the *current* value of each
--- branch, as last seen by SWH.
-create table occurrence
+-- END legacy section (T830)
+
+-- A snapshot represents the entire state of a software origin as crawled by
+-- Software Heritage. This table is a simple mapping between (public) intrinsic
+-- snapshot identifiers and (private) numeric sequential identifiers.
+create table snapshot
 (
-  origin    bigint,
-  branch    bytea not null,
-  target    sha1_git not null,
-  target_type object_type not null
+  object_id  bigserial not null,  -- PK internal object identifier
+  id         sha1_git             -- snapshot intrinsic identifier
+);
+
+-- Each snapshot associate "branch" names to other objects in the Software
+-- Heritage Merkle DAG. This table describes branches as mappings between names
+-- and target typed objects.
+create table snapshot_branch
+(
+  object_id    bigserial not null,  -- PK internal object identifier
+  name         bytea not null,      -- branch name, e.g., "master" or "feature/drag-n-drop"
+  target       bytea,               -- target object identifier, e.g., a revision identifier
+  target_type  snapshot_target      -- target object type, e.g., "revision"
+);
+
+-- Mapping between snapshots and their branches.
+create table snapshot_branches
+(
+  snapshot_id  bigint not null,  -- snapshot identifier, ref. snapshot.object_id
+  branch_id    bigint not null   -- branch identifier, ref. snapshot_branch.object_id
 );
 
 
-create table snapshot (
-  object_id  bigserial not null,
-  id         sha1_git
-);
-
-create table snapshot_branch (
-  object_id    bigserial not null,
-  name         bytea not null,
-  target       bytea,
-  target_type  snapshot_target
-);
-
-create table snapshot_branches (
-  snapshot_id  bigint not null,
-  branch_id    bigint not null
-);
-
-
--- A "memorable" point in the development history of a project.
+-- A "memorable" point in time in the development history of a software
+-- project.
 --
 -- Synonyms/mappings:
 -- * git: tag (of the annotated kind, otherwise they are just references)
@@ -370,15 +382,16 @@ create table release
   name        bytea,
   comment     bytea,
   author      bigint,
-  synthetic   boolean not null default false,  -- true if synthetic (cf. swh-loader-tar)
+  synthetic   boolean not null default false,  -- true iff release has been created by Software Heritage
   object_id   bigserial,
   target_type object_type not null,
   date_neg_utc_offset  boolean
 );
 
--- Tools
 
-create table tool (
+-- Tools
+create table tool
+(
   id serial not null,
   name text not null,
   version text not null,
@@ -392,7 +405,8 @@ comment on column tool.version is 'Tool version';
 comment on column tool.configuration is 'Tool configuration: command line, flags, etc...';
 
 
-create table metadata_provider (
+create table metadata_provider
+(
   id            serial not null,
   provider_name text   not null,
   provider_type text   not null,
@@ -409,11 +423,12 @@ comment on column metadata_provider.metadata is 'Other metadata about provider';
 
 -- Discovery of metadata during a listing, loading, deposit or external_catalog of an origin
 -- also provides a translation to a defined json schema using a translation tool (tool_id)
-create table origin_metadata(
-  id             bigserial     not null,  -- PK object identifier
-  origin_id      bigint        not null, -- references origin(id)
-  discovery_date timestamptz   not null, -- when it was extracted
-  provider_id    bigint        not null, -- ex: 'hal', 'lister-github', 'loader-github'
+create table origin_metadata
+(
+  id             bigserial     not null,  -- PK internal object identifier
+  origin_id      bigint        not null,  -- references origin(id)
+  discovery_date timestamptz   not null,  -- when it was extracted
+  provider_id    bigint        not null,  -- ex: 'hal', 'lister-github', 'loader-github'
   tool_id        bigint        not null,
   metadata       jsonb         not null
 );
@@ -426,18 +441,21 @@ comment on column origin_metadata.provider_id is 'the metadata provider: github,
 comment on column origin_metadata.tool_id is 'the tool used for extracting metadata: lister-github, etc.';
 comment on column origin_metadata.metadata is 'metadata in json format but with original terms';
 
+
 -- Keep a cache of object counts
-create table object_counts (
+create table object_counts
+(
   object_type text,             -- table for which we're counting objects (PK)
   value bigint,                 -- count of objects in the table
   last_update timestamptz,      -- last update for the object count in this table
   single_update boolean         -- whether we update this table standalone (true) or through bucketed counts (false)
 );
 
-CREATE TABLE object_counts_bucketed (
-    line serial NOT NULL,       -- PK
-    object_type text NOT NULL,  -- table for which we're counting objects
-    identifier text NOT NULL,   -- identifier across which we're bucketing objects
+create table object_counts_bucketed
+(
+    line serial not null,       -- PK
+    object_type text not null,  -- table for which we're counting objects
+    identifier text not null,   -- identifier across which we're bucketing objects
     bucket_start bytea,         -- lower bound (inclusive) for the bucket
     bucket_end bytea,           -- upper bound (exclusive) for the bucket
     value bigint,               -- count of objects in the bucket
