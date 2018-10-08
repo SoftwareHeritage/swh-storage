@@ -204,13 +204,6 @@ create unique index concurrently on occurrence_history(origin, branch, target, t
 alter table occurrence_history add constraint occurrence_history_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table occurrence_history validate constraint occurrence_history_origin_fkey;
 
--- occurrence
-create unique index concurrently occurrence_pkey on occurrence(origin, branch);
-alter table occurrence add primary key using index occurrence_pkey;
-
-alter table occurrence add constraint occurrence_origin_fkey foreign key (origin) references origin(id) not valid;
-alter table occurrence validate constraint occurrence_origin_fkey;
-
 -- release
 create unique index concurrently release_pkey on release(id);
 alter table release add primary key using index release_pkey;

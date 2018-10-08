@@ -86,26 +86,19 @@ class RemoteStorage(SWHRemoteAPI):
     def release_get(self, releases):
         return self.post('release', {'releases': releases})
 
-    def release_get_by(self, origin_id, limit=None):
-        return self.post('release/by', dict(origin_id=origin_id,
-                                            limit=limit))
-
     def release_missing(self, releases):
         return self.post('release/missing', {'releases': releases})
 
     def object_find_by_sha1_git(self, ids):
         return self.post('object/find_by_sha1_git', {'ids': ids})
 
-    def occurrence_get(self, origin_id):
-        return self.post('occurrence', {'origin_id': origin_id})
-
     def occurrence_add(self, occurrences):
         return self.post('occurrence/add', {'occurrences': occurrences})
 
-    def snapshot_add(self, origin, visit, snapshot, back_compat=False):
+    def snapshot_add(self, origin, visit, snapshot):
         return self.post('snapshot/add', {
             'origin': origin, 'visit': visit, 'snapshot': snapshot,
-            'back_compat': back_compat})
+        })
 
     def snapshot_get(self, snapshot_id):
         return self.post('snapshot', {'snapshot_id': snapshot_id})

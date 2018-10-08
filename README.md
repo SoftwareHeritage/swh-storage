@@ -1,9 +1,66 @@
-README.dev
-==========
+swh-storage
+===========
+
+Abstraction layer over the archive, allowing to access all stored source code
+artifacts as well as their metadata.
+
+See the
+[documentation](https://docs.softwareheritage.org/devel/swh-storage/index.html)
+for more details.
+
+Tests
+-----
+
+Python tests for this module include tests that cannot be run without a local
+Postgres database. You are not obliged to run those tests though:
+
+- `make test`:      will run all tests
+- `make test-nodb`: will run only tests that do not need a local DB
+- `make test-db`:   will run only tests that do need a local DB
+
+If you do want to run DB-related tests, you should ensure you have access zith
+sufficient privileges to a Postgresql database.
+
+### Using your system database
+
+You need to:
+
+- ensure that your user is authorized to create and drop DBs, and in particular
+  DBs named "softwareheritage-test" and "softwareheritage-dev"
+
+- ensure that you have the storage testdata repository checked out in
+  ../swh-storage-testdata
+
+### Using pifpaf
+
+[pifpaf](https://github.com/jd/pifpaf) is a suite of fixtures and a
+command-line tool that allows to start and stop daemons for a quick throw-away
+usage.
+
+It can be used to run tests that need a Postgres database without any other
+configuration reauired nor the need to have special access to a running
+database:
+
+```bash
+
+$ pifpaf run postgresql make test-db
+[snip]
+----------------------------------------------------------------------
+Ran 124 tests in 56.203s
+
+OK
+```
+
+Note that pifpaf is not yet available as a Debian package, so you may have to
+install it in a venv.
+
+
+Development
+-----------
 
 A test server could locally be running for tests.
 
-# Sample configuration
+### Sample configuration
 
 In either /etc/softwareheritage/storage/storage.yml,
 ~/.config/swh/storage.yml or ~/.swh/storage.yml:
@@ -40,7 +97,7 @@ which means, this uses:
 Note that the 'root' path should exist on disk.
 
 
-# Run server
+### Run server
 
 Command:
 ```
@@ -50,7 +107,7 @@ python3 -m swh.storage.api.server ~/.config/swh/storage.yml
 This runs a local swh-storage api at 5002 port.
 
 
-# And then what?
+### And then what?
 
 In your upper layer (loader-git, loader-svn, etc...), you can define a
 remote storage with this snippet of yaml configuration.

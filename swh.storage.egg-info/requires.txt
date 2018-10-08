@@ -4,7 +4,7 @@ flask
 psycopg2
 python-dateutil
 swh.core>=0.0.40
-swh.model>=0.0.18
+swh.model>=0.0.27
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.14
 vcversioner
@@ -14,3 +14,6 @@ kafka_python
 
 [schemata]
 SQLAlchemy
+
+[testing]
+nose

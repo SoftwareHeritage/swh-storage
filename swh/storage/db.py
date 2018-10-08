@@ -344,22 +344,6 @@ class Db(BaseDb):
 
         yield from cursor_to_bytes(cur)
 
-    def occurrence_get(self, origin_id, cur=None):
-        """Retrieve latest occurrence's information by origin_id.
-
-        """
-        cur = self._cursor(cur)
-
-        cur.execute("""SELECT origin, branch, target, target_type,
-                              (select max(date) from origin_visit
-                               where origin=%s) as date
-                       FROM occurrence
-                       WHERE origin=%s
-                    """,
-                    (origin_id, origin_id))
-
-        yield from cursor_to_bytes(cur)
-
     def snapshot_exists(self, snapshot_id, cur=None):
         """Check whether a snapshot with the given id exists"""
         cur = self._cursor(cur)
@@ -610,7 +594,7 @@ class Db(BaseDb):
             FROM origin_visit
             WHERE
                 origin = %%s AND snapshot_id is not null %s
-            ORDER BY date, visit DESC
+            ORDER BY date DESC, visit DESC
             LIMIT 1
             """ % (', '.join(self.origin_visit_get_cols[:-1]), extra_clause)
 
@@ -621,27 +605,6 @@ class Db(BaseDb):
         return line_to_bytes(r)
 
     occurrence_cols = ['origin', 'branch', 'target', 'target_type']
-
-    def occurrence_by_origin_visit(self, origin_id, visit_id, cur=None):
-        """Retrieve all occurrences for a particular origin_visit.
-
-        Args:
-            origin_id: the origin concerned
-            visit_id: The visit step for that origin
-
-        Yields:
-            The occurrence's history visits
-
-        """
-        cur = self._cursor(cur)
-
-        query = """\
-            SELECT %s
-            FROM swh_occurrence_by_origin_visit(%%s, %%s)
-            """ % (', '.join(self.occurrence_cols))
-
-        cur.execute(query, (origin_id, visit_id))
-        yield from cursor_to_bytes(cur)
 
     @staticmethod
     def mangle_query_key(key, main_table):
@@ -959,25 +922,6 @@ class Db(BaseDb):
             LEFT JOIN person author ON release.author = author.id
             """ % query_keys,
             ((id,) for id in releases))
-
-    def release_get_by(self,
-                       origin_id,
-                       limit=None,
-                       cur=None):
-        """Retrieve a release by occurrence criterion (only origin right now)
-
-        Args:
-            - origin_id: The origin to look for.
-
-        """
-        cur = self._cursor(cur)
-        query = """
-        SELECT %s
-            FROM swh_release_get_by(%%s)
-            LIMIT %%s
-        """ % ', '.join(self.release_get_cols)
-        cur.execute(query, (origin_id, limit))
-        yield from cursor_to_bytes(cur)
 
     def revision_get_by(self,
                         origin_id,

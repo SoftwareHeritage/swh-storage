@@ -1,8 +1,12 @@
-swh-storage (0.0.105-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.106-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * Release swh.storage v0.0.106
+  * Fix origin_visit_get_latest_snapshot logic
+  * Improve directory iterator
+  * Drop backwards compatibility between snapshots and occurrences
+  * Drop the occurrence table
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Mon, 10 Sep 2018 11:36:27 +0200
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Mon, 08 Oct 2018 17:03:54 +0200
 
 swh-storage (0.0.105-1~swh1) unstable-swh; urgency=medium
 
