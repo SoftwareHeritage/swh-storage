@@ -593,11 +593,13 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
                     'target_type': self.occurrence['target_type'],
                 },
             },
+            'next_branch': None
         }
 
         self.empty_snapshot = {
             'id': hash_to_bytes('1a8893e6a86f444e8be8e7bda6cb34fb1735a00e'),
             'branches': {},
+            'next_branch': None
         }
 
         self.complete_snapshot = {
@@ -633,7 +635,8 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
                     'target_type': 'snapshot',
                 },
                 b'dangling': None,
-            }
+            },
+            'next_branch': None
         }
 
     def tearDown(self):
@@ -1611,6 +1614,105 @@ class CommonTestStorage(BaseTestStorage):
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.complete_snapshot)
+
+    @istest
+    def snapshot_add_count_branches(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+
+        snp_id = self.complete_snapshot['id']
+        snp_size = self.storage.snapshot_count_branches(snp_id)
+
+        expected_snp_size = {
+            'alias': 1,
+            'content': 1,
+            'directory': 1,
+            'release': 1,
+            'revision': 1,
+            'snapshot': 1,
+            None: 1
+        }
+
+        self.assertEqual(snp_size, expected_snp_size)
+
+    @istest
+    def snapshot_add_get_paginated(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+
+        snp_id = self.complete_snapshot['id']
+
+        snapshot = self.storage.snapshot_get_branches(snp_id,
+                                                      branches_from=b'release')
+
+        expected_snapshot = copy.deepcopy(self.complete_snapshot)
+        del expected_snapshot['next_branch']
+        for name in [b'alias', b'content', b'dangling', b'directory']:
+            del expected_snapshot['branches'][name]
+
+        self.assertEqual(snapshot, expected_snapshot)
+
+        snapshot = self.storage.snapshot_get_branches(snp_id,
+                                                      branches_count=1)
+
+        expected_snapshot = copy.deepcopy(self.complete_snapshot)
+        del expected_snapshot['next_branch']
+        for name in [b'content', b'dangling', b'directory',
+                     b'release', b'revision', b'snapshot']:
+            del expected_snapshot['branches'][name]
+
+        self.assertEqual(snapshot, expected_snapshot)
+
+        snapshot = self.storage.snapshot_get_branches(
+            snp_id, branches_from=b'directory', branches_count=3)
+
+        expected_snapshot = copy.deepcopy(self.complete_snapshot)
+        del expected_snapshot['next_branch']
+        for name in [b'alias', b'content', b'dangling', b'snapshot']:
+            del expected_snapshot['branches'][name]
+
+        self.assertEqual(snapshot, expected_snapshot)
+
+    @istest
+    def snapshot_add_get_filtered(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+
+        snp_id = self.complete_snapshot['id']
+
+        snapshot = self.storage.snapshot_get_branches(
+            snp_id, target_types=['release', 'revision'])
+
+        expected_snapshot = copy.deepcopy(self.complete_snapshot)
+        del expected_snapshot['next_branch']
+        for name in [b'alias', b'content', b'dangling', b'directory',
+                     b'snapshot']:
+            del expected_snapshot['branches'][name]
+
+        self.assertEqual(snapshot, expected_snapshot)
+
+        snapshot = self.storage.snapshot_get_branches(snp_id,
+                                                      target_types=['alias'])
+
+        expected_snapshot = copy.deepcopy(self.complete_snapshot)
+        del expected_snapshot['next_branch']
+        for name in [b'content', b'dangling', b'directory', b'release',
+                     b'revision', b'snapshot']:
+            del expected_snapshot['branches'][name]
+
+        self.assertEqual(snapshot, expected_snapshot)
 
     @istest
     def snapshot_add_get(self):
