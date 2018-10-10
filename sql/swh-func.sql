@@ -105,29 +105,6 @@ as $$
       drop column object_id;
 $$;
 
--- create a temporary table for entity_history, sans id
-create or replace function swh_mktemp_entity_history()
-    returns void
-    language sql
-as $$
-    create temporary table tmp_entity_history (
-        like entity_history including defaults) on commit drop;
-    alter table tmp_entity_history drop column id;
-$$;
-
--- create a temporary table for entities called tmp_entity_lister,
--- with only the columns necessary for retrieving the uuid of a listed
--- entity.
-create or replace function swh_mktemp_entity_lister()
-    returns void
-    language sql
-as $$
-  create temporary table tmp_entity_lister (
-    id              bigint,
-    lister_metadata jsonb
-  ) on commit drop;
-$$;
-
 -- create a temporary table for the branches of a snapshot
 create or replace function swh_mktemp_snapshot_branch()
     returns void
@@ -1012,109 +989,6 @@ as $$
     left join person c on c.id = r.committer;
 $$;
 
--- Create entries in entity_history from tmp_entity_history
---
--- TODO: do something smarter to compress the entries if the data
--- didn't change.
-create or replace function swh_entity_history_add()
-    returns void
-    language plpgsql
-as $$
-begin
-    insert into entity_history (
-        uuid, parent, name, type, description, homepage, active, generated, lister_metadata, metadata, validity
-    ) select * from tmp_entity_history;
-    return;
-end
-$$;
-
-
-create or replace function swh_update_entity_from_entity_history()
-    returns trigger
-    language plpgsql
-as $$
-begin
-    insert into entity (uuid, parent, name, type, description, homepage, active, generated,
-      lister_metadata, metadata, last_seen, last_id)
-      select uuid, parent, name, type, description, homepage, active, generated,
-             lister_metadata, metadata, unnest(validity), id
-      from entity_history
-      where uuid = NEW.uuid
-      order by unnest(validity) desc limit 1
-    on conflict (uuid) do update set
-      parent = EXCLUDED.parent,
-      name = EXCLUDED.name,
-      type = EXCLUDED.type,
-      description = EXCLUDED.description,
-      homepage = EXCLUDED.homepage,
-      active = EXCLUDED.active,
-      generated = EXCLUDED.generated,
-      lister_metadata = EXCLUDED.lister_metadata,
-      metadata = EXCLUDED.metadata,
-      last_seen = EXCLUDED.last_seen,
-      last_id = EXCLUDED.last_id;
-
-    return null;
-end
-$$;
-
-create trigger update_entity
-  after insert or update
-  on entity_history
-  for each row
-  execute procedure swh_update_entity_from_entity_history();
-
--- map an id of tmp_entity_lister to a full entity
-create type entity_id as (
-    id               bigint,
-    uuid             uuid,
-    parent           uuid,
-    name             text,
-    type             entity_type,
-    description      text,
-    homepage         text,
-    active           boolean,
-    generated        boolean,
-    lister_metadata  jsonb,
-    metadata         jsonb,
-    last_seen        timestamptz,
-    last_id          bigint
-);
-
--- find out the uuid of the entries of entity with the metadata
--- contained in tmp_entity_lister
-create or replace function swh_entity_from_tmp_entity_lister()
-    returns setof entity_id
-    language plpgsql
-as $$
-begin
-  return query
-    select t.id, e.*
-    from tmp_entity_lister t
-    left join entity e
-    on e.lister_metadata @> t.lister_metadata;
-  return;
-end
-$$;
-
-create or replace function swh_entity_get(entity_uuid uuid)
-    returns setof entity
-    language sql
-    stable
-as $$
-  with recursive entity_hierarchy as (
-  select e.*
-    from entity e where uuid = entity_uuid
-    union
-    select p.*
-    from entity_hierarchy e
-    join entity p on e.parent = p.uuid
-  )
-  select *
-  from entity_hierarchy;
-$$;
-
-
 -- Object listing by object_id
 
 create or replace function swh_content_list_by_object_id(
@@ -1269,8 +1143,6 @@ as $$
         'origin',
         'origin_visit',
         'person',
-        'entity',
-        'entity_history',
         'release',
         'revision',
         'revision_history',

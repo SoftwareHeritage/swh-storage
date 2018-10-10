@@ -701,8 +701,6 @@ class Storage():
             - id: origin's id
             - revision: origin's type
             - url: origin's url
-            - lister: lister's uuid
-            - project: project's uuid (FIXME, retrieve this information)
 
         Raises:
             ValueError: if the keys does not match (url and type) nor id.
@@ -1107,7 +1105,7 @@ class Storage():
 
         return ret
 
-    origin_keys = ['id', 'type', 'url', 'lister', 'project']
+    origin_keys = ['id', 'type', 'url']
 
     @db_transaction(statement_timeout=500)
     def origin_get(self, origin, db=None, cur=None):
@@ -1131,8 +1129,6 @@ class Storage():
             - id: origin's id
             - type: origin's type
             - url: origin's url
-            - lister: lister's uuid
-            - project: project's uuid (FIXME, retrieve this information)
 
         Raises:
             ValueError: if the keys does not match (url and type) nor id.
@@ -1281,113 +1277,6 @@ class Storage():
         """Get the fetch_history entry with id `fetch_history_id`.
         """
         return db.get_fetch_history(fetch_history_id, cur)
-
-    @db_transaction()
-    def entity_add(self, entities, db=None, cur=None):
-        """Add the given entitites to the database (in entity_history).
-
-        Args:
-            entities (iterable): iterable of dictionaries with the following
-                keys:
-
-                - uuid (uuid): id of the entity
-                - parent (uuid): id of the parent entity
-                - name (str): name of the entity
-                - type (str): type of entity (one of 'organization',
-                  'group_of_entities', 'hosting', 'group_of_persons', 'person',
-                  'project')
-                - description (str, optional): description of the entity
-                - homepage (str): url of the entity's homepage
-                - active (bool): whether the entity is active
-                - generated (bool): whether the entity was generated
-                - lister_metadata (dict): lister-specific entity metadata
-                - metadata (dict): other metadata for the entity
-                - validity (datetime.DateTime array): timestamps at which we
-                  listed the entity.
-
-        """
-        cols = list(db.entity_history_cols)
-        cols.remove('id')
-
-        db.mktemp_entity_history()
-        db.copy_to(entities, 'tmp_entity_history', cols, cur)
-        db.entity_history_add_from_temp()
-
-    @db_transaction_generator()
-    def entity_get_from_lister_metadata(self, entities, db=None, cur=None):
-        """Fetch entities from the database, matching with the lister and
-           associated metadata.
-
-        Args:
-            entities (iterable): dictionaries containing the lister metadata to
-               look for. Useful keys are 'lister', 'type', 'id', ...
-
-        Yields:
-            fetched entities with all their attributes. If no match was found,
-            the returned entity is None.
-
-        """
-
-        db.mktemp_entity_lister(cur)
-
-        mapped_entities = []
-        for i, entity in enumerate(entities):
-            mapped_entity = {
-                'id': i,
-                'lister_metadata': entity,
-            }
-            mapped_entities.append(mapped_entity)
-
-        db.copy_to(mapped_entities, 'tmp_entity_lister',
-                   ['id', 'lister_metadata'], cur)
-
-        cur.execute('''select id, %s
-                       from swh_entity_from_tmp_entity_lister()
-                       order by id''' %
-                    ','.join(db.entity_cols))
-
-        for id, *entity_vals in cur:
-            fetched_entity = dict(zip(db.entity_cols, entity_vals))
-            if fetched_entity['uuid']:
-                yield fetched_entity
-            else:
-                yield {
-                    'uuid': None,
-                    'lister_metadata': entities[i],
-                }
-
-    @db_transaction_generator(statement_timeout=2000)
-    def entity_get(self, uuid, db=None, cur=None):
-        """Returns the list of entity per its uuid identifier and also its
-        parent hierarchy.
-
-        Args:
-            uuid: entity's identifier
-
-        Returns:
-            List of entities starting with entity with uuid and the parent
-            hierarchy from such entity.
-
-        """
-        for entity in db.entity_get(uuid, cur):
-            yield dict(zip(db.entity_cols, entity))
-
-    @db_transaction(statement_timeout=500)
-    def entity_get_one(self, uuid, db=None, cur=None):
-        """Returns one entity using its uuid identifier.
-
-        Args:
-            uuid: entity's identifier
-
-        Returns:
-            the object corresponding to the given entity
-
-        """
-        entity = db.entity_get_one(uuid, cur)
-        if entity:
-            return dict(zip(db.entity_cols, entity))
-        else:
-            return None
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

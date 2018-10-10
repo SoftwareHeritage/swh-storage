@@ -241,12 +241,6 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_snapshot_branch')
     def mktemp_snapshot_branch(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_entity_lister')
-    def mktemp_entity_lister(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_entity_history')
-    def mktemp_entity_history(self, cur=None): pass
-
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
         self._cursor(cur).execute("LISTEN %s" % notify_queue)
@@ -277,9 +271,6 @@ class Db(BaseDb):
 
     @stored_procedure('swh_occurrence_history_add')
     def occurrence_history_add_from_temp(self, cur=None): pass
-
-    @stored_procedure('swh_entity_history_add')
-    def entity_history_add_from_temp(self, cur=None): pass
 
     def content_update_from_temp(self, keys_to_update, cur=None):
         cur = self._cursor(cur)
@@ -792,14 +783,6 @@ class Db(BaseDb):
         cur.execute(query, [jsonize(fetch_history.get(col)) for col in
                             self.fetch_history_cols + ['id']])
 
-    base_entity_cols = ['uuid', 'parent', 'name', 'type',
-                        'description', 'homepage', 'active',
-                        'generated', 'lister_metadata',
-                        'metadata']
-
-    entity_cols = base_entity_cols + ['last_seen', 'last_id']
-    entity_history_cols = base_entity_cols + ['id', 'validity']
-
     def origin_add(self, type, url, cur=None):
         """Insert a new origin and return the new identifier."""
         insert = """INSERT INTO origin (type, url) values (%s, %s)
@@ -808,7 +791,7 @@ class Db(BaseDb):
         cur.execute(insert, (type, url))
         return cur.fetchone()[0]
 
-    origin_cols = ['id', 'type', 'url', 'lister', 'project']
+    origin_cols = ['id', 'type', 'url']
 
     def origin_get_with(self, type, url, cur=None):
         """Retrieve the origin id from its type and url if found."""
@@ -966,32 +949,6 @@ class Db(BaseDb):
 
         cur.execute(query, (origin_id, branch_name, datetime, limit))
         yield from cursor_to_bytes(cur)
-
-    def entity_get(self, uuid, cur=None):
-        """Retrieve the entity and its parent hierarchy chain per uuid.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT %s
-                       FROM swh_entity_get(%%s)""" % (
-                           ', '.join(self.entity_cols)),
-                    (uuid, ))
-        yield from cursor_to_bytes(cur)
-
-    def entity_get_one(self, uuid, cur=None):
-        """Retrieve a single entity given its uuid.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT %s
-                       FROM entity
-                       WHERE uuid = %%s""" % (
-                           ', '.join(self.entity_cols)),
-                    (uuid, ))
-        data = cur.fetchone()
-        if not data:
-            return None
-        return line_to_bytes(data)
 
     def origin_metadata_add(self, origin, ts, provider, tool,
                             metadata, cur=None):

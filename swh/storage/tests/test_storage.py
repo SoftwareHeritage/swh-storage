@@ -9,8 +9,6 @@ import datetime
 from operator import itemgetter
 import psycopg2
 import unittest
-from uuid import UUID
-
 from unittest.mock import Mock, patch
 
 from nose.tools import istest
@@ -475,114 +473,6 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
             'result': {'foo': 'bar'},
             'stdout': 'blabla',
             'stderr': 'blablabla',
-        }
-
-        self.entity1 = {
-            'uuid': UUID('f96a7ec1-0058-4920-90cc-7327e4b5a4bf'),
-            # GitHub users
-            'parent': UUID('ad6df473-c1d2-4f40-bc58-2b091d4a750e'),
-            'name': 'github:user:olasd',
-            'type': 'person',
-            'description': 'Nicolas Dandrimont',
-            'homepage': 'http://example.com',
-            'active': True,
-            'generated': True,
-            'lister_metadata': {
-                # swh.lister.github
-                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-                'id': 12877,
-                'type': 'user',
-                'last_activity': '2015-11-03',
-            },
-            'metadata': None,
-            'validity': [
-                datetime.datetime(2015, 11, 3, 11, 0, 0,
-                                  tzinfo=datetime.timezone.utc),
-            ]
-        }
-
-        self.entity1_query = {
-            'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-            'id': 12877,
-            'type': 'user',
-        }
-
-        self.entity2 = {
-            'uuid': UUID('3903d075-32d6-46d4-9e29-0aef3612c4eb'),
-            # GitHub users
-            'parent': UUID('ad6df473-c1d2-4f40-bc58-2b091d4a750e'),
-            'name': 'github:user:zacchiro',
-            'type': 'person',
-            'description': 'Stefano Zacchiroli',
-            'homepage': 'http://example.com',
-            'active': True,
-            'generated': True,
-            'lister_metadata': {
-                # swh.lister.github
-                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-                'id': 216766,
-                'type': 'user',
-                'last_activity': '2015-11-03',
-            },
-            'metadata': None,
-            'validity': [
-                datetime.datetime(2015, 11, 3, 11, 0, 0,
-                                  tzinfo=datetime.timezone.utc),
-            ]
-        }
-
-        self.entity3 = {
-            'uuid': UUID('111df473-c1d2-4f40-bc58-2b091d4a7111'),
-            # GitHub users
-            'parent': UUID('222df473-c1d2-4f40-bc58-2b091d4a7222'),
-            'name': 'github:user:ardumont',
-            'type': 'person',
-            'description': 'Antoine R. Dumont a.k.a tony',
-            'homepage': 'https://ardumont.github.io',
-            'active': True,
-            'generated': True,
-            'lister_metadata': {
-                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-                'id': 666,
-                'type': 'user',
-                'last_activity': '2016-01-15',
-            },
-            'metadata': None,
-            'validity': [
-                datetime.datetime(2015, 11, 3, 11, 0, 0,
-                                  tzinfo=datetime.timezone.utc),
-            ]
-        }
-
-        self.entity4 = {
-            'uuid': UUID('222df473-c1d2-4f40-bc58-2b091d4a7222'),
-            # GitHub users
-            'parent': None,
-            'name': 'github:user:ToNyX',
-            'type': 'person',
-            'description': 'ToNyX',
-            'homepage': 'https://ToNyX.github.io',
-            'active': True,
-            'generated': True,
-            'lister_metadata': {
-                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-                'id': 999,
-                'type': 'user',
-                'last_activity': '2015-12-24',
-            },
-            'metadata': None,
-            'validity': [
-                datetime.datetime(2015, 11, 3, 11, 0, 0,
-                                  tzinfo=datetime.timezone.utc),
-            ]
-        }
-
-        self.entity2_query = {
-            'lister_metadata': {
-                'lister': '34bd6b1b-463f-43e5-a697-785107f598e4',
-                'id': 216766,
-                'type': 'user',
-            },
         }
 
         self.snapshot = {
@@ -1298,9 +1188,7 @@ class CommonTestStorage(BaseTestStorage):
 
         self.assertEqual(actual_origin1, {'id': id,
                                           'type': self.origin['type'],
-                                          'url': self.origin['url'],
-                                          'lister': None,
-                                          'project': None})
+                                          'url': self.origin['url']})
 
     @istest
     def origin_search(self):
@@ -1314,9 +1202,7 @@ class CommonTestStorage(BaseTestStorage):
         id = self.storage.origin_add_one(self.origin)
         origin_data = {'id': id,
                        'type': self.origin['type'],
-                       'url': self.origin['url'],
-                       'lister': None,
-                       'project': None}
+                       'url': self.origin['url']}
         found_origins = list(self.storage.origin_search(self.origin['url']))
         self.assertEqual(len(found_origins), 1)
         self.assertEqual(found_origins[0], origin_data)
@@ -1329,9 +1215,7 @@ class CommonTestStorage(BaseTestStorage):
         id2 = self.storage.origin_add_one(self.origin2)
         origin2_data = {'id': id2,
                         'type': self.origin2['type'],
-                        'url': self.origin2['url'],
-                        'lister': None,
-                        'project': None}
+                        'url': self.origin2['url']}
         found_origins = list(self.storage.origin_search(self.origin2['url']))
         self.assertEqual(len(found_origins), 1)
         self.assertEqual(found_origins[0], origin2_data)
@@ -1812,89 +1696,6 @@ class CommonTestStorage(BaseTestStorage):
             self.storage.snapshot_get_latest(origin_id,
                                              allowed_statuses=['full']),
         )
-
-    @istest
-    def entity_get_from_lister_metadata(self):
-        self.storage.entity_add([self.entity1])
-
-        fetched_entities = list(
-            self.storage.entity_get_from_lister_metadata(
-                [self.entity1_query, self.entity2_query]))
-
-        # Entity 1 should have full metadata, with last_seen/last_id instead
-        # of validity
-        entity1 = self.entity1.copy()
-        entity1['last_seen'] = entity1['validity'][0]
-        del fetched_entities[0]['last_id']
-        del entity1['validity']
-        # Entity 2 should have no metadata
-        entity2 = {
-            'uuid': None,
-            'lister_metadata': self.entity2_query.copy(),
-        }
-
-        self.assertEquals(fetched_entities, [entity1, entity2])
-
-    @istest
-    def entity_get_from_lister_metadata_twice(self):
-        self.storage.entity_add([self.entity1])
-
-        fetched_entities1 = list(
-            self.storage.entity_get_from_lister_metadata(
-                [self.entity1_query]))
-        fetched_entities2 = list(
-            self.storage.entity_get_from_lister_metadata(
-                [self.entity1_query]))
-
-        self.assertEquals(fetched_entities1, fetched_entities2)
-
-    @istest
-    def entity_get(self):
-        # given
-        self.storage.entity_add([self.entity4])
-        self.storage.entity_add([self.entity3])
-
-        # when: entity3 -child-of-> entity4
-        actual_entity3 = list(self.storage.entity_get(self.entity3['uuid']))
-
-        self.assertEquals(len(actual_entity3), 2)
-        # remove dynamic data (modified by db)
-        entity3 = self.entity3.copy()
-        entity4 = self.entity4.copy()
-        del entity3['validity']
-        del entity4['validity']
-        del actual_entity3[0]['last_seen']
-        del actual_entity3[0]['last_id']
-        del actual_entity3[1]['last_seen']
-        del actual_entity3[1]['last_id']
-        self.assertEquals(actual_entity3, [entity3, entity4])
-
-        # when: entity4 only child
-        actual_entity4 = list(self.storage.entity_get(self.entity4['uuid']))
-
-        self.assertEquals(len(actual_entity4), 1)
-        # remove dynamic data (modified by db)
-        entity4 = self.entity4.copy()
-        del entity4['validity']
-        del actual_entity4[0]['last_id']
-        del actual_entity4[0]['last_seen']
-
-        self.assertEquals(actual_entity4, [entity4])
-
-    @istest
-    def entity_get_one(self):
-        # given
-        self.storage.entity_add([self.entity3, self.entity4])
-
-        # when: entity3 -child-of-> entity4
-        actual_entity3 = self.storage.entity_get_one(self.entity3['uuid'])
-
-        # remove dynamic data (modified by db)
-        entity3 = self.entity3.copy()
-        del entity3['validity']
-        del actual_entity3['last_seen']
-        del actual_entity3['last_id']
-        self.assertEquals(actual_entity3, entity3)
 
     @istest
     def stat_counters(self):
