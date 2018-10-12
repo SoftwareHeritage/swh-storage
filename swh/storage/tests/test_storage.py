@@ -20,11 +20,11 @@ from swh.storage.tests.storage_testing import StorageTestFixture
 
 
 @attr('db')
-class BaseTestStorage(StorageTestFixture, DbTestFixture):
+class BaseTestStorage(StorageTestFixture):
     def setUp(self):
         super().setUp()
 
-        db = self.test_db[self.TEST_STORAGE_DB_NAME]
+        db = self.test_db[self.TEST_DB_NAME]
         self.conn = db.conn
         self.cursor = db.cursor
 
