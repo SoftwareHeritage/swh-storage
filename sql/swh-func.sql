@@ -964,31 +964,6 @@ begin
 end
 $$;
 
-
--- Retrieve revisions by occurrence criterion filtering
-create or replace function swh_revision_get_by(
-       origin_id bigint,
-       branch_name bytea default NULL,
-       date timestamptz default NULL)
-    returns setof revision_entry
-    language sql
-    stable
-as $$
-    select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
-        r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
-        r.type, r.directory, r.message,
-        a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
-        array(select rh.parent_id::bytea
-            from revision_history rh
-            where rh.id = r.id
-            order by rh.parent_rank
-        ) as parents, r.object_id
-    from swh_occurrence_get_by(origin_id, branch_name, date) as occ
-    inner join revision r on occ.target = r.id
-    left join person a on a.id = r.author
-    left join person c on c.id = r.committer;
-$$;
-
 -- Object listing by object_id
 
 create or replace function swh_content_list_by_object_id(

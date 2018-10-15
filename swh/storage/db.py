@@ -922,34 +922,6 @@ class Db(BaseDb):
             """ % query_keys,
             ((id,) for id in releases))
 
-    def revision_get_by(self,
-                        origin_id,
-                        branch_name,
-                        datetime,
-                        limit=None,
-                        cur=None):
-        """Retrieve a revision by occurrence criterion.
-
-        Args:
-            - origin_id: The origin to look for
-            - branch_name: the branch name to look for
-            - datetime: the lower bound of timerange to look for.
-            - limit: limit number of results to return
-            The upper bound being now.
-        """
-        cur = self._cursor(cur)
-        if branch_name and isinstance(branch_name, str):
-            branch_name = branch_name.encode('utf-8')
-
-        query = '''
-        SELECT %s
-            FROM swh_revision_get_by(%%s, %%s, %%s)
-            LIMIT %%s
-        ''' % ', '.join(self.revision_get_cols)
-
-        cur.execute(query, (origin_id, branch_name, datetime, limit))
-        yield from cursor_to_bytes(cur)
-
     def origin_metadata_add(self, origin, ts, provider, tool,
                             metadata, cur=None):
         """ Add an origin_metadata for the origin at ts with provider, tool and

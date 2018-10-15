@@ -599,37 +599,6 @@ class Storage():
 
         yield from db.revision_shortlog(revisions, limit, cur)
 
-    @db_transaction_generator(statement_timeout=2000)
-    def revision_log_by(self, origin_id, branch_name=None, timestamp=None,
-                        limit=None, db=None, cur=None):
-        """Fetch revision entry from the actual origin_id's latest revision.
-
-        Args:
-            origin_id: the origin id from which deriving the revision
-            branch_name: (optional) occurrence's branch name
-            timestamp: (optional) occurrence's time
-            limit: (optional) depth limitation for the
-                output. Default to None.
-
-        Yields:
-            The revision log starting from the revision derived from
-            the (origin, branch_name, timestamp) combination if any.
-
-        Returns:
-            None if no revision matching this combination is found.
-
-        """
-        # Retrieve the revision by criterion
-        revisions = list(db.revision_get_by(
-            origin_id, branch_name, timestamp, limit=1, cur=cur))
-
-        if not revisions:
-            return None
-
-        revision_id = revisions[0][0]
-        # otherwise, retrieve the revision log from that revision
-        yield from self.revision_log([revision_id], limit, db=db, cur=cur)
-
     def release_add(self, releases):
         """Add releases to the storage
 
@@ -1047,37 +1016,6 @@ class Storage():
             return None
 
         return dict(zip(db.origin_visit_get_cols, ori_visit))
-
-    @db_transaction_generator(statement_timeout=500)
-    def revision_get_by(self,
-                        origin_id,
-                        branch_name=None,
-                        timestamp=None,
-                        limit=None,
-                        db=None,
-                        cur=None):
-        """Given an origin_id, retrieve occurrences' list per given criterions.
-
-        Args:
-            origin_id: The origin to filter on.
-            branch_name: (optional) branch name.
-            timestamp: (optional) time.
-            limit: (optional) limit
-
-        Yields:
-            List of occurrences matching the criterions or None if nothing is
-            found.
-
-        """
-        for line in db.revision_get_by(origin_id, branch_name, timestamp,
-                                       limit=limit, cur=cur):
-            data = converters.db_to_revision(
-                dict(zip(db.revision_get_cols, line))
-            )
-            if not data['type']:
-                yield None
-                continue
-            yield data
 
     @db_transaction(statement_timeout=2000)
     def object_find_by_sha1_git(self, ids, db=None, cur=None):

@@ -141,21 +141,9 @@ def revision_get():
     return encode_data(get_storage().revision_get(**decode_request(request)))
 
 
-@app.route('/revision/by', methods=['POST'])
-def revision_get_by():
-    return encode_data(get_storage().revision_get_by(
-        **decode_request(request)))
-
-
 @app.route('/revision/log', methods=['POST'])
 def revision_log():
     return encode_data(get_storage().revision_log(**decode_request(request)))
-
-
-@app.route('/revision/logby', methods=['POST'])
-def revision_log_by():
-    return encode_data(get_storage().revision_log_by(
-        **decode_request(request)))
 
 
 @app.route('/revision/shortlog', methods=['POST'])
