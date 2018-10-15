@@ -138,17 +138,6 @@ alter table origin_visit validate constraint origin_visit_origin_fkey;
 alter table origin_visit add constraint origin_visit_snapshot_id_fkey foreign key (snapshot_id) references snapshot(object_id) not valid;
 alter table origin_visit validate constraint origin_visit_snapshot_id_fkey;
 
--- occurrence_history
-create unique index concurrently occurrence_history_pkey on occurrence_history(object_id);
-alter table occurrence_history add primary key using index occurrence_history_pkey;
-
-create index concurrently on occurrence_history(target, target_type);
-create index concurrently on occurrence_history(origin, branch);
-create unique index concurrently on occurrence_history(origin, branch, target, target_type);
-
-alter table occurrence_history add constraint occurrence_history_origin_fkey foreign key (origin) references origin(id) not valid;
-alter table occurrence_history validate constraint occurrence_history_origin_fkey;
-
 -- release
 create unique index concurrently release_pkey on release(id);
 alter table release add primary key using index release_pkey;

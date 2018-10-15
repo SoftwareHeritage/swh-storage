@@ -376,20 +376,8 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         self.date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
 
-        self.occurrence = {
-            'branch': b'master',
-            'target': self.revision['id'],
-            'target_type': 'revision',
-        }
-
         self.date_visit2 = datetime.datetime(2017, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
-
-        self.occurrence2 = {
-            'branch': b'master',
-            'target': self.revision2['id'],
-            'target_type': 'revision',
-        }
 
         self.date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0,
                                              tzinfo=datetime.timezone.utc)
@@ -471,9 +459,9 @@ class BaseTestStorage(StorageTestFixture, DbTestFixture):
         self.snapshot = {
             'id': hash_to_bytes('2498dbf535f882bc7f9a18fb16c9ad27fda7bab7'),
             'branches': {
-                self.occurrence['branch']: {
-                    'target': self.occurrence['target'],
-                    'target_type': self.occurrence['target_type'],
+                b'master': {
+                    'target': self.revision['id'],
+                    'target_type': 'revision',
                 },
             },
             'next_branch': None
@@ -1166,65 +1154,6 @@ class CommonTestStorage(BaseTestStorage):
             10, 999)
 
         self.assertIsNone(actual_origin_visit)
-
-    def test_occurrence_add(self):
-        occur = self.occurrence.copy()
-
-        origin_id = self.storage.origin_add_one(self.origin2)
-        date_visit1 = self.date_visit1
-        origin_visit1 = self.storage.origin_visit_add(origin_id, date_visit1)
-
-        revision = self.revision.copy()
-        revision['id'] = occur['target']
-        self.storage.revision_add([revision])
-
-        occur.update({
-            'origin': origin_id,
-            'visit': origin_visit1['visit'],
-        })
-        self.storage.occurrence_add([occur])
-
-        test_query = '''
-        with indiv_occurrences as (
-          select origin, branch, target, target_type, unnest(visits) as visit
-          from occurrence_history
-        )
-        select origin, branch, target, target_type, date
-        from indiv_occurrences
-        left join origin_visit using(origin, visit)
-        order by origin, date'''
-
-        self.cursor.execute(test_query)
-        ret = self.cursor.fetchall()
-        self.assertEqual(len(ret), 1)
-        self.assertEqual(
-            (ret[0][0], ret[0][1].tobytes(), ret[0][2].tobytes(),
-             ret[0][3], ret[0][4]),
-            (occur['origin'], occur['branch'], occur['target'],
-             occur['target_type'], self.date_visit1))
-
-        date_visit2 = date_visit1 + datetime.timedelta(hours=10)
-
-        origin_visit2 = self.storage.origin_visit_add(origin_id, date_visit2)
-        occur2 = occur.copy()
-        occur2.update({
-            'visit': origin_visit2['visit'],
-        })
-        self.storage.occurrence_add([occur2])
-
-        self.cursor.execute(test_query)
-        ret = self.cursor.fetchall()
-        self.assertEqual(len(ret), 2)
-        self.assertEqual(
-            (ret[0][0], ret[0][1].tobytes(), ret[0][2].tobytes(),
-             ret[0][3], ret[0][4]),
-            (occur['origin'], occur['branch'], occur['target'],
-             occur['target_type'], date_visit1))
-        self.assertEqual(
-            (ret[1][0], ret[1][1].tobytes(), ret[1][2].tobytes(),
-             ret[1][3], ret[1][4]),
-            (occur2['origin'], occur2['branch'], occur2['target'],
-             occur2['target_type'], date_visit2))
 
     def test_snapshot_add_get_empty(self):
         origin_id = self.storage.origin_add_one(self.origin)

@@ -180,11 +180,6 @@ def object_find_by_sha1_git():
         **decode_request(request)))
 
 
-@app.route('/occurrence/add', methods=['POST'])
-def occurrence_add():
-    return encode_data(get_storage().occurrence_add(**decode_request(request)))
-
-
 @app.route('/snapshot/add', methods=['POST'])
 def snapshot_add():
     return encode_data(get_storage().snapshot_add(**decode_request(request)))

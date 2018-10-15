@@ -235,9 +235,6 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_occurrence_history')
-    def mktemp_occurrence_history(self, cur=None): pass
-
     @stored_procedure('swh_mktemp_snapshot_branch')
     def mktemp_snapshot_branch(self, cur=None): pass
 
@@ -268,9 +265,6 @@ class Db(BaseDb):
 
     @stored_procedure('swh_release_add')
     def release_add_from_temp(self, cur=None): pass
-
-    @stored_procedure('swh_occurrence_history_add')
-    def occurrence_history_add_from_temp(self, cur=None): pass
 
     def content_update_from_temp(self, keys_to_update, cur=None):
         cur = self._cursor(cur)
@@ -610,8 +604,6 @@ class Db(BaseDb):
         if not r:
             return None
         return line_to_bytes(r)
-
-    occurrence_cols = ['origin', 'branch', 'target', 'target_type']
 
     @staticmethod
     def mangle_query_key(key, main_table):

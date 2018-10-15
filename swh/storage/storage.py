@@ -914,31 +914,6 @@ class Storage():
         return None
 
     @db_transaction()
-    def occurrence_add(self, occurrences, db=None, cur=None):
-        """Add occurrences to the storage
-
-        Args:
-            occurrences: iterable of dictionaries representing the individual
-                occurrences to add. Each dict has the following keys:
-
-                - origin (int): id of the origin corresponding to the
-                  occurrence
-                - visit (int): id of the visit corresponding to the
-                  occurrence
-                - branch (str): the reference name of the occurrence
-                - target (sha1_git): the id of the object pointed to by
-                  the occurrence
-                - target_type (str): the type of object pointed to by the
-                  occurrence
-
-        """
-        db.mktemp_occurrence_history(cur)
-        db.copy_to(occurrences, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'target', 'target_type', 'visit'], cur)
-
-        db.occurrence_history_add_from_temp(cur)
-
-    @db_transaction()
     def origin_visit_add(self, origin, ts, db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 

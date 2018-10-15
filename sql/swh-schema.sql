@@ -12,7 +12,7 @@ create table dbversion
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(126, now(), 'Work In Progress');
+      values(127, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -221,28 +221,6 @@ comment on column origin_visit.status is 'Visit result';
 comment on column origin_visit.metadata is 'Origin metadata at visit time';
 comment on column origin_visit.snapshot_id is 'Origin snapshot at visit time';
 
-
--- BEGIN legacy section (T830)
-
--- The content of software origins is indexed starting from top-level pointers
--- called "branches". Every time we fetch some origin we store in this table
--- where the branches pointed to at fetch time.
---
--- Synonyms/mappings:
--- * git: ref (in the "git update-ref" sense)
-create table occurrence_history
-(
-  origin       bigint not null,
-  branch       bytea not null,        -- e.g., b"master" (for VCS), or b"sid" (for Debian)
-  target       sha1_git not null,     -- ref target, e.g., commit id
-  target_type  object_type not null,  -- ref target type
-  visits       bigint[] not null,     -- the visits where that occurrence was valid. References
-                                      -- origin_visit(visit), where o_h.origin = origin_visit.origin.
-  object_id    bigserial not null,    -- short object identifier
-  snapshot_branch_id bigint
-);
-
--- END legacy section (T830)
 
 -- A snapshot represents the entire state of a software origin as crawled by
 -- Software Heritage. This table is a simple mapping between (public) intrinsic
