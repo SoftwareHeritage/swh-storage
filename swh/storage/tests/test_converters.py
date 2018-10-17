@@ -5,7 +5,6 @@
 
 import unittest
 
-from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from swh.storage import converters
@@ -16,8 +15,7 @@ class TestConverters(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
 
-    @istest
-    def db_to_author(self):
+    def test_db_to_author(self):
         # when
         actual_author = converters.db_to_author(
             1, b'fullname', b'name', b'email')
@@ -30,8 +28,7 @@ class TestConverters(unittest.TestCase):
             'email': b'email',
         })
 
-    @istest
-    def db_to_revision(self):
+    def test_db_to_revision(self):
         # when
         actual_revision = converters.db_to_revision({
             'id': 'revision-id',
@@ -82,8 +79,7 @@ class TestConverters(unittest.TestCase):
             'parents': [123, 456],
         })
 
-    @istest
-    def db_to_release(self):
+    def test_db_to_release(self):
         # when
         actual_release = converters.db_to_release({
             'id': b'release-id',
@@ -118,8 +114,7 @@ class TestConverters(unittest.TestCase):
             'target_type': 'revision'
         })
 
-    @istest
-    def db_to_git_headers(self):
+    def test_db_to_git_headers(self):
         raw_data = [
             ['gpgsig', b'garbage\x89a\x43b\x14'],
             ['extra', [b'fo\\\\\\o', b'bar\\', b'inval\\\\\x99id']],

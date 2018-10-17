@@ -235,17 +235,8 @@ class Db(BaseDb):
     @stored_procedure('swh_mktemp_release')
     def mktemp_release(self, cur=None): pass
 
-    @stored_procedure('swh_mktemp_occurrence_history')
-    def mktemp_occurrence_history(self, cur=None): pass
-
     @stored_procedure('swh_mktemp_snapshot_branch')
     def mktemp_snapshot_branch(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_entity_lister')
-    def mktemp_entity_lister(self, cur=None): pass
-
-    @stored_procedure('swh_mktemp_entity_history')
-    def mktemp_entity_history(self, cur=None): pass
 
     def register_listener(self, notify_queue, cur=None):
         """Register a listener for NOTIFY queue `notify_queue`"""
@@ -274,12 +265,6 @@ class Db(BaseDb):
 
     @stored_procedure('swh_release_add')
     def release_add_from_temp(self, cur=None): pass
-
-    @stored_procedure('swh_occurrence_history_add')
-    def occurrence_history_add_from_temp(self, cur=None): pass
-
-    @stored_procedure('swh_entity_history_add')
-    def entity_history_add_from_temp(self, cur=None): pass
 
     def content_update_from_temp(self, keys_to_update, cur=None):
         cur = self._cursor(cur)
@@ -359,15 +344,31 @@ class Db(BaseDb):
         cur.execute("""SELECT swh_snapshot_add(%s, %s, %s)""",
                     (origin, visit, snapshot_id))
 
-    snapshot_get_cols = ['snapshot_id', 'name', 'target', 'target_type']
+    snapshot_count_cols = ['target_type', 'count']
 
-    def snapshot_get_by_id(self, snapshot_id, cur=None):
+    def snapshot_count_branches(self, snapshot_id, cur=None):
         cur = self._cursor(cur)
         query = """\
-           SELECT %s FROM swh_snapshot_get_by_id(%%s)
-        """ % ', '.join(self.snapshot_get_cols)
+           SELECT %s FROM swh_snapshot_count_branches(%%s)
+        """ % ', '.join(self.snapshot_count_cols)
 
         cur.execute(query, (snapshot_id,))
+
+        yield from cursor_to_bytes(cur)
+
+    snapshot_get_cols = ['snapshot_id', 'name', 'target', 'target_type']
+
+    def snapshot_get_by_id(self, snapshot_id, branches_from=b'',
+                           branches_count=None, target_types=None,
+                           cur=None):
+        cur = self._cursor(cur)
+        query = """\
+           SELECT %s
+           FROM swh_snapshot_get_by_id(%%s, %%s, %%s, %%s :: snapshot_target[])
+        """ % ', '.join(self.snapshot_get_cols)
+
+        cur.execute(query, (snapshot_id, branches_from, branches_count,
+                            target_types))
 
         yield from cursor_to_bytes(cur)
 
@@ -604,8 +605,6 @@ class Db(BaseDb):
             return None
         return line_to_bytes(r)
 
-    occurrence_cols = ['origin', 'branch', 'target', 'target_type']
-
     @staticmethod
     def mangle_query_key(key, main_table):
         if key == 'id':
@@ -776,14 +775,6 @@ class Db(BaseDb):
         cur.execute(query, [jsonize(fetch_history.get(col)) for col in
                             self.fetch_history_cols + ['id']])
 
-    base_entity_cols = ['uuid', 'parent', 'name', 'type',
-                        'description', 'homepage', 'active',
-                        'generated', 'lister_metadata',
-                        'metadata']
-
-    entity_cols = base_entity_cols + ['last_seen', 'last_id']
-    entity_history_cols = base_entity_cols + ['id', 'validity']
-
     def origin_add(self, type, url, cur=None):
         """Insert a new origin and return the new identifier."""
         insert = """INSERT INTO origin (type, url) values (%s, %s)
@@ -792,7 +783,7 @@ class Db(BaseDb):
         cur.execute(insert, (type, url))
         return cur.fetchone()[0]
 
-    origin_cols = ['id', 'type', 'url', 'lister', 'project']
+    origin_cols = ['id', 'type', 'url']
 
     def origin_get_with(self, type, url, cur=None):
         """Retrieve the origin id from its type and url if found."""
@@ -922,60 +913,6 @@ class Db(BaseDb):
             LEFT JOIN person author ON release.author = author.id
             """ % query_keys,
             ((id,) for id in releases))
-
-    def revision_get_by(self,
-                        origin_id,
-                        branch_name,
-                        datetime,
-                        limit=None,
-                        cur=None):
-        """Retrieve a revision by occurrence criterion.
-
-        Args:
-            - origin_id: The origin to look for
-            - branch_name: the branch name to look for
-            - datetime: the lower bound of timerange to look for.
-            - limit: limit number of results to return
-            The upper bound being now.
-        """
-        cur = self._cursor(cur)
-        if branch_name and isinstance(branch_name, str):
-            branch_name = branch_name.encode('utf-8')
-
-        query = '''
-        SELECT %s
-            FROM swh_revision_get_by(%%s, %%s, %%s)
-            LIMIT %%s
-        ''' % ', '.join(self.revision_get_cols)
-
-        cur.execute(query, (origin_id, branch_name, datetime, limit))
-        yield from cursor_to_bytes(cur)
-
-    def entity_get(self, uuid, cur=None):
-        """Retrieve the entity and its parent hierarchy chain per uuid.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT %s
-                       FROM swh_entity_get(%%s)""" % (
-                           ', '.join(self.entity_cols)),
-                    (uuid, ))
-        yield from cursor_to_bytes(cur)
-
-    def entity_get_one(self, uuid, cur=None):
-        """Retrieve a single entity given its uuid.
-
-        """
-        cur = self._cursor(cur)
-        cur.execute("""SELECT %s
-                       FROM entity
-                       WHERE uuid = %%s""" % (
-                           ', '.join(self.entity_cols)),
-                    (uuid, ))
-        data = cur.fetchone()
-        if not data:
-            return None
-        return line_to_bytes(data)
 
     def origin_metadata_add(self, origin, ts, provider, tool,
                             metadata, cur=None):

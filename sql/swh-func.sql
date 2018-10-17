@@ -91,43 +91,6 @@ as $$
     alter table tmp_release drop column object_id;
 $$;
 
--- create a temporary table for occurrence_history
-create or replace function swh_mktemp_occurrence_history()
-    returns void
-    language sql
-as $$
-    create temporary table tmp_occurrence_history(
-        like occurrence_history including defaults,
-        visit bigint not null
-    ) on commit drop;
-    alter table tmp_occurrence_history
-      drop column visits,
-      drop column object_id;
-$$;
-
--- create a temporary table for entity_history, sans id
-create or replace function swh_mktemp_entity_history()
-    returns void
-    language sql
-as $$
-    create temporary table tmp_entity_history (
-        like entity_history including defaults) on commit drop;
-    alter table tmp_entity_history drop column id;
-$$;
-
--- create a temporary table for entities called tmp_entity_lister,
--- with only the columns necessary for retrieving the uuid of a listed
--- entity.
-create or replace function swh_mktemp_entity_lister()
-    returns void
-    language sql
-as $$
-  create temporary table tmp_entity_lister (
-    id              bigint,
-    lister_metadata jsonb
-  ) on commit drop;
-$$;
-
 -- create a temporary table for the branches of a snapshot
 create or replace function swh_mktemp_snapshot_branch()
     returns void
@@ -743,42 +706,6 @@ as $$
   returning visit;
 $$;
 
--- add tmp_occurrence_history entries to occurrence_history
---
--- operates in bulk: 0. swh_mktemp(occurrence_history), 1. COPY to tmp_occurrence_history,
--- 2. call this function
-create or replace function swh_occurrence_history_add()
-    returns void
-    language plpgsql
-as $$
-declare
-  origin_id origin.id%type;
-begin
-  -- Create or update occurrence_history
-  with occurrence_history_id_visit as (
-    select tmp_occurrence_history.*, object_id, visits from tmp_occurrence_history
-    left join occurrence_history using(origin, branch, target, target_type)
-  ),
-  occurrences_to_update as (
-    select object_id, visit from occurrence_history_id_visit where object_id is not null
-  ),
-  update_occurrences as (
-    update occurrence_history
-    set visits = array(select unnest(occurrence_history.visits) as e
-                        union
-                       select occurrences_to_update.visit as e
-                       order by e)
-    from occurrences_to_update
-    where occurrence_history.object_id = occurrences_to_update.object_id
-  )
-  insert into occurrence_history (origin, branch, target, target_type, visits)
-    select origin, branch, target, target_type, ARRAY[visit]
-      from occurrence_history_id_visit
-      where object_id is null;
-  return;
-end
-$$;
-
 create or replace function swh_snapshot_add(origin bigint, visit bigint, snapshot_id snapshot.id%type)
   returns void
   language plpgsql
@@ -826,7 +753,9 @@ create type snapshot_result as (
   target_type  snapshot_target
 );
 
-create or replace function swh_snapshot_get_by_id(id snapshot.id%type)
+create or replace function swh_snapshot_get_by_id(id snapshot.id%type,
+    branches_from bytea default '', branches_count bigint default null,
+    target_types snapshot_target[] default NULL)
   returns setof snapshot_result
   language sql
   stable
@@ -836,6 +765,24 @@ as $$
   from snapshot_branches
   inner join snapshot_branch on snapshot_branches.branch_id = snapshot_branch.object_id
   where snapshot_id = (select object_id from snapshot where snapshot.id = swh_snapshot_get_by_id.id)
+    and (target_types is null or target_type = any(target_types))
+    and name >= branches_from
+  order by name limit branches_count
+$$;
+
+create type snapshot_size as (
+  target_type snapshot_target,
+  count bigint
+);
+
+create or replace function swh_snapshot_count_branches(id snapshot.id%type)
+  returns setof snapshot_size
+  language sql
+  stable
+as $$
+  SELECT target_type, count(name)
+  from swh_snapshot_get_by_id(swh_snapshot_count_branches.id)
+  group by target_type;
 $$;
 
 create or replace function swh_snapshot_get_by_origin_visit(origin_id bigint, visit_id bigint)
@@ -928,172 +875,6 @@ as $$
     where origin=origin
     order by date desc
 $$;
-
-
--- Retrieve occurrence by filtering on origin_id and optionally on
--- branch_name and/or validity range
-create or replace function swh_occurrence_get_by(
-       origin_id bigint,
-       branch_name bytea default NULL,
-       date timestamptz default NULL)
-    returns setof occurrence_history
-    language plpgsql
-as $$
-declare
-    filters text[] := array[] :: text[];  -- AND-clauses used to filter content
-    visit_id bigint;
-    q text;
-begin
-    if origin_id is null then
-        raise exception 'Needs an origin_id to get an occurrence.';
-    end if;
-    filters := filters || format('origin = %L', origin_id);
-    if branch_name is not null then
-        filters := filters || format('branch = %L', branch_name);
-    end if;
-    if date is not null then
-        select visit from swh_visit_find_by_date(origin_id, date) into visit_id;
-    else
-        select visit from origin_visit where origin = origin_id order by origin_visit.date desc limit 1 into visit_id;
-    end if;
-    if visit_id is null then
-        return;
-    end if;
-    filters := filters || format('%L = any(visits)', visit_id);
-
-    q = format('select * from occurrence_history where %s',
-               array_to_string(filters, ' and '));
-    return query execute q;
-end
-$$;
-
-
--- Retrieve revisions by occurrence criterion filtering
-create or replace function swh_revision_get_by(
-       origin_id bigint,
-       branch_name bytea default NULL,
-       date timestamptz default NULL)
-    returns setof revision_entry
-    language sql
-    stable
-as $$
-    select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
-        r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
-        r.type, r.directory, r.message,
-        a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
-        array(select rh.parent_id::bytea
-            from revision_history rh
-            where rh.id = r.id
-            order by rh.parent_rank
-        ) as parents, r.object_id
-    from swh_occurrence_get_by(origin_id, branch_name, date) as occ
-    inner join revision r on occ.target = r.id
-    left join person a on a.id = r.author
-    left join person c on c.id = r.committer;
-$$;
-
--- Create entries in entity_history from tmp_entity_history
---
--- TODO: do something smarter to compress the entries if the data
--- didn't change.
-create or replace function swh_entity_history_add()
-    returns void
-    language plpgsql
-as $$
-begin
-    insert into entity_history (
-        uuid, parent, name, type, description, homepage, active, generated, lister_metadata, metadata, validity
-    ) select * from tmp_entity_history;
-    return;
-end
-$$;
-
-
-create or replace function swh_update_entity_from_entity_history()
-    returns trigger
-    language plpgsql
-as $$
-begin
-    insert into entity (uuid, parent, name, type, description, homepage, active, generated,
-      lister_metadata, metadata, last_seen, last_id)
-      select uuid, parent, name, type, description, homepage, active, generated,
-             lister_metadata, metadata, unnest(validity), id
-      from entity_history
-      where uuid = NEW.uuid
-      order by unnest(validity) desc limit 1
-    on conflict (uuid) do update set
-      parent = EXCLUDED.parent,
-      name = EXCLUDED.name,
-      type = EXCLUDED.type,
-      description = EXCLUDED.description,
-      homepage = EXCLUDED.homepage,
-      active = EXCLUDED.active,
-      generated = EXCLUDED.generated,
-      lister_metadata = EXCLUDED.lister_metadata,
-      metadata = EXCLUDED.metadata,
-      last_seen = EXCLUDED.last_seen,
-      last_id = EXCLUDED.last_id;
-
-    return null;
-end
-$$;
-
-create trigger update_entity
-  after insert or update
-  on entity_history
-  for each row
-  execute procedure swh_update_entity_from_entity_history();
-
--- map an id of tmp_entity_lister to a full entity
-create type entity_id as (
-    id               bigint,
-    uuid             uuid,
-    parent           uuid,
-    name             text,
-    type             entity_type,
-    description      text,
-    homepage         text,
-    active           boolean,
-    generated        boolean,
-    lister_metadata  jsonb,
-    metadata         jsonb,
-    last_seen        timestamptz,
-    last_id          bigint
-);
-
--- find out the uuid of the entries of entity with the metadata
--- contained in tmp_entity_lister
-create or replace function swh_entity_from_tmp_entity_lister()
-    returns setof entity_id
-    language plpgsql
-as $$
-begin
-  return query
-    select t.id, e.*
-    from tmp_entity_lister t
-    left join entity e
-    on e.lister_metadata @> t.lister_metadata;
-  return;
-end
-$$;
-
-create or replace function swh_entity_get(entity_uuid uuid)
-    returns setof entity
-    language sql
-    stable
-as $$
-  with recursive entity_hierarchy as (
-  select e.*
-    from entity e where uuid = entity_uuid
-    union
-    select p.*
-    from entity_hierarchy e
-    join entity p on e.parent = p.uuid
-  )
-  select *
-  from entity_hierarchy;
-$$;
-
 
 -- Object listing by object_id
 
@@ -1245,12 +1026,9 @@ as $$
         'directory_entry_dir',
         'directory_entry_file',
         'directory_entry_rev',
-        'occurrence_history',
         'origin',
         'origin_visit',
         'person',
-        'entity',
-        'entity_history',
         'release',
         'revision',
         'revision_history',
