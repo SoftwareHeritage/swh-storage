@@ -1228,6 +1228,7 @@ class CommonTestStorage(BaseTestStorage):
                 name: branches[name]
                 for name in branch_names[rel_idx:]
             },
+            'next_branch': None,
         }
 
         self.assertEqual(snapshot, expected_snapshot)
@@ -1240,6 +1241,7 @@ class CommonTestStorage(BaseTestStorage):
             'branches': {
                  branch_names[0]: branches[branch_names[0]],
             },
+            'next_branch': b'content',
         }
         self.assertEqual(snapshot, expected_snapshot)
 
@@ -1253,6 +1255,7 @@ class CommonTestStorage(BaseTestStorage):
                 name: branches[name]
                 for name in branch_names[dir_idx:dir_idx + 3]
             },
+            'next_branch': branch_names[dir_idx + 3],
         }
 
         self.assertEqual(snapshot, expected_snapshot)
@@ -1278,6 +1281,7 @@ class CommonTestStorage(BaseTestStorage):
                 for name, tgt in branches.items()
                 if tgt and tgt['target_type'] in ['release', 'revision']
             },
+            'next_branch': None,
         }
 
         self.assertEqual(snapshot, expected_snapshot)
@@ -1292,6 +1296,7 @@ class CommonTestStorage(BaseTestStorage):
                 for name, tgt in branches.items()
                 if tgt and tgt['target_type'] == 'alias'
             },
+            'next_branch': None,
         }
 
         self.assertEqual(snapshot, expected_snapshot)
