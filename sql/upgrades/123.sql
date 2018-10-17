@@ -62,13 +62,9 @@ CREATE OR REPLACE FUNCTION swh_stat_counters() RETURNS SETOF public.counter
     );
 $$;
 
-DROP FUNCTION swh_occurrence_by_origin_visit(origin_id bigint, visit_id bigint);
-
 DROP FUNCTION swh_occurrence_update_all();
 
 DROP FUNCTION swh_occurrence_update_for_origin(origin_id bigint);
-
-DROP FUNCTION swh_revision_find_occurrence(revision_id public.sha1_git);
 
 DROP TABLE occurrence;
 
