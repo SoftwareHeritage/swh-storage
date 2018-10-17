@@ -16,35 +16,25 @@ DROP FUNCTION swh_mktemp_entity_history();
 
 DROP FUNCTION swh_mktemp_entity_lister();
 
-DROP FUNCTION swh_update_entity_from_entity_history();
+DROP FUNCTION swh_update_entity_from_entity_history() cascade;
 
 ALTER TABLE origin
-	DROP CONSTRAINT origin_lister_fkey;
-
-ALTER TABLE origin
-	DROP CONSTRAINT origin_project_fkey;
-
-DROP TABLE entity;
-
-DROP TABLE entity_equivalence;
-
-DROP TABLE entity_history;
+	DROP COLUMN lister,
+	DROP COLUMN project;
 
 DROP TABLE list_history;
 
 DROP TABLE listable_entity;
 
-DROP SEQUENCE entity_history_id_seq;
+DROP TABLE entity_equivalence;
 
-DROP SEQUENCE list_history_id_seq;
+DROP TABLE entity;
 
-DROP TYPE entity_type;
+DROP TABLE entity_history;
 
 DROP TYPE entity_id;
 
-ALTER TABLE origin
-	DROP COLUMN lister,
-	DROP COLUMN project;
+DROP TYPE entity_type;
 
 CREATE OR REPLACE FUNCTION swh_stat_counters() RETURNS SETOF public.counter
     LANGUAGE sql STABLE

@@ -13,14 +13,6 @@ CREATE TYPE snapshot_size AS (
 	"count" bigint
 );
 
-CREATE OR REPLACE FUNCTION swh_snapshot_count_branches(id public.sha1_git) RETURNS SETOF public.snapshot_size
-    LANGUAGE sql STABLE
-    AS $$
-  SELECT target_type, count(name)
-  from swh_snapshot_get_by_id(swh_snapshot_count_branches.id)
-  group by target_type;
-$$;
-
 CREATE OR REPLACE FUNCTION swh_snapshot_get_by_id(id public.sha1_git, branches_from bytea = '\x'::bytea, branches_count bigint = NULL::bigint, target_types public.snapshot_target[] = NULL::public.snapshot_target[]) RETURNS SETOF public.snapshot_result
     LANGUAGE sql STABLE
     AS $$
@@ -33,3 +25,12 @@ CREATE OR REPLACE FUNCTION swh_snapshot_get_by_id(id public.sha1_git, branches_f
     and name >= branches_from
   order by name limit branches_count
 $$;
+
+CREATE OR REPLACE FUNCTION swh_snapshot_count_branches(id public.sha1_git) RETURNS SETOF public.snapshot_size
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT target_type, count(name)
+  from swh_snapshot_get_by_id(swh_snapshot_count_branches.id)
+  group by target_type;
+$$;
+
