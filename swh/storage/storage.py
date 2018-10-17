@@ -808,15 +808,6 @@ class Storage():
 
         if snapshot_id:
             return self.snapshot_get(snapshot_id, db=db, cur=cur)
-        else:
-            # compatibility code during the snapshot migration
-            origin_visit_info = self.origin_visit_get_by(origin, visit,
-                                                         db=db, cur=cur)
-            if origin_visit_info is None:
-                return None
-            ret = {'id': None}
-            ret['branches'] = origin_visit_info['occurrences']
-            return ret
 
         return None
 
