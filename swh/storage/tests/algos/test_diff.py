@@ -6,10 +6,7 @@
 # flake8: noqa
 
 import unittest
-
 from unittest.mock import patch
-
-from nose.tools import istest, nottest
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier
@@ -21,8 +18,6 @@ from .test_dir_iterator import DirectoryModel
 @patch('swh.storage.algos.diff._get_rev')
 @patch('swh.storage.algos.dir_iterators._get_dir')
 class TestDiffRevisions(unittest.TestCase):
-
-    @nottest
     def diff_revisions(self, rev_from, rev_to, from_dir_model, to_dir_model,
                        expected_changes, mock_get_dir, mock_get_rev):
 
@@ -48,7 +43,6 @@ class TestDiffRevisions(unittest.TestCase):
 
         self.assertEqual(changes, expected_changes)
 
-    @istest
     def test_insert_delete(self, mock_get_dir, mock_get_rev):
         rev_from = '898ff03e1e7925ecde3da66327d3cdc7e07625ba'
         rev_to = '647c3d381e67490e82cdbbe6c96e46d5e1628ce2'
@@ -123,7 +117,6 @@ class TestDiffRevisions(unittest.TestCase):
                             to_dir_model, expected_changes,
                             mock_get_dir, mock_get_rev)
 
-    @istest
     def test_onelevel_diff(self, mock_get_dir, mock_get_rev):
         rev_from = '898ff03e1e7925ecde3da66327d3cdc7e07625ba'
         rev_to = '647c3d381e67490e82cdbbe6c96e46d5e1628ce2'
@@ -163,7 +156,6 @@ class TestDiffRevisions(unittest.TestCase):
                             to_dir_model, expected_changes,
                             mock_get_dir, mock_get_rev)
 
-    @istest
     def test_twolevels_diff(self, mock_get_dir, mock_get_rev):
         rev_from = '898ff03e1e7925ecde3da66327d3cdc7e07625ba'
         rev_to = '647c3d381e67490e82cdbbe6c96e46d5e1628ce2'
@@ -216,7 +208,6 @@ class TestDiffRevisions(unittest.TestCase):
                             to_dir_model, expected_changes,
                             mock_get_dir, mock_get_rev)
 
-    @istest
     def test_insert_delete_empty_dirs(self, mock_get_dir, mock_get_rev):
         rev_from = '898ff03e1e7925ecde3da66327d3cdc7e07625ba'
         rev_to = '647c3d381e67490e82cdbbe6c96e46d5e1628ce2'
@@ -261,7 +252,6 @@ class TestDiffRevisions(unittest.TestCase):
                             to_dir_model, expected_changes,
                             mock_get_dir, mock_get_rev)
 
-    @istest
     def test_track_renaming(self, mock_get_dir, mock_get_rev):
         rev_from = '898ff03e1e7925ecde3da66327d3cdc7e07625ba'
         rev_to = '647c3d381e67490e82cdbbe6c96e46d5e1628ce2'

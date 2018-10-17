@@ -54,21 +54,9 @@ class RemoteStorage(SWHRemoteAPI):
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
 
-    def revision_get_by(self, origin_id, branch_name, timestamp, limit=None):
-        return self.post('revision/by', dict(origin_id=origin_id,
-                                             branch_name=branch_name,
-                                             timestamp=timestamp,
-                                             limit=limit))
-
     def revision_log(self, revisions, limit=None):
         return self.post('revision/log', {'revisions': revisions,
                                           'limit': limit})
-
-    def revision_log_by(self, origin_id, branch_name, timestamp, limit=None):
-        return self.post('revision/logby', {'origin_id': origin_id,
-                                            'branch_name': branch_name,
-                                            'timestamp': timestamp,
-                                            'limit': limit})
 
     def revision_shortlog(self, revisions, limit=None):
         return self.post('revision/shortlog', {'revisions': revisions,
@@ -92,25 +80,40 @@ class RemoteStorage(SWHRemoteAPI):
     def object_find_by_sha1_git(self, ids):
         return self.post('object/find_by_sha1_git', {'ids': ids})
 
-    def occurrence_add(self, occurrences):
-        return self.post('occurrence/add', {'occurrences': occurrences})
-
     def snapshot_add(self, origin, visit, snapshot):
         return self.post('snapshot/add', {
             'origin': origin, 'visit': visit, 'snapshot': snapshot,
         })
 
     def snapshot_get(self, snapshot_id):
-        return self.post('snapshot', {'snapshot_id': snapshot_id})
+        return self.post('snapshot', {
+            'snapshot_id': snapshot_id
+        })
 
     def snapshot_get_by_origin_visit(self, origin, visit):
-        return self.post('snapshot/by_origin_visit', {'origin': origin,
-                                                      'visit': visit})
+        return self.post('snapshot/by_origin_visit', {
+            'origin': origin,
+            'visit': visit
+        })
 
     def snapshot_get_latest(self, origin, allowed_statuses=None):
         return self.post('snapshot/latest', {
             'origin': origin,
             'allowed_statuses': allowed_statuses
+        })
+
+    def snapshot_count_branches(self, snapshot_id):
+        return self.post('snapshot/count_branches', {
+            'snapshot_id': snapshot_id
+        })
+
+    def snapshot_get_branches(self, snapshot_id, branches_from=b'',
+                              branches_count=None, target_types=None):
+        return self.post('snapshot/get_branches', {
+            'snapshot_id': snapshot_id,
+            'branches_from': branches_from,
+            'branches_count': branches_count,
+            'target_types': target_types
         })
 
     def origin_get(self, origin):

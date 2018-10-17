@@ -5,13 +5,10 @@
 # See top-level LICENSE file for more information
 
 import unittest
-
 from unittest.mock import patch
 
-from nose.tools import istest, nottest
-
 from swh.model.from_disk import DentryPerms
-from swh.model.hashutil import hash_to_bytes, MultiHash
+from swh.model.hashutil import MultiHash, hash_to_bytes
 from swh.model.identifiers import directory_identifier
 from swh.storage.algos.dir_iterators import dir_iterator
 
@@ -95,7 +92,6 @@ class DirectoryModel(object):
 @patch('swh.storage.algos.dir_iterators._get_dir')
 class TestDirectoryIterator(unittest.TestCase):
 
-    @nottest
     def check_iterated_paths(self, dir_model, expected_paths_order,
                              mock_get_dir):
 
@@ -106,13 +102,11 @@ class TestDirectoryIterator(unittest.TestCase):
         paths_order = [e['path'] for e in dir_iterator(None, dir_model['target'])]
         self.assertEqual(paths_order, expected_paths_order)
 
-    @istest
     def test_dir_iterator_empty_dir(self, mock_get_dir):
         dir_model = DirectoryModel()
         expected_paths_order = []
         self.check_iterated_paths(dir_model, expected_paths_order, mock_get_dir)
 
-    @istest
     def test_dir_iterator_no_empty_dirs(self, mock_get_dir):
         dir_model = DirectoryModel()
         dir_model.add_file(b'xyz/gtr/uhb')
@@ -134,7 +128,6 @@ class TestDirectoryIterator(unittest.TestCase):
 
         self.check_iterated_paths(dir_model, expected_paths_order, mock_get_dir)
 
-    @istest
     def test_dir_iterator_with_empty_dirs(self, mock_get_dir):
         dir_model = DirectoryModel()
         dir_model.add_file(b'xyz/gtr/')

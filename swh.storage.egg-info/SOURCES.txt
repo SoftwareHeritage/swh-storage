@@ -35,7 +35,6 @@ sql/.gitignore
 sql/Makefile
 sql/TODO
 sql/clusters.dot
-sql/swh-data.sql
 sql/swh-enums.sql
 sql/swh-func.sql
 sql/swh-indexes.sql
@@ -176,6 +175,10 @@ sql/upgrades/120.sql
 sql/upgrades/121.sql
 sql/upgrades/122.sql
 sql/upgrades/123.sql
+sql/upgrades/124.sql
+sql/upgrades/125.sql
+sql/upgrades/126.sql
+sql/upgrades/127.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt

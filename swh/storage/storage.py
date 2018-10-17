@@ -599,37 +599,6 @@ class Storage():
 
         yield from db.revision_shortlog(revisions, limit, cur)
 
-    @db_transaction_generator(statement_timeout=2000)
-    def revision_log_by(self, origin_id, branch_name=None, timestamp=None,
-                        limit=None, db=None, cur=None):
-        """Fetch revision entry from the actual origin_id's latest revision.
-
-        Args:
-            origin_id: the origin id from which deriving the revision
-            branch_name: (optional) occurrence's branch name
-            timestamp: (optional) occurrence's time
-            limit: (optional) depth limitation for the
-                output. Default to None.
-
-        Yields:
-            The revision log starting from the revision derived from
-            the (origin, branch_name, timestamp) combination if any.
-
-        Returns:
-            None if no revision matching this combination is found.
-
-        """
-        # Retrieve the revision by criterion
-        revisions = list(db.revision_get_by(
-            origin_id, branch_name, timestamp, limit=1, cur=cur))
-
-        if not revisions:
-            return None
-
-        revision_id = revisions[0][0]
-        # otherwise, retrieve the revision log from that revision
-        yield from self.revision_log([revision_id], limit, db=db, cur=cur)
-
     def release_add(self, releases):
         """Add releases to the storage
 
@@ -701,8 +670,6 @@ class Storage():
             - id: origin's id
             - revision: origin's type
             - url: origin's url
-            - lister: lister's uuid
-            - project: project's uuid (FIXME, retrieve this information)
 
         Raises:
             ValueError: if the keys does not match (url and type) nor id.
@@ -757,18 +724,33 @@ class Storage():
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
-        """Get the snapshot with the given id
+        """Get the content, possibly partial, of a snapshot with the given id
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        .. warning:: At most 1000 branches contained in the snapshot will be
+            returned for performance reasons. In order to browse the whole
+            set of branches, the method :meth:`snapshot_get_branches`
+            should be used instead.
 
         Args:
-           snapshot_id (bytes): id of the snapshot
+            snapshot_id (bytes): identifier of the snapshot
         Returns:
-           dict: a snapshot with two keys:
-             id:: identifier for the snapshot
-             branches:: a list of branches contained by the snapshot
-
+            dict: a dict with three keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+                * **next_branch**: the name of the first branch not returned
+                  or :const:`None` if the snapshot has less than 1000
+                  branches.
         """
+        max_branches = 1000
         branches = {}
-        for branch in db.snapshot_get_by_id(snapshot_id, cur):
+        next_branch = None
+        fetched_branches = list(db.snapshot_get_by_id(
+            snapshot_id, branches_count=max_branches+1, cur=cur))
+        for branch in fetched_branches[:max_branches]:
             branch = dict(zip(db.snapshot_get_cols, branch))
             del branch['snapshot_id']
             name = branch.pop('name')
@@ -776,26 +758,50 @@ class Storage():
                 branch = None
             branches[name] = branch
 
+        if len(fetched_branches) > max_branches:
+            branch = dict(zip(db.snapshot_get_cols, fetched_branches[-1]))
+            next_branch = branch['name']
+
         if branches:
-            return {'id': snapshot_id, 'branches': branches}
+            return {
+                'id': snapshot_id,
+                'branches': branches,
+                'next_branch': next_branch
+            }
 
         if db.snapshot_exists(snapshot_id, cur):
             # empty snapshot
-            return {'id': snapshot_id, 'branches': {}}
+            return {
+                'id': snapshot_id,
+                'branches': {},
+                'next_branch': None
+            }
 
         return None
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get_by_origin_visit(self, origin, visit, db=None, cur=None):
-        """Get the snapshot for the given origin visit
+        """Get the content, possibly partial, of a snapshot for the given origin visit
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        .. warning:: At most 1000 branches contained in the snapshot will be
+            returned for performance reasons. In order to browse the whole
+            set of branches, the method :meth:`snapshot_get_branches`
+            should be used instead.
 
         Args:
-           origin (int): the origin identifier
-           visit (int): the visit identifier
+            origin (int): the origin identifier
+            visit (int): the visit identifier
         Returns:
-           dict: a snapshot with two keys:
-             id:: identifier for the snapshot
-             branches:: a dictionary containing the snapshot branch information
+            dict: a dict with three keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+                * **next_branch**: the name of the first branch not returned
+                  or :const:`None` if the snapshot has less than 1000
+                  branches.
 
         """
         snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
@@ -817,20 +823,32 @@ class Storage():
     @db_transaction(statement_timeout=2000)
     def snapshot_get_latest(self, origin, allowed_statuses=None, db=None,
                             cur=None):
-        """Get the latest snapshot for the given origin, optionally only from visits
-        that have one of the given allowed_statuses.
+        """Get the content, possibly partial, of the latest snapshot for the
+        given origin, optionally only from visits that have one of the given
+        allowed_statuses
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        .. warning:: At most 1000 branches contained in the snapshot will be
+            returned for performance reasons. In order to browse the whole
+            set of branches, the method :meth:`snapshot_get_branches`
+            should be used instead.
 
         Args:
             origin (int): the origin identifier
             allowed_statuses (list of str): list of visit statuses considered
-              to find the latest snapshot for the visit. For instance,
-              ``allowed_statuses=['full']`` will only consider visits that
-              have successfully run to completion.
-
+                to find the latest snapshot for the visit. For instance,
+                ``allowed_statuses=['full']`` will only consider visits that
+                have successfully run to completion.
         Returns:
-           dict: a snapshot with two keys:
-             id:: identifier for the snapshot
-             branches:: a dictionary containing the snapshot branch information
+            dict: a dict with three keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+                * **next_branch**: the name of the first branch not returned
+                  or :const:`None` if the snapshot has less than 1000
+                  branches.
         """
         origin_visit = db.origin_visit_get_latest_snapshot(
             origin, allowed_statuses=allowed_statuses, cur=cur)
@@ -838,30 +856,62 @@ class Storage():
             origin_visit = dict(zip(db.origin_visit_get_cols, origin_visit))
             return self.snapshot_get(origin_visit['snapshot'], db=db, cur=cur)
 
-    @db_transaction()
-    def occurrence_add(self, occurrences, db=None, cur=None):
-        """Add occurrences to the storage
+    @db_transaction(statement_timeout=2000)
+    def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
+        """Count the number of branches in the snapshot with the given id
 
         Args:
-            occurrences: iterable of dictionaries representing the individual
-                occurrences to add. Each dict has the following keys:
+            snapshot_id (bytes): identifier of the snapshot
 
-                - origin (int): id of the origin corresponding to the
-                  occurrence
-                - visit (int): id of the visit corresponding to the
-                  occurrence
-                - branch (str): the reference name of the occurrence
-                - target (sha1_git): the id of the object pointed to by
-                  the occurrence
-                - target_type (str): the type of object pointed to by the
-                  occurrence
-
+        Returns:
+            dict: A dict whose keys are the target types of branches and
+            values their corresponding amount
         """
-        db.mktemp_occurrence_history(cur)
-        db.copy_to(occurrences, 'tmp_occurrence_history',
-                   ['origin', 'branch', 'target', 'target_type', 'visit'], cur)
+        return dict([bc for bc in
+                     db.snapshot_count_branches(snapshot_id, cur)])
 
-        db.occurrence_history_add_from_temp(cur)
+    @db_transaction(statement_timeout=2000)
+    def snapshot_get_branches(self, snapshot_id, branches_from=b'',
+                              branches_count=None, target_types=None,
+                              db=None, cur=None):
+        """Get the content, possibly partial, of a snapshot with the given id
+
+        The branches of the snapshot are iterated in the lexicographical
+        order of their names.
+
+        Args:
+            snapshot_id (bytes): identifier of the snapshot
+            branches_from (bytes): optional parameter used to skip branches
+                whose name is lesser than it before returning them
+            branches_count (int): optional parameter used to restrain
+                the amount of returned branches
+            target_types (list): optional parameter used to filter the
+                target types of branch to return (possible values that can be
+                contained in that list are `'content', 'directory',
+                'revision', 'release', 'snapshot', 'alias'`)
+        Returns:
+            dict: a dict with two keys:
+                * **id**: identifier of the snapshot
+                * **branches**: a dict of branches contained in the snapshot
+                  whose keys are the branches' names.
+        """
+        branches = {}
+        for branch in db.snapshot_get_by_id(snapshot_id, branches_from,
+                                            branches_count, target_types, cur):
+            branch = dict(zip(db.snapshot_get_cols, branch))
+            del branch['snapshot_id']
+            name = branch.pop('name')
+            if branch == {'target': None, 'target_type': None}:
+                branch = None
+            branches[name] = branch
+
+        if branches:
+            return {'id': snapshot_id, 'branches': branches}
+
+        if db.snapshot_exists(snapshot_id, cur):
+            return {'id': snapshot_id, 'branches': {}}
+
+        return None
 
     @db_transaction()
     def origin_visit_add(self, origin, ts, db=None, cur=None):
@@ -942,37 +992,6 @@ class Storage():
 
         return dict(zip(db.origin_visit_get_cols, ori_visit))
 
-    @db_transaction_generator(statement_timeout=500)
-    def revision_get_by(self,
-                        origin_id,
-                        branch_name=None,
-                        timestamp=None,
-                        limit=None,
-                        db=None,
-                        cur=None):
-        """Given an origin_id, retrieve occurrences' list per given criterions.
-
-        Args:
-            origin_id: The origin to filter on.
-            branch_name: (optional) branch name.
-            timestamp: (optional) time.
-            limit: (optional) limit
-
-        Yields:
-            List of occurrences matching the criterions or None if nothing is
-            found.
-
-        """
-        for line in db.revision_get_by(origin_id, branch_name, timestamp,
-                                       limit=limit, cur=cur):
-            data = converters.db_to_revision(
-                dict(zip(db.revision_get_cols, line))
-            )
-            if not data['type']:
-                yield None
-                continue
-            yield data
-
     @db_transaction(statement_timeout=2000)
     def object_find_by_sha1_git(self, ids, db=None, cur=None):
         """Return the objects found with the given ids.
@@ -999,7 +1018,7 @@ class Storage():
 
         return ret
 
-    origin_keys = ['id', 'type', 'url', 'lister', 'project']
+    origin_keys = ['id', 'type', 'url']
 
     @db_transaction(statement_timeout=500)
     def origin_get(self, origin, db=None, cur=None):
@@ -1023,8 +1042,6 @@ class Storage():
             - id: origin's id
             - type: origin's type
             - url: origin's url
-            - lister: lister's uuid
-            - project: project's uuid (FIXME, retrieve this information)
 
         Raises:
             ValueError: if the keys does not match (url and type) nor id.
@@ -1173,113 +1190,6 @@ class Storage():
         """Get the fetch_history entry with id `fetch_history_id`.
         """
         return db.get_fetch_history(fetch_history_id, cur)
-
-    @db_transaction()
-    def entity_add(self, entities, db=None, cur=None):
-        """Add the given entitites to the database (in entity_history).
-
-        Args:
-            entities (iterable): iterable of dictionaries with the following
-                keys:
-
-                - uuid (uuid): id of the entity
-                - parent (uuid): id of the parent entity
-                - name (str): name of the entity
-                - type (str): type of entity (one of 'organization',
-                  'group_of_entities', 'hosting', 'group_of_persons', 'person',
-                  'project')
-                - description (str, optional): description of the entity
-                - homepage (str): url of the entity's homepage
-                - active (bool): whether the entity is active
-                - generated (bool): whether the entity was generated
-                - lister_metadata (dict): lister-specific entity metadata
-                - metadata (dict): other metadata for the entity
-                - validity (datetime.DateTime array): timestamps at which we
-                  listed the entity.
-
-        """
-        cols = list(db.entity_history_cols)
-        cols.remove('id')
-
-        db.mktemp_entity_history()
-        db.copy_to(entities, 'tmp_entity_history', cols, cur)
-        db.entity_history_add_from_temp()
-
-    @db_transaction_generator()
-    def entity_get_from_lister_metadata(self, entities, db=None, cur=None):
-        """Fetch entities from the database, matching with the lister and
-           associated metadata.
-
-        Args:
-            entities (iterable): dictionaries containing the lister metadata to
-               look for. Useful keys are 'lister', 'type', 'id', ...
-
-        Yields:
-            fetched entities with all their attributes. If no match was found,
-            the returned entity is None.
-
-        """
-
-        db.mktemp_entity_lister(cur)
-
-        mapped_entities = []
-        for i, entity in enumerate(entities):
-            mapped_entity = {
-                'id': i,
-                'lister_metadata': entity,
-            }
-            mapped_entities.append(mapped_entity)
-
-        db.copy_to(mapped_entities, 'tmp_entity_lister',
-                   ['id', 'lister_metadata'], cur)
-
-        cur.execute('''select id, %s
-                       from swh_entity_from_tmp_entity_lister()
-                       order by id''' %
-                    ','.join(db.entity_cols))
-
-        for id, *entity_vals in cur:
-            fetched_entity = dict(zip(db.entity_cols, entity_vals))
-            if fetched_entity['uuid']:
-                yield fetched_entity
-            else:
-                yield {
-                    'uuid': None,
-                    'lister_metadata': entities[i],
-                }
-
-    @db_transaction_generator(statement_timeout=2000)
-    def entity_get(self, uuid, db=None, cur=None):
-        """Returns the list of entity per its uuid identifier and also its
-        parent hierarchy.
-
-        Args:
-            uuid: entity's identifier
-
-        Returns:
-            List of entities starting with entity with uuid and the parent
-            hierarchy from such entity.
-
-        """
-        for entity in db.entity_get(uuid, cur):
-            yield dict(zip(db.entity_cols, entity))
-
-    @db_transaction(statement_timeout=500)
-    def entity_get_one(self, uuid, db=None, cur=None):
-        """Returns one entity using its uuid identifier.
-
-        Args:
-            uuid: entity's identifier
-
-        Returns:
-            the object corresponding to the given entity
-
-        """
-        entity = db.entity_get_one(uuid, cur)
-        if entity:
-            return dict(zip(db.entity_cols, entity))
-        else:
-            return None
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):
