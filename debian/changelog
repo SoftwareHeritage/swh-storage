@@ -1,3 +1,12 @@
+swh-storage (0.0.107-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.107
+  * Enable pagination of snapshot branches
+  * Drop occurrence-related tables
+  * Drop entity-related tables
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Wed, 17 Oct 2018 15:06:07 +0200
+
 swh-storage (0.0.106-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.106
