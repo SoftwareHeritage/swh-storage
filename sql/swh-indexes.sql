@@ -10,67 +10,12 @@ create unique index concurrently on content(object_id);
 alter table content add primary key using index content_pkey;
 
 
--- entity_history
-
-create unique index concurrently entity_history_pkey on entity_history(id);
-create index concurrently on entity_history(uuid);
-create index concurrently on entity_history(name);
-
-alter table entity_history add primary key using index entity_history_pkey;
-
--- entity
-
-create unique index concurrently entity_pkey on entity(uuid);
-
-create index concurrently on entity(name);
-create index concurrently on entity using gin(lister_metadata jsonb_path_ops);
-
-alter table entity add primary key using index entity_pkey;
-alter table entity add constraint entity_parent_fkey foreign key (parent) references entity(uuid) deferrable initially deferred not valid;
-alter table entity validate constraint entity_parent_fkey;
-alter table entity add constraint entity_last_id_fkey foreign key (last_id) references entity_history(id) not valid;
-alter table entity validate constraint entity_last_id_fkey;
-
--- entity_equivalence
-
-create unique index concurrently entity_equivalence_pkey on entity_equivalence(entity1, entity2);
-alter table entity_equivalence add primary key using index entity_equivalence_pkey;
-
-
-alter table entity_equivalence add constraint "entity_equivalence_entity1_fkey" foreign key (entity1) references entity(uuid) not valid;
-alter table entity_equivalence validate constraint entity_equivalence_entity1_fkey;
-alter table entity_equivalence add constraint "entity_equivalence_entity2_fkey" foreign key (entity2) references entity(uuid) not valid;
-alter table entity_equivalence validate constraint entity_equivalence_entity2_fkey;
-alter table entity_equivalence add constraint "order_entities" check (entity1 < entity2) not valid;
-alter table entity_equivalence validate constraint order_entities;
-
--- listable_entity
-
-create unique index concurrently listable_entity_pkey on listable_entity(uuid);
-alter table listable_entity add primary key using index listable_entity_pkey;
-
-alter table listable_entity add constraint listable_entity_uuid_fkey foreign key (uuid) references entity(uuid) not valid;
-alter table listable_entity validate constraint listable_entity_uuid_fkey;
-
--- list_history
-
-create unique index concurrently list_history_pkey on list_history(id);
-alter table list_history add primary key using index list_history_pkey;
-
-alter table list_history add constraint list_history_entity_fkey foreign key (entity) references listable_entity(uuid) not valid;
-alter table list_history validate constraint list_history_entity_fkey;
-
 -- origin
 create unique index concurrently origin_pkey on origin(id);
 alter table origin add primary key using index origin_pkey;
 
 create index concurrently on origin(type, url);
 
-alter table origin add constraint origin_lister_fkey foreign key (lister) references listable_entity(uuid) not valid;
-alter table origin validate constraint origin_lister_fkey;
-
-alter table origin add constraint origin_project_fkey foreign key (project) references entity(uuid) not valid;
-alter table origin validate constraint origin_project_fkey;
 
 -- skipped_content
 
@@ -192,17 +137,6 @@ alter table origin_visit validate constraint origin_visit_origin_fkey;
 
 alter table origin_visit add constraint origin_visit_snapshot_id_fkey foreign key (snapshot_id) references snapshot(object_id) not valid;
 alter table origin_visit validate constraint origin_visit_snapshot_id_fkey;
-
--- occurrence_history
-create unique index concurrently occurrence_history_pkey on occurrence_history(object_id);
-alter table occurrence_history add primary key using index occurrence_history_pkey;
-
-create index concurrently on occurrence_history(target, target_type);
-create index concurrently on occurrence_history(origin, branch);
-create unique index concurrently on occurrence_history(origin, branch, target, target_type);
-
-alter table occurrence_history add constraint occurrence_history_origin_fkey foreign key (origin) references origin(id) not valid;
-alter table occurrence_history validate constraint occurrence_history_origin_fkey;
 
 -- release
 create unique index concurrently release_pkey on release(id);

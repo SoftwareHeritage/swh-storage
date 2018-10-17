@@ -6,13 +6,11 @@
 import os
 import unittest
 
-from nose.tools import istest
 from nose.plugins.attrib import attr
 
 from swh.core.tests.db_testing import SingleDbTestFixture
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.db import Db
-
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
@@ -31,8 +29,7 @@ class TestDb(SingleDbTestFixture, unittest.TestCase):
         self.db.conn.close()
         super().tearDown()
 
-    @istest
-    def add_content(self):
+    def test_add_content(self):
         cur = self.cursor
         sha1 = hash_to_bytes('34973274ccef6ab4dfaaf86599792fa9c3fe4689')
         self.db.mktemp('content', cur)

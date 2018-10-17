@@ -59,15 +59,5 @@ class StorageTestFixture:
         super().tearDown()
 
     def reset_storage_tables(self):
-        excluded = {'dbversion', 'entity', 'entity_history', 'listable_entity',
-                    'tool'}
+        excluded = {'dbversion', 'tool'}
         self.reset_db_tables(self.TEST_STORAGE_DB_NAME, excluded=excluded)
-
-        db = self.test_db[self.TEST_STORAGE_DB_NAME]
-        conn = db.conn
-        cursor = db.cursor
-
-        cursor.execute('delete from entity where generated=true')
-        cursor.execute('delete from entity_history where generated=true')
-
-        conn.commit()

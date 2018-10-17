@@ -8,9 +8,9 @@ import tempfile
 import unittest
 
 from swh.core.tests.server_testing import ServerTestFixture
-from swh.storage.tests.test_storage import CommonTestStorage
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
+from swh.storage.tests.test_storage import CommonTestStorage
 
 
 class TestRemoteStorage(CommonTestStorage, ServerTestFixture,

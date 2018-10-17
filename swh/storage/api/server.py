@@ -141,21 +141,9 @@ def revision_get():
     return encode_data(get_storage().revision_get(**decode_request(request)))
 
 
-@app.route('/revision/by', methods=['POST'])
-def revision_get_by():
-    return encode_data(get_storage().revision_get_by(
-        **decode_request(request)))
-
-
 @app.route('/revision/log', methods=['POST'])
 def revision_log():
     return encode_data(get_storage().revision_log(**decode_request(request)))
-
-
-@app.route('/revision/logby', methods=['POST'])
-def revision_log_by():
-    return encode_data(get_storage().revision_log_by(
-        **decode_request(request)))
 
 
 @app.route('/revision/shortlog', methods=['POST'])
@@ -192,11 +180,6 @@ def object_find_by_sha1_git():
         **decode_request(request)))
 
 
-@app.route('/occurrence/add', methods=['POST'])
-def occurrence_add():
-    return encode_data(get_storage().occurrence_add(**decode_request(request)))
-
-
 @app.route('/snapshot/add', methods=['POST'])
 def snapshot_add():
     return encode_data(get_storage().snapshot_add(**decode_request(request)))
@@ -216,6 +199,18 @@ def snapshot_get_by_origin_visit():
 @app.route('/snapshot/latest', methods=['POST'])
 def snapshot_get_latest():
     return encode_data(get_storage().snapshot_get_latest(
+        **decode_request(request)))
+
+
+@app.route('/snapshot/count_branches', methods=['POST'])
+def snapshot_count_branches():
+    return encode_data(get_storage().snapshot_count_branches(
+        **decode_request(request)))
+
+
+@app.route('/snapshot/get_branches', methods=['POST'])
+def snapshot_get_branches():
+    return encode_data(get_storage().snapshot_get_branches(
         **decode_request(request)))
 
 
