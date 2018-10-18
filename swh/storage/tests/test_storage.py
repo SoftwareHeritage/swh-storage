@@ -20,11 +20,11 @@ from swh.storage.tests.storage_testing import StorageTestFixture
 
 
 @attr('db')
-class BaseTestStorage(StorageTestFixture, DbTestFixture):
+class BaseTestStorage(StorageTestFixture):
     def setUp(self):
         super().setUp()
 
-        db = self.test_db[self.TEST_STORAGE_DB_NAME]
+        db = self.test_db[self.TEST_DB_NAME]
         self.conn = db.conn
         self.cursor = db.cursor
 
@@ -1215,35 +1215,48 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
 
         snp_id = self.complete_snapshot['id']
+        branches = self.complete_snapshot['branches']
+        branch_names = list(sorted(branches))
 
         snapshot = self.storage.snapshot_get_branches(snp_id,
                                                       branches_from=b'release')
 
-        expected_snapshot = copy.deepcopy(self.complete_snapshot)
-        del expected_snapshot['next_branch']
-        for name in [b'alias', b'content', b'dangling', b'directory']:
-            del expected_snapshot['branches'][name]
+        rel_idx = branch_names.index(b'release')
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                name: branches[name]
+                for name in branch_names[rel_idx:]
+            },
+            'next_branch': None,
+        }
 
         self.assertEqual(snapshot, expected_snapshot)
 
         snapshot = self.storage.snapshot_get_branches(snp_id,
                                                       branches_count=1)
 
-        expected_snapshot = copy.deepcopy(self.complete_snapshot)
-        del expected_snapshot['next_branch']
-        for name in [b'content', b'dangling', b'directory',
-                     b'release', b'revision', b'snapshot']:
-            del expected_snapshot['branches'][name]
-
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                 branch_names[0]: branches[branch_names[0]],
+            },
+            'next_branch': b'content',
+        }
         self.assertEqual(snapshot, expected_snapshot)
 
         snapshot = self.storage.snapshot_get_branches(
             snp_id, branches_from=b'directory', branches_count=3)
 
-        expected_snapshot = copy.deepcopy(self.complete_snapshot)
-        del expected_snapshot['next_branch']
-        for name in [b'alias', b'content', b'dangling', b'snapshot']:
-            del expected_snapshot['branches'][name]
+        dir_idx = branch_names.index(b'directory')
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                name: branches[name]
+                for name in branch_names[dir_idx:dir_idx + 3]
+            },
+            'next_branch': branch_names[dir_idx + 3],
+        }
 
         self.assertEqual(snapshot, expected_snapshot)
 
@@ -1256,26 +1269,35 @@ class CommonTestStorage(BaseTestStorage):
         self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
 
         snp_id = self.complete_snapshot['id']
+        branches = self.complete_snapshot['branches']
 
         snapshot = self.storage.snapshot_get_branches(
             snp_id, target_types=['release', 'revision'])
 
-        expected_snapshot = copy.deepcopy(self.complete_snapshot)
-        del expected_snapshot['next_branch']
-        for name in [b'alias', b'content', b'dangling', b'directory',
-                     b'snapshot']:
-            del expected_snapshot['branches'][name]
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                name: tgt
+                for name, tgt in branches.items()
+                if tgt and tgt['target_type'] in ['release', 'revision']
+            },
+            'next_branch': None,
+        }
 
         self.assertEqual(snapshot, expected_snapshot)
 
         snapshot = self.storage.snapshot_get_branches(snp_id,
                                                       target_types=['alias'])
 
-        expected_snapshot = copy.deepcopy(self.complete_snapshot)
-        del expected_snapshot['next_branch']
-        for name in [b'content', b'dangling', b'directory', b'release',
-                     b'revision', b'snapshot']:
-            del expected_snapshot['branches'][name]
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                name: tgt
+                for name, tgt in branches.items()
+                if tgt and tgt['target_type'] == 'alias'
+            },
+            'next_branch': None,
+        }
 
         self.assertEqual(snapshot, expected_snapshot)
 

@@ -3,30 +3,43 @@
 DBNAME = softwareheritage-dev
 DOCDIR = autodoc
 
-SQL_INIT    = swh-init.sql
-SQL_ENUMS   = swh-enums.sql
-SQL_SCHEMA  = swh-schema.sql
-SQL_FUNC    = swh-func.sql
-SQL_INDEX   = swh-indexes.sql
-SQL_TRIGGER = swh-triggers.sql
+SQL_INIT    = 10-swh-init.sql
+SQL_ENUMS   = 20-swh-enums.sql
+SQL_SCHEMA  = 30-swh-schema.sql
+SQL_FUNC    = 40-swh-func.sql
+SQL_INDEX   = 60-swh-indexes.sql
+SQL_TRIGGER = 70-swh-triggers.sql
 SQLS = $(SQL_INIT) $(SQL_ENUMS) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_INDEX) $(SQL_TRIGGER)
+SQL_FILES = $(abspath $(addprefix $(CURDIR)/../swh/storage/sql/,$(SQLS)))
 
 PSQL_BIN = psql
 PSQL_FLAGS = --echo-all -X -v ON_ERROR_STOP=1
 PSQL = $(PSQL_BIN) $(PSQL_FLAGS)
 
+PIFPAF=$(findstring postgresql://,$(PIFPAF_URLS))
+
 all:
 
 createdb: createdb-stamp
-createdb-stamp: $(SQL_INIT)
+createdb-stamp: $(SQL_FILES)
+ifndef PIFPAF
 	-dropdb $(DBNAME)
+endif
 	createdb $(DBNAME)
+ifndef PIFPAF
 	touch $@
+else
+	rm -f $@
+endif
 
 filldb: filldb-stamp
 filldb-stamp: createdb-stamp
-	cat $(SQLS) | $(PSQL) $(DBNAME)
+	cat $(SQL_FILES) | $(PSQL) $(DBNAME)
+ifndef PIFPAF
 	touch $@
+else
+	rm -f $@
+endif
 
 dropdb:
 	-dropdb $(DBNAME)
@@ -42,7 +55,11 @@ doc: autodoc-stamp $(DOCDIR)/db-schema.pdf $(DOCDIR)/db-schema.svg
 autodoc-stamp: filldb-stamp $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/db-schema
 	cp -a $(DOCDIR)/db-schema.dot $(DOCDIR)/db-schema.dot.orig
+ifndef PIFPAF
 	touch $@
+else
+	rm -f $@
+endif
 
 $(DOCDIR)/db-schema.dot: clusters.dot autodoc-stamp $(DOCDIR)
 	bin/dot_add_content $(DOCDIR)/db-schema.dot.orig clusters.dot > $(DOCDIR)/db-schema.dot
