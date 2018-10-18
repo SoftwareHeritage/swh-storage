@@ -33,7 +33,7 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
             'storage': {
                 'cls': 'local',
                 'args': {
-                    'db': 'dbname=%s' % self.TEST_STORAGE_DB_NAME,
+                    'db': 'dbname=%s' % self.TEST_DB_NAME,
                     'objstorage': {
                         'cls': 'pathslicing',
                         'args': {

@@ -11,15 +11,13 @@ from nose.plugins.attrib import attr
 from swh.core.tests.db_testing import SingleDbTestFixture
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.db import Db
-
-TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-TEST_DATA_DIR = os.path.join(TEST_DIR, '../../../../swh-storage-testdata')
+from . import SQL_DIR
 
 
 @attr('db')
 class TestDb(SingleDbTestFixture, unittest.TestCase):
-
-    TEST_DB_DUMP = os.path.join(TEST_DATA_DIR, 'dumps/swh.dump')
+    TEST_DB_NAME = 'softwareheritage-test-storage'
+    TEST_DB_DUMP = os.path.join(SQL_DIR, '*.sql')
 
     def setUp(self):
         super().setUp()

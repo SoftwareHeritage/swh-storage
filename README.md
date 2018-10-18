@@ -23,13 +23,10 @@ sufficient privileges to a Postgresql database.
 
 ### Using your system database
 
-You need to:
+You need to ensure that your user is authorized to create and drop DBs, and in
+particular DBs named "softwareheritage-test" and "softwareheritage-dev"
 
-- ensure that your user is authorized to create and drop DBs, and in particular
-  DBs named "softwareheritage-test" and "softwareheritage-dev"
-
-- ensure that you have the storage testdata repository checked out in
-  ../swh-storage-testdata
+Note: the testdata repository (swh-storage-testdata) is not required any more.
 
 ### Using pifpaf
 

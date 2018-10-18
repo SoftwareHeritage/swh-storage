@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.storage
-Version: 0.0.107
+Version: 0.0.108
 Summary: Software Heritage storage manager
 Home-page: https://forge.softwareheritage.org/diffusion/DSTO/
 Author: Software Heritage developers
@@ -34,13 +34,10 @@ Description: swh-storage
         
         ### Using your system database
         
-        You need to:
+        You need to ensure that your user is authorized to create and drop DBs, and in
+        particular DBs named "softwareheritage-test" and "softwareheritage-dev"
         
-        - ensure that your user is authorized to create and drop DBs, and in particular
-          DBs named "softwareheritage-test" and "softwareheritage-dev"
-        
-        - ensure that you have the storage testdata repository checked out in
-          ../swh-storage-testdata
+        Note: the testdata repository (swh-storage-testdata) is not required any more.
         
         ### Using pifpaf
         
