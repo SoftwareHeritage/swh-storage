@@ -1,3 +1,10 @@
+swh-storage (0.0.108-1~swh1) unstable-swh; urgency=medium
+
+  * Release swh.storage v0.0.108
+  * Add a function to get a full snapshot from the paginated view
+
+ -- Nicolas Dandrimont <nicolas@dandrimont.eu>  Thu, 18 Oct 2018 18:32:10 +0200
+
 swh-storage (0.0.107-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.107
