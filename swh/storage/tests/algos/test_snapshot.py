@@ -104,7 +104,7 @@ class TestSnapshotAllBranches(StorageTestFixture, unittest.TestCase):
 
         returned_snapshot = snapshot_get_all_branches(self.storage,
                                                       snapshot['id'])
-        self.assertEquals(snapshot, returned_snapshot)
+        self.assertEqual(snapshot, returned_snapshot)
 
     @settings(max_examples=5, deadline=1000)
     @given(origins(), datetimes(),
@@ -125,4 +125,4 @@ class TestSnapshotAllBranches(StorageTestFixture, unittest.TestCase):
 
         returned_snapshot = snapshot_get_all_branches(self.storage,
                                                       snapshot['id'])
-        self.assertEquals(snapshot, returned_snapshot)
+        self.assertEqual(snapshot, returned_snapshot)

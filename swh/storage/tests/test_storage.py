@@ -581,7 +581,7 @@ class CommonTestStorage(BaseTestStorage):
 
         datums = self.cursor.fetchall()
 
-        self.assertEquals(2, len(datums))
+        self.assertEqual(2, len(datums))
         datum = datums[0]
         self.assertEqual(
             (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
@@ -782,10 +782,10 @@ class CommonTestStorage(BaseTestStorage):
             del actual_result['committer']['id']
 
         self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
-        self.assertEquals(actual_results[0],
-                          self.normalize_entity(self.revision4))
-        self.assertEquals(actual_results[1],
-                          self.normalize_entity(self.revision3))
+        self.assertEqual(actual_results[0],
+                         self.normalize_entity(self.revision4))
+        self.assertEqual(actual_results[1],
+                         self.normalize_entity(self.revision3))
 
     def test_revision_log_with_limit(self):
         # given
@@ -801,7 +801,7 @@ class CommonTestStorage(BaseTestStorage):
             del actual_result['committer']['id']
 
         self.assertEqual(len(actual_results), 1)
-        self.assertEquals(actual_results[0], self.revision4)
+        self.assertEqual(actual_results[0], self.revision4)
 
     @staticmethod
     def _short_revision(revision):
@@ -818,10 +818,10 @@ class CommonTestStorage(BaseTestStorage):
             [self.revision4['id']]))
 
         self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
-        self.assertEquals(list(actual_results[0]),
-                          self._short_revision(self.revision4))
-        self.assertEquals(list(actual_results[1]),
-                          self._short_revision(self.revision3))
+        self.assertEqual(list(actual_results[0]),
+                         self._short_revision(self.revision4))
+        self.assertEqual(list(actual_results[1]),
+                         self._short_revision(self.revision3))
 
     def test_revision_shortlog_with_limit(self):
         # given
@@ -832,8 +832,8 @@ class CommonTestStorage(BaseTestStorage):
             [self.revision4['id']], 1))
 
         self.assertEqual(len(actual_results), 1)
-        self.assertEquals(list(actual_results[0]),
-                          self._short_revision(self.revision4))
+        self.assertEqual(list(actual_results[0]),
+                         self._short_revision(self.revision4))
 
     def test_revision_get(self):
         self.storage.revision_add([self.revision])
@@ -882,9 +882,9 @@ class CommonTestStorage(BaseTestStorage):
         for actual_release in actual_releases:
             del actual_release['author']['id']  # hack: ids are generated
 
-        self.assertEquals([self.normalize_entity(self.release),
-                           self.normalize_entity(self.release2)],
-                          [actual_releases[0], actual_releases[1]])
+        self.assertEqual([self.normalize_entity(self.release),
+                          self.normalize_entity(self.release2)],
+                         [actual_releases[0], actual_releases[1]])
 
     def test_origin_add_one(self):
         origin0 = self.storage.origin_get(self.origin)
@@ -1009,20 +1009,20 @@ class CommonTestStorage(BaseTestStorage):
             ts=self.date_visit2)
 
         # then
-        self.assertEquals(origin_visit1['origin'], origin_id)
+        self.assertEqual(origin_visit1['origin'], origin_id)
         self.assertIsNotNone(origin_visit1['visit'])
         self.assertTrue(origin_visit1['visit'] > 0)
 
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(actual_origin_visits,
-                          [{
-                              'origin': origin_id,
-                              'date': self.date_visit2,
-                              'visit': origin_visit1['visit'],
-                              'status': 'ongoing',
-                              'metadata': None,
-                              'snapshot': None,
-                          }])
+        self.assertEqual(actual_origin_visits,
+                         [{
+                             'origin': origin_id,
+                             'date': self.date_visit2,
+                             'visit': origin_visit1['visit'],
+                             'status': 'ongoing',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
 
     def test_origin_visit_update(self):
         # given
@@ -1054,7 +1054,7 @@ class CommonTestStorage(BaseTestStorage):
 
         # then
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEquals(actual_origin_visits, [{
+        self.assertEqual(actual_origin_visits, [{
             'origin': origin_visit2['origin'],
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
@@ -1072,38 +1072,38 @@ class CommonTestStorage(BaseTestStorage):
 
         actual_origin_visits_bis = list(self.storage.origin_visit_get(
             origin_id, limit=1))
-        self.assertEquals(actual_origin_visits_bis,
-                          [{
-                              'origin': origin_visit2['origin'],
-                              'date': self.date_visit2,
-                              'visit': origin_visit1['visit'],
-                              'status': 'full',
-                              'metadata': visit1_metadata,
-                              'snapshot': None,
-                          }])
+        self.assertEqual(actual_origin_visits_bis,
+                         [{
+                             'origin': origin_visit2['origin'],
+                             'date': self.date_visit2,
+                             'visit': origin_visit1['visit'],
+                             'status': 'full',
+                             'metadata': visit1_metadata,
+                             'snapshot': None,
+                         }])
 
         actual_origin_visits_ter = list(self.storage.origin_visit_get(
             origin_id, last_visit=origin_visit1['visit']))
-        self.assertEquals(actual_origin_visits_ter,
-                          [{
-                              'origin': origin_visit2['origin'],
-                              'date': self.date_visit3,
-                              'visit': origin_visit2['visit'],
-                              'status': 'ongoing',
-                              'metadata': None,
-                              'snapshot': None,
-                          }])
+        self.assertEqual(actual_origin_visits_ter,
+                         [{
+                             'origin': origin_visit2['origin'],
+                             'date': self.date_visit3,
+                             'visit': origin_visit2['visit'],
+                             'status': 'ongoing',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
 
         actual_origin_visits2 = list(self.storage.origin_visit_get(origin_id2))
-        self.assertEquals(actual_origin_visits2,
-                          [{
-                              'origin': origin_visit3['origin'],
-                              'date': self.date_visit3,
-                              'visit': origin_visit3['visit'],
-                              'status': 'partial',
-                              'metadata': None,
-                              'snapshot': None,
-                          }])
+        self.assertEqual(actual_origin_visits2,
+                         [{
+                             'origin': origin_visit3['origin'],
+                             'date': self.date_visit3,
+                             'visit': origin_visit3['visit'],
+                             'status': 'partial',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
 
     def test_origin_visit_get_by(self):
         origin_id = self.storage.origin_add_one(self.origin2)
@@ -1145,7 +1145,7 @@ class CommonTestStorage(BaseTestStorage):
             origin_visit1['origin'], origin_visit1['visit'])
 
         # then
-        self.assertEquals(actual_origin_visit1, expected_origin_visit)
+        self.assertEqual(actual_origin_visit1, expected_origin_visit)
 
     def test_origin_visit_get_by_no_result(self):
         # No result
@@ -1365,8 +1365,8 @@ class CommonTestStorage(BaseTestStorage):
 
         # Add snapshot to visit1, latest snapshot = visit 1 snapshot
         self.storage.snapshot_add(origin_id, visit1_id, self.complete_snapshot)
-        self.assertEquals(self.complete_snapshot,
-                          self.storage.snapshot_get_latest(origin_id))
+        self.assertEqual(self.complete_snapshot,
+                         self.storage.snapshot_get_latest(origin_id))
 
         # Status filter: both visits are status=ongoing, so no snapshot
         # returned
@@ -1377,7 +1377,7 @@ class CommonTestStorage(BaseTestStorage):
 
         # Mark the first visit as completed and check status filter again
         self.storage.origin_visit_update(origin_id, visit1_id, status='full')
-        self.assertEquals(
+        self.assertEqual(
             self.complete_snapshot,
             self.storage.snapshot_get_latest(origin_id,
                                              allowed_statuses=['full']),
@@ -1385,11 +1385,11 @@ class CommonTestStorage(BaseTestStorage):
 
         # Add snapshot to visit2 and check that the new snapshot is returned
         self.storage.snapshot_add(origin_id, visit2_id, self.empty_snapshot)
-        self.assertEquals(self.empty_snapshot,
-                          self.storage.snapshot_get_latest(origin_id))
+        self.assertEqual(self.empty_snapshot,
+                         self.storage.snapshot_get_latest(origin_id))
 
         # Check that the status filter is still working
-        self.assertEquals(
+        self.assertEqual(
             self.complete_snapshot,
             self.storage.snapshot_get_latest(origin_id,
                                              allowed_statuses=['full']),
@@ -1560,11 +1560,11 @@ class CommonTestStorage(BaseTestStorage):
         # add it
         actual_tools = list(self.storage.tool_add([tool]))
 
-        self.assertEquals(len(actual_tools), 1)
+        self.assertEqual(len(actual_tools), 1)
         actual_tool = actual_tools[0]
         self.assertIsNotNone(actual_tool)  # now it exists
         new_id = actual_tool.pop('id')
-        self.assertEquals(actual_tool, tool)
+        self.assertEqual(actual_tool, tool)
 
         actual_tools2 = list(self.storage.tool_add([tool]))
         actual_tool2 = actual_tools2[0]

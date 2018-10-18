@@ -18,7 +18,7 @@ class TestConverters(unittest.TestCase):
             1, b'fullname', b'name', b'email')
 
         # then
-        self.assertEquals(actual_author, {
+        self.assertEqual(actual_author, {
             'id': 1,
             'fullname': b'fullname',
             'name': b'name',
@@ -52,7 +52,7 @@ class TestConverters(unittest.TestCase):
         })
 
         # then
-        self.assertEquals(actual_revision, {
+        self.assertEqual(actual_revision, {
             'id': 'revision-id',
             'author': {
                 'id': 'auth-id',
@@ -95,7 +95,7 @@ class TestConverters(unittest.TestCase):
         })
 
         # then
-        self.assertEquals(actual_release, {
+        self.assertEqual(actual_release, {
             'author': {
                 'id': 'auth-id',
                 'fullname': b'auth-fullname',
@@ -119,4 +119,4 @@ class TestConverters(unittest.TestCase):
 
         db_data = converters.git_headers_to_db(raw_data)
         loop = converters.db_to_git_headers(db_data)
-        self.assertEquals(raw_data, loop)
+        self.assertEqual(raw_data, loop)
