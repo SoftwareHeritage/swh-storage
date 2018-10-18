@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 import psycopg2
 from nose.plugins.attrib import attr
 
-from swh.core.tests.db_testing import DbTestFixture
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture

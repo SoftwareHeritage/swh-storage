@@ -16,6 +16,7 @@ def author_date_to_notnegutc(rev):
 def author_date_to_negutc(rev):
     rev['date']['negative_utc'] = True
 
+
 DATE_NEGUTC_FIX = ('set author negutc', [
     (None, None),
     (author_date_to_negutc, 'date_neg_utcoffset = true'),
@@ -29,6 +30,7 @@ def committer_date_to_notnegutc(rev):
 def committer_date_to_negutc(rev):
     rev['committer_date']['negative_utc'] = True
 
+
 COMMITTER_DATE_NEGUTC_FIX = ('set committer negutc', [
     (None, None),
     (committer_date_to_negutc, 'committer_date_neg_utcoffset = true'),
@@ -38,6 +40,7 @@ COMMITTER_DATE_NEGUTC_FIX = ('set committer negutc', [
 def message_to_empty(rev):
     rev['message'] = b''
 
+
 MESSAGE_EMPTY_FIX = ('empty instead of null message', [
     (None, None),
     (message_to_empty, "message = ''"),
@@ -46,6 +49,7 @@ MESSAGE_EMPTY_FIX = ('empty instead of null message', [
 
 def message_to_null(rev):
     rev['message'] = None
+
 
 MESSAGE_NULL_FIX = ('null instead of empty message', [
     (None, None),
@@ -88,6 +92,7 @@ MESSAGE_ADD_NL_START_FIX = ('add newline to start of message', [
 def author_name_doublespace(rev):
     rev['author']['name'] = b''.join([rev['author']['name'], b' '])
 
+
 AUTHOR_NAME_ADD_SPC_FIX = ('author double space', [
     (None, None),
     (author_name_doublespace, 'trailing space author name')
@@ -96,6 +101,7 @@ AUTHOR_NAME_ADD_SPC_FIX = ('author double space', [
 
 def committer_name_doublespace(rev):
     rev['committer']['name'] = b''.join([rev['committer']['name'], b' '])
+
 
 COMMITTER_NAME_ADD_SPC_FIX = ('committer double space', [
     (None, None),
@@ -106,6 +112,7 @@ COMMITTER_NAME_ADD_SPC_FIX = ('committer double space', [
 def author_name_null(rev):
     rev['author']['name'] = None
 
+
 AUTHOR_NAME_NULL_FIX = ('author name null', [
     (None, None),
     (author_name_null, 'None author name')
@@ -114,6 +121,7 @@ AUTHOR_NAME_NULL_FIX = ('author name null', [
 
 def author_email_null(rev):
     rev['author']['email'] = None
+
 
 AUTHOR_EMAIL_NULL_FIX = ('author email null', [
     (None, None),
@@ -124,6 +132,7 @@ AUTHOR_EMAIL_NULL_FIX = ('author email null', [
 def committer_name_null(rev):
     rev['committer']['name'] = None
 
+
 COMMITTER_NAME_NULL_FIX = ('committer name null', [
     (None, None),
     (committer_name_null, 'None committer name')
@@ -132,6 +141,7 @@ COMMITTER_NAME_NULL_FIX = ('committer name null', [
 
 def committer_email_null(rev):
     rev['committer']['email'] = None
+
 
 COMMITTER_EMAIL_NULL_FIX = ('committer email null', [
     (None, None),
@@ -143,6 +153,7 @@ def author_add_spc(rev):
     rev['author'] = b''.join([
         identifiers.normalize_author(rev['author']), b' '])
 
+
 AUTHOR_ADD_SPC_FIX = ('add trailing space to author specification', [
     (None, None),
     (author_add_spc, 'add trailing space to author spec')
@@ -152,6 +163,7 @@ AUTHOR_ADD_SPC_FIX = ('add trailing space to author specification', [
 def committer_add_spc(rev):
     rev['committer'] = b''.join([
         identifiers.normalize_author(rev['committer']), b' '])
+
 
 COMMITTER_ADD_SPC_FIX = ('add trailing space to committer specification', [
     (None, None),
@@ -223,6 +235,7 @@ def fix_revision(revision):
             return id, sql_fixups
     else:
         return id, []
+
 
 if __name__ == '__main__':
 
