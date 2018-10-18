@@ -3,36 +3,30 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import tempfile
-import pathlib
 
 from swh.storage import get_storage
 
+from swh.core.tests.db_testing import SingleDbTestFixture
+from swh.storage.tests import SQL_DIR
 
-class StorageTestFixture:
+
+class StorageTestFixture(SingleDbTestFixture):
     """Mix this in a test subject class to get Storage testing support.
 
-    This fixture requires to come before DbTestFixture in the inheritance list
-    as it uses its methods to setup its own internal database.
+    This fixture requires to come before SingleDbTestFixture in the
+    inheritance list as it uses its methods to setup its own
+    internal database.
 
     Usage example:
 
-        class TestStorage(StorageTestFixture, DbTestFixture):
+        class MyTestStorage(StorageTestFixture, unittest.TestCase):
             ...
+
     """
-    TEST_STORAGE_DB_NAME = 'softwareheritage-test-storage'
-
-    @classmethod
-    def setUpClass(cls):
-        if not hasattr(cls, 'DB_TEST_FIXTURE_IMPORTED'):
-            raise RuntimeError("StorageTestFixture needs to be followed by "
-                               "DbTestFixture in the inheritance list.")
-
-        test_dir = pathlib.Path(__file__).absolute().parent
-        test_data_dir = test_dir / '../../../../swh-storage-testdata'
-        test_db_dump = (test_data_dir / 'dumps/swh.dump').absolute()
-        cls.add_db(cls.TEST_STORAGE_DB_NAME, str(test_db_dump), 'pg_dump')
-        super().setUpClass()
+    TEST_DB_NAME = 'softwareheritage-test-storage'
+    TEST_DB_DUMP = os.path.join(SQL_DIR, '*.sql')
 
     def setUp(self):
         super().setUp()
@@ -41,7 +35,7 @@ class StorageTestFixture:
         self.storage_config = {
             'cls': 'local',
             'args': {
-                'db': 'dbname=%s' % self.TEST_STORAGE_DB_NAME,
+                'db': 'dbname=%s' % self.TEST_DB_NAME,
                 'objstorage': {
                     'cls': 'pathslicing',
                     'args': {
@@ -60,4 +54,4 @@ class StorageTestFixture:
 
     def reset_storage_tables(self):
         excluded = {'dbversion', 'tool'}
-        self.reset_db_tables(self.TEST_STORAGE_DB_NAME, excluded=excluded)
+        self.reset_db_tables(self.TEST_DB_NAME, excluded=excluded)

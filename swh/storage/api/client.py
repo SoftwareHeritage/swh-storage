@@ -108,7 +108,7 @@ class RemoteStorage(SWHRemoteAPI):
         })
 
     def snapshot_get_branches(self, snapshot_id, branches_from=b'',
-                              branches_count=None, target_types=None):
+                              branches_count=1000, target_types=None):
         return self.post('snapshot/get_branches', {
             'snapshot_id': snapshot_id,
             'branches_from': branches_from,
