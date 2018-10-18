@@ -5,12 +5,9 @@
 
 import unittest
 
-from nose.plugins.attrib import attr
-
 from swh.storage import converters
 
 
-@attr('!db')
 class TestConverters(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None

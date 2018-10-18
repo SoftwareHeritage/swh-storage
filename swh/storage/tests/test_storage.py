@@ -11,14 +11,14 @@ from operator import itemgetter
 from unittest.mock import Mock, patch
 
 import psycopg2
-from nose.plugins.attrib import attr
+import pytest
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture
 
 
-@attr('db')
+@pytest.mark.db
 class BaseTestStorage(StorageTestFixture):
     def setUp(self):
         super().setUp()

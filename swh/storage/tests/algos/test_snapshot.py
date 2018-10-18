@@ -5,7 +5,7 @@
 
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
 from hypothesis import given, settings
 from hypothesis.strategies import (binary, composite, datetimes, dictionaries,
@@ -93,7 +93,7 @@ def origins(draw):
     }
 
 
-@attr('db')
+@pytest.mark.db
 class TestSnapshotAllBranches(StorageTestFixture, unittest.TestCase):
     @given(origins(), datetimes(), snapshots(min_size=0, max_size=10,
                                              only_objects=False))

@@ -6,7 +6,7 @@
 import os
 import unittest
 
-from nose.plugins.attrib import attr
+import pytest
 
 from swh.core.tests.db_testing import SingleDbTestFixture
 from swh.model.hashutil import hash_to_bytes
@@ -14,7 +14,7 @@ from swh.storage.db import Db
 from . import SQL_DIR
 
 
-@attr('db')
+@pytest.mark.db
 class TestDb(SingleDbTestFixture, unittest.TestCase):
     TEST_DB_NAME = 'softwareheritage-test-storage'
     TEST_DB_DUMP = os.path.join(SQL_DIR, '*.sql')
