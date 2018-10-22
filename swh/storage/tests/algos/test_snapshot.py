@@ -106,7 +106,7 @@ class TestSnapshotAllBranches(StorageTestFixture, unittest.TestCase):
                                                       snapshot['id'])
         self.assertEqual(snapshot, returned_snapshot)
 
-    @settings(max_examples=5, deadline=1000)
+    @settings(max_examples=5, deadline=5000)
     @given(origins(), datetimes(),
            branch_names(), branch_targets(only_objects=True))
     def test_snapshot_large(self, origin, ts, branch_name, branch_target):
