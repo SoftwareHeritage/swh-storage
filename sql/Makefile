@@ -13,7 +13,7 @@ SQLS = $(SQL_INIT) $(SQL_ENUMS) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_INDEX) $(SQL_TRI
 SQL_FILES = $(abspath $(addprefix $(CURDIR)/../swh/storage/sql/,$(SQLS)))
 
 PSQL_BIN = psql
-PSQL_FLAGS = --echo-all -X -v ON_ERROR_STOP=1
+PSQL_FLAGS = --echo-errors -X -v ON_ERROR_STOP=1
 PSQL = $(PSQL_BIN) $(PSQL_FLAGS)
 
 PIFPAF=$(findstring postgresql://,$(PIFPAF_URLS))
