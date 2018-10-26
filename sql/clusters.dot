@@ -37,8 +37,6 @@ subgraph "logical_grouping" {
 
 	subgraph cluster_snapshots {
 		label = <<b>snapshots</b>>;
-		occurrence;
-		occurrence_history;
 		snapshot;
 		snapshot_branch;
 		snapshot_branches;
