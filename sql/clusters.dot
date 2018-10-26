@@ -67,6 +67,10 @@ subgraph "logical_grouping" {
 
 		# "rtcolN" identifies the N-th row in a table, as a source
 		# "ltcolN" identifies the N-th row in a table, as a destination
+		"snapshot_branch":rtcol3 -> "release":ltcol1;
+		"snapshot_branch":rtcol3 -> "revision":ltcol1;
+		"snapshot_branch":rtcol3 -> "directory":ltcol1;
+		"snapshot_branch":rtcol3 -> "content":ltcol2;
 		"directory_entry_dir":rtcol2 -> "directory":ltcol1;
 		"directory_entry_file":rtcol2 -> "content":ltcol2;
 		"directory_entry_file":rtcol2 -> "skipped_content":ltcol2;
