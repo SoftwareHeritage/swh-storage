@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import warnings
 
 from swh.core.api import SWHRemoteAPI
 
@@ -133,8 +134,17 @@ class RemoteStorage(SWHRemoteAPI):
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
-    def origin_visit_add(self, origin, ts):
-        return self.post('origin/visit/add', {'origin': origin, 'ts': ts})
+    def origin_visit_add(self, origin, date, *, ts=None):
+        if ts is None:
+            if date is None:
+                raise TypeError('origin_visit_add expected 2 arguments.')
+        else:
+            assert date is None
+            warnings.warn("argument 'ts' of origin_visit_add was renamed "
+                          "to 'date' in v0.0.109.",
+                          DeprecationWarning)
+            date = ts
+        return self.post('origin/visit/add', {'origin': origin, 'date': date})
 
     def origin_visit_update(self, origin, visit_id, status, metadata=None):
         return self.post('origin/visit/update', {'origin': origin,

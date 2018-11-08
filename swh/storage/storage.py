@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 import itertools
 import json
+import warnings
 
 import dateutil.parser
 import psycopg2
@@ -898,12 +899,13 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, ts, db=None, cur=None):
+    def origin_visit_add(self, origin, date=None, db=None, cur=None, *,
+                         ts=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         Args:
             origin: Visited Origin id
-            ts: timestamp of such visit
+            date: timestamp of such visit
 
         Returns:
             dict: dictionary with keys origin and visit where:
@@ -913,12 +915,22 @@ class Storage():
             - ts (datetime.DateTime): the visit date
 
         """
-        if isinstance(ts, str):
-            ts = dateutil.parser.parse(ts)
+        if ts is None:
+            if date is None:
+                raise TypeError('origin_visit_add expected 2 arguments.')
+        else:
+            assert date is None
+            warnings.warn("argument 'ts' of origin_visit_add was renamed "
+                          "to 'date' in v0.0.109.",
+                          DeprecationWarning)
+            date = ts
+
+        if isinstance(date, str):
+            date = dateutil.parser.parse(date)
 
         return {
             'origin': origin,
-            'visit': db.origin_visit_add(origin, ts, cur)
+            'visit': db.origin_visit_add(origin, date, cur)
         }
 
     @db_transaction()
@@ -967,7 +979,8 @@ class Storage():
             origin: The occurrence's origin (identifier).
 
         Returns:
-            The information on that particular (origin, visit)
+            The information on that particular (origin, visit) or None if
+            it does not exist
 
         """
         ori_visit = db.origin_visit_get(origin, visit, cur)

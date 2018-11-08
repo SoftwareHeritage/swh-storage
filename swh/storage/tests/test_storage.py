@@ -1006,7 +1006,7 @@ class CommonTestStorage(BaseTestStorage):
         # when
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
-            ts=self.date_visit2)
+            date=self.date_visit2)
 
         # then
         self.assertEqual(origin_visit1['origin'], origin_id)
@@ -1031,15 +1031,15 @@ class CommonTestStorage(BaseTestStorage):
 
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
-            ts=self.date_visit2)
+            date=self.date_visit2)
 
         origin_visit2 = self.storage.origin_visit_add(
             origin_id,
-            ts=self.date_visit3)
+            date=self.date_visit3)
 
         origin_visit3 = self.storage.origin_visit_add(
             origin_id2,
-            ts=self.date_visit3)
+            date=self.date_visit3)
 
         # when
         visit1_metadata = {
@@ -1111,14 +1111,14 @@ class CommonTestStorage(BaseTestStorage):
 
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
-            ts=self.date_visit2)
+            date=self.date_visit2)
 
         self.storage.snapshot_add(origin_id, origin_visit1['visit'],
                                   self.snapshot)
 
         # Add some other {origin, visit} entries
-        self.storage.origin_visit_add(origin_id, ts=self.date_visit3)
-        self.storage.origin_visit_add(origin_id2, ts=self.date_visit3)
+        self.storage.origin_visit_add(origin_id, date=self.date_visit3)
+        self.storage.origin_visit_add(origin_id2, date=self.date_visit3)
 
         # when
         visit1_metadata = {
