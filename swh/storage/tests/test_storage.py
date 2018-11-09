@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,10 +11,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from hypothesis import given
+
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
+
+from . import gen_contents
 
 
 @pytest.mark.db
@@ -1832,6 +1836,55 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(len(m_by_provider), 1)
         self.assertEqual(m_by_provider, expected_results)
+
+
+@pytest.mark.property_based
+class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
+    def assert_contents_ok(self, expected_contents, actual_contents,
+                           keys_to_check={'sha1', 'data'}):
+        """Assert that a given list of contents matches on a given set of keys.
+
+        """
+        for k in keys_to_check:
+            expected_list = [c[k] for c in expected_contents]
+            expected_list.sort()
+            actual_list = [c[k] for c in actual_contents]
+            actual_list.sort()
+
+            self.assertEqual(actual_list, expected_list)
+
+    @given(gen_contents(min_size=1, max_size=4))
+    def test_generate_content_get(self, contents):
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = [c['sha1'] for c in contents]
+
+        # retrieve contents
+        actual_contents = list(self.storage.content_get(get_sha1s))
+
+        self.assert_contents_ok(contents, actual_contents)
+
+    @given(gen_contents(min_size=1, max_size=4))
+    def test_generate_content_get_metadata(self, contents):
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = [c['sha1'] for c in contents]
+
+        # retrieve contents
+        actual_contents = list(self.storage.content_get_metadata(get_sha1s))
+
+        self.assertEquals(len(actual_contents), len(contents))
+
+        # will check that all contents are retrieved correctly
+        one_content = contents[0]
+        # content_get_metadata does not return data
+        keys_to_check = set(one_content.keys()) - {'data'}
+        self.assert_contents_ok(contents, actual_contents,
+                                keys_to_check=keys_to_check)
 
 
 class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
