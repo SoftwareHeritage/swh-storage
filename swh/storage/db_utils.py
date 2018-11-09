@@ -68,9 +68,10 @@ def _split_sql(sql):
 
 
 def execute_values_generator(cur, sql, argslist, template=None, page_size=100):
-    '''Execute a statement using :sql:`VALUES` with a sequence of parameters.
+    '''Execute a statement using SQL ``VALUES`` with a sequence of parameters.
     Rows returned by the query are returned through a generator.
     You need to consume the generator for the queries to be executed!
+
     :param cur: the cursor to use to execute the query.
     :param sql: the query to execute. It must contain a single ``%s``
         placeholder, which will be replaced by a `VALUES list`__.
@@ -80,11 +81,13 @@ def execute_values_generator(cur, sql, argslist, template=None, page_size=100):
         *template*.
     :param template: the snippet to merge to every item in *argslist* to
         compose the query.
+
         - If the *argslist* items are sequences it should contain positional
           placeholders (e.g. ``"(%s, %s, %s)"``, or ``"(%s, %s, 42)``" if there
           are constants value...).
         - If the *argslist* items are mappings it should contain named
           placeholders (e.g. ``"(%(id)s, %(f1)s, 42)"``).
+
         If not specified, assume the arguments are sequence and use a simple
         positional template (i.e.  ``(%s, %s, ...)``), with the number of
         placeholders sniffed by the first element in *argslist*.
@@ -93,7 +96,9 @@ def execute_values_generator(cur, sql, argslist, template=None, page_size=100):
         one statement.
     :param yield_from_cur: Whether to yield results from the cursor in this
         function directly.
+
     .. __: https://www.postgresql.org/docs/current/static/queries-values.html
+
     After the execution of the function the `cursor.rowcount` property will
     **not** contain a total result.
     '''
