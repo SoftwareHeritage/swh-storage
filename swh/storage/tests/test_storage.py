@@ -1846,6 +1846,7 @@ class CommonTestStorage(BaseTestStorage):
         self.assertIsNotNone(o_m1)
 
 
+@pytest.mark.property_based
 class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
     def assert_contents_ok(self, expected_contents, actual_contents,
                            keys_to_check={'sha1', 'data'}):
@@ -1921,7 +1922,6 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
         keys_to_check = set(one_content.keys()) - {'data'}
         self.assert_contents_ok(contents, actual_contents, keys_to_check)
 
-    @pytest.mark.property_based
     @given(gen_contents(min_size=4, max_size=4))
     def test_generate_content_get_range_limit(self, contents):
         self.reset_storage_tables()
@@ -1950,6 +1950,17 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
         expected_contents = [contents_map[sha1] for sha1 in get_sha1s[:-1]]
         keys_to_check = set(contents[0].keys()) - {'data'}
         self.assert_contents_ok(expected_contents, actual_contents,
+                                keys_to_check)
+
+        # retrieve next part
+        actual_results2 = self.storage.content_get_range(start=end, end=end)
+        actual_contents2 = actual_results2['contents']
+        actual_next2 = actual_results2['next']
+
+        self.assertEqual(1, len(actual_contents2))
+        self.assertIsNone(actual_next2)
+
+        self.assert_contents_ok([contents_map[actual_next]], actual_contents2,
                                 keys_to_check)
 
 
