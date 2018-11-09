@@ -19,7 +19,7 @@ from swh.storage.tests.storage_testing import StorageTestFixture
 
 
 @pytest.mark.db
-class BaseTestStorage(StorageTestFixture):
+class StorageTestDbFixture(StorageTestFixture):
     def setUp(self):
         super().setUp()
 
@@ -28,6 +28,15 @@ class BaseTestStorage(StorageTestFixture):
         self.cursor = db.cursor
 
         self.maxDiff = None
+
+    def tearDown(self):
+        self.reset_storage_tables()
+        super().tearDown()
+
+
+class TestStorageData:
+    def setUp(self):
+        super().setUp()
 
         self.cont = {
             'data': b'42\n',
@@ -509,12 +518,8 @@ class BaseTestStorage(StorageTestFixture):
             'next_branch': None
         }
 
-    def tearDown(self):
-        self.reset_storage_tables()
-        super().tearDown()
 
-
-class CommonTestStorage(BaseTestStorage):
+class CommonTestStorage(TestStorageData):
     """Base class for Storage testing.
 
     This class is used as-is to test local storage (see TestLocalStorage
@@ -1842,7 +1847,8 @@ class CommonTestStorage(BaseTestStorage):
         self.assertIsNotNone(o_m1)
 
 
-class TestLocalStorage(CommonTestStorage, unittest.TestCase):
+class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
+                       unittest.TestCase):
     """Test the local storage"""
 
     # Can only be tested with local storage as you can't mock
@@ -1921,7 +1927,8 @@ class TestLocalStorage(CommonTestStorage, unittest.TestCase):
         self.assertEqual(missing, [self.cont['sha1']])
 
 
-class AlteringSchemaTest(BaseTestStorage, unittest.TestCase):
+class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
+                         unittest.TestCase):
     """This class is dedicated for the rare case where the schema needs to
        be altered dynamically.
 
