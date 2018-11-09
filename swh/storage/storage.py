@@ -669,11 +669,7 @@ class Storage():
             releases: list of sha1s
 
         Yields:
-            releases: list of releases as dicts with the following keys:
-
-            - id: origin's id
-            - revision: origin's type
-            - url: origin's url
+            dicts with the same keys as those given to `release_add`
 
         Raises:
             ValueError: if the keys does not match (url and type) nor id.
@@ -768,7 +764,8 @@ class Storage():
             origin (int): the origin identifier
             visit (int): the visit identifier
         Returns:
-            dict: a dict with three keys:
+            dict: None if the snapshot does not exist;
+              a dict with three keys otherwise:
                 * **id**: identifier of the snapshot
                 * **branches**: a dict of branches contained in the snapshot
                   whose keys are the branches' names.
@@ -854,7 +851,8 @@ class Storage():
                 contained in that list are `'content', 'directory',
                 'revision', 'release', 'snapshot', 'alias'`)
         Returns:
-            dict: a dict with three keys:
+            dict: None if the snapshot does not exist;
+              a dict with three keys otherwise:
                 * **id**: identifier of the snapshot
                 * **branches**: a dict of branches contained in the snapshot
                   whose keys are the branches' names.
@@ -912,7 +910,6 @@ class Storage():
 
             - origin: origin identifier
             - visit: the visit identifier for the new visit occurrence
-            - ts (datetime.DateTime): the visit date
 
         """
         if ts is None:
@@ -957,7 +954,7 @@ class Storage():
 
         Args:
             origin (int): The occurrence's origin (identifier).
-            last_visit (int): Starting point from which listing the next visits
+            last_visit: Starting point from which listing the next visits
                 Default to None
             limit (int): Number of results to return from the last visit.
                 Default to None
@@ -1233,7 +1230,6 @@ class Storage():
         Returns:
             list of dicts: the origin_metadata dictionary with the keys:
 
-            - id (int): origin_metadata's id
             - origin_id (int): origin's id
             - discovery_date (datetime): timestamp of discovery
             - tool_id (int): metadata's extracting tool
@@ -1260,8 +1256,8 @@ class Storage():
               - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
-        Returns:
-            `iterable` of :class:`dict`: All the tools inserted in storage
+        Yields:
+            :class:`dict`: All the tools inserted in storage
             (including the internal ``id``). The order of the list is not
             guaranteed to match the order of the initial list.
 
@@ -1302,11 +1298,30 @@ class Storage():
     @db_transaction()
     def metadata_provider_add(self, provider_name, provider_type, provider_url,
                               metadata, db=None, cur=None):
+        """Add a metadata provider.
+
+        Args:
+            provider_name (str): Its name
+            provider_type (str): Its type
+            provider_url (str): Its URL
+
+        Returns:
+            dict: same as args, plus an 'id' key.
+        """
         return db.metadata_provider_add(provider_name, provider_type,
                                         provider_url, metadata, cur)
 
     @db_transaction()
     def metadata_provider_get(self, provider_id, db=None, cur=None):
+        """Get a metadata provider
+
+        Args:
+            provider_id: Its identifier, as given by `metadata_provider_add`.
+
+        Returns:
+            dict: same as `metadata_provider_add`;
+                  or None if it does not exist.
+        """
         result = db.metadata_provider_get(provider_id)
         if not result:
             return None
@@ -1314,6 +1329,17 @@ class Storage():
 
     @db_transaction()
     def metadata_provider_get_by(self, provider, db=None, cur=None):
+        """Get a metadata provider
+
+        Args:
+            provider (dict): A dictionary with keys:
+                * provider_name: Its name
+                * provider_url: Its URL
+
+        Returns:
+            dict: same as `metadata_provider_add`;
+                  or None if it does not exist.
+        """
         result = db.metadata_provider_get_by(provider['provider_name'],
                                              provider['provider_url'])
         if not result:
