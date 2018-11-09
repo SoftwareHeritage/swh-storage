@@ -252,6 +252,41 @@ class Storage():
 
             yield {'sha1': obj_id, 'data': data}
 
+    @db_transaction()
+    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
+        """Retrieve contents within range [start, end] bound by limit.
+
+        Args:
+            **start** (bytes): Starting identifier range (expected smaller
+                           than end)
+            **end** (bytes): Ending identifier range (expected larger
+                             than start)
+            **limit** (int): Limit result (default to 1000)
+
+        Returns:
+            a dict with keys:
+            - contents [dict]: iterable of contents in between the range.
+            - next (bytes): There remains content in the range
+              starting from this next sha1
+
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        contents = []
+        next_content = None
+        for counter, content_row in enumerate(
+                db.content_get_range(start, end, limit+1, cur)):
+            content = dict(zip(db.content_get_metadata_keys, content_row))
+            if counter >= limit:
+                # take the last commit for the next page starting from this
+                next_content = content['sha1']
+                break
+            contents.append(content)
+        return {
+            'contents': contents,
+            'next': next_content,
+        }
+
     @db_transaction_generator(statement_timeout=500)
     def content_get_metadata(self, content, db=None, cur=None):
         """Retrieve content metadata in bulk

@@ -6,7 +6,7 @@
 from os import path
 import swh.storage
 
-from hypothesis.strategies import (binary, composite, lists)
+from hypothesis.strategies import (binary, composite, sets)
 
 from swh.model.hashutil import MultiHash
 
@@ -39,8 +39,9 @@ def gen_contents(draw, *, min_size=0, max_size=100):
         [min_size:max_size].
 
     """
-    raw_contents = draw(lists(
-        gen_raw_content(), min_size=min_size, max_size=max_size))
+    raw_contents = draw(sets(
+        gen_raw_content(),
+        min_size=min_size, max_size=max_size))
 
     contents = []
     for raw_content in raw_contents:

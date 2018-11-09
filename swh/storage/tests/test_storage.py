@@ -1874,7 +1874,7 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
         # retrieve contents
         actual_contents = list(self.storage.content_get_metadata(get_sha1s))
 
-        self.assertEquals(len(actual_contents), len(contents))
+        self.assertEqual(len(actual_contents), len(contents))
 
         # will check that all contents are retrieved correctly
         one_content = contents[0]
@@ -1882,6 +1882,74 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
         keys_to_check = set(one_content.keys()) - {'data'}
         self.assert_contents_ok(contents, actual_contents,
                                 keys_to_check=keys_to_check)
+
+    def test_generate_content_get_range_limit_none(self):
+        with self.assertRaises(ValueError) as e:
+            self.storage.content_get_range(start=None, end=None, limit=None)
+
+        self.assertEqual(e.exception.args, (
+            'Development error: limit should not be None',))
+
+    @given(gen_contents(min_size=1, max_size=4))
+    def test_generate_content_get_range_no_limit(self, contents):
+        self.reset_storage_tables()
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = [c['sha1'] for c in contents]
+        get_sha1s.sort()
+
+        print('input sha1s: %s' % get_sha1s)
+        start = get_sha1s[0]
+        end = get_sha1s[-1]
+
+        # retrieve contents
+        actual_result = self.storage.content_get_range(start, end)
+
+        actual_contents = actual_result['contents']
+        actual_next = actual_result['next']
+
+        self.assertEqual(len(contents), len(actual_contents))
+        self.assertIsNone(actual_next)
+
+        one_content = contents[0]
+        keys_to_check = set(one_content.keys()) - {'data'}
+        self.assert_contents_ok(contents, actual_contents, keys_to_check)
+
+    @pytest.mark.property_based
+    @given(gen_contents(min_size=4, max_size=4))
+    def test_generate_content_get_range_limit(self, contents):
+        self.reset_storage_tables()
+        contents_map = {c['sha1']: c for c in contents}
+
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = [c['sha1'] for c in contents]
+        get_sha1s.sort()
+
+        print('input sha1s: %s' % get_sha1s)
+        start = get_sha1s[0]
+        end = get_sha1s[-1]
+
+        # retrieve contents limited to 3 results
+        limited_results = len(contents) - 1
+        actual_result = self.storage.content_get_range(start, end,
+                                                       limit=limited_results)
+
+        actual_contents = actual_result['contents']
+        actual_next = actual_result['next']
+
+        self.assertEqual(limited_results, len(actual_contents))
+        self.assertIsNotNone(actual_next)
+        self.assertEqual(actual_next, get_sha1s[-1])
+
+        expected_contents = [contents_map[sha1] for sha1 in get_sha1s[:-1]]
+        keys_to_check = set(contents[0].keys()) - {'data'}
+        self.assert_contents_ok(expected_contents, actual_contents,
+                                keys_to_check)
 
 
 class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,

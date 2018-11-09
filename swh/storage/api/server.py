@@ -107,6 +107,12 @@ def content_get_metadata():
         **decode_request(request)))
 
 
+@app.route('/content/range', methods=['POST'])
+def content_get_range():
+    return encode_data(get_storage().content_get_range(
+        **decode_request(request)))
+
+
 @app.route('/directory/missing', methods=['POST'])
 def directory_missing():
     return encode_data(get_storage().directory_missing(
