@@ -1,3 +1,9 @@
+swh-storage (0.0.109-1~swh1) unstable-swh; urgency=medium
+
+  * version 0.0.109
+
+ -- Antoine Lambert <antoine.lambert@inria.fr>  Mon, 12 Nov 2018 14:11:09 +0100
+
 swh-storage (0.0.108-1~swh1) unstable-swh; urgency=medium
 
   * Release swh.storage v0.0.108
