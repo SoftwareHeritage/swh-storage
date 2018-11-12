@@ -128,3 +128,20 @@ create trigger notify_new_release
   after insert on release
   for each row
   execute procedure notify_new_release();
+
+
+-- Asynchronous notification of new snapshot insertions
+create function notify_new_snapshot()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_snapshot', json_build_object('id', encode(new.id, 'hex'))::text);
+    return null;
+  end;
+$$;
+
+create trigger notify_new_snapshot
+  after insert on snapshot
+  for each row
+  execute procedure notify_new_snapshot();

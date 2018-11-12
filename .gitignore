@@ -10,3 +10,4 @@ dist/
 version.txt
 .vscode/
 .hypothesis/
+/.tox/

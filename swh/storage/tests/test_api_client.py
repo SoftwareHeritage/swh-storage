@@ -10,11 +10,12 @@ import unittest
 from swh.core.tests.server_testing import ServerTestFixture
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
-from swh.storage.tests.test_storage import CommonTestStorage
+from swh.storage.tests.test_storage import CommonTestStorage, \
+                                           StorageTestDbFixture
 
 
 class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
-                        unittest.TestCase):
+                        StorageTestDbFixture, unittest.TestCase):
     """Test the remote storage API.
 
     This class doesn't define any tests as we want identical

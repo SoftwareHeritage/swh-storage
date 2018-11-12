@@ -13,7 +13,7 @@ SQLS = $(SQL_INIT) $(SQL_ENUMS) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_INDEX) $(SQL_TRI
 SQL_FILES = $(abspath $(addprefix $(CURDIR)/../swh/storage/sql/,$(SQLS)))
 
 PSQL_BIN = psql
-PSQL_FLAGS = --echo-all -X -v ON_ERROR_STOP=1
+PSQL_FLAGS = --echo-errors -X -v ON_ERROR_STOP=1
 PSQL = $(PSQL_BIN) $(PSQL_FLAGS)
 
 PIFPAF=$(findstring postgresql://,$(PIFPAF_URLS))
@@ -22,11 +22,11 @@ all:
 
 createdb: createdb-stamp
 createdb-stamp: $(SQL_FILES)
-ifndef PIFPAF
+ifeq ($(PIFPAF),)
 	-dropdb $(DBNAME)
 endif
 	createdb $(DBNAME)
-ifndef PIFPAF
+ifeq ($(PIFPAF),)
 	touch $@
 else
 	rm -f $@
@@ -35,7 +35,7 @@ endif
 filldb: filldb-stamp
 filldb-stamp: createdb-stamp
 	cat $(SQL_FILES) | $(PSQL) $(DBNAME)
-ifndef PIFPAF
+ifeq ($(PIFPAF),)
 	touch $@
 else
 	rm -f $@
@@ -55,7 +55,7 @@ doc: autodoc-stamp $(DOCDIR)/db-schema.pdf $(DOCDIR)/db-schema.svg
 autodoc-stamp: filldb-stamp $(DOCDIR)
 	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/db-schema
 	cp -a $(DOCDIR)/db-schema.dot $(DOCDIR)/db-schema.dot.orig
-ifndef PIFPAF
+ifeq ($(PIFPAF),)
 	touch $@
 else
 	rm -f $@

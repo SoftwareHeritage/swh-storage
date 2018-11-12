@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import inspect
 import functools
 
 
@@ -28,6 +29,10 @@ def db_transaction(**client_options):
     Client options are passed as `set` options to the postgresql server
     """
     def decorator(meth, __client_options=client_options):
+        if inspect.isgeneratorfunction(meth):
+            raise ValueError(
+                    'Use db_transaction_generator for generator functions.')
+
         @functools.wraps(meth)
         def _meth(self, *args, **kwargs):
             if 'cur' in kwargs and kwargs['cur']:
@@ -55,6 +60,10 @@ def db_transaction_generator(**client_options):
     Client options are passed as `set` options to the postgresql server
     """
     def decorator(meth, __client_options=client_options):
+        if not inspect.isgeneratorfunction(meth):
+            raise ValueError(
+                    'Use db_transaction for non-generator functions.')
+
         @functools.wraps(meth)
         def _meth(self, *args, **kwargs):
             if 'cur' in kwargs and kwargs['cur']:

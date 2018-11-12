@@ -17,4 +17,4 @@ SQLAlchemy
 
 [testing]
 hypothesis>=3.11.0
-nose
+pytest

@@ -31,10 +31,11 @@ class DirectoryIterator(object):
     """
     Helper class used to iterate on a directory tree in a depth-first search
     way with some additional features:
-        - sibling nodes are iterated in lexicographic order by name
-        - it is possible to skip the visit of sub-directories nodes
-          for efficiency reasons when comparing two trees (no need to
-          go deeper if two directories have the same hash)
+
+    - sibling nodes are iterated in lexicographic order by name
+    - it is possible to skip the visit of sub-directories nodes
+      for efficiency reasons when comparing two trees (no need to
+      go deeper if two directories have the same hash)
     """
 
     def __init__(self, storage, dir_id, base_path=b''):
