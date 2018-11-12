@@ -1884,6 +1884,7 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
                                 keys_to_check=keys_to_check)
 
     def test_generate_content_get_range_limit_none(self):
+        """content_get_range call with wrong limit input should fail"""
         with self.assertRaises(ValueError) as e:
             self.storage.content_get_range(start=None, end=None, limit=None)
 
@@ -1892,6 +1893,7 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
 
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get_range_no_limit(self, contents):
+        """content_get_range returns contents within range provided"""
         self.reset_storage_tables()
         # add contents to storage
         self.storage.content_add(contents)
@@ -1916,6 +1918,7 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
 
     @given(gen_contents(min_size=4, max_size=4))
     def test_generate_content_get_range_limit(self, contents):
+        """content_get_range paginates results if limit exceeded"""
         self.reset_storage_tables()
         contents_map = {c['sha1']: c for c in contents}
 
