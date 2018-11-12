@@ -1373,8 +1373,9 @@ class Storage():
 
         Args:
             provider_name (str): Its name
-            provider_type (str): Its type
+            provider_type (str): Its type (eg. `'deposit-client'`)
             provider_url (str): Its URL
+            metadata: JSON-encodable object
 
         Returns:
             dict: same as args, plus an 'id' key.
