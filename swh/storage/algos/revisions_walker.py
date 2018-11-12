@@ -465,17 +465,21 @@ def get_revisions_walker(rev_walker_type, *args, **kwargs):
     The following code snippet demonstrates how to use a revisions
     walker for processing a whole revisions history::
 
-        revs_walker = get_revisions_walker('committer_date', rev_id)
+        from swh.storage import get_storage
+
+        storage = get_storage(...)
+
+        revs_walker = get_revisions_walker('committer_date', storage, rev_id)
         for rev in revs_walker:
             # process revision rev
 
     It is also possible to walk a revisions history in a paginated
     way as illustrated below::
 
-        def get_revs_history_page(rw_type, rev_id, page_num, page_size,
-                                  rw_state):
+        def get_revs_history_page(rw_type, storage, rev_id, page_num,
+                                  page_size, rw_state):
             max_revs = (page_num + 1) * page_size
-            revs_walker = get_revisions_walker(rw_type, rev_id,
+            revs_walker = get_revisions_walker(rw_type, storage, rev_id,
                                                max_revs=max_revs,
                                                state=rw_state)
             revs = list(revs_walker)
@@ -487,7 +491,7 @@ def get_revisions_walker(rev_walker_type, *args, **kwargs):
         rw_state = {}
 
         for page in range(0, 10):
-            revs_page = get_revs_history_page('dfs', rev_start, page,
+            revs_page = get_revs_history_page('dfs', storage, rev_start, page,
                                               per_page, rw_state)
             # process revisions page
 
