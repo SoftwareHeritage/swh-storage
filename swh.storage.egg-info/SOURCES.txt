@@ -5,10 +5,12 @@ MANIFEST.in
 Makefile
 Makefile.local
 README.md
+pytest.ini
 requirements-swh.txt
 requirements-test.txt
 requirements.txt
 setup.py
+tox.ini
 version.txt
 bin/swh-storage-add-dir
 debian/changelog
@@ -29,8 +31,6 @@ docs/_templates/.placeholder
 docs/images/.gitignore
 docs/images/Makefile
 docs/images/swh-archive-copies.dia
-docs/images/swh-archive-copies.pdf
-docs/images/swh-archive-copies.svg
 sql/.gitignore
 sql/Makefile
 sql/TODO
@@ -172,6 +172,7 @@ sql/upgrades/124.sql
 sql/upgrades/125.sql
 sql/upgrades/126.sql
 sql/upgrades/127.sql
+sql/upgrades/128.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -189,6 +190,7 @@ swh/storage/storage.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py
 swh/storage/algos/dir_iterators.py
+swh/storage/algos/revisions_walker.py
 swh/storage/algos/snapshot.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
@@ -210,6 +212,7 @@ swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py
 swh/storage/tests/algos/test_dir_iterator.py
+swh/storage/tests/algos/test_revisions_walker.py
 swh/storage/tests/algos/test_snapshot.py
 utils/dump_revisions.py
 utils/fix_revisions_from_dump.py

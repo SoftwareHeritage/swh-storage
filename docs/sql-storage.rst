@@ -1,3 +1,5 @@
+:orphan:
+
 .. _sql-storage:
 
 SQL storage

@@ -8,6 +8,7 @@ import psycopg2.extras
 from swh.storage import converters, db
 from swh.model import identifiers
 
+
 QUERY = '''
 select
   r.id,
@@ -43,6 +44,7 @@ def check_revision(revision):
     computed_id = identifiers.revision_identifier(revision)
     if id != computed_id:
         dump_revision(revision)
+
 
 if __name__ == '__main__':
     swh_db = db.Db.connect('service=swh',
