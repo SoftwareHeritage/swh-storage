@@ -1,7 +1,1 @@
-# run only tests that do not require database setup
-test-nodb:
-	$(NOSE) $(NOSEFLAGS) -a '!db'
-
-# run only tests that do require database setup
-test-db:
-	$(NOSE) $(NOSEFLAGS) -a 'db'
+TESTFLAGS=--hypothesis-profile=dev
