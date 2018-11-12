@@ -13,6 +13,10 @@ clean: clean-sql-autodoc clean-images
 clean-sql-autodoc:
 	make -C ../sql/ clean
 
+distclean: clean distclean-sql-autodoc
+distclean-sql-autodoc:
+	make -C ../sql/ distclean
+
 .PHONY: sql-autodoc clean-sql-autodoc images clean-images
 
 

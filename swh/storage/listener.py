@@ -43,6 +43,7 @@ OBJECT_TYPES = {
     'directory',
     'revision',
     'release',
+    'snapshot',
     'origin_visit',
     'origin',
 }
