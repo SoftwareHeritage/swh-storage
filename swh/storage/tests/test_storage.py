@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 import psycopg2
 import pytest
 
-from hypothesis import given
+from hypothesis import given, settings
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
@@ -1858,6 +1858,7 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
             actual_list = sorted([c[k] for c in actual_contents])
             self.assertEqual(actual_list, expected_list)
 
+    @settings(max_examples=10)
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get(self, contents):
         # add contents to storage
@@ -1871,6 +1872,7 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
 
         self.assert_contents_ok(contents, actual_contents)
 
+    @settings(max_examples=10)
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get_metadata(self, contents):
         # add contents to storage
@@ -1899,6 +1901,7 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
         self.assertEqual(e.exception.args, (
             'Development error: limit should not be None',))
 
+    @settings(max_examples=10)
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get_range_no_limit(self, contents):
         """content_get_range returns contents within range provided"""
@@ -1924,6 +1927,7 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
         keys_to_check = set(one_content.keys()) - {'data'}
         self.assert_contents_ok(contents, actual_contents, keys_to_check)
 
+    @settings(max_examples=10)
     @given(gen_contents(min_size=4, max_size=4))
     def test_generate_content_get_range_limit(self, contents):
         """content_get_range paginates results if limit exceeded"""
