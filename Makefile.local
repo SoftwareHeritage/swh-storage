@@ -1,1 +1,1 @@
-TESTFLAGS=--hypothesis-profile=dev
+TESTFLAGS=--hypothesis-profile=fast
