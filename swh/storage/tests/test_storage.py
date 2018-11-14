@@ -1846,11 +1846,8 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
 
         """
         for k in keys_to_check:
-            expected_list = [c[k] for c in expected_contents]
-            expected_list.sort()
-            actual_list = [c[k] for c in actual_contents]
-            actual_list.sort()
-
+            expected_list = sorted([c[k] for c in expected_contents])
+            actual_list = sorted([c[k] for c in actual_contents])
             self.assertEqual(actual_list, expected_list)
 
     @given(gen_contents(min_size=1, max_size=4))
