@@ -44,13 +44,11 @@ def gen_contents(draw, *, min_size=0, max_size=100):
 
     contents = []
     for raw_content in raw_contents:
-        content = {
+        contents.append({
             'data': raw_content,
             'length': len(raw_content),
             'status': 'visible',
-        }
-        hashes = MultiHash.from_data(raw_content).digest()
-        content.update(hashes)
-        contents.append(content)
+            **MultiHash.from_data(raw_content).digest()
+        })
 
     return contents
