@@ -35,7 +35,8 @@ def gen_contents(draw, *, min_size=0, max_size=100):
                             (default: 100)
 
     Returns:
-        List of swh.model contents whose size is between [min_size:max_size].
+        [dict] representing contents. The list's size is between
+        [min_size:max_size].
 
     """
     raw_contents = draw(lists(
