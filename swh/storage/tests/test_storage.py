@@ -1904,10 +1904,7 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
         self.storage.content_add(contents)
 
         # input the list of sha1s we want from storage
-        get_sha1s = [c['sha1'] for c in contents]
-        get_sha1s.sort()
-
-        print('input sha1s: %s' % get_sha1s)
+        get_sha1s = sorted([c['sha1'] for c in contents])
         start = get_sha1s[0]
         end = get_sha1s[-1]
 
@@ -1934,10 +1931,7 @@ class PropBasedTestStorage(BaseTestStorage, unittest.TestCase):
         self.storage.content_add(contents)
 
         # input the list of sha1s we want from storage
-        get_sha1s = [c['sha1'] for c in contents]
-        get_sha1s.sort()
-
-        print('input sha1s: %s' % get_sha1s)
+        get_sha1s = sorted([c['sha1'] for c in contents])
         start = get_sha1s[0]
         end = get_sha1s[-1]
 
