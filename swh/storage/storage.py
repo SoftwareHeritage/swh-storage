@@ -157,7 +157,22 @@ class Storage():
                                db.content_get_metadata_keys, cur)
 
                     # move metadata in place
-                    db.content_add_from_temp(cur)
+                    try:
+                        db.content_add_from_temp(cur)
+                    except psycopg2.IntegrityError as e:
+                        from . import HashCollision
+                        if e.diag.sqlstate == '23505' and \
+                                e.diag.table_name == 'content':
+                            constaint_to_hash_name = {
+                                'content_pkey': 'sha1',
+                                'content_sha1_git_idx': 'sha1_git',
+                                'content_sha256_idx': 'sha256',
+                                }
+                            colliding_hash_name = constaint_to_hash_name \
+                                .get(e.diag.constraint_name)
+                            raise HashCollision(colliding_hash_name)
+                        else:
+                            raise
 
                 if missing_skipped:
                     missing_filtered = (
@@ -1195,6 +1210,27 @@ class Storage():
 
         """
         return {k: v for (k, v) in db.stat_counters()}
+
+    @db_transaction()
+    def refresh_stat_counters(self, db=None, cur=None):
+        """Recomputes the statistics for `stat_counters`."""
+        keys = [
+            'content',
+            'directory',
+            'directory_entry_dir',
+            'directory_entry_file',
+            'directory_entry_rev',
+            'origin',
+            'origin_visit',
+            'person',
+            'release',
+            'revision',
+            'revision_history',
+            'skipped_content',
+            'snapshot']
+
+        for key in keys:
+            cur.execute('select * from swh_update_counter(%s)', (key,))
 
     @db_transaction()
     def origin_metadata_add(self, origin_id, ts, provider, tool, metadata,

@@ -938,7 +938,7 @@ class Db(BaseDb):
 
         return cur.fetchone()[0]
 
-    origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
+    origin_metadata_get_cols = ['origin_id', 'discovery_date',
                                 'tool_id', 'metadata', 'provider_id',
                                 'provider_name', 'provider_type',
                                 'provider_url']
