@@ -8,6 +8,10 @@ from . import storage
 Storage = storage.Storage
 
 
+class HashCollision(Exception):
+    pass
+
+
 def get_storage(cls, args):
     """
     Get a storage object of class `storage_class` with arguments
