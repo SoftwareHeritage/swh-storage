@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,15 +7,18 @@ import copy
 import datetime
 import unittest
 from collections import defaultdict
-from operator import itemgetter
 from unittest.mock import Mock, patch
 
-import psycopg2
 import pytest
+
+from hypothesis import given
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture
+from swh.storage import HashCollision
+
+from . import gen_contents
 
 
 @pytest.mark.db
@@ -531,7 +534,6 @@ class CommonTestStorage(TestStorageData):
     class twice.
 
     """
-
     @staticmethod
     def normalize_entity(entity):
         entity = copy.deepcopy(entity)
@@ -570,8 +572,10 @@ class CommonTestStorage(TestStorageData):
         sha256_array[0] += 1
         cont1b['sha256'] = bytes(sha256_array)
 
-        with self.assertRaises(psycopg2.IntegrityError):
+        with self.assertRaises(HashCollision) as cm:
             self.storage.content_add([cont1, cont1b])
+
+        self.assertEqual(cm.exception.args[0], 'sha1')
 
     def test_skipped_content_add(self):
         cont = self.skipped_cont.copy()
@@ -682,7 +686,7 @@ class CommonTestStorage(TestStorageData):
         stored_data = list(self.storage.directory_ls(self.dir['id']))
 
         data_to_store = []
-        for ent in sorted(self.dir['entries'], key=itemgetter('name')):
+        for ent in self.dir['entries']:
             data_to_store.append({
                 'dir_id': self.dir['id'],
                 'type': ent['type'],
@@ -696,7 +700,7 @@ class CommonTestStorage(TestStorageData):
                 'length': None,
             })
 
-        self.assertEqual(data_to_store, stored_data)
+        self.assertCountEqual(data_to_store, stored_data)
 
         after_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([], after_missing)
@@ -885,7 +889,8 @@ class CommonTestStorage(TestStorageData):
 
         # then
         for actual_release in actual_releases:
-            del actual_release['author']['id']  # hack: ids are generated
+            if 'id' in actual_release['author']:
+                del actual_release['author']['id']  # hack: ids are generated
 
         self.assertEqual([self.normalize_entity(self.release),
                           self.normalize_entity(self.release2)],
@@ -1016,7 +1021,6 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertEqual(origin_visit1['origin'], origin_id)
         self.assertIsNotNone(origin_visit1['visit'])
-        self.assertTrue(origin_visit1['visit'] > 0)
 
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
         self.assertEqual(actual_origin_visits,
@@ -1404,9 +1408,7 @@ class CommonTestStorage(TestStorageData):
         expected_keys = ['content', 'directory', 'directory_entry_dir',
                          'origin', 'person', 'revision']
 
-        for key in expected_keys:
-            self.cursor.execute('select * from swh_update_counter(%s)', (key,))
-        self.conn.commit()
+        self.storage.refresh_stat_counters()
 
         counters = self.storage.stat_counters()
 
@@ -1681,10 +1683,9 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                       })
-        tool = self.storage.tool_get(self.metadata_tool)
 
         # when adding for the same origin 2 metadatas
-        o_m1 = self.storage.origin_metadata_add(
+        self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
                     provider['id'],
@@ -1692,7 +1693,6 @@ class CommonTestStorage(TestStorageData):
                     self.origin_metadata['metadata'])
         actual_om1 = list(self.storage.origin_metadata_get_by(origin_id))
         # then
-        self.assertEqual(actual_om1[0]['id'], o_m1)
         self.assertEqual(len(actual_om1), 1)
         self.assertEqual(actual_om1[0]['origin_id'], origin_id)
 
@@ -1709,21 +1709,21 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                    })
-        tool = self.storage.tool_get(self.metadata_tool)
+        tool = list(self.storage.tool_add([self.metadata_tool]))[0]
         # when adding for the same origin 2 metadatas
-        o_m1 = self.storage.origin_metadata_add(
+        self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
                     provider['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
-        o_m2 = self.storage.origin_metadata_add(
+        self.storage.origin_metadata_add(
                     origin_id2,
                     self.origin_metadata2['discovery_date'],
                     provider['id'],
                     tool['id'],
                     self.origin_metadata2['metadata'])
-        o_m3 = self.storage.origin_metadata_add(
+        self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata2['discovery_date'],
                     provider['id'],
@@ -1735,15 +1735,12 @@ class CommonTestStorage(TestStorageData):
         expected_results = [{
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
-                                2017, 1, 2, 0, 0,
-                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
-                                    offset=60,
-                                    name=None)),
+                                2017, 1, 1, 23, 0,
+                                tzinfo=datetime.timezone.utc),
             'metadata': {
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
             },
-            'id': o_m3,
             'provider_id': provider['id'],
             'provider_name': 'hal',
             'provider_type': 'deposit-client',
@@ -1752,15 +1749,12 @@ class CommonTestStorage(TestStorageData):
         }, {
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
-                                2015, 1, 2, 0, 0,
-                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
-                                    offset=60,
-                                    name=None)),
+                                2015, 1, 1, 23, 0,
+                                tzinfo=datetime.timezone.utc),
             'metadata': {
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
             },
-            'id': o_m1,
             'provider_id': provider['id'],
             'provider_name': 'hal',
             'provider_type': 'deposit-client',
@@ -1771,8 +1765,7 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertEqual(len(all_metadatas), 2)
         self.assertEqual(len(metadatas_for_origin2), 1)
-        self.assertEqual(metadatas_for_origin2[0]['id'], o_m2)
-        self.assertEqual(all_metadatas, expected_results)
+        self.assertCountEqual(all_metadatas, expected_results)
 
     def test_origin_metadata_get_by_provider_type(self):
         # given
@@ -1801,16 +1794,16 @@ class CommonTestStorage(TestStorageData):
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)
-        tool = self.storage.tool_get(self.metadata_tool)
+        tool = list(self.storage.tool_add([self.metadata_tool]))[0]
 
         # when adding for the same origin 2 metadatas
-        o_m1 = self.storage.origin_metadata_add(
+        self.storage.origin_metadata_add(
                     origin_id,
                     self.origin_metadata['discovery_date'],
                     provider1['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
-        o_m2 = self.storage.origin_metadata_add(
+        self.storage.origin_metadata_add(
                     origin_id2,
                     self.origin_metadata2['discovery_date'],
                     provider2['id'],
@@ -1821,18 +1814,18 @@ class CommonTestStorage(TestStorageData):
                              origin_metadata_get_by(
                                 origin_id2,
                                 provider_type))
+        for item in m_by_provider:
+            if 'id' in item:
+                del item['id']
         expected_results = [{
             'origin_id': origin_id2,
             'discovery_date': datetime.datetime(
-                                2017, 1, 2, 0, 0,
-                                tzinfo=psycopg2.tz.FixedOffsetTimezone(
-                                    offset=60,
-                                    name=None)),
+                                2017, 1, 1, 23, 0,
+                                tzinfo=datetime.timezone.utc),
             'metadata': {
                 'name': 'test_origin_metadata',
                 'version': '0.0.1'
             },
-            'id': o_m2,
             'provider_id': provider2['id'],
             'provider_name': 'swMATH',
             'provider_type': provider_type,
@@ -1843,8 +1836,128 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(len(m_by_provider), 1)
         self.assertEqual(m_by_provider, expected_results)
-        self.assertEqual(m_by_provider[0]['id'], o_m2)
-        self.assertIsNotNone(o_m1)
+
+
+@pytest.mark.db
+@pytest.mark.property_based
+class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
+    def assert_contents_ok(self, expected_contents, actual_contents,
+                           keys_to_check={'sha1', 'data'}):
+        """Assert that a given list of contents matches on a given set of keys.
+
+        """
+        for k in keys_to_check:
+            expected_list = sorted([c[k] for c in expected_contents])
+            actual_list = sorted([c[k] for c in actual_contents])
+            self.assertEqual(actual_list, expected_list)
+
+    @given(gen_contents(min_size=1, max_size=4))
+    def test_generate_content_get(self, contents):
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = [c['sha1'] for c in contents]
+
+        # retrieve contents
+        actual_contents = list(self.storage.content_get(get_sha1s))
+
+        self.assert_contents_ok(contents, actual_contents)
+
+    @given(gen_contents(min_size=1, max_size=4))
+    def test_generate_content_get_metadata(self, contents):
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = [c['sha1'] for c in contents]
+
+        # retrieve contents
+        actual_contents = list(self.storage.content_get_metadata(get_sha1s))
+
+        self.assertEqual(len(actual_contents), len(contents))
+
+        # will check that all contents are retrieved correctly
+        one_content = contents[0]
+        # content_get_metadata does not return data
+        keys_to_check = set(one_content.keys()) - {'data'}
+        self.assert_contents_ok(contents, actual_contents,
+                                keys_to_check=keys_to_check)
+
+    def test_generate_content_get_range_limit_none(self):
+        """content_get_range call with wrong limit input should fail"""
+        with self.assertRaises(ValueError) as e:
+            self.storage.content_get_range(start=None, end=None, limit=None)
+
+        self.assertEqual(e.exception.args, (
+            'Development error: limit should not be None',))
+
+    @given(gen_contents(min_size=1, max_size=4))
+    def test_generate_content_get_range_no_limit(self, contents):
+        """content_get_range returns contents within range provided"""
+        self.reset_storage_tables()
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = sorted([c['sha1'] for c in contents])
+        start = get_sha1s[0]
+        end = get_sha1s[-1]
+
+        # retrieve contents
+        actual_result = self.storage.content_get_range(start, end)
+
+        actual_contents = actual_result['contents']
+        actual_next = actual_result['next']
+
+        self.assertEqual(len(contents), len(actual_contents))
+        self.assertIsNone(actual_next)
+
+        one_content = contents[0]
+        keys_to_check = set(one_content.keys()) - {'data'}
+        self.assert_contents_ok(contents, actual_contents, keys_to_check)
+
+    @given(gen_contents(min_size=4, max_size=4))
+    def test_generate_content_get_range_limit(self, contents):
+        """content_get_range paginates results if limit exceeded"""
+        self.reset_storage_tables()
+        contents_map = {c['sha1']: c for c in contents}
+
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        # input the list of sha1s we want from storage
+        get_sha1s = sorted([c['sha1'] for c in contents])
+        start = get_sha1s[0]
+        end = get_sha1s[-1]
+
+        # retrieve contents limited to 3 results
+        limited_results = len(contents) - 1
+        actual_result = self.storage.content_get_range(start, end,
+                                                       limit=limited_results)
+
+        actual_contents = actual_result['contents']
+        actual_next = actual_result['next']
+
+        self.assertEqual(limited_results, len(actual_contents))
+        self.assertIsNotNone(actual_next)
+        self.assertEqual(actual_next, get_sha1s[-1])
+
+        expected_contents = [contents_map[sha1] for sha1 in get_sha1s[:-1]]
+        keys_to_check = set(contents[0].keys()) - {'data'}
+        self.assert_contents_ok(expected_contents, actual_contents,
+                                keys_to_check)
+
+        # retrieve next part
+        actual_results2 = self.storage.content_get_range(start=end, end=end)
+        actual_contents2 = actual_results2['contents']
+        actual_next2 = actual_results2['next']
+
+        self.assertEqual(1, len(actual_contents2))
+        self.assertIsNone(actual_next2)
+
+        self.assert_contents_ok([contents_map[actual_next]], actual_contents2,
+                                keys_to_check)
 
 
 class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,

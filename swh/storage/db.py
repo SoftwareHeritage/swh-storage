@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2018  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -288,6 +288,18 @@ class Db(BaseDb):
             """ % ', '.join(self.content_get_metadata_keys[1:]),
             ((sha1,) for sha1 in sha1s),
         )
+
+    def content_get_range(self, start, end, limit=None, cur=None):
+        """Retrieve contents within range [start, end].
+
+        """
+        cur = self._cursor(cur)
+        query = """select %s from content
+                   where %%s <= sha1 and sha1 <= %%s
+                   order by sha1
+                   limit %%s""" % ', '.join(self.content_get_metadata_keys)
+        cur.execute(query, (start, end, limit))
+        yield from cursor_to_bytes(cur)
 
     content_hash_keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
@@ -938,7 +950,7 @@ class Db(BaseDb):
 
         return cur.fetchone()[0]
 
-    origin_metadata_get_cols = ['id', 'origin_id', 'discovery_date',
+    origin_metadata_get_cols = ['origin_id', 'discovery_date',
                                 'tool_id', 'metadata', 'provider_id',
                                 'provider_name', 'provider_type',
                                 'provider_url']

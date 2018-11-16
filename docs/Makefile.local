@@ -1,5 +1,6 @@
 sphinx/html: sql-autodoc images
 sphinx/clean: clean-sql-autodoc clean-images
+assets: sql-autodoc images
 
 sql-autodoc:
 	make -C ../sql/ doc

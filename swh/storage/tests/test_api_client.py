@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import pytest
 import shutil
 import tempfile
 import unittest
@@ -53,3 +54,7 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
     def tearDown(self):
         super().tearDown()
         shutil.rmtree(self.storage_base)
+
+    @pytest.mark.skip('refresh_stat_counters not available in the remote api.')
+    def test_stat_counters(self):
+        pass

@@ -7,7 +7,7 @@ import unittest
 
 import pytest
 
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis.strategies import (binary, composite, datetimes, dictionaries,
                                    from_regex, none, one_of, sampled_from)
 
@@ -94,6 +94,7 @@ def origins(draw):
 
 
 @pytest.mark.db
+@pytest.mark.property_based
 class TestSnapshotAllBranches(StorageTestFixture, unittest.TestCase):
     @given(origins(), datetimes(), snapshots(min_size=0, max_size=10,
                                              only_objects=False))
@@ -106,7 +107,6 @@ class TestSnapshotAllBranches(StorageTestFixture, unittest.TestCase):
                                                       snapshot['id'])
         self.assertEqual(snapshot, returned_snapshot)
 
-    @settings(max_examples=5, deadline=5000)
     @given(origins(), datetimes(),
            branch_names(), branch_targets(only_objects=True))
     def test_snapshot_large(self, origin, ts, branch_name, branch_target):

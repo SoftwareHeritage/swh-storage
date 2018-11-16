@@ -5,6 +5,7 @@ MANIFEST.in
 Makefile
 Makefile.local
 README.md
+conftest.py
 pytest.ini
 requirements-swh.txt
 requirements-test.txt

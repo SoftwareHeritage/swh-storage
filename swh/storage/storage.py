@@ -157,7 +157,22 @@ class Storage():
                                db.content_get_metadata_keys, cur)
 
                     # move metadata in place
-                    db.content_add_from_temp(cur)
+                    try:
+                        db.content_add_from_temp(cur)
+                    except psycopg2.IntegrityError as e:
+                        from . import HashCollision
+                        if e.diag.sqlstate == '23505' and \
+                                e.diag.table_name == 'content':
+                            constaint_to_hash_name = {
+                                'content_pkey': 'sha1',
+                                'content_sha1_git_idx': 'sha1_git',
+                                'content_sha256_idx': 'sha256',
+                                }
+                            colliding_hash_name = constaint_to_hash_name \
+                                .get(e.diag.constraint_name)
+                            raise HashCollision(colliding_hash_name)
+                        else:
+                            raise
 
                 if missing_skipped:
                     missing_filtered = (
@@ -236,6 +251,41 @@ class Storage():
                 continue
 
             yield {'sha1': obj_id, 'data': data}
+
+    @db_transaction()
+    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
+        """Retrieve contents within range [start, end] bound by limit.
+
+        Args:
+            **start** (bytes): Starting identifier range (expected smaller
+                           than end)
+            **end** (bytes): Ending identifier range (expected larger
+                             than start)
+            **limit** (int): Limit result (default to 1000)
+
+        Returns:
+            a dict with keys:
+            - contents [dict]: iterable of contents in between the range.
+            - next (bytes): There remains content in the range
+              starting from this next sha1
+
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        contents = []
+        next_content = None
+        for counter, content_row in enumerate(
+                db.content_get_range(start, end, limit+1, cur)):
+            content = dict(zip(db.content_get_metadata_keys, content_row))
+            if counter >= limit:
+                # take the last commit for the next page starting from this
+                next_content = content['sha1']
+                break
+            contents.append(content)
+        return {
+            'contents': contents,
+            'next': next_content,
+        }
 
     @db_transaction_generator(statement_timeout=500)
     def content_get_metadata(self, content, db=None, cur=None):
@@ -1197,6 +1247,27 @@ class Storage():
         return {k: v for (k, v) in db.stat_counters()}
 
     @db_transaction()
+    def refresh_stat_counters(self, db=None, cur=None):
+        """Recomputes the statistics for `stat_counters`."""
+        keys = [
+            'content',
+            'directory',
+            'directory_entry_dir',
+            'directory_entry_file',
+            'directory_entry_rev',
+            'origin',
+            'origin_visit',
+            'person',
+            'release',
+            'revision',
+            'revision_history',
+            'skipped_content',
+            'snapshot']
+
+        for key in keys:
+            cur.execute('select * from swh_update_counter(%s)', (key,))
+
+    @db_transaction()
     def origin_metadata_add(self, origin_id, ts, provider, tool, metadata,
                             db=None, cur=None):
         """ Add an origin_metadata for the origin at ts with provenance and
@@ -1302,8 +1373,9 @@ class Storage():
 
         Args:
             provider_name (str): Its name
-            provider_type (str): Its type
+            provider_type (str): Its type (eg. `'deposit-client'`)
             provider_url (str): Its URL
+            metadata: JSON-encodable object
 
         Returns:
             dict: same as args, plus an 'id' key.

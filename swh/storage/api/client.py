@@ -39,6 +39,11 @@ class RemoteStorage(SWHRemoteAPI):
     def content_get_metadata(self, content):
         return self.post('content/metadata', {'content': content})
 
+    def content_get_range(self, start, end, limit=1000):
+        return self.post('content/range', {'start': start,
+                                           'end': end,
+                                           'limit': limit})
+
     def content_find(self, content):
         return self.post('content/present', {'content': content})
 
