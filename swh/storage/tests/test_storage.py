@@ -18,7 +18,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
-from . import gen_contents
+from .generate_data_test import gen_contents
 
 
 @pytest.mark.db
