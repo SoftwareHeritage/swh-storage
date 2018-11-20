@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from hypothesis import given
+from hypothesis import given, strategies
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
@@ -609,7 +609,13 @@ class CommonTestStorage(TestStorageData):
              'Content too long')
         )
 
-    def test_content_missing(self):
+    @pytest.mark.property_based
+    @given(strategies.sets(
+        elements=strategies.sampled_from(
+            ['sha256', 'sha1_git', 'blake2s256']),
+        min_size=0))
+    def test_content_missing(self, algos):
+        algos |= {'sha1'}
         cont2 = self.cont2
         missing_cont = self.missing_cont
         self.storage.content_add([cont2])
@@ -617,7 +623,7 @@ class CommonTestStorage(TestStorageData):
         missing_per_hash = defaultdict(list)
         for i in range(256):
             test_content = missing_cont.copy()
-            for hash in ['sha1', 'sha256', 'sha1_git', 'blake2s256']:
+            for hash in algos:
                 test_content[hash] = bytes([i]) + test_content[hash][1:]
                 missing_per_hash[hash].append(test_content[hash])
             test_contents.append(test_content)
@@ -627,7 +633,7 @@ class CommonTestStorage(TestStorageData):
             missing_per_hash['sha1']
         )
 
-        for hash in ['sha1', 'sha256', 'sha1_git', 'blake2s256']:
+        for hash in algos:
             self.assertCountEqual(
                 self.storage.content_missing(test_contents, key_hash=hash),
                 missing_per_hash[hash]

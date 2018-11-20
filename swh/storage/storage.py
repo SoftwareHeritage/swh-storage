@@ -305,12 +305,11 @@ class Storage():
         """List content missing from storage
 
         Args:
-            content ([dict]): iterable of dictionaries containing one
-                              key for each checksum algorithm in
-                              :data:`swh.model.hashutil.ALGORITHMS`,
-                              mapped to the corresponding checksum,
-                              and a length key mapped to the content
-                              length.
+            content ([dict]): iterable of dictionaries whose keys are
+                              either 'length' or an item of
+                              :data:`swh.model.hashutil.ALGORITHMS`;
+                              mapped to the corresponding checksum
+                              (or length).
 
             key_hash (str): name of the column to use as hash id
                             result (default: 'sha1')

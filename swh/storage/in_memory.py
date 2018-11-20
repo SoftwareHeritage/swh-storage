@@ -134,12 +134,11 @@ class Storage:
         """List content missing from storage
 
         Args:
-            contents ([dict]): iterable of dictionaries containing one
-                               key for each checksum algorithm in
-                               :data:`swh.model.hashutil.ALGORITHMS`,
-                               mapped to the corresponding checksum,
-                               and a length key mapped to the content
-                               length.
+            contents ([dict]): iterable of dictionaries whose keys are
+                               either 'length' or an item of
+                               :data:`swh.model.hashutil.ALGORITHMS`;
+                               mapped to the corresponding checksum
+                               (or length).
 
             key_hash (str): name of the column to use as hash id
                             result (default: 'sha1')
@@ -149,8 +148,17 @@ class Storage:
             key_hash column)
         """
         for content in contents:
-            if self._content_key(content) not in self._contents:
-                yield content[key_hash]
+            for (algo, hash_) in content.items():
+                if algo not in DEFAULT_ALGORITHMS:
+                    continue
+                if hash_ not in self._content_indexes.get(algo, []):
+                    yield content[key_hash]
+                    break
+            else:
+                # content_find cannot return None here, because we checked
+                # above that there is a content with matching hashes.
+                if self.content_find(content)['status'] == 'missing':
+                    yield content[key_hash]
 
     def content_missing_per_sha1(self, contents):
         """List content missing from storage based only on sha1.
