@@ -782,6 +782,24 @@ class Storage:
             self._origins[key] = origin
         return key
 
+    def fetch_history_start(self, origin_id):
+        """Add an entry for origin origin_id in fetch_history. Returns the id
+        of the added fetch_history entry
+        """
+        pass
+
+    def fetch_history_end(self, fetch_history_id, data):
+        """Close the fetch_history entry with id `fetch_history_id`, replacing
+           its data with `data`.
+        """
+        pass
+
+    def fetch_history_get(self, fetch_history_id):
+        """Get the fetch_history entry with id `fetch_history_id`.
+        """
+        raise NotImplementedError('fetch_history_get is deprecated, use '
+                                  'origin_visit_get instead.')
+
     def origin_visit_add(self, origin, date=None, *, ts=None):
         """Add an origin_visit for the origin at date with status 'ongoing'.
 
