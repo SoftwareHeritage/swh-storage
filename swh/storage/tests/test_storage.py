@@ -1850,9 +1850,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(m_by_provider, expected_results)
 
 
-@pytest.mark.db
-@pytest.mark.property_based
-class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
+class CommonPropTestStorage:
     def assert_contents_ok(self, expected_contents, actual_contents,
                            keys_to_check={'sha1', 'data'}):
         """Assert that a given list of contents matches on a given set of keys.
@@ -1972,6 +1970,7 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
                                 keys_to_check)
 
 
+@pytest.mark.db
 class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
                        unittest.TestCase):
     """Test the local storage"""
@@ -2050,6 +2049,13 @@ class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
         self.assertEqual(e.exception.args, ('mocked broken objstorage',))
         missing = list(self.storage.content_missing([self.cont]))
         self.assertEqual(missing, [self.cont['sha1']])
+
+
+@pytest.mark.db
+@pytest.mark.property_based
+class PropTestLocalStorage(CommonPropTestStorage, StorageTestDbFixture,
+                           unittest.TestCase):
+    pass
 
 
 class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,

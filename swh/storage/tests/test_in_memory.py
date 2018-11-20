@@ -8,7 +8,8 @@ import pytest
 
 from swh.storage.in_memory import Storage
 
-from swh.storage.tests.test_storage import CommonTestStorage
+from swh.storage.tests.test_storage import \
+    CommonTestStorage, CommonPropTestStorage
 
 
 class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
@@ -29,3 +30,33 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
     @pytest.mark.skip('postgresql-specific test')
     def test_skipped_content_add(self):
         pass
+
+
+@pytest.mark.db
+@pytest.mark.property_based
+class PropTestInMemoryStorage(CommonPropTestStorage, unittest.TestCase):
+    """Test the in-memory storage API
+
+    This class doesn't define any tests as we want identical
+    functionality between local and remote storage. All the tests are
+    therefore defined in CommonPropTestStorage.
+    """
+    def setUp(self):
+        super().setUp()
+        self.storage = Storage()
+
+    @pytest.mark.xfail(reason='not implemented yet')
+    def test_generate_content_get(self):
+        super().test_generate_content_get()
+
+    @pytest.mark.xfail(reason='not implemented yet')
+    def test_generate_content_get_range_limit_none(self):
+        super().test_generate_content_get_range_limit_none()
+
+    @pytest.mark.xfail(reason='not implemented yet')
+    def test_generate_content_get_range_no_limit(self):
+        super().test_generate_content_get_range_no_limit()
+
+    @pytest.mark.xfail(reason='not implemented yet')
+    def test_generate_content_get_range_limit(self):
+        super().test_generate_content_get_range_limit()

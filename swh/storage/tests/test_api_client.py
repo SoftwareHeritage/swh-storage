@@ -11,12 +11,12 @@ import unittest
 from swh.core.tests.server_testing import ServerTestFixture
 from swh.storage.api.client import RemoteStorage
 from swh.storage.api.server import app
-from swh.storage.tests.test_storage import CommonTestStorage, \
-                                           StorageTestDbFixture
+from swh.storage.tests.test_storage import \
+    CommonTestStorage, CommonPropTestStorage, StorageTestDbFixture
 
 
-class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
-                        StorageTestDbFixture, unittest.TestCase):
+class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
+                           unittest.TestCase):
     """Test the remote storage API.
 
     This class doesn't define any tests as we want identical
@@ -55,6 +55,15 @@ class TestRemoteStorage(CommonTestStorage, ServerTestFixture,
         super().tearDown()
         shutil.rmtree(self.storage_base)
 
+
+@pytest.mark.db
+class TestRemoteStorage(CommonTestStorage, RemoteStorageFixture):
     @pytest.mark.skip('refresh_stat_counters not available in the remote api.')
     def test_stat_counters(self):
         pass
+
+
+@pytest.mark.db
+@pytest.mark.property_based
+class PropTestRemoteStorage(CommonPropTestStorage, RemoteStorageFixture):
+    pass
