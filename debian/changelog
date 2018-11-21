@@ -1,8 +1,10 @@
-swh-storage (0.0.110-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.111-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * v0.0.111
+  * Move generative tests in their own module
+  * Open in-memory storage implementation
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 16 Nov 2018 11:53:14 +0100
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Wed, 21 Nov 2018 08:55:14 +0100
 
 swh-storage (0.0.110-1~swh1) unstable-swh; urgency=medium
 

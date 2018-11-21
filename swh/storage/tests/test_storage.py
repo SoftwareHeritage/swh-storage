@@ -18,7 +18,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
-from . import gen_contents
+from .generate_data_test import gen_contents
 
 
 @pytest.mark.db
@@ -575,7 +575,7 @@ class CommonTestStorage(TestStorageData):
         with self.assertRaises(HashCollision) as cm:
             self.storage.content_add([cont1, cont1b])
 
-        self.assertEqual(cm.exception.args[0], 'sha1')
+        self.assertIn(cm.exception.args[0], ['sha1', 'sha1_git', 'blake2s256'])
 
     def test_skipped_content_add(self):
         cont = self.skipped_cont.copy()
@@ -787,8 +787,10 @@ class CommonTestStorage(TestStorageData):
 
         # hack: ids generated
         for actual_result in actual_results:
-            del actual_result['author']['id']
-            del actual_result['committer']['id']
+            if 'id' in actual_result['author']:
+                del actual_result['author']['id']
+            if 'id' in actual_result['committer']:
+                del actual_result['committer']['id']
 
         self.assertEqual(len(actual_results), 2)  # rev4 -child-> rev3
         self.assertEqual(actual_results[0],
@@ -806,8 +808,10 @@ class CommonTestStorage(TestStorageData):
 
         # hack: ids generated
         for actual_result in actual_results:
-            del actual_result['author']['id']
-            del actual_result['committer']['id']
+            if 'id' in actual_result['author']:
+                del actual_result['author']['id']
+            if 'id' in actual_result['committer']:
+                del actual_result['committer']['id']
 
         self.assertEqual(len(actual_results), 1)
         self.assertEqual(actual_results[0], self.revision4)
@@ -851,8 +855,10 @@ class CommonTestStorage(TestStorageData):
             [self.revision['id'], self.revision2['id']]))
 
         # when
-        del actual_revisions[0]['author']['id']  # hack: ids are generated
-        del actual_revisions[0]['committer']['id']
+        if 'id' in actual_revisions[0]['author']:
+            del actual_revisions[0]['author']['id']  # hack: ids are generated
+        if 'id' in actual_revisions[0]['committer']:
+            del actual_revisions[0]['committer']['id']
 
         self.assertEqual(len(actual_revisions), 2)
         self.assertEqual(actual_revisions[0],
