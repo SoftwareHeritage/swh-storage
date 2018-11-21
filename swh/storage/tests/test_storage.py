@@ -1417,15 +1417,48 @@ class CommonTestStorage(TestStorageData):
         )
 
     def test_stat_counters(self):
-        expected_keys = ['content', 'directory', 'directory_entry_dir',
+        expected_keys = ['content', 'directory',
                          'origin', 'person', 'revision']
 
-        self.storage.refresh_stat_counters()
+        # Initially, all counters are 0
 
+        self.storage.refresh_stat_counters()
+        counters = self.storage.stat_counters()
+        self.assertTrue(set(expected_keys) <= set(counters))
+        for key in expected_keys:
+            self.assertEqual(counters[key], 0)
+
+        # Add a content. Only the content counter should increase.
+
+        self.storage.content_add([self.cont])
+
+        self.storage.refresh_stat_counters()
         counters = self.storage.stat_counters()
 
         self.assertTrue(set(expected_keys) <= set(counters))
-        self.assertIsInstance(counters[expected_keys[0]], int)
+        for key in expected_keys:
+            if key != 'content':
+                self.assertEqual(counters[key], 0)
+        self.assertEqual(counters['content'], 1)
+
+        # Add other objects. Check their counter increased as well.
+
+        origin_id = self.storage.origin_add_one(self.origin2)
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit2)
+        self.storage.snapshot_add(origin_id, origin_visit1['visit'],
+                                  self.snapshot)
+        self.storage.directory_add([self.dir])
+        self.storage.revision_add([self.revision])
+
+        self.storage.refresh_stat_counters()
+        counters = self.storage.stat_counters()
+        self.assertEqual(counters['content'], 1)
+        self.assertEqual(counters['directory'], 1)
+        self.assertEqual(counters['snapshot'], 1)
+        self.assertEqual(counters['origin'], 1)
+        self.assertEqual(counters['revision'], 1)
 
     def test_content_find_with_present_content(self):
         # 1. with something to find

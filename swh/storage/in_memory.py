@@ -468,6 +468,7 @@ class Storage:
                 'branches': copy.deepcopy(snapshot['branches']),
                 '_sorted_branch_names': sorted(snapshot['branches'])
                 }
+            self._objects[snapshot_id].append(('snapshot', snapshot_id))
         self._origin_visits[visit]['snapshot'] = snapshot_id
 
     def snapshot_get(self, snapshot_id):
@@ -788,6 +789,7 @@ class Storage:
         origin['visits_dates'] = defaultdict(set)
         if key not in self._origins:
             self._origins[key] = origin
+        self._objects[key].append(('origin', key))
         return key
 
     def fetch_history_start(self, origin_id):
@@ -926,21 +928,19 @@ class Storage:
         keys = (
             'content',
             'directory',
-            'directory_entry_dir',
-            'directory_entry_file',
-            'directory_entry_rev',
             'origin',
             'origin_visit',
             'person',
             'release',
             'revision',
-            'revision_history',
             'skipped_content',
             'snapshot'
             )
         stats = {key: 0 for key in keys}
         stats.update(collections.Counter(
-            obj_type for (obj_type, obj_id) in self._objects.values()))
+            obj_type
+            for (obj_type, obj_id)
+            in itertools.chain(*self._objects.values())))
         return stats
 
     def refresh_stat_counters(self):
