@@ -7,11 +7,6 @@ Abstraction layer over the archive, allowing to access all stored source code
 artifacts as well as their metadata
 
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-
 The Software Heritage storage consist of a high-level storage layer
 (:mod:`swh.storage`) that exposes a client/server API
 (:mod:`swh.storage.api`). The API is exposed by a server
@@ -36,9 +31,10 @@ Archive copies
 * :ref:`archive-copies`
 
 
-Indices and tables
-==================
+Reference Documentation
+-----------------------
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. toctree::
+   :maxdepth: 2
+
+   /apidoc/swh.storage
