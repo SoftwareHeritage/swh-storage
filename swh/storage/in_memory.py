@@ -379,21 +379,26 @@ class Storage:
                 the individual revisions to add. Each dict has the following
                 keys:
 
-                - id (sha1_git): id of the revision to add
-                - date (dict): date the revision was written
-                - committer_date (dict): date the revision got
+                - **id** (:class:`sha1_git`): id of the revision to add
+                - **date** (:class:`dict`): date the revision was written
+                - **committer_date** (:class:`dict`): date the revision got
                   added to the origin
-                - type (one of 'git', 'tar'): type of the revision added
-                - directory (sha1_git): the directory the revision points at
-                - message (bytes): the message associated with the revision
-                - author (Dict[str, bytes]): dictionary with keys:
-                                             name, fullname, email
-                - committer (Dict[str, bytes]): dictionary with keys:
-                                                name, fullname, email
-                - metadata (jsonb): extra information as dictionary
-                - synthetic (bool): revision's nature (tarball, directory
-                  creates synthetic revision)
-                - parents (list of sha1_git): the parents of this revision
+                - **type** (one of 'git', 'tar'): type of the
+                  revision added
+                - **directory** (:class:`sha1_git`): the directory the
+                  revision points at
+                - **message** (:class:`bytes`): the message associated with
+                  the revision
+                - **author** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
+                - **committer** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
+                - **metadata** (:class:`jsonb`): extra information as
+                  dictionary
+                - **synthetic** (:class:`bool`): revision's nature (tarball,
+                  directory creates synthetic revision`)
+                - **parents** (:class:`list[sha1_git]`): the parents of
+                  this revision
 
         date dictionaries have the form defined in :mod:`swh.model`.
         """
@@ -471,13 +476,15 @@ class Storage:
                 the individual releases to add. Each dict has the following
                 keys:
 
-                - id (sha1_git): id of the release to add
-                - revision (sha1_git): id of the revision the release points to
-                - date (dict): the date the release was made
-                - name (bytes): the name of the release
-                - comment (bytes): the comment associated with the release
-                - author (Dict[str, bytes]): dictionary with keys:
-                                             name, fullname, email
+                - **id** (:class:`sha1_git`): id of the release to add
+                - **revision** (:class:`sha1_git`): id of the revision the
+                  release points to
+                - **date** (:class:`dict`): the date the release was made
+                - **name** (:class:`bytes`): the name of the release
+                - **comment** (:class:`bytes`): the comment associated with
+                  the release
+                - **author** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
 
         the date dictionary has the form defined in :mod:`swh.model`.
         """
