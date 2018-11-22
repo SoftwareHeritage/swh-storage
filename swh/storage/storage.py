@@ -224,6 +224,11 @@ class Storage():
     def content_get(self, content):
         """Retrieve in bulk contents and their data.
 
+        This generator yields exactly as many items than provided sha1
+        identifiers, but callers should not assume this will always be true.
+
+        It may also yield `None` values in case an object was not found.
+
         Args:
             content: iterables of sha1
 
@@ -256,6 +261,10 @@ class Storage():
     @db_transaction()
     def content_get_range(self, start, end, limit=1000, db=None, cur=None):
         """Retrieve contents within range [start, end] bound by limit.
+
+        Note that this function may return more than one blob per hash. The
+        limit is enforced with multiplicity (ie. two blobs with the same hash
+        will count twice toward the limit).
 
         Args:
             **start** (bytes): Starting identifier range (expected smaller
