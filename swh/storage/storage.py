@@ -228,17 +228,18 @@ class Storage():
             content: iterables of sha1
 
         Yields:
-            dict: Generates streams of contents as dict with their raw data:
+            Dict[str, bytes]: Generates streams of contents as dict with their
+                raw data:
 
-                - sha1: sha1's content
-                - data: bytes data of the content
+                - sha1 (bytes): content id
+                - data (bytes): content's raw data
 
         Raises:
             ValueError in case of too much contents are required.
             cf. BULK_BLOCK_CONTENT_LEN_MAX
 
         """
-        # FIXME: Improve on server module to slice the result
+        # FIXME: Make this method support slicing the `data`.
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise ValueError(
                 "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)

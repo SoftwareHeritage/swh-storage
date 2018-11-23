@@ -17,6 +17,9 @@ import warnings
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import normalize_timestamp
 
+# Max block size of contents to return
+BULK_BLOCK_CONTENT_LEN_MAX = 10000
+
 
 def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
@@ -41,6 +44,9 @@ class Storage:
         self._tools = {}
         self._metadata_providers = {}
         self._objects = defaultdict(list)
+
+        # ideally we would want a skip list for both fast inserts and searches
+        self._sorted_sha1s = []
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
@@ -79,8 +85,87 @@ class Storage:
                 ('content', content['sha1']))
             self._contents[key] = copy.deepcopy(content)
             self._contents[key]['ctime'] = now()
+            bisect.insort(self._sorted_sha1s, content['sha1'])
             if self._contents[key]['status'] == 'visible':
                 self._contents_data[key] = self._contents[key].pop('data')
+
+    def content_get(self, ids):
+        """Retrieve in bulk contents and their data.
+
+        This function may yield more blobs than provided sha1 identifiers,
+        in case they collide.
+
+        Args:
+            content: iterables of sha1
+
+        Yields:
+            Dict[str, bytes]: Generates streams of contents as dict with their
+                raw data:
+
+                - sha1 (bytes): content id
+                - data (bytes): content's raw data
+
+        Raises:
+            ValueError in case of too much contents are required.
+            cf. BULK_BLOCK_CONTENT_LEN_MAX
+
+        """
+        # FIXME: Make this method support slicing the `data`.
+        if len(ids) > BULK_BLOCK_CONTENT_LEN_MAX:
+            raise ValueError(
+                "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
+        for id_ in ids:
+            for key in self._content_indexes['sha1'][id_]:
+                yield {
+                    'sha1': id_,
+                    'data': self._contents_data[key],
+                }
+
+    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
+        """Retrieve contents within range [start, end] bound by limit.
+
+        Note that this function may return more than one blob per hash. The
+        limit is enforced with multiplicity (ie. two blobs with the same hash
+        will count twice toward the limit).
+
+        Args:
+            **start** (bytes): Starting identifier range (expected smaller
+                           than end)
+            **end** (bytes): Ending identifier range (expected larger
+                             than start)
+            **limit** (int): Limit result (default to 1000)
+
+        Returns:
+            a dict with keys:
+            - contents [dict]: iterable of contents in between the range.
+            - next (bytes): There remains content in the range
+              starting from this next sha1
+
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        from_index = bisect.bisect_left(self._sorted_sha1s, start)
+        sha1s = itertools.islice(self._sorted_sha1s, from_index, None)
+        sha1s = ((sha1, content_key)
+                 for sha1 in sha1s
+                 for content_key in self._content_indexes['sha1'][sha1])
+        matched = []
+        for sha1, key in sha1s:
+            if sha1 > end:
+                break
+            if len(matched) >= limit:
+                return {
+                    'contents': matched,
+                    'next': sha1,
+                }
+            matched.append({
+                'data': self._contents_data[key],
+                **self._contents[key],
+                })
+        return {
+            'contents': matched,
+            'next': None,
+            }
 
     def content_get_metadata(self, sha1s):
         """Retrieve content metadata in bulk

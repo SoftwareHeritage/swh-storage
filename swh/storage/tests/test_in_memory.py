@@ -45,18 +45,5 @@ class PropTestInMemoryStorage(CommonPropTestStorage, unittest.TestCase):
         super().setUp()
         self.storage = Storage()
 
-    @pytest.mark.xfail(reason='not implemented yet')
-    def test_generate_content_get(self):
-        super().test_generate_content_get()
-
-    @pytest.mark.xfail(reason='not implemented yet')
-    def test_generate_content_get_range_limit_none(self):
-        super().test_generate_content_get_range_limit_none()
-
-    @pytest.mark.xfail(reason='not implemented yet')
-    def test_generate_content_get_range_no_limit(self):
-        super().test_generate_content_get_range_no_limit()
-
-    @pytest.mark.xfail(reason='not implemented yet')
-    def test_generate_content_get_range_limit(self):
-        super().test_generate_content_get_range_limit()
+    def reset_storage_tables(self):
+        self.storage = Storage()
