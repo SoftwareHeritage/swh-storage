@@ -507,12 +507,11 @@ class Storage:
 
         Yields:
             dicts with the same keys as those given to `release_add`
-
-        Raises:
-            ValueError: if the keys does not match (url and type) nor id.
+            (or ``None`` if a release does not exist)
 
         """
-        yield from map(self._releases.__getitem__, releases)
+        for rel_id in releases:
+            yield copy.deepcopy(self._releases.get(rel_id))
 
     def snapshot_add(self, origin, visit, snapshot):
         """Add a snapshot for the given origin/visit couple

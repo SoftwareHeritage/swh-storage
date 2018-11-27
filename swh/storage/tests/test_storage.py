@@ -908,6 +908,11 @@ class CommonTestStorage(TestStorageData):
                           self.normalize_entity(self.release2)],
                          [actual_releases[0], actual_releases[1]])
 
+        unknown_releases = \
+            list(self.storage.release_get([self.release3['id']]))
+
+        self.assertIsNone(unknown_releases[0])
+
     def test_origin_add_one(self):
         origin0 = self.storage.origin_get(self.origin)
         self.assertIsNone(origin0)

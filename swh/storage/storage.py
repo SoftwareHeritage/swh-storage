@@ -729,15 +729,14 @@ class Storage():
 
         Yields:
             dicts with the same keys as those given to `release_add`
-
-        Raises:
-            ValueError: if the keys does not match (url and type) nor id.
+            (or ``None`` if a release does not exist)
 
         """
         for release in db.release_get_from_list(releases, cur):
-            yield converters.db_to_release(
+            data = converters.db_to_release(
                 dict(zip(db.release_get_cols, release))
             )
+            yield data if data['target_type'] else None
 
     @db_transaction()
     def snapshot_add(self, origin, visit, snapshot,
