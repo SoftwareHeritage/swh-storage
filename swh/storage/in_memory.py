@@ -1133,7 +1133,7 @@ class Storage:
             metadata: JSON-encodable object
 
         Returns:
-            dict: same as args, plus an 'id' key.
+            an identifier of the provider
         """
         provider = {
                 'name': provider_name,
@@ -1144,7 +1144,7 @@ class Storage:
         key = self._metadata_provider_key(provider)
         provider['id'] = key
         self._metadata_providers[key] = provider
-        return provider.copy()
+        return key
 
     def metadata_provider_get(self, provider_id, db=None, cur=None):
         """Get a metadata provider

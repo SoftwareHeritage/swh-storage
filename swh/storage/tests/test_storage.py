@@ -1821,7 +1821,7 @@ class CommonTestStorage(TestStorageData):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]['id']
         origin_id2 = self.storage.origin_add([self.origin2])[0]['id']
-        self.storage.metadata_provider_add(
+        provider1_id = self.storage.metadata_provider_add(
                            self.provider['name'],
                            self.provider['type'],
                            self.provider['url'],
@@ -1830,8 +1830,10 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                    })
+        self.assertEqual(provider1,
+                         self.storage.metadata_provider_get(provider1_id))
 
-        self.storage.metadata_provider_add(
+        provider2_id = self.storage.metadata_provider_add(
                             'swMATH',
                             'registry',
                             'http://www.swmath.org/',
@@ -1841,6 +1843,8 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': 'swMATH',
                             'provider_url': 'http://www.swmath.org/'
                    })
+        self.assertEqual(provider2,
+                         self.storage.metadata_provider_get(provider2_id))
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)

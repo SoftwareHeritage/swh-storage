@@ -1386,7 +1386,7 @@ class Storage():
             metadata: JSON-encodable object
 
         Returns:
-            dict: same as args, plus an 'id' key.
+            int: an identifier of the provider
         """
         return db.metadata_provider_add(provider_name, provider_type,
                                         provider_url, metadata, cur)
