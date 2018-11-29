@@ -1694,6 +1694,26 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertEqual(expected_tool, actual_tool)
 
+    def test_metadata_provider_get(self):
+        # given
+        no_provider = self.storage.metadata_provider_get(6459456445615)
+        self.assertIsNone(no_provider)
+        # when
+        provider_id = self.storage.metadata_provider_add(
+            self.provider['name'],
+            self.provider['type'],
+            self.provider['url'],
+            self.provider['metadata'])
+
+        actual_provider = self.storage.metadata_provider_get(provider_id)
+        expected_provider = {
+            'provider_name': self.provider['name'],
+            'provider_url': self.provider['url']
+        }
+        # then
+        del actual_provider['id']
+        self.assertTrue(actual_provider, expected_provider)
+
     def test_metadata_provider_get_by(self):
         # given
         no_provider = self.storage.metadata_provider_get_by({

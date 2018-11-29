@@ -1024,7 +1024,7 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         cur.execute('''select %s
                        from metadata_provider
-                       where provider_id=%%s ''' % (
+                       where id=%%s ''' % (
                                  ','.join(self.metadata_provider_cols)),
                     (provider_id, ))
 
