@@ -6,6 +6,7 @@
 import copy
 import datetime
 import unittest
+import itertools
 from collections import defaultdict
 from unittest.mock import Mock, patch
 
@@ -173,9 +174,9 @@ class TestStorageData:
                     'perms': from_disk.DentryPerms.content,
                 },
                 {
-                    'name': b'bar',
+                    'name': b'subdir',
                     'type': 'dir',
-                    'target': b'12345678901234560000',
+                    'target': self.dir['id'],
                     'perms': from_disk.DentryPerms.directory,
                 },
                 {
@@ -683,33 +684,57 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(list(gen), [missing_cont])
 
-    def test_directory_add(self):
-        init_missing = list(self.storage.directory_missing([self.dir['id']]))
-        self.assertEqual([self.dir['id']], init_missing)
-
-        self.storage.directory_add([self.dir])
-
-        stored_data = list(self.storage.directory_ls(self.dir['id']))
-
-        data_to_store = []
-        for ent in self.dir['entries']:
-            data_to_store.append({
-                'dir_id': self.dir['id'],
+    @staticmethod
+    def _transform_entries(dir_, *, prefix=b''):
+        for ent in dir_['entries']:
+            yield {
+                'dir_id': dir_['id'],
                 'type': ent['type'],
                 'target': ent['target'],
-                'name': ent['name'],
+                'name': prefix + ent['name'],
                 'perms': ent['perms'],
                 'status': None,
                 'sha1': None,
                 'sha1_git': None,
                 'sha256': None,
                 'length': None,
-            })
+            }
 
-        self.assertCountEqual(data_to_store, stored_data)
+    def test_directory_add(self):
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
+        self.storage.directory_add([self.dir])
+
+        actual_data = list(self.storage.directory_ls(self.dir['id']))
+        expected_data = list(self._transform_entries(self.dir))
+        self.assertCountEqual(expected_data, actual_data)
 
         after_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([], after_missing)
+
+    def test_directory_get_recursive(self):
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
+        self.storage.directory_add([self.dir, self.dir2, self.dir3])
+
+        actual_data = list(self.storage.directory_ls(
+            self.dir['id'], recursive=True))
+        expected_data = list(self._transform_entries(self.dir))
+        self.assertCountEqual(expected_data, actual_data)
+
+        actual_data = list(self.storage.directory_ls(
+            self.dir2['id'], recursive=True))
+        expected_data = list(self._transform_entries(self.dir2))
+        self.assertCountEqual(expected_data, actual_data)
+
+        actual_data = list(self.storage.directory_ls(
+            self.dir3['id'], recursive=True))
+        expected_data = list(itertools.chain(
+            self._transform_entries(self.dir3),
+            self._transform_entries(self.dir, prefix=b'subdir/')))
+        self.assertCountEqual(expected_data, actual_data)
 
     def test_directory_entry_get_by_path(self):
         # given
@@ -733,9 +758,9 @@ class CommonTestStorage(TestStorageData):
             },
             {
                 'dir_id': self.dir3['id'],
-                'name': b'bar',
+                'name': b'subdir',
                 'type': 'dir',
-                'target': b'12345678901234560000',
+                'target': self.dir['id'],
                 'sha1': None,
                 'sha1_git': None,
                 'sha256': None,
