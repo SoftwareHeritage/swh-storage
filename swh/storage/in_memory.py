@@ -318,7 +318,18 @@ class Storage:
                     ret[key] = content[key]
         return ret
 
-    def directory_ls(self, directory_id):
+    def _directory_ls(self, directory_id, recursive, prefix=b''):
+        if directory_id in self._directories:
+            for entry in self._directories[directory_id]['entries']:
+                ret = self._join_dentry_to_content(entry)
+                ret['name'] = prefix + ret['name']
+                ret['dir_id'] = directory_id
+                yield ret
+                if recursive and ret['type'] == 'dir':
+                    yield from self._directory_ls(
+                        ret['target'], True, prefix + ret['name'] + b'/')
+
+    def directory_ls(self, directory_id, recursive=False):
         """Get entries for one directory.
 
         Args:
@@ -328,12 +339,10 @@ class Storage:
         Returns:
             List of entries for such directory.
 
+        If `recursive=True`, names in the path of a dir/file not at the
+        root are concatenated with a slash (`/`).
         """
-        if directory_id in self._directories:
-            for entry in self._directories[directory_id]['entries']:
-                ret = self._join_dentry_to_content(entry)
-                ret['dir_id'] = directory_id
-                yield ret
+        yield from self._directory_ls(directory_id, recursive)
 
     def directory_entry_get_by_path(self, directory, paths):
         """Get the directory entry (either file or dir) from directory with path.
