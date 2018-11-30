@@ -26,7 +26,10 @@ create function notify_new_origin()
   language plpgsql
 as $$
   begin
-    perform pg_notify('new_origin', json_build_object('id', new.id)::text);
+    perform pg_notify('new_origin', json_build_object(
+      'url', new.url::text,
+      'type', new.type::text
+    )::text);
     return null;
   end;
 $$;

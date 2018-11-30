@@ -19,7 +19,8 @@ def get_storage(cls, args):
 
     Args:
         storage (dict): dictionary with keys:
-        - cls (str): storage's class, either 'local' or 'remote'
+        - cls (str): storage's class, either 'local', 'remote',
+                     or 'memory'
         - args (dict): dictionary with keys
 
     Returns:
@@ -34,6 +35,8 @@ def get_storage(cls, args):
         from .api.client import RemoteStorage as Storage
     elif cls == 'local':
         from .storage import Storage
+    elif cls == 'memory':
+        from .in_memory import Storage
     else:
         raise ValueError('Unknown storage class `%s`' % cls)
 

@@ -224,21 +224,27 @@ class Storage():
     def content_get(self, content):
         """Retrieve in bulk contents and their data.
 
+        This generator yields exactly as many items than provided sha1
+        identifiers, but callers should not assume this will always be true.
+
+        It may also yield `None` values in case an object was not found.
+
         Args:
             content: iterables of sha1
 
         Yields:
-            dict: Generates streams of contents as dict with their raw data:
+            Dict[str, bytes]: Generates streams of contents as dict with their
+                raw data:
 
-                - sha1: sha1's content
-                - data: bytes data of the content
+                - sha1 (bytes): content id
+                - data (bytes): content's raw data
 
         Raises:
             ValueError in case of too much contents are required.
             cf. BULK_BLOCK_CONTENT_LEN_MAX
 
         """
-        # FIXME: Improve on server module to slice the result
+        # FIXME: Make this method support slicing the `data`.
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise ValueError(
                 "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
@@ -255,6 +261,10 @@ class Storage():
     @db_transaction()
     def content_get_range(self, start, end, limit=1000, db=None, cur=None):
         """Retrieve contents within range [start, end] bound by limit.
+
+        Note that this function may return more than one blob per hash. The
+        limit is enforced with multiplicity (ie. two blobs with the same hash
+        will count twice toward the limit).
 
         Args:
             **start** (bytes): Starting identifier range (expected smaller
@@ -305,12 +315,11 @@ class Storage():
         """List content missing from storage
 
         Args:
-            content ([dict]): iterable of dictionaries containing one
-                              key for each checksum algorithm in
-                              :data:`swh.model.hashutil.ALGORITHMS`,
-                              mapped to the corresponding checksum,
-                              and a length key mapped to the content
-                              length.
+            content ([dict]): iterable of dictionaries whose keys are
+                              either 'length' or an item of
+                              :data:`swh.model.hashutil.ALGORITHMS`;
+                              mapped to the corresponding checksum
+                              (or length).
 
             key_hash (str): name of the column to use as hash id
                             result (default: 'sha1')
@@ -524,33 +533,32 @@ class Storage():
         """Add revisions to the storage
 
         Args:
-            revisions (iterable): iterable of dictionaries representing the
-                individual revisions to add. Each dict has the following keys:
+            revisions (Iterable[dict]): iterable of dictionaries representing
+                the individual revisions to add. Each dict has the following
+                keys:
 
-                - id (sha1_git): id of the revision to add
-                - date (datetime.DateTime): date the revision was written
-                - date_offset (int): offset from UTC in minutes the revision
-                  was written
-                - date_neg_utc_offset (boolean): whether a null date_offset
-                  represents a negative UTC offset
-                - committer_date (datetime.DateTime): date the revision got
+                - **id** (:class:`sha1_git`): id of the revision to add
+                - **date** (:class:`dict`): date the revision was written
+                - **committer_date** (:class:`dict`): date the revision got
                   added to the origin
-                - committer_date_offset (int): offset from UTC in minutes the
-                  revision was added to the origin
-                - committer_date_neg_utc_offset (boolean): whether a null
-                  committer_date_offset represents a negative UTC offset
-                - type (one of 'git', 'tar'): type of the revision added
-                - directory (sha1_git): the directory the revision points at
-                - message (bytes): the message associated with the revision
-                - author_name (bytes): the name of the revision author
-                - author_email (bytes): the email of the revision author
-                - committer_name (bytes): the name of the revision committer
-                - committer_email (bytes): the email of the revision committer
-                - metadata (jsonb): extra information as dictionary
-                - synthetic (bool): revision's nature (tarball, directory
-                  creates synthetic revision)
-                - parents (list of sha1_git): the parents of this revision
+                - **type** (one of 'git', 'tar'): type of the
+                  revision added
+                - **directory** (:class:`sha1_git`): the directory the
+                  revision points at
+                - **message** (:class:`bytes`): the message associated with
+                  the revision
+                - **author** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
+                - **committer** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
+                - **metadata** (:class:`jsonb`): extra information as
+                  dictionary
+                - **synthetic** (:class:`bool`): revision's nature (tarball,
+                  directory creates synthetic revision`)
+                - **parents** (:class:`list[sha1_git]`): the parents of
+                  this revision
 
+        date dictionaries have the form defined in :mod:`swh.model`.
         """
         db = self.get_db()
 
@@ -657,21 +665,21 @@ class Storage():
         """Add releases to the storage
 
         Args:
-            releases (iterable): iterable of dictionaries representing the
-                individual releases to add. Each dict has the following keys:
+            releases (Iterable[dict]): iterable of dictionaries representing
+                the individual releases to add. Each dict has the following
+                keys:
 
-                - id (sha1_git): id of the release to add
-                - revision (sha1_git): id of the revision the release points to
-                - date (datetime.DateTime): the date the release was made
-                - date_offset (int): offset from UTC in minutes the release was
-                  made
-                - date_neg_utc_offset (boolean): whether a null date_offset
-                  represents a negative UTC offset
-                - name (bytes): the name of the release
-                - comment (bytes): the comment associated with the release
-                - author_name (bytes): the name of the release author
-                - author_email (bytes): the email of the release author
+                - **id** (:class:`sha1_git`): id of the release to add
+                - **revision** (:class:`sha1_git`): id of the revision the
+                  release points to
+                - **date** (:class:`dict`): the date the release was made
+                - **name** (:class:`bytes`): the name of the release
+                - **comment** (:class:`bytes`): the comment associated with
+                  the release
+                - **author** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
 
+        the date dictionary has the form defined in :mod:`swh.model`.
         """
         db = self.get_db()
 
@@ -720,15 +728,14 @@ class Storage():
 
         Yields:
             dicts with the same keys as those given to `release_add`
-
-        Raises:
-            ValueError: if the keys does not match (url and type) nor id.
+            (or ``None`` if a release does not exist)
 
         """
         for release in db.release_get_from_list(releases, cur):
-            yield converters.db_to_release(
+            data = converters.db_to_release(
                 dict(zip(db.release_get_cols, release))
             )
+            yield data if data['target_type'] else None
 
     @db_transaction()
     def snapshot_add(self, origin, visit, snapshot,
@@ -1378,7 +1385,7 @@ class Storage():
             metadata: JSON-encodable object
 
         Returns:
-            dict: same as args, plus an 'id' key.
+            int: an identifier of the provider
         """
         return db.metadata_provider_add(provider_name, provider_type,
                                         provider_url, metadata, cur)
