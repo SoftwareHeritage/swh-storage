@@ -17,6 +17,9 @@ import warnings
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import normalize_timestamp
 
+# Max block size of contents to return
+BULK_BLOCK_CONTENT_LEN_MAX = 10000
+
 
 def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
@@ -41,6 +44,9 @@ class Storage:
         self._tools = {}
         self._metadata_providers = {}
         self._objects = defaultdict(list)
+
+        # ideally we would want a skip list for both fast inserts and searches
+        self._sorted_sha1s = []
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
@@ -79,8 +85,87 @@ class Storage:
                 ('content', content['sha1']))
             self._contents[key] = copy.deepcopy(content)
             self._contents[key]['ctime'] = now()
+            bisect.insort(self._sorted_sha1s, content['sha1'])
             if self._contents[key]['status'] == 'visible':
                 self._contents_data[key] = self._contents[key].pop('data')
+
+    def content_get(self, ids):
+        """Retrieve in bulk contents and their data.
+
+        This function may yield more blobs than provided sha1 identifiers,
+        in case they collide.
+
+        Args:
+            content: iterables of sha1
+
+        Yields:
+            Dict[str, bytes]: Generates streams of contents as dict with their
+                raw data:
+
+                - sha1 (bytes): content id
+                - data (bytes): content's raw data
+
+        Raises:
+            ValueError in case of too much contents are required.
+            cf. BULK_BLOCK_CONTENT_LEN_MAX
+
+        """
+        # FIXME: Make this method support slicing the `data`.
+        if len(ids) > BULK_BLOCK_CONTENT_LEN_MAX:
+            raise ValueError(
+                "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
+        for id_ in ids:
+            for key in self._content_indexes['sha1'][id_]:
+                yield {
+                    'sha1': id_,
+                    'data': self._contents_data[key],
+                }
+
+    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
+        """Retrieve contents within range [start, end] bound by limit.
+
+        Note that this function may return more than one blob per hash. The
+        limit is enforced with multiplicity (ie. two blobs with the same hash
+        will count twice toward the limit).
+
+        Args:
+            **start** (bytes): Starting identifier range (expected smaller
+                           than end)
+            **end** (bytes): Ending identifier range (expected larger
+                             than start)
+            **limit** (int): Limit result (default to 1000)
+
+        Returns:
+            a dict with keys:
+            - contents [dict]: iterable of contents in between the range.
+            - next (bytes): There remains content in the range
+              starting from this next sha1
+
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        from_index = bisect.bisect_left(self._sorted_sha1s, start)
+        sha1s = itertools.islice(self._sorted_sha1s, from_index, None)
+        sha1s = ((sha1, content_key)
+                 for sha1 in sha1s
+                 for content_key in self._content_indexes['sha1'][sha1])
+        matched = []
+        for sha1, key in sha1s:
+            if sha1 > end:
+                break
+            if len(matched) >= limit:
+                return {
+                    'contents': matched,
+                    'next': sha1,
+                }
+            matched.append({
+                'data': self._contents_data[key],
+                **self._contents[key],
+                })
+        return {
+            'contents': matched,
+            'next': None,
+            }
 
     def content_get_metadata(self, sha1s):
         """Retrieve content metadata in bulk
@@ -134,12 +219,11 @@ class Storage:
         """List content missing from storage
 
         Args:
-            contents ([dict]): iterable of dictionaries containing one
-                               key for each checksum algorithm in
-                               :data:`swh.model.hashutil.ALGORITHMS`,
-                               mapped to the corresponding checksum,
-                               and a length key mapped to the content
-                               length.
+            contents ([dict]): iterable of dictionaries whose keys are
+                               either 'length' or an item of
+                               :data:`swh.model.hashutil.ALGORITHMS`;
+                               mapped to the corresponding checksum
+                               (or length).
 
             key_hash (str): name of the column to use as hash id
                             result (default: 'sha1')
@@ -149,8 +233,17 @@ class Storage:
             key_hash column)
         """
         for content in contents:
-            if self._content_key(content) not in self._contents:
-                yield content[key_hash]
+            for (algo, hash_) in content.items():
+                if algo not in DEFAULT_ALGORITHMS:
+                    continue
+                if hash_ not in self._content_indexes.get(algo, []):
+                    yield content[key_hash]
+                    break
+            else:
+                # content_find cannot return None here, because we checked
+                # above that there is a content with matching hashes.
+                if self.content_find(content)['status'] == 'missing':
+                    yield content[key_hash]
 
     def content_missing_per_sha1(self, contents):
         """List content missing from storage based only on sha1.
@@ -282,33 +375,32 @@ class Storage:
         """Add revisions to the storage
 
         Args:
-            revisions (iterable): iterable of dictionaries representing the
-                individual revisions to add. Each dict has the following keys:
+            revisions (Iterable[dict]): iterable of dictionaries representing
+                the individual revisions to add. Each dict has the following
+                keys:
 
-                - id (sha1_git): id of the revision to add
-                - date (datetime.DateTime): date the revision was written
-                - date_offset (int): offset from UTC in minutes the revision
-                  was written
-                - date_neg_utc_offset (boolean): whether a null date_offset
-                  represents a negative UTC offset
-                - committer_date (datetime.DateTime): date the revision got
+                - **id** (:class:`sha1_git`): id of the revision to add
+                - **date** (:class:`dict`): date the revision was written
+                - **committer_date** (:class:`dict`): date the revision got
                   added to the origin
-                - committer_date_offset (int): offset from UTC in minutes the
-                  revision was added to the origin
-                - committer_date_neg_utc_offset (boolean): whether a null
-                  committer_date_offset represents a negative UTC offset
-                - type (one of 'git', 'tar'): type of the revision added
-                - directory (sha1_git): the directory the revision points at
-                - message (bytes): the message associated with the revision
-                - author_name (bytes): the name of the revision author
-                - author_email (bytes): the email of the revision author
-                - committer_name (bytes): the name of the revision committer
-                - committer_email (bytes): the email of the revision committer
-                - metadata (jsonb): extra information as dictionary
-                - synthetic (bool): revision's nature (tarball, directory
-                  creates synthetic revision)
-                - parents (list of sha1_git): the parents of this revision
+                - **type** (one of 'git', 'tar'): type of the
+                  revision added
+                - **directory** (:class:`sha1_git`): the directory the
+                  revision points at
+                - **message** (:class:`bytes`): the message associated with
+                  the revision
+                - **author** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
+                - **committer** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
+                - **metadata** (:class:`jsonb`): extra information as
+                  dictionary
+                - **synthetic** (:class:`bool`): revision's nature (tarball,
+                  directory creates synthetic revision`)
+                - **parents** (:class:`list[sha1_git]`): the parents of
+                  this revision
 
+        date dictionaries have the form defined in :mod:`swh.model`.
         """
         for revision in revisions:
             if revision['id'] not in self._revisions:
@@ -380,21 +472,21 @@ class Storage:
         """Add releases to the storage
 
         Args:
-            releases (iterable): iterable of dictionaries representing the
-                individual releases to add. Each dict has the following keys:
+            releases (Iterable[dict]): iterable of dictionaries representing
+                the individual releases to add. Each dict has the following
+                keys:
 
-                - id (sha1_git): id of the release to add
-                - revision (sha1_git): id of the revision the release points to
-                - date (datetime.DateTime): the date the release was made
-                - date_offset (int): offset from UTC in minutes the release was
-                  made
-                - date_neg_utc_offset (boolean): whether a null date_offset
-                  represents a negative UTC offset
-                - name (bytes): the name of the release
-                - comment (bytes): the comment associated with the release
-                - author_name (bytes): the name of the release author
-                - author_email (bytes): the email of the release author
+                - **id** (:class:`sha1_git`): id of the release to add
+                - **revision** (:class:`sha1_git`): id of the revision the
+                  release points to
+                - **date** (:class:`dict`): the date the release was made
+                - **name** (:class:`bytes`): the name of the release
+                - **comment** (:class:`bytes`): the comment associated with
+                  the release
+                - **author** (:class:`Dict[str, bytes]`): dictionary with
+                  keys: name, fullname, email
 
+        the date dictionary has the form defined in :mod:`swh.model`.
         """
         for rel in releases:
             rel['date'] = normalize_timestamp(rel['date'])
@@ -422,12 +514,11 @@ class Storage:
 
         Yields:
             dicts with the same keys as those given to `release_add`
-
-        Raises:
-            ValueError: if the keys does not match (url and type) nor id.
+            (or ``None`` if a release does not exist)
 
         """
-        yield from map(self._releases.__getitem__, releases)
+        for rel_id in releases:
+            yield copy.deepcopy(self._releases.get(rel_id))
 
     def snapshot_add(self, origin, visit, snapshot):
         """Add a snapshot for the given origin/visit couple
@@ -460,6 +551,7 @@ class Storage:
                 'branches': copy.deepcopy(snapshot['branches']),
                 '_sorted_branch_names': sorted(snapshot['branches'])
                 }
+            self._objects[snapshot_id].append(('snapshot', snapshot_id))
         self._origin_visits[visit]['snapshot'] = snapshot_id
 
     def snapshot_get(self, snapshot_id):
@@ -780,7 +872,26 @@ class Storage:
         origin['visits_dates'] = defaultdict(set)
         if key not in self._origins:
             self._origins[key] = origin
+        self._objects[key].append(('origin', key))
         return key
+
+    def fetch_history_start(self, origin_id):
+        """Add an entry for origin origin_id in fetch_history. Returns the id
+        of the added fetch_history entry
+        """
+        pass
+
+    def fetch_history_end(self, fetch_history_id, data):
+        """Close the fetch_history entry with id `fetch_history_id`, replacing
+           its data with `data`.
+        """
+        pass
+
+    def fetch_history_get(self, fetch_history_id):
+        """Get the fetch_history entry with id `fetch_history_id`.
+        """
+        raise NotImplementedError('fetch_history_get is deprecated, use '
+                                  'origin_visit_get instead.')
 
     def origin_visit_add(self, origin, date=None, *, ts=None):
         """Add an origin_visit for the origin at date with status 'ongoing'.
@@ -900,21 +1011,19 @@ class Storage:
         keys = (
             'content',
             'directory',
-            'directory_entry_dir',
-            'directory_entry_file',
-            'directory_entry_rev',
             'origin',
             'origin_visit',
             'person',
             'release',
             'revision',
-            'revision_history',
             'skipped_content',
             'snapshot'
             )
         stats = {key: 0 for key in keys}
         stats.update(collections.Counter(
-            obj_type for (obj_type, obj_id) in self._objects.values()))
+            obj_type
+            for (obj_type, obj_id)
+            in itertools.chain(*self._objects.values())))
         return stats
 
     def refresh_stat_counters(self):
@@ -1031,7 +1140,7 @@ class Storage:
             metadata: JSON-encodable object
 
         Returns:
-            dict: same as args, plus an 'id' key.
+            an identifier of the provider
         """
         provider = {
                 'name': provider_name,
@@ -1042,7 +1151,7 @@ class Storage:
         key = self._metadata_provider_key(provider)
         provider['id'] = key
         self._metadata_providers[key] = provider
-        return provider.copy()
+        return key
 
     def metadata_provider_get(self, provider_id, db=None, cur=None):
         """Get a metadata provider

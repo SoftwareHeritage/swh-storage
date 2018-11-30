@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from hypothesis import given
+from hypothesis import given, strategies
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
@@ -609,7 +609,13 @@ class CommonTestStorage(TestStorageData):
              'Content too long')
         )
 
-    def test_content_missing(self):
+    @pytest.mark.property_based
+    @given(strategies.sets(
+        elements=strategies.sampled_from(
+            ['sha256', 'sha1_git', 'blake2s256']),
+        min_size=0))
+    def test_content_missing(self, algos):
+        algos |= {'sha1'}
         cont2 = self.cont2
         missing_cont = self.missing_cont
         self.storage.content_add([cont2])
@@ -617,7 +623,7 @@ class CommonTestStorage(TestStorageData):
         missing_per_hash = defaultdict(list)
         for i in range(256):
             test_content = missing_cont.copy()
-            for hash in ['sha1', 'sha256', 'sha1_git', 'blake2s256']:
+            for hash in algos:
                 test_content[hash] = bytes([i]) + test_content[hash][1:]
                 missing_per_hash[hash].append(test_content[hash])
             test_contents.append(test_content)
@@ -627,7 +633,7 @@ class CommonTestStorage(TestStorageData):
             missing_per_hash['sha1']
         )
 
-        for hash in ['sha1', 'sha256', 'sha1_git', 'blake2s256']:
+        for hash in algos:
             self.assertCountEqual(
                 self.storage.content_missing(test_contents, key_hash=hash),
                 missing_per_hash[hash]
@@ -901,6 +907,11 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.normalize_entity(self.release),
                           self.normalize_entity(self.release2)],
                          [actual_releases[0], actual_releases[1]])
+
+        unknown_releases = \
+            list(self.storage.release_get([self.release3['id']]))
+
+        self.assertIsNone(unknown_releases[0])
 
     def test_origin_add_one(self):
         origin0 = self.storage.origin_get(self.origin)
@@ -1411,15 +1422,48 @@ class CommonTestStorage(TestStorageData):
         )
 
     def test_stat_counters(self):
-        expected_keys = ['content', 'directory', 'directory_entry_dir',
+        expected_keys = ['content', 'directory',
                          'origin', 'person', 'revision']
 
-        self.storage.refresh_stat_counters()
+        # Initially, all counters are 0
 
+        self.storage.refresh_stat_counters()
+        counters = self.storage.stat_counters()
+        self.assertTrue(set(expected_keys) <= set(counters))
+        for key in expected_keys:
+            self.assertEqual(counters[key], 0)
+
+        # Add a content. Only the content counter should increase.
+
+        self.storage.content_add([self.cont])
+
+        self.storage.refresh_stat_counters()
         counters = self.storage.stat_counters()
 
         self.assertTrue(set(expected_keys) <= set(counters))
-        self.assertIsInstance(counters[expected_keys[0]], int)
+        for key in expected_keys:
+            if key != 'content':
+                self.assertEqual(counters[key], 0)
+        self.assertEqual(counters['content'], 1)
+
+        # Add other objects. Check their counter increased as well.
+
+        origin_id = self.storage.origin_add_one(self.origin2)
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit2)
+        self.storage.snapshot_add(origin_id, origin_visit1['visit'],
+                                  self.snapshot)
+        self.storage.directory_add([self.dir])
+        self.storage.revision_add([self.revision])
+
+        self.storage.refresh_stat_counters()
+        counters = self.storage.stat_counters()
+        self.assertEqual(counters['content'], 1)
+        self.assertEqual(counters['directory'], 1)
+        self.assertEqual(counters['snapshot'], 1)
+        self.assertEqual(counters['origin'], 1)
+        self.assertEqual(counters['revision'], 1)
 
     def test_content_find_with_present_content(self):
         # 1. with something to find
@@ -1650,6 +1694,26 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertEqual(expected_tool, actual_tool)
 
+    def test_metadata_provider_get(self):
+        # given
+        no_provider = self.storage.metadata_provider_get(6459456445615)
+        self.assertIsNone(no_provider)
+        # when
+        provider_id = self.storage.metadata_provider_add(
+            self.provider['name'],
+            self.provider['type'],
+            self.provider['url'],
+            self.provider['metadata'])
+
+        actual_provider = self.storage.metadata_provider_get(provider_id)
+        expected_provider = {
+            'provider_name': self.provider['name'],
+            'provider_url': self.provider['url']
+        }
+        # then
+        del actual_provider['id']
+        self.assertTrue(actual_provider, expected_provider)
+
     def test_metadata_provider_get_by(self):
         # given
         no_provider = self.storage.metadata_provider_get_by({
@@ -1777,7 +1841,7 @@ class CommonTestStorage(TestStorageData):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]['id']
         origin_id2 = self.storage.origin_add([self.origin2])[0]['id']
-        self.storage.metadata_provider_add(
+        provider1_id = self.storage.metadata_provider_add(
                            self.provider['name'],
                            self.provider['type'],
                            self.provider['url'],
@@ -1786,8 +1850,10 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                    })
+        self.assertEqual(provider1,
+                         self.storage.metadata_provider_get(provider1_id))
 
-        self.storage.metadata_provider_add(
+        provider2_id = self.storage.metadata_provider_add(
                             'swMATH',
                             'registry',
                             'http://www.swmath.org/',
@@ -1797,6 +1863,8 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': 'swMATH',
                             'provider_url': 'http://www.swmath.org/'
                    })
+        self.assertEqual(provider2,
+                         self.storage.metadata_provider_get(provider2_id))
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)
@@ -1844,9 +1912,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(m_by_provider, expected_results)
 
 
-@pytest.mark.db
-@pytest.mark.property_based
-class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
+class CommonPropTestStorage:
     def assert_contents_ok(self, expected_contents, actual_contents,
                            keys_to_check={'sha1', 'data'}):
         """Assert that a given list of contents matches on a given set of keys.
@@ -1966,6 +2032,7 @@ class PropBasedTestStorage(StorageTestDbFixture, unittest.TestCase):
                                 keys_to_check)
 
 
+@pytest.mark.db
 class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
                        unittest.TestCase):
     """Test the local storage"""
@@ -2044,6 +2111,13 @@ class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
         self.assertEqual(e.exception.args, ('mocked broken objstorage',))
         missing = list(self.storage.content_missing([self.cont]))
         self.assertEqual(missing, [self.cont['sha1']])
+
+
+@pytest.mark.db
+@pytest.mark.property_based
+class PropTestLocalStorage(CommonPropTestStorage, StorageTestDbFixture,
+                           unittest.TestCase):
+    pass
 
 
 class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
