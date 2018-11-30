@@ -1,3 +1,10 @@
+swh-storage (0.0.113-1~swh1) unstable-swh; urgency=medium
+
+  * v0.0.113
+  * in-memory storage: Add recursive argument to directory_ls endpoint
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 30 Nov 2018 11:56:44 +0100
+
 swh-storage (0.0.112-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.112
