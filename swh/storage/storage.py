@@ -503,6 +503,9 @@ class Storage():
         Returns:
             List of entries for such directory.
 
+        If `recursive=True`, names in the path of a dir/file not at the
+        root are concatenated with a slash (`/`).
+
         """
         if recursive:
             res_gen = db.directory_walk(directory, cur=cur)
