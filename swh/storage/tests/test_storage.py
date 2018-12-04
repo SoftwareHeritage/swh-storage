@@ -1418,6 +1418,11 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit2)
         visit2_id = origin_visit2['visit']
 
+        # Add a visit with the same date as the previous one
+        origin_visit3 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit3_id = origin_visit3['visit']
+
         # Two visits, both with no snapshot: latest snapshot is None
         self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
 
@@ -1452,6 +1457,12 @@ class CommonTestStorage(TestStorageData):
             self.storage.snapshot_get_latest(origin_id,
                                              allowed_statuses=['full']),
         )
+
+        # Add snapshot to visit3 (same date as visit2) and check that
+        # the new snapshot is returned
+        self.storage.snapshot_add(origin_id, visit3_id, self.complete_snapshot)
+        self.assertEqual(self.complete_snapshot,
+                         self.storage.snapshot_get_latest(origin_id))
 
     def test_stat_counters(self):
         expected_keys = ['content', 'directory',
