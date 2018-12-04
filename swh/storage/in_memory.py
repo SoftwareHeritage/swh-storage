@@ -550,6 +550,9 @@ class Storage:
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
+
+        Raises:
+            ValueError: if the origin or visit id does not exist.
         """
         snapshot_id = snapshot['id']
         if snapshot_id not in self._snapshots:
@@ -561,6 +564,8 @@ class Storage:
                 '_sorted_branch_names': sorted(snapshot['branches'])
                 }
             self._objects[snapshot_id].append(('snapshot', snapshot_id))
+        if visit not in self._origin_visits:
+            raise ValueError('Origin %s has no visit %s' % (origin, visit))
         self._origin_visits[visit]['snapshot'] = snapshot_id
 
     def snapshot_get(self, snapshot_id):

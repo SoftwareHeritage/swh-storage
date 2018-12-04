@@ -1369,6 +1369,13 @@ class CommonTestStorage(TestStorageData):
                                                              visit_id)
         self.assertEqual(origin_visit_info['snapshot'], self.snapshot['id'])
 
+    def test_snapshot_add_nonexistent_visit(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        visit_id = 54164461156
+
+        with self.assertRaises(ValueError):
+            self.storage.snapshot_add(origin_id, visit_id, self.snapshot)
+
     def test_snapshot_add_twice(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
