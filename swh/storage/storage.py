@@ -763,6 +763,9 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
+
+        Raises:
+            ValueError: if the origin or visit id does not exist.
         """
         if not db.snapshot_exists(snapshot['id'], cur):
             db.mktemp_snapshot_branch(cur)
@@ -779,6 +782,9 @@ class Storage():
                 ['name', 'target', 'target_type'],
                 cur,
             )
+        if not db.origin_visit_exists(origin, visit):
+            raise ValueError('Not origin visit with ids (%s, %s)' %
+                             (origin, visit))
 
         db.snapshot_add(origin, visit, snapshot['id'], cur)
 
