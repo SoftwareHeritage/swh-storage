@@ -581,6 +581,16 @@ class Db(BaseDb):
             return None
         return line_to_bytes(r[0])
 
+    def origin_visit_exists(self, origin_id, visit_id, cur=None):
+        """Check whether an origin visit with the given ids exists"""
+        cur = self._cursor(cur)
+
+        query = "SELECT 1 FROM origin_visit where origin = %s AND visit = %s"
+
+        cur.execute(query, (origin_id, visit_id))
+
+        return bool(cur.fetchone())
+
     def origin_visit_get_latest_snapshot(self, origin_id,
                                          allowed_statuses=None,
                                          cur=None):
