@@ -16,6 +16,8 @@ import warnings
 
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import normalize_timestamp
+from swh.objstorage import get_objstorage
+from swh.objstorage.exc import ObjNotFoundError
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -28,7 +30,6 @@ def now():
 class Storage:
     def __init__(self):
         self._contents = {}
-        self._contents_data = {}
         self._content_indexes = defaultdict(lambda: defaultdict(set))
 
         self._directories = {}
@@ -44,6 +45,8 @@ class Storage:
 
         # ideally we would want a skip list for both fast inserts and searches
         self._sorted_sha1s = []
+
+        self.objstorage = get_objstorage('memory', {})
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
@@ -84,7 +87,8 @@ class Storage:
             self._contents[key]['ctime'] = now()
             bisect.insort(self._sorted_sha1s, content['sha1'])
             if self._contents[key]['status'] == 'visible':
-                self._contents_data[key] = self._contents[key].pop('data')
+                content_data = self._contents[key].pop('data')
+                self.objstorage.add(content_data, content['sha1'])
 
     def content_get(self, ids):
         """Retrieve in bulk contents and their data.
@@ -111,12 +115,14 @@ class Storage:
         if len(ids) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise ValueError(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
-        for id_ in ids:
-            for key in self._content_indexes['sha1'][id_]:
-                yield {
-                    'sha1': id_,
-                    'data': self._contents_data[key],
-                }
+        for obj_id in ids:
+            try:
+                data = self.objstorage.get(obj_id)
+            except ObjNotFoundError:
+                yield None
+                continue
+
+            yield {'sha1': obj_id, 'data': data}
 
     def content_get_range(self, start, end, limit=1000, db=None, cur=None):
         """Retrieve contents within range [start, end] bound by limit.
@@ -147,22 +153,20 @@ class Storage:
                  for sha1 in sha1s
                  for content_key in self._content_indexes['sha1'][sha1])
         matched = []
+        next_content = None
         for sha1, key in sha1s:
             if sha1 > end:
                 break
             if len(matched) >= limit:
-                return {
-                    'contents': matched,
-                    'next': sha1,
-                }
+                next_content = sha1
+                break
             matched.append({
-                'data': self._contents_data[key],
                 **self._contents[key],
-                })
+            })
         return {
             'contents': matched,
-            'next': None,
-            }
+            'next': next_content,
+        }
 
     def content_get_metadata(self, sha1s):
         """Retrieve content metadata in bulk
