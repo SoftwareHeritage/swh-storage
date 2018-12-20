@@ -187,6 +187,7 @@ swh/storage/tests/test_api_client.py
 swh/storage/tests/test_converters.py
 swh/storage/tests/test_db.py
 swh/storage/tests/test_in_memory.py
+swh/storage/tests/test_listener.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py
