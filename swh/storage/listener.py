@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017 The Software Heritage developers
+# Copyright (C) 2016-2018 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -23,18 +23,28 @@ DEFAULT_CONFIG = {
 }
 
 
-def decode_sha(value):
-    """Decode the textual representation of a SHA hash"""
-    if isinstance(value, str):
-        return bytes.fromhex(value)
-    return value
+def decode(object_type, obj):
+    """Decode a JSON obj of nature object_type. Depending on the nature of
+       the object, this can contain hex hashes
 
+    Args:
+        object_type (str): Nature of the object
+        obj (str): json dict representation whose values might be hex
+          identifier.
 
-def decode_json(value):
-    """Decode a JSON value containing hashes and other types"""
-    value = json.loads(value)
+    Returns:
+        dict representation ready for journal serialization
 
-    return {k: decode_sha(v) for k, v in value.items()}
+    """
+    value = json.loads(obj)
+
+    if object_type in ('origin', 'origin_visit'):
+        result = value
+    else:
+        result = {}
+        for k, v in value.items():
+            result[k] = bytes.fromhex(v)
+    return result
 
 
 OBJECT_TYPES = {
@@ -64,10 +74,8 @@ def dispatch_notify(topic_prefix, producer, notify):
         return
 
     object_type = channel[4:]
-
     topic = '%s.%s' % (topic_prefix, object_type)
-    data = decode_json(notify.payload)
-    producer.send(topic, value=data)
+    producer.send(topic, value=decode(object_type, notify.payload))
 
 
 def run_from_config(config):
