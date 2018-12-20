@@ -12,6 +12,7 @@ import msgpack
 import swh.storage.db
 
 from swh.core.config import load_named_config
+from swh.model import hashutil
 
 
 CONFIG_BASENAME = 'storage/listener'
@@ -44,7 +45,7 @@ def decode(object_type, obj):
     else:
         result = {}
         for k, v in value.items():
-            result[k] = bytes.fromhex(v)
+            result[k] = hashutil.hash_to_bytes(v)
     return result
 
 
