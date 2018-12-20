@@ -128,6 +128,9 @@ if __name__ == '__main__':
             level=logging.DEBUG if verbose else logging.INFO,
             format='%(asctime)s %(process)d %(levelname)s %(message)s'
         )
+        _log = logging.getLogger('kafka')
+        _log.setLevel(logging.INFO)
+
         config = load_named_config(CONFIG_BASENAME, DEFAULT_CONFIG)
         run_from_config(config)
 
