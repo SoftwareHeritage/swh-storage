@@ -26,6 +26,7 @@ DEFAULT_CONFIG = {
 def decode(object_type, obj):
     """Decode a JSON obj of nature object_type. Depending on the nature of
        the object, this can contain hex hashes
+       (cf. `/swh/storage/sql/70-swh-triggers.sql`).
 
     Args:
         object_type (str): Nature of the object
@@ -64,10 +65,13 @@ def register_all_notifies(db):
     with db.transaction() as cur:
         for object_type in OBJECT_TYPES:
             db.register_listener('new_%s' % object_type, cur)
+            logging.debug('Registered to notify events %s' % object_type)
 
 
 def dispatch_notify(topic_prefix, producer, notify):
     """Dispatch a notification to the proper topic"""
+    logging.debug('topic_prefix: %s, producer: %s, notify: %s' % (
+        topic_prefix, producer, notify))
     channel = notify.channel
     if not channel.startswith('new_') or channel[4:] not in OBJECT_TYPES:
         logging.warn("Got unexpected notify %s" % notify)
@@ -104,6 +108,7 @@ def run_from_config(config):
     try:
         while True:
             for notify in db.listen_notifies(poll_timeout):
+                logging.debug('Notified by event %s' % notify)
                 dispatch_notify(topic_prefix, producer, notify)
             producer.flush()
     except Exception:
@@ -112,9 +117,17 @@ def run_from_config(config):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(process)d %(levelname)s %(message)s'
-    )
-    config = load_named_config(CONFIG_BASENAME, DEFAULT_CONFIG)
-    run_from_config(config)
+    import click
+
+    @click.command()
+    @click.option('--verbose', is_flag=True, default=False,
+                  help='Be verbose if asked.')
+    def main(verbose):
+        logging.basicConfig(
+            level=logging.DEBUG if verbose else logging.INFO,
+            format='%(asctime)s %(process)d %(levelname)s %(message)s'
+        )
+        config = load_named_config(CONFIG_BASENAME, DEFAULT_CONFIG)
+        run_from_config(config)
+
+    main()
