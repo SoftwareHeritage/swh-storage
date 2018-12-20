@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2017 The Software Heritage developers
+# Copyright (C) 2016-2018 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,6 +12,7 @@ import msgpack
 import swh.storage.db
 
 from swh.core.config import load_named_config
+from swh.model import hashutil
 
 
 CONFIG_BASENAME = 'storage/listener'
@@ -23,18 +24,29 @@ DEFAULT_CONFIG = {
 }
 
 
-def decode_sha(value):
-    """Decode the textual representation of a SHA hash"""
-    if isinstance(value, str):
-        return bytes.fromhex(value)
-    return value
+def decode(object_type, obj):
+    """Decode a JSON obj of nature object_type. Depending on the nature of
+       the object, this can contain hex hashes
+       (cf. `/swh/storage/sql/70-swh-triggers.sql`).
 
+    Args:
+        object_type (str): Nature of the object
+        obj (str): json dict representation whose values might be hex
+          identifier.
 
-def decode_json(value):
-    """Decode a JSON value containing hashes and other types"""
-    value = json.loads(value)
+    Returns:
+        dict representation ready for journal serialization
 
-    return {k: decode_sha(v) for k, v in value.items()}
+    """
+    value = json.loads(obj)
+
+    if object_type in ('origin', 'origin_visit'):
+        result = value
+    else:
+        result = {}
+        for k, v in value.items():
+            result[k] = hashutil.hash_to_bytes(v)
+    return result
 
 
 OBJECT_TYPES = {
@@ -54,20 +66,21 @@ def register_all_notifies(db):
     with db.transaction() as cur:
         for object_type in OBJECT_TYPES:
             db.register_listener('new_%s' % object_type, cur)
+            logging.debug('Registered to notify events %s' % object_type)
 
 
 def dispatch_notify(topic_prefix, producer, notify):
     """Dispatch a notification to the proper topic"""
+    logging.debug('topic_prefix: %s, producer: %s, notify: %s' % (
+        topic_prefix, producer, notify))
     channel = notify.channel
     if not channel.startswith('new_') or channel[4:] not in OBJECT_TYPES:
         logging.warn("Got unexpected notify %s" % notify)
         return
 
     object_type = channel[4:]
-
     topic = '%s.%s' % (topic_prefix, object_type)
-    data = decode_json(notify.payload)
-    producer.send(topic, value=data)
+    producer.send(topic, value=decode(object_type, notify.payload))
 
 
 def run_from_config(config):
@@ -96,6 +109,7 @@ def run_from_config(config):
     try:
         while True:
             for notify in db.listen_notifies(poll_timeout):
+                logging.debug('Notified by event %s' % notify)
                 dispatch_notify(topic_prefix, producer, notify)
             producer.flush()
     except Exception:
@@ -104,9 +118,20 @@ def run_from_config(config):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(process)d %(levelname)s %(message)s'
-    )
-    config = load_named_config(CONFIG_BASENAME, DEFAULT_CONFIG)
-    run_from_config(config)
+    import click
+
+    @click.command()
+    @click.option('--verbose', is_flag=True, default=False,
+                  help='Be verbose if asked.')
+    def main(verbose):
+        logging.basicConfig(
+            level=logging.DEBUG if verbose else logging.INFO,
+            format='%(asctime)s %(process)d %(levelname)s %(message)s'
+        )
+        _log = logging.getLogger('kafka')
+        _log.setLevel(logging.INFO)
+
+        config = load_named_config(CONFIG_BASENAME, DEFAULT_CONFIG)
+        run_from_config(config)
+
+    main()
