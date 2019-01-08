@@ -38,6 +38,7 @@ class Storage:
         self._snapshots = {}
         self._origins = []
         self._origin_visits = []
+        self._persons = []
         self._origin_metadata = defaultdict(list)
         self._tools = {}
         self._metadata_providers = {}
@@ -415,6 +416,8 @@ class Storage:
         for revision in revisions:
             if revision['id'] not in self._revisions:
                 self._revisions[revision['id']] = rev = copy.deepcopy(revision)
+                self._person_add(rev['committer'])
+                self._person_add(rev['author'])
                 rev['date'] = normalize_timestamp(rev.get('date'))
                 rev['committer_date'] = normalize_timestamp(
                         rev.get('committer_date'))
@@ -499,10 +502,12 @@ class Storage:
         the date dictionary has the form defined in :mod:`swh.model`.
         """
         for rel in releases:
+            rel = copy.deepcopy(rel)
             rel['date'] = normalize_timestamp(rel['date'])
+            self._person_add(rel['author'])
             self._objects[rel['id']].append(
                 ('release', rel['id']))
-        self._releases.update((rel['id'], rel) for rel in releases)
+            self._releases[rel['id']] = rel
 
     def release_missing(self, releases):
         """List releases missing from storage
@@ -1016,6 +1021,22 @@ class Storage:
             origin_visit = self._origin_visits[origin-1][visit-1]
         return origin_visit
 
+    def person_get(self, person):
+        """Return the persons identified by their ids.
+
+        Args:
+            person: array of ids.
+
+        Returns:
+            The array of persons corresponding of the ids.
+
+        """
+        for p in person:
+            if 0 <= (p - 1) < len(self._persons):
+                yield dict(self._persons[p - 1], id=p)
+            else:
+                yield None
+
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
 
@@ -1205,6 +1226,26 @@ class Storage:
                 origin_id = stored_origin['id']
                 break
         return origin_id
+
+    def _person_add(self, person):
+        """Add a person in storage.
+
+        Note: Private method, do not use outside of this class.
+
+        Args:
+            person: dictionary with keys fullname, name and email.
+
+        """
+        key = ('person', person['fullname'])
+        if key not in self._objects:
+            person_id = len(self._persons) + 1
+            self._persons.append(dict(person))
+            self._objects[key].append(('person', person_id))
+        else:
+            person_id = self._objects[key][0][1]
+            p = next(self.person_get([person_id]))
+            person.update(p.items())
+        person['id'] = person_id
 
     @staticmethod
     def _content_key(content):

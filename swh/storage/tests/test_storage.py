@@ -1205,6 +1205,68 @@ class CommonTestStorage(TestStorageData):
 
         self.assertIsNone(actual_origin_visit)
 
+    def test_person_get(self):
+        # given (person injection through revision for example)
+        self.storage.revision_add([self.revision])
+        rev = list(self.storage.revision_get([self.revision['id']]))[0]
+
+        id0 = rev['committer']['id']
+        person0 = self.revision['committer']
+
+        id1 = rev['author']['id']
+        person1 = self.revision['author']
+
+        # when
+        actual_persons = self.storage.person_get([id0, id1])
+
+        # then
+        self.assertEqual(
+            list(actual_persons), [
+                {
+                    'id': id0,
+                    'fullname': person0['fullname'],
+                    'name': person0['name'],
+                    'email': person0['email'],
+                },
+                {
+                    'id': id1,
+                    'fullname': person1['fullname'],
+                    'name': person1['name'],
+                    'email': person1['email'],
+                }
+            ])
+
+    def test_person_get_fullname_unicity(self):
+        # given (person injection through revisions for example)
+        revision = self.revision
+
+        # create a revision with same committer fullname but wo name and email
+        revision2 = copy.deepcopy(self.revision2)
+        revision2['committer'] = dict(revision['committer'])
+        revision2['committer']['email'] = None
+        revision2['committer']['name'] = None
+
+        self.storage.revision_add([revision])
+        self.storage.revision_add([revision2])
+
+        # when getting added revisions
+        revisions = list(
+            self.storage.revision_get([revision['id'], revision2['id']]))
+
+        # then
+        # check committers are the same
+        self.assertEqual(revisions[0]['committer'],
+                         revisions[1]['committer'])
+
+        # check person_get return same result
+        person0 = list(
+            self.storage.person_get([revisions[0]['committer']['id']]))[0]
+
+        person1 = list(
+            self.storage.person_get([revisions[1]['committer']['id']]))[0]
+
+        self.assertEqual(person0, person1)
+
     def test_snapshot_add_get_empty(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
@@ -1507,6 +1569,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(counters['snapshot'], 1)
         self.assertEqual(counters['origin'], 1)
         self.assertEqual(counters['revision'], 1)
+        self.assertEqual(counters['person'], 2)
 
     def test_content_find_with_present_content(self):
         # 1. with something to find
@@ -2103,43 +2166,6 @@ class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
         expected_fetch_history['duration'] = self.fetch_history_duration
 
         self.assertEqual(expected_fetch_history, fetch_history)
-
-    # The remote API doesn't expose _person_add
-    def test_person_get(self):
-        # given
-        person0 = {
-            'fullname': b'bob <alice@bob>',
-            'name': b'bob',
-            'email': b'alice@bob',
-        }
-        id0 = self.storage._person_add(person0)
-
-        person1 = {
-            'fullname': b'tony <tony@bob>',
-            'name': b'tony',
-            'email': b'tony@bob',
-        }
-        id1 = self.storage._person_add(person1)
-
-        # when
-        actual_persons = self.storage.person_get([id0, id1])
-
-        # given (person injection through release for example)
-        self.assertEqual(
-            list(actual_persons), [
-                {
-                    'id': id0,
-                    'fullname': person0['fullname'],
-                    'name': person0['name'],
-                    'email': person0['email'],
-                },
-                {
-                    'id': id1,
-                    'fullname': person1['fullname'],
-                    'name': person1['name'],
-                    'email': person1['email'],
-                },
-            ])
 
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception
