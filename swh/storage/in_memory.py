@@ -953,7 +953,7 @@ class Storage:
                 'metadata': None,
                 'visit': visit_id
             }
-            self._origin_visits[origin-1].append(copy.deepcopy(visit))
+            self._origin_visits[origin-1].append(visit)
             visit_ret = {
                 'origin': origin,
                 'visit': visit_id,
@@ -1002,7 +1002,7 @@ class Storage:
             visits = visits[:limit]
         for visit in visits:
             visit_id = visit['visit']
-            yield self._origin_visits[origin-1][visit_id-1]
+            yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
 
     def origin_visit_get_by(self, origin, visit):
         """Retrieve origin visit's information.
@@ -1019,7 +1019,7 @@ class Storage:
         if origin <= len(self._origin_visits) and \
            visit <= len(self._origin_visits[origin-1]):
             origin_visit = self._origin_visits[origin-1][visit-1]
-        return origin_visit
+        return copy.deepcopy(origin_visit)
 
     def person_get(self, person):
         """Return the persons identified by their ids.
