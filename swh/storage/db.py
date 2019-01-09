@@ -881,26 +881,6 @@ class Db(BaseDb):
     person_cols = ['fullname', 'name', 'email']
     person_get_cols = person_cols + ['id']
 
-    def person_add(self, person, cur=None):
-        """Add a person identified by its name and email.
-
-        Returns:
-            The new person's id
-
-        """
-        cur = self._cursor(cur)
-
-        query_new_person = '''\
-        INSERT INTO person(%s)
-        VALUES (%s)
-        RETURNING id''' % (
-            ', '.join(self.person_cols),
-            ', '.join('%s' for i in range(len(self.person_cols)))
-        )
-        cur.execute(query_new_person,
-                    [person[col] for col in self.person_cols])
-        return cur.fetchone()[0]
-
     def person_get(self, ids, cur=None):
         """Retrieve the persons identified by the list of ids.
 

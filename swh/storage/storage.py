@@ -1143,24 +1143,6 @@ class Storage():
                                        regexp, with_visit, cur):
             yield dict(zip(self.origin_keys, origin))
 
-    @db_transaction()
-    def _person_add(self, person, db=None, cur=None):
-        """Add a person in storage.
-
-        Note: Internal function for now, do not use outside of this module.
-
-        Do not do anything fancy in case a person already exists.
-        Please adapt code if more checks are needed.
-
-        Args:
-            person: dictionary with keys name and email.
-
-        Returns:
-            Id of the new person.
-
-        """
-        return db.person_add(person)
-
     @db_transaction_generator(statement_timeout=500)
     def person_get(self, person, db=None, cur=None):
         """Return the persons identified by their ids.
