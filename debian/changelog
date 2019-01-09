@@ -1,8 +1,10 @@
-swh-storage (0.0.117-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.118-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-backports.
+  * New upstream release 0.0.118     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2019-01-09 16:59:15 +0100)
+  * Upstream changes:     - version 0.0.118
 
- -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 20 Dec 2018 14:48:44 +0100
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 09 Jan 2019 18:51:34 +0000
 
 swh-storage (0.0.117-1~swh1) unstable-swh; urgency=medium
 
