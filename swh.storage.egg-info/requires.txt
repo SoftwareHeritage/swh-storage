@@ -1,13 +1,13 @@
-aiohttp
 click
 flask
 psycopg2
 python-dateutil
+vcversioner
+aiohttp
 swh.core>=0.0.48
 swh.model>=0.0.27
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.14
-vcversioner
 
 [listener]
 kafka_python
