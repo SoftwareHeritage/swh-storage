@@ -116,6 +116,26 @@ create trigger notify_new_origin_visit
   execute procedure notify_new_origin_visit();
 
 
+-- Asynchronous notification of modified origin visits
+create function notify_changed_origin_visit()
+  returns trigger
+  language plpgsql
+as $$
+  begin
+    perform pg_notify('new_origin_visit', json_build_object(
+      'origin', new.origin,
+      'visit', new.visit
+    )::text);
+    return null;
+  end;
+$$;
+
+create trigger notify_changed_origin_visit
+  after update on origin_visit
+  for each row
+  execute procedure notify_changed_origin_visit();
+
+
 -- Asynchronous notification of new release insertions
 create function notify_new_release()
   returns trigger

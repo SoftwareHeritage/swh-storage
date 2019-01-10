@@ -4,9 +4,67 @@
 # See top-level LICENSE file for more information
 
 import json
+import os
 import unittest
+import unittest.mock
 
-from swh.storage.listener import decode
+import pytest
+
+from swh.core.tests.db_testing import SingleDbTestFixture
+from swh.storage.tests.storage_testing import StorageTestFixture
+from swh.storage.tests.test_storage import TestStorageData
+import swh.storage.listener as listener
+from swh.storage.db import Db
+from . import SQL_DIR
+
+
+@pytest.mark.db
+class ListenerTest(StorageTestFixture, SingleDbTestFixture,
+                   TestStorageData, unittest.TestCase):
+    TEST_DB_NAME = 'softwareheritage-test-storage'
+    TEST_DB_DUMP = os.path.join(SQL_DIR, '*.sql')
+
+    def setUp(self):
+        super().setUp()
+        self.db = Db(self.conn)
+
+    def tearDown(self):
+        self.db.conn.close()
+        super().tearDown()
+
+    def test_notify(self):
+        class MockProducer:
+            def send(self, topic, value):
+                sent.append((topic, value))
+
+            def flush(self):
+                pass
+
+        listener.register_all_notifies(self.db)
+
+        # Add an origin and an origin visit
+        origin_id = self.storage.origin_add_one(self.origin)
+        visit = self.storage.origin_visit_add(origin_id, date=self.date_visit1)
+        visit_id = visit['visit']
+
+        sent = []
+        listener.run_once(self.db, MockProducer(), 'swh.tmp_journal.new', 10)
+        self.assertEqual(sent, [
+            ('swh.tmp_journal.new.origin',
+             {'type': 'git', 'url': 'file:///dev/null'}),
+            ('swh.tmp_journal.new.origin_visit',
+             {'origin': 1, 'visit': 1}),
+        ])
+
+        # Update the status of the origin visit
+        self.storage.origin_visit_update(origin_id, visit_id, status='full')
+
+        sent = []
+        listener.run_once(self.db, MockProducer(), 'swh.tmp_journal.new', 10)
+        self.assertEqual(sent, [
+            ('swh.tmp_journal.new.origin_visit',
+             {'origin': 1, 'visit': 1}),
+        ])
 
 
 class ListenerUtils(unittest.TestCase):
@@ -42,5 +100,5 @@ class ListenerUtils(unittest.TestCase):
         }]
 
         for i, (object_type, obj) in enumerate(inputs):
-            actual_value = decode(object_type, obj)
+            actual_value = listener.decode(object_type, obj)
             self.assertEqual(actual_value, expected_inputs[i])

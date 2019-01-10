@@ -66,7 +66,8 @@ def register_all_notifies(db):
     with db.transaction() as cur:
         for object_type in OBJECT_TYPES:
             db.register_listener('new_%s' % object_type, cur)
-            logging.debug('Registered to notify events %s' % object_type)
+            logging.debug(
+                'Registered to events for object type %s', object_type)
 
 
 def dispatch_notify(topic_prefix, producer, notify):
@@ -81,6 +82,13 @@ def dispatch_notify(topic_prefix, producer, notify):
     object_type = channel[4:]
     topic = '%s.%s' % (topic_prefix, object_type)
     producer.send(topic, value=decode(object_type, notify.payload))
+
+
+def run_once(db, producer, topic_prefix, poll_timeout):
+    for notify in db.listen_notifies(poll_timeout):
+        logging.debug('Notified by event %s' % notify)
+        dispatch_notify(topic_prefix, producer, notify)
+    producer.flush()
 
 
 def run_from_config(config):
@@ -108,10 +116,7 @@ def run_from_config(config):
     poll_timeout = config['poll_timeout']
     try:
         while True:
-            for notify in db.listen_notifies(poll_timeout):
-                logging.debug('Notified by event %s' % notify)
-                dispatch_notify(topic_prefix, producer, notify)
-            producer.flush()
+            run_once(db, producer, topic_prefix, poll_timeout)
     except Exception:
         logging.exception("Caught exception")
         producer.flush()
