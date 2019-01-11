@@ -1,8 +1,12 @@
-swh-storage (0.0.118-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.119-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.119     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-01-11 11:57:13
+    +0100)
+  * Upstream changes:     - v0.0.119     - listener: Notify Kafka when
+    an origin visit is updated
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 09 Jan 2019 18:53:37 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 11 Jan 2019 11:02:07 +0000
 
 swh-storage (0.0.118-1~swh1) unstable-swh; urgency=medium
 
