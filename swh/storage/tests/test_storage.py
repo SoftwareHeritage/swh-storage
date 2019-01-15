@@ -5,8 +5,9 @@
 
 import copy
 import datetime
-import unittest
 import itertools
+import random
+import unittest
 from collections import defaultdict
 from unittest.mock import Mock, patch
 
@@ -19,7 +20,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
-from .generate_data_test import gen_contents
+from .generate_data_test import gen_contents, gen_origins
 
 
 @pytest.mark.db
@@ -2135,7 +2136,41 @@ class CommonPropTestStorage:
         self.assertIsNone(actual_next2)
 
         self.assert_contents_ok([contents_map[actual_next]], actual_contents2,
+
                                 keys_to_check)
+
+    @given(gen_origins(min_size=100, max_size=100))
+    def test_origin_get_range(self, new_origins):
+
+        nb_origins = len(new_origins)
+
+        self.storage.origin_add(new_origins)
+
+        origin_from = random.randint(1, nb_origins)
+        origin_count = random.randint(1, nb_origins - origin_from)
+
+        expected_origins = []
+        for i in range(origin_from, origin_from + origin_count):
+            expected_origins.append(self.storage.origin_get({'id': i}))
+
+        actual_origins = list(
+            self.storage.origin_get_range(origin_from=origin_from,
+                                          origin_count=origin_count))
+
+        self.assertEqual(actual_origins, expected_origins)
+
+        origin_from = -1
+        origin_count = 10
+        origins = list(
+            self.storage.origin_get_range(origin_from=origin_from,
+                                          origin_count=origin_count))
+        self.assertEqual(len(origins), origin_count)
+
+        origin_from = 10000
+        origins = list(
+            self.storage.origin_get_range(origin_from=origin_from,
+                                          origin_count=origin_count))
+        self.assertEqual(len(origins), 0)
 
 
 @pytest.mark.db
