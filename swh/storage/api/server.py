@@ -225,6 +225,12 @@ def origin_get():
     return encode_data(get_storage().origin_get(**decode_request(request)))
 
 
+@app.route('/origin/get_range', methods=['POST'])
+def origin_get_range():
+    return encode_data(get_storage().origin_get_range(
+        **decode_request(request)))
+
+
 @app.route('/origin/search', methods=['POST'])
 def origin_search():
     return encode_data(get_storage().origin_search(**decode_request(request)))

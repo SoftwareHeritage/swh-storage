@@ -25,3 +25,9 @@ create trigger notify_new_origin
   after insert on origin
   for each row
   execute procedure notify_new_origin();
+
+
+create trigger notify_changed_origin_visit
+  after update on origin_visit
+  for each row
+  execute procedure notify_new_origin_visit();
