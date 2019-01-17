@@ -1135,12 +1135,31 @@ class Storage():
                 expression and return origins whose urls match it
             with_visit (bool): if True, filter out origins with no visit
 
-        Returns:
-            An iterable of dict containing origin information as returned
+        Yields:
+            dicts containing origin information as returned
             by :meth:`swh.storage.storage.Storage.origin_get`.
         """
         for origin in db.origin_search(url_pattern, offset, limit,
                                        regexp, with_visit, cur):
+            yield dict(zip(self.origin_keys, origin))
+
+    @db_transaction_generator()
+    def origin_get_range(self, origin_from=1, origin_count=100,
+                         db=None, cur=None):
+        """Retrieve ``origin_count`` origins whose ids are greater
+        or equal than ``origin_from``.
+
+        Origins are sorted by id before retrieving them.
+
+        Args:
+            origin_from (int): the minimum id of origins to retrieve
+            origin_count (int): the maximum number of origins to retrieve
+
+        Yields:
+            dicts containing origin information as returned
+            by :meth:`swh.storage.storage.Storage.origin_get`.
+        """
+        for origin in db.origin_get_range(origin_from, origin_count, cur):
             yield dict(zip(self.origin_keys, origin))
 
     @db_transaction_generator(statement_timeout=500)
