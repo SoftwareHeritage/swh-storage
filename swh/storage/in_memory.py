@@ -817,6 +817,28 @@ class Storage:
             origin['id'] = origin_id
         return origin
 
+    def origin_get_range(self, origin_from=1, origin_count=100):
+        """Retrieve ``origin_count`` origins whose ids are greater
+        or equal than ``origin_from``.
+
+        Origins are sorted by id before retrieving them.
+
+        Args:
+            origin_from (int): the minimum id of origins to retrieve
+            origin_count (int): the maximum number of origins to retrieve
+
+        Yields:
+            dicts containing origin information as returned
+            by :meth:`swh.storage.in_memory.Storage.origin_get`.
+        """
+        origin_from = max(origin_from, 1)
+        if origin_from <= len(self._origins):
+            max_idx = origin_from + origin_count - 1
+            if max_idx > len(self._origins):
+                max_idx = len(self._origins)
+            for idx in range(origin_from-1, max_idx):
+                yield copy.deepcopy(self._origins[idx])
+
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):
         """Search for origins whose urls contain a provided string pattern

@@ -133,6 +133,10 @@ class RemoteStorage(SWHRemoteAPI):
                                            'regexp': regexp,
                                            'with_visit': with_visit})
 
+    def origin_get_range(self, origin_from=1, origin_count=100):
+        return self.post('origin/get_range', {'origin_from': origin_from,
+                                              'origin_count': origin_count})
+
     def origin_add(self, origins):
         return self.post('origin/add_multi', {'origins': origins})
 
