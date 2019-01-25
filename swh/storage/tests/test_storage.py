@@ -2139,6 +2139,16 @@ class CommonPropTestStorage:
 
                                 keys_to_check)
 
+    def test_origin_get_ko(self):
+
+        invalid_origin_id = 1
+
+        origin_info = self.storage.origin_get({'id': invalid_origin_id})
+        self.assertIsNone(origin_info)
+
+        origin_visits = list(self.storage.origin_visit_get(invalid_origin_id))
+        self.assertEqual(origin_visits, [])
+
     @given(gen_origins(min_size=100, max_size=100))
     def test_origin_get_range(self, new_origins):
 
