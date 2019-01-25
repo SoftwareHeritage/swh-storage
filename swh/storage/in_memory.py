@@ -445,7 +445,7 @@ class Storage:
     def _get_parent_revs(self, rev_id, seen, limit):
         if limit and len(seen) >= limit:
             return
-        if rev_id in seen:
+        if rev_id in seen or rev_id not in self._revisions:
             return
         seen.add(rev_id)
         yield self._revisions[rev_id]
