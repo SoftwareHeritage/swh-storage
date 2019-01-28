@@ -848,6 +848,10 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(len(actual_results), 1)
         self.assertEqual(actual_results[0], self.revision4)
 
+    def test_revision_log_unknown_revision(self):
+        rev_log = list(self.storage.revision_log([self.revision['id']]))
+        self.assertEqual(rev_log, [])
+
     @staticmethod
     def _short_revision(revision):
         return [revision['id'], revision['parents']]
@@ -2138,6 +2142,16 @@ class CommonPropTestStorage:
         self.assert_contents_ok([contents_map[actual_next]], actual_contents2,
 
                                 keys_to_check)
+
+    def test_origin_get_invalid_id(self):
+
+        invalid_origin_id = 1
+
+        origin_info = self.storage.origin_get({'id': invalid_origin_id})
+        self.assertIsNone(origin_info)
+
+        origin_visits = list(self.storage.origin_visit_get(invalid_origin_id))
+        self.assertEqual(origin_visits, [])
 
     @given(gen_origins(min_size=100, max_size=100))
     def test_origin_get_range(self, new_origins):

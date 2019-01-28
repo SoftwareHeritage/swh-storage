@@ -445,7 +445,7 @@ class Storage:
     def _get_parent_revs(self, rev_id, seen, limit):
         if limit and len(seen) >= limit:
             return
-        if rev_id in seen:
+        if rev_id in seen or rev_id not in self._revisions:
             return
         seen.add(rev_id)
         yield self._revisions[rev_id]
@@ -812,7 +812,7 @@ class Storage:
             raise ValueError('Origin must have either id or (type and url).')
         origin = None
         # self._origin_id can return None
-        if origin_id is not None:
+        if origin_id is not None and origin_id <= len(self._origins):
             origin = copy.deepcopy(self._origins[origin_id-1])
             origin['id'] = origin_id
         return origin
@@ -1017,14 +1017,15 @@ class Storage:
             List of visits.
 
         """
-        visits = self._origin_visits[origin-1]
-        if last_visit is not None:
-            visits = visits[last_visit:]
-        if limit is not None:
-            visits = visits[:limit]
-        for visit in visits:
-            visit_id = visit['visit']
-            yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
+        if origin <= len(self._origin_visits):
+            visits = self._origin_visits[origin-1]
+            if last_visit is not None:
+                visits = visits[last_visit:]
+            if limit is not None:
+                visits = visits[:limit]
+            for visit in visits:
+                visit_id = visit['visit']
+                yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
 
     def origin_visit_get_by(self, origin, visit):
         """Retrieve origin visit's information.
