@@ -8,6 +8,7 @@ export PYBUILD_TEST_ARGS=-v -m "not db and not fs"
 
 override_dh_install:
 	dh_install
+	rm -rfv $(CURDIR)/debian/python3-*/usr/lib/python*/dist-packages/.hypothesis
 	rm -v $(CURDIR)/debian/python3-*/usr/lib/python*/dist-packages/swh/__init__.py
 
 	for pyvers in $(shell py3versions -vr); do \
