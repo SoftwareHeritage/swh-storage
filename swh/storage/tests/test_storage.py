@@ -2263,7 +2263,7 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
             datum = cur.fetchone()
 
         self.assertEqual(
-            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+            (datum[0], datum[1], datum[2],
              datum[3], datum[4]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible'))
@@ -2289,7 +2289,7 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
             datum = cur.fetchone()
 
         self.assertEqual(
-            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+            (datum[0], datum[1], datum[2],
              datum[3], datum[4], datum[5], datum[6]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible', cont['test'], cont['test2']))
