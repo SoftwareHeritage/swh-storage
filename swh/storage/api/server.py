@@ -236,6 +236,11 @@ def origin_search():
     return encode_data(get_storage().origin_search(**decode_request(request)))
 
 
+@app.route('/origin/count', methods=['POST'])
+def origin_count():
+    return encode_data(get_storage().origin_count(**decode_request(request)))
+
+
 @app.route('/origin/add_multi', methods=['POST'])
 def origin_add():
     return encode_data(get_storage().origin_add(**decode_request(request)))

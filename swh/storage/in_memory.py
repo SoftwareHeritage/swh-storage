@@ -896,8 +896,29 @@ class Storage:
         if with_visit:
             origins = [orig for orig in origins
                        if len(self._origin_visits[orig['id']-1]) > 0]
+
         origins = copy.deepcopy(origins[offset:offset+limit])
         return origins
+
+    def origin_count(self, url_pattern, regexp=False, with_visit=False,
+                     db=None, cur=None):
+        """Count origins whose urls contain a provided string pattern
+        or match a provided regular expression.
+        The pattern search in origin urls is performed in a case insensitive
+        way.
+
+        Args:
+            url_pattern (str): the string pattern to search for in origin urls
+            regexp (bool): if True, consider the provided pattern as a regular
+                expression and return origins whose urls match it
+            with_visit (bool): if True, filter out origins with no visit
+
+        Returns:
+            int: The number of origins matching the search criterion.
+        """
+        return len(self.origin_search(url_pattern, regexp=regexp,
+                                      with_visit=with_visit,
+                                      limit=len(self._origins)))
 
     def origin_add(self, origins):
         """Add origins to the storage
