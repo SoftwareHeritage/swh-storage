@@ -596,30 +596,30 @@ class Db(BaseDb):
 
     origin_cols = ['id', 'type', 'url']
 
-    def origin_get_with(self, type, url, cur=None):
+    def origin_get_with(self, origins, cur=None):
         """Retrieve the origin id from its type and url if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s
-                   FROM origin
-                   WHERE type=%%s AND url=%%s
-                """ % ','.join(self.origin_cols)
+        query = """SELECT %s FROM (VALUES %%s) as t(type, url)
+                   LEFT JOIN origin
+                       ON (t.type=origin.type AND t.url=origin.url)
+                """ % ','.join('origin.' + col for col in self.origin_cols)
 
-        cur.execute(query, (type, url))
-        return cur.fetchone()
+        yield from execute_values_generator(
+            cur, query, origins)
 
-    def origin_get(self, id, cur=None):
+    def origin_get(self, ids, cur=None):
         """Retrieve the origin per its identifier.
 
         """
         cur = self._cursor(cur)
 
-        query = """SELECT %s
-                   FROM origin WHERE id=%%s
-                """ % ','.join(self.origin_cols)
+        query = """SELECT %s FROM (VALUES %%s) as t(id)
+                   LEFT JOIN origin ON t.id = origin.id
+                """ % ','.join('origin.' + col for col in self.origin_cols)
 
-        cur.execute(query, (id,))
-        return cur.fetchone()
+        yield from execute_values_generator(
+            cur, query, ((id,) for id in ids))
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, cur=None):

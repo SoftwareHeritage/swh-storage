@@ -958,21 +958,21 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(id, id2)
 
     def test_origin_add(self):
-        origin0 = self.storage.origin_get(self.origin)
+        origin0 = self.storage.origin_get([self.origin])[0]
         self.assertIsNone(origin0)
 
         origin1, origin2 = self.storage.origin_add([self.origin, self.origin2])
 
-        actual_origin = self.storage.origin_get({
+        actual_origin = self.storage.origin_get([{
             'url': self.origin['url'],
             'type': self.origin['type'],
-        })
+        }])[0]
         self.assertEqual(actual_origin['id'], origin1['id'])
 
-        actual_origin2 = self.storage.origin_get({
+        actual_origin2 = self.storage.origin_get([{
             'url': self.origin2['url'],
             'type': self.origin2['type'],
-        })
+        }])[0]
         self.assertEqual(actual_origin2['id'], origin2['id'])
 
     def test_origin_add_twice(self):
@@ -981,13 +981,13 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(add1, add2)
 
-    def test_origin_get(self):
+    def test_origin_get_legacy(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
 
         # lookup per type and url (returns id)
-        actual_origin0 = self.storage.origin_get({'url': self.origin['url'],
-                                                  'type': self.origin['type']})
+        actual_origin0 = self.storage.origin_get(
+            {'url': self.origin['url'], 'type': self.origin['type']})
         self.assertEqual(actual_origin0['id'], id)
 
         # lookup per id (returns dict)
@@ -996,6 +996,33 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_origin1, {'id': id,
                                           'type': self.origin['type'],
                                           'url': self.origin['url']})
+
+    def test_origin_get(self):
+        self.assertIsNone(self.storage.origin_get(self.origin))
+        origin_id = self.storage.origin_add_one(self.origin)
+
+        # lookup per type and url (returns id)
+        actual_origin0 = self.storage.origin_get(
+            [{'url': self.origin['url'], 'type': self.origin['type']}])
+        self.assertEqual(len(actual_origin0), 1, actual_origin0)
+        self.assertEqual(actual_origin0[0]['id'], origin_id)
+
+        # lookup per id (returns dict)
+        actual_origin1 = self.storage.origin_get([{'id': origin_id}])
+
+        self.assertEqual(len(actual_origin1), 1, actual_origin1)
+        self.assertEqual(actual_origin1[0], {'id': origin_id,
+                                             'type': self.origin['type'],
+                                             'url': self.origin['url']})
+
+    def test_origin_get_consistency(self):
+        self.assertIsNone(self.storage.origin_get(self.origin))
+        id = self.storage.origin_add_one(self.origin)
+
+        with self.assertRaises(ValueError):
+            self.storage.origin_get([
+                {'url': self.origin['url'], 'type': self.origin['type']},
+                {'id': id}])
 
     def test_origin_search(self):
         found_origins = list(self.storage.origin_search(self.origin['url']))
@@ -1055,7 +1082,7 @@ class CommonTestStorage(TestStorageData):
 
     def test_origin_visit_add(self):
         # given
-        self.assertIsNone(self.storage.origin_get(self.origin2))
+        self.assertIsNone(self.storage.origin_get([self.origin2])[0])
 
         origin_id = self.storage.origin_add_one(self.origin2)
         self.assertIsNotNone(origin_id)
@@ -2143,14 +2170,21 @@ class CommonPropTestStorage:
 
                                 keys_to_check)
 
-    def test_origin_get_invalid_id(self):
-
+    def test_origin_get_invalid_id_legacy(self):
         invalid_origin_id = 1
 
         origin_info = self.storage.origin_get({'id': invalid_origin_id})
         self.assertIsNone(origin_info)
 
-        origin_visits = list(self.storage.origin_visit_get(invalid_origin_id))
+        origin_visits = list(self.storage.origin_visit_get(
+            invalid_origin_id))
+        self.assertEqual(origin_visits, [])
+
+    def test_origin_get_invalid_id(self):
+        origin_info = self.storage.origin_get([{'id': 1}, {'id': 2}])
+        self.assertEqual(origin_info, [None, None])
+
+        origin_visits = list(self.storage.origin_visit_get(1))
         self.assertEqual(origin_visits, [])
 
     @given(gen_origins(min_size=100, max_size=100))
