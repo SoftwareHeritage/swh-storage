@@ -778,13 +778,14 @@ class Storage:
                     } for obj in objs]
         return ret
 
-    def origin_get(self, origin):
-        """Return the origin either identified by its id or its tuple
-        (type, url).
+    def origin_get(self, origins):
+        """Return origins, either all identified by their ids or all
+        identified by tuples (type, url).
 
         Args:
-            origin: dictionary representing the individual origin to find.
-                This dict has either the keys type and url:
+            origin: a list of dictionaries representing the individual
+                origins to find.
+                These dicts have either the keys type and url:
 
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
@@ -804,18 +805,46 @@ class Storage:
             ValueError: if the keys does not match (url and type) nor id.
 
         """
-        if 'id' in origin:
-            origin_id = origin['id']
-        elif 'type' in origin and 'url' in origin:
-            origin_id = self._origin_id(origin)
+        if isinstance(origins, dict):
+            # Old API
+            return_single = True
+            origins = [origins]
         else:
-            raise ValueError('Origin must have either id or (type and url).')
-        origin = None
-        # self._origin_id can return None
-        if origin_id is not None and origin_id <= len(self._origins):
-            origin = copy.deepcopy(self._origins[origin_id-1])
-            origin['id'] = origin_id
-        return origin
+            return_single = False
+
+        # Sanity check to be error-compatible with the pgsql backend
+        if any('id' in origin for origin in origins) \
+                and not all('id' in origin for origin in origins):
+            raise ValueError(
+                'Either all origins or none at all should have an "id".')
+        if any('type' in origin and 'url' in origin for origin in origins) \
+                and not all('type' in origin and 'url' in origin
+                            for origin in origins):
+            raise ValueError(
+                'Either all origins or none at all should have a '
+                '"type" and an "url".')
+
+        results = []
+        for origin in origins:
+            if 'id' in origin:
+                origin_id = origin['id']
+            elif 'type' in origin and 'url' in origin:
+                origin_id = self._origin_id(origin)
+            else:
+                raise ValueError(
+                    'Origin must have either id or (type and url).')
+            origin = None
+            # self._origin_id can return None
+            if origin_id is not None and origin_id <= len(self._origins):
+                origin = copy.deepcopy(self._origins[origin_id-1])
+                origin['id'] = origin_id
+            results.append(origin)
+
+        if return_single:
+            assert len(results) == 1
+            return results[0]
+        else:
+            return results
 
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater

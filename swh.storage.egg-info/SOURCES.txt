@@ -159,7 +159,6 @@ swh/storage/__init__.py
 swh/storage/common.py
 swh/storage/converters.py
 swh/storage/db.py
-swh/storage/db_utils.py
 swh/storage/exc.py
 swh/storage/in_memory.py
 swh/storage/listener.py
