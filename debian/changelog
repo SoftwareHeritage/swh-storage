@@ -1,3 +1,15 @@
+swh-storage (0.0.123-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.123     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-08 15:06:49
+    +0100)
+  * Upstream changes:     - v0.0.123     - Make Storage.origin_get
+    support a list of origins, like other     - Storage.*_get methods.
+    - Stop using _to_bytes functions.     - Use the BaseDb (and friends)
+    from swh-core
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 08 Feb 2019 14:14:18 +0000
+
 swh-storage (0.0.122-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.122     - (tagged by Antoine Lambert
