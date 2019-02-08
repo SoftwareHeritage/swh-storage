@@ -1,224 +1,13 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import binascii
-import datetime
-import enum
-import functools
-import json
-import os
 import select
-import threading
 
-from contextlib import contextmanager
-
-import psycopg2
-import psycopg2.extras
-
-from .db_utils import execute_values_generator
-
-TMP_CONTENT_TABLE = 'tmp_content'
-
-
-psycopg2.extras.register_uuid()
-
-
-def stored_procedure(stored_proc):
-    """decorator to execute remote stored procedure, specified as argument
-
-    Generally, the body of the decorated function should be empty. If it is
-    not, the stored procedure will be executed first; the function body then.
-
-    """
-    def wrap(meth):
-        @functools.wraps(meth)
-        def _meth(self, *args, **kwargs):
-            cur = kwargs.get('cur', None)
-            self._cursor(cur).execute('SELECT %s()' % stored_proc)
-            meth(self, *args, **kwargs)
-        return _meth
-    return wrap
-
-
-def jsonize(value):
-    """Convert a value to a psycopg2 JSON object if necessary"""
-    if isinstance(value, dict):
-        return psycopg2.extras.Json(value)
-
-    return value
-
-
-def entry_to_bytes(entry):
-    """Convert an entry coming from the database to bytes"""
-    if isinstance(entry, memoryview):
-        return entry.tobytes()
-    if isinstance(entry, list):
-        return [entry_to_bytes(value) for value in entry]
-    return entry
-
-
-def line_to_bytes(line):
-    """Convert a line coming from the database to bytes"""
-    if not line:
-        return line
-    if isinstance(line, dict):
-        return {k: entry_to_bytes(v) for k, v in line.items()}
-    return line.__class__(entry_to_bytes(entry) for entry in line)
-
-
-def cursor_to_bytes(cursor):
-    """Yield all the data from a cursor as bytes"""
-    yield from (line_to_bytes(line) for line in cursor)
-
-
-def execute_values_to_bytes(*args, **kwargs):
-    for line in execute_values_generator(*args, **kwargs):
-        yield line_to_bytes(line)
-
-
-class BaseDb:
-    """Base class for swh.storage.*Db.
-
-    cf. swh.storage.db.Db, swh.archiver.db.ArchiverDb
-
-    """
-
-    @classmethod
-    def connect(cls, *args, **kwargs):
-        """factory method to create a DB proxy
-
-        Accepts all arguments of psycopg2.connect; only some specific
-        possibilities are reported below.
-
-        Args:
-            connstring: libpq2 connection string
-
-        """
-        conn = psycopg2.connect(*args, **kwargs)
-        return cls(conn)
-
-    @classmethod
-    def from_pool(cls, pool):
-        return cls(pool.getconn(), pool=pool)
-
-    def _cursor(self, cur_arg):
-        """get a cursor: from cur_arg if given, or a fresh one otherwise
-
-        meant to avoid boilerplate if/then/else in methods that proxy stored
-        procedures
-
-        """
-        if cur_arg is not None:
-            return cur_arg
-        # elif self.cur is not None:
-        #     return self.cur
-        else:
-            return self.conn.cursor()
-
-    def __init__(self, conn, pool=None):
-        """create a DB proxy
-
-        Args:
-            conn: psycopg2 connection to the SWH DB
-            pool: psycopg2 pool of connections
-
-        """
-        self.conn = conn
-        self.pool = pool
-
-    def __del__(self):
-        if self.pool:
-            self.pool.putconn(self.conn)
-
-    @contextmanager
-    def transaction(self):
-        """context manager to execute within a DB transaction
-
-        Yields:
-            a psycopg2 cursor
-
-        """
-        with self.conn.cursor() as cur:
-            try:
-                yield cur
-                self.conn.commit()
-            except Exception:
-                if not self.conn.closed:
-                    self.conn.rollback()
-                raise
-
-    def copy_to(self, items, tblname, columns, cur=None, item_cb=None):
-        """Copy items' entries to table tblname with columns information.
-
-        Args:
-            items (dict): dictionary of data to copy over tblname
-            tblname (str): Destination table's name
-            columns ([str]): keys to access data in items and also the
-              column names in the destination table.
-            item_cb (fn): optional function to apply to items's entry
-
-        """
-        def escape(data):
-            if data is None:
-                return ''
-            if isinstance(data, bytes):
-                return '\\x%s' % binascii.hexlify(data).decode('ascii')
-            elif isinstance(data, str):
-                return '"%s"' % data.replace('"', '""')
-            elif isinstance(data, datetime.datetime):
-                # We escape twice to make sure the string generated by
-                # isoformat gets escaped
-                return escape(data.isoformat())
-            elif isinstance(data, dict):
-                return escape(json.dumps(data))
-            elif isinstance(data, list):
-                return escape("{%s}" % ','.join(escape(d) for d in data))
-            elif isinstance(data, psycopg2.extras.Range):
-                # We escape twice here too, so that we make sure
-                # everything gets passed to copy properly
-                return escape(
-                    '%s%s,%s%s' % (
-                        '[' if data.lower_inc else '(',
-                        '-infinity' if data.lower_inf else escape(data.lower),
-                        'infinity' if data.upper_inf else escape(data.upper),
-                        ']' if data.upper_inc else ')',
-                    )
-                )
-            elif isinstance(data, enum.IntEnum):
-                return escape(int(data))
-            else:
-                # We don't escape here to make sure we pass literals properly
-                return str(data)
-
-        read_file, write_file = os.pipe()
-
-        def writer():
-            cursor = self._cursor(cur)
-            with open(read_file, 'r') as f:
-                cursor.copy_expert('COPY %s (%s) FROM STDIN CSV' % (
-                    tblname, ', '.join(columns)), f)
-
-        write_thread = threading.Thread(target=writer)
-        write_thread.start()
-
-        try:
-            with open(write_file, 'w') as f:
-                for d in items:
-                    if item_cb is not None:
-                        item_cb(d)
-                    line = [escape(d.get(k)) for k in columns]
-                    f.write(','.join(line))
-                    f.write('\n')
-        finally:
-            # No problem bubbling up exceptions, but we still need to make sure
-            # we finish copying, even though we're probably going to cancel the
-            # transaction.
-            write_thread.join()
-
-    def mktemp(self, tblname, cur=None):
-        self._cursor(cur).execute('SELECT swh_mktemp(%s)', (tblname,))
+from swh.core.db import BaseDb
+from swh.core.db.db_utils import stored_procedure, jsonize
+from swh.core.db.db_utils import execute_values_generator
 
 
 class Db(BaseDb):
@@ -281,7 +70,7 @@ class Db(BaseDb):
     def content_get_metadata_from_sha1s(self, sha1s, cur=None):
         cur = self._cursor(cur)
 
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             select t.sha1, %s from (values %%s) as t (sha1)
             left join content using (sha1)
@@ -299,7 +88,7 @@ class Db(BaseDb):
                    order by sha1
                    limit %%s""" % ', '.join(self.content_get_metadata_keys)
         cur.execute(query, (start, end, limit))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     content_hash_keys = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
@@ -312,7 +101,7 @@ class Db(BaseDb):
             for key in self.content_hash_keys
         )
 
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             SELECT %s
             FROM (VALUES %%s) as t(%s)
@@ -327,7 +116,7 @@ class Db(BaseDb):
     def content_missing_per_sha1(self, sha1s, cur=None):
         cur = self._cursor(cur)
 
-        yield from execute_values_to_bytes(cur, """
+        yield from execute_values_generator(cur, """
         SELECT t.sha1 FROM (VALUES %s) AS t(sha1)
         WHERE NOT EXISTS (
             SELECT 1 FROM content c WHERE c.sha1 = t.sha1
@@ -339,7 +128,7 @@ class Db(BaseDb):
         cur.execute("""SELECT sha1, sha1_git, sha256, blake2s256
                        FROM swh_skipped_content_missing()""")
 
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def snapshot_exists(self, snapshot_id, cur=None):
         """Check whether a snapshot with the given id exists"""
@@ -366,7 +155,7 @@ class Db(BaseDb):
 
         cur.execute(query, (snapshot_id,))
 
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     snapshot_get_cols = ['snapshot_id', 'name', 'target', 'target_type']
 
@@ -382,7 +171,7 @@ class Db(BaseDb):
         cur.execute(query, (snapshot_id, branches_from, branches_count,
                             target_types))
 
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def snapshot_get_by_origin_visit(self, origin_id, visit_id, cur=None):
         cur = self._cursor(cur)
@@ -393,7 +182,7 @@ class Db(BaseDb):
         cur.execute(query, (origin_id, visit_id))
         ret = cur.fetchone()
         if ret:
-            return line_to_bytes(ret)[0]
+            return ret[0]
 
     content_find_cols = ['sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
                          'ctime', 'status']
@@ -420,7 +209,7 @@ class Db(BaseDb):
                        LIMIT 1""" % ','.join(self.content_find_cols),
                     (sha1, sha1_git, sha256, blake2s256))
 
-        content = line_to_bytes(cur.fetchone())
+        content = cur.fetchone()
         if set(content) == {None}:
             return None
         else:
@@ -428,7 +217,7 @@ class Db(BaseDb):
 
     def directory_missing_from_list(self, directories, cur=None):
         cur = self._cursor(cur)
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             SELECT id FROM (VALUES %s) as t(id)
             WHERE NOT EXISTS (
@@ -444,14 +233,14 @@ class Db(BaseDb):
         cols = ', '.join(self.directory_ls_cols)
         query = 'SELECT %s FROM swh_directory_walk_one(%%s)' % cols
         cur.execute(query, (directory,))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def directory_walk(self, directory, cur=None):
         cur = self._cursor(cur)
         cols = ', '.join(self.directory_ls_cols)
         query = 'SELECT %s FROM swh_directory_walk(%%s)' % cols
         cur.execute(query, (directory,))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def directory_entry_get_by_path(self, directory, paths, cur=None):
         """Retrieve a directory entry by path.
@@ -467,12 +256,12 @@ class Db(BaseDb):
         data = cur.fetchone()
         if set(data) == {None}:
             return None
-        return line_to_bytes(data)
+        return data
 
     def revision_missing_from_list(self, revisions, cur=None):
         cur = self._cursor(cur)
 
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             SELECT id FROM (VALUES %s) as t(id)
             WHERE NOT EXISTS (
@@ -552,7 +341,7 @@ class Db(BaseDb):
 
         cur.execute(query, args)
 
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def origin_visit_get(self, origin_id, visit_id, cur=None):
         """Retrieve information on visit visit_id of origin origin_id.
@@ -579,7 +368,7 @@ class Db(BaseDb):
         r = cur.fetchall()
         if not r:
             return None
-        return line_to_bytes(r[0])
+        return r[0]
 
     def origin_visit_exists(self, origin_id, visit_id, cur=None):
         """Check whether an origin visit with the given ids exists"""
@@ -625,7 +414,7 @@ class Db(BaseDb):
         r = cur.fetchone()
         if not r:
             return None
-        return line_to_bytes(r)
+        return r
 
     @staticmethod
     def mangle_query_key(key, main_table):
@@ -657,7 +446,7 @@ class Db(BaseDb):
             for k in self.revision_get_cols
         )
 
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             SELECT %s FROM (VALUES %%s) as t(id)
             LEFT JOIN revision ON t.id = revision.id
@@ -674,7 +463,7 @@ class Db(BaseDb):
                 """ % ', '.join(self.revision_get_cols)
 
         cur.execute(query, (root_revisions, limit))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     revision_shortlog_cols = ['id', 'parents']
 
@@ -686,11 +475,11 @@ class Db(BaseDb):
                 """ % ', '.join(self.revision_shortlog_cols)
 
         cur.execute(query, (root_revisions, limit))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def release_missing_from_list(self, releases, cur=None):
         cur = self._cursor(cur)
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             SELECT id FROM (VALUES %s) as t(id)
             WHERE NOT EXISTS (
@@ -703,7 +492,7 @@ class Db(BaseDb):
     def object_find_by_sha1_git(self, ids, cur=None):
         cur = self._cursor(cur)
 
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             WITH t (id) AS (VALUES %s),
             known_objects as ((
@@ -807,36 +596,30 @@ class Db(BaseDb):
 
     origin_cols = ['id', 'type', 'url']
 
-    def origin_get_with(self, type, url, cur=None):
+    def origin_get_with(self, origins, cur=None):
         """Retrieve the origin id from its type and url if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s
-                   FROM origin
-                   WHERE type=%%s AND url=%%s
-                """ % ','.join(self.origin_cols)
+        query = """SELECT %s FROM (VALUES %%s) as t(type, url)
+                   LEFT JOIN origin
+                       ON (t.type=origin.type AND t.url=origin.url)
+                """ % ','.join('origin.' + col for col in self.origin_cols)
 
-        cur.execute(query, (type, url))
-        data = cur.fetchone()
-        if data:
-            return line_to_bytes(data)
-        return None
+        yield from execute_values_generator(
+            cur, query, origins)
 
-    def origin_get(self, id, cur=None):
+    def origin_get(self, ids, cur=None):
         """Retrieve the origin per its identifier.
 
         """
         cur = self._cursor(cur)
 
-        query = """SELECT %s
-                   FROM origin WHERE id=%%s
-                """ % ','.join(self.origin_cols)
+        query = """SELECT %s FROM (VALUES %%s) as t(id)
+                   LEFT JOIN origin ON t.id = origin.id
+                """ % ','.join('origin.' + col for col in self.origin_cols)
 
-        cur.execute(query, (id,))
-        data = cur.fetchone()
-        if data:
-            return line_to_bytes(data)
-        return None
+        yield from execute_values_generator(
+            cur, query, ((id,) for id in ids))
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, cur=None):
@@ -876,7 +659,7 @@ class Db(BaseDb):
             query_params = (url_pattern, offset, limit)
 
         cur.execute(query, query_params)
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     person_cols = ['fullname', 'name', 'email']
     person_get_cols = person_cols + ['id']
@@ -899,7 +682,7 @@ class Db(BaseDb):
                 """ % ','.join(self.origin_cols)
 
         cur.execute(query, (origin_from, origin_count))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def person_get(self, ids, cur=None):
         """Retrieve the persons identified by the list of ids.
@@ -912,7 +695,7 @@ class Db(BaseDb):
                    WHERE id IN %%s""" % ', '.join(self.person_get_cols)
 
         cur.execute(query, (tuple(ids),))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     release_add_cols = [
         'id', 'target', 'target_type', 'date', 'date_offset',
@@ -928,7 +711,7 @@ class Db(BaseDb):
             for k in self.release_get_cols
         )
 
-        yield from execute_values_to_bytes(
+        yield from execute_values_generator(
             cur, """
             SELECT %s FROM (VALUES %%s) as t(id)
             LEFT JOIN release ON t.id = release.id
@@ -986,7 +769,7 @@ class Db(BaseDb):
 
             cur.execute(query, (origin_id, provider_type))
 
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     tool_cols = ['id', 'name', 'version', 'configuration']
 
@@ -998,7 +781,7 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         cur.execute("SELECT %s from swh_tool_add()" % (
             ','.join(self.tool_cols), ))
-        yield from cursor_to_bytes(cur)
+        yield from cur
 
     def tool_get(self, name, version, configuration, cur=None):
         cur = self._cursor(cur)
@@ -1010,10 +793,7 @@ class Db(BaseDb):
                                  ','.join(self.tool_cols)),
                     (name, version, configuration))
 
-        data = cur.fetchone()
-        if not data:
-            return None
-        return line_to_bytes(data)
+        return cur.fetchone()
 
     metadata_provider_cols = ['id', 'provider_name', 'provider_type',
                               'provider_url', 'metadata']
@@ -1038,10 +818,7 @@ class Db(BaseDb):
                                  ','.join(self.metadata_provider_cols)),
                     (provider_id, ))
 
-        data = cur.fetchone()
-        if not data:
-            return None
-        return line_to_bytes(data)
+        return cur.fetchone()
 
     def metadata_provider_get_by(self, provider_name, provider_url,
                                  cur=None):
@@ -1053,7 +830,4 @@ class Db(BaseDb):
                                  ','.join(self.metadata_provider_cols)),
                     (provider_name, provider_url))
 
-        data = cur.fetchone()
-        if not data:
-            return None
-        return line_to_bytes(data)
+        return cur.fetchone()
