@@ -122,8 +122,17 @@ class RemoteStorage(SWHRemoteAPI):
             'target_types': target_types
         })
 
-    def origin_get(self, origin):
-        return self.post('origin/get', {'origin': origin})
+    def origin_get(self, origins=None, *, origin=None):
+        if origin is None:
+            if origins is None:
+                raise TypeError('origin_get expected 1 argument')
+        else:
+            assert origins is None
+            origins = origin
+            warnings.warn("argument 'origin' of origin_get was renamed "
+                          "to 'origins' in v0.0.123.",
+                          DeprecationWarning)
+        return self.post('origin/get', {'origins': origins})
 
     def origin_search(self, url_pattern, offset=0, limit=50, regexp=False,
                       with_visit=False):

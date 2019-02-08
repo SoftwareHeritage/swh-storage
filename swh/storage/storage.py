@@ -1081,13 +1081,14 @@ class Storage():
     origin_keys = ['id', 'type', 'url']
 
     @db_transaction(statement_timeout=500)
-    def origin_get(self, origin, db=None, cur=None):
-        """Return the origin either identified by its id or its tuple
-        (type, url).
+    def origin_get(self, origins, db=None, cur=None):
+        """Return origins, either all identified by their ids or all
+        identified by tuples (type, url).
 
         Args:
-            origin: dictionary representing the individual origin to find.
-                This dict has either the keys type and url:
+            origin: a list of dictionaries representing the individual
+                origins to find.
+                These dicts have either the keys type and url:
 
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
@@ -1107,17 +1108,46 @@ class Storage():
             ValueError: if the keys does not match (url and type) nor id.
 
         """
-        origin_id = origin.get('id')
-        if origin_id:  # check lookup per id first
-            ori = db.origin_get(origin_id, cur)
-        elif 'type' in origin and 'url' in origin:  # or lookup per type, url
-            ori = db.origin_get_with(origin['type'], origin['url'], cur)
+        if isinstance(origins, dict):
+            # Old API
+            return_single = True
+            origins = [origins]
+        elif len(origins) == 0:
+            return []
+        else:
+            return_single = False
+
+        origin_ids = [origin.get('id') for origin in origins]
+        origin_types_and_urls = [(origin.get('type'), origin.get('url'))
+                                 for origin in origins]
+        if any(origin_ids):
+            # Lookup per ID
+            if all(origin_ids):
+                results = db.origin_get(origin_ids, cur)
+            else:
+                raise ValueError(
+                    'Either all origins or none at all should have an "id".')
+        elif any(type_ and url for (type_, url) in origin_types_and_urls):
+            # Lookup per type + URL
+            if all(type_ and url for (type_, url) in origin_types_and_urls):
+                results = db.origin_get_with(origin_types_and_urls, cur)
+            else:
+                raise ValueError(
+                    'Either all origins or none at all should have a '
+                    '"type" and an "url".')
         else:  # unsupported lookup
             raise ValueError('Origin must have either id or (type and url).')
 
-        if ori:
-            return dict(zip(self.origin_keys, ori))
-        return None
+        results = [dict(zip(self.origin_keys, result))
+                   for result in results]
+        if return_single:
+            assert len(results) == 1
+            if results[0]['id'] is not None:
+                return results[0]
+            else:
+                return None
+        else:
+            return [None if res['id'] is None else res for res in results]
 
     @db_transaction_generator()
     def origin_search(self, url_pattern, offset=0, limit=50,
@@ -1211,9 +1241,10 @@ class Storage():
             exists.
 
         """
-        data = db.origin_get_with(origin['type'], origin['url'], cur)
-        if data:
-            return data[0]
+        origin_id = list(db.origin_get_with(
+            [(origin['type'], origin['url'])], cur))[0][0]
+        if origin_id:
+            return origin_id
 
         return db.origin_add(origin['type'], origin['url'], cur)
 
