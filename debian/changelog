@@ -1,3 +1,11 @@
+swh-storage (0.0.124-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.124     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2019-02-12 14:40:53 +0100)
+  * Upstream changes:     - version 0.0.124
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 12 Feb 2019 13:46:08 +0000
+
 swh-storage (0.0.123-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.123     - (tagged by Antoine R. Dumont
