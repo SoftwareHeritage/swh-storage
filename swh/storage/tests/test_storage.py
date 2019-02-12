@@ -2220,6 +2220,44 @@ class CommonPropTestStorage:
                                           origin_count=origin_count))
         self.assertEqual(len(origins), 0)
 
+    def test_origin_count(self):
+
+        new_origins = [
+            {
+                'type': 'git',
+                'url': 'https://github.com/user1/repo1'
+            },
+            {
+                'type': 'git',
+                'url': 'https://github.com/user2/repo1'
+            },
+            {
+                'type': 'git',
+                'url': 'https://github.com/user3/repo1'
+            },
+            {
+                'type': 'git',
+                'url': 'https://gitlab.com/user1/repo1'
+            },
+            {
+                'type': 'git',
+                'url': 'https://gitlab.com/user2/repo1'
+            }
+        ]
+
+        self.storage.origin_add(new_origins)
+
+        self.assertEqual(self.storage.origin_count('github'), 3)
+        self.assertEqual(self.storage.origin_count('gitlab'), 2)
+        self.assertEqual(
+            self.storage.origin_count('.*user.*', regexp=True), 5)
+        self.assertEqual(
+            self.storage.origin_count('.*user.*', regexp=False), 0)
+        self.assertEqual(
+            self.storage.origin_count('.*user1.*', regexp=True), 2)
+        self.assertEqual(
+            self.storage.origin_count('.*user1.*', regexp=False), 0)
+
 
 @pytest.mark.db
 class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,

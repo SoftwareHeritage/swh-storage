@@ -1173,6 +1173,25 @@ class Storage():
                                        regexp, with_visit, cur):
             yield dict(zip(self.origin_keys, origin))
 
+    @db_transaction()
+    def origin_count(self, url_pattern, regexp=False,
+                     with_visit=False, db=None, cur=None):
+        """Count origins whose urls contain a provided string pattern
+        or match a provided regular expression.
+        The pattern search in origin urls is performed in a case insensitive
+        way.
+
+        Args:
+            url_pattern (str): the string pattern to search for in origin urls
+            regexp (bool): if True, consider the provided pattern as a regular
+                expression and return origins whose urls match it
+            with_visit (bool): if True, filter out origins with no visit
+
+        Returns:
+            int: The number of origins matching the search criterion.
+        """
+        return db.origin_count(url_pattern, regexp, with_visit, cur)
+
     @db_transaction_generator()
     def origin_get_range(self, origin_from=1, origin_count=100,
                          db=None, cur=None):
