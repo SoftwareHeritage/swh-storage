@@ -47,4 +47,4 @@ class TestDb(SingleDbTestFixture, unittest.TestCase):
         self.db.content_add_from_temp(cur)
         self.cursor.execute('SELECT sha1 FROM content WHERE sha1 = %s',
                             (sha1,))
-        self.assertEqual(self.cursor.fetchone()[0].tobytes(), sha1)
+        self.assertEqual(self.cursor.fetchone()[0], sha1)
