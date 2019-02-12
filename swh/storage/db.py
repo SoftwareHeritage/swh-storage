@@ -621,6 +621,41 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur, query, ((id,) for id in ids))
 
+    def _origin_query(self, url_pattern, count=False, offset=0, limit=50,
+                      regexp=False, with_visit=False, cur=None):
+        """
+        Method factorizing query creation for searching and counting origins.
+        """
+        cur = self._cursor(cur)
+
+        if count:
+            origin_cols = 'COUNT(*)'
+        else:
+            origin_cols = ','.join(self.origin_cols)
+
+        query = """SELECT %s
+                   FROM origin
+                   WHERE """
+        if with_visit:
+            query += """
+                   EXISTS (SELECT 1 from origin_visit WHERE origin=origin.id)
+                   AND """
+        query += 'url %s %%s '
+        if not count:
+            query += 'ORDER BY id OFFSET %%s LIMIT %%s'
+
+        if not regexp:
+            query = query % (origin_cols, 'ILIKE')
+            query_params = ('%'+url_pattern+'%', offset, limit)
+        else:
+            query = query % (origin_cols, '~*')
+            query_params = (url_pattern, offset, limit)
+
+        if count:
+            query_params = (query_params[0],)
+
+        cur.execute(query, query_params)
+
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, cur=None):
         """Search for origins whose urls contain a provided string pattern
@@ -637,29 +672,26 @@ class Db(BaseDb):
             with_visit (bool): if True, filter out origins with no visit
 
         """
-        cur = self._cursor(cur)
-        origin_cols = ','.join(self.origin_cols)
-        query = """SELECT %s
-                   FROM origin
-                   WHERE """
-        if with_visit:
-            query += """
-                   EXISTS (SELECT 1 from origin_visit WHERE origin=origin.id)
-                   AND """
-        query += """
-                   url %s %%s
-                   ORDER BY id
-                   OFFSET %%s LIMIT %%s"""
-
-        if not regexp:
-            query = query % (origin_cols, 'ILIKE')
-            query_params = ('%'+url_pattern+'%', offset, limit)
-        else:
-            query = query % (origin_cols, '~*')
-            query_params = (url_pattern, offset, limit)
-
-        cur.execute(query, query_params)
+        self._origin_query(url_pattern, offset=offset, limit=limit,
+                           regexp=regexp, with_visit=with_visit, cur=cur)
         yield from cur
+
+    def origin_count(self, url_pattern, regexp=False,
+                     with_visit=False, cur=None):
+        """Count origins whose urls contain a provided string pattern
+        or match a provided regular expression.
+        The pattern search in origin urls is performed in a case insensitive
+        way.
+
+        Args:
+            url_pattern (str): the string pattern to search for in origin urls
+            regexp (bool): if True, consider the provided pattern as a regular
+                expression and returns origins whose urls match it
+            with_visit (bool): if True, filter out origins with no visit
+        """
+        self._origin_query(url_pattern, count=True,
+                           regexp=regexp, with_visit=with_visit, cur=cur)
+        return cur.fetchone()[0]
 
     person_cols = ['fullname', 'name', 'email']
     person_get_cols = person_cols + ['id']
