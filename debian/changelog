@@ -1,8 +1,14 @@
-swh-storage (0.0.124-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.124-1~swh3) unstable-swh; urgency=low
 
-  * Rebuild for stretch-swh
+  * New upstream release, fixing the distribution this time
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 12 Feb 2019 13:47:32 +0000
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 14 Feb 2019 17:51:29 +0100
+
+swh-storage (0.0.124-1~swh2) unstable; urgency=medium
+
+  * New upstream release for dependency fix reasons
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Thu, 14 Feb 2019 09:27:55 +0100
 
 swh-storage (0.0.124-1~swh1) unstable-swh; urgency=medium
 
