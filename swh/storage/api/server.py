@@ -1,8 +1,9 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import json
 import logging
 import click
@@ -386,12 +387,57 @@ def diff_revision():
 api_cfg = None
 
 
+def load_and_check_config(config_file, type='any'):
+    """Check minimal configuration is set or raise an error explanation.
+
+    Args:
+        config_file (str): Path to the configuration file to load
+        type (str): configuration type. For 'production' type, more
+                    checks are done.
+
+    Raises:
+        Error if the setup is not as expected
+
+    Returns:
+        configuration as a dict
+
+    """
+    if not os.path.exists(config_file):
+        raise ValueError('Configuration file %s does not exist.' % config_file)
+
+    cfg = config.read(config_file, DEFAULT_CONFIG)
+    if 'storage' not in cfg:
+        raise ValueError("missing '%storage' configuration")
+
+    if type == 'production':
+        vcfg = cfg['storage']
+        if vcfg['cls'] != 'local':
+            raise EnvironmentError(
+                "The storage backend can only be started with a 'local' "
+                "configuration", err=True)
+
+        args = vcfg['args']
+        for key in ('db', 'objstorage'):
+            if not args.get(key):
+                raise ValueError(
+                    "invalid configuration; missing %s config entry." % key)
+
+    return cfg
+
+
 def run_from_webserver(environ, start_response,
                        config_path=DEFAULT_CONFIG_PATH):
-    """Run the WSGI app from the webserver, loading the configuration."""
+    """Run the WSGI app from the webserver, loading the configuration from
+       a configuration file.
+
+       SWH_CONFIG_FILENAME environment variables takes precedence over
+       the config_path provided to this function.
+
+    """
     global api_cfg
     if not api_cfg:
-        api_cfg = config.load_named_config(config_path, DEFAULT_CONFIG)
+        config_file = environ.get('SWH_CONFIG_FILENAME', config_path)
+        api_cfg = load_and_check_config(config_file)
         app.config.update(api_cfg)
     handler = logging.StreamHandler()
     app.logger.addHandler(handler)
@@ -406,7 +452,8 @@ def run_from_webserver(environ, start_response,
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")
 def launch(config_path, host, port, debug):
-    app.config.update(config.read(config_path, DEFAULT_CONFIG))
+    api_cfg = load_and_check_config(config_path, type='any')
+    app.config.update(api_cfg)
     app.run(host, port=int(port), debug=bool(debug))
 
 
