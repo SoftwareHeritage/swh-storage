@@ -1,3 +1,15 @@
+swh-storage (0.0.127-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.127     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-21 13:34:19
+    +0100)
+  * Upstream changes:     - v0.0.127     - api.wsgi: Open wsgi
+    entrypoint and check config at startup time     - api.server: Make
+    the api server load and check its configuration     -
+    swh.storage.cli: Migrate the api server startup in swh.storage.cli
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 21 Feb 2019 12:59:48 +0000
+
 swh-storage (0.0.126-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.126     - (tagged by Valentin Lorentz
