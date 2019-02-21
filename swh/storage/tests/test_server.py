@@ -3,10 +3,33 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import copy
 import pytest
 import yaml
 
 from swh.storage.api.server import load_and_check_config
+
+
+def prepare_config_file(tmpdir, content, name='config.yml'):
+    """Prepare configuration file in `$tmpdir/name` with content `content`.
+
+    Args:
+        tmpdir (LocalPath): root directory
+        content (str/dict): Content of the file either as string or as a dict.
+                            If a dict, converts the dict into a yaml string.
+        name (str): configuration filename
+
+    Returns
+        path (str) of the configuration file prepared.
+
+    """
+    config_path = tmpdir / name
+    if isinstance(content, dict):  # convert if needed
+        content = yaml.dump(content)
+    config_path.write_text(content, encoding='utf-8')
+    # pytest on python3.5 does not support LocalPath manipulation, so
+    # convert path to string
+    return str(config_path)
 
 
 def test_load_and_check_config_no_configuration():
@@ -26,9 +49,7 @@ def test_load_and_check_config_no_configuration():
 
 def test_load_and_check_config_wrong_configuration(tmpdir):
     """Wrong configuration raises"""
-    config_path = tmpdir / 'config.yml'
-    config_path.write_text('something: useless', encoding='utf-8')
-
+    config_path = prepare_config_file(tmpdir, 'something: useless')
     with pytest.raises(EnvironmentError) as e:
         load_and_check_config(config_path)
 
@@ -37,15 +58,13 @@ def test_load_and_check_config_wrong_configuration(tmpdir):
 
 def test_load_and_check_config_remote_config_local_type_raise(tmpdir):
     """'local' configuration without 'local' storage raises"""
-    config_path = tmpdir / 'config.yml'
     config = {
         'storage': {
             'cls': 'remote',
             'args': {}
         }
     }
-
-    config_path.write_text(yaml.dump(config), encoding='utf-8')
+    config_path = prepare_config_file(tmpdir, config)
     with pytest.raises(EnvironmentError) as e:
         load_and_check_config(config_path, type='local')
 
@@ -57,8 +76,6 @@ def test_load_and_check_config_remote_config_local_type_raise(tmpdir):
 
 def test_load_and_check_config_local_incomplete_configuration(tmpdir):
     """Incomplete 'local' configuration should raise"""
-    config_path = tmpdir / 'config.yml'
-
     config = {
         'storage': {
             'cls': 'local',
@@ -69,11 +86,10 @@ def test_load_and_check_config_local_incomplete_configuration(tmpdir):
         }
     }
 
-    import copy
     for key in ('db', 'objstorage'):
         c = copy.deepcopy(config)
         c['storage']['args'].pop(key)
-        config_path.write_text(yaml.dump(c), encoding='utf-8')
+        config_path = prepare_config_file(tmpdir, c)
         with pytest.raises(EnvironmentError) as e:
             load_and_check_config(config_path)
 
@@ -85,8 +101,6 @@ def test_load_and_check_config_local_incomplete_configuration(tmpdir):
 
 def test_load_and_check_config_local_config_fine(tmpdir):
     """'Remote configuration is fine"""
-    config_path = tmpdir / 'config.yml'
-
     config = {
         'storage': {
             'cls': 'local',
@@ -96,24 +110,20 @@ def test_load_and_check_config_local_config_fine(tmpdir):
             }
         }
     }
-
-    config_path.write_text(yaml.dump(config), encoding='utf-8')
+    config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path, type='local')
     assert cfg == config
 
 
 def test_load_and_check_config_remote_config_fine(tmpdir):
     """'Remote configuration is fine"""
-    config_path = tmpdir / 'config.yml'
-
     config = {
         'storage': {
             'cls': 'remote',
             'args': {}
         }
     }
-
-    config_path.write_text(yaml.dump(config), encoding='utf-8')
+    config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path, type='any')
 
     assert cfg == config
