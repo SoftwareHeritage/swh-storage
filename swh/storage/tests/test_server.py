@@ -40,7 +40,7 @@ def test_load_and_check_config_no_configuration():
     assert e.value.args[0] == 'Configuration file must be defined'
 
     config_path = '/some/inexistant/config.yml'
-    with pytest.raises(EnvironmentError) as e:
+    with pytest.raises(FileNotFoundError) as e:
         load_and_check_config(config_path)
 
     assert e.value.args[0] == 'Configuration file %s does not exist' % (
@@ -50,7 +50,7 @@ def test_load_and_check_config_no_configuration():
 def test_load_and_check_config_wrong_configuration(tmpdir):
     """Wrong configuration raises"""
     config_path = prepare_config_file(tmpdir, 'something: useless')
-    with pytest.raises(EnvironmentError) as e:
+    with pytest.raises(KeyError) as e:
         load_and_check_config(config_path)
 
     assert e.value.args[0] == 'Missing \'%storage\' configuration'
@@ -90,7 +90,7 @@ def test_load_and_check_config_local_incomplete_configuration(tmpdir):
         c = copy.deepcopy(config)
         c['storage']['args'].pop(key)
         config_path = prepare_config_file(tmpdir, c)
-        with pytest.raises(EnvironmentError) as e:
+        with pytest.raises(ValueError) as e:
             load_and_check_config(config_path)
 
         assert (

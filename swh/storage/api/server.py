@@ -388,12 +388,12 @@ def load_and_check_config(config_file, type='local'):
         raise EnvironmentError('Configuration file must be defined')
 
     if not os.path.exists(config_file):
-        raise EnvironmentError('Configuration file %s does not exist' % (
+        raise FileNotFoundError('Configuration file %s does not exist' % (
             config_file, ))
 
     cfg = config.read(config_file)
     if 'storage' not in cfg:
-        raise EnvironmentError("Missing '%storage' configuration")
+        raise KeyError("Missing '%storage' configuration")
 
     if type == 'local':
         vcfg = cfg['storage']
@@ -406,7 +406,7 @@ def load_and_check_config(config_file, type='local'):
         args = vcfg['args']
         for key in ('db', 'objstorage'):
             if not args.get(key):
-                raise EnvironmentError(
+                raise ValueError(
                     "Invalid configuration; missing '%s' config entry" % key)
 
     return cfg
