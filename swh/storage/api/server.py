@@ -413,7 +413,7 @@ def load_and_check_config(config_file, type='local'):
     return cfg
 
 
-def make_app_from_configfile(environ, start_response):
+def make_app_from_configfile():
     """Run the WSGI app from the webserver, loading the configuration from
        a configuration file.
 
@@ -423,12 +423,11 @@ def make_app_from_configfile(environ, start_response):
     """
     global api_cfg
     if not api_cfg:
-        config_file = environ.get('SWH_CONFIG_FILENAME')
+        config_file = os.environ.get('SWH_CONFIG_FILENAME')
         api_cfg = load_and_check_config(config_file)
         app.config.update(api_cfg)
     handler = logging.StreamHandler()
     app.logger.addHandler(handler)
-    return app(environ, start_response)
 
 
 @click.command()
@@ -442,6 +441,7 @@ def launch(config_path, host, port, debug):
     api_cfg = load_and_check_config(config_path, type='any')
     app.config.update(api_cfg)
     app.run(host, port=int(port), debug=bool(debug))
+    return app
 
 
 if __name__ == '__main__':
