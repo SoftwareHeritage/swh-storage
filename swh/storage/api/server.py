@@ -428,21 +428,8 @@ def make_app_from_configfile():
         app.config.update(api_cfg)
     handler = logging.StreamHandler()
     app.logger.addHandler(handler)
-
-
-@click.command()
-@click.argument('config-path', required=1)
-@click.option('--host', default='0.0.0.0', help="Host to run the server")
-@click.option('--port', default=5002, type=click.INT,
-              help="Binding port of the server")
-@click.option('--debug/--nodebug', default=True,
-              help="Indicates if the server should run in debug mode")
-def launch(config_path, host, port, debug):
-    api_cfg = load_and_check_config(config_path, type='any')
-    app.config.update(api_cfg)
-    app.run(host, port=int(port), debug=bool(debug))
     return app
 
 
 if __name__ == '__main__':
-    launch()
+    print('Deprecated. Use swh-storage')
