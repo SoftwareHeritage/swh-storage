@@ -15,11 +15,11 @@ from swh.storage.api.server import load_and_check_config, app
               help="Binding port of the server")
 @click.option('--debug/--nodebug', default=True,
               help="Indicates if the server should run in debug mode")
-def launch(config_path, host, port, debug):
+def main(config_path, host, port, debug):
     api_cfg = load_and_check_config(config_path, type='any')
     app.config.update(api_cfg)
     app.run(host, port=int(port), debug=bool(debug))
 
 
 if __name__ == '__main__':
-    launch()
+    main()
