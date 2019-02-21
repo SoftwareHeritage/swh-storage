@@ -847,7 +847,7 @@ class Storage():
 
         return None
 
-    @db_transaction(statement_timeout=2000)
+    @db_transaction(statement_timeout=4000)
     def snapshot_get_latest(self, origin, allowed_statuses=None, db=None,
                             cur=None):
         """Get the content, possibly partial, of the latest snapshot for the
