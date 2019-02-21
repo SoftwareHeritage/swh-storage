@@ -1,3 +1,12 @@
+swh-storage (0.0.126-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.126     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-02-21 10:18:26 +0100)
+  * Upstream changes:     - Double the timeout of snapshot_get_latest.
+    - Metadata indexers often hit the limit.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 21 Feb 2019 11:24:52 +0000
+
 swh-storage (0.0.125-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.125     - (tagged by Antoine R. Dumont
