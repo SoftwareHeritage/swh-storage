@@ -16,24 +16,6 @@ from swh.core.api import (SWHServerAPIApp, decode_request,
                           error_handler,
                           encode_data_server as encode_data)
 
-DEFAULT_CONFIG_PATH = 'storage/storage'
-DEFAULT_CONFIG = {
-    'storage': ('dict', {
-        'cls': 'local',
-        'args': {
-            'db': 'dbname=softwareheritage-dev',
-            'objstorage': {
-                'cls': 'pathslicing',
-                'args': {
-                    'root': '/srv/softwareheritage/objects',
-                    'slicing': '0:2/2:4/4:6',
-                },
-            },
-        },
-    })
-}
-
-
 app = SWHServerAPIApp(__name__)
 storage = None
 
@@ -387,12 +369,13 @@ def diff_revision():
 api_cfg = None
 
 
-def load_and_check_config(config_file, type='any'):
-    """Check minimal configuration is set or raise an error explanation.
+def load_and_check_config(config_file, type='local'):
+    """Check the minimal configuration is set to run the api or raise an
+       error explanation.
 
     Args:
         config_file (str): Path to the configuration file to load
-        type (str): configuration type. For 'production' type, more
+        type (str): configuration type. For 'local' type, more
                     checks are done.
 
     Raises:
@@ -402,41 +385,45 @@ def load_and_check_config(config_file, type='any'):
         configuration as a dict
 
     """
+    if not config_file:
+        raise EnvironmentError('Configuration file must be defined')
+
     if not os.path.exists(config_file):
-        raise ValueError('Configuration file %s does not exist.' % config_file)
+        raise EnvironmentError('Configuration file %s does not exist' % (
+            config_file, ))
 
-    cfg = config.read(config_file, DEFAULT_CONFIG)
+    cfg = config.read(config_file)
     if 'storage' not in cfg:
-        raise ValueError("missing '%storage' configuration")
+        raise EnvironmentError("Missing '%storage' configuration")
 
-    if type == 'production':
+    if type == 'local':
         vcfg = cfg['storage']
-        if vcfg['cls'] != 'local':
+        cls = vcfg.get('cls')
+        if cls != 'local':
             raise EnvironmentError(
                 "The storage backend can only be started with a 'local' "
-                "configuration", err=True)
+                "configuration")
 
         args = vcfg['args']
         for key in ('db', 'objstorage'):
             if not args.get(key):
-                raise ValueError(
-                    "invalid configuration; missing %s config entry." % key)
+                raise EnvironmentError(
+                    "Invalid configuration; missing '%s' config entry" % key)
 
     return cfg
 
 
-def run_from_webserver(environ, start_response,
-                       config_path=DEFAULT_CONFIG_PATH):
+def make_app_from_configfile(environ, start_response):
     """Run the WSGI app from the webserver, loading the configuration from
        a configuration file.
 
-       SWH_CONFIG_FILENAME environment variables takes precedence over
-       the config_path provided to this function.
+       SWH_CONFIG_FILENAME environment variable defines the
+       configuration path to load.
 
     """
     global api_cfg
     if not api_cfg:
-        config_file = environ.get('SWH_CONFIG_FILENAME', config_path)
+        config_file = environ.get('SWH_CONFIG_FILENAME')
         api_cfg = load_and_check_config(config_file)
         app.config.update(api_cfg)
     handler = logging.StreamHandler()
