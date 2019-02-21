@@ -6,7 +6,6 @@
 import os
 import json
 import logging
-import click
 
 from flask import request
 
