@@ -399,7 +399,7 @@ def load_and_check_config(config_file, type='local'):
         vcfg = cfg['storage']
         cls = vcfg.get('cls')
         if cls != 'local':
-            raise EnvironmentError(
+            raise ValueError(
                 "The storage backend can only be started with a 'local' "
                 "configuration")
 
