@@ -621,6 +621,26 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur, query, ((id,) for id in ids))
 
+    def origin_get_range(self, origin_from=1, origin_count=100, cur=None):
+        """Retrieve ``origin_count`` origins whose ids are greater
+        or equal than ``origin_from``.
+
+        Origins are sorted by id before retrieving them.
+
+        Args:
+            origin_from (int): the minimum id of origins to retrieve
+            origin_count (int): the maximum number of origins to retrieve
+        """
+        cur = self._cursor(cur)
+
+        query = """SELECT %s
+                   FROM origin WHERE id >= %%s
+                   ORDER BY id LIMIT %%s
+                """ % ','.join(self.origin_cols)
+
+        cur.execute(query, (origin_from, origin_count))
+        yield from cur
+
     def _origin_query(self, url_pattern, count=False, offset=0, limit=50,
                       regexp=False, with_visit=False, cur=None):
         """
@@ -695,26 +715,6 @@ class Db(BaseDb):
 
     person_cols = ['fullname', 'name', 'email']
     person_get_cols = person_cols + ['id']
-
-    def origin_get_range(self, origin_from=1, origin_count=100, cur=None):
-        """Retrieve ``origin_count`` origins whose ids are greater
-        or equal than ``origin_from``.
-
-        Origins are sorted by id before retrieving them.
-
-        Args:
-            origin_from (int): the minimum id of origins to retrieve
-            origin_count (int): the maximum number of origins to retrieve
-        """
-        cur = self._cursor(cur)
-
-        query = """SELECT %s
-                   FROM origin WHERE id >= %%s
-                   ORDER BY id LIMIT %%s
-                """ % ','.join(self.origin_cols)
-
-        cur.execute(query, (origin_from, origin_count))
-        yield from cur
 
     def person_get(self, ids, cur=None):
         """Retrieve the persons identified by the list of ids.

@@ -847,7 +847,7 @@ class Storage():
 
         return None
 
-    @db_transaction(statement_timeout=2000)
+    @db_transaction(statement_timeout=4000)
     def snapshot_get_latest(self, origin, allowed_statuses=None, db=None,
                             cur=None):
         """Get the content, possibly partial, of the latest snapshot for the
@@ -1150,6 +1150,25 @@ class Storage():
             return [None if res['id'] is None else res for res in results]
 
     @db_transaction_generator()
+    def origin_get_range(self, origin_from=1, origin_count=100,
+                         db=None, cur=None):
+        """Retrieve ``origin_count`` origins whose ids are greater
+        or equal than ``origin_from``.
+
+        Origins are sorted by id before retrieving them.
+
+        Args:
+            origin_from (int): the minimum id of origins to retrieve
+            origin_count (int): the maximum number of origins to retrieve
+
+        Yields:
+            dicts containing origin information as returned
+            by :meth:`swh.storage.storage.Storage.origin_get`.
+        """
+        for origin in db.origin_get_range(origin_from, origin_count, cur):
+            yield dict(zip(self.origin_keys, origin))
+
+    @db_transaction_generator()
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):
         """Search for origins whose urls contain a provided string pattern
@@ -1191,25 +1210,6 @@ class Storage():
             int: The number of origins matching the search criterion.
         """
         return db.origin_count(url_pattern, regexp, with_visit, cur)
-
-    @db_transaction_generator()
-    def origin_get_range(self, origin_from=1, origin_count=100,
-                         db=None, cur=None):
-        """Retrieve ``origin_count`` origins whose ids are greater
-        or equal than ``origin_from``.
-
-        Origins are sorted by id before retrieving them.
-
-        Args:
-            origin_from (int): the minimum id of origins to retrieve
-            origin_count (int): the maximum number of origins to retrieve
-
-        Yields:
-            dicts containing origin information as returned
-            by :meth:`swh.storage.storage.Storage.origin_get`.
-        """
-        for origin in db.origin_get_range(origin_from, origin_count, cur):
-            yield dict(zip(self.origin_keys, origin))
 
     @db_transaction_generator(statement_timeout=500)
     def person_get(self, person, db=None, cur=None):
