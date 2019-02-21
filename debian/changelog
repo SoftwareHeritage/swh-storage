@@ -1,8 +1,13 @@
-swh-storage (0.0.127-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.128-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.128     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-02-21 14:59:22
+    +0100)
+  * Upstream changes:     - v0.0.128     - api.server: Fix wrong
+    exception type     - storage.cli: Fix cli entry point name to the
+    expected name (setup.py)
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 21 Feb 2019 13:01:12 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 21 Feb 2019 14:07:23 +0000
 
 swh-storage (0.0.127-1~swh1) unstable-swh; urgency=medium
 

@@ -65,7 +65,7 @@ def test_load_and_check_config_remote_config_local_type_raise(tmpdir):
         }
     }
     config_path = prepare_config_file(tmpdir, config)
-    with pytest.raises(EnvironmentError) as e:
+    with pytest.raises(ValueError) as e:
         load_and_check_config(config_path, type='local')
 
     assert (
