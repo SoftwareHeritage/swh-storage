@@ -1,8 +1,11 @@
-swh-storage (0.0.128-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.129-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.129     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-02-27 10:42:29 +0100)
+  * Upstream changes:     - Double the timeout of revision_get.     -
+    Metadata indexers often hit the limit.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 21 Feb 2019 14:08:48 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 01 Mar 2019 10:11:28 +0000
 
 swh-storage (0.0.128-1~swh1) unstable-swh; urgency=medium
 
