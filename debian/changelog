@@ -1,3 +1,12 @@
+swh-storage (0.0.129-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.129     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-02-27 10:42:29 +0100)
+  * Upstream changes:     - Double the timeout of revision_get.     -
+    Metadata indexers often hit the limit.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 01 Mar 2019 10:11:28 +0000
+
 swh-storage (0.0.128-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.128     - (tagged by Antoine R. Dumont
