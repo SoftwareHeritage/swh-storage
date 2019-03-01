@@ -607,7 +607,7 @@ class Storage():
         for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]
 
-    @db_transaction_generator(statement_timeout=500)
+    @db_transaction_generator(statement_timeout=1000)
     def revision_get(self, revisions, db=None, cur=None):
         """Get all revisions from storage
 
