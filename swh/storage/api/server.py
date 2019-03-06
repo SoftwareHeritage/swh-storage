@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import os
-import json
 import logging
 
 from flask import request
@@ -112,11 +111,10 @@ def directory_entry_get_by_path():
         **decode_request(request)))
 
 
-@app.route('/directory/ls', methods=['GET'])
+@app.route('/directory/ls', methods=['POST'])
 def directory_ls():
-    dir = request.args['directory'].encode('utf-8', 'surrogateescape')
-    rec = json.loads(request.args.get('recursive', 'False').lower())
-    return encode_data(get_storage().directory_ls(dir, recursive=rec))
+    return encode_data(get_storage().directory_ls(
+        **decode_request(request)))
 
 
 @app.route('/revision/add', methods=['POST'])

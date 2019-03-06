@@ -52,8 +52,8 @@ class RemoteStorage(SWHRemoteAPI):
         return self.post('directory/missing', {'directories': directories})
 
     def directory_ls(self, directory, recursive=False):
-        return self.get('directory/ls', {'directory': directory,
-                                         'recursive': recursive})
+        return self.post('directory/ls', {'directory': directory,
+                                          'recursive': recursive})
 
     def revision_get(self, revisions):
         return self.post('revision', {'revisions': revisions})
