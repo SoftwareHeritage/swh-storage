@@ -1,8 +1,11 @@
-swh-storage (0.0.129-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.130-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.130     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-02-26 10:50:44 +0100)
+  * Upstream changes:     - Add an helper function to list all origins
+    in the storage.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 01 Mar 2019 10:12:49 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 13 Mar 2019 14:01:04 +0000
 
 swh-storage (0.0.129-1~swh1) unstable-swh; urgency=medium
 

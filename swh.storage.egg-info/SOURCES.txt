@@ -168,6 +168,7 @@ swh/storage/storage.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py
 swh/storage/algos/dir_iterators.py
+swh/storage/algos/origin.py
 swh/storage/algos/revisions_walker.py
 swh/storage/algos/snapshot.py
 swh/storage/api/__init__.py
@@ -195,5 +196,6 @@ swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py
 swh/storage/tests/algos/test_dir_iterator.py
+swh/storage/tests/algos/test_origin.py
 swh/storage/tests/algos/test_revisions_walker.py
 swh/storage/tests/algos/test_snapshot.py
