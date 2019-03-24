@@ -76,7 +76,8 @@ class Storage:
             if key in self._contents:
                 continue
             for algorithm in DEFAULT_ALGORITHMS:
-                if content[algorithm] in self._content_indexes[algorithm]:
+                if content[algorithm] in self._content_indexes[algorithm]\
+                   and (algorithm not in {'blake2s256', 'sha256'}):
                     from . import HashCollision
                     raise HashCollision(algorithm, content[algorithm], key)
             for algorithm in DEFAULT_ALGORITHMS:
@@ -291,9 +292,7 @@ class Storage:
         if not found:
             return
         keys = list(set.intersection(*found))
-
-        # FIXME: should really be a list of all the objects found
-        return copy.deepcopy(self._contents[keys[0]])
+        return copy.deepcopy([self._contents[key] for key in keys])
 
     def content_missing(self, contents, key_hash='sha1'):
         """List content missing from storage
@@ -320,10 +319,9 @@ class Storage:
                     yield content[key_hash]
                     break
             else:
-                # content_find cannot return None here, because we checked
-                # above that there is a content with matching hashes.
-                if self.content_find(content)['status'] == 'missing':
-                    yield content[key_hash]
+                for result in self.content_find(content):
+                    if result['status'] == 'missing':
+                        yield content[key_hash]
 
     def content_missing_per_sha1(self, contents):
         """List content missing from storage based only on sha1.
@@ -404,8 +402,10 @@ class Storage:
         ret = dict.fromkeys(keys)
         ret.update(dentry)
         if ret['type'] == 'file':
+            # TODO: Make it able to handle more than one content
             content = self.content_find({'sha1_git': ret['target']})
             if content:
+                content = content[0]
                 for key in keys:
                     ret[key] = content[key]
         return ret

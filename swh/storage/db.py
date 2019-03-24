@@ -14,6 +14,7 @@ class Db(BaseDb):
     """Proxy to the SWH DB, with wrappers around stored procedures
 
     """
+
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute('SELECT swh_mktemp_dir_entry(%s)',
                                   (('directory_entry_%s' % entry_type),))
@@ -217,16 +218,23 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
+        checksum_dict = {'sha1': sha1, 'sha1_git': sha1_git,
+                         'sha256': sha256, 'blake2s256': blake2s256}
+        where_parts = []
+        args = []
+        # Adds only those keys which have value other than None
+        for algorithm in checksum_dict:
+            if checksum_dict[algorithm] is not None:
+                args.append(checksum_dict[algorithm])
+                where_parts.append(algorithm + '= %s')
+        query = ' AND '.join(where_parts)
         cur.execute("""SELECT %s
-                       FROM swh_content_find(%%s, %%s, %%s, %%s)
-                       LIMIT 1""" % ','.join(self.content_find_cols),
-                    (sha1, sha1_git, sha256, blake2s256))
-
-        content = cur.fetchone()
-        if set(content) == {None}:
-            return None
-        else:
-            return content
+                       FROM content WHERE %s
+                       """
+                    % (','.join(self.content_find_cols),  query),
+                    args)
+        content = cur.fetchall()
+        return content
 
     def directory_missing_from_list(self, directories, cur=None):
         cur = self._cursor(cur)
@@ -829,7 +837,7 @@ class Db(BaseDb):
             query = '''SELECT %s
                        FROM swh_origin_metadata_get_by_origin(
                             %%s)''' % (','.join(
-                                          self.origin_metadata_get_cols))
+                self.origin_metadata_get_cols))
 
             cur.execute(query, (origin_id, ))
 
@@ -837,7 +845,7 @@ class Db(BaseDb):
             query = '''SELECT %s
                        FROM swh_origin_metadata_get_by_provider_type(
                             %%s, %%s)''' % (','.join(
-                                          self.origin_metadata_get_cols))
+                self.origin_metadata_get_cols))
 
             cur.execute(query, (origin_id, provider_type))
 
@@ -862,8 +870,8 @@ class Db(BaseDb):
                        where name=%%s and
                              version=%%s and
                              configuration=%%s''' % (
-                                 ','.join(self.tool_cols)),
-                    (name, version, configuration))
+            ','.join(self.tool_cols)),
+            (name, version, configuration))
 
         return cur.fetchone()
 
@@ -879,7 +887,7 @@ class Db(BaseDb):
                     RETURNING id"""
 
         cur.execute(insert, (provider_name, provider_type, provider_url,
-                    jsonize(metadata)))
+                             jsonize(metadata)))
         return cur.fetchone()[0]
 
     def metadata_provider_get(self, provider_id, cur=None):
@@ -887,8 +895,8 @@ class Db(BaseDb):
         cur.execute('''select %s
                        from metadata_provider
                        where id=%%s ''' % (
-                                 ','.join(self.metadata_provider_cols)),
-                    (provider_id, ))
+            ','.join(self.metadata_provider_cols)),
+            (provider_id, ))
 
         return cur.fetchone()
 
@@ -899,7 +907,7 @@ class Db(BaseDb):
                        from metadata_provider
                        where provider_name=%%s and
                              provider_url=%%s''' % (
-                                 ','.join(self.metadata_provider_cols)),
-                    (provider_name, provider_url))
+            ','.join(self.metadata_provider_cols)),
+            (provider_name, provider_url))
 
         return cur.fetchone()

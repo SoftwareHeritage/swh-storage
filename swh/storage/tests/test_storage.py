@@ -2408,7 +2408,7 @@ class CommonTestStorage(TestStorageData):
 
         actually_present = self.storage.content_find({'sha1': cont['sha1']})
 
-        self.assertEqual(actually_present, {
+        self.assertEqual(actually_present[0], {
             'ctime': now,
             'sha1': cont['sha1'],
             'sha256': cont['sha256'],
@@ -2423,45 +2423,50 @@ class CommonTestStorage(TestStorageData):
         cont = self.cont
         self.storage.content_add([cont])
 
-        actually_present = self.storage.content_find({'sha1': cont['sha1']})
+        actually_present = self.storage.content_find(
+            {'sha1': cont['sha1']}
+            )
+        self.assertEqual(1, len(actually_present))
+        actually_present[0].pop('ctime')
 
-        actually_present.pop('ctime')
-        self.assertEqual(actually_present, {
-            'sha1': cont['sha1'],
-            'sha256': cont['sha256'],
-            'sha1_git': cont['sha1_git'],
-            'blake2s256': cont['blake2s256'],
-            'length': cont['length'],
-            'status': 'visible'
-        })
+        self.assertEqual(actually_present[0], {
+                'sha1': cont['sha1'],
+                'sha256': cont['sha256'],
+                'sha1_git': cont['sha1_git'],
+                'blake2s256': cont['blake2s256'],
+                'length': cont['length'],
+                'status': 'visible'
+            })
 
         # 2. with something to find
         actually_present = self.storage.content_find(
             {'sha1_git': cont['sha1_git']})
+        self.assertEqual(1, len(actually_present))
 
-        actually_present.pop('ctime')
-        self.assertEqual(actually_present, {
-            'sha1': cont['sha1'],
-            'sha256': cont['sha256'],
-            'sha1_git': cont['sha1_git'],
-            'blake2s256': cont['blake2s256'],
-            'length': cont['length'],
-            'status': 'visible'
-        })
+        actually_present[0].pop('ctime')
+        self.assertEqual(actually_present[0], {
+                'sha1': cont['sha1'],
+                'sha256': cont['sha256'],
+                'sha1_git': cont['sha1_git'],
+                'blake2s256': cont['blake2s256'],
+                'length': cont['length'],
+                'status': 'visible'
+            })
 
         # 3. with something to find
         actually_present = self.storage.content_find(
             {'sha256': cont['sha256']})
+        self.assertEqual(1, len(actually_present))
 
-        actually_present.pop('ctime')
-        self.assertEqual(actually_present, {
-            'sha1': cont['sha1'],
-            'sha256': cont['sha256'],
-            'sha1_git': cont['sha1_git'],
-            'blake2s256': cont['blake2s256'],
-            'length': cont['length'],
-            'status': 'visible'
-        })
+        actually_present[0].pop('ctime')
+        self.assertEqual(actually_present[0], {
+                'sha1': cont['sha1'],
+                'sha256': cont['sha256'],
+                'sha1_git': cont['sha1_git'],
+                'blake2s256': cont['blake2s256'],
+                'length': cont['length'],
+                'status': 'visible'
+            })
 
         # 4. with something to find
         actually_present = self.storage.content_find({
@@ -2470,16 +2475,17 @@ class CommonTestStorage(TestStorageData):
             'sha256': cont['sha256'],
             'blake2s256': cont['blake2s256'],
         })
+        self.assertEqual(1, len(actually_present))
 
-        actually_present.pop('ctime')
-        self.assertEqual(actually_present, {
-            'sha1': cont['sha1'],
-            'sha256': cont['sha256'],
-            'sha1_git': cont['sha1_git'],
-            'blake2s256': cont['blake2s256'],
-            'length': cont['length'],
-            'status': 'visible'
-        })
+        actually_present[0].pop('ctime')
+        self.assertEqual(actually_present[0], {
+                'sha1': cont['sha1'],
+                'sha256': cont['sha256'],
+                'sha1_git': cont['sha1_git'],
+                'blake2s256': cont['blake2s256'],
+                'length': cont['length'],
+                'status': 'visible'
+            })
 
     def test_content_find_with_non_present_content(self):
         # 1. with something that does not exist
@@ -2501,6 +2507,117 @@ class CommonTestStorage(TestStorageData):
             {'sha256': missing_cont['sha256']})
 
         self.assertIsNone(actually_present)
+
+    def test_content_find_with_duplicate_input(self):
+        cont1 = self.cont
+        duplicate_cont = cont1.copy()
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(duplicate_cont['sha1'])
+        sha1_array[0] += 1
+        duplicate_cont['sha1'] = bytes(sha1_array)
+        sha1git_array = bytearray(duplicate_cont['sha1_git'])
+        sha1git_array[0] += 1
+        duplicate_cont['sha1_git'] = bytes(sha1git_array)
+        # Inject the data
+        self.storage.content_add([cont1, duplicate_cont])
+        finder = {'blake2s256': duplicate_cont['blake2s256'],
+                  'sha256': duplicate_cont['sha256']}
+        actual_result = list(self.storage.content_find(finder))
+
+        cont1.pop('data')
+        duplicate_cont.pop('data')
+        actual_result[0].pop('ctime')
+        actual_result[1].pop('ctime')
+
+        expected_result = [
+           cont1, duplicate_cont
+        ]
+        self.assertCountEqual(expected_result, actual_result)
+
+    def test_content_find_with_duplicate_sha256(self):
+        cont1 = self.cont
+        duplicate_cont = cont1.copy()
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(duplicate_cont['sha1'])
+        sha1_array[0] += 1
+        duplicate_cont['sha1'] = bytes(sha1_array)
+        sha1git_array = bytearray(duplicate_cont['sha1_git'])
+        sha1git_array[0] += 1
+        duplicate_cont['sha1_git'] = bytes(sha1git_array)
+        blake2s256_array = bytearray(duplicate_cont['blake2s256'])
+        blake2s256_array[0] += 1
+        duplicate_cont['blake2s256'] = bytes(blake2s256_array)
+        self.storage.content_add([cont1, duplicate_cont])
+        finder = {
+            'sha256': duplicate_cont['sha256']
+            }
+        actual_result = list(self.storage.content_find(finder))
+
+        cont1.pop('data')
+        duplicate_cont.pop('data')
+        actual_result[0].pop('ctime')
+        actual_result[1].pop('ctime')
+        expected_result = [
+            cont1, duplicate_cont
+        ]
+        self.assertCountEqual(expected_result, actual_result)
+        # Find with both sha256 and blake2s256
+        finder = {
+            'sha256': duplicate_cont['sha256'],
+            'blake2s256': duplicate_cont['blake2s256']
+        }
+        actual_result = list(self.storage.content_find(finder))
+
+        actual_result[0].pop('ctime')
+
+        expected_result = [
+            duplicate_cont
+        ]
+        self.assertCountEqual(expected_result, actual_result)
+
+    def test_content_find_with_duplicate_blake2s256(self):
+        cont1 = self.cont
+        duplicate_cont = cont1.copy()
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(duplicate_cont['sha1'])
+        sha1_array[0] += 1
+        duplicate_cont['sha1'] = bytes(sha1_array)
+        sha1git_array = bytearray(duplicate_cont['sha1_git'])
+        sha1git_array[0] += 1
+        duplicate_cont['sha1_git'] = bytes(sha1git_array)
+        sha256_array = bytearray(duplicate_cont['sha256'])
+        sha256_array[0] += 1
+        duplicate_cont['sha256'] = bytes(sha256_array)
+        self.storage.content_add([cont1, duplicate_cont])
+        finder = {
+            'blake2s256': duplicate_cont['blake2s256']
+            }
+        actual_result = list(self.storage.content_find(finder))
+
+        cont1.pop('data')
+        duplicate_cont.pop('data')
+        actual_result[0].pop('ctime')
+        actual_result[1].pop('ctime')
+        expected_result = [
+            cont1, duplicate_cont
+        ]
+        self.assertCountEqual(expected_result, actual_result)
+        # Find with both sha256 and blake2s256
+        finder = {
+            'sha256': duplicate_cont['sha256'],
+            'blake2s256': duplicate_cont['blake2s256']
+        }
+        actual_result = list(self.storage.content_find(finder))
+
+        actual_result[0].pop('ctime')
+
+        expected_result = [
+            duplicate_cont
+        ]
+        self.assertCountEqual(expected_result, actual_result)
 
     def test_content_find_bad_input(self):
         # 1. with bad input
