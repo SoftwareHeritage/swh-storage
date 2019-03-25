@@ -116,7 +116,7 @@ create table fetch_history
 -- * git: tree
 create table directory
 (
-  id            sha1_git,
+  id            sha1_git not null,
   dir_entries   bigint[],  -- sub-directories, reference directory_entry_dir
   file_entries  bigint[],  -- contained files, reference directory_entry_file
   rev_entries   bigint[],  -- mounted revisions, reference directory_entry_rev
@@ -174,7 +174,7 @@ create table person
 -- a file-system tree containing files and directories.
 create table revision
 (
-  id                    sha1_git,
+  id                    sha1_git not null,
   date                  timestamptz,
   date_offset           smallint,
   committer_date        timestamptz,
@@ -194,8 +194,8 @@ create table revision
 -- either this table or the sha1_git[] column on the revision table
 create table revision_history
 (
-  id           sha1_git,
-  parent_id    sha1_git,
+  id           sha1_git not null,
+  parent_id    sha1_git not null,
   parent_rank  int not null default 0
     -- parent position in merge commits, 0-based
 );
@@ -228,7 +228,7 @@ comment on column origin_visit.snapshot_id is 'Origin snapshot at visit time';
 create table snapshot
 (
   object_id  bigserial not null,  -- PK internal object identifier
-  id         sha1_git             -- snapshot intrinsic identifier
+  id         sha1_git not null    -- snapshot intrinsic identifier
 );
 
 -- Each snapshot associate "branch" names to other objects in the Software
