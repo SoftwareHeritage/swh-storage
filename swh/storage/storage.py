@@ -25,6 +25,7 @@ from swh.model.hashutil import ALGORITHMS, hash_to_bytes
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
+
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 

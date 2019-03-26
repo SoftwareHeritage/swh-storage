@@ -13,9 +13,24 @@ from swh.storage import get_storage as get_swhstorage
 from swh.core.api import (SWHServerAPIApp, decode_request,
                           error_handler,
                           encode_data_server as encode_data)
+from swh.core.statsd import statsd
+
 
 app = SWHServerAPIApp(__name__)
 storage = None
+
+
+def timed(f):
+    """Time that function!
+
+    """
+    def time_and_count_function(*a, **kw):
+        statsd.increment('swh_storage_request_count',
+                         tags={'endpoint': f.__name__})
+        with statsd.timed('swh_storage_request_duration_seconds',
+                          tags={'endpoint': f.__name__}):
+            return f(*a, **kw)
+    return time_and_count_function
 
 
 @app.errorhandler(Exception)
@@ -67,6 +82,7 @@ def content_find():
     return encode_data(get_storage().content_find(**decode_request(request)))
 
 
+@timed
 @app.route('/content/add', methods=['POST'])
 def content_add():
     return encode_data(get_storage().content_add(**decode_request(request)))
