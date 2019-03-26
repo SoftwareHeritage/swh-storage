@@ -553,6 +553,18 @@ class CommonTestStorage(TestStorageData):
         cont = self.cont
 
         self.storage.content_add([cont])
+        self.assertEqual(list(self.storage.content_get([cont['sha1']])),
+                         [{'sha1': cont['sha1'], 'data': cont['data']}])
+
+        expected_cont = cont.copy()
+        del expected_cont['data']
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('content', expected_cont)])
+
+    def test_content_add_db(self):
+        cont = self.cont
+
+        self.storage.content_add([cont])
         if hasattr(self.storage, 'objstorage'):
             self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
@@ -564,6 +576,11 @@ class CommonTestStorage(TestStorageData):
              datum[3], datum[4]),
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible'))
+
+        expected_cont = cont.copy()
+        del expected_cont['data']
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('content', expected_cont)])
 
     def test_content_add_collision(self):
         cont1 = self.cont
@@ -706,6 +723,8 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.dir['id']], init_missing)
 
         self.storage.directory_add([self.dir])
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('directory', self.dir)])
 
         actual_data = list(self.storage.directory_ls(self.dir['id']))
         expected_data = list(self._transform_entries(self.dir))
@@ -719,6 +738,10 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.dir['id']], init_missing)
 
         self.storage.directory_add([self.dir, self.dir2, self.dir3])
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('directory', self.dir),
+                          ('directory', self.dir2),
+                          ('directory', self.dir3)])
 
         actual_data = list(self.storage.directory_ls(
             self.dir['id'], recursive=True))
@@ -807,6 +830,9 @@ class CommonTestStorage(TestStorageData):
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
 
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('revision', self.revision)])
+
     def test_revision_log(self):
         # given
         # self.revision4 -is-child-of-> self.revision3
@@ -829,6 +855,10 @@ class CommonTestStorage(TestStorageData):
                          self.normalize_entity(self.revision4))
         self.assertEqual(actual_results[1],
                          self.normalize_entity(self.revision3))
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('revision', self.revision3),
+                          ('revision', self.revision4)])
 
     def test_revision_log_with_limit(self):
         # given
@@ -921,6 +951,10 @@ class CommonTestStorage(TestStorageData):
                                                     self.release2['id']])
         self.assertEqual([], list(end_missing))
 
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('release', self.release),
+                          ('release', self.release2)])
+
     def test_release_get(self):
         # given
         self.storage.release_add([self.release, self.release2])
@@ -974,6 +1008,10 @@ class CommonTestStorage(TestStorageData):
             'type': self.origin2['type'],
         }])[0]
         self.assertEqual(actual_origin2['id'], origin2['id'])
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', actual_origin),
+                          ('origin', actual_origin2)])
 
     def test_origin_add_twice(self):
         add1 = self.storage.origin_add([self.origin, self.origin2])
@@ -1107,6 +1145,20 @@ class CommonTestStorage(TestStorageData):
                              'snapshot': None,
                          }])
 
+        expected_origin = self.origin2.copy()
+        expected_origin['id'] = origin_id
+        data = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data)])
+
     def test_origin_visit_update(self):
         # given
         origin_id = self.storage.origin_add_one(self.origin2)
@@ -1187,6 +1239,59 @@ class CommonTestStorage(TestStorageData):
                              'metadata': None,
                              'snapshot': None,
                          }])
+
+        expected_origin = self.origin2.copy()
+        expected_origin['id'] = origin_id
+        expected_origin2 = self.origin.copy()
+        expected_origin2['id'] = origin_id2
+        data1 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit3,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data3 = {
+            'origin': expected_origin2,
+            'date': self.date_visit3,
+            'visit': origin_visit3['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data4 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'metadata': visit1_metadata,
+            'status': 'full',
+            'snapshot': None,
+        }
+        data5 = {
+            'origin': expected_origin2,
+            'date': self.date_visit3,
+            'visit': origin_visit3['visit'],
+            'status': 'partial',
+            'metadata': None,
+            'snapshot': None,
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin', expected_origin2),
+                          ('origin_visit', data1),
+                          ('origin_visit', data2),
+                          ('origin_visit', data3),
+                          ('origin_visit', data4),
+                          ('origin_visit', data5)])
 
     def test_origin_visit_get_by(self):
         origin_id = self.storage.origin_add_one(self.origin2)
@@ -1312,6 +1417,30 @@ class CommonTestStorage(TestStorageData):
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.empty_snapshot)
+
+        expected_origin = self.origin.copy()
+        expected_origin['id'] = origin_id
+        data1 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': self.empty_snapshot['id'],
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data1),
+                          ('snapshot', self.empty_snapshot),
+                          ('origin_visit', data2)])
 
     def test_snapshot_add_get_complete(self):
         origin_id = self.storage.origin_add_one(self.origin)
@@ -1467,6 +1596,20 @@ class CommonTestStorage(TestStorageData):
         origin_id = self.storage.origin_add_one(self.origin)
         visit_id = 54164461156
 
+        self.journal_writer.objects[:] = []
+
+        with self.assertRaises(ValueError):
+            self.storage.snapshot_add(origin_id, visit_id, self.snapshot)
+
+        self.assertEqual(list(self.journal_writer.objects), [])
+
+    def test_snapshot_add_nonexistent_visit_no_journal(self):
+        # Same test as before, but uses a different code path for checking
+        # the origin visit exists.
+        self.storage.journal_writer = None
+        origin_id = self.storage.origin_add_one(self.origin)
+        visit_id = 54164461156
+
         with self.assertRaises(ValueError):
             self.storage.snapshot_add(origin_id, visit_id, self.snapshot)
 
@@ -1490,6 +1633,49 @@ class CommonTestStorage(TestStorageData):
         by_ov2 = self.storage.snapshot_get_by_origin_visit(origin_id,
                                                            visit2_id)
         self.assertEqual(by_ov2, self.snapshot)
+
+        expected_origin = self.origin.copy()
+        expected_origin['id'] = origin_id
+        data1 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': self.snapshot['id'],
+        }
+        data3 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data4 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': self.snapshot['id'],
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data1),
+                          ('snapshot', self.snapshot),
+                          ('origin_visit', data2),
+                          ('origin_visit', data3),
+                          ('snapshot', self.snapshot),
+                          ('origin_visit', data4)])
 
     def test_snapshot_get_nonexistent(self):
         bogus_snapshot_id = b'bogus snapshot id 00'
@@ -2319,6 +2505,8 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
 
     """
     def test_content_update(self):
+        self.storage.journal_writer = None  # TODO, not supported
+
         cont = copy.deepcopy(self.cont)
 
         self.storage.content_add([cont])
@@ -2341,6 +2529,8 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
              cont['length'], 'visible'))
 
     def test_content_update_with_new_cols(self):
+        self.storage.journal_writer = None  # TODO, not supported
+
         with self.storage.get_db().transaction() as cur:
             cur.execute("""alter table content
                            add column test text default null,

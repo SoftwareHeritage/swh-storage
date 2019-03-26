@@ -19,6 +19,8 @@ from swh.model.identifiers import normalize_timestamp
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
+from .journal_writer import get_journal_writer
+
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
@@ -28,7 +30,7 @@ def now():
 
 
 class Storage:
-    def __init__(self):
+    def __init__(self, journal_writer=None):
         self._contents = {}
         self._content_indexes = defaultdict(lambda: defaultdict(set))
 
@@ -48,6 +50,10 @@ class Storage:
         self._sorted_sha1s = []
 
         self.objstorage = get_objstorage('memory', {})
+        if journal_writer:
+            self.journal_writer = get_journal_writer(**journal_writer)
+        else:
+            self.journal_writer = None
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
@@ -72,6 +78,12 @@ class Storage:
                   content in
 
         """
+        if self.journal_writer:
+            for content in contents:
+                if 'data' in content:
+                    content = content.copy()
+                    del content['data']
+                self.journal_writer.write_addition('content', content)
         for content in contents:
             key = self._content_key(content)
             if key in self._contents:
@@ -283,6 +295,9 @@ class Storage:
                         directory entry
                       - perms (int): entry permissions
         """
+        if self.journal_writer:
+            self.journal_writer.write_additions('directory', directories)
+
         for directory in directories:
             if directory['id'] not in self._directories:
                 self._directories[directory['id']] = copy.deepcopy(directory)
@@ -413,6 +428,9 @@ class Storage:
 
         date dictionaries have the form defined in :mod:`swh.model`.
         """
+        if self.journal_writer:
+            self.journal_writer.write_additions('revision', revisions)
+
         for revision in revisions:
             if revision['id'] not in self._revisions:
                 self._revisions[revision['id']] = rev = copy.deepcopy(revision)
@@ -501,6 +519,9 @@ class Storage:
 
         the date dictionary has the form defined in :mod:`swh.model`.
         """
+        if self.journal_writer:
+            self.journal_writer.write_additions('release', releases)
+
         for rel in releases:
             rel = copy.deepcopy(rel)
             rel['date'] = normalize_timestamp(rel['date'])
@@ -560,6 +581,7 @@ class Storage:
         Raises:
             ValueError: if the origin's or visit's identifier does not exist.
         """
+
         snapshot_id = snapshot['id']
         if snapshot_id not in self._snapshots:
             self._snapshots[snapshot_id] = {
@@ -571,7 +593,16 @@ class Storage:
                 }
             self._objects[snapshot_id].append(('snapshot', snapshot_id))
         if origin <= len(self._origin_visits) and \
-           visit <= len(self._origin_visits[origin-1]):
+                visit <= len(self._origin_visits[origin-1]):
+
+            if self.journal_writer:
+                self.journal_writer.write_addition(
+                    'snapshot', snapshot)
+                self.journal_writer.write_update('origin_visit', {
+                    **self._origin_visits[origin-1][visit-1],
+                    'origin': self._origins[origin-1],
+                    'snapshot': snapshot_id})
+
             self._origin_visits[origin-1][visit-1]['snapshot'] = snapshot_id
         else:
             raise ValueError('Origin with id %s does not exist or has no visit'
@@ -965,6 +996,12 @@ class Storage:
             self._origin_visits.append([])
             key = (origin['type'], origin['url'])
             self._objects[key].append(('origin', origin_id))
+        else:
+            origin['id'] = origin_id
+
+        if self.journal_writer:
+            self.journal_writer.write_addition('origin', origin)
+
         return origin_id
 
     def fetch_history_start(self, origin_id):
@@ -1009,27 +1046,34 @@ class Storage:
                           DeprecationWarning)
             date = ts
 
+        origin_id = origin  # TODO: rename the argument
+
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
         visit_ret = None
-        if origin <= len(self._origin_visits):
+        if origin_id <= len(self._origin_visits):
             # visit ids are in the range [1, +inf[
-            visit_id = len(self._origin_visits[origin-1]) + 1
+            visit_id = len(self._origin_visits[origin_id-1]) + 1
             status = 'ongoing'
             visit = {
-                'origin': origin,
+                'origin': origin_id,
                 'date': date,
                 'status': status,
                 'snapshot': None,
                 'metadata': None,
                 'visit': visit_id
             }
-            self._origin_visits[origin-1].append(visit)
+            self._origin_visits[origin_id-1].append(visit)
             visit_ret = {
-                'origin': origin,
+                'origin': origin_id,
                 'visit': visit_id,
             }
+
+            if self.journal_writer:
+                origin = self.origin_get([{'id': origin_id}])[0]
+                self.journal_writer.write_addition('origin_visit', {
+                    **visit, 'origin': origin})
 
         return visit_ret
 
@@ -1046,10 +1090,18 @@ class Storage:
             None
 
         """
-        if origin > len(self._origin_visits) or \
-           visit_id > len(self._origin_visits[origin-1]):
+        origin_id = origin  # TODO: rename the argument
+
+        if self.journal_writer:
+            origin = self.origin_get([{'id': origin_id}])[0]
+            self.journal_writer.write_update('origin_visit', {
+                **self._origin_visits[origin_id-1][visit_id-1],
+                'origin': origin, 'visit': visit_id,
+                'status': status, 'metadata': metadata})
+        if origin_id > len(self._origin_visits) or \
+           visit_id > len(self._origin_visits[origin_id-1]):
             return
-        self._origin_visits[origin-1][visit_id-1].update({
+        self._origin_visits[origin_id-1][visit_id-1].update({
             'status': status,
             'metadata': metadata})
 

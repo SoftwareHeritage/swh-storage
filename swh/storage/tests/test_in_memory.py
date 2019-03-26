@@ -21,10 +21,11 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
     """
     def setUp(self):
         super().setUp()
-        self.storage = Storage()
+        self.storage = Storage(journal_writer={'cls': 'inmemory'})
+        self.journal_writer = self.storage.journal_writer
 
     @pytest.mark.skip('postgresql-specific test')
-    def test_content_add(self):
+    def test_content_add_db(self):
         pass
 
     @pytest.mark.skip('postgresql-specific test')
