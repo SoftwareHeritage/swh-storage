@@ -1077,7 +1077,8 @@ class Storage:
 
         return visit_ret
 
-    def origin_visit_update(self, origin, visit_id, status, metadata=None):
+    def origin_visit_update(self, origin, visit_id, status=None,
+                            metadata=None, snapshot_id=None):
         """Update an origin_visit's status.
 
         Args:
@@ -1085,6 +1086,8 @@ class Storage:
             visit_id (int): visit's identifier
             status: visit's new status
             metadata: data associated to the visit
+            snapshot_id (sha1_git): identifier of the snapshot to add to
+                the visit
 
         Returns:
             None
@@ -1092,18 +1095,27 @@ class Storage:
         """
         origin_id = origin  # TODO: rename the argument
 
+        try:
+            visit = self._origin_visits[origin_id-1][visit_id-1]
+        except IndexError:
+            raise ValueError('Invalid origin_id or visit_id') from None
         if self.journal_writer:
             origin = self.origin_get([{'id': origin_id}])[0]
             self.journal_writer.write_update('origin_visit', {
-                **self._origin_visits[origin_id-1][visit_id-1],
                 'origin': origin, 'visit': visit_id,
-                'status': status, 'metadata': metadata})
+                'status': status or visit['status'],
+                'date': visit['date'],
+                'metadata': metadata or visit['metadata'],
+                'snapshot': snapshot_id or visit['snapshot']})
         if origin_id > len(self._origin_visits) or \
            visit_id > len(self._origin_visits[origin_id-1]):
             return
-        self._origin_visits[origin_id-1][visit_id-1].update({
-            'status': status,
-            'metadata': metadata})
+        if status:
+            visit['status'] = status
+        if metadata:
+            visit['metadata'] = metadata
+        if snapshot_id:
+            visit['snapshot'] = snapshot_id
 
     def origin_visit_get(self, origin, last_visit=None, limit=None):
         """Retrieve all the origin's visit's information.

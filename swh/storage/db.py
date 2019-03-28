@@ -297,14 +297,35 @@ class Db(BaseDb):
                                   (origin, ts))
         return cur.fetchone()[0]
 
-    def origin_visit_update(self, origin, visit_id, status,
-                            metadata, cur=None):
+    def origin_visit_update(self, origin_id, visit_id, status, metadata,
+                            snapshot_id, cur=None):
         """Update origin_visit's status."""
         cur = self._cursor(cur)
+        update_cols = []
+        values = []
+        where = ['origin=%s AND visit=%s']
+        where_values = [origin_id, visit_id]
+        from_ = ''
+        if status:
+            update_cols.append('status=%s')
+            values.append(status)
+        if metadata:
+            update_cols.append('metadata=%s')
+            values.append(jsonize(metadata))
+        if snapshot_id:
+            update_cols.append('snapshot_id=snapshot.object_id')
+            from_ = 'FROM snapshot'
+            where.append('snapshot.id=%s')
+            where_values.append(snapshot_id)
         update = """UPDATE origin_visit
-                    SET status=%s, metadata=%s
-                    WHERE origin=%s AND visit=%s"""
-        cur.execute(update, (status, jsonize(metadata), origin, visit_id))
+                    SET {update_cols}
+                    {from}
+                    WHERE {where}""".format(**{
+            'update_cols': ', '.join(update_cols),
+            'from': from_,
+            'where': ' AND '.join(where)
+        })
+        cur.execute(update, (*values, *where_values))
 
     origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
                              'snapshot']

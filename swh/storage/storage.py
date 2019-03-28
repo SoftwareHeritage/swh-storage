@@ -1059,7 +1059,8 @@ class Storage():
         }
 
     @db_transaction()
-    def origin_visit_update(self, origin, visit_id, status, metadata=None,
+    def origin_visit_update(self, origin, visit_id, status=None,
+                            metadata=None, snapshot_id=None,
                             db=None, cur=None):
         """Update an origin_visit's status.
 
@@ -1068,6 +1069,8 @@ class Storage():
             visit_id: Visit's id
             status: Visit's new status
             metadata: Data associated to the visit
+            snapshot_id (sha1_git): identifier of the snapshot to add to
+                the visit
 
         Returns:
             None
@@ -1078,13 +1081,24 @@ class Storage():
         if self.journal_writer:
             origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
             visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
+            if not visit:
+                raise ValueError('Invalid visit_id for this origin.')
             visit = dict(zip(db.origin_visit_get_cols, visit))
             self.journal_writer.write_update('origin_visit', {
                 'origin': origin, 'visit': visit_id,
-                'status': status, 'metadata': metadata,
-                'date': visit['date'], 'snapshot': None})
+                'status': status or visit['status'],
+                'metadata': metadata or visit['metadata'],
+                'date': visit['date'],
+                'snapshot': snapshot_id or visit['snapshot']})
+        updates = []
+        if status:
+            updates.append(('status', status))
+        if metadata:
+            updates.append(('metadata', metadata))
+        if snapshot_id:
+            updates.append(('snapshot', snapshot_id))
         return db.origin_visit_update(
-            origin_id, visit_id, status, metadata, cur)
+            origin_id, visit_id, status, metadata, snapshot_id, cur)
 
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(self, origin, last_visit=None, limit=None, db=None,
