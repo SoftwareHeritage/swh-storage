@@ -556,12 +556,10 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, origin, visit, snapshot):
+    def snapshot_add(self, snapshot, legacy_arg1=None, legacy_arg2=None):
         """Add a snapshot for the given origin/visit couple
 
         Args:
-            origin (int): id of the origin
-            visit (int): id of the visit
             snapshot (dict): the snapshot to add to the visit, containing the
               following keys:
 
@@ -581,32 +579,27 @@ class Storage:
         Raises:
             ValueError: if the origin's or visit's identifier does not exist.
         """
+        if legacy_arg1:
+            assert legacy_arg2
+            (origin, visit, snapshot) = \
+                (snapshot, legacy_arg1, legacy_arg2)
+        else:
+            origin = visit = None
 
         snapshot_id = snapshot['id']
+        if self.journal_writer:
+            self.journal_writer.write_addition(
+                'snapshot', snapshot)
         if snapshot_id not in self._snapshots:
             self._snapshots[snapshot_id] = {
-                'origin': origin,
-                'visit': visit,
                 'id': snapshot_id,
                 'branches': copy.deepcopy(snapshot['branches']),
                 '_sorted_branch_names': sorted(snapshot['branches'])
                 }
             self._objects[snapshot_id].append(('snapshot', snapshot_id))
-        if origin <= len(self._origin_visits) and \
-                visit <= len(self._origin_visits[origin-1]):
 
-            if self.journal_writer:
-                self.journal_writer.write_addition(
-                    'snapshot', snapshot)
-                self.journal_writer.write_update('origin_visit', {
-                    **self._origin_visits[origin-1][visit-1],
-                    'origin': self._origins[origin-1],
-                    'snapshot': snapshot_id})
-
-            self._origin_visits[origin-1][visit-1]['snapshot'] = snapshot_id
-        else:
-            raise ValueError('Origin with id %s does not exist or has no visit'
-                             ' with id %s' % (origin, visit))
+        if origin:
+            self.origin_visit_update(origin, visit, snapshot=snapshot_id)
 
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id
@@ -1078,7 +1071,7 @@ class Storage:
         return visit_ret
 
     def origin_visit_update(self, origin, visit_id, status=None,
-                            metadata=None, snapshot_id=None):
+                            metadata=None, snapshot=None):
         """Update an origin_visit's status.
 
         Args:
@@ -1086,7 +1079,7 @@ class Storage:
             visit_id (int): visit's identifier
             status: visit's new status
             metadata: data associated to the visit
-            snapshot_id (sha1_git): identifier of the snapshot to add to
+            snapshot (sha1_git): identifier of the snapshot to add to
                 the visit
 
         Returns:
@@ -1106,7 +1099,7 @@ class Storage:
                 'status': status or visit['status'],
                 'date': visit['date'],
                 'metadata': metadata or visit['metadata'],
-                'snapshot': snapshot_id or visit['snapshot']})
+                'snapshot': snapshot or visit['snapshot']})
         if origin_id > len(self._origin_visits) or \
            visit_id > len(self._origin_visits[origin_id-1]):
             return
@@ -1114,8 +1107,8 @@ class Storage:
             visit['status'] = status
         if metadata:
             visit['metadata'] = metadata
-        if snapshot_id:
-            visit['snapshot'] = snapshot_id
+        if snapshot:
+            visit['snapshot'] = snapshot
 
     def origin_visit_get(self, origin, last_visit=None, limit=None):
         """Retrieve all the origin's visit's information.

@@ -1410,6 +1410,46 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
+        self.storage.snapshot_add(self.empty_snapshot)
+        self.storage.origin_visit_update(
+            origin_id, visit_id, snapshot=self.empty_snapshot['id'])
+
+        by_id = self.storage.snapshot_get(self.empty_snapshot['id'])
+        self.assertEqual(by_id, self.empty_snapshot)
+
+        by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        self.assertEqual(by_ov, self.empty_snapshot)
+
+        expected_origin = self.origin.copy()
+        expected_origin['id'] = origin_id
+        data1 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': self.empty_snapshot['id'],
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data1),
+                          ('snapshot', self.empty_snapshot),
+                          ('origin_visit', data2)])
+
+    def test_snapshot_add_get_empty__legacy_add(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
         self.storage.snapshot_add(origin_id, visit_id, self.empty_snapshot)
 
         by_id = self.storage.snapshot_get(self.empty_snapshot['id'])
@@ -1598,22 +1638,99 @@ class CommonTestStorage(TestStorageData):
 
         self.journal_writer.objects[:] = []
 
+        self.storage.snapshot_add(self.snapshot)
+
         with self.assertRaises(ValueError):
-            self.storage.snapshot_add(origin_id, visit_id, self.snapshot)
+            self.storage.origin_visit_update(
+                origin_id, visit_id, snapshot=self.snapshot['id'])
 
-        self.assertEqual(list(self.journal_writer.objects), [])
+        self.assertEqual(list(self.journal_writer.objects), [
+            ('snapshot', self.snapshot)])
 
-    def test_snapshot_add_nonexistent_visit_no_journal(self):
-        # Same test as before, but uses a different code path for checking
-        # the origin visit exists.
-        self.storage.journal_writer = None
+    def test_snapshot_add_nonexistent_visit__legacy_add(self):
         origin_id = self.storage.origin_add_one(self.origin)
         visit_id = 54164461156
 
+        self.journal_writer.objects[:] = []
+
         with self.assertRaises(ValueError):
             self.storage.snapshot_add(origin_id, visit_id, self.snapshot)
 
+        # Note: the actual legacy behavior was to abort before adding
+        # the snapshot; but delaying non-existence checks makes the
+        # compatibility code simpler
+        self.assertEqual(list(self.journal_writer.objects), [
+            ('snapshot', self.snapshot)])
+
     def test_snapshot_add_twice(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        self.storage.snapshot_add(self.snapshot)
+        self.storage.origin_visit_update(
+            origin_id, visit1_id, snapshot=self.snapshot['id'])
+
+        by_ov1 = self.storage.snapshot_get_by_origin_visit(origin_id,
+                                                           visit1_id)
+        self.assertEqual(by_ov1, self.snapshot)
+
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        self.storage.snapshot_add(self.snapshot)
+        self.storage.origin_visit_update(
+            origin_id, visit2_id, snapshot=self.snapshot['id'])
+
+        by_ov2 = self.storage.snapshot_get_by_origin_visit(origin_id,
+                                                           visit2_id)
+        self.assertEqual(by_ov2, self.snapshot)
+
+        expected_origin = self.origin.copy()
+        expected_origin['id'] = origin_id
+        data1 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit1,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': self.snapshot['id'],
+        }
+        data3 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data4 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit2['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': self.snapshot['id'],
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data1),
+                          ('snapshot', self.snapshot),
+                          ('origin_visit', data2),
+                          ('origin_visit', data3),
+                          ('snapshot', self.snapshot),
+                          ('origin_visit', data4)])
+
+    def test_snapshot_add_twice__legacy_add(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit1)
@@ -1690,6 +1807,67 @@ class CommonTestStorage(TestStorageData):
         self.assertIsNone(by_ov)
 
     def test_snapshot_get_latest(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Add a visit with the same date as the previous one
+        origin_visit3 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit3_id = origin_visit3['visit']
+
+        # Two visits, both with no snapshot: latest snapshot is None
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.origin_visit_update(
+            origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
+        self.assertEqual(self.complete_snapshot,
+                         self.storage.snapshot_get_latest(origin_id))
+
+        # Status filter: both visits are status=ongoing, so no snapshot
+        # returned
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_id, visit1_id, status='full')
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit2 and check that the new snapshot is returned
+        self.storage.snapshot_add(self.empty_snapshot)
+        self.storage.origin_visit_update(
+            origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
+        self.assertEqual(self.empty_snapshot,
+                         self.storage.snapshot_get_latest(origin_id))
+
+        # Check that the status filter is still working
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit3 (same date as visit2) and check that
+        # the new snapshot is returned
+        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.origin_visit_update(
+            origin_id, visit3_id, snapshot=self.complete_snapshot['id'])
+        self.assertEqual(self.complete_snapshot,
+                         self.storage.snapshot_get_latest(origin_id))
+
+    def test_snapshot_get_latest__legacy_add(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit1)

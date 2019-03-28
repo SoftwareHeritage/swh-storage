@@ -706,7 +706,7 @@ as $$
   returning visit;
 $$;
 
-create or replace function swh_snapshot_add(origin bigint, visit bigint, snapshot_id snapshot.id%type)
+create or replace function swh_snapshot_add(snapshot_id snapshot.id%type)
   returns void
   language plpgsql
 as $$
@@ -740,9 +740,6 @@ begin
        where tmp.target is null and tmp.target_type is null
          and sb.target is null and sb.target_type is null;
   end if;
-  update origin_visit ov
-    set snapshot_id = snapshot_object_id
-    where ov.origin=swh_snapshot_add.origin and ov.visit=swh_snapshot_add.visit;
 end;
 $$;
 

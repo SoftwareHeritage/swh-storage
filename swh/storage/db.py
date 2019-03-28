@@ -138,12 +138,11 @@ class Db(BaseDb):
 
         return bool(cur.fetchone())
 
-    def snapshot_add(self, origin, visit, snapshot_id, cur=None):
-        """Add a snapshot for origin/visit from the temporary table"""
+    def snapshot_add(self, snapshot_id, cur=None):
+        """Add a snapshot from the temporary table"""
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT swh_snapshot_add(%s, %s, %s)""",
-                    (origin, visit, snapshot_id))
+        cur.execute("""SELECT swh_snapshot_add(%s)""", (snapshot_id,))
 
     snapshot_count_cols = ['target_type', 'count']
 
@@ -297,8 +296,7 @@ class Db(BaseDb):
                                   (origin, ts))
         return cur.fetchone()[0]
 
-    def origin_visit_update(self, origin_id, visit_id, status, metadata,
-                            snapshot_id, cur=None):
+    def origin_visit_update(self, origin_id, visit_id, updates, cur=None):
         """Update origin_visit's status."""
         cur = self._cursor(cur)
         update_cols = []
@@ -306,18 +304,19 @@ class Db(BaseDb):
         where = ['origin=%s AND visit=%s']
         where_values = [origin_id, visit_id]
         from_ = ''
-        if status:
+        if 'status' in updates:
             update_cols.append('status=%s')
-            values.append(status)
-        if metadata:
+            values.append(updates.pop('status'))
+        if 'metadata' in updates:
             update_cols.append('metadata=%s')
-            values.append(jsonize(metadata))
-        if snapshot_id:
+            values.append(jsonize(updates.pop('metadata')))
+        if 'snapshot' in updates:
             update_cols.append('snapshot_id=snapshot.object_id')
             from_ = 'FROM snapshot'
             where.append('snapshot.id=%s')
-            where_values.append(snapshot_id)
-        update = """UPDATE origin_visit
+            where_values.append(updates.pop('snapshot'))
+        assert not updates, 'Unknown fields: %r' % updates
+        query = """UPDATE origin_visit
                     SET {update_cols}
                     {from}
                     WHERE {where}""".format(**{
@@ -325,7 +324,8 @@ class Db(BaseDb):
             'from': from_,
             'where': ' AND '.join(where)
         })
-        cur.execute(update, (*values, *where_values))
+        print(query)
+        cur.execute(query, (*values, *where_values))
 
     origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
                              'snapshot']

@@ -768,13 +768,11 @@ class Storage():
             yield data if data['target_type'] else None
 
     @db_transaction()
-    def snapshot_add(self, origin, visit, snapshot,
+    def snapshot_add(self, snapshot, origin=None, visit=None,
                      db=None, cur=None):
         """Add a snapshot for the given origin/visit couple
 
         Args:
-            origin (int): id of the origin
-            visit (int): id of the visit
             snapshot (dict): the snapshot to add to the visit, containing the
               following keys:
 
@@ -790,15 +788,30 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
+            origin (int): legacy argument for backward compatibility
+            visit (int): legacy argument for backward compatibility
 
         Raises:
             ValueError: if the origin or visit id does not exist.
         """
-        origin_id = origin
-        visit_id = visit
+        if origin:
+            if not visit:
+                raise TypeError(
+                    'snapshot_add expects one argument (or, as a legacy '
+                    'behavior, three arguments), not two')
+            if isinstance(snapshot, int):
+                # Called by legacy code that uses the new api/client.py
+                (origin_id, visit_id, snapshot) = \
+                    (snapshot, origin, visit)
+            else:
+                # Called by legacy code that uses the old api/client.py
+                origin_id = origin
+                visit_id = visit
+        else:
+            # Called by new code that uses the new api/client.py
+            origin_id = visit_id = None
 
         if not db.snapshot_exists(snapshot['id'], cur):
-
             db.mktemp_snapshot_branch(cur)
             db.copy_to(
                 (
@@ -815,28 +828,14 @@ class Storage():
             )
 
         if self.journal_writer:
-            visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
-            visit_exists = visit is not None
-        else:
-            visit_exists = db.origin_visit_exists(origin_id, visit_id)
-
-        if not visit_exists:
-            raise ValueError('Not origin visit with ids (%s, %s)' %
-                             (origin_id, visit_id))
-
-        if self.journal_writer:
-            # Send the snapshot before the origin: in case of a crash,
-            # it's better to have an orphan snapshot than have the
-            # origin_visit have a dangling reference to a snapshot
-            origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
-            visit = dict(zip(db.origin_visit_get_cols, visit))
             self.journal_writer.write_addition('snapshot', snapshot)
-            self.journal_writer.write_update('origin_visit', {
-                'origin': origin, 'visit': visit_id,
-                'status': visit['status'], 'metadata': visit['metadata'],
-                'date': visit['date'], 'snapshot': snapshot['id']})
 
-        db.snapshot_add(origin_id, visit_id, snapshot['id'], cur)
+        db.snapshot_add(snapshot['id'], cur)
+
+        if visit_id:
+            self.origin_visit_update(
+                origin_id, visit_id, snapshot=snapshot['id'],
+                db=db, cur=cur)
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
@@ -1060,7 +1059,7 @@ class Storage():
 
     @db_transaction()
     def origin_visit_update(self, origin, visit_id, status=None,
-                            metadata=None, snapshot_id=None,
+                            metadata=None, snapshot=None,
                             db=None, cur=None):
         """Update an origin_visit's status.
 
@@ -1069,7 +1068,7 @@ class Storage():
             visit_id: Visit's id
             status: Visit's new status
             metadata: Data associated to the visit
-            snapshot_id (sha1_git): identifier of the snapshot to add to
+            snapshot (sha1_git): identifier of the snapshot to add to
                 the visit
 
         Returns:
@@ -1078,27 +1077,29 @@ class Storage():
         """
         origin_id = origin  # TODO: rename the argument
 
-        if self.journal_writer:
-            origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
-            visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
-            if not visit:
-                raise ValueError('Invalid visit_id for this origin.')
-            visit = dict(zip(db.origin_visit_get_cols, visit))
-            self.journal_writer.write_update('origin_visit', {
-                'origin': origin, 'visit': visit_id,
-                'status': status or visit['status'],
-                'metadata': metadata or visit['metadata'],
-                'date': visit['date'],
-                'snapshot': snapshot_id or visit['snapshot']})
-        updates = []
-        if status:
-            updates.append(('status', status))
-        if metadata:
-            updates.append(('metadata', metadata))
-        if snapshot_id:
-            updates.append(('snapshot', snapshot_id))
-        return db.origin_visit_update(
-            origin_id, visit_id, status, metadata, snapshot_id, cur)
+        visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
+
+        if not visit:
+            raise ValueError('Invalid visit_id for this origin.')
+
+        visit = dict(zip(db.origin_visit_get_cols, visit))
+
+        updates = {}
+        if status and status != visit['status']:
+            updates['status'] = status
+        if metadata and metadata != visit['metadata']:
+            updates['metadata'] = metadata
+        if snapshot and snapshot != visit['snapshot']:
+            updates['snapshot'] = snapshot
+
+        if updates:
+            if self.journal_writer:
+                origin = self.origin_get(
+                    [{'id': origin_id}], db=db, cur=cur)[0]
+                self.journal_writer.write_update('origin_visit', {
+                    **visit, **updates, 'origin': origin})
+
+            db.origin_visit_update(origin_id, visit_id, updates, cur)
 
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(self, origin, last_visit=None, limit=None, db=None,
