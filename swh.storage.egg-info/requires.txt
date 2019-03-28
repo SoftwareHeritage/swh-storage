@@ -4,7 +4,7 @@ psycopg2
 python-dateutil
 vcversioner
 aiohttp
-swh.core>=0.0.54
+swh.core>=0.0.56
 swh.model>=0.0.27
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.14

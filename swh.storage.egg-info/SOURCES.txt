@@ -149,6 +149,7 @@ sql/upgrades/126.sql
 sql/upgrades/127.sql
 sql/upgrades/128.sql
 sql/upgrades/129.sql
+sql/upgrades/130.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -163,6 +164,7 @@ swh/storage/converters.py
 swh/storage/db.py
 swh/storage/exc.py
 swh/storage/in_memory.py
+swh/storage/journal_writer.py
 swh/storage/listener.py
 swh/storage/storage.py
 swh/storage/algos/__init__.py

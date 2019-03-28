@@ -43,9 +43,13 @@ class StorageTestFixture(SingleDbTestFixture):
                         'slicing': '0:1/1:5',
                     },
                 },
+                'journal_writer': {
+                    'cls': 'inmemory',
+                },
             },
         }
         self.storage = get_storage(**self.storage_config)
+        self.journal_writer = self.storage.journal_writer
 
     def tearDown(self):
         self.objtmp.cleanup()

@@ -20,10 +20,12 @@ from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageDBError
 from .algos import diff
+from .journal_writer import get_journal_writer
 
 from swh.model.hashutil import ALGORITHMS, hash_to_bytes
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
+
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -37,7 +39,8 @@ class Storage():
 
     """
 
-    def __init__(self, db, objstorage, min_pool_conns=1, max_pool_conns=10):
+    def __init__(self, db, objstorage, min_pool_conns=1, max_pool_conns=10,
+                 journal_writer=None):
         """
         Args:
             db_conn: either a libpq connection string, or a psycopg2 connection
@@ -57,6 +60,10 @@ class Storage():
             raise StorageDBError(e)
 
         self.objstorage = get_objstorage(**objstorage)
+        if journal_writer:
+            self.journal_writer = get_journal_writer(**journal_writer)
+        else:
+            self.journal_writer = None
 
     def get_db(self):
         if self._db:
@@ -93,7 +100,7 @@ class Storage():
         object storage is idempotent, that should not be a problem.
 
         Args:
-            content (iterable): iterable of dictionaries representing
+            contents (iterable): iterable of dictionaries representing
                 individual pieces of content to add. Each dictionary has the
                 following keys:
 
@@ -108,6 +115,13 @@ class Storage():
                   content in
 
         """
+        if self.journal_writer:
+            for item in content:
+                if 'data' in item:
+                    item = item.copy()
+                    del item['data']
+                self.journal_writer.write_addition('content', item)
+
         db = self.get_db()
 
         def _unique_key(hash, keys=db.content_hash_keys):
@@ -214,6 +228,10 @@ class Storage():
         """
         # TODO: Add a check on input keys. How to properly implement
         # this? We don't know yet the new columns.
+
+        if self.journal_writer:
+            raise NotImplementedError(
+                'content_update is not yet support with a journal_writer.')
 
         db.mktemp('content', cur)
         select_keys = list(set(db.content_get_metadata_keys).union(set(keys)))
@@ -432,6 +450,9 @@ class Storage():
                         directory entry
                       - perms (int): entry permissions
         """
+        if self.journal_writer:
+            self.journal_writer.write_additions('directory', directories)
+
         dirs = set()
         dir_entries = {
             'file': defaultdict(list),
@@ -563,6 +584,9 @@ class Storage():
 
         date dictionaries have the form defined in :mod:`swh.model`.
         """
+        if self.journal_writer:
+            self.journal_writer.write_additions('revision', revisions)
+
         db = self.get_db()
 
         revisions_missing = set(self.revision_missing(
@@ -684,6 +708,9 @@ class Storage():
 
         the date dictionary has the form defined in :mod:`swh.model`.
         """
+        if self.journal_writer:
+            self.journal_writer.write_additions('release', releases)
+
         db = self.get_db()
 
         release_ids = set(release['id'] for release in releases)
@@ -741,13 +768,11 @@ class Storage():
             yield data if data['target_type'] else None
 
     @db_transaction()
-    def snapshot_add(self, origin, visit, snapshot,
+    def snapshot_add(self, snapshot, origin=None, visit=None,
                      db=None, cur=None):
         """Add a snapshot for the given origin/visit couple
 
         Args:
-            origin (int): id of the origin
-            visit (int): id of the visit
             snapshot (dict): the snapshot to add to the visit, containing the
               following keys:
 
@@ -763,10 +788,29 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
+            origin (int): legacy argument for backward compatibility
+            visit (int): legacy argument for backward compatibility
 
         Raises:
             ValueError: if the origin or visit id does not exist.
         """
+        if origin:
+            if not visit:
+                raise TypeError(
+                    'snapshot_add expects one argument (or, as a legacy '
+                    'behavior, three arguments), not two')
+            if isinstance(snapshot, int):
+                # Called by legacy code that uses the new api/client.py
+                (origin_id, visit_id, snapshot) = \
+                    (snapshot, origin, visit)
+            else:
+                # Called by legacy code that uses the old api/client.py
+                origin_id = origin
+                visit_id = visit
+        else:
+            # Called by new code that uses the new api/client.py
+            origin_id = visit_id = None
+
         if not db.snapshot_exists(snapshot['id'], cur):
             db.mktemp_snapshot_branch(cur)
             db.copy_to(
@@ -782,11 +826,16 @@ class Storage():
                 ['name', 'target', 'target_type'],
                 cur,
             )
-        if not db.origin_visit_exists(origin, visit):
-            raise ValueError('Not origin visit with ids (%s, %s)' %
-                             (origin, visit))
 
-        db.snapshot_add(origin, visit, snapshot['id'], cur)
+        if self.journal_writer:
+            self.journal_writer.write_addition('snapshot', snapshot)
+
+        db.snapshot_add(snapshot['id'], cur)
+
+        if visit_id:
+            self.origin_visit_update(
+                origin_id, visit_id, snapshot=snapshot['id'],
+                db=db, cur=cur)
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
@@ -988,16 +1037,29 @@ class Storage():
                           DeprecationWarning)
             date = ts
 
+        origin_id = origin  # TODO: rename the argument
+
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
+        visit = db.origin_visit_add(origin, date, cur)
+
+        if self.journal_writer:
+            # We can write to the journal only after inserting to the
+            # DB, because we want the id of the visit
+            origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
+            self.journal_writer.write_addition('origin_visit', {
+                'origin': origin, 'date': date, 'visit': visit,
+                'status': 'ongoing', 'metadata': None, 'snapshot': None})
+
         return {
-            'origin': origin,
-            'visit': db.origin_visit_add(origin, date, cur)
+            'origin': origin_id,
+            'visit': visit,
         }
 
     @db_transaction()
-    def origin_visit_update(self, origin, visit_id, status, metadata=None,
+    def origin_visit_update(self, origin, visit_id, status=None,
+                            metadata=None, snapshot=None,
                             db=None, cur=None):
         """Update an origin_visit's status.
 
@@ -1006,12 +1068,38 @@ class Storage():
             visit_id: Visit's id
             status: Visit's new status
             metadata: Data associated to the visit
+            snapshot (sha1_git): identifier of the snapshot to add to
+                the visit
 
         Returns:
             None
 
         """
-        return db.origin_visit_update(origin, visit_id, status, metadata, cur)
+        origin_id = origin  # TODO: rename the argument
+
+        visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
+
+        if not visit:
+            raise ValueError('Invalid visit_id for this origin.')
+
+        visit = dict(zip(db.origin_visit_get_cols, visit))
+
+        updates = {}
+        if status and status != visit['status']:
+            updates['status'] = status
+        if metadata and metadata != visit['metadata']:
+            updates['metadata'] = metadata
+        if snapshot and snapshot != visit['snapshot']:
+            updates['snapshot'] = snapshot
+
+        if updates:
+            if self.journal_writer:
+                origin = self.origin_get(
+                    [{'id': origin_id}], db=db, cur=cur)[0]
+                self.journal_writer.write_update('origin_visit', {
+                    **visit, **updates, 'origin': origin})
+
+            db.origin_visit_update(origin_id, visit_id, updates, cur)
 
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(self, origin, last_visit=None, limit=None, db=None,
@@ -1242,6 +1330,7 @@ class Storage():
         """
         for origin in origins:
             origin['id'] = self.origin_add_one(origin, db=db, cur=cur)
+
         return origins
 
     @db_transaction()
@@ -1265,7 +1354,12 @@ class Storage():
         if origin_id:
             return origin_id
 
-        return db.origin_add(origin['type'], origin['url'], cur)
+        origin['id'] = db.origin_add(origin['type'], origin['url'], cur)
+
+        if self.journal_writer:
+            self.journal_writer.write_addition('origin', origin)
+
+        return origin['id']
 
     @db_transaction()
     def fetch_history_start(self, origin_id, db=None, cur=None):
