@@ -27,8 +27,6 @@ def timed(f):
     """
     @wraps(f)
     def d(*a, **kw):
-        statsd.increment('swh_storage_request_count',
-                         tags={'endpoint': f.__name__})
         with statsd.timed('swh_storage_request_duration_seconds',
                           tags={'endpoint': f.__name__}):
             return f(*a, **kw)
