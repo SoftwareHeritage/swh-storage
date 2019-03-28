@@ -324,7 +324,6 @@ class Db(BaseDb):
             'from': from_,
             'where': ' AND '.join(where)
         })
-        print(query)
         cur.execute(query, (*values, *where_values))
 
     origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
