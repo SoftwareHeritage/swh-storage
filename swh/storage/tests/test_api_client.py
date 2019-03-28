@@ -9,7 +9,11 @@ import tempfile
 import unittest
 
 from swh.core.tests.server_testing import ServerTestFixture
+import swh.storage.storage as storage
+from swh.storage.journal_writer import \
+    get_journal_writer, InMemoryJournalWriter
 from swh.storage.api.client import RemoteStorage
+import swh.storage.api.server as server
 from swh.storage.api.server import app
 from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage, StorageTestDbFixture
@@ -25,6 +29,14 @@ class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
     """
 
     def setUp(self):
+        def mock_get_journal_writer(cls, args=None):
+            assert cls == 'inmemory'
+            return journal_writer
+        server.storage = None
+        storage.get_journal_writer = mock_get_journal_writer
+        journal_writer = InMemoryJournalWriter()
+        self.journal_writer = journal_writer
+
         # ServerTestFixture needs to have self.objroot for
         # setUp() method, but this field is defined in
         # AbstractTestStorage's setUp()
@@ -43,6 +55,9 @@ class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
                             'slicing': '0:2',
                         },
                     },
+                    'journal_writer': {
+                        'cls': 'inmemory',
+                    }
                 }
             }
         }
@@ -52,6 +67,7 @@ class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
         self.objroot = self.storage_base
 
     def tearDown(self):
+        storage.get_journal_writer = get_journal_writer
         super().tearDown()
         shutil.rmtree(self.storage_base)
 
