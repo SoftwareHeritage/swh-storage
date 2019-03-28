@@ -1,3 +1,14 @@
+swh-storage (0.0.131-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.131     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-03-28 17:24:44 +0100)
+  * Upstream changes:     - Release swh.storage v0.0.131     - Add
+    statsd metrics to storage RPC backend     - Clean up
+    snapshot_add/origin_visit_update     - Uniformize RPC backend to use
+    POSTs everywhere
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 28 Mar 2019 16:34:07 +0000
+
 swh-storage (0.0.130-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.130     - (tagged by Valentin Lorentz
