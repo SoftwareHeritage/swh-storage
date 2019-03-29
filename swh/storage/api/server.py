@@ -21,6 +21,11 @@ app = SWHServerAPIApp(__name__)
 storage = None
 
 
+OBJECT_COUNTER_MAPPING = {
+    'content_add': 'new',  # ['new', 'new-missing'],
+}
+
+
 def timed(f):
     """Time that function!
 
@@ -30,6 +35,37 @@ def timed(f):
         with statsd.timed('swh_storage_request_duration_seconds',
                           tags={'endpoint': f.__name__}):
             return f(*a, **kw)
+
+    return d
+
+
+def encode(f):
+    @wraps(f)
+    def d(*a, **kw):
+        r = f(*a, **kw)
+        return encode_data(r)
+
+    return d
+
+
+def increment(f):
+    """Increment object counters for the decorated function.
+
+    """
+    @wraps(f)
+    def d(*a, **kw):
+        # execute the function
+        r = f(*a, **kw)
+
+        # extract the metric information from the summary result
+        counter_key = OBJECT_COUNTER_MAPPING.get(f.__name__)
+        if counter_key:
+            value = r.get(counter_key)
+            if value:
+                statsd.increment('swh_storage_request_object_count',
+                                 value, tags={'endpoint': f.__name__})
+
+        return r
 
     return d
 
@@ -90,8 +126,10 @@ def content_find():
 
 @app.route('/content/add', methods=['POST'])
 @timed
+@encode
+@increment
 def content_add():
-    return encode_data(get_storage().content_add(**decode_request(request)))
+    return get_storage().content_add(**decode_request(request))
 
 
 @app.route('/content/update', methods=['POST'])

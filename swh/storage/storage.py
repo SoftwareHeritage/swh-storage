@@ -115,6 +115,9 @@ class Storage():
                   content in
 
         """
+        summary = {
+            'all': len(content),
+        }
         if self.journal_writer:
             for item in content:
                 if 'data' in item:
@@ -188,6 +191,8 @@ class Storage():
                         else:
                             raise
 
+                    summary['new'] = len(missing_content)
+
                 if missing_skipped:
                     missing_filtered = (
                         cont for cont in content_without_data
@@ -200,10 +205,13 @@ class Storage():
 
                     # move metadata in place
                     db.skipped_content_add_from_temp(cur)
+                    summary['new-skipped'] = len(missing_skipped)
 
                 # Wait for objstorage addition before returning from the
                 # transaction, bubbling up any exception
                 added_to_objstorage.result()
+
+        return summary
 
     @db_transaction()
     def content_update(self, content, keys=[], db=None, cur=None):
