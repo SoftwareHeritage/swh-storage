@@ -39,7 +39,6 @@ def my_error_handler(exception):
     return error_handler(exception, encode_data)
 
 
-@timed
 def get_storage():
     global storage
     if not storage:
