@@ -21,14 +21,6 @@ app = SWHServerAPIApp(__name__)
 storage = None
 
 
-# Mapping endpoint function to counter of interesting keys
-# to use as metric
-ENDPOINT_OBJECT_COUNTER_MAPPING_KEY = {
-    'content_add': 'new',  # ['new', 'new_skipped'],
-    'directory_add': 'new',
-}
-
-
 def timed(f):
     """Time that function!
 
@@ -57,17 +49,9 @@ def increment(f):
     """
     @wraps(f)
     def d(*a, **kw):
-        # execute the function
         r = f(*a, **kw)
-
-        # extract the metric information from the summary result
-        counter_key = ENDPOINT_OBJECT_COUNTER_MAPPING_KEY.get(f.__name__)
-        if counter_key:
-            value = r.get(counter_key)
-            if value:
-                statsd.increment('swh_storage_request_object_count',
-                                 value, tags={'endpoint': f.__name__})
-
+        statsd.increment('swh_storage_request_object_count',
+                         r, tags={'endpoint': f.__name__})
         return r
 
     return d
@@ -191,9 +175,11 @@ def directory_ls():
 
 
 @app.route('/revision/add', methods=['POST'])
+@encode
 @timed
+@increment
 def revision_add():
-    return encode_data(get_storage().revision_add(**decode_request(request)))
+    return get_storage().revision_add(**decode_request(request))
 
 
 @app.route('/revision', methods=['POST'])
@@ -223,9 +209,11 @@ def revision_missing():
 
 
 @app.route('/release/add', methods=['POST'])
+@encode
 @timed
+@increment
 def release_add():
-    return encode_data(get_storage().release_add(**decode_request(request)))
+    return get_storage().release_add(**decode_request(request))
 
 
 @app.route('/release', methods=['POST'])
@@ -249,9 +237,11 @@ def object_find_by_sha1_git():
 
 
 @app.route('/snapshot/add', methods=['POST'])
+@encode
 @timed
+@increment
 def snapshot_add():
-    return encode_data(get_storage().snapshot_add(**decode_request(request)))
+    return get_storage().snapshot_add(**decode_request(request))
 
 
 @app.route('/snapshot', methods=['POST'])
