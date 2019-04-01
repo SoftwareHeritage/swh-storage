@@ -313,15 +313,28 @@ class Storage:
                       - target (sha1_git): id of the object pointed at by the
                         directory entry
                       - perms (int): entry permissions
+        Returns:
+            Summary dict of keys 'new', 'all' with
+            associated count as values
+
+                all: Data input length
+                new: New objecst actually stored in db
+
         """
+        summary = dict(all=len(directories), new=0)
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
+        count = 0
         for directory in directories:
             if directory['id'] not in self._directories:
+                count += 1
                 self._directories[directory['id']] = copy.deepcopy(directory)
                 self._objects[directory['id']].append(
                     ('directory', directory['id']))
+
+        summary['new'] = count
+        return summary
 
     def directory_missing(self, directory_ids):
         """List directories missing from storage

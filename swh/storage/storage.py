@@ -475,7 +475,16 @@ class Storage():
                       - target (sha1_git): id of the object pointed at by the
                         directory entry
                       - perms (int): entry permissions
+
+        Returns:
+            Summary dict of keys 'new', 'all' with
+            associated count as values
+
+                all: Data input length
+                new: New objects actually stored in db
+
         """
+        summary = dict(all=len(directories), new=0)
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
@@ -496,7 +505,7 @@ class Storage():
 
         dirs_missing = set(self.directory_missing(dirs))
         if not dirs_missing:
-            return
+            return summary
 
         db = self.get_db()
         with db.transaction() as cur:
@@ -524,6 +533,9 @@ class Storage():
 
             # Do the final copy
             db.directory_add_from_temp(cur)
+            summary['new'] = len(dirs_missing_dict)
+
+        return summary
 
     @db_transaction_generator()
     def directory_missing(self, directories, db=None, cur=None):

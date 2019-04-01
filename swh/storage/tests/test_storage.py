@@ -741,7 +741,9 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
 
-        self.storage.directory_add([self.dir])
+        actual_result = self.storage.directory_add([self.dir])
+        self.assertEqual(actual_result, dict(all=1, new=1))
+
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir)])
 
@@ -756,7 +758,10 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
 
-        self.storage.directory_add([self.dir, self.dir2, self.dir3])
+        actual_result = self.storage.directory_add(
+            [self.dir, self.dir2, self.dir3])
+        self.assertEqual(actual_result, dict(all=3, new=3))
+
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir),
                           ('directory', self.dir2),
