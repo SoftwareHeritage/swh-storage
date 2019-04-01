@@ -1488,7 +1488,9 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add([self.empty_snapshot])
+        actual_result = self.storage.snapshot_add([self.empty_snapshot])
+        self.assertEqual(actual_result, {'snapshot_added': 1})
+
         self.storage.origin_visit_update(
             origin_id, visit_id, snapshot=self.empty_snapshot['id'])
 
@@ -1566,7 +1568,9 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+        actual_result = self.storage.snapshot_add(
+            origin_id, visit_id, self.complete_snapshot)
+        self.assertEqual(actual_result, {'snapshot_added': 1})
 
         by_id = self.storage.snapshot_get(self.complete_snapshot['id'])
         self.assertEqual(by_id, self.complete_snapshot)
@@ -1574,8 +1578,10 @@ class CommonTestStorage(TestStorageData):
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.complete_snapshot)
 
+
     def test_snapshot_add_many(self):
-        self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
+        actual_result = self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
+        self.assertEqual(actual_result, {'snapshot_added': 2})
 
         self.assertEqual(
             self.complete_snapshot,
@@ -1586,8 +1592,11 @@ class CommonTestStorage(TestStorageData):
             self.storage.snapshot_get(self.snapshot['id']))
 
     def test_snapshot_add_many_incremental(self):
-        self.storage.snapshot_add([self.complete_snapshot])
-        self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
+        actual_result = self.storage.snapshot_add([self.complete_snapshot])
+        self.assertEqual(actual_result, {'snapshot_added': 1})
+
+        actual_result2 = self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
+        self.assertEqual(actual_result2, {'snapshot_added': 1})
 
         self.assertEqual(
             self.complete_snapshot,
@@ -1603,7 +1612,9 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+        actual_result = self.storage.snapshot_add(
+            origin_id, visit_id, self.complete_snapshot)
+        self.assertEqual(actual_result, {'snapshot_added': 1})
 
         snp_id = self.complete_snapshot['id']
         snp_size = self.storage.snapshot_count_branches(snp_id)

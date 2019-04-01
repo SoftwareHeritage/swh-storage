@@ -874,6 +874,13 @@ class Storage():
 
         Raises:
             ValueError: if the origin or visit id does not exist.
+
+        Returns:
+            Summary dict of keys 'snapshot_added' with associated
+            count as values
+
+                snapshot_added: Count of object actually stored in db
+
         """
         if origin:
             if not visit:
@@ -926,6 +933,8 @@ class Storage():
             self.origin_visit_update(
                 origin_id, visit_id, snapshot=snapshots[0]['id'],
                 db=db, cur=cur)
+
+        return {'snapshot_added': count}
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):

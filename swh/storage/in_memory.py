@@ -637,6 +637,13 @@ class Storage:
 
         Raises:
             ValueError: if the origin's or visit's identifier does not exist.
+
+        Returns:
+            Summary dict of keys 'snapshot_added' with associated
+            count as values
+
+                snapshot_added: Count of object actually stored in db
+
         """
         if legacy_arg1:
             assert legacy_arg2
@@ -645,6 +652,7 @@ class Storage:
         else:
             origin = visit = None
 
+        count = 0
         for snapshot in snapshots:
             snapshot_id = snapshot['id']
             if snapshot_id not in self._snapshots:
@@ -657,11 +665,14 @@ class Storage:
                     '_sorted_branch_names': sorted(snapshot['branches'])
                     }
                 self._objects[snapshot_id].append(('snapshot', snapshot_id))
+                count += 1
 
         if origin:
             # Legacy API, there can be only one snapshot
             self.origin_visit_update(
                 origin, visit, snapshot=snapshots[0]['id'])
+
+        return {'snapshot_added': count}
 
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id
