@@ -187,9 +187,15 @@ class Storage():
             content_bytes_added = 0
             data = {}
             for cont in content_with_data:
-                if cont['sha1'] in missing_content:
-                    data[cont['sha1']] = cont['data']
+                sha1 = cont['sha1']
+                seen = data.get(sha1)
+                if sha1 in missing_content and not seen:
+                    data[sha1] = cont['data']
                     content_bytes_added += cont['length']
+
+            # FIXME: Since we do the filtering anyway now, we might as
+            # well make the objstorage's add_batch call return what we
+            # want here (real bytes added)... that'd simplify this...
             self.objstorage.add_batch(data)
             return content_bytes_added
 

@@ -573,8 +573,7 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont, cont])
         self.assertEqual(actual_result, {
             'content_added': 1,
-            # twice the input, twice the count (no deduplication in counts here)
-            'content_bytes_added': 2*cont['length'],
+            'content_bytes_added': cont['length'],
             'skipped_content_added': 0
         })
 
