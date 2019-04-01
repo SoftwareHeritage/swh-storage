@@ -641,7 +641,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_result, {
             'content_added': 0,
             'content_bytes_added': 0,
-            'skipped_content_add': 3,
+            'skipped_content_added': 2,
         })
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
@@ -764,7 +764,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.dir['id']], init_missing)
 
         actual_result = self.storage.directory_add([self.dir])
-        self.assertEqual(actual_result, dict(all=1, new=1))
+        self.assertEqual(actual_result, {'directory_added': 1})
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir)])
@@ -782,7 +782,7 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.directory_add(
             [self.dir, self.dir2, self.dir3])
-        self.assertEqual(actual_result, dict(all=3, new=3))
+        self.assertEqual(actual_result, {'directory_added': 3})
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir),
@@ -811,7 +811,8 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir3['id']]))
         self.assertEqual([self.dir3['id']], init_missing)
 
-        self.storage.directory_add([self.dir3])
+        actual_result = self.storage.directory_add([self.dir3])
+        self.assertEqual(actual_result, {'directory_added': 1})
 
         expected_entries = [
             {

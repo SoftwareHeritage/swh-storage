@@ -548,7 +548,7 @@ class Storage():
 
             # Do the final copy
             db.directory_add_from_temp(cur)
-            summary['directory_added'] = len(dirs_missing_dict)
+            summary['directory_added'] = len(dirs_missing)
 
         return summary
 
