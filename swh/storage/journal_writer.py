@@ -27,7 +27,8 @@ def get_journal_writer(cls, args={}):
     if cls == 'inmemory':
         JournalWriter = InMemoryJournalWriter
     elif cls == 'kafka':
-        import swh.journal.direct_writer.DirectKafkaWriter as JournalWriter
+        from swh.journal.direct_writer import DirectKafkaWriter \
+            as JournalWriter
     else:
         raise ValueError('Unknown storage class `%s`' % cls)
 
