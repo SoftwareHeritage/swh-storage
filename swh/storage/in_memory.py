@@ -556,11 +556,11 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, snapshot, legacy_arg1=None, legacy_arg2=None):
-        """Add a snapshot for the given origin/visit couple
+    def snapshot_add(self, snapshots, legacy_arg1=None, legacy_arg2=None):
+        """Add a snapshot to the storage
 
         Args:
-            snapshot (dict): the snapshot to add to the visit, containing the
+            snapshot ([dict]): the snapshots to add, containing the
               following keys:
 
               - **id** (:class:`bytes`): id of the snapshot
@@ -581,25 +581,28 @@ class Storage:
         """
         if legacy_arg1:
             assert legacy_arg2
-            (origin, visit, snapshot) = \
-                (snapshot, legacy_arg1, legacy_arg2)
+            (origin, visit, snapshots) = \
+                (snapshots, legacy_arg1, [legacy_arg2])
         else:
             origin = visit = None
 
-        snapshot_id = snapshot['id']
-        if self.journal_writer:
-            self.journal_writer.write_addition(
-                'snapshot', snapshot)
-        if snapshot_id not in self._snapshots:
-            self._snapshots[snapshot_id] = {
-                'id': snapshot_id,
-                'branches': copy.deepcopy(snapshot['branches']),
-                '_sorted_branch_names': sorted(snapshot['branches'])
-                }
-            self._objects[snapshot_id].append(('snapshot', snapshot_id))
+        for snapshot in snapshots:
+            snapshot_id = snapshot['id']
+            if snapshot_id not in self._snapshots:
+                if self.journal_writer:
+                    self.journal_writer.write_addition('snapshot', snapshot)
+
+                self._snapshots[snapshot_id] = {
+                    'id': snapshot_id,
+                    'branches': copy.deepcopy(snapshot['branches']),
+                    '_sorted_branch_names': sorted(snapshot['branches'])
+                    }
+                self._objects[snapshot_id].append(('snapshot', snapshot_id))
 
         if origin:
-            self.origin_visit_update(origin, visit, snapshot=snapshot_id)
+            # Legacy API, there can be only one snapshot
+            self.origin_visit_update(
+                origin, visit, snapshot=snapshots[0]['id'])
 
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id

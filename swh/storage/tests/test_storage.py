@@ -1312,7 +1312,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
 
         # when
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
         self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
 
     def test_origin_visit_get_by(self):
@@ -1432,7 +1432,7 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add(self.empty_snapshot)
+        self.storage.snapshot_add([self.empty_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit_id, snapshot=self.empty_snapshot['id'])
 
@@ -1517,6 +1517,29 @@ class CommonTestStorage(TestStorageData):
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.complete_snapshot)
+
+    def test_snapshot_add_many(self):
+        self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
+
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get(self.complete_snapshot['id']))
+
+        self.assertEqual(
+            self.snapshot,
+            self.storage.snapshot_get(self.snapshot['id']))
+
+    def test_snapshot_add_many_incremental(self):
+        self.storage.snapshot_add([self.complete_snapshot])
+        self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
+
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get(self.complete_snapshot['id']))
+
+        self.assertEqual(
+            self.snapshot,
+            self.storage.snapshot_get(self.snapshot['id']))
 
     def test_snapshot_add_count_branches(self):
         origin_id = self.storage.origin_add_one(self.origin)
@@ -1660,7 +1683,7 @@ class CommonTestStorage(TestStorageData):
 
         self.journal_writer.objects[:] = []
 
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
 
         with self.assertRaises(ValueError):
             self.storage.origin_visit_update(
@@ -1689,7 +1712,7 @@ class CommonTestStorage(TestStorageData):
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit1)
         visit1_id = origin_visit1['visit']
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
         self.storage.origin_visit_update(
             origin_id, visit1_id, snapshot=self.snapshot['id'])
 
@@ -1701,7 +1724,7 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit2)
         visit2_id = origin_visit2['visit']
 
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
         self.storage.origin_visit_update(
             origin_id, visit2_id, snapshot=self.snapshot['id'])
 
@@ -1749,7 +1772,6 @@ class CommonTestStorage(TestStorageData):
                           ('snapshot', self.snapshot),
                           ('origin_visit', data2),
                           ('origin_visit', data3),
-                          ('snapshot', self.snapshot),
                           ('origin_visit', data4)])
 
     def test_snapshot_add_twice__legacy_add(self):
@@ -1813,7 +1835,6 @@ class CommonTestStorage(TestStorageData):
                           ('snapshot', self.snapshot),
                           ('origin_visit', data2),
                           ('origin_visit', data3),
-                          ('snapshot', self.snapshot),
                           ('origin_visit', data4)])
 
     def test_snapshot_get_nonexistent(self):
@@ -1846,7 +1867,7 @@ class CommonTestStorage(TestStorageData):
         self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
 
         # Add snapshot to visit1, latest snapshot = visit 1 snapshot
-        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.snapshot_add([self.complete_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
         self.assertEqual(self.complete_snapshot,
@@ -1868,7 +1889,7 @@ class CommonTestStorage(TestStorageData):
         )
 
         # Add snapshot to visit2 and check that the new snapshot is returned
-        self.storage.snapshot_add(self.empty_snapshot)
+        self.storage.snapshot_add([self.empty_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
         self.assertEqual(self.empty_snapshot,
@@ -1883,7 +1904,7 @@ class CommonTestStorage(TestStorageData):
 
         # Add snapshot to visit3 (same date as visit2) and check that
         # the new snapshot is returned
-        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.snapshot_add([self.complete_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit3_id, snapshot=self.complete_snapshot['id'])
         self.assertEqual(self.complete_snapshot,
@@ -1921,7 +1942,7 @@ class CommonTestStorage(TestStorageData):
         )
 
         # Actually add the snapshot and check status filter again
-        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.snapshot_add([self.complete_snapshot])
         self.assertEqual(
             self.complete_snapshot,
             self.storage.snapshot_get_latest(origin_id)
@@ -1936,7 +1957,7 @@ class CommonTestStorage(TestStorageData):
             self.storage.snapshot_get_latest(origin_id))
 
         # Actually add that snapshot and check that the new one is returned
-        self.storage.snapshot_add(self.empty_snapshot)
+        self.storage.snapshot_add([self.empty_snapshot])
         self.assertEqual(
             self.empty_snapshot,
             self.storage.snapshot_get_latest(origin_id)

@@ -740,6 +740,7 @@ begin
        where tmp.target is null and tmp.target_type is null
          and sb.target is null and sb.target_type is null;
   end if;
+  truncate table tmp_snapshot_branch;
 end;
 $$;
 

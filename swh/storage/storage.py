@@ -768,12 +768,12 @@ class Storage():
             yield data if data['target_type'] else None
 
     @db_transaction()
-    def snapshot_add(self, snapshot, origin=None, visit=None,
+    def snapshot_add(self, snapshots, origin=None, visit=None,
                      db=None, cur=None):
-        """Add a snapshot for the given origin/visit couple
+        """Add snapshots to the storage.
 
         Args:
-            snapshot (dict): the snapshot to add to the visit, containing the
+            snapshot ([dict]): the snapshots to add, containing the
               following keys:
 
               - **id** (:class:`bytes`): id of the snapshot
@@ -799,42 +799,51 @@ class Storage():
                 raise TypeError(
                     'snapshot_add expects one argument (or, as a legacy '
                     'behavior, three arguments), not two')
-            if isinstance(snapshot, int):
+            if isinstance(snapshots, int):
                 # Called by legacy code that uses the new api/client.py
-                (origin_id, visit_id, snapshot) = \
-                    (snapshot, origin, visit)
+                (origin_id, visit_id, snapshots) = \
+                    (snapshots, origin, [visit])
             else:
                 # Called by legacy code that uses the old api/client.py
                 origin_id = origin
                 visit_id = visit
+                snapshots = [snapshots]
         else:
             # Called by new code that uses the new api/client.py
             origin_id = visit_id = None
 
-        if not db.snapshot_exists(snapshot['id'], cur):
-            db.mktemp_snapshot_branch(cur)
-            db.copy_to(
-                (
-                    {
-                        'name': name,
-                        'target': info['target'] if info else None,
-                        'target_type': info['target_type'] if info else None,
-                    }
-                    for name, info in snapshot['branches'].items()
-                ),
-                'tmp_snapshot_branch',
-                ['name', 'target', 'target_type'],
-                cur,
-            )
+        created_temp_table = False
 
-        if self.journal_writer:
-            self.journal_writer.write_addition('snapshot', snapshot)
+        for snapshot in snapshots:
+            if not db.snapshot_exists(snapshot['id'], cur):
+                if not created_temp_table:
+                    db.mktemp_snapshot_branch(cur)
+                    created_temp_table = True
 
-        db.snapshot_add(snapshot['id'], cur)
+                db.copy_to(
+                    (
+                        {
+                            'name': name,
+                            'target': info['target'] if info else None,
+                            'target_type': (info['target_type']
+                                            if info else None),
+                        }
+                        for name, info in snapshot['branches'].items()
+                    ),
+                    'tmp_snapshot_branch',
+                    ['name', 'target', 'target_type'],
+                    cur,
+                )
+
+                if self.journal_writer:
+                    self.journal_writer.write_addition('snapshot', snapshot)
+
+                db.snapshot_add(snapshot['id'], cur)
 
         if visit_id:
+            # Legacy API, there can be only one snapshot
             self.origin_visit_update(
-                origin_id, visit_id, snapshot=snapshot['id'],
+                origin_id, visit_id, snapshot=snapshots[0]['id'],
                 db=db, cur=cur)
 
     @db_transaction(statement_timeout=2000)
