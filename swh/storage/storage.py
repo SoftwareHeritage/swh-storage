@@ -124,14 +124,14 @@ class Storage():
             - Any other exceptions raise by the db
 
         Returns:
-            Summary dict of keys 'new', 'new-missing', 'all' with
+            Summary dict of keys 'all' 'new', 'new_skipped' with
             associated count as values
 
+                all: Data input length
                 new: New contents actually stored in db and objstorage
                     (table 'content')
                 new_skipped: New skipped contents actually stored in
                              db (table skipped_content)
-                all: Actual length of data input
 
         """
         summary = dict(all=len(content), new=0, new_skipped=0)

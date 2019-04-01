@@ -77,13 +77,28 @@ class Storage:
                 - origin (int): if status = absent, the origin we saw the
                   content in
 
+        Raises:
+            HashCollision in case of collision
+
+        Returns:
+            Summary dict of keys 'all', new', 'new-skipped' with
+            associated count as values
+
+                all: Data input length
+                new: New contents actually stored in db and objstorage
+                    (table 'content')
+                new_skipped: New skipped contents actually stored in
+                             db (table skipped_content)
+
         """
+        summary = dict(all=len(contents), new=0, new_skipped=0)
         if self.journal_writer:
             for content in contents:
                 if 'data' in content:
                     content = content.copy()
                     del content['data']
                 self.journal_writer.write_addition('content', content)
+        count = 0
         for content in contents:
             key = self._content_key(content)
             if key in self._contents:
@@ -96,12 +111,16 @@ class Storage:
                 self._content_indexes[algorithm][content[algorithm]].add(key)
             self._objects[content['sha1_git']].append(
                 ('content', content['sha1']))
+            count += 1
             self._contents[key] = copy.deepcopy(content)
             self._contents[key]['ctime'] = now()
             bisect.insort(self._sorted_sha1s, content['sha1'])
             if self._contents[key]['status'] == 'visible':
                 content_data = self._contents[key].pop('data')
                 self.objstorage.add(content_data, content['sha1'])
+
+        summary['new'] = count
+        return summary
 
     def content_get(self, ids):
         """Retrieve in bulk contents and their data.
