@@ -554,9 +554,9 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.content_add([cont])
         self.assertEqual(actual_result, {
-            'all': 1,
-            'new': 1,
-            'new_skipped': 0
+            'content_added': 1,
+            'content_bytes_added': cont['length'],
+            'skipped_content_added': 0
         })
 
         self.assertEqual(list(self.storage.content_get([cont['sha1']])),
@@ -567,15 +567,37 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects),
                          [('content', expected_cont)])
 
+    def test_content_add_same_input(self):
+        cont = self.cont
+
+        actual_result = self.storage.content_add([cont, cont])
+        self.assertEqual(actual_result, {
+            'content_added': 1,
+            # twice the input, twice the count (no deduplication in counts here)
+            'content_bytes_added': 2*cont['length'],
+            'skipped_content_added': 0
+        })
+
+    def test_content_add_different_input(self):
+        cont = self.cont
+        cont2 = self.cont2
+
+        actual_result = self.storage.content_add([cont, cont2])
+        self.assertEqual(actual_result, {
+            'content_added': 2,
+            'content_bytes_added': cont['length'] + cont2['length'],
+            'skipped_content_added': 0
+        })
+
     def test_content_add_db(self):
         cont = self.cont
 
         actual_result = self.storage.content_add([cont])
 
         self.assertEqual(actual_result, {
-            'all': 1,
-            'new': 1,
-            'new_skipped': 0
+            'content_added': 1,
+            'content_bytes_added': cont['length'],
+            'skipped_content_added': 0
         })
 
         if hasattr(self.storage, 'objstorage'):
@@ -617,9 +639,9 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont, cont, cont2])
 
         self.assertEqual(actual_result, {
-            'all': 3,
-            'new': 0,
-            'new_skipped': 2,
+            'content_added': 0,
+            'content_bytes_added': 0,
+            'skipped_content_add': 3,
         })
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '

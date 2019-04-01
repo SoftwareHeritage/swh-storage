@@ -81,24 +81,26 @@ class Storage:
             HashCollision in case of collision
 
         Returns:
-            Summary dict of keys 'all', new', 'new-skipped' with
+            Summary dict of keys 'content_added'
+            'skipped_content_added', 'content_bytes_added' with
             associated count as values
 
-                all: Data input length
-                new: New contents actually stored in db and objstorage
-                    (table 'content')
-                new_skipped: New skipped contents actually stored in
-                             db (table skipped_content)
+                content_added: New contents added
+                content_bytes_added: Sum of the contents' length data
+                skipped_content_added: New skipped contents (no data) added
 
         """
-        summary = dict(all=len(contents), new=0, new_skipped=0)
         if self.journal_writer:
             for content in contents:
                 if 'data' in content:
                     content = content.copy()
                     del content['data']
                 self.journal_writer.write_addition('content', content)
-        count = 0
+
+        count_contents = 0
+        count_content_added = 0
+        count_content_bytes_added = 0
+
         for content in contents:
             key = self._content_key(content)
             if key in self._contents:
@@ -111,16 +113,21 @@ class Storage:
                 self._content_indexes[algorithm][content[algorithm]].add(key)
             self._objects[content['sha1_git']].append(
                 ('content', content['sha1']))
-            count += 1
             self._contents[key] = copy.deepcopy(content)
             self._contents[key]['ctime'] = now()
             bisect.insort(self._sorted_sha1s, content['sha1'])
+            count_contents += 1
             if self._contents[key]['status'] == 'visible':
+                count_content_added += 1
                 content_data = self._contents[key].pop('data')
+                count_content_bytes_added += len(content_data)
                 self.objstorage.add(content_data, content['sha1'])
 
-        summary['new'] = count
-        return summary
+        return {
+            'content_added': count_content_added,
+            'content_bytes_added': count_content_bytes_added,
+            'skipped_content_added': count_contents - count_content_added,
+        }
 
     def content_get(self, ids):
         """Retrieve in bulk contents and their data.
@@ -314,14 +321,12 @@ class Storage:
                         directory entry
                       - perms (int): entry permissions
         Returns:
-            Summary dict of keys 'new', 'all' with
-            associated count as values
+            Summary dict of keys 'directory_added' with associated
+            count as values:
 
-                all: Data input length
-                new: New objecst actually stored in db
+                directory_added: Number of directories actually added
 
         """
-        summary = dict(all=len(directories), new=0)
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
@@ -333,8 +338,7 @@ class Storage:
                 self._objects[directory['id']].append(
                     ('directory', directory['id']))
 
-        summary['new'] = count
-        return summary
+        return {'directory_added': count}
 
     def directory_missing(self, directory_ids):
         """List directories missing from storage

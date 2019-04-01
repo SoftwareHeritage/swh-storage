@@ -124,17 +124,20 @@ class Storage():
             - Any other exceptions raise by the db
 
         Returns:
-            Summary dict of keys 'all' 'new', 'new_skipped' with
+            Summary dict of keys 'content_added'
+            'skipped_content_added', 'content_bytes_added' with
             associated count as values
 
-                all: Data input length
-                new: New contents actually stored in db and objstorage
-                    (table 'content')
-                new_skipped: New skipped contents actually stored in
-                             db (table skipped_content)
+                content_added: New contents added
+                content_bytes_added: Sum of the contents' length data
+                skipped_content_added: New skipped contents (no data) added
 
         """
-        summary = dict(all=len(content), new=0, new_skipped=0)
+        summary = {
+            'content_added': 0,
+            'skipped_content_added': 0,
+            'content_bytes_added': 0,
+        }
 
         if self.journal_writer:
             for item in content:
@@ -158,7 +161,8 @@ class Storage():
         for d in content:
             if 'status' not in d:
                 d['status'] = 'visible'
-            if 'length' not in d:
+            length = d.get('length')
+            if length is None:
                 d['length'] = -1
             content_by_status[d['status']].append(d)
 
@@ -171,12 +175,23 @@ class Storage():
                                   content_without_data))
 
         def add_to_objstorage():
-            data = {
-                cont['sha1']: cont['data']
-                for cont in content_with_data
-                if cont['sha1'] in missing_content
-            }
+            """Add to objstorage the new missing_content
+
+            Returns:
+                Sum of all the content's data length pushed to the
+                objstorage. No filtering is done on contents here, so
+                we might send over multiple times the same content and
+                count as many times the contents' raw length bytes.
+
+            """
+            content_bytes_added = 0
+            data = {}
+            for cont in content_with_data:
+                if cont['sha1'] in missing_content:
+                    data[cont['sha1']] = cont['data']
+                    content_bytes_added += cont['length']
             self.objstorage.add_batch(data)
+            return content_bytes_added
 
         with db.transaction() as cur:
             with ThreadPoolExecutor(max_workers=1) as executor:
@@ -209,7 +224,7 @@ class Storage():
                         else:
                             raise
 
-                    summary['new'] = len(missing_content)
+                    summary['content_added'] = len(missing_content)
 
                 if missing_skipped:
                     missing_filtered = (
@@ -223,12 +238,13 @@ class Storage():
 
                     # move metadata in place
                     db.skipped_content_add_from_temp(cur)
-                    summary['new_skipped'] = len(missing_skipped)
+                    summary['skipped_content_added'] = len(missing_skipped)
 
                 # Wait for objstorage addition before returning from the
                 # transaction, bubbling up any exception
-                added_to_objstorage.result()
+                content_bytes_added = added_to_objstorage.result()
 
+        summary['content_bytes_added'] = content_bytes_added
         return summary
 
     @db_transaction()
@@ -477,14 +493,13 @@ class Storage():
                       - perms (int): entry permissions
 
         Returns:
-            Summary dict of keys 'new', 'all' with
-            associated count as values
+            Summary dict of keys 'directory_added' with associated
+            count as values:
 
-                all: Data input length
-                new: New objects actually stored in db
+                directory_added: Number of directories actually added
 
         """
-        summary = dict(all=len(directories), new=0)
+        summary = {'directory_added': 0}
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
@@ -533,7 +548,7 @@ class Storage():
 
             # Do the final copy
             db.directory_add_from_temp(cur)
-            summary['new'] = len(dirs_missing_dict)
+            summary['directory_added'] = len(dirs_missing_dict)
 
         return summary
 
