@@ -552,7 +552,13 @@ class CommonTestStorage(TestStorageData):
     def test_content_add(self):
         cont = self.cont
 
-        self.storage.content_add([cont])
+        actual_result = self.storage.content_add([cont])
+        self.assertEqual(actual_result, {
+            'all': 1,
+            'new': 1,
+            'new_skipped': 0
+        })
+
         self.assertEqual(list(self.storage.content_get([cont['sha1']])),
                          [{'sha1': cont['sha1'], 'data': cont['data']}])
 
@@ -564,7 +570,14 @@ class CommonTestStorage(TestStorageData):
     def test_content_add_db(self):
         cont = self.cont
 
-        self.storage.content_add([cont])
+        actual_result = self.storage.content_add([cont])
+
+        self.assertEqual(actual_result, {
+            'all': 1,
+            'new': 1,
+            'new_skipped': 0
+        })
+
         if hasattr(self.storage, 'objstorage'):
             self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
@@ -601,7 +614,13 @@ class CommonTestStorage(TestStorageData):
         cont2 = self.skipped_cont2.copy()
         cont2['blake2s256'] = None
 
-        self.storage.content_add([cont, cont, cont2])
+        actual_result = self.storage.content_add([cont, cont, cont2])
+
+        self.assertEqual(actual_result, {
+            'all': 3,
+            'new': 0,
+            'new_skipped': 2,
+        })
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
                             'length, status, reason '
