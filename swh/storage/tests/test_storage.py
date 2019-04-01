@@ -996,7 +996,8 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.release['id'], self.release2['id']],
                          list(init_missing))
 
-        self.storage.release_add([self.release, self.release2])
+        actual_result = self.storage.release_add([self.release, self.release2])
+        self.assertEqual(actual_result, {'release_added': 2})
 
         end_missing = self.storage.release_missing([self.release['id'],
                                                     self.release2['id']])
@@ -1005,6 +1006,10 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects),
                          [('release', self.release),
                           ('release', self.release2)])
+
+        # already present so nothing added
+        actual_result = self.storage.release_add([self.release, self.release2])
+        self.assertEqual(actual_result, {'release_added': 0})
 
     def test_release_get(self):
         # given

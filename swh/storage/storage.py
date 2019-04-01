@@ -777,7 +777,16 @@ class Storage():
                   keys: name, fullname, email
 
         the date dictionary has the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys 'release_added' with associated count
+            as values
+
+                release_added: New objects contents actually stored in db
+
         """
+        summary = {'release_added': 0}
+
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
@@ -787,7 +796,7 @@ class Storage():
         releases_missing = set(self.release_missing(release_ids))
 
         if not releases_missing:
-            return
+            return summary
 
         with db.transaction() as cur:
             db.mktemp_release(cur)
@@ -801,6 +810,8 @@ class Storage():
                        cur)
 
             db.release_add_from_temp(cur)
+
+        return {'release_added': len(releases_missing)}
 
     @db_transaction_generator()
     def release_missing(self, releases, db=None, cur=None):

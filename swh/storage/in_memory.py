@@ -565,10 +565,18 @@ class Storage:
                   keys: name, fullname, email
 
         the date dictionary has the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys 'release_added' with associated count
+            as values
+
+                release_added: New objects contents actually stored in db
+
         """
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
+        count = 0
         for rel in releases:
             if rel['id'] not in self._releases:
                 rel = copy.deepcopy(rel)
@@ -577,6 +585,9 @@ class Storage:
                 self._objects[rel['id']].append(
                     ('release', rel['id']))
                 self._releases[rel['id']] = rel
+                count += 1
+
+        return {'release_added': count}
 
     def release_missing(self, releases):
         """List releases missing from storage
