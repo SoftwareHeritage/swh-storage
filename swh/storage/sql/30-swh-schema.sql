@@ -12,7 +12,7 @@ create table dbversion
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(130, now(), 'Work In Progress');
+      values(131, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -211,7 +211,8 @@ create table origin_visit
   date         timestamptz not null,
   status       origin_visit_status not null,
   metadata     jsonb,
-  snapshot_id  bigint
+  snapshot_id  bigint,
+  snapshot     sha1_git
 );
 
 comment on column origin_visit.origin is 'Visited origin';
@@ -220,6 +221,7 @@ comment on column origin_visit.date is 'Visit timestamp';
 comment on column origin_visit.status is 'Visit result';
 comment on column origin_visit.metadata is 'Origin metadata at visit time';
 comment on column origin_visit.snapshot_id is 'Origin snapshot at visit time';
+comment on column origin_visit.snapshot is 'Origin snapshot at visit time';
 
 
 -- A snapshot represents the entire state of a software origin as crawled by

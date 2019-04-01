@@ -311,6 +311,11 @@ class Db(BaseDb):
             update_cols.append('metadata=%s')
             values.append(jsonize(updates.pop('metadata')))
         if 'snapshot' in updates:
+            # New 'snapshot' column
+            update_cols.append('snapshot=%s')
+            values.append(updates['snapshot'])
+
+            # Old 'snapshot_id' column
             update_cols.append('snapshot_id=snapshot.object_id')
             from_ = 'FROM snapshot'
             where.append('snapshot.id=%s')
