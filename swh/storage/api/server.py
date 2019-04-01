@@ -21,8 +21,10 @@ app = SWHServerAPIApp(__name__)
 storage = None
 
 
-OBJECT_COUNTER_MAPPING = {
-    'content_add': 'new',  # ['new', 'new-missing'],
+# Mapping endpoint function to counter of interesting keys
+# to use as metric
+ENDPOINT_OBJECT_COUNTER_MAPPING_KEY = {
+    'content_add': 'new',  # ['new', 'new_skipped'],
 }
 
 
@@ -58,7 +60,7 @@ def increment(f):
         r = f(*a, **kw)
 
         # extract the metric information from the summary result
-        counter_key = OBJECT_COUNTER_MAPPING.get(f.__name__)
+        counter_key = ENDPOINT_OBJECT_COUNTER_MAPPING_KEY.get(f.__name__)
         if counter_key:
             value = r.get(counter_key)
             if value:

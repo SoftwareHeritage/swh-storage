@@ -114,10 +114,28 @@ class Storage():
                 - origin (int): if status = absent, the origin we saw the
                   content in
 
+        Raises:
+
+            In case of errors, nothing is stored in the db (in the
+            objstorage, it could though). The following exceptions can
+            occur:
+
+            - HashCollision in case of collision
+            - Any other exceptions raise by the db
+
+        Returns:
+            Summary dict of keys 'new', 'new-missing', 'all' with
+            associated count as values
+
+                new: New contents actually stored in db and objstorage
+                    (table 'content')
+                new_skipped: New skipped contents actually stored in
+                             db (table skipped_content)
+                all: Actual length of data input
+
         """
-        summary = {
-            'all': len(content),
-        }
+        summary = dict(all=len(content), new=0, new_skipped=0)
+
         if self.journal_writer:
             for item in content:
                 if 'data' in item:
@@ -205,7 +223,7 @@ class Storage():
 
                     # move metadata in place
                     db.skipped_content_add_from_temp(cur)
-                    summary['new-skipped'] = len(missing_skipped)
+                    summary['new_skipped'] = len(missing_skipped)
 
                 # Wait for objstorage addition before returning from the
                 # transaction, bubbling up any exception
