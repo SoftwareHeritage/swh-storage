@@ -25,6 +25,7 @@ storage = None
 # to use as metric
 ENDPOINT_OBJECT_COUNTER_MAPPING_KEY = {
     'content_add': 'new',  # ['new', 'new_skipped'],
+    'directory_add': 'new',
 }
 
 
@@ -168,9 +169,11 @@ def directory_missing():
 
 
 @app.route('/directory/add', methods=['POST'])
+@encode
 @timed
+@increment
 def directory_add():
-    return encode_data(get_storage().directory_add(**decode_request(request)))
+    return get_storage().directory_add(**decode_request(request))
 
 
 @app.route('/directory/path', methods=['POST'])
