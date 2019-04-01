@@ -642,7 +642,16 @@ class Storage():
                   this revision
 
         date dictionaries have the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys 'revision_added' with associated
+            count as values
+
+                revision_added: New objects actually stored in db
+
         """
+        summary = {'revision_added': 0}
+
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
@@ -652,7 +661,7 @@ class Storage():
             set(revision['id'] for revision in revisions)))
 
         if not revisions_missing:
-            return
+            return summary
 
         with db.transaction() as cur:
             db.mktemp_revision(cur)
@@ -672,6 +681,8 @@ class Storage():
 
             db.copy_to(parents_filtered, 'revision_history',
                        ['id', 'parent_id', 'parent_rank'], cur)
+
+        return {'revision_added': len(revisions_missing)}
 
     @db_transaction_generator()
     def revision_missing(self, revisions, db=None, cur=None):

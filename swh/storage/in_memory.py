@@ -463,10 +463,18 @@ class Storage:
                   this revision
 
         date dictionaries have the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys 'revision_added' with associated
+            count as values
+
+                revision_added: New objects actually stored in db
+
         """
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
+        count = 0
         for revision in revisions:
             if revision['id'] not in self._revisions:
                 self._revisions[revision['id']] = rev = copy.deepcopy(revision)
@@ -477,6 +485,9 @@ class Storage:
                         rev.get('committer_date'))
                 self._objects[revision['id']].append(
                     ('revision', revision['id']))
+                count += 1
+
+        return {'revision_added': count}
 
     def revision_missing(self, revision_ids):
         """List revisions missing from storage

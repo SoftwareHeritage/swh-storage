@@ -871,13 +871,18 @@ class CommonTestStorage(TestStorageData):
         init_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([self.revision['id']], list(init_missing))
 
-        self.storage.revision_add([self.revision])
+        actual_result = self.storage.revision_add([self.revision])
+        self.assertEqual(actual_result, {'revision_added': 1})
 
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('revision', self.revision)])
+
+        # already there so nothing added
+        actual_result = self.storage.revision_add([self.revision])
+        self.assertEqual(actual_result, {'revision_added': 0})
 
     def test_revision_log(self):
         # given
