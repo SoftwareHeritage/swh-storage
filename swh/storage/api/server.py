@@ -127,8 +127,8 @@ def content_find():
 
 
 @app.route('/content/add', methods=['POST'])
-@timed
 @encode
+@timed
 @increment
 def content_add():
     return get_storage().content_add(**decode_request(request))
