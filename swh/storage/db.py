@@ -312,15 +312,8 @@ class Db(BaseDb):
             update_cols.append('metadata=%s')
             values.append(jsonize(updates.pop('metadata')))
         if 'snapshot' in updates:
-            # New 'snapshot' column
             update_cols.append('snapshot=%s')
             values.append(updates.pop('snapshot'))
-
-            # Old 'snapshot_id' column
-            update_cols.append('snapshot_id=snapshot.object_id')
-            from_ = 'FROM snapshot'
-            where.append('snapshot.id=%s')
-            where_values.append()
         assert not updates, 'Unknown fields: %r' % updates
         query = """UPDATE origin_visit
                     SET {update_cols}
@@ -425,6 +418,7 @@ class Db(BaseDb):
         query = """\
             SELECT %s
             FROM origin_visit
+            INNER JOIN snapshot ON (origin_visit.snapshot=snapshot.id)
             WHERE
                 origin = %%s AND snapshot is not null %s
             ORDER BY date DESC, visit DESC

@@ -1293,6 +1293,28 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data4),
                           ('origin_visit', data5)])
 
+    def test_origin_visit_update_missing_snapshot(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin)
+
+        origin_visit = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit1)
+
+        # when
+        self.storage.origin_visit_update(
+            origin_id, origin_visit['visit'],
+            snapshot=self.snapshot['id'])
+
+        # then
+        actual_origin_visit = self.storage.origin_visit_get_by(
+            origin_visit['origin'], origin_visit['visit'])
+        self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
+
+        # when
+        self.storage.snapshot_add(self.snapshot)
+        self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
+
     def test_origin_visit_get_by(self):
         origin_id = self.storage.origin_add_one(self.origin2)
         origin_id2 = self.storage.origin_add_one(self.origin)
@@ -1866,6 +1888,59 @@ class CommonTestStorage(TestStorageData):
             origin_id, visit3_id, snapshot=self.complete_snapshot['id'])
         self.assertEqual(self.complete_snapshot,
                          self.storage.snapshot_get_latest(origin_id))
+
+    def test_snapshot_get_latest__missing_snapshot(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Two visits, both with no snapshot: latest snapshot is None
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Add unknown snapshot to visit1, latest snapshot = None
+        self.storage.origin_visit_update(
+            origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Status filter: both visits are status=ongoing, so no snapshot
+        # returned
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_id, visit1_id, status='full')
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+        # Actually add the snapshot and check status filter again
+        self.storage.snapshot_add(self.complete_snapshot)
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id)
+        )
+
+        # Add unknown snapshot to visit2 and check that the old snapshot
+        # is still returned
+        self.storage.origin_visit_update(
+            origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id))
+
+        # Actually add that snapshot and check that the new one is returned
+        self.storage.snapshot_add(self.empty_snapshot)
+        self.assertEqual(
+            self.empty_snapshot,
+            self.storage.snapshot_get_latest(origin_id)
+        )
 
     def test_snapshot_get_latest__legacy_add(self):
         origin_id = self.storage.origin_add_one(self.origin)

@@ -782,18 +782,6 @@ as $$
   group by target_type;
 $$;
 
-create or replace function swh_snapshot_get_by_origin_visit(origin_id bigint, visit_id bigint)
-  returns snapshot.id%type
-  language sql
-  stable
-as $$
-  select snapshot.id
-  from origin_visit
-  left join snapshot
-  on snapshot.object_id = origin_visit.snapshot_id
-  where origin_visit.origin=origin_id and origin_visit.visit=visit_id;
-$$;
-
 -- Absolute path: directory reference + complete path relative to it
 create type content_dir as (
     directory  sha1_git,
