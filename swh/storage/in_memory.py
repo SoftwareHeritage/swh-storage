@@ -570,12 +570,13 @@ class Storage:
             self.journal_writer.write_additions('release', releases)
 
         for rel in releases:
-            rel = copy.deepcopy(rel)
-            rel['date'] = normalize_timestamp(rel['date'])
-            self._person_add(rel['author'])
-            self._objects[rel['id']].append(
-                ('release', rel['id']))
-            self._releases[rel['id']] = rel
+            if rel['id'] not in self._releases:
+                rel = copy.deepcopy(rel)
+                rel['date'] = normalize_timestamp(rel['date'])
+                self._person_add(rel['author'])
+                self._objects[rel['id']].append(
+                    ('release', rel['id']))
+                self._releases[rel['id']] = rel
 
     def release_missing(self, releases):
         """List releases missing from storage
