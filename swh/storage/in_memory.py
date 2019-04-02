@@ -81,13 +81,11 @@ class Storage:
             HashCollision in case of collision
 
         Returns:
-            Summary dict of keys 'content_added'
-            'skipped_content_added', 'content_bytes_added' with
-            associated count as values
+            Summary dict with the following key and associated values:
 
-                content_added: New contents added
-                content_bytes_added: Sum of the contents' length data
-                skipped_content_added: New skipped contents (no data) added
+                content:add: New contents added
+                content_bytes:add: Sum of the contents' length data
+                skipped_content:add: New skipped contents (no data) added
 
         """
         if self.journal_writer:
@@ -124,9 +122,9 @@ class Storage:
                 self.objstorage.add(content_data, content['sha1'])
 
         return {
-            'content_added': count_content_added,
-            'content_bytes_added': count_content_bytes_added,
-            'skipped_content_added': count_contents - count_content_added,
+            'content:add': count_content_added,
+            'content:bytes:add': count_content_bytes_added,
+            'skipped_content:add': count_contents - count_content_added,
         }
 
     def content_get(self, ids):
@@ -321,10 +319,9 @@ class Storage:
                         directory entry
                       - perms (int): entry permissions
         Returns:
-            Summary dict of keys 'directory_added' with associated
-            count as values:
+            Summary dict of keys with associated count as values:
 
-                directory_added: Number of directories actually added
+                directory:add: Number of directories actually added
 
         """
         if self.journal_writer:
@@ -338,7 +335,7 @@ class Storage:
                 self._objects[directory['id']].append(
                     ('directory', directory['id']))
 
-        return {'directory_added': count}
+        return {'directory:add': count}
 
     def directory_missing(self, directory_ids):
         """List directories missing from storage
@@ -465,8 +462,7 @@ class Storage:
         date dictionaries have the form defined in :mod:`swh.model`.
 
         Returns:
-            Summary dict of keys 'revision_added' with associated
-            count as values
+            Summary dict of keys with associated count as values
 
                 revision_added: New objects actually stored in db
 
@@ -487,7 +483,7 @@ class Storage:
                     ('revision', revision['id']))
                 count += 1
 
-        return {'revision_added': count}
+        return {'revision:add': count}
 
     def revision_missing(self, revision_ids):
         """List revisions missing from storage
@@ -567,10 +563,9 @@ class Storage:
         the date dictionary has the form defined in :mod:`swh.model`.
 
         Returns:
-            Summary dict of keys 'release_added' with associated count
-            as values
+            Summary dict of keys with associated count as values
 
-                release_added: New objects contents actually stored in db
+                release:add: New objects contents actually stored in db
 
         """
         if self.journal_writer:
@@ -587,7 +582,7 @@ class Storage:
                 self._releases[rel['id']] = rel
                 count += 1
 
-        return {'release_added': count}
+        return {'release:add': count}
 
     def release_missing(self, releases):
         """List releases missing from storage
@@ -639,8 +634,7 @@ class Storage:
             ValueError: if the origin's or visit's identifier does not exist.
 
         Returns:
-            Summary dict of keys 'snapshot_added' with associated
-            count as values
+            Summary dict of keys with associated count as values
 
                 snapshot_added: Count of object actually stored in db
 
@@ -672,7 +666,7 @@ class Storage:
             self.origin_visit_update(
                 origin, visit, snapshot=snapshots[0]['id'])
 
-        return {'snapshot_added': count}
+        return {'snapshot:add': count}
 
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id

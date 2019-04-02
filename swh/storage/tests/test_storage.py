@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -554,9 +554,9 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.content_add([cont])
         self.assertEqual(actual_result, {
-            'content_added': 1,
-            'content_bytes_added': cont['length'],
-            'skipped_content_added': 0
+            'content:add': 1,
+            'content:bytes:add': cont['length'],
+            'skipped_content:add': 0
         })
 
         self.assertEqual(list(self.storage.content_get([cont['sha1']])),
@@ -572,9 +572,9 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.content_add([cont, cont])
         self.assertEqual(actual_result, {
-            'content_added': 1,
-            'content_bytes_added': cont['length'],
-            'skipped_content_added': 0
+            'content:add': 1,
+            'content:bytes:add': cont['length'],
+            'skipped_content:add': 0
         })
 
     def test_content_add_different_input(self):
@@ -583,9 +583,9 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.content_add([cont, cont2])
         self.assertEqual(actual_result, {
-            'content_added': 2,
-            'content_bytes_added': cont['length'] + cont2['length'],
-            'skipped_content_added': 0
+            'content:add': 2,
+            'content:bytes:add': cont['length'] + cont2['length'],
+            'skipped_content:add': 0
         })
 
     def test_content_add_db(self):
@@ -594,9 +594,9 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont])
 
         self.assertEqual(actual_result, {
-            'content_added': 1,
-            'content_bytes_added': cont['length'],
-            'skipped_content_added': 0
+            'content:add': 1,
+            'content:bytes:add': cont['length'],
+            'skipped_content:add': 0
         })
 
         if hasattr(self.storage, 'objstorage'):
@@ -638,9 +638,9 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont, cont, cont2])
 
         self.assertEqual(actual_result, {
-            'content_added': 0,
-            'content_bytes_added': 0,
-            'skipped_content_added': 2,
+            'content:add': 0,
+            'content:bytes:add': 0,
+            'skipped_content:add': 2,
         })
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
@@ -763,7 +763,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.dir['id']], init_missing)
 
         actual_result = self.storage.directory_add([self.dir])
-        self.assertEqual(actual_result, {'directory_added': 1})
+        self.assertEqual(actual_result, {'directory:add': 1})
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir)])
@@ -781,7 +781,7 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.directory_add(
             [self.dir, self.dir2, self.dir3])
-        self.assertEqual(actual_result, {'directory_added': 3})
+        self.assertEqual(actual_result, {'directory:add': 3})
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir),
@@ -811,7 +811,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.dir3['id']], init_missing)
 
         actual_result = self.storage.directory_add([self.dir3])
-        self.assertEqual(actual_result, {'directory_added': 1})
+        self.assertEqual(actual_result, {'directory:add': 1})
 
         expected_entries = [
             {
@@ -872,7 +872,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.revision['id']], list(init_missing))
 
         actual_result = self.storage.revision_add([self.revision])
-        self.assertEqual(actual_result, {'revision_added': 1})
+        self.assertEqual(actual_result, {'revision:add': 1})
 
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
@@ -882,7 +882,7 @@ class CommonTestStorage(TestStorageData):
 
         # already there so nothing added
         actual_result = self.storage.revision_add([self.revision])
-        self.assertEqual(actual_result, {'revision_added': 0})
+        self.assertEqual(actual_result, {'revision:add': 0})
 
     def test_revision_log(self):
         # given
@@ -997,7 +997,7 @@ class CommonTestStorage(TestStorageData):
                          list(init_missing))
 
         actual_result = self.storage.release_add([self.release, self.release2])
-        self.assertEqual(actual_result, {'release_added': 2})
+        self.assertEqual(actual_result, {'release:add': 2})
 
         end_missing = self.storage.release_missing([self.release['id'],
                                                     self.release2['id']])
@@ -1009,7 +1009,7 @@ class CommonTestStorage(TestStorageData):
 
         # already present so nothing added
         actual_result = self.storage.release_add([self.release, self.release2])
-        self.assertEqual(actual_result, {'release_added': 0})
+        self.assertEqual(actual_result, {'release:add': 0})
 
     def test_release_get(self):
         # given
@@ -1489,7 +1489,7 @@ class CommonTestStorage(TestStorageData):
         visit_id = origin_visit1['visit']
 
         actual_result = self.storage.snapshot_add([self.empty_snapshot])
-        self.assertEqual(actual_result, {'snapshot_added': 1})
+        self.assertEqual(actual_result, {'snapshot:add': 1})
 
         self.storage.origin_visit_update(
             origin_id, visit_id, snapshot=self.empty_snapshot['id'])
@@ -1570,7 +1570,7 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.snapshot_add(
             origin_id, visit_id, self.complete_snapshot)
-        self.assertEqual(actual_result, {'snapshot_added': 1})
+        self.assertEqual(actual_result, {'snapshot:add': 1})
 
         by_id = self.storage.snapshot_get(self.complete_snapshot['id'])
         self.assertEqual(by_id, self.complete_snapshot)
@@ -1578,10 +1578,10 @@ class CommonTestStorage(TestStorageData):
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.complete_snapshot)
 
-
     def test_snapshot_add_many(self):
-        actual_result = self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
-        self.assertEqual(actual_result, {'snapshot_added': 2})
+        actual_result = self.storage.snapshot_add(
+            [self.snapshot, self.complete_snapshot])
+        self.assertEqual(actual_result, {'snapshot:add': 2})
 
         self.assertEqual(
             self.complete_snapshot,
@@ -1593,10 +1593,11 @@ class CommonTestStorage(TestStorageData):
 
     def test_snapshot_add_many_incremental(self):
         actual_result = self.storage.snapshot_add([self.complete_snapshot])
-        self.assertEqual(actual_result, {'snapshot_added': 1})
+        self.assertEqual(actual_result, {'snapshot:add': 1})
 
-        actual_result2 = self.storage.snapshot_add([self.snapshot, self.complete_snapshot])
-        self.assertEqual(actual_result2, {'snapshot_added': 1})
+        actual_result2 = self.storage.snapshot_add(
+            [self.snapshot, self.complete_snapshot])
+        self.assertEqual(actual_result2, {'snapshot:add': 1})
 
         self.assertEqual(
             self.complete_snapshot,
@@ -1614,7 +1615,7 @@ class CommonTestStorage(TestStorageData):
 
         actual_result = self.storage.snapshot_add(
             origin_id, visit_id, self.complete_snapshot)
-        self.assertEqual(actual_result, {'snapshot_added': 1})
+        self.assertEqual(actual_result, {'snapshot:add': 1})
 
         snp_id = self.complete_snapshot['id']
         snp_size = self.storage.snapshot_count_branches(snp_id)
