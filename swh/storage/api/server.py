@@ -50,8 +50,28 @@ def increment(f):
     @wraps(f)
     def d(*a, **kw):
         r = f(*a, **kw)
-        statsd.increment('swh_storage_request_object_count',
-                         r, tags={'endpoint': f.__name__})
+        for key, value in r.items():
+            metric_type = key.split(':')
+            _length = len(metric_type)
+            if _length == 2:
+                object_type, operation = metric_type
+                metric_name = 'swh_storage_%s_%s' % (
+                    object_type, operation)
+            elif _length == 3:
+                object_type, operation, unit = metric_type
+                metric_name = 'swh_storage_%s_%s_%s' % (
+                    object_type, operation, unit)
+            else:
+                logging.warn('Unknown metric {%s: %s}, skipping' % (
+                    key, value))
+                continue
+
+            statsd.increment(
+                metric_name, value, tags={
+                    'endpoint': f.__name__,
+                    'object_type': object_type,
+                    'operation': operation,
+                })
         return r
 
     return d
