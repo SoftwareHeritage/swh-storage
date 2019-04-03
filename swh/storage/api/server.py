@@ -47,14 +47,37 @@ def encode(f):
     return d
 
 
-def send_metric(value, endpoint, object_type, operation,
-                metric_name=OPERATIONS_METRIC):
-    """Send statsd metric
+def send_metric(metric, count, method_name):
+    """Send statsd metric with count for method `method_name`
+
+    If count is 0, the metric is discarded.  If the metric is not
+    parseable, the metric is discarded with a log message.
+
+    Args:
+        metric (str): Metric's name (e.g content:add, content:add:bytes)
+        count (int): Associated value for the metric
+        method_name (str): Method's name
 
     """
+    if count = 0:
+        return
+
+    metric_type = metric.split(':')
+    _length = len(metric_type)
+    if _length == 2:
+        object_type, operation = metric_type
+        metric_name = OPERATIONS_METRIC
+    elif _length == 3:
+        object_type, operation, unit = metric_type
+        metric_name = OPERATIONS_UNIT_METRIC.format(unit=unit)
+    else:
+        logging.warn('Unknown metric {%s: %s}, skipping' % (
+            metric, count))
+        return False
+
     statsd.increment(
-        metric_name, value, tags={
-            'endpoint': endpoint,
+        metric_name, count, tags={
+            'endpoint': method_name,
             'object_type': object_type,
             'operation': operation,
         })
@@ -67,25 +90,8 @@ def process_metrics(f):
     @wraps(f)
     def d(*a, **kw):
         r = f(*a, **kw)
-        for key, value in r.items():
-            if value == 0:
-                continue
-            metric_type = key.split(':')
-            _length = len(metric_type)
-            if _length == 2:
-                object_type, operation = metric_type
-                metric_name = OPERATIONS_METRIC
-            elif _length == 3:
-                object_type, operation, unit = metric_type
-                metric_name = OPERATIONS_UNIT_METRIC.format(unit=unit)
-            else:
-                logging.warn('Unknown metric {%s: %s}, skipping' % (
-                    key, value))
-                continue
-
-            send_metric(
-                metric_name=metric_name, value=value, endpoint=f.__name__,
-                object_type=object_type, operation=operation)
+        for metric, count in r.items():
+            send_metric(metric=metric, count=count, method_name=f.__name__)
 
         return r
 
@@ -343,7 +349,7 @@ def origin_count():
 @encode
 def origin_add():
     origins = get_storage().origin_add(**decode_request(request))
-    send_metric(len(origins), 'origin_add', 'origin', 'add')
+    send_metric('origin:add', count=len(origins), method_name='origin_add')
     return origins
 
 
@@ -352,7 +358,7 @@ def origin_add():
 @encode
 def origin_add_one():
     origin = get_storage().origin_add_one(**decode_request(request))
-    send_metric(1, 'origin_add_one', 'origin', 'add')
+    send_metric('origin:add', count=1, method_name='origin_add_one')
     return origin
 
 
@@ -374,10 +380,10 @@ def origin_visit_get_by():
 @timed
 @encode
 def origin_visit_add():
-    r = get_storage().origin_visit_add(
+    origin_visit = get_storage().origin_visit_add(
         **decode_request(request))
-    send_metric(1, 'origin_visit_add', 'origin_visit', 'add')
-    return r
+    send_metric('origin_visit:add', count=1, method_name='origin_visit')
+    return origin_visit
 
 
 @app.route('/origin/visit/update', methods=['POST'])
@@ -425,7 +431,7 @@ def tool_get():
 @encode
 def tool_add():
     tools = get_storage().tool_add(**decode_request(request))
-    send_metric(len(tools), 'tool_add', 'tool', 'add')
+    send_metric('tool:add', count=len(tools), method_name='tool_add')
     return tools
 
 
@@ -435,7 +441,8 @@ def tool_add():
 def origin_metadata_add():
     origin_metadata = get_storage().origin_metadata_add(
         **decode_request(request))
-    send_metric(1, 'origin_metadata_add', 'origin_metadata', 'add')
+    send_metric(
+        'origin_metadata:add', count=1, method_name='origin_metadata_add')
     return origin_metadata
 
 
@@ -452,7 +459,8 @@ def origin_metadata_get_by():
 def metadata_provider_add():
     metadata_provider = get_storage().metadata_provider_add(**decode_request(
         request))
-    send_metric(1, 'metadata_provider_add', 'metadata_provider', 'add')
+    send_metric(
+        'metadata_provider:add', count=1, method_name='metadata_provider')
     return metadata_provider
 
 
