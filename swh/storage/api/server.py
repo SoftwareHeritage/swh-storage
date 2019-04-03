@@ -51,6 +51,8 @@ def process_metrics(f):
     def d(*a, **kw):
         r = f(*a, **kw)
         for key, value in r.items():
+            if value == 0:
+                continue
             metric_type = key.split(':')
             _length = len(metric_type)
             if _length == 2:
