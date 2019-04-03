@@ -46,8 +46,8 @@ def encode(f):
     return d
 
 
-def send_metrics(value, endpoint, object_type, operation,
-                 metric_name=OPERATIONS_METRIC):
+def send_metric(value, endpoint, object_type, operation,
+                metric_name=OPERATIONS_METRIC):
     """Send statsd metric
 
     """
@@ -82,7 +82,7 @@ def process_metrics(f):
                     key, value))
                 continue
 
-            send_metrics(
+            send_metric(
                 metric_name=metric_name, value=value, endpoint=f.__name__,
                 object_type=object_type, operation=operation)
 
@@ -342,7 +342,7 @@ def origin_count():
 @encode
 def origin_add():
     origins = get_storage().origin_add(**decode_request(request))
-    send_metrics(len(origins), 'origin_add', 'origin', 'add')
+    send_metric(len(origins), 'origin_add', 'origin', 'add')
     return origins
 
 
@@ -351,7 +351,7 @@ def origin_add():
 @encode
 def origin_add_one():
     origin = get_storage().origin_add_one(**decode_request(request))
-    send_metrics(1, 'origin_add_one', 'origin', 'add')
+    send_metric(1, 'origin_add_one', 'origin', 'add')
     return origin
 
 
@@ -375,7 +375,7 @@ def origin_visit_get_by():
 def origin_visit_add():
     r = get_storage().origin_visit_add(
         **decode_request(request))
-    send_metrics(1, 'origin_visit_add', 'origin_visit', 'add')
+    send_metric(1, 'origin_visit_add', 'origin_visit', 'add')
     return r
 
 
@@ -424,7 +424,7 @@ def tool_get():
 @encode
 def tool_add():
     tools = get_storage().tool_add(**decode_request(request))
-    send_metrics(len(tools), 'tool_add', 'tool', 'add')
+    send_metric(len(tools), 'tool_add', 'tool', 'add')
     return tools
 
 
@@ -434,7 +434,7 @@ def tool_add():
 def origin_metadata_add():
     origin_metadata = get_storage().origin_metadata_add(
         **decode_request(request))
-    send_metrics(1, 'origin_metadata_add', 'origin_metadata', 'add')
+    send_metric(1, 'origin_metadata_add', 'origin_metadata', 'add')
     return origin_metadata
 
 
@@ -451,7 +451,7 @@ def origin_metadata_get_by():
 def metadata_provider_add():
     metadata_provider = get_storage().metadata_provider_add(**decode_request(
         request))
-    send_metrics(1, 'metadata_provider_add', 'metadata_provider', 'add')
+    send_metric(1, 'metadata_provider_add', 'metadata_provider', 'add')
     return metadata_provider
 
 
