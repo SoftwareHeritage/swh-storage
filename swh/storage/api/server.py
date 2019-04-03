@@ -417,33 +417,6 @@ def fetch_history_end():
         get_storage().fetch_history_end(**decode_request(request)))
 
 
-@app.route('/entity/add', methods=['POST'])
-@timed
-def entity_add():
-    return encode_data(
-        get_storage().entity_add(**decode_request(request)))
-
-
-@app.route('/entity/get', methods=['POST'])
-@timed
-def entity_get():
-    return encode_data(
-        get_storage().entity_get(**decode_request(request)))
-
-
-@app.route('/entity', methods=['GET'])
-@timed
-def entity_get_one():
-    return encode_data(get_storage().entity_get_one(request.args['uuid']))
-
-
-@app.route('/entity/from_lister_metadata', methods=['POST'])
-@timed
-def entity_from_lister_metadata():
-    return encode_data(get_storage().entity_get_from_lister_metadata(
-        **decode_request(request)))
-
-
 @app.route('/tool/data', methods=['POST'])
 @timed
 def tool_get():
