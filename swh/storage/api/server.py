@@ -58,9 +58,11 @@ def send_metric(metric, count, method_name):
         count (int): Associated value for the metric
         method_name (str): Method's name
 
+    Returns:
+        Bool to explicit if metric has been set or not
     """
-    if count = 0:
-        return
+    if count == 0:
+        return False
 
     metric_type = metric.split(':')
     _length = len(metric_type)
@@ -71,7 +73,7 @@ def send_metric(metric, count, method_name):
         object_type, operation, unit = metric_type
         metric_name = OPERATIONS_UNIT_METRIC.format(unit=unit)
     else:
-        logging.warn('Unknown metric {%s: %s}, skipping' % (
+        logging.warning('Skipping unknown metric {%s: %s}' % (
             metric, count))
         return False
 
@@ -81,6 +83,7 @@ def send_metric(metric, count, method_name):
             'object_type': object_type,
             'operation': operation,
         })
+    return True
 
 
 def process_metrics(f):
