@@ -21,6 +21,9 @@ app = SWHServerAPIApp(__name__)
 storage = None
 
 
+MAIN_METRIC_OPERATIONS_TOTAL = 'swh_storage_operations_total'
+
+
 def timed(f):
     """Time that function!
 
@@ -57,7 +60,7 @@ def process_metrics(f):
             _length = len(metric_type)
             if _length == 2:
                 object_type, operation = metric_type
-                metric_name = 'swh_storage_operations_total'
+                metric_name = MAIN_METRIC_OPERATIONS_TOTAL
             elif _length == 3:
                 object_type, operation, unit = metric_type
                 metric_name = 'swh_storage_operations_%s_total' % unit
@@ -325,14 +328,31 @@ def origin_count():
 
 @app.route('/origin/add_multi', methods=['POST'])
 @timed
+@encode
 def origin_add():
-    return encode_data(get_storage().origin_add(**decode_request(request)))
+    origins = get_storage().origin_add(**decode_request(request))
+    statsd.process_metrics(
+        MAIN_METRIC_OPERATIONS_TOTAL, len(origins), tags={
+            'endpoint': 'origin_add',
+            'object_type': 'origin',
+            'operation': 'add',
+        })
+    return origins
 
 
 @app.route('/origin/add', methods=['POST'])
 @timed
+@encode
 def origin_add_one():
-    return encode_data(get_storage().origin_add_one(**decode_request(request)))
+    origin = get_storage().origin_add_one(**decode_request(request))
+    statsd.process_metrics(
+        MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
+            'endpoint': 'origin_add_one',
+            'object_type': 'origin',
+            'operation': 'add',
+        })
+
+    return origin
 
 
 @app.route('/origin/visit/get', methods=['POST'])
@@ -356,7 +376,7 @@ def origin_visit_add():
     r = get_storage().origin_visit_add(
         **decode_request(request))
     statsd.process_metrics(
-        metric_name, 1, tags={
+        MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
             'endpoint': 'origin_visit_add',
             'object_type': 'origin_visit',
             'operation': 'add',
