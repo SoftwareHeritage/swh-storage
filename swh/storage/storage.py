@@ -217,12 +217,12 @@ class Storage():
                         from . import HashCollision
                         if e.diag.sqlstate == '23505' and \
                                 e.diag.table_name == 'content':
-                            constaint_to_hash_name = {
+                            constraint_to_hash_name = {
                                 'content_pkey': 'sha1',
                                 'content_sha1_git_idx': 'sha1_git',
                                 'content_sha256_idx': 'sha256',
                                 }
-                            colliding_hash_name = constaint_to_hash_name \
+                            colliding_hash_name = constraint_to_hash_name \
                                 .get(e.diag.constraint_name)
                             raise HashCollision(colliding_hash_name)
                         else:
