@@ -43,7 +43,7 @@ def encode(f):
     return d
 
 
-def increment(f):
+def process_metrics(f):
     """Increment object counters for the decorated function.
 
     """
@@ -66,7 +66,7 @@ def increment(f):
                     key, value))
                 continue
 
-            statsd.increment(
+            statsd.process_metrics(
                 metric_name, value, tags={
                     'endpoint': f.__name__,
                     'object_type': object_type,
@@ -134,7 +134,7 @@ def content_find():
 @app.route('/content/add', methods=['POST'])
 @encode
 @timed
-@increment
+@process_metrics
 def content_add():
     return get_storage().content_add(**decode_request(request))
 
@@ -175,7 +175,7 @@ def directory_missing():
 @app.route('/directory/add', methods=['POST'])
 @encode
 @timed
-@increment
+@process_metrics
 def directory_add():
     return get_storage().directory_add(**decode_request(request))
 
@@ -197,7 +197,7 @@ def directory_ls():
 @app.route('/revision/add', methods=['POST'])
 @encode
 @timed
-@increment
+@process_metrics
 def revision_add():
     return get_storage().revision_add(**decode_request(request))
 
@@ -231,7 +231,7 @@ def revision_missing():
 @app.route('/release/add', methods=['POST'])
 @encode
 @timed
-@increment
+@process_metrics
 def release_add():
     return get_storage().release_add(**decode_request(request))
 
@@ -259,7 +259,7 @@ def object_find_by_sha1_git():
 @app.route('/snapshot/add', methods=['POST'])
 @encode
 @timed
-@increment
+@process_metrics
 def snapshot_add():
     return get_storage().snapshot_add(**decode_request(request))
 
