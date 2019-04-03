@@ -69,7 +69,7 @@ def process_metrics(f):
                     key, value))
                 continue
 
-            statsd.process_metrics(
+            statsd.increment(
                 metric_name, value, tags={
                     'endpoint': f.__name__,
                     'object_type': object_type,
@@ -331,7 +331,7 @@ def origin_count():
 @encode
 def origin_add():
     origins = get_storage().origin_add(**decode_request(request))
-    statsd.process_metrics(
+    statsd.increment(
         MAIN_METRIC_OPERATIONS_TOTAL, len(origins), tags={
             'endpoint': 'origin_add',
             'object_type': 'origin',
@@ -345,7 +345,7 @@ def origin_add():
 @encode
 def origin_add_one():
     origin = get_storage().origin_add_one(**decode_request(request))
-    statsd.process_metrics(
+    statsd.increment(
         MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
             'endpoint': 'origin_add_one',
             'object_type': 'origin',
@@ -375,7 +375,7 @@ def origin_visit_get_by():
 def origin_visit_add():
     r = get_storage().origin_visit_add(
         **decode_request(request))
-    statsd.process_metrics(
+    statsd.increment(
         MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
             'endpoint': 'origin_visit_add',
             'object_type': 'origin_visit',
@@ -429,7 +429,7 @@ def tool_get():
 @encode
 def tool_add():
     tools = get_storage().tool_add(**decode_request(request))
-    statsd.process_metrics(
+    statsd.increment(
         MAIN_METRIC_OPERATIONS_TOTAL, len(tools), tags={
             'endpoint': 'tool_add',
             'object_type': 'tool',
@@ -444,7 +444,7 @@ def tool_add():
 def origin_metadata_add():
     origin_metadata = get_storage().origin_metadata_add(
         **decode_request(request))
-    statsd.process_metrics(
+    statsd.increment(
         MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
             'endpoint': 'origin_metadata_add',
             'object_type': 'origin_metadata',
@@ -466,7 +466,7 @@ def origin_metadata_get_by():
 def metadata_provider_add():
     metadata_provider = get_storage().metadata_provider_add(**decode_request(
         request))
-    statsd.process_metrics(
+    statsd.increment(
         MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
             'endpoint': 'metadata_provider_add',
             'object_type': 'metadata_provider',
