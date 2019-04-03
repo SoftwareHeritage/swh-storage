@@ -433,9 +433,17 @@ def tool_add():
 
 @app.route('/origin/metadata/add', methods=['POST'])
 @timed
+@encode
 def origin_metadata_add():
-    return encode_data(get_storage().origin_metadata_add(**decode_request(
-                                                       request)))
+    origin_metadata = get_storage().origin_metadata_add(
+        **decode_request(request))
+    statsd.process_metrics(
+        MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
+            'endpoint': 'origin_metadata_add',
+            'object_type': 'origin_metadata',
+            'operation': 'add',
+        })
+    return origin_metadata
 
 
 @app.route('/origin/metadata/get', methods=['POST'])
@@ -447,9 +455,17 @@ def origin_metadata_get_by():
 
 @app.route('/provider/add', methods=['POST'])
 @timed
+@encode
 def metadata_provider_add():
-    return encode_data(get_storage().metadata_provider_add(**decode_request(
-                                                       request)))
+    metadata_provider = get_storage().metadata_provider_add(**decode_request(
+        request))
+    statsd.process_metrics(
+        MAIN_METRIC_OPERATIONS_TOTAL, 1, tags={
+            'endpoint': 'metadata_provider_add',
+            'object_type': 'metadata_provider',
+            'operation': 'add',
+        })
+    return metadata_provider
 
 
 @app.route('/provider/get', methods=['POST'])
