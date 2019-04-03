@@ -351,9 +351,17 @@ def origin_visit_get_by():
 
 @app.route('/origin/visit/add', methods=['POST'])
 @timed
+@encode
 def origin_visit_add():
-    return encode_data(get_storage().origin_visit_add(
-        **decode_request(request)))
+    r = get_storage().origin_visit_add(
+        **decode_request(request))
+    statsd.process_metrics(
+        metric_name, 1, tags={
+            'endpoint': 'origin_visit_add',
+            'object_type': 'origin_visit',
+            'operation': 'add',
+        })
+    return r
 
 
 @app.route('/origin/visit/update', methods=['POST'])
