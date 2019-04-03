@@ -22,6 +22,8 @@ storage = None
 
 
 OPERATIONS_METRIC = 'swh_storage_operations_total'
+OPERATIONS_UNIT_METRIC = "swh_storage_operations_{unit}_total"
+DURATION_METRIC = "swh_storage_request_duration_seconds"
 
 
 def timed(f):
@@ -30,8 +32,7 @@ def timed(f):
     """
     @wraps(f)
     def d(*a, **kw):
-        with statsd.timed('swh_storage_request_duration_seconds',
-                          tags={'endpoint': f.__name__}):
+        with statsd.timed(DURATION_METRIC, tags={'endpoint': f.__name__}):
             return f(*a, **kw)
 
     return d
@@ -76,7 +77,7 @@ def process_metrics(f):
                 metric_name = OPERATIONS_METRIC
             elif _length == 3:
                 object_type, operation, unit = metric_type
-                metric_name = 'swh_storage_operations_%s_total' % unit
+                metric_name = OPERATIONS_UNIT_METRIC.format(unit=unit)
             else:
                 logging.warn('Unknown metric {%s: %s}, skipping' % (
                     key, value))
