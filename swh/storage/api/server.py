@@ -57,12 +57,10 @@ def process_metrics(f):
             _length = len(metric_type)
             if _length == 2:
                 object_type, operation = metric_type
-                metric_name = 'swh_storage_%s_%s' % (
-                    object_type, operation)
+                metric_name = 'swh_storage_operations_total'
             elif _length == 3:
                 object_type, operation, unit = metric_type
-                metric_name = 'swh_storage_%s_%s_%s' % (
-                    object_type, operation, unit)
+                metric_name = 'swh_storage_operations_%s_total' % unit
             else:
                 logging.warn('Unknown metric {%s: %s}, skipping' % (
                     key, value))
