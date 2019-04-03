@@ -426,9 +426,16 @@ def tool_get():
 
 @app.route('/tool/add', methods=['POST'])
 @timed
+@encode
 def tool_add():
-    return encode_data(get_storage().tool_add(
-        **decode_request(request)))
+    tools = get_storage().tool_add(**decode_request(request))
+    statsd.process_metrics(
+        MAIN_METRIC_OPERATIONS_TOTAL, len(tools), tags={
+            'endpoint': 'tool_add',
+            'object_type': 'tool',
+            'operation': 'add',
+        })
+    return tools
 
 
 @app.route('/origin/metadata/add', methods=['POST'])
