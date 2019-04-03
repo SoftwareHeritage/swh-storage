@@ -1138,19 +1138,20 @@ class Storage():
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
-        visit = db.origin_visit_add(origin, date, cur)
+        visit_id = db.origin_visit_add(origin_id, date, cur)
 
         if self.journal_writer:
             # We can write to the journal only after inserting to the
             # DB, because we want the id of the visit
             origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
+            del origin['id']
             self.journal_writer.write_addition('origin_visit', {
-                'origin': origin, 'date': date, 'visit': visit,
+                'origin': origin, 'date': date, 'visit': visit_id,
                 'status': 'ongoing', 'metadata': None, 'snapshot': None})
 
         return {
             'origin': origin_id,
-            'visit': visit,
+            'visit': visit_id,
         }
 
     @db_transaction()
@@ -1192,6 +1193,7 @@ class Storage():
             if self.journal_writer:
                 origin = self.origin_get(
                     [{'id': origin_id}], db=db, cur=cur)[0]
+                del origin['id']
                 self.journal_writer.write_update('origin_visit', {
                     **visit, **updates, 'origin': origin})
 
@@ -1450,12 +1452,10 @@ class Storage():
         if origin_id:
             return origin_id
 
-        origin['id'] = db.origin_add(origin['type'], origin['url'], cur)
-
         if self.journal_writer:
             self.journal_writer.write_addition('origin', origin)
 
-        return origin['id']
+        return db.origin_add(origin['type'], origin['url'], cur)
 
     @db_transaction()
     def fetch_history_start(self, origin_id, db=None, cur=None):

@@ -1049,6 +1049,8 @@ class Storage:
         assert 'id' not in origin
         origin_id = self._origin_id(origin)
         if origin_id is None:
+            if self.journal_writer:
+                self.journal_writer.write_addition('origin', origin)
             # origin ids are in the range [1, +inf[
             origin_id = len(self._origins) + 1
             origin['id'] = origin_id
@@ -1058,9 +1060,6 @@ class Storage:
             self._objects[key].append(('origin', origin_id))
         else:
             origin['id'] = origin_id
-
-        if self.journal_writer:
-            self.journal_writer.write_addition('origin', origin)
 
         return origin_id
 
@@ -1132,6 +1131,7 @@ class Storage:
 
             if self.journal_writer:
                 origin = self.origin_get([{'id': origin_id}])[0]
+                del origin['id']
                 self.journal_writer.write_addition('origin_visit', {
                     **visit, 'origin': origin})
 
@@ -1161,6 +1161,7 @@ class Storage:
             raise ValueError('Invalid origin_id or visit_id') from None
         if self.journal_writer:
             origin = self.origin_get([{'id': origin_id}])[0]
+            del origin['id']
             self.journal_writer.write_update('origin_visit', {
                 'origin': origin, 'visit': visit_id,
                 'status': status or visit['status'],

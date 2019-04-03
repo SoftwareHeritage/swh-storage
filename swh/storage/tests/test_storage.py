@@ -536,6 +536,8 @@ class CommonTestStorage(TestStorageData):
     class twice.
 
     """
+    maxDiff = None
+
     @staticmethod
     def normalize_entity(entity):
         entity = copy.deepcopy(entity)
@@ -1065,6 +1067,9 @@ class CommonTestStorage(TestStorageData):
         }])[0]
         self.assertEqual(actual_origin2['id'], origin2['id'])
 
+        del actual_origin['id']
+        del actual_origin2['id']
+
         self.assertEqual(list(self.journal_writer.objects),
                          [('origin', actual_origin),
                           ('origin', actual_origin2)])
@@ -1202,7 +1207,6 @@ class CommonTestStorage(TestStorageData):
                          }])
 
         expected_origin = self.origin2.copy()
-        expected_origin['id'] = origin_id
         data = {
             'origin': expected_origin,
             'date': self.date_visit2,
@@ -1297,9 +1301,7 @@ class CommonTestStorage(TestStorageData):
                          }])
 
         expected_origin = self.origin2.copy()
-        expected_origin['id'] = origin_id
         expected_origin2 = self.origin.copy()
-        expected_origin2['id'] = origin_id2
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit2,
@@ -1501,7 +1503,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov, self.empty_snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1539,7 +1540,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov, self.empty_snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1801,7 +1801,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov2, self.snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1864,7 +1863,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov2, self.snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
