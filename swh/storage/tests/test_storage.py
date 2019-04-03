@@ -2281,7 +2281,7 @@ class CommonTestStorage(TestStorageData):
         self.assertIsNone(actual_tool)  # does not exist
 
         # add it
-        actual_tools = list(self.storage.tool_add([tool]))
+        actual_tools = self.storage.tool_add([tool])
 
         self.assertEqual(len(actual_tools), 1)
         actual_tool = actual_tools[0]
@@ -2289,7 +2289,7 @@ class CommonTestStorage(TestStorageData):
         new_id = actual_tool.pop('id')
         self.assertEqual(actual_tool, tool)
 
-        actual_tools2 = list(self.storage.tool_add([tool]))
+        actual_tools2 = self.storage.tool_add([tool])
         actual_tool2 = actual_tools2[0]
         self.assertIsNotNone(actual_tool2)  # now it exists
         new_id2 = actual_tool2.pop('id')
@@ -2313,7 +2313,7 @@ class CommonTestStorage(TestStorageData):
             'configuration': {},
         }]
 
-        actual_tools = list(self.storage.tool_add(new_tools))
+        actual_tools = self.storage.tool_add(new_tools)
         self.assertEqual(len(actual_tools), 2)
 
         # order not guaranteed, so we iterate over results to check
@@ -2351,7 +2351,7 @@ class CommonTestStorage(TestStorageData):
             'configuration': {"type": "local", "context": "npm"},
         }
 
-        tools = list(self.storage.tool_add([tool]))
+        tools = self.storage.tool_add([tool])
         expected_tool = tools[0]
 
         # when
@@ -2407,7 +2407,7 @@ class CommonTestStorage(TestStorageData):
         origin_metadata0 = list(self.storage.origin_metadata_get_by(origin_id))
         self.assertTrue(len(origin_metadata0) == 0)
 
-        tools = list(self.storage.tool_add([self.metadata_tool]))
+        tools = self.storage.tool_add([self.metadata_tool])
         tool = tools[0]
 
         self.storage.metadata_provider_add(
@@ -2445,7 +2445,7 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                    })
-        tool = list(self.storage.tool_add([self.metadata_tool]))[0]
+        tool = self.storage.tool_add([self.metadata_tool])[0]
         # when adding for the same origin 2 metadatas
         self.storage.origin_metadata_add(
                     origin_id,
@@ -2534,7 +2534,7 @@ class CommonTestStorage(TestStorageData):
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)
-        tool = list(self.storage.tool_add([self.metadata_tool]))[0]
+        tool = self.storage.tool_add([self.metadata_tool])[0]
 
         # when adding for the same origin 2 metadatas
         self.storage.origin_metadata_add(

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1331,7 +1331,7 @@ class Storage:
               - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
-        Yields:
+        Returns:
             :class:`dict`: All the tools inserted in storage
             (including the internal ``id``). The order of the list is not
             guaranteed to match the order of the initial list.
@@ -1347,7 +1347,7 @@ class Storage:
                 self._tools[key] = record
             inserted.append(copy.deepcopy(self._tools[key]))
 
-        yield from inserted
+        return inserted
 
     def tool_get(self, tool):
         """Retrieve tool information.

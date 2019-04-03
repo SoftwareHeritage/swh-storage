@@ -1571,7 +1571,7 @@ class Storage():
         for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
             yield dict(zip(db.origin_metadata_get_cols, line))
 
-    @db_transaction_generator()
+    @db_transaction()
     def tool_add(self, tools, db=None, cur=None):
         """Add new tools to the storage.
 
@@ -1584,7 +1584,7 @@ class Storage():
               - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
-        Yields:
+        Returns:
             :class:`dict`: All the tools inserted in storage
             (including the internal ``id``). The order of the list is not
             guaranteed to match the order of the initial list.
@@ -1596,8 +1596,7 @@ class Storage():
                    cur)
 
         tools = db.tool_add_from_temp(cur)
-        for line in tools:
-            yield dict(zip(db.tool_cols, line))
+        return [dict(zip(db.tool_cols, line)) for line in tools]
 
     @db_transaction(statement_timeout=500)
     def tool_get(self, tool, db=None, cur=None):
