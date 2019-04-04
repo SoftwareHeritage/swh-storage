@@ -141,7 +141,7 @@ class Storage():
             db.mktemp('content', cur)
 
             db.copy_to(content_with_data, 'tmp_content',
-                       db.content_get_metadata_keys, cur)
+                       db.content_add_keys, cur)
 
             # move metadata in place
             try:
@@ -207,6 +207,10 @@ class Storage():
                 content:bytes:add: Sum of the contents' length data
                 skipped_content:add: New skipped contents (no data) added
         """
+        content = [dict(c.items()) for c in content]  # semi-shallow copy
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        for item in content:
+            item['ctime'] = now
 
         if self.journal_writer:
             for item in content:
@@ -306,6 +310,7 @@ class Storage():
                 - reason (str): if status = absent, the reason why
                 - origin (int): if status = absent, the origin we saw the
                   content in
+                - ctime (datetime): time of insertion in the archive
 
         Returns:
             Summary dict with the following key and associated values:

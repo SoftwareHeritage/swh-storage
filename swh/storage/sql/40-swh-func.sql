@@ -203,8 +203,8 @@ create or replace function swh_content_add()
     language plpgsql
 as $$
 begin
-    insert into content (sha1, sha1_git, sha256, blake2s256, length, status)
-        select distinct sha1, sha1_git, sha256, blake2s256, length, status from tmp_content;
+    insert into content (sha1, sha1_git, sha256, blake2s256, length, status, ctime)
+        select distinct sha1, sha1_git, sha256, blake2s256, length, status, ctime from tmp_content;
     return;
 end
 $$;

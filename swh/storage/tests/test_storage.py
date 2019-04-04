@@ -566,7 +566,11 @@ class CommonTestStorage(TestStorageData):
 
         expected_cont = cont.copy()
         del expected_cont['data']
-        self.assertEqual(list(self.journal_writer.objects),
+        journal_objects = list(self.journal_writer.objects)
+        for (obj_type, obj) in journal_objects:
+            if 'ctime' in obj:
+                del obj['ctime']
+        self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
     def test_content_add_same_input(self):
@@ -615,7 +619,11 @@ class CommonTestStorage(TestStorageData):
 
         expected_cont = cont.copy()
         del expected_cont['data']
-        self.assertEqual(list(self.journal_writer.objects),
+        journal_objects = list(self.journal_writer.objects)
+        for (obj_type, obj) in journal_objects:
+            if 'ctime' in obj:
+                del obj['ctime']
+        self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
     def test_content_add_collision(self):
@@ -635,6 +643,7 @@ class CommonTestStorage(TestStorageData):
     def test_content_add_metadata(self):
         cont = self.cont.copy()
         del cont['data']
+        cont['ctime'] = datetime.datetime.now()
 
         actual_result = self.storage.content_add_metadata([cont])
         self.assertEqual(actual_result, {
@@ -642,9 +651,11 @@ class CommonTestStorage(TestStorageData):
             'skipped_content:add': 0
         })
 
+        expected_cont = cont.copy()
+        del expected_cont['ctime']
         self.assertEqual(
             list(self.storage.content_get_metadata([cont['sha1']])),
-            [cont])
+            [expected_cont])
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('content', cont)])
@@ -652,6 +663,7 @@ class CommonTestStorage(TestStorageData):
     def test_content_add_metadata_same_input(self):
         cont = self.cont.copy()
         del cont['data']
+        cont['ctime'] = datetime.datetime.now()
 
         actual_result = self.storage.content_add_metadata([cont, cont])
         self.assertEqual(actual_result, {
@@ -662,8 +674,10 @@ class CommonTestStorage(TestStorageData):
     def test_content_add_metadata_different_input(self):
         cont = self.cont.copy()
         del cont['data']
+        cont['ctime'] = datetime.datetime.now()
         cont2 = self.cont2.copy()
         del cont2['data']
+        cont2['ctime'] = datetime.datetime.now()
 
         actual_result = self.storage.content_add_metadata([cont, cont2])
         self.assertEqual(actual_result, {
@@ -674,6 +688,7 @@ class CommonTestStorage(TestStorageData):
     def test_content_add_metadata_db(self):
         cont = self.cont.copy()
         del cont['data']
+        cont['ctime'] = datetime.datetime.now()
 
         actual_result = self.storage.content_add_metadata([cont])
 
@@ -700,6 +715,7 @@ class CommonTestStorage(TestStorageData):
     def test_content_add_metadata_collision(self):
         cont1 = self.cont.copy()
         del cont1['data']
+        cont1['ctime'] = datetime.datetime.now()
 
         # create (corrupted) content with same sha1{,_git} but != sha256
         cont1b = cont1.copy()
@@ -2208,6 +2224,25 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(counters['origin'], 1)
         self.assertEqual(counters['revision'], 1)
         self.assertEqual(counters['person'], 2)
+
+    def test_content_find_ctime(self):
+        cont = self.cont.copy()
+        del cont['data']
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        cont['ctime'] = now
+        self.storage.content_add_metadata([cont])
+
+        actually_present = self.storage.content_find({'sha1': cont['sha1']})
+
+        self.assertEqual(actually_present, {
+            'ctime': now,
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'blake2s256': cont['blake2s256'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
     def test_content_find_with_present_content(self):
         # 1. with something to find

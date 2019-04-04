@@ -84,7 +84,6 @@ class Storage:
             self._objects[content['sha1_git']].append(
                 ('content', content['sha1']))
             self._contents[key] = copy.deepcopy(content)
-            self._contents[key]['ctime'] = now()
             bisect.insort(self._sorted_sha1s, content['sha1'])
             count_contents += 1
             if self._contents[key]['status'] == 'visible':
@@ -133,6 +132,10 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
+        contents = [dict(c.items()) for c in contents]  # semi-shallow copy
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        for item in contents:
+            item['ctime'] = now
         return self._content_add(contents, with_data=True)
 
     def content_add_metadata(self, contents):
@@ -152,6 +155,7 @@ class Storage:
                 - reason (str): if status = absent, the reason why
                 - origin (int): if status = absent, the origin we saw the
                   content in
+                - ctime (datetime): time of insertion in the archive
 
         Raises:
             HashCollision in case of collision
