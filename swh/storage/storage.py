@@ -5,6 +5,7 @@
 
 
 from collections import defaultdict
+import copy
 from concurrent.futures import ThreadPoolExecutor
 import datetime
 import itertools
@@ -1426,6 +1427,7 @@ class Storage():
             list: given origins as dict updated with their id
 
         """
+        origins = copy.deepcopy(origins)
         for origin in origins:
             origin['id'] = self.origin_add_one(origin, db=db, cur=cur)
 
