@@ -175,7 +175,8 @@ class Db(BaseDb):
     def snapshot_get_by_origin_visit(self, origin_id, visit_id, cur=None):
         cur = self._cursor(cur)
         query = """\
-           SELECT swh_snapshot_get_by_origin_visit(%s, %s)
+           SELECT snapshot from origin_visit where
+           origin_visit.origin=%s and origin_visit.visit=%s;
         """
 
         cur.execute(query, (origin_id, visit_id))
@@ -311,15 +312,8 @@ class Db(BaseDb):
             update_cols.append('metadata=%s')
             values.append(jsonize(updates.pop('metadata')))
         if 'snapshot' in updates:
-            # New 'snapshot' column
             update_cols.append('snapshot=%s')
-            values.append(updates['snapshot'])
-
-            # Old 'snapshot_id' column
-            update_cols.append('snapshot_id=snapshot.object_id')
-            from_ = 'FROM snapshot'
-            where.append('snapshot.id=%s')
-            where_values.append(updates.pop('snapshot'))
+            values.append(updates.pop('snapshot'))
         assert not updates, 'Unknown fields: %r' % updates
         query = """UPDATE origin_visit
                     SET {update_cols}
@@ -355,13 +349,12 @@ class Db(BaseDb):
             args = (origin_id, limit)
 
         query = """\
-        SELECT %s,
-            (select id from snapshot where object_id = snapshot_id) as snapshot
+        SELECT %s
         FROM origin_visit
         WHERE origin=%%s %s
         order by visit asc
         limit %%s""" % (
-            ', '.join(self.origin_visit_get_cols[:-1]), extra_condition
+            ', '.join(self.origin_visit_get_cols), extra_condition
         )
 
         cur.execute(query, args)
@@ -382,12 +375,10 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query = """\
-            SELECT %s,
-                (select id from snapshot where object_id = snapshot_id)
-                as snapshot
+            SELECT %s
             FROM origin_visit
             WHERE origin = %%s AND visit = %%s
-            """ % (', '.join(self.origin_visit_get_cols[:-1]))
+            """ % (', '.join(self.origin_visit_get_cols))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
@@ -425,15 +416,14 @@ class Db(BaseDb):
                                        (tuple(allowed_statuses),)).decode()
 
         query = """\
-            SELECT %s,
-                (select id from snapshot where object_id = snapshot_id)
-                as snapshot
+            SELECT %s
             FROM origin_visit
+            INNER JOIN snapshot ON (origin_visit.snapshot=snapshot.id)
             WHERE
-                origin = %%s AND snapshot_id is not null %s
+                origin = %%s AND snapshot is not null %s
             ORDER BY date DESC, visit DESC
             LIMIT 1
-            """ % (', '.join(self.origin_visit_get_cols[:-1]), extra_clause)
+            """ % (', '.join(self.origin_visit_get_cols), extra_clause)
 
         cur.execute(query, (origin_id,))
         r = cur.fetchone()

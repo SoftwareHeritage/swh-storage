@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -536,6 +536,8 @@ class CommonTestStorage(TestStorageData):
     class twice.
 
     """
+    maxDiff = None
+
     @staticmethod
     def normalize_entity(entity):
         entity = copy.deepcopy(entity)
@@ -552,7 +554,13 @@ class CommonTestStorage(TestStorageData):
     def test_content_add(self):
         cont = self.cont
 
-        self.storage.content_add([cont])
+        actual_result = self.storage.content_add([cont])
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'content:bytes:add': cont['length'],
+            'skipped_content:add': 0
+        })
+
         self.assertEqual(list(self.storage.content_get([cont['sha1']])),
                          [{'sha1': cont['sha1'], 'data': cont['data']}])
 
@@ -561,10 +569,38 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects),
                          [('content', expected_cont)])
 
+    def test_content_add_same_input(self):
+        cont = self.cont
+
+        actual_result = self.storage.content_add([cont, cont])
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'content:bytes:add': cont['length'],
+            'skipped_content:add': 0
+        })
+
+    def test_content_add_different_input(self):
+        cont = self.cont
+        cont2 = self.cont2
+
+        actual_result = self.storage.content_add([cont, cont2])
+        self.assertEqual(actual_result, {
+            'content:add': 2,
+            'content:bytes:add': cont['length'] + cont2['length'],
+            'skipped_content:add': 0
+        })
+
     def test_content_add_db(self):
         cont = self.cont
 
-        self.storage.content_add([cont])
+        actual_result = self.storage.content_add([cont])
+
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'content:bytes:add': cont['length'],
+            'skipped_content:add': 0
+        })
+
         if hasattr(self.storage, 'objstorage'):
             self.assertIn(cont['sha1'], self.storage.objstorage)
         self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
@@ -601,7 +637,13 @@ class CommonTestStorage(TestStorageData):
         cont2 = self.skipped_cont2.copy()
         cont2['blake2s256'] = None
 
-        self.storage.content_add([cont, cont, cont2])
+        actual_result = self.storage.content_add([cont, cont, cont2])
+
+        self.assertEqual(actual_result, {
+            'content:add': 0,
+            'content:bytes:add': 0,
+            'skipped_content:add': 2,
+        })
 
         self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
                             'length, status, reason '
@@ -722,7 +764,9 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
 
-        self.storage.directory_add([self.dir])
+        actual_result = self.storage.directory_add([self.dir])
+        self.assertEqual(actual_result, {'directory:add': 1})
+
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir)])
 
@@ -737,7 +781,10 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
 
-        self.storage.directory_add([self.dir, self.dir2, self.dir3])
+        actual_result = self.storage.directory_add(
+            [self.dir, self.dir2, self.dir3])
+        self.assertEqual(actual_result, {'directory:add': 3})
+
         self.assertEqual(list(self.journal_writer.objects),
                          [('directory', self.dir),
                           ('directory', self.dir2),
@@ -765,7 +812,8 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir3['id']]))
         self.assertEqual([self.dir3['id']], init_missing)
 
-        self.storage.directory_add([self.dir3])
+        actual_result = self.storage.directory_add([self.dir3])
+        self.assertEqual(actual_result, {'directory:add': 1})
 
         expected_entries = [
             {
@@ -825,13 +873,18 @@ class CommonTestStorage(TestStorageData):
         init_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([self.revision['id']], list(init_missing))
 
-        self.storage.revision_add([self.revision])
+        actual_result = self.storage.revision_add([self.revision])
+        self.assertEqual(actual_result, {'revision:add': 1})
 
         end_missing = self.storage.revision_missing([self.revision['id']])
         self.assertEqual([], list(end_missing))
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('revision', self.revision)])
+
+        # already there so nothing added
+        actual_result = self.storage.revision_add([self.revision])
+        self.assertEqual(actual_result, {'revision:add': 0})
 
     def test_revision_log(self):
         # given
@@ -945,7 +998,8 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual([self.release['id'], self.release2['id']],
                          list(init_missing))
 
-        self.storage.release_add([self.release, self.release2])
+        actual_result = self.storage.release_add([self.release, self.release2])
+        self.assertEqual(actual_result, {'release:add': 2})
 
         end_missing = self.storage.release_missing([self.release['id'],
                                                     self.release2['id']])
@@ -954,6 +1008,10 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects),
                          [('release', self.release),
                           ('release', self.release2)])
+
+        # already present so nothing added
+        actual_result = self.storage.release_add([self.release, self.release2])
+        self.assertEqual(actual_result, {'release:add': 0})
 
     def test_release_get(self):
         # given
@@ -1008,6 +1066,9 @@ class CommonTestStorage(TestStorageData):
             'type': self.origin2['type'],
         }])[0]
         self.assertEqual(actual_origin2['id'], origin2['id'])
+
+        del actual_origin['id']
+        del actual_origin2['id']
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('origin', actual_origin),
@@ -1146,7 +1207,6 @@ class CommonTestStorage(TestStorageData):
                          }])
 
         expected_origin = self.origin2.copy()
-        expected_origin['id'] = origin_id
         data = {
             'origin': expected_origin,
             'date': self.date_visit2,
@@ -1241,9 +1301,7 @@ class CommonTestStorage(TestStorageData):
                          }])
 
         expected_origin = self.origin2.copy()
-        expected_origin['id'] = origin_id
         expected_origin2 = self.origin.copy()
-        expected_origin2['id'] = origin_id2
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit2,
@@ -1292,6 +1350,28 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data3),
                           ('origin_visit', data4),
                           ('origin_visit', data5)])
+
+    def test_origin_visit_update_missing_snapshot(self):
+        # given
+        origin_id = self.storage.origin_add_one(self.origin)
+
+        origin_visit = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit1)
+
+        # when
+        self.storage.origin_visit_update(
+            origin_id, origin_visit['visit'],
+            snapshot=self.snapshot['id'])
+
+        # then
+        actual_origin_visit = self.storage.origin_visit_get_by(
+            origin_visit['origin'], origin_visit['visit'])
+        self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
+
+        # when
+        self.storage.snapshot_add([self.snapshot])
+        self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
 
     def test_origin_visit_get_by(self):
         origin_id = self.storage.origin_add_one(self.origin2)
@@ -1410,7 +1490,9 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add(self.empty_snapshot)
+        actual_result = self.storage.snapshot_add([self.empty_snapshot])
+        self.assertEqual(actual_result, {'snapshot:add': 1})
+
         self.storage.origin_visit_update(
             origin_id, visit_id, snapshot=self.empty_snapshot['id'])
 
@@ -1421,7 +1503,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov, self.empty_snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1459,7 +1540,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov, self.empty_snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1488,7 +1568,9 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+        actual_result = self.storage.snapshot_add(
+            origin_id, visit_id, self.complete_snapshot)
+        self.assertEqual(actual_result, {'snapshot:add': 1})
 
         by_id = self.storage.snapshot_get(self.complete_snapshot['id'])
         self.assertEqual(by_id, self.complete_snapshot)
@@ -1496,13 +1578,44 @@ class CommonTestStorage(TestStorageData):
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
         self.assertEqual(by_ov, self.complete_snapshot)
 
+    def test_snapshot_add_many(self):
+        actual_result = self.storage.snapshot_add(
+            [self.snapshot, self.complete_snapshot])
+        self.assertEqual(actual_result, {'snapshot:add': 2})
+
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get(self.complete_snapshot['id']))
+
+        self.assertEqual(
+            self.snapshot,
+            self.storage.snapshot_get(self.snapshot['id']))
+
+    def test_snapshot_add_many_incremental(self):
+        actual_result = self.storage.snapshot_add([self.complete_snapshot])
+        self.assertEqual(actual_result, {'snapshot:add': 1})
+
+        actual_result2 = self.storage.snapshot_add(
+            [self.snapshot, self.complete_snapshot])
+        self.assertEqual(actual_result2, {'snapshot:add': 1})
+
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get(self.complete_snapshot['id']))
+
+        self.assertEqual(
+            self.snapshot,
+            self.storage.snapshot_get(self.snapshot['id']))
+
     def test_snapshot_add_count_branches(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit1)
         visit_id = origin_visit1['visit']
 
-        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+        actual_result = self.storage.snapshot_add(
+            origin_id, visit_id, self.complete_snapshot)
+        self.assertEqual(actual_result, {'snapshot:add': 1})
 
         snp_id = self.complete_snapshot['id']
         snp_size = self.storage.snapshot_count_branches(snp_id)
@@ -1638,7 +1751,7 @@ class CommonTestStorage(TestStorageData):
 
         self.journal_writer.objects[:] = []
 
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
 
         with self.assertRaises(ValueError):
             self.storage.origin_visit_update(
@@ -1667,7 +1780,7 @@ class CommonTestStorage(TestStorageData):
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit1)
         visit1_id = origin_visit1['visit']
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
         self.storage.origin_visit_update(
             origin_id, visit1_id, snapshot=self.snapshot['id'])
 
@@ -1679,7 +1792,7 @@ class CommonTestStorage(TestStorageData):
                                                       self.date_visit2)
         visit2_id = origin_visit2['visit']
 
-        self.storage.snapshot_add(self.snapshot)
+        self.storage.snapshot_add([self.snapshot])
         self.storage.origin_visit_update(
             origin_id, visit2_id, snapshot=self.snapshot['id'])
 
@@ -1688,7 +1801,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov2, self.snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1727,7 +1839,6 @@ class CommonTestStorage(TestStorageData):
                           ('snapshot', self.snapshot),
                           ('origin_visit', data2),
                           ('origin_visit', data3),
-                          ('snapshot', self.snapshot),
                           ('origin_visit', data4)])
 
     def test_snapshot_add_twice__legacy_add(self):
@@ -1752,7 +1863,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(by_ov2, self.snapshot)
 
         expected_origin = self.origin.copy()
-        expected_origin['id'] = origin_id
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit1,
@@ -1791,7 +1901,6 @@ class CommonTestStorage(TestStorageData):
                           ('snapshot', self.snapshot),
                           ('origin_visit', data2),
                           ('origin_visit', data3),
-                          ('snapshot', self.snapshot),
                           ('origin_visit', data4)])
 
     def test_snapshot_get_nonexistent(self):
@@ -1824,7 +1933,7 @@ class CommonTestStorage(TestStorageData):
         self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
 
         # Add snapshot to visit1, latest snapshot = visit 1 snapshot
-        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.snapshot_add([self.complete_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
         self.assertEqual(self.complete_snapshot,
@@ -1846,7 +1955,7 @@ class CommonTestStorage(TestStorageData):
         )
 
         # Add snapshot to visit2 and check that the new snapshot is returned
-        self.storage.snapshot_add(self.empty_snapshot)
+        self.storage.snapshot_add([self.empty_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
         self.assertEqual(self.empty_snapshot,
@@ -1861,11 +1970,64 @@ class CommonTestStorage(TestStorageData):
 
         # Add snapshot to visit3 (same date as visit2) and check that
         # the new snapshot is returned
-        self.storage.snapshot_add(self.complete_snapshot)
+        self.storage.snapshot_add([self.complete_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit3_id, snapshot=self.complete_snapshot['id'])
         self.assertEqual(self.complete_snapshot,
                          self.storage.snapshot_get_latest(origin_id))
+
+    def test_snapshot_get_latest__missing_snapshot(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Two visits, both with no snapshot: latest snapshot is None
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Add unknown snapshot to visit1, latest snapshot = None
+        self.storage.origin_visit_update(
+            origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+
+        # Status filter: both visits are status=ongoing, so no snapshot
+        # returned
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_id, visit1_id, status='full')
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_id,
+                                             allowed_statuses=['full']),
+        )
+
+        # Actually add the snapshot and check status filter again
+        self.storage.snapshot_add([self.complete_snapshot])
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id)
+        )
+
+        # Add unknown snapshot to visit2 and check that the old snapshot
+        # is still returned
+        self.storage.origin_visit_update(
+            origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_id))
+
+        # Actually add that snapshot and check that the new one is returned
+        self.storage.snapshot_add([self.empty_snapshot])
+        self.assertEqual(
+            self.empty_snapshot,
+            self.storage.snapshot_get_latest(origin_id)
+        )
 
     def test_snapshot_get_latest__legacy_add(self):
         origin_id = self.storage.origin_add_one(self.origin)
@@ -2117,7 +2279,7 @@ class CommonTestStorage(TestStorageData):
         self.assertIsNone(actual_tool)  # does not exist
 
         # add it
-        actual_tools = list(self.storage.tool_add([tool]))
+        actual_tools = self.storage.tool_add([tool])
 
         self.assertEqual(len(actual_tools), 1)
         actual_tool = actual_tools[0]
@@ -2125,7 +2287,7 @@ class CommonTestStorage(TestStorageData):
         new_id = actual_tool.pop('id')
         self.assertEqual(actual_tool, tool)
 
-        actual_tools2 = list(self.storage.tool_add([tool]))
+        actual_tools2 = self.storage.tool_add([tool])
         actual_tool2 = actual_tools2[0]
         self.assertIsNotNone(actual_tool2)  # now it exists
         new_id2 = actual_tool2.pop('id')
@@ -2149,7 +2311,7 @@ class CommonTestStorage(TestStorageData):
             'configuration': {},
         }]
 
-        actual_tools = list(self.storage.tool_add(new_tools))
+        actual_tools = self.storage.tool_add(new_tools)
         self.assertEqual(len(actual_tools), 2)
 
         # order not guaranteed, so we iterate over results to check
@@ -2187,7 +2349,7 @@ class CommonTestStorage(TestStorageData):
             'configuration': {"type": "local", "context": "npm"},
         }
 
-        tools = list(self.storage.tool_add([tool]))
+        tools = self.storage.tool_add([tool])
         expected_tool = tools[0]
 
         # when
@@ -2243,7 +2405,7 @@ class CommonTestStorage(TestStorageData):
         origin_metadata0 = list(self.storage.origin_metadata_get_by(origin_id))
         self.assertTrue(len(origin_metadata0) == 0)
 
-        tools = list(self.storage.tool_add([self.metadata_tool]))
+        tools = self.storage.tool_add([self.metadata_tool])
         tool = tools[0]
 
         self.storage.metadata_provider_add(
@@ -2281,7 +2443,7 @@ class CommonTestStorage(TestStorageData):
                             'provider_name': self.provider['name'],
                             'provider_url': self.provider['url']
                    })
-        tool = list(self.storage.tool_add([self.metadata_tool]))[0]
+        tool = self.storage.tool_add([self.metadata_tool])[0]
         # when adding for the same origin 2 metadatas
         self.storage.origin_metadata_add(
                     origin_id,
@@ -2370,7 +2532,7 @@ class CommonTestStorage(TestStorageData):
 
         # using the only tool now inserted in the data.sql, but for this
         # provider should be a crawler tool (not yet implemented)
-        tool = list(self.storage.tool_add([self.metadata_tool]))[0]
+        tool = self.storage.tool_add([self.metadata_tool])[0]
 
         # when adding for the same origin 2 metadatas
         self.storage.origin_metadata_add(

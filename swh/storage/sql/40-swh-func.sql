@@ -740,6 +740,7 @@ begin
        where tmp.target is null and tmp.target_type is null
          and sb.target is null and sb.target_type is null;
   end if;
+  truncate table tmp_snapshot_branch;
 end;
 $$;
 
@@ -780,18 +781,6 @@ as $$
   SELECT target_type, count(name)
   from swh_snapshot_get_by_id(swh_snapshot_count_branches.id)
   group by target_type;
-$$;
-
-create or replace function swh_snapshot_get_by_origin_visit(origin_id bigint, visit_id bigint)
-  returns snapshot.id%type
-  language sql
-  stable
-as $$
-  select snapshot.id
-  from origin_visit
-  left join snapshot
-  on snapshot.object_id = origin_visit.snapshot_id
-  where origin_visit.origin=origin_id and origin_visit.visit=visit_id;
 $$;
 
 -- Absolute path: directory reference + complete path relative to it
