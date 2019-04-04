@@ -73,7 +73,15 @@ def snapshots(draw, *, min_size=0, max_size=100, only_objects=False):
     ret = {
         'branches': branches,
     }
-    ret['id'] = identifier_to_bytes(snapshot_identifier(ret))
+    while True:
+        try:
+            id_ = snapshot_identifier(ret)
+        except ValueError as e:
+            for (source, target) in e.args[1]:
+                ret[source] = draw(branch_targets(only_objects=True))
+        else:
+            break
+    ret['id'] = identifier_to_bytes(id_)
     return ret
 
 
