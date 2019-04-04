@@ -135,9 +135,6 @@ create index concurrently on origin_visit(date);
 alter table origin_visit add constraint origin_visit_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table origin_visit validate constraint origin_visit_origin_fkey;
 
-alter table origin_visit add constraint origin_visit_snapshot_id_fkey foreign key (snapshot_id) references snapshot(object_id) not valid;
-alter table origin_visit validate constraint origin_visit_snapshot_id_fkey;
-
 -- release
 create unique index concurrently release_pkey on release(id);
 alter table release add primary key using index release_pkey;
