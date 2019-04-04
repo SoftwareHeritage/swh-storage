@@ -1,3 +1,11 @@
+swh-storage (0.0.134-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.134     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-04-03 13:38:58 +0200)
+  * Upstream changes:     - Don't leak origin ids to the journal.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Apr 2019 10:16:09 +0000
+
 swh-storage (0.0.132-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.132     - (tagged by Valentin Lorentz
