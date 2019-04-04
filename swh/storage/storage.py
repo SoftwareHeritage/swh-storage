@@ -289,6 +289,46 @@ class Storage():
         db.content_update_from_temp(keys_to_update=keys,
                                     cur=cur)
 
+    def content_add_metadata(self, content):
+        """Add content metadata to the storage (like `content_add`, but
+        without inserting to the objstorage).
+
+        Args:
+            contents (iterable): iterable of dictionaries representing
+                individual pieces of content to add. Each dictionary has the
+                following keys:
+
+                - length (int): content length (default: -1)
+                - one key for each checksum algorithm in
+                  :data:`swh.model.hashutil.ALGORITHMS`, mapped to the
+                  corresponding checksum
+                - status (str): one of visible, hidden, absent
+                - reason (str): if status = absent, the reason why
+                - origin (int): if status = absent, the origin we saw the
+                  content in
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                content:add: New contents added
+                skipped_content:add: New skipped contents (no data) added
+        """
+        if self.journal_writer:
+            for item in content:
+                assert 'data' not in content
+                self.journal_writer.write_addition('content', item)
+
+        db = self.get_db()
+
+        (content_with_data, content_without_data, summary) = \
+            self._filter_new_content(content)
+
+        with db.transaction() as cur:
+            self._content_add_metadata(
+                db, cur, content_with_data, content_without_data)
+
+        return summary
+
     def content_get(self, content):
         """Retrieve in bulk contents and their data.
 

@@ -59,35 +59,7 @@ class Storage:
         """Check that the storage is configured and ready to go."""
         return True
 
-    def content_add(self, contents):
-        """Add content blobs to the storage
-
-        Args:
-            content (iterable): iterable of dictionaries representing
-                individual pieces of content to add. Each dictionary has the
-                following keys:
-
-                - data (bytes): the actual content
-                - length (int): content length (default: -1)
-                - one key for each checksum algorithm in
-                  :data:`swh.model.hashutil.DEFAULT_ALGORITHMS`, mapped to the
-                  corresponding checksum
-                - status (str): one of visible, hidden, absent
-                - reason (str): if status = absent, the reason why
-                - origin (int): if status = absent, the origin we saw the
-                  content in
-
-        Raises:
-            HashCollision in case of collision
-
-        Returns:
-            Summary dict with the following key and associated values:
-
-                content:add: New contents added
-                content_bytes:add: Sum of the contents' length data
-                skipped_content:add: New skipped contents (no data) added
-
-        """
+    def _content_add(self, contents, with_data):
         if self.journal_writer:
             for content in contents:
                 if 'data' in content:
@@ -117,15 +89,81 @@ class Storage:
             count_contents += 1
             if self._contents[key]['status'] == 'visible':
                 count_content_added += 1
-                content_data = self._contents[key].pop('data')
-                count_content_bytes_added += len(content_data)
-                self.objstorage.add(content_data, content['sha1'])
+                if with_data:
+                    content_data = self._contents[key].pop('data')
+                    count_content_bytes_added += len(content_data)
+                    self.objstorage.add(content_data, content['sha1'])
 
-        return {
+        summary = {
             'content:add': count_content_added,
-            'content:bytes:add': count_content_bytes_added,
             'skipped_content:add': count_contents - count_content_added,
         }
+
+        if with_data:
+            summary['content:bytes:add'] = count_content_bytes_added
+
+        return summary
+
+    def content_add(self, contents):
+        """Add content blobs to the storage
+
+        Args:
+            content (iterable): iterable of dictionaries representing
+                individual pieces of content to add. Each dictionary has the
+                following keys:
+
+                - data (bytes): the actual content
+                - length (int): content length (default: -1)
+                - one key for each checksum algorithm in
+                  :data:`swh.model.hashutil.DEFAULT_ALGORITHMS`, mapped to the
+                  corresponding checksum
+                - status (str): one of visible, hidden, absent
+                - reason (str): if status = absent, the reason why
+                - origin (int): if status = absent, the origin we saw the
+                  content in
+
+        Raises:
+            HashCollision in case of collision
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                content:add: New contents added
+                content_bytes:add: Sum of the contents' length data
+                skipped_content:add: New skipped contents (no data) added
+
+        """
+        return self._content_add(contents, with_data=True)
+
+    def content_add_metadata(self, contents):
+        """Add content metadata to the storage (like `content_add`, but
+        without inserting to the objstorage).
+
+        Args:
+            content (iterable): iterable of dictionaries representing
+                individual pieces of content to add. Each dictionary has the
+                following keys:
+
+                - length (int): content length (default: -1)
+                - one key for each checksum algorithm in
+                  :data:`swh.model.hashutil.DEFAULT_ALGORITHMS`, mapped to the
+                  corresponding checksum
+                - status (str): one of visible, hidden, absent
+                - reason (str): if status = absent, the reason why
+                - origin (int): if status = absent, the origin we saw the
+                  content in
+
+        Raises:
+            HashCollision in case of collision
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                content:add: New contents added
+                skipped_content:add: New skipped contents (no data) added
+
+        """
+        return self._content_add(contents, with_data=False)
 
     def content_get(self, ids):
         """Retrieve in bulk contents and their data.
