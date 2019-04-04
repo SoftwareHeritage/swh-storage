@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -77,6 +77,16 @@ class Storage:
                 - origin (int): if status = absent, the origin we saw the
                   content in
 
+        Raises:
+            HashCollision in case of collision
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                content:add: New contents added
+                content_bytes:add: Sum of the contents' length data
+                skipped_content:add: New skipped contents (no data) added
+
         """
         if self.journal_writer:
             for content in contents:
@@ -84,6 +94,11 @@ class Storage:
                     content = content.copy()
                     del content['data']
                 self.journal_writer.write_addition('content', content)
+
+        count_contents = 0
+        count_content_added = 0
+        count_content_bytes_added = 0
+
         for content in contents:
             key = self._content_key(content)
             if key in self._contents:
@@ -99,9 +114,18 @@ class Storage:
             self._contents[key] = copy.deepcopy(content)
             self._contents[key]['ctime'] = now()
             bisect.insort(self._sorted_sha1s, content['sha1'])
+            count_contents += 1
             if self._contents[key]['status'] == 'visible':
+                count_content_added += 1
                 content_data = self._contents[key].pop('data')
+                count_content_bytes_added += len(content_data)
                 self.objstorage.add(content_data, content['sha1'])
+
+        return {
+            'content:add': count_content_added,
+            'content:bytes:add': count_content_bytes_added,
+            'skipped_content:add': count_contents - count_content_added,
+        }
 
     def content_get(self, ids):
         """Retrieve in bulk contents and their data.
@@ -294,15 +318,24 @@ class Storage:
                       - target (sha1_git): id of the object pointed at by the
                         directory entry
                       - perms (int): entry permissions
+        Returns:
+            Summary dict of keys with associated count as values:
+
+                directory:add: Number of directories actually added
+
         """
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
+        count = 0
         for directory in directories:
             if directory['id'] not in self._directories:
+                count += 1
                 self._directories[directory['id']] = copy.deepcopy(directory)
                 self._objects[directory['id']].append(
                     ('directory', directory['id']))
+
+        return {'directory:add': count}
 
     def directory_missing(self, directory_ids):
         """List directories missing from storage
@@ -427,10 +460,17 @@ class Storage:
                   this revision
 
         date dictionaries have the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                revision_added: New objects actually stored in db
+
         """
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
+        count = 0
         for revision in revisions:
             if revision['id'] not in self._revisions:
                 self._revisions[revision['id']] = rev = copy.deepcopy(revision)
@@ -441,6 +481,9 @@ class Storage:
                         rev.get('committer_date'))
                 self._objects[revision['id']].append(
                     ('revision', revision['id']))
+                count += 1
+
+        return {'revision:add': count}
 
     def revision_missing(self, revision_ids):
         """List revisions missing from storage
@@ -518,17 +561,28 @@ class Storage:
                   keys: name, fullname, email
 
         the date dictionary has the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                release:add: New objects contents actually stored in db
+
         """
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
+        count = 0
         for rel in releases:
-            rel = copy.deepcopy(rel)
-            rel['date'] = normalize_timestamp(rel['date'])
-            self._person_add(rel['author'])
-            self._objects[rel['id']].append(
-                ('release', rel['id']))
-            self._releases[rel['id']] = rel
+            if rel['id'] not in self._releases:
+                rel = copy.deepcopy(rel)
+                rel['date'] = normalize_timestamp(rel['date'])
+                self._person_add(rel['author'])
+                self._objects[rel['id']].append(
+                    ('release', rel['id']))
+                self._releases[rel['id']] = rel
+                count += 1
+
+        return {'release:add': count}
 
     def release_missing(self, releases):
         """List releases missing from storage
@@ -556,11 +610,11 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, snapshot, legacy_arg1=None, legacy_arg2=None):
-        """Add a snapshot for the given origin/visit couple
+    def snapshot_add(self, snapshots, legacy_arg1=None, legacy_arg2=None):
+        """Add a snapshot to the storage
 
         Args:
-            snapshot (dict): the snapshot to add to the visit, containing the
+            snapshot ([dict]): the snapshots to add, containing the
               following keys:
 
               - **id** (:class:`bytes`): id of the snapshot
@@ -578,28 +632,41 @@ class Storage:
 
         Raises:
             ValueError: if the origin's or visit's identifier does not exist.
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                snapshot_added: Count of object actually stored in db
+
         """
         if legacy_arg1:
             assert legacy_arg2
-            (origin, visit, snapshot) = \
-                (snapshot, legacy_arg1, legacy_arg2)
+            (origin, visit, snapshots) = \
+                (snapshots, legacy_arg1, [legacy_arg2])
         else:
             origin = visit = None
 
-        snapshot_id = snapshot['id']
-        if self.journal_writer:
-            self.journal_writer.write_addition(
-                'snapshot', snapshot)
-        if snapshot_id not in self._snapshots:
-            self._snapshots[snapshot_id] = {
-                'id': snapshot_id,
-                'branches': copy.deepcopy(snapshot['branches']),
-                '_sorted_branch_names': sorted(snapshot['branches'])
-                }
-            self._objects[snapshot_id].append(('snapshot', snapshot_id))
+        count = 0
+        for snapshot in snapshots:
+            snapshot_id = snapshot['id']
+            if snapshot_id not in self._snapshots:
+                if self.journal_writer:
+                    self.journal_writer.write_addition('snapshot', snapshot)
+
+                self._snapshots[snapshot_id] = {
+                    'id': snapshot_id,
+                    'branches': copy.deepcopy(snapshot['branches']),
+                    '_sorted_branch_names': sorted(snapshot['branches'])
+                    }
+                self._objects[snapshot_id].append(('snapshot', snapshot_id))
+                count += 1
 
         if origin:
-            self.origin_visit_update(origin, visit, snapshot=snapshot_id)
+            # Legacy API, there can be only one snapshot
+            self.origin_visit_update(
+                origin, visit, snapshot=snapshots[0]['id'])
+
+        return {'snapshot:add': count}
 
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id
@@ -982,6 +1049,8 @@ class Storage:
         assert 'id' not in origin
         origin_id = self._origin_id(origin)
         if origin_id is None:
+            if self.journal_writer:
+                self.journal_writer.write_addition('origin', origin)
             # origin ids are in the range [1, +inf[
             origin_id = len(self._origins) + 1
             origin['id'] = origin_id
@@ -991,9 +1060,6 @@ class Storage:
             self._objects[key].append(('origin', origin_id))
         else:
             origin['id'] = origin_id
-
-        if self.journal_writer:
-            self.journal_writer.write_addition('origin', origin)
 
         return origin_id
 
@@ -1065,6 +1131,7 @@ class Storage:
 
             if self.journal_writer:
                 origin = self.origin_get([{'id': origin_id}])[0]
+                del origin['id']
                 self.journal_writer.write_addition('origin_visit', {
                     **visit, 'origin': origin})
 
@@ -1094,6 +1161,7 @@ class Storage:
             raise ValueError('Invalid origin_id or visit_id') from None
         if self.journal_writer:
             origin = self.origin_get([{'id': origin_id}])[0]
+            del origin['id']
             self.journal_writer.write_update('origin_visit', {
                 'origin': origin, 'visit': visit_id,
                 'status': status or visit['status'],
@@ -1264,7 +1332,7 @@ class Storage:
               - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
-        Yields:
+        Returns:
             :class:`dict`: All the tools inserted in storage
             (including the internal ``id``). The order of the list is not
             guaranteed to match the order of the initial list.
@@ -1280,7 +1348,7 @@ class Storage:
                 self._tools[key] = record
             inserted.append(copy.deepcopy(self._tools[key]))
 
-        yield from inserted
+        return inserted
 
     def tool_get(self, tool):
         """Retrieve tool information.

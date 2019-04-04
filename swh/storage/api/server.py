@@ -21,15 +21,82 @@ app = SWHServerAPIApp(__name__)
 storage = None
 
 
+OPERATIONS_METRIC = 'swh_storage_operations_total'
+OPERATIONS_UNIT_METRIC = "swh_storage_operations_{unit}_total"
+DURATION_METRIC = "swh_storage_request_duration_seconds"
+
+
 def timed(f):
     """Time that function!
 
     """
     @wraps(f)
     def d(*a, **kw):
-        with statsd.timed('swh_storage_request_duration_seconds',
-                          tags={'endpoint': f.__name__}):
+        with statsd.timed(DURATION_METRIC, tags={'endpoint': f.__name__}):
             return f(*a, **kw)
+
+    return d
+
+
+def encode(f):
+    @wraps(f)
+    def d(*a, **kw):
+        r = f(*a, **kw)
+        return encode_data(r)
+
+    return d
+
+
+def send_metric(metric, count, method_name):
+    """Send statsd metric with count for method `method_name`
+
+    If count is 0, the metric is discarded.  If the metric is not
+    parseable, the metric is discarded with a log message.
+
+    Args:
+        metric (str): Metric's name (e.g content:add, content:add:bytes)
+        count (int): Associated value for the metric
+        method_name (str): Method's name
+
+    Returns:
+        Bool to explicit if metric has been set or not
+    """
+    if count == 0:
+        return False
+
+    metric_type = metric.split(':')
+    _length = len(metric_type)
+    if _length == 2:
+        object_type, operation = metric_type
+        metric_name = OPERATIONS_METRIC
+    elif _length == 3:
+        object_type, operation, unit = metric_type
+        metric_name = OPERATIONS_UNIT_METRIC.format(unit=unit)
+    else:
+        logging.warning('Skipping unknown metric {%s: %s}' % (
+            metric, count))
+        return False
+
+    statsd.increment(
+        metric_name, count, tags={
+            'endpoint': method_name,
+            'object_type': object_type,
+            'operation': operation,
+        })
+    return True
+
+
+def process_metrics(f):
+    """Increment object counters for the decorated function.
+
+    """
+    @wraps(f)
+    def d(*a, **kw):
+        r = f(*a, **kw)
+        for metric, count in r.items():
+            send_metric(metric=metric, count=count, method_name=f.__name__)
+
+        return r
 
     return d
 
@@ -39,7 +106,6 @@ def my_error_handler(exception):
     return error_handler(exception, encode_data)
 
 
-@timed
 def get_storage():
     global storage
     if not storage:
@@ -91,8 +157,10 @@ def content_find():
 
 @app.route('/content/add', methods=['POST'])
 @timed
+@encode
+@process_metrics
 def content_add():
-    return encode_data(get_storage().content_add(**decode_request(request)))
+    return get_storage().content_add(**decode_request(request))
 
 
 @app.route('/content/update', methods=['POST'])
@@ -130,8 +198,10 @@ def directory_missing():
 
 @app.route('/directory/add', methods=['POST'])
 @timed
+@encode
+@process_metrics
 def directory_add():
-    return encode_data(get_storage().directory_add(**decode_request(request)))
+    return get_storage().directory_add(**decode_request(request))
 
 
 @app.route('/directory/path', methods=['POST'])
@@ -150,8 +220,10 @@ def directory_ls():
 
 @app.route('/revision/add', methods=['POST'])
 @timed
+@encode
+@process_metrics
 def revision_add():
-    return encode_data(get_storage().revision_add(**decode_request(request)))
+    return get_storage().revision_add(**decode_request(request))
 
 
 @app.route('/revision', methods=['POST'])
@@ -182,8 +254,10 @@ def revision_missing():
 
 @app.route('/release/add', methods=['POST'])
 @timed
+@encode
+@process_metrics
 def release_add():
-    return encode_data(get_storage().release_add(**decode_request(request)))
+    return get_storage().release_add(**decode_request(request))
 
 
 @app.route('/release', methods=['POST'])
@@ -208,8 +282,10 @@ def object_find_by_sha1_git():
 
 @app.route('/snapshot/add', methods=['POST'])
 @timed
+@encode
+@process_metrics
 def snapshot_add():
-    return encode_data(get_storage().snapshot_add(**decode_request(request)))
+    return get_storage().snapshot_add(**decode_request(request))
 
 
 @app.route('/snapshot', methods=['POST'])
@@ -273,14 +349,20 @@ def origin_count():
 
 @app.route('/origin/add_multi', methods=['POST'])
 @timed
+@encode
 def origin_add():
-    return encode_data(get_storage().origin_add(**decode_request(request)))
+    origins = get_storage().origin_add(**decode_request(request))
+    send_metric('origin:add', count=len(origins), method_name='origin_add')
+    return origins
 
 
 @app.route('/origin/add', methods=['POST'])
 @timed
+@encode
 def origin_add_one():
-    return encode_data(get_storage().origin_add_one(**decode_request(request)))
+    origin = get_storage().origin_add_one(**decode_request(request))
+    send_metric('origin:add', count=1, method_name='origin_add_one')
+    return origin
 
 
 @app.route('/origin/visit/get', methods=['POST'])
@@ -299,9 +381,12 @@ def origin_visit_get_by():
 
 @app.route('/origin/visit/add', methods=['POST'])
 @timed
+@encode
 def origin_visit_add():
-    return encode_data(get_storage().origin_visit_add(
-        **decode_request(request)))
+    origin_visit = get_storage().origin_visit_add(
+        **decode_request(request))
+    send_metric('origin_visit:add', count=1, method_name='origin_visit')
+    return origin_visit
 
 
 @app.route('/origin/visit/update', methods=['POST'])
@@ -337,33 +422,6 @@ def fetch_history_end():
         get_storage().fetch_history_end(**decode_request(request)))
 
 
-@app.route('/entity/add', methods=['POST'])
-@timed
-def entity_add():
-    return encode_data(
-        get_storage().entity_add(**decode_request(request)))
-
-
-@app.route('/entity/get', methods=['POST'])
-@timed
-def entity_get():
-    return encode_data(
-        get_storage().entity_get(**decode_request(request)))
-
-
-@app.route('/entity', methods=['GET'])
-@timed
-def entity_get_one():
-    return encode_data(get_storage().entity_get_one(request.args['uuid']))
-
-
-@app.route('/entity/from_lister_metadata', methods=['POST'])
-@timed
-def entity_from_lister_metadata():
-    return encode_data(get_storage().entity_get_from_lister_metadata(
-        **decode_request(request)))
-
-
 @app.route('/tool/data', methods=['POST'])
 @timed
 def tool_get():
@@ -373,16 +431,22 @@ def tool_get():
 
 @app.route('/tool/add', methods=['POST'])
 @timed
+@encode
 def tool_add():
-    return encode_data(get_storage().tool_add(
-        **decode_request(request)))
+    tools = get_storage().tool_add(**decode_request(request))
+    send_metric('tool:add', count=len(tools), method_name='tool_add')
+    return tools
 
 
 @app.route('/origin/metadata/add', methods=['POST'])
 @timed
+@encode
 def origin_metadata_add():
-    return encode_data(get_storage().origin_metadata_add(**decode_request(
-                                                       request)))
+    origin_metadata = get_storage().origin_metadata_add(
+        **decode_request(request))
+    send_metric(
+        'origin_metadata:add', count=1, method_name='origin_metadata_add')
+    return origin_metadata
 
 
 @app.route('/origin/metadata/get', methods=['POST'])
@@ -394,9 +458,13 @@ def origin_metadata_get_by():
 
 @app.route('/provider/add', methods=['POST'])
 @timed
+@encode
 def metadata_provider_add():
-    return encode_data(get_storage().metadata_provider_add(**decode_request(
-                                                       request)))
+    metadata_provider = get_storage().metadata_provider_add(**decode_request(
+        request))
+    send_metric(
+        'metadata_provider:add', count=1, method_name='metadata_provider')
+    return metadata_provider
 
 
 @app.route('/provider/get', methods=['POST'])

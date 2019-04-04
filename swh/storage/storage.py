@@ -114,7 +114,29 @@ class Storage():
                 - origin (int): if status = absent, the origin we saw the
                   content in
 
+        Raises:
+
+            In case of errors, nothing is stored in the db (in the
+            objstorage, it could though). The following exceptions can
+            occur:
+
+            - HashCollision in case of collision
+            - Any other exceptions raise by the db
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                content:add: New contents added
+                content:bytes:add: Sum of the contents' length data
+                skipped_content:add: New skipped contents (no data) added
+
         """
+        summary = {
+            'content:add': 0,
+            'content:bytes:add': 0,
+            'skipped_content:add': 0,
+        }
+
         if self.journal_writer:
             for item in content:
                 if 'data' in item:
@@ -137,7 +159,8 @@ class Storage():
         for d in content:
             if 'status' not in d:
                 d['status'] = 'visible'
-            if 'length' not in d:
+            length = d.get('length')
+            if length is None:
                 d['length'] = -1
             content_by_status[d['status']].append(d)
 
@@ -150,12 +173,29 @@ class Storage():
                                   content_without_data))
 
         def add_to_objstorage():
-            data = {
-                cont['sha1']: cont['data']
-                for cont in content_with_data
-                if cont['sha1'] in missing_content
-            }
+            """Add to objstorage the new missing_content
+
+            Returns:
+                Sum of all the content's data length pushed to the
+                objstorage. No filtering is done on contents here, so
+                we might send over multiple times the same content and
+                count as many times the contents' raw length bytes.
+
+            """
+            content_bytes_added = 0
+            data = {}
+            for cont in content_with_data:
+                sha1 = cont['sha1']
+                seen = data.get(sha1)
+                if sha1 in missing_content and not seen:
+                    data[sha1] = cont['data']
+                    content_bytes_added += cont['length']
+
+            # FIXME: Since we do the filtering anyway now, we might as
+            # well make the objstorage's add_batch call return what we
+            # want here (real bytes added)... that'd simplify this...
             self.objstorage.add_batch(data)
+            return content_bytes_added
 
         with db.transaction() as cur:
             with ThreadPoolExecutor(max_workers=1) as executor:
@@ -177,16 +217,18 @@ class Storage():
                         from . import HashCollision
                         if e.diag.sqlstate == '23505' and \
                                 e.diag.table_name == 'content':
-                            constaint_to_hash_name = {
+                            constraint_to_hash_name = {
                                 'content_pkey': 'sha1',
                                 'content_sha1_git_idx': 'sha1_git',
                                 'content_sha256_idx': 'sha256',
                                 }
-                            colliding_hash_name = constaint_to_hash_name \
+                            colliding_hash_name = constraint_to_hash_name \
                                 .get(e.diag.constraint_name)
                             raise HashCollision(colliding_hash_name)
                         else:
                             raise
+
+                    summary['content:add'] = len(missing_content)
 
                 if missing_skipped:
                     missing_filtered = (
@@ -200,10 +242,14 @@ class Storage():
 
                     # move metadata in place
                     db.skipped_content_add_from_temp(cur)
+                    summary['skipped_content:add'] = len(missing_skipped)
 
                 # Wait for objstorage addition before returning from the
                 # transaction, bubbling up any exception
-                added_to_objstorage.result()
+                content_bytes_added = added_to_objstorage.result()
+
+        summary['content:bytes:add'] = content_bytes_added
+        return summary
 
     @db_transaction()
     def content_update(self, content, keys=[], db=None, cur=None):
@@ -449,7 +495,14 @@ class Storage():
                       - target (sha1_git): id of the object pointed at by the
                         directory entry
                       - perms (int): entry permissions
+
+        Returns:
+            Summary dict of keys with associated count as values:
+
+                directory:add: Number of directories actually added
+
         """
+        summary = {'directory:add': 0}
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
@@ -470,7 +523,7 @@ class Storage():
 
         dirs_missing = set(self.directory_missing(dirs))
         if not dirs_missing:
-            return
+            return summary
 
         db = self.get_db()
         with db.transaction() as cur:
@@ -498,6 +551,9 @@ class Storage():
 
             # Do the final copy
             db.directory_add_from_temp(cur)
+            summary['directory:add'] = len(dirs_missing)
+
+        return summary
 
     @db_transaction_generator()
     def directory_missing(self, directories, db=None, cur=None):
@@ -583,7 +639,15 @@ class Storage():
                   this revision
 
         date dictionaries have the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                revision:add: New objects actually stored in db
+
         """
+        summary = {'revision:add': 0}
+
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
@@ -593,7 +657,7 @@ class Storage():
             set(revision['id'] for revision in revisions)))
 
         if not revisions_missing:
-            return
+            return summary
 
         with db.transaction() as cur:
             db.mktemp_revision(cur)
@@ -613,6 +677,8 @@ class Storage():
 
             db.copy_to(parents_filtered, 'revision_history',
                        ['id', 'parent_id', 'parent_rank'], cur)
+
+        return {'revision:add': len(revisions_missing)}
 
     @db_transaction_generator()
     def revision_missing(self, revisions, db=None, cur=None):
@@ -707,7 +773,15 @@ class Storage():
                   keys: name, fullname, email
 
         the date dictionary has the form defined in :mod:`swh.model`.
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                release:add: New objects contents actually stored in db
+
         """
+        summary = {'release:add': 0}
+
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
@@ -717,7 +791,7 @@ class Storage():
         releases_missing = set(self.release_missing(release_ids))
 
         if not releases_missing:
-            return
+            return summary
 
         with db.transaction() as cur:
             db.mktemp_release(cur)
@@ -731,6 +805,8 @@ class Storage():
                        cur)
 
             db.release_add_from_temp(cur)
+
+        return {'release:add': len(releases_missing)}
 
     @db_transaction_generator()
     def release_missing(self, releases, db=None, cur=None):
@@ -768,12 +844,12 @@ class Storage():
             yield data if data['target_type'] else None
 
     @db_transaction()
-    def snapshot_add(self, snapshot, origin=None, visit=None,
+    def snapshot_add(self, snapshots, origin=None, visit=None,
                      db=None, cur=None):
-        """Add a snapshot for the given origin/visit couple
+        """Add snapshots to the storage.
 
         Args:
-            snapshot (dict): the snapshot to add to the visit, containing the
+            snapshot ([dict]): the snapshots to add, containing the
               following keys:
 
               - **id** (:class:`bytes`): id of the snapshot
@@ -793,49 +869,69 @@ class Storage():
 
         Raises:
             ValueError: if the origin or visit id does not exist.
+
+        Returns:
+
+            Summary dict of keys with associated count as values
+
+                snapshot:add: Count of object actually stored in db
+
         """
         if origin:
             if not visit:
                 raise TypeError(
                     'snapshot_add expects one argument (or, as a legacy '
                     'behavior, three arguments), not two')
-            if isinstance(snapshot, int):
+            if isinstance(snapshots, int):
                 # Called by legacy code that uses the new api/client.py
-                (origin_id, visit_id, snapshot) = \
-                    (snapshot, origin, visit)
+                (origin_id, visit_id, snapshots) = \
+                    (snapshots, origin, [visit])
             else:
                 # Called by legacy code that uses the old api/client.py
                 origin_id = origin
                 visit_id = visit
+                snapshots = [snapshots]
         else:
             # Called by new code that uses the new api/client.py
             origin_id = visit_id = None
 
-        if not db.snapshot_exists(snapshot['id'], cur):
-            db.mktemp_snapshot_branch(cur)
-            db.copy_to(
-                (
-                    {
-                        'name': name,
-                        'target': info['target'] if info else None,
-                        'target_type': info['target_type'] if info else None,
-                    }
-                    for name, info in snapshot['branches'].items()
-                ),
-                'tmp_snapshot_branch',
-                ['name', 'target', 'target_type'],
-                cur,
-            )
+        created_temp_table = False
 
-        if self.journal_writer:
-            self.journal_writer.write_addition('snapshot', snapshot)
+        count = 0
+        for snapshot in snapshots:
+            if not db.snapshot_exists(snapshot['id'], cur):
+                if not created_temp_table:
+                    db.mktemp_snapshot_branch(cur)
+                    created_temp_table = True
 
-        db.snapshot_add(snapshot['id'], cur)
+                db.copy_to(
+                    (
+                        {
+                            'name': name,
+                            'target': info['target'] if info else None,
+                            'target_type': (info['target_type']
+                                            if info else None),
+                        }
+                        for name, info in snapshot['branches'].items()
+                    ),
+                    'tmp_snapshot_branch',
+                    ['name', 'target', 'target_type'],
+                    cur,
+                )
+
+                if self.journal_writer:
+                    self.journal_writer.write_addition('snapshot', snapshot)
+
+                db.snapshot_add(snapshot['id'], cur)
+                count += 1
 
         if visit_id:
+            # Legacy API, there can be only one snapshot
             self.origin_visit_update(
-                origin_id, visit_id, snapshot=snapshot['id'],
+                origin_id, visit_id, snapshot=snapshots[0]['id'],
                 db=db, cur=cur)
+
+        return {'snapshot:add': count}
 
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
@@ -1042,19 +1138,20 @@ class Storage():
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
-        visit = db.origin_visit_add(origin, date, cur)
+        visit_id = db.origin_visit_add(origin_id, date, cur)
 
         if self.journal_writer:
             # We can write to the journal only after inserting to the
             # DB, because we want the id of the visit
             origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
+            del origin['id']
             self.journal_writer.write_addition('origin_visit', {
-                'origin': origin, 'date': date, 'visit': visit,
+                'origin': origin, 'date': date, 'visit': visit_id,
                 'status': 'ongoing', 'metadata': None, 'snapshot': None})
 
         return {
             'origin': origin_id,
-            'visit': visit,
+            'visit': visit_id,
         }
 
     @db_transaction()
@@ -1096,6 +1193,7 @@ class Storage():
             if self.journal_writer:
                 origin = self.origin_get(
                     [{'id': origin_id}], db=db, cur=cur)[0]
+                del origin['id']
                 self.journal_writer.write_update('origin_visit', {
                     **visit, **updates, 'origin': origin})
 
@@ -1354,12 +1452,10 @@ class Storage():
         if origin_id:
             return origin_id
 
-        origin['id'] = db.origin_add(origin['type'], origin['url'], cur)
-
         if self.journal_writer:
             self.journal_writer.write_addition('origin', origin)
 
-        return origin['id']
+        return db.origin_add(origin['type'], origin['url'], cur)
 
     @db_transaction()
     def fetch_history_start(self, origin_id, db=None, cur=None):
@@ -1475,7 +1571,7 @@ class Storage():
         for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
             yield dict(zip(db.origin_metadata_get_cols, line))
 
-    @db_transaction_generator()
+    @db_transaction()
     def tool_add(self, tools, db=None, cur=None):
         """Add new tools to the storage.
 
@@ -1488,7 +1584,7 @@ class Storage():
               - configuration (:class:`dict`): configuration of the tool,
                 must be json-encodable
 
-        Yields:
+        Returns:
             :class:`dict`: All the tools inserted in storage
             (including the internal ``id``). The order of the list is not
             guaranteed to match the order of the initial list.
@@ -1500,8 +1596,7 @@ class Storage():
                    cur)
 
         tools = db.tool_add_from_temp(cur)
-        for line in tools:
-            yield dict(zip(db.tool_cols, line))
+        return [dict(zip(db.tool_cols, line)) for line in tools]
 
     @db_transaction(statement_timeout=500)
     def tool_get(self, tool, db=None, cur=None):
