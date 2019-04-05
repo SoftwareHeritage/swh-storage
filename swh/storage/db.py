@@ -327,6 +327,18 @@ class Db(BaseDb):
         })
         cur.execute(query, (*values, *where_values))
 
+    def origin_visit_upsert(self, origin, visit, date, status,
+                            metadata, snapshot, cur=None):
+        cur = self._cursor(cur)
+        query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
+                   ON CONFLICT ON CONSTRAINT origin_visit_pkey DO
+                   UPDATE SET {updates}""".format(
+                cols=', '.join(self.origin_visit_get_cols),
+                values=', '.join('%s' for col in self.origin_visit_get_cols),
+                updates=', '.join('{0}=excluded.{0}'.format(col)
+                                  for col in self.origin_visit_get_cols))
+        cur.execute(query, (origin, visit, date, status, metadata, snapshot))
+
     origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
                              'snapshot']
 
