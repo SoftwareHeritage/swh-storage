@@ -566,7 +566,11 @@ class CommonTestStorage(TestStorageData):
 
         expected_cont = cont.copy()
         del expected_cont['data']
-        self.assertEqual(list(self.journal_writer.objects),
+        journal_objects = list(self.journal_writer.objects)
+        for (obj_type, obj) in journal_objects:
+            if 'ctime' in obj:
+                del obj['ctime']
+        self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
     def test_content_add_same_input(self):
@@ -615,7 +619,11 @@ class CommonTestStorage(TestStorageData):
 
         expected_cont = cont.copy()
         del expected_cont['data']
-        self.assertEqual(list(self.journal_writer.objects),
+        journal_objects = list(self.journal_writer.objects)
+        for (obj_type, obj) in journal_objects:
+            if 'ctime' in obj:
+                del obj['ctime']
+        self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
     def test_content_add_collision(self):
@@ -629,6 +637,94 @@ class CommonTestStorage(TestStorageData):
 
         with self.assertRaises(HashCollision) as cm:
             self.storage.content_add([cont1, cont1b])
+
+        self.assertIn(cm.exception.args[0], ['sha1', 'sha1_git', 'blake2s256'])
+
+    def test_content_add_metadata(self):
+        cont = self.cont.copy()
+        del cont['data']
+        cont['ctime'] = datetime.datetime.now()
+
+        actual_result = self.storage.content_add_metadata([cont])
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'skipped_content:add': 0
+        })
+
+        expected_cont = cont.copy()
+        del expected_cont['ctime']
+        self.assertEqual(
+            list(self.storage.content_get_metadata([cont['sha1']])),
+            [expected_cont])
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('content', cont)])
+
+    def test_content_add_metadata_same_input(self):
+        cont = self.cont.copy()
+        del cont['data']
+        cont['ctime'] = datetime.datetime.now()
+
+        actual_result = self.storage.content_add_metadata([cont, cont])
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'skipped_content:add': 0
+        })
+
+    def test_content_add_metadata_different_input(self):
+        cont = self.cont.copy()
+        del cont['data']
+        cont['ctime'] = datetime.datetime.now()
+        cont2 = self.cont2.copy()
+        del cont2['data']
+        cont2['ctime'] = datetime.datetime.now()
+
+        actual_result = self.storage.content_add_metadata([cont, cont2])
+        self.assertEqual(actual_result, {
+            'content:add': 2,
+            'skipped_content:add': 0
+        })
+
+    def test_content_add_metadata_db(self):
+        cont = self.cont.copy()
+        del cont['data']
+        cont['ctime'] = datetime.datetime.now()
+
+        actual_result = self.storage.content_add_metadata([cont])
+
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'skipped_content:add': 0
+        })
+
+        if hasattr(self.storage, 'objstorage'):
+            self.assertNotIn(cont['sha1'], self.storage.objstorage)
+        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
+                            ' FROM content WHERE sha1 = %s',
+                            (cont['sha1'],))
+        datum = self.cursor.fetchone()
+        self.assertEqual(
+            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
+             datum[3], datum[4]),
+            (cont['sha1'], cont['sha1_git'], cont['sha256'],
+             cont['length'], 'visible'))
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('content', cont)])
+
+    def test_content_add_metadata_collision(self):
+        cont1 = self.cont.copy()
+        del cont1['data']
+        cont1['ctime'] = datetime.datetime.now()
+
+        # create (corrupted) content with same sha1{,_git} but != sha256
+        cont1b = cont1.copy()
+        sha256_array = bytearray(cont1b['sha256'])
+        sha256_array[0] += 1
+        cont1b['sha256'] = bytes(sha256_array)
+
+        with self.assertRaises(HashCollision) as cm:
+            self.storage.content_add_metadata([cont1, cont1b])
 
         self.assertIn(cm.exception.args[0], ['sha1', 'sha1_git', 'blake2s256'])
 
@@ -2128,6 +2224,25 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(counters['origin'], 1)
         self.assertEqual(counters['revision'], 1)
         self.assertEqual(counters['person'], 2)
+
+    def test_content_find_ctime(self):
+        cont = self.cont.copy()
+        del cont['data']
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        cont['ctime'] = now
+        self.storage.content_add_metadata([cont])
+
+        actually_present = self.storage.content_find({'sha1': cont['sha1']})
+
+        self.assertEqual(actually_present, {
+            'ctime': now,
+            'sha1': cont['sha1'],
+            'sha256': cont['sha256'],
+            'sha1_git': cont['sha1_git'],
+            'blake2s256': cont['blake2s256'],
+            'length': cont['length'],
+            'status': 'visible'
+        })
 
     def test_content_find_with_present_content(self):
         # 1. with something to find
