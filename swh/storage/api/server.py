@@ -163,6 +163,14 @@ def content_add():
     return get_storage().content_add(**decode_request(request))
 
 
+@app.route('/content/add_metadata', methods=['POST'])
+@timed
+@encode
+@process_metrics
+def content_add_metadata():
+    return get_storage().content_add_metadata(**decode_request(request))
+
+
 @app.route('/content/update', methods=['POST'])
 @timed
 def content_update():

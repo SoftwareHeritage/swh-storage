@@ -32,6 +32,10 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
     def test_skipped_content_add(self):
         pass
 
+    @pytest.mark.skip('postgresql-specific test')
+    def test_content_add_metadata_db(self):
+        pass
+
 
 @pytest.mark.db
 @pytest.mark.property_based
