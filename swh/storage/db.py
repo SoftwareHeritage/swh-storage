@@ -63,6 +63,8 @@ class Db(BaseDb):
     content_get_metadata_keys = [
         'sha1', 'sha1_git', 'sha256', 'blake2s256', 'length', 'status']
 
+    content_add_keys = content_get_metadata_keys + ['ctime']
+
     skipped_content_keys = [
         'sha1', 'sha1_git', 'sha256', 'blake2s256',
         'length', 'reason', 'status', 'origin']

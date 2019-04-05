@@ -59,6 +59,50 @@ class Storage:
         """Check that the storage is configured and ready to go."""
         return True
 
+    def _content_add(self, contents, with_data):
+        if self.journal_writer:
+            for content in contents:
+                if 'data' in content:
+                    content = content.copy()
+                    del content['data']
+                self.journal_writer.write_addition('content', content)
+
+        count_contents = 0
+        count_content_added = 0
+        count_content_bytes_added = 0
+
+        for content in contents:
+            key = self._content_key(content)
+            if key in self._contents:
+                continue
+            for algorithm in DEFAULT_ALGORITHMS:
+                if content[algorithm] in self._content_indexes[algorithm]:
+                    from . import HashCollision
+                    raise HashCollision(algorithm, content[algorithm], key)
+            for algorithm in DEFAULT_ALGORITHMS:
+                self._content_indexes[algorithm][content[algorithm]].add(key)
+            self._objects[content['sha1_git']].append(
+                ('content', content['sha1']))
+            self._contents[key] = copy.deepcopy(content)
+            bisect.insort(self._sorted_sha1s, content['sha1'])
+            count_contents += 1
+            if self._contents[key]['status'] == 'visible':
+                count_content_added += 1
+                if with_data:
+                    content_data = self._contents[key].pop('data')
+                    count_content_bytes_added += len(content_data)
+                    self.objstorage.add(content_data, content['sha1'])
+
+        summary = {
+            'content:add': count_content_added,
+            'skipped_content:add': count_contents - count_content_added,
+        }
+
+        if with_data:
+            summary['content:bytes:add'] = count_content_bytes_added
+
+        return summary
+
     def content_add(self, contents):
         """Add content blobs to the storage
 
@@ -88,44 +132,42 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        if self.journal_writer:
-            for content in contents:
-                if 'data' in content:
-                    content = content.copy()
-                    del content['data']
-                self.journal_writer.write_addition('content', content)
+        contents = [dict(c.items()) for c in contents]  # semi-shallow copy
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        for item in contents:
+            item['ctime'] = now
+        return self._content_add(contents, with_data=True)
 
-        count_contents = 0
-        count_content_added = 0
-        count_content_bytes_added = 0
+    def content_add_metadata(self, contents):
+        """Add content metadata to the storage (like `content_add`, but
+        without inserting to the objstorage).
 
-        for content in contents:
-            key = self._content_key(content)
-            if key in self._contents:
-                continue
-            for algorithm in DEFAULT_ALGORITHMS:
-                if content[algorithm] in self._content_indexes[algorithm]:
-                    from . import HashCollision
-                    raise HashCollision(algorithm, content[algorithm], key)
-            for algorithm in DEFAULT_ALGORITHMS:
-                self._content_indexes[algorithm][content[algorithm]].add(key)
-            self._objects[content['sha1_git']].append(
-                ('content', content['sha1']))
-            self._contents[key] = copy.deepcopy(content)
-            self._contents[key]['ctime'] = now()
-            bisect.insort(self._sorted_sha1s, content['sha1'])
-            count_contents += 1
-            if self._contents[key]['status'] == 'visible':
-                count_content_added += 1
-                content_data = self._contents[key].pop('data')
-                count_content_bytes_added += len(content_data)
-                self.objstorage.add(content_data, content['sha1'])
+        Args:
+            content (iterable): iterable of dictionaries representing
+                individual pieces of content to add. Each dictionary has the
+                following keys:
 
-        return {
-            'content:add': count_content_added,
-            'content:bytes:add': count_content_bytes_added,
-            'skipped_content:add': count_contents - count_content_added,
-        }
+                - length (int): content length (default: -1)
+                - one key for each checksum algorithm in
+                  :data:`swh.model.hashutil.DEFAULT_ALGORITHMS`, mapped to the
+                  corresponding checksum
+                - status (str): one of visible, hidden, absent
+                - reason (str): if status = absent, the reason why
+                - origin (int): if status = absent, the origin we saw the
+                  content in
+                - ctime (datetime): time of insertion in the archive
+
+        Raises:
+            HashCollision in case of collision
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                content:add: New contents added
+                skipped_content:add: New skipped contents (no data) added
+
+        """
+        return self._content_add(contents, with_data=False)
 
     def content_get(self, ids):
         """Retrieve in bulk contents and their data.
