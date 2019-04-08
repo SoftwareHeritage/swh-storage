@@ -404,6 +404,13 @@ def origin_visit_update():
         **decode_request(request)))
 
 
+@app.route('/origin/visit/upsert', methods=['POST'])
+@timed
+def origin_visit_upsert():
+    return encode_data(get_storage().origin_visit_upsert(
+        **decode_request(request)))
+
+
 @app.route('/person', methods=['POST'])
 @timed
 def person_get():
