@@ -1,3 +1,11 @@
+swh-storage (0.0.137-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.137     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-04-08 15:40:24 +0200)
+  * Upstream changes:     - Make test_origin_get_range run faster.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 08 Apr 2019 13:56:16 +0000
+
 swh-storage (0.0.135-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.135     - (tagged by Valentin Lorentz
