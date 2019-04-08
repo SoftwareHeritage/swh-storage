@@ -2804,6 +2804,7 @@ class CommonPropTestStorage:
 
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get(self, contents):
+        self.reset_storage_tables()
         # add contents to storage
         self.storage.content_add(contents)
 
@@ -2817,6 +2818,7 @@ class CommonPropTestStorage:
 
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get_metadata(self, contents):
+        self.reset_storage_tables()
         # add contents to storage
         self.storage.content_add(contents)
 
@@ -2931,6 +2933,7 @@ class CommonPropTestStorage:
     @given(strategies.sets(origins().map(lambda x: tuple(x.to_dict().items())),
                            min_size=11, max_size=30))
     def test_origin_get_range(self, new_origins):
+        self.reset_storage_tables()
         new_origins = list(map(dict, new_origins))
 
         nb_origins = len(new_origins)
@@ -2940,15 +2943,15 @@ class CommonPropTestStorage:
         origin_from = random.randint(1, nb_origins-1)
         origin_count = random.randint(1, nb_origins - origin_from)
 
-        expected_origins = []
-        for i in range(origin_from, origin_from + origin_count):
-            expected_origins.append(self.storage.origin_get({'id': i}))
-
         actual_origins = list(
             self.storage.origin_get_range(origin_from=origin_from,
                                           origin_count=origin_count))
 
-        self.assertEqual(actual_origins, expected_origins)
+        for origin in actual_origins:
+            del origin['id']
+
+        for origin in actual_origins:
+            self.assertIn(origin, new_origins)
 
         origin_from = -1
         origin_count = 10
