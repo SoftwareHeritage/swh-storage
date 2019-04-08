@@ -2929,7 +2929,7 @@ class CommonPropTestStorage:
         self.assertEqual(origin_visits, [])
 
     @given(strategies.sets(origins().map(lambda x: tuple(x.to_dict().items())),
-                           min_size=20))
+                           min_size=11, max_size=30))
     def test_origin_get_range(self, new_origins):
         new_origins = list(map(dict, new_origins))
 
