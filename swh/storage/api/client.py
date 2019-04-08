@@ -192,6 +192,9 @@ class RemoteStorage(SWHRemoteAPI):
                                                  'metadata': metadata,
                                                  'snapshot': snapshot})
 
+    def origin_visit_upsert(self, visits):
+        return self.post('origin/visit/upsert', {'visits': visits})
+
     def origin_visit_get(self, origin, last_visit=None, limit=None):
         return self.post('origin/visit/get', {
             'origin': origin, 'last_visit': last_visit, 'limit': limit})

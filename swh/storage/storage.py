@@ -1248,6 +1248,35 @@ class Storage():
 
             db.origin_visit_update(origin_id, visit_id, updates, cur)
 
+    @db_transaction()
+    def origin_visit_upsert(self, visits, db=None, cur=None):
+        """Add a origin_visits with a specific id and with all its data.
+        If there is already an origin_visit with the same
+        `(origin_id, visit_id)`, overwrites it.
+
+        Args:
+            visits: iterable of dicts with keys:
+
+                origin: Visited Origin id
+                visit: origin visit id
+                date: timestamp of such visit
+                status: Visit's new status
+                metadata: Data associated to the visit
+                snapshot (sha1_git): identifier of the snapshot to add to
+                    the visit
+        """
+        if self.journal_writer:
+            for visit in visits:
+                visit = visit.copy()
+                visit['origin'] = self.origin_get(
+                    [{'id': visit['origin']}], db=db, cur=cur)[0]
+                del visit['origin']['id']
+                self.journal_writer.write_addition('origin_visit', visit)
+
+        for visit in visits:
+            # TODO: upsert them all in a single query
+            db.origin_visit_upsert(**visit, cur=cur)
+
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(self, origin, last_visit=None, limit=None, db=None,
                          cur=None):

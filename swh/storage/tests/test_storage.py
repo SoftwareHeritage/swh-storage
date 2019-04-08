@@ -17,10 +17,11 @@ from hypothesis import given, strategies
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
+from swh.model.hypothesis_strategies import origins
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
-from .generate_data_test import gen_contents, gen_origins
+from .generate_data_test import gen_contents
 
 
 @pytest.mark.db
@@ -1511,6 +1512,105 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertEqual(actual_origin_visit1, expected_origin_visit)
 
+    def test_origin_visit_upsert_new(self):
+        # given
+        self.assertIsNone(self.storage.origin_get([self.origin2])[0])
+
+        origin_id = self.storage.origin_add_one(self.origin2)
+        self.assertIsNotNone(origin_id)
+
+        # when
+        self.storage.origin_visit_upsert([{
+             'origin': origin_id,
+             'date': self.date_visit2,
+             'visit': 123,
+             'status': 'full',
+             'metadata': None,
+             'snapshot': None,
+         }])
+
+        # then
+        actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
+        self.assertEqual(actual_origin_visits,
+                         [{
+                             'origin': origin_id,
+                             'date': self.date_visit2,
+                             'visit': 123,
+                             'status': 'full',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
+
+        expected_origin = self.origin2.copy()
+        data = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': 123,
+            'status': 'full',
+            'metadata': None,
+            'snapshot': None,
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data)])
+
+    def test_origin_visit_upsert_existing(self):
+        # given
+        self.assertIsNone(self.storage.origin_get([self.origin2])[0])
+
+        origin_id = self.storage.origin_add_one(self.origin2)
+        self.assertIsNotNone(origin_id)
+
+        # when
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit2)
+        self.storage.origin_visit_upsert([{
+             'origin': origin_id,
+             'date': self.date_visit2,
+             'visit': origin_visit1['visit'],
+             'status': 'full',
+             'metadata': None,
+             'snapshot': None,
+         }])
+
+        # then
+        self.assertEqual(origin_visit1['origin'], origin_id)
+        self.assertIsNotNone(origin_visit1['visit'])
+
+        actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
+        self.assertEqual(actual_origin_visits,
+                         [{
+                             'origin': origin_id,
+                             'date': self.date_visit2,
+                             'visit': origin_visit1['visit'],
+                             'status': 'full',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
+
+        expected_origin = self.origin2.copy()
+        data1 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'status': 'full',
+            'metadata': None,
+            'snapshot': None,
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data1),
+                          ('origin_visit', data2)])
+
     def test_origin_visit_get_by_no_result(self):
         # No result
         actual_origin_visit = self.storage.origin_visit_get_by(
@@ -2828,14 +2928,16 @@ class CommonPropTestStorage:
         origin_visits = list(self.storage.origin_visit_get(1))
         self.assertEqual(origin_visits, [])
 
-    @given(gen_origins(min_size=100, max_size=100))
+    @given(strategies.sets(origins().map(lambda x: tuple(x.to_dict().items())),
+                           min_size=11, max_size=30))
     def test_origin_get_range(self, new_origins):
+        new_origins = list(map(dict, new_origins))
 
         nb_origins = len(new_origins)
 
         self.storage.origin_add(new_origins)
 
-        origin_from = random.randint(1, nb_origins)
+        origin_from = random.randint(1, nb_origins-1)
         origin_count = random.randint(1, nb_origins - origin_from)
 
         expected_origins = []

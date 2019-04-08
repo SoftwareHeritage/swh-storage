@@ -1220,6 +1220,38 @@ class Storage:
         if snapshot:
             visit['snapshot'] = snapshot
 
+    def origin_visit_upsert(self, visits):
+        """Add a origin_visits with a specific id and with all its data.
+        If there is already an origin_visit with the same
+        `(origin_id, visit_id)`, updates it instead of inserting a new one.
+
+        Args:
+            visits: iterable of dicts with keys:
+
+                origin: Visited Origin id
+                visit: origin visit id
+                date: timestamp of such visit
+                status: Visit's new status
+                metadata: Data associated to the visit
+                snapshot (sha1_git): identifier of the snapshot to add to
+                    the visit
+        """
+        if self.journal_writer:
+            for visit in visits:
+                visit = visit.copy()
+                visit['origin'] = self.origin_get([{'id': visit['origin']}])[0]
+                del visit['origin']['id']
+                self.journal_writer.write_addition('origin_visit', visit)
+
+        for visit in visits:
+            origin_id = visit['origin']
+            visit_id = visit['visit']
+            if isinstance(visit['date'], str):
+                visit['date'] = dateutil.parser.parse(visit['date'])
+            while len(self._origin_visits[origin_id-1]) < visit_id:
+                self._origin_visits[origin_id-1].append(None)
+            visit = self._origin_visits[origin_id-1][visit_id-1] = visit
+
     def origin_visit_get(self, origin, last_visit=None, limit=None):
         """Retrieve all the origin's visit's information.
 
@@ -1241,6 +1273,8 @@ class Storage:
             if limit is not None:
                 visits = visits[:limit]
             for visit in visits:
+                if not visit:
+                    continue
                 visit_id = visit['visit']
                 yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
 
