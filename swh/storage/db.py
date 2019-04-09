@@ -124,11 +124,22 @@ class Db(BaseDb):
             SELECT 1 FROM content c WHERE c.sha1 = t.sha1
         )""", ((sha1,) for sha1 in sha1s))
 
-    def skipped_content_missing_from_temp(self, cur=None):
+    def skipped_content_missing(self, contents, cur=None):
+        if not contents:
+            return []
         cur = self._cursor(cur)
 
-        cur.execute("""SELECT sha1, sha1_git, sha256, blake2s256
-                       FROM swh_skipped_content_missing()""")
+        query = """SELECT * FROM (VALUES %s) AS t (%s)
+                   WHERE not exists
+                   (SELECT 1 FROM skipped_content s WHERE
+                       s.sha1 is not distinct from t.sha1 and
+                       s.sha1_git is not distinct from t.sha1_git and
+                       s.sha256 is not distinct from t.sha256);""" % \
+                ((', '.join('%s' for _ in contents)),
+                 ', '.join(self.content_hash_keys))
+        cur.execute(query,
+                    [tuple(cont[key] for key in self.content_hash_keys)
+                     for cont in contents])
 
         yield from cur
 

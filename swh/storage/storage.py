@@ -487,13 +487,8 @@ class Storage():
             iterable: missing signatures
 
         """
-        keys = db.content_hash_keys
-
-        db.mktemp('skipped_content', cur)
-        db.copy_to(contents, 'tmp_skipped_content',
-                   keys + ['length', 'reason'], cur)
-
-        yield from db.skipped_content_missing_from_temp(cur)
+        for content in db.skipped_content_missing(contents, cur):
+            yield dict(zip(db.content_hash_keys, content))
 
     @db_transaction()
     def content_find(self, content, db=None, cur=None):
