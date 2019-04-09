@@ -751,12 +751,12 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
-        query = """SELECT %s
-                   FROM person
-                   WHERE id IN %%s""" % ', '.join(self.person_get_cols)
+        query = """SELECT %s FROM (VALUES %%s) as t(id)
+                   LEFT JOIN person ON t.id = person.id
+                """ % ','.join('person.' + col for col in self.person_get_cols)
 
-        cur.execute(query, (tuple(ids),))
-        yield from cur
+        yield from execute_values_generator(
+            cur, query, ((id,) for id in ids))
 
     release_add_cols = [
         'id', 'target', 'target_type', 'date', 'date_offset',

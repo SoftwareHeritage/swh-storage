@@ -1668,21 +1668,28 @@ class CommonTestStorage(TestStorageData):
         actual_persons = self.storage.person_get([id0, id1])
 
         # then
-        self.assertEqual(
-            list(actual_persons), [
-                {
-                    'id': id0,
-                    'fullname': person0['fullname'],
-                    'name': person0['name'],
-                    'email': person0['email'],
-                },
-                {
-                    'id': id1,
-                    'fullname': person1['fullname'],
-                    'name': person1['name'],
-                    'email': person1['email'],
-                }
-            ])
+        expected_persons = [
+            {
+                'id': id0,
+                'fullname': person0['fullname'],
+                'name': person0['name'],
+                'email': person0['email'],
+            },
+            {
+                'id': id1,
+                'fullname': person1['fullname'],
+                'name': person1['name'],
+                'email': person1['email'],
+            }
+        ]
+        self.assertEqual(list(actual_persons), expected_persons)
+
+        # when
+        actual_persons = self.storage.person_get([id1, id0])
+
+        # then
+        expected_persons.reverse()
+        self.assertEqual(list(actual_persons), expected_persons)
 
     def test_person_get_fullname_unicity(self):
         # given (person injection through revisions for example)
