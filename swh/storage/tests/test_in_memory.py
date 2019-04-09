@@ -29,11 +29,16 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
         pass
 
     @pytest.mark.skip('postgresql-specific test')
-    def test_skipped_content_add(self):
+    def test_skipped_content_add_db(self):
         pass
 
     @pytest.mark.skip('postgresql-specific test')
     def test_content_add_metadata_db(self):
+        pass
+
+    @pytest.mark.skip(
+        'not implemented, see https://forge.softwareheritage.org/T1633')
+    def test_skipped_content_add(self):
         pass
 
 

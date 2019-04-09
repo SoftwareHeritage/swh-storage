@@ -149,6 +149,13 @@ def content_missing_per_sha1():
         **decode_request(request)))
 
 
+@app.route('/content/skipped/missing', methods=['POST'])
+@timed
+def skipped_content_missing():
+    return encode_data(get_storage().skipped_content_missing(
+        **decode_request(request)))
+
+
 @app.route('/content/present', methods=['POST'])
 @timed
 def content_find():

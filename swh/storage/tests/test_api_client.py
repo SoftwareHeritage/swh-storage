@@ -82,4 +82,6 @@ class TestRemoteStorage(CommonTestStorage, RemoteStorageFixture):
 @pytest.mark.db
 @pytest.mark.property_based
 class PropTestRemoteStorage(CommonPropTestStorage, RemoteStorageFixture):
-    pass
+    @pytest.mark.skip('too slow')
+    def test_add_arbitrary(self):
+        pass
