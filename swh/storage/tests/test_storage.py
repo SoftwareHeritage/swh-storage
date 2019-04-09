@@ -729,7 +729,7 @@ class CommonTestStorage(TestStorageData):
 
         self.assertIn(cm.exception.args[0], ['sha1', 'sha1_git', 'blake2s256'])
 
-    def test_skipped_content_add(self):
+    def test_skipped_content_add_db(self):
         cont = self.skipped_cont.copy()
         cont2 = self.skipped_cont2.copy()
         cont2['blake2s256'] = None
@@ -766,6 +766,27 @@ class CommonTestStorage(TestStorageData):
              cont2['blake2s256'], cont2['length'], 'absent',
              'Content too long')
         )
+
+    def test_skipped_content_add(self):
+        cont = self.skipped_cont.copy()
+        cont2 = self.skipped_cont2.copy()
+        cont2['blake2s256'] = None
+
+        missing = list(self.storage.skipped_content_missing([cont, cont2]))
+
+        self.assertEqual(len(missing), 2, missing)
+
+        actual_result = self.storage.content_add([cont, cont, cont2])
+
+        self.assertEqual(actual_result, {
+            'content:add': 0,
+            'content:bytes:add': 0,
+            'skipped_content:add': 2,
+        })
+
+        missing = list(self.storage.skipped_content_missing([cont, cont2]))
+
+        self.assertEqual(missing, [])
 
     @pytest.mark.property_based
     @given(strategies.sets(

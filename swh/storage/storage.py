@@ -476,7 +476,7 @@ class Storage():
             yield obj[0]
 
     @db_transaction_generator()
-    def skipped_content_missing(self, content, db=None, cur=None):
+    def skipped_content_missing(self, contents, db=None, cur=None):
         """List skipped_content missing from storage
 
         Args:
@@ -490,7 +490,7 @@ class Storage():
         keys = db.content_hash_keys
 
         db.mktemp('skipped_content', cur)
-        db.copy_to(content, 'tmp_skipped_content',
+        db.copy_to(contents, 'tmp_skipped_content',
                    keys + ['length', 'reason'], cur)
 
         yield from db.skipped_content_missing_from_temp(cur)
