@@ -1,3 +1,15 @@
+swh-storage (0.0.138-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.138     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-04-09 16:40:49 +0200)
+  * Upstream changes:     - Use the db_transaction decorator on all
+    _add() methods.     - So they gracefully release the connection on
+    error instead     - of relying on reference-counting to call the
+    Db's `__del__`     - (which does not happen in Hypothesis tests)
+    because a ref     - to it is kept via the traceback object.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 09 Apr 2019 16:50:48 +0000
+
 swh-storage (0.0.137-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.137     - (tagged by Valentin Lorentz
