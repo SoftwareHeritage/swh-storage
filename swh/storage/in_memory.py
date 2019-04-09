@@ -618,7 +618,8 @@ class Storage:
             if rel['id'] not in self._releases:
                 rel = copy.deepcopy(rel)
                 rel['date'] = normalize_timestamp(rel['date'])
-                self._person_add(rel['author'])
+                if rel['author']:
+                    self._person_add(rel['author'])
                 self._objects[rel['id']].append(
                     ('release', rel['id']))
                 self._releases[rel['id']] = rel

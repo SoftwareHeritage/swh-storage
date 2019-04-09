@@ -660,6 +660,7 @@ as $$
 begin
     with t as (
         select distinct author_fullname as fullname, author_name as name, author_email as email from tmp_release
+        where author_fullname is not null
     ) insert into person (fullname, name, email)
     select fullname, name, email from t
     where not exists (

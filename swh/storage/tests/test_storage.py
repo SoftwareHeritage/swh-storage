@@ -1110,6 +1110,20 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.release_add([self.release, self.release2])
         self.assertEqual(actual_result, {'release:add': 0})
 
+    def test_release_add_no_author_date(self):
+        release = self.release.copy()
+        release['author'] = None
+        release['date'] = None
+
+        actual_result = self.storage.release_add([release])
+        self.assertEqual(actual_result, {'release:add': 1})
+
+        end_missing = self.storage.release_missing([self.release['id']])
+        self.assertEqual([], list(end_missing))
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('release', release)])
+
     def test_release_get(self):
         # given
         self.storage.release_add([self.release, self.release2])
