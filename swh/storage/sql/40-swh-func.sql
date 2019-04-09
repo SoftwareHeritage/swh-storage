@@ -623,7 +623,7 @@ begin
     union
         select committer_fullname as fullname, committer_name as name, committer_email as email from tmp_revision
     ) insert into person (fullname, name, email)
-    select distinct fullname, name, email from t
+    select distinct on (fullname) fullname, name, email from t
     where not exists (
         select 1
         from person p
@@ -662,7 +662,7 @@ begin
         select distinct author_fullname as fullname, author_name as name, author_email as email from tmp_release
         where author_fullname is not null
     ) insert into person (fullname, name, email)
-    select fullname, name, email from t
+    select distinct on (fullname) fullname, name, email from t
     where not exists (
         select 1
         from person p

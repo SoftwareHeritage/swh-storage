@@ -1004,6 +1004,22 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.revision_add([self.revision])
         self.assertEqual(actual_result, {'revision:add': 0})
 
+    def test_revision_add_name_clash(self):
+        revision1 = self.revision.copy()
+        revision2 = self.revision2.copy()
+        revision1['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe',
+            'email': b'john.doe@example.com'
+        }
+        revision2['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe ',
+            'email': b'john.doe@example.com '
+        }
+        actual_result = self.storage.revision_add([revision1, revision2])
+        self.assertEqual(actual_result, {'revision:add': 2})
+
     def test_revision_log(self):
         # given
         # self.revision4 -is-child-of-> self.revision3
@@ -1144,6 +1160,22 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('release', release)])
+
+    def test_release_add_name_clash(self):
+        release1 = self.release.copy()
+        release2 = self.release2.copy()
+        release1['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe',
+            'email': b'john.doe@example.com'
+        }
+        release2['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe ',
+            'email': b'john.doe@example.com '
+        }
+        actual_result = self.storage.release_add([release1, release2])
+        self.assertEqual(actual_result, {'release:add': 2})
 
     def test_release_get(self):
         # given
