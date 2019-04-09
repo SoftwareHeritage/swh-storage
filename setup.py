@@ -56,7 +56,6 @@ setup(
     extras_require={
         'testing': parse_requirements('test'),
         'schemata': ['SQLAlchemy'],
-        'listener': ['kafka_python'],
     },
     vcversioner={},
     include_package_data=True,
