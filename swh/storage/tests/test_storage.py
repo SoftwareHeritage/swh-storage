@@ -17,7 +17,7 @@ from hypothesis import given, strategies
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.model.hypothesis_strategies import origins
+from swh.model.hypothesis_strategies import origins, objects
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
@@ -3077,6 +3077,23 @@ class CommonPropTestStorage:
             self.storage.origin_count('.*user1.*', regexp=True), 2)
         self.assertEqual(
             self.storage.origin_count('.*user1.*', regexp=False), 0)
+
+    @given(strategies.lists(objects(), max_size=2))
+    def test_add_arbitrary(self, objects):
+        self.reset_storage_tables()
+        for (obj_type, obj) in objects:
+            obj = obj.to_dict()
+            if obj_type == 'origin_visit':
+                origin_id = self.storage.origin_add_one(obj.pop('origin'))
+                if 'visit' in obj:
+                    del obj['visit']
+                self.storage.origin_visit_add(origin_id, **obj)
+            else:
+                method = getattr(self.storage, obj_type + '_add')
+                try:
+                    method([obj])
+                except HashCollision:
+                    pass
 
 
 @pytest.mark.db
