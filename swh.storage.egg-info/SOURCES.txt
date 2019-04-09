@@ -169,7 +169,6 @@ swh/storage/db.py
 swh/storage/exc.py
 swh/storage/in_memory.py
 swh/storage/journal_writer.py
-swh/storage/listener.py
 swh/storage/storage.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py
@@ -196,7 +195,6 @@ swh/storage/tests/test_api_client.py
 swh/storage/tests/test_converters.py
 swh/storage/tests/test_db.py
 swh/storage/tests/test_in_memory.py
-swh/storage/tests/test_listener.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py

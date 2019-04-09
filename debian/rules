@@ -12,9 +12,6 @@ override_dh_install:
 	rm -v $(CURDIR)/debian/python3-*/usr/lib/python*/dist-packages/swh/__init__.py
 
 	for pyvers in $(shell py3versions -vr); do \
-		mkdir -p $(CURDIR)/debian/python3-swh.storage.listener/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \
-		mv $(CURDIR)/debian/python3-swh.storage/usr/lib/python$$pyvers/dist-packages/swh/storage/listener.py \
-		   $(CURDIR)/debian/python3-swh.storage.listener/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \
 		mkdir -p $(CURDIR)/debian/python3-swh.storage.schemata/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \
 		mv $(CURDIR)/debian/python3-swh.storage/usr/lib/python$$pyvers/dist-packages/swh/storage/schemata \
 		   $(CURDIR)/debian/python3-swh.storage.schemata/usr/lib/python$$pyvers/dist-packages/swh/storage/ ; \

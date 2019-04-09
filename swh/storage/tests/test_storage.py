@@ -17,7 +17,7 @@ from hypothesis import given, strategies
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.model.hypothesis_strategies import origins
+from swh.model.hypothesis_strategies import origins, objects
 from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
@@ -729,7 +729,7 @@ class CommonTestStorage(TestStorageData):
 
         self.assertIn(cm.exception.args[0], ['sha1', 'sha1_git', 'blake2s256'])
 
-    def test_skipped_content_add(self):
+    def test_skipped_content_add_db(self):
         cont = self.skipped_cont.copy()
         cont2 = self.skipped_cont2.copy()
         cont2['blake2s256'] = None
@@ -766,6 +766,27 @@ class CommonTestStorage(TestStorageData):
              cont2['blake2s256'], cont2['length'], 'absent',
              'Content too long')
         )
+
+    def test_skipped_content_add(self):
+        cont = self.skipped_cont.copy()
+        cont2 = self.skipped_cont2.copy()
+        cont2['blake2s256'] = None
+
+        missing = list(self.storage.skipped_content_missing([cont, cont2]))
+
+        self.assertEqual(len(missing), 2, missing)
+
+        actual_result = self.storage.content_add([cont, cont, cont2])
+
+        self.assertEqual(actual_result, {
+            'content:add': 0,
+            'content:bytes:add': 0,
+            'skipped_content:add': 2,
+        })
+
+        missing = list(self.storage.skipped_content_missing([cont, cont2]))
+
+        self.assertEqual(missing, [])
 
     @pytest.mark.property_based
     @given(strategies.sets(
@@ -983,6 +1004,22 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.revision_add([self.revision])
         self.assertEqual(actual_result, {'revision:add': 0})
 
+    def test_revision_add_name_clash(self):
+        revision1 = self.revision.copy()
+        revision2 = self.revision2.copy()
+        revision1['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe',
+            'email': b'john.doe@example.com'
+        }
+        revision2['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe ',
+            'email': b'john.doe@example.com '
+        }
+        actual_result = self.storage.revision_add([revision1, revision2])
+        self.assertEqual(actual_result, {'revision:add': 2})
+
     def test_revision_log(self):
         # given
         # self.revision4 -is-child-of-> self.revision3
@@ -1109,6 +1146,36 @@ class CommonTestStorage(TestStorageData):
         # already present so nothing added
         actual_result = self.storage.release_add([self.release, self.release2])
         self.assertEqual(actual_result, {'release:add': 0})
+
+    def test_release_add_no_author_date(self):
+        release = self.release.copy()
+        release['author'] = None
+        release['date'] = None
+
+        actual_result = self.storage.release_add([release])
+        self.assertEqual(actual_result, {'release:add': 1})
+
+        end_missing = self.storage.release_missing([self.release['id']])
+        self.assertEqual([], list(end_missing))
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('release', release)])
+
+    def test_release_add_name_clash(self):
+        release1 = self.release.copy()
+        release2 = self.release2.copy()
+        release1['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe',
+            'email': b'john.doe@example.com'
+        }
+        release2['author'] = {
+            'fullname': b'John Doe <john.doe@example.com>',
+            'name': b'John Doe ',
+            'email': b'john.doe@example.com '
+        }
+        actual_result = self.storage.release_add([release1, release2])
+        self.assertEqual(actual_result, {'release:add': 2})
 
     def test_release_get(self):
         # given
@@ -1633,21 +1700,28 @@ class CommonTestStorage(TestStorageData):
         actual_persons = self.storage.person_get([id0, id1])
 
         # then
-        self.assertEqual(
-            list(actual_persons), [
-                {
-                    'id': id0,
-                    'fullname': person0['fullname'],
-                    'name': person0['name'],
-                    'email': person0['email'],
-                },
-                {
-                    'id': id1,
-                    'fullname': person1['fullname'],
-                    'name': person1['name'],
-                    'email': person1['email'],
-                }
-            ])
+        expected_persons = [
+            {
+                'id': id0,
+                'fullname': person0['fullname'],
+                'name': person0['name'],
+                'email': person0['email'],
+            },
+            {
+                'id': id1,
+                'fullname': person1['fullname'],
+                'name': person1['name'],
+                'email': person1['email'],
+            }
+        ]
+        self.assertEqual(list(actual_persons), expected_persons)
+
+        # when
+        actual_persons = self.storage.person_get([id1, id0])
+
+        # then
+        expected_persons.reverse()
+        self.assertEqual(list(actual_persons), expected_persons)
 
     def test_person_get_fullname_unicity(self):
         # given (person injection through revisions for example)
@@ -2804,6 +2878,7 @@ class CommonPropTestStorage:
 
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get(self, contents):
+        self.reset_storage_tables()
         # add contents to storage
         self.storage.content_add(contents)
 
@@ -2817,6 +2892,7 @@ class CommonPropTestStorage:
 
     @given(gen_contents(min_size=1, max_size=4))
     def test_generate_content_get_metadata(self, contents):
+        self.reset_storage_tables()
         # add contents to storage
         self.storage.content_add(contents)
 
@@ -2929,8 +3005,9 @@ class CommonPropTestStorage:
         self.assertEqual(origin_visits, [])
 
     @given(strategies.sets(origins().map(lambda x: tuple(x.to_dict().items())),
-                           min_size=11, max_size=30))
+                           min_size=6, max_size=15))
     def test_origin_get_range(self, new_origins):
+        self.reset_storage_tables()
         new_origins = list(map(dict, new_origins))
 
         nb_origins = len(new_origins)
@@ -2940,18 +3017,18 @@ class CommonPropTestStorage:
         origin_from = random.randint(1, nb_origins-1)
         origin_count = random.randint(1, nb_origins - origin_from)
 
-        expected_origins = []
-        for i in range(origin_from, origin_from + origin_count):
-            expected_origins.append(self.storage.origin_get({'id': i}))
-
         actual_origins = list(
             self.storage.origin_get_range(origin_from=origin_from,
                                           origin_count=origin_count))
 
-        self.assertEqual(actual_origins, expected_origins)
+        for origin in actual_origins:
+            del origin['id']
+
+        for origin in actual_origins:
+            self.assertIn(origin, new_origins)
 
         origin_from = -1
-        origin_count = 10
+        origin_count = 5
         origins = list(
             self.storage.origin_get_range(origin_from=origin_from,
                                           origin_count=origin_count))
@@ -3000,6 +3077,23 @@ class CommonPropTestStorage:
             self.storage.origin_count('.*user1.*', regexp=True), 2)
         self.assertEqual(
             self.storage.origin_count('.*user1.*', regexp=False), 0)
+
+    @given(strategies.lists(objects(), max_size=2))
+    def test_add_arbitrary(self, objects):
+        self.reset_storage_tables()
+        for (obj_type, obj) in objects:
+            obj = obj.to_dict()
+            if obj_type == 'origin_visit':
+                origin_id = self.storage.origin_add_one(obj.pop('origin'))
+                if 'visit' in obj:
+                    del obj['visit']
+                self.storage.origin_visit_add(origin_id, **obj)
+            else:
+                method = getattr(self.storage, obj_type + '_add')
+                try:
+                    method([obj])
+                except HashCollision:
+                    pass
 
 
 @pytest.mark.db

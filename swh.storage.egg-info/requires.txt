@@ -9,9 +9,6 @@ swh.model>=0.0.32
 swh.objstorage>=0.0.17
 swh.scheduler>=0.0.14
 
-[listener]
-kafka_python
-
 [schemata]
 SQLAlchemy
 
