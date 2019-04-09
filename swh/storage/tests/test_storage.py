@@ -2931,7 +2931,7 @@ class CommonPropTestStorage:
         self.assertEqual(origin_visits, [])
 
     @given(strategies.sets(origins().map(lambda x: tuple(x.to_dict().items())),
-                           min_size=11, max_size=30))
+                           min_size=6, max_size=15))
     def test_origin_get_range(self, new_origins):
         self.reset_storage_tables()
         new_origins = list(map(dict, new_origins))
@@ -2954,7 +2954,7 @@ class CommonPropTestStorage:
             self.assertIn(origin, new_origins)
 
         origin_from = -1
-        origin_count = 10
+        origin_count = 5
         origins = list(
             self.storage.origin_get_range(origin_from=origin_from,
                                           origin_count=origin_count))
