@@ -82,6 +82,10 @@ def cassandra_cluster(tmpdir_factory):
     with open(str(cassandra_conf.join('jvm.options')), 'w') as fd:
         fd.write('-Xmn=1M -Xms=10M -XMx=100M\n')  # some sane values
 
+    if os.environ.get('LOG_CASSANDRA'):
+        stdout = stderr = subprocess.PIPE
+    else:
+        stdout = stderr = subprocess.DEVNULL
     proc = subprocess.Popen(
         [
             '/usr/sbin/cassandra',
@@ -94,16 +98,16 @@ def cassandra_cluster(tmpdir_factory):
             'CASSANDRA_CONF': str(cassandra_conf.join('jvm.options')),
             'MAX_HEAP_SIZE': '100M',
             'HEAP_NEWSIZE': '10M',
-        }
+        },
+        stdout=stdout,
+        stderr=stderr,
     )
 
     wait_for_peer('127.0.0.1', native_transport_port)
 
-    print('foo')
     yield Cluster(
         ['127.0.0.1'], port=native_transport_port,
         load_balancing_policy=RoundRobinPolicy())
-    print('bar')
 
     pgrp = os.getpgid(proc.pid)
     os.killpg(pgrp, signal.SIGKILL)
