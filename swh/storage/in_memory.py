@@ -99,7 +99,7 @@ class Storage:
         }
 
         if with_data:
-            summary['content:bytes:add'] = count_content_bytes_added
+            summary['content:add:bytes'] = count_content_bytes_added
 
         return summary
 

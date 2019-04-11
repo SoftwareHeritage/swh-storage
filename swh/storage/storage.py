@@ -208,7 +208,7 @@ class Storage():
             Summary dict with the following key and associated values:
 
                 content:add: New contents added
-                content:bytes:add: Sum of the contents' length data
+                content:add:bytes: Sum of the contents' length data
                 skipped_content:add: New skipped contents (no data) added
         """
         content = [dict(c.items()) for c in content]  # semi-shallow copy
@@ -257,7 +257,7 @@ class Storage():
             # transaction, bubbling up any exception
             content_bytes_added = added_to_objstorage.result()
 
-        summary['content:bytes:add'] = content_bytes_added
+        summary['content:add:bytes'] = content_bytes_added
         return summary
 
     @db_transaction()
