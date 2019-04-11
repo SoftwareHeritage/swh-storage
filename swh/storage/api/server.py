@@ -300,7 +300,10 @@ def object_find_by_sha1_git():
 @encode
 @process_metrics
 def snapshot_add():
-    return get_storage().snapshot_add(**decode_request(request))
+    req_data = decode_request(request)
+    if 'snapshot' in req_data:
+        req_data['snapshots'] = req_data.pop('snapshot')
+    return get_storage().snapshot_add(**req_data)
 
 
 @app.route('/snapshot', methods=['POST'])
