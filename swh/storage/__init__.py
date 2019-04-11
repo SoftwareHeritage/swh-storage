@@ -37,6 +37,8 @@ def get_storage(cls, args):
         from .storage import Storage
     elif cls == 'memory':
         from .in_memory import Storage
+    elif cls == 'cassandra':
+        from .cassandra import CassandraStorage as Storage
     else:
         raise ValueError('Unknown storage class `%s`' % cls)
 
