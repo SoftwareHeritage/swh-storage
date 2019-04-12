@@ -6,7 +6,9 @@
 import copy
 import datetime
 import itertools
+import queue
 import random
+import threading
 import unittest
 from collections import defaultdict
 from unittest.mock import Mock, patch
@@ -4031,6 +4033,48 @@ class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
         self.assertEqual(e.exception.args, ('mocked broken objstorage',))
         missing = list(self.storage.content_missing([self.cont]))
         self.assertEqual(missing, [self.cont['sha1']])
+
+
+@pytest.mark.db
+class TestStorageRaceConditions(TestStorageData, StorageTestDbFixture,
+                                unittest.TestCase):
+    @pytest.mark.xfail
+    def test_content_add_race(self):
+
+        results = queue.Queue()
+
+        def thread():
+            db = None
+            try:
+                db = self.storage.get_db()
+                with db.transaction() as cur:
+                    ret = self.storage.content_add([self.cont], db=db,
+                                                   cur=cur)
+                results.put((threading.get_ident(), 'data', ret))
+            except Exception as e:
+                results.put((threading.get_ident(), 'exc', e))
+            finally:
+                if db:
+                    self.storage.put_db(db)
+
+        t1 = threading.Thread(target=thread)
+        t2 = threading.Thread(target=thread)
+        t1.start()
+        # this avoids the race condition
+        # import time
+        # time.sleep(1)
+        t2.start()
+        t1.join()
+        t2.join()
+
+        r1 = results.get(block=False)
+        r2 = results.get(block=False)
+
+        with pytest.raises(queue.Empty):
+            results.get(block=False)
+        assert r1[0] != r2[0]
+        assert r1[1] == 'data', 'Got exception %r in Thread%s' % (r1[2], r1[0])
+        assert r2[1] == 'data', 'Got exception %r in Thread%s' % (r2[2], r2[0])
 
 
 @pytest.mark.db
