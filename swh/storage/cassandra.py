@@ -19,6 +19,35 @@ from .journal_writer import get_journal_writer
 from . import converters
 
 
+def revision_to_db(revision):
+    revision = deepcopy(revision)
+    metadata = revision.get('metadata')
+    if metadata and 'extra_headers' in metadata:
+        metadata = metadata.copy()
+        extra_headers = converters.git_headers_to_db(
+            metadata['extra_headers'])
+        metadata['extra_headers'] = extra_headers
+        revision['metadata'] = metadata
+
+    revision = Revision.from_dict(revision)
+    revision.type = revision.type.value
+    revision.metadata = json.dumps(revision.metadata)
+
+    return revision
+
+
+def revision_from_db(rev):
+    rev.type = RevisionType(rev.type)
+    metadata = json.loads(rev.metadata)
+    if metadata and 'extra_headers' in metadata:
+        extra_headers = converters.db_to_git_headers(
+            metadata['extra_headers'])
+        metadata['extra_headers'] = extra_headers
+    rev.metadata = metadata
+
+    return rev
+
+
 def prepared_statement(query):
     def decorator(f):
         @functools.wraps(f)
@@ -72,24 +101,15 @@ class CassandraStorage:
         missing = self.revision_missing([rev['id'] for rev in revisions])
 
         for revision in revisions:
-            revision = deepcopy(revision)
             if revision['id'] not in missing:
                 continue
-            metadata = revision.get('metadata')
-            if metadata and 'extra_headers' in metadata:
-                metadata = metadata.copy()
-                extra_headers = converters.git_headers_to_db(
-                    metadata['extra_headers'])
-                metadata['extra_headers'] = extra_headers
-                revision['metadata'] = metadata
 
-            revision = Revision.from_dict(revision)
-            revision.type = revision.type.value
-            revision.metadata = json.dumps(revision.metadata)
-            self._session.execute(
-                statement,
-                [getattr(revision, key) for key in self._revision_keys])
-            print('insert: %r' % revision)
+            revision = revision_to_db(revision)
+
+            if revision:
+                self._session.execute(
+                    statement,
+                    [getattr(revision, key) for key in self._revision_keys])
 
         return {'revision:add': len(missing)}
 
@@ -109,14 +129,7 @@ class CassandraStorage:
         revs = {}
         for row in rows:
             rev = Revision(**row._asdict())
-            rev.type = RevisionType(rev.type)
-            metadata = json.loads(rev.metadata)
-            if metadata and 'extra_headers' in metadata:
-                extra_headers = converters.db_to_git_headers(
-                    metadata['extra_headers'])
-                metadata['extra_headers'] = extra_headers
-            rev.metadata = metadata
-            print('select: %r' % rev)
+            rev = revision_from_db(rev)
             revs[rev.id] = rev.to_dict()
 
         for rev_id in revision_ids:
