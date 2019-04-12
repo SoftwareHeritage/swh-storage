@@ -14,7 +14,7 @@ import pytest
 from cassandra.cluster import Cluster
 from cassandra.policies import RoundRobinPolicy
 
-from swh.storage.cassandra import CassandraStorage
+from swh.storage import get_storage
 
 from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage
@@ -43,6 +43,47 @@ listen_address: 127.0.0.1
 start_rpc: false
 
 '''
+
+CREATE_TABLES_QUERIES = [
+    '''
+CREATE TYPE microtimestamp (
+    seconds             bigint,
+    microseconds        int
+)
+''',
+    '''
+CREATE TYPE microtimestamp_with_timezone (
+    timestamp           frozen<microtimestamp>,
+    offset              smallint,
+    negative_utc        boolean
+);
+''',
+    '''
+CREATE TYPE person (
+    fullname    blob,
+    name        blob,
+    email       blob
+);
+''',
+    '''
+CREATE TABLE revision (
+    id                              blob PRIMARY KEY,
+    date                            microtimestamp_with_timezone,
+    committer_date                  microtimestamp_with_timezone,
+    type                            ascii,
+    directory                       blob,  -- source code "root" directory
+    message                         blob,
+    author                          person,
+    committer                       person,
+    parents                         frozen<list<blob>>,
+    synthetic                       boolean,
+        -- true iff revision has been created by Software Heritage
+    metadata                        text
+        -- extra metadata as JSON(tarball checksums,
+        -- extra commit information, etc...)
+);
+'''
+]
 
 
 def free_port():
@@ -105,9 +146,7 @@ def cassandra_cluster(tmpdir_factory):
 
     wait_for_peer('127.0.0.1', native_transport_port)
 
-    yield Cluster(
-        ['127.0.0.1'], port=native_transport_port,
-        load_balancing_policy=RoundRobinPolicy())
+    yield (['127.0.0.1'], native_transport_port)
 
     pgrp = os.getpgid(proc.pid)
     os.killpg(pgrp, signal.SIGKILL)
@@ -116,6 +155,13 @@ def cassandra_cluster(tmpdir_factory):
 @pytest.fixture(scope='class')
 def class_cassandra_cluster(request, cassandra_cluster):
     request.cls.cassandra_cluster = cassandra_cluster
+
+
+class RequestHandler:
+    def on_request(self, rf):
+        if hasattr(rf.message, 'query'):
+            print()
+            print(rf.message.query)
 
 
 @pytest.mark.usefixtures('class_cassandra_cluster')
@@ -128,16 +174,33 @@ class TestCassandraStorage(CommonTestStorage, unittest.TestCase):
     """
     def setUp(self):
         super().setUp()
-        self.storage = CassandraStorage()
+        (hosts, port) = self.cassandra_cluster
         keyspace = os.urandom(10).hex()
-        session = self.cassandra_cluster.connect()
+
+        cluster = Cluster(
+            hosts, port=port,
+            load_balancing_policy=RoundRobinPolicy())
+        session = cluster.connect()
         session.execute('''CREATE KEYSPACE "%s"
                            WITH REPLICATION = {
                                'class' : 'SimpleStrategy',
                                'replication_factor' : 1
                            };
                         ''' % keyspace)
-        self.storage._session = self.cassandra_cluster.connect(keyspace)
+        session.execute('USE "%s"' % keyspace)
+        for query in CREATE_TABLES_QUERIES:
+            session.execute(query)
+        handler = RequestHandler()
+
+        self.storage = get_storage('cassandra', {
+            'hosts': hosts, 'port': port,
+            'keyspace': keyspace,
+            'journal_writer': {
+                'cls': 'inmemory',
+            }
+        })
+        self.storage._session.add_request_init_listener(handler.on_request)
+        self.journal_writer = self.storage.journal_writer
 
     @pytest.mark.skip('postgresql-specific test')
     def test_content_add_db(self):
@@ -167,7 +230,7 @@ class PropTestCassandraStorage(CommonPropTestStorage, unittest.TestCase):
     """
     def setUp(self):
         super().setUp()
-        self.storage = CassandraStorage()
+        assert False
 
     def reset_storage_tables(self):
-        self.storage = CassandraStorage()
+        assert False
