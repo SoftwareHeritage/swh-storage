@@ -565,7 +565,7 @@ class Storage():
                 entry['dir_id'] = dir_id
                 dir_entries[entry['type']][dir_id].append(entry)
 
-        dirs_missing = set(self.directory_missing(dirs))
+        dirs_missing = set(self.directory_missing(dirs, db=db, cur=cur))
         if not dirs_missing:
             return summary
 
@@ -695,7 +695,8 @@ class Storage():
             self.journal_writer.write_additions('revision', revisions)
 
         revisions_missing = set(self.revision_missing(
-            set(revision['id'] for revision in revisions)))
+            set(revision['id'] for revision in revisions),
+            db=db, cur=cur))
 
         if not revisions_missing:
             return summary
