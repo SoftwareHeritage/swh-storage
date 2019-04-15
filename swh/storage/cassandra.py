@@ -94,14 +94,15 @@ class CassandraStorage:
            VALUES (%s)''' % (
             ', '.join(_revision_keys),
             ', '.join('?' for _ in _revision_keys)))
-    def revision_add(self, revisions, statement):
+    def revision_add(self, revisions, statement, check_missing=True):
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
-        missing = self.revision_missing([rev['id'] for rev in revisions])
+        if check_missing:
+            missing = self.revision_missing([rev['id'] for rev in revisions])
 
         for revision in revisions:
-            if revision['id'] not in missing:
+            if check_missing and revision['id'] not in missing:
                 continue
 
             revision = revision_to_db(revision)
@@ -111,7 +112,10 @@ class CassandraStorage:
                     statement,
                     [getattr(revision, key) for key in self._revision_keys])
 
-        return {'revision:add': len(missing)}
+        if check_missing:
+            return {'revision:add': len(missing)}
+        else:
+            return {'revision:add': len(revisions)}
 
     def revision_missing(self, revision_ids):
         res = self._session.execute(
