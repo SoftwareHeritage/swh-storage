@@ -127,8 +127,8 @@ class CassandraStorage:
 
     def revision_get(self, revision_ids):
         rows = self._session.execute(
-            'SELECT * FROM revision WHERE id IN (%s)' %
-            ', '.join('%s' for _ in revision_ids),
+            'SELECT * FROM revision WHERE id IN ({})'.format(
+                ', '.join('%s' for _ in revision_ids)),
             revision_ids)
         revs = {}
         for row in rows:
@@ -138,3 +138,53 @@ class CassandraStorage:
 
         for rev_id in revision_ids:
             yield revs.get(rev_id)
+
+    def _get_parent_revs(self, rev_ids, seen, limit, short):
+        if limit and len(seen) >= limit:
+            return
+        rev_ids = [id_ for id_ in rev_ids if id_ not in seen]
+        if not rev_ids:
+            return
+        seen |= set(rev_ids)
+        rows = self._session.execute(
+            'SELECT {} FROM revision WHERE id IN ({})'.format(
+                'id, parents' if short else '*',
+                ', '.join('%s' for _ in rev_ids)),
+            rev_ids)
+        for row in rows:
+            if short:
+                (id_, parents) = row
+                yield (id_, parents)
+            else:
+                rev = revision_from_db(Revision(**row._asdict()))
+                parents = rev.parents
+                yield rev.to_dict()
+            yield from self._get_parent_revs(parents, seen, limit, short)
+
+    def revision_log(self, revision_ids, limit=None):
+        """Fetch revision entry from the given root revisions.
+
+        Args:
+            revisions: array of root revision to lookup
+            limit: limitation on the output result. Default to None.
+
+        Yields:
+            List of revision log from such revisions root.
+
+        """
+        seen = set()
+        yield from self._get_parent_revs(revision_ids, seen, limit, False)
+
+    def revision_shortlog(self, revisions, limit=None):
+        """Fetch the shortlog for the given revisions
+
+        Args:
+            revisions: list of root revisions to lookup
+            limit: depth limitation for the output
+
+        Yields:
+            a list of (id, parents) tuples.
+
+        """
+        seen = set()
+        yield from self._get_parent_revs(revisions, seen, limit, True)
