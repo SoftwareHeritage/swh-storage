@@ -141,13 +141,16 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         return False
 
     def _get_rev(self, rev_id):
-        rev = self._revs.get(rev_id, None)
-        if not rev:
+        rev = self._revs.get(rev_id)
+        if rev is None:
             # cache some revisions in advance to avoid sending too much
             # requests to storage and thus speedup the revisions walk
             for rev in self.storage.revision_log([rev_id], limit=100):
+                # revision data is missing, returned history will be truncated
+                if rev is None:
+                    continue
                 self._revs[rev['id']] = rev
-        return self._revs[rev_id]
+        return self._revs.get(rev_id)
 
     def export_state(self):
         """
@@ -173,6 +176,9 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
                 continue
             self._done.add(rev_id)
             rev = self._get_rev(rev_id)
+            # revision data is missing, returned history will be truncated
+            if rev is None:
+                continue
             self.process_parent_revs(rev)
             if self.should_return(rev):
                 self._num_revs += 1
@@ -201,8 +207,9 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
         """
         if rev_id not in self._done:
             rev = self._get_rev(rev_id)
-            commit_time = rev['committer_date']['timestamp']['seconds']
-            heapq.heappush(self._revs_to_visit, (-commit_time, rev_id))
+            if rev is not None:
+                commit_time = rev['committer_date']['timestamp']['seconds']
+                heapq.heappush(self._revs_to_visit, (-commit_time, rev_id))
 
     def get_next_rev_id(self):
         """

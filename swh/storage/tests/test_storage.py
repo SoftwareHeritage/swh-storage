@@ -558,7 +558,7 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont])
         self.assertEqual(actual_result, {
             'content:add': 1,
-            'content:bytes:add': cont['length'],
+            'content:add:bytes': cont['length'],
             'skipped_content:add': 0
         })
 
@@ -580,7 +580,7 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont, cont])
         self.assertEqual(actual_result, {
             'content:add': 1,
-            'content:bytes:add': cont['length'],
+            'content:add:bytes': cont['length'],
             'skipped_content:add': 0
         })
 
@@ -591,7 +591,7 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.content_add([cont, cont2])
         self.assertEqual(actual_result, {
             'content:add': 2,
-            'content:bytes:add': cont['length'] + cont2['length'],
+            'content:add:bytes': cont['length'] + cont2['length'],
             'skipped_content:add': 0
         })
 
@@ -602,7 +602,7 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(actual_result, {
             'content:add': 1,
-            'content:bytes:add': cont['length'],
+            'content:add:bytes': cont['length'],
             'skipped_content:add': 0
         })
 
@@ -738,7 +738,7 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(actual_result, {
             'content:add': 0,
-            'content:bytes:add': 0,
+            'content:add:bytes': 0,
             'skipped_content:add': 2,
         })
 
@@ -780,7 +780,7 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(actual_result, {
             'content:add': 0,
-            'content:bytes:add': 0,
+            'content:add:bytes': 0,
             'skipped_content:add': 2,
         })
 
