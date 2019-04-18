@@ -1,3 +1,14 @@
+swh-storage (0.0.139-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.139     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-04-18 17:57:57 +0200)
+  * Upstream changes:     - Release swh.storage v0.0.139     - Backwards-
+    compatibility improvements for snapshot_add     - Better
+    transactionality in revision_add/release_add     - Fix backwards
+    metric names     - Handle shallow histories properly
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 18 Apr 2019 16:08:28 +0000
+
 swh-storage (0.0.138-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.138     - (tagged by Valentin Lorentz
