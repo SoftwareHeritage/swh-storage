@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from copy import deepcopy
 import functools
 import json
 
@@ -20,14 +19,17 @@ from . import converters
 
 
 def revision_to_db(revision):
-    revision = deepcopy(revision)
     metadata = revision.get('metadata')
     if metadata and 'extra_headers' in metadata:
-        metadata = metadata.copy()
         extra_headers = converters.git_headers_to_db(
             metadata['extra_headers'])
-        metadata['extra_headers'] = extra_headers
-        revision['metadata'] = metadata
+        revision = {
+            **revision,
+            'metadata': {
+                **metadata,
+                'extra_headers': extra_headers
+            }
+        }
 
     revision = Revision.from_dict(revision)
     revision.type = revision.type.value
