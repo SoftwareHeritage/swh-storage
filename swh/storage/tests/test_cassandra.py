@@ -199,7 +199,8 @@ class TestCassandraStorage(CommonTestStorage, unittest.TestCase):
                 'cls': 'inmemory',
             }
         })
-        self.storage._session.add_request_init_listener(handler.on_request)
+        self.storage._proxy._session.add_request_init_listener(
+            handler.on_request)
         self.journal_writer = self.storage.journal_writer
 
     @pytest.mark.skip('postgresql-specific test')

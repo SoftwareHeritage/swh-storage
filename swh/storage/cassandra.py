@@ -5,7 +5,9 @@
 
 import functools
 import json
+import logging
 
+from cassandra import WriteFailure, ReadFailure
 from cassandra.cluster import Cluster
 from cassandra.policies import RoundRobinPolicy
 
@@ -16,6 +18,9 @@ from swh.model.model import (
 
 from .journal_writer import get_journal_writer
 from . import converters
+
+
+logger = logging.getLogger(__name__)
 
 
 def revision_to_db(revision):
@@ -63,8 +68,15 @@ def prepared_statement(query):
     return decorator
 
 
-class CassandraStorage:
-    def __init__(self, hosts, keyspace, port=9042, journal_writer=None):
+def prepared_insert_statement(table_name, keys):
+    return prepared_statement(
+        'INSERT INTO %s (%s) VALUES (%s)' %
+        (table_name, ', '.join(keys), ', '.join('?' for _ in keys))
+    )
+
+
+class CassandraProxy:
+    def __init__(self, hosts, keyspace, port):
         self._cluster = Cluster(
             hosts, port=port,
             load_balancing_policy=RoundRobinPolicy())
@@ -78,6 +90,37 @@ class CassandraStorage:
 
         self._prepared_statements = {}
 
+    MAX_RETRIES = 3
+
+    _revision_keys = [
+        'id', 'date', 'committer_date', 'type', 'directory', 'message',
+        'author', 'committer', 'parents',
+        'synthetic', 'metadata']
+
+    def execute_and_retry(self, statement, *args):
+        for nb_retries in range(self.MAX_RETRIES):
+            try:
+                return self._session.execute(statement, *args)
+            except WriteFailure as e:
+                logger.error('Failed to write object to cassandra: %r', e)
+            except ReadFailure as e:
+                logger.error('Failed to read object(s) to cassandra: %r', e)
+            if nb_retries == self.MAX_RETRIES-1:
+                raise e  # noqa
+
+    def _add_one(self, statement, obj, keys):
+        self.execute_and_retry(
+            statement, [getattr(obj, key) for key in keys])
+
+    @prepared_insert_statement('revision', _revision_keys)
+    def revision_add_one(self, revision, *, statement):
+        self._add_one(statement, revision, self._revision_keys)
+
+
+class CassandraStorage:
+    def __init__(self, hosts, keyspace, port=9042, journal_writer=None):
+        self._proxy = CassandraProxy(hosts, keyspace, port)
+
         if journal_writer:
             self.journal_writer = get_journal_writer(**journal_writer)
         else:
@@ -86,17 +129,7 @@ class CassandraStorage:
     def check_config(self, check_write=False):
         return True
 
-    _revision_keys = [
-        'id', 'date', 'committer_date', 'type', 'directory', 'message',
-        'author', 'committer', 'parents',
-        'synthetic', 'metadata']
-
-    @prepared_statement(
-        '''INSERT INTO revision (%s)
-           VALUES (%s)''' % (
-            ', '.join(_revision_keys),
-            ', '.join('?' for _ in _revision_keys)))
-    def revision_add(self, revisions, statement, check_missing=True):
+    def revision_add(self, revisions, check_missing=True):
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
@@ -110,9 +143,7 @@ class CassandraStorage:
             revision = revision_to_db(revision)
 
             if revision:
-                self._session.execute(
-                    statement,
-                    [getattr(revision, key) for key in self._revision_keys])
+                self._proxy.revision_add_one(revision)
 
         if check_missing:
             return {'revision:add': len(missing)}
@@ -120,7 +151,7 @@ class CassandraStorage:
             return {'revision:add': len(revisions)}
 
     def revision_missing(self, revision_ids):
-        res = self._session.execute(
+        res = self._proxy.execute_and_retry(
             'SELECT id FROM revision WHERE id IN (%s)' %
             ', '.join('%s' for _ in revision_ids),
             revision_ids)
@@ -128,7 +159,7 @@ class CassandraStorage:
         return set(revision_ids) - found_ids
 
     def revision_get(self, revision_ids):
-        rows = self._session.execute(
+        rows = self._proxy.execute_and_retry(
             'SELECT * FROM revision WHERE id IN ({})'.format(
                 ', '.join('%s' for _ in revision_ids)),
             revision_ids)
@@ -148,7 +179,7 @@ class CassandraStorage:
         if not rev_ids:
             return
         seen |= set(rev_ids)
-        rows = self._session.execute(
+        rows = self._proxy.execute_and_retry(
             'SELECT {} FROM revision WHERE id IN ({})'.format(
                 'id, parents' if short else '*',
                 ', '.join('%s' for _ in rev_ids)),
