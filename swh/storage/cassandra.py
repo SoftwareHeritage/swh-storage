@@ -7,7 +7,7 @@ import functools
 import json
 import logging
 
-from cassandra import WriteFailure, ReadFailure
+from cassandra import WriteFailure, WriteTimeout, ReadFailure, ReadTimeout
 from cassandra.cluster import Cluster
 from cassandra.policies import RoundRobinPolicy
 
@@ -100,13 +100,15 @@ class CassandraProxy:
     def execute_and_retry(self, statement, *args):
         for nb_retries in range(self.MAX_RETRIES):
             try:
-                return self._session.execute(statement, *args)
-            except WriteFailure as e:
+                return self._session.execute(statement, *args, timeout=100.)
+            except (WriteFailure, WriteTimeout) as e:
                 logger.error('Failed to write object to cassandra: %r', e)
-            except ReadFailure as e:
+                if nb_retries == self.MAX_RETRIES-1:
+                    raise e  # noqa
+            except (ReadFailure, ReadTimeout) as e:
                 logger.error('Failed to read object(s) to cassandra: %r', e)
-            if nb_retries == self.MAX_RETRIES-1:
-                raise e  # noqa
+                if nb_retries == self.MAX_RETRIES-1:
+                    raise e  # noqa
 
     def _add_one(self, statement, obj, keys):
         self.execute_and_retry(
