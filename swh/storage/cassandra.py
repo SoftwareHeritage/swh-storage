@@ -9,7 +9,7 @@ import logging
 
 from cassandra import WriteFailure, WriteTimeout, ReadFailure, ReadTimeout
 from cassandra.cluster import Cluster
-from cassandra.policies import RoundRobinPolicy
+from cassandra.policies import RoundRobinPolicy, TokenAwarePolicy
 
 from swh.model.model import (
     TimestampWithTimezone, Timestamp, Person, RevisionType,
@@ -79,7 +79,7 @@ class CassandraProxy:
     def __init__(self, hosts, keyspace, port):
         self._cluster = Cluster(
             hosts, port=port,
-            load_balancing_policy=RoundRobinPolicy())
+            load_balancing_policy=TokenAwarePolicy(RoundRobinPolicy()))
         self._session = self._cluster.connect(keyspace)
         self._cluster.register_user_type(
             keyspace, 'microtimestamp_with_timezone', TimestampWithTimezone)
