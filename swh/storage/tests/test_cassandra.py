@@ -66,6 +66,14 @@ CREATE TYPE person (
 );
 ''',
     '''
+CREATE TYPE dir_entry (
+    target  blob,  -- id of target revision
+    name    blob,  -- path name, relative to containing dir
+    perms   int,   -- unix-like permissions
+    type    ascii
+);
+''',
+    '''
 CREATE TABLE revision (
     id                              blob PRIMARY KEY,
     date                            microtimestamp_with_timezone,
@@ -82,7 +90,13 @@ CREATE TABLE revision (
         -- extra metadata as JSON(tarball checksums,
         -- extra commit information, etc...)
 );
-'''
+''',
+    '''
+CREATE TABLE directory (
+    id        blob PRIMARY KEY,
+    entries_  frozen<list<dir_entry>>
+);
+''',
 ]
 
 

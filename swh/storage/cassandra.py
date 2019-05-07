@@ -13,7 +13,7 @@ from cassandra.policies import RoundRobinPolicy, TokenAwarePolicy
 
 from swh.model.model import (
     TimestampWithTimezone, Timestamp, Person, RevisionType,
-    Revision,
+    Revision, Directory, DirectoryEntry,
 )
 
 from .journal_writer import get_journal_writer
@@ -87,6 +87,8 @@ class CassandraProxy:
             keyspace, 'microtimestamp', Timestamp)
         self._cluster.register_user_type(
             keyspace, 'person', Person)
+        self._cluster.register_user_type(
+            keyspace, 'dir_entry', DirectoryEntry)
 
         self._prepared_statements = {}
 
@@ -97,6 +99,9 @@ class CassandraProxy:
         'author', 'committer', 'parents',
         'synthetic', 'metadata']
 
+    _directory_keys = ['id', 'entries_']
+    _directory_attributes = ['id', 'entries']
+
     def execute_and_retry(self, statement, *args):
         for nb_retries in range(self.MAX_RETRIES):
             try:
@@ -104,11 +109,11 @@ class CassandraProxy:
             except (WriteFailure, WriteTimeout) as e:
                 logger.error('Failed to write object to cassandra: %r', e)
                 if nb_retries == self.MAX_RETRIES-1:
-                    raise e  # noqa
+                    raise e
             except (ReadFailure, ReadTimeout) as e:
                 logger.error('Failed to read object(s) to cassandra: %r', e)
                 if nb_retries == self.MAX_RETRIES-1:
-                    raise e  # noqa
+                    raise e
 
     def _add_one(self, statement, obj, keys):
         self.execute_and_retry(
@@ -117,6 +122,10 @@ class CassandraProxy:
     @prepared_insert_statement('revision', _revision_keys)
     def revision_add_one(self, revision, *, statement):
         self._add_one(statement, revision, self._revision_keys)
+
+    @prepared_insert_statement('directory', _directory_keys)
+    def directory_add_one(self, directory, *, statement):
+        self._add_one(statement, directory, self._directory_attributes)
 
 
 class CassandraStorage:
@@ -130,6 +139,99 @@ class CassandraStorage:
 
     def check_config(self, check_write=False):
         return True
+
+    def _missing(self, table, ids):
+        res = self._proxy.execute_and_retry(
+            'SELECT id FROM %s WHERE id IN (%s)' %
+            (table, ', '.join('%s' for _ in ids)),
+            ids
+        )
+        found_ids = {id_ for (id_,) in res}
+        return set(ids) - found_ids
+
+    def content_find(self, content):
+        return None
+
+    def directory_add(self, directories):
+        if self.journal_writer:
+            self.journal_writer.write_additions('directory', directories)
+
+        missing = self.directory_missing([dir_['id'] for dir_ in directories])
+
+        for directory in directories:
+            if directory['id'] in missing:
+                self._proxy.directory_add_one(
+                    Directory.from_dict(directory))
+
+        return {'directory:add': len(missing)}
+
+    def directory_missing(self, directory_ids):
+        return self._missing('directory', directory_ids)
+
+    def _join_dentry_to_content(self, dentry):
+        keys = (
+            'status',
+            'sha1',
+            'sha1_git',
+            'sha256',
+            'length',
+        )
+        ret = dict.fromkeys(keys)
+        ret.update(dentry.to_dict())
+        if ret['type'] == 'file':
+            content = self.content_find({'sha1_git': ret['target']})
+            if content:
+                for key in keys:
+                    ret[key] = content[key]
+        return ret
+
+    def _directory_ls(self, directory_id, recursive, prefix=b''):
+        rows = list(self._proxy.execute_and_retry(
+            'SELECT * FROM directory WHERE id = %s',
+            (directory_id,)))
+        if not rows:
+            return
+        assert len(rows) == 1
+
+        dir_ = rows[0]._asdict()
+        dir_['entries'] = dir_.pop('entries_')
+        dir_ = Directory(**dir_)
+        for entry in dir_.entries:
+            ret = self._join_dentry_to_content(entry)
+            ret['name'] = prefix + ret['name']
+            ret['dir_id'] = directory_id
+            yield ret
+            if recursive and ret['type'] == 'dir':
+                yield from self._directory_ls(
+                    ret['target'], True, prefix + ret['name'] + b'/')
+
+    def directory_entry_get_by_path(self, directory, paths):
+        if not paths:
+            return
+
+        contents = list(self.directory_ls(directory))
+
+        if not contents:
+            return
+
+        def _get_entry(entries, name):
+            for entry in entries:
+                if entry['name'] == name:
+                    return entry
+
+        first_item = _get_entry(contents, paths[0])
+
+        if len(paths) == 1:
+            return first_item
+
+        if not first_item or first_item['type'] != 'dir':
+            return
+
+        return self.directory_entry_get_by_path(
+                first_item['target'], paths[1:])
+
+    def directory_ls(self, directory_id, recursive=False):
+        yield from self._directory_ls(directory_id, recursive)
 
     def revision_add(self, revisions, check_missing=True):
         if self.journal_writer:
@@ -153,12 +255,7 @@ class CassandraStorage:
             return {'revision:add': len(revisions)}
 
     def revision_missing(self, revision_ids):
-        res = self._proxy.execute_and_retry(
-            'SELECT id FROM revision WHERE id IN (%s)' %
-            ', '.join('%s' for _ in revision_ids),
-            revision_ids)
-        found_ids = {id_ for (id_,) in res}
-        return set(revision_ids) - found_ids
+        return self._missing('revision', revision_ids)
 
     def revision_get(self, revision_ids):
         rows = self._proxy.execute_and_retry(
