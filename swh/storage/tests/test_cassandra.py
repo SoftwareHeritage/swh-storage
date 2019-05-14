@@ -11,10 +11,9 @@ import time
 import unittest
 
 import pytest
-from cassandra.cluster import Cluster
-from cassandra.policies import RoundRobinPolicy
 
 from swh.storage import get_storage
+from swh.storage.cassandra import create_keyspace
 
 from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage
@@ -43,61 +42,6 @@ listen_address: 127.0.0.1
 start_rpc: false
 
 '''
-
-CREATE_TABLES_QUERIES = [
-    '''
-CREATE TYPE microtimestamp (
-    seconds             bigint,
-    microseconds        int
-)
-''',
-    '''
-CREATE TYPE microtimestamp_with_timezone (
-    timestamp           frozen<microtimestamp>,
-    offset              smallint,
-    negative_utc        boolean
-);
-''',
-    '''
-CREATE TYPE person (
-    fullname    blob,
-    name        blob,
-    email       blob
-);
-''',
-    '''
-CREATE TYPE dir_entry (
-    target  blob,  -- id of target revision
-    name    blob,  -- path name, relative to containing dir
-    perms   int,   -- unix-like permissions
-    type    ascii
-);
-''',
-    '''
-CREATE TABLE revision (
-    id                              blob PRIMARY KEY,
-    date                            microtimestamp_with_timezone,
-    committer_date                  microtimestamp_with_timezone,
-    type                            ascii,
-    directory                       blob,  -- source code "root" directory
-    message                         blob,
-    author                          person,
-    committer                       person,
-    parents                         frozen<list<blob>>,
-    synthetic                       boolean,
-        -- true iff revision has been created by Software Heritage
-    metadata                        text
-        -- extra metadata as JSON(tarball checksums,
-        -- extra commit information, etc...)
-);
-''',
-    '''
-CREATE TABLE directory (
-    id        blob PRIMARY KEY,
-    entries_  frozen<list<dir_entry>>
-);
-''',
-]
 
 
 def free_port():
@@ -191,19 +135,7 @@ class TestCassandraStorage(CommonTestStorage, unittest.TestCase):
         (hosts, port) = self.cassandra_cluster
         keyspace = os.urandom(10).hex()
 
-        cluster = Cluster(
-            hosts, port=port,
-            load_balancing_policy=RoundRobinPolicy())
-        session = cluster.connect()
-        session.execute('''CREATE KEYSPACE "%s"
-                           WITH REPLICATION = {
-                               'class' : 'SimpleStrategy',
-                               'replication_factor' : 1
-                           };
-                        ''' % keyspace)
-        session.execute('USE "%s"' % keyspace)
-        for query in CREATE_TABLES_QUERIES:
-            session.execute(query)
+        create_keyspace(hosts, keyspace, port)
         handler = RequestHandler()
 
         self.storage = get_storage('cassandra', {

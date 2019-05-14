@@ -23,6 +23,78 @@ from . import converters
 logger = logging.getLogger(__name__)
 
 
+CREATE_TABLES_QUERIES = [
+    '''
+CREATE TYPE IF NOT EXISTS microtimestamp (
+    seconds             bigint,
+    microseconds        int
+)
+''',
+    '''
+CREATE TYPE IF NOT EXISTS microtimestamp_with_timezone (
+    timestamp           frozen<microtimestamp>,
+    offset              smallint,
+    negative_utc        boolean
+);
+''',
+    '''
+CREATE TYPE IF NOT EXISTS person (
+    fullname    blob,
+    name        blob,
+    email       blob
+);
+''',
+    '''
+CREATE TYPE IF NOT EXISTS dir_entry (
+    target  blob,  -- id of target revision
+    name    blob,  -- path name, relative to containing dir
+    perms   int,   -- unix-like permissions
+    type    ascii
+);
+''',
+    '''
+CREATE TABLE IF NOT EXISTS revision (
+    id                              blob PRIMARY KEY,
+    date                            microtimestamp_with_timezone,
+    committer_date                  microtimestamp_with_timezone,
+    type                            ascii,
+    directory                       blob,  -- source code "root" directory
+    message                         blob,
+    author                          person,
+    committer                       person,
+    parents                         frozen<list<blob>>,
+    synthetic                       boolean,
+        -- true iff revision has been created by Software Heritage
+    metadata                        text
+        -- extra metadata as JSON(tarball checksums,
+        -- extra commit information, etc...)
+);
+''',
+    '''
+CREATE TABLE IF NOT EXISTS directory (
+    id        blob PRIMARY KEY,
+    entries_  frozen<list<dir_entry>>
+);
+''',
+]
+
+
+def create_keyspace(hosts, keyspace, port=9042):
+    cluster = Cluster(
+        hosts, port=port,
+        load_balancing_policy=RoundRobinPolicy())
+    session = cluster.connect()
+    session.execute('''CREATE KEYSPACE IF NOT EXISTS "%s"
+                       WITH REPLICATION = {
+                           'class' : 'SimpleStrategy',
+                           'replication_factor' : 1
+                       };
+                    ''' % keyspace)
+    session.execute('USE "%s"' % keyspace)
+    for query in CREATE_TABLES_QUERIES:
+        session.execute(query)
+
+
 def revision_to_db(revision):
     metadata = revision.get('metadata')
     if metadata and 'extra_headers' in metadata:
@@ -138,6 +210,8 @@ class CassandraStorage:
             self.journal_writer = None
 
     def check_config(self, check_write=False):
+        self._proxy.execute_and_retry('SELECT uuid() FROM revision LIMIT 1;')
+
         return True
 
     def _missing(self, table, ids):
