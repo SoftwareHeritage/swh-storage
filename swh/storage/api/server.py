@@ -564,16 +564,19 @@ def load_and_check_config(config_file, type='local'):
     if type == 'local':
         vcfg = cfg['storage']
         cls = vcfg.get('cls')
-        if cls != 'local':
+        if cls == 'local':
+            expected = {'db', 'objstorage'}
+        elif cls == 'cassandra':
+            expected = {'hosts', 'keyspace'}
+        else:
             raise ValueError(
                 "The storage backend can only be started with a 'local' "
-                "configuration")
-
-        args = vcfg['args']
-        for key in ('db', 'objstorage'):
-            if not args.get(key):
-                raise ValueError(
-                    "Invalid configuration; missing '%s' config entry" % key)
+                "or 'cassandra' configuration")
+        missing = expected - set(vcfg['args'])
+        if missing:
+            raise ValueError(
+                "Invalid configuration; missing config entries: %s" %
+                ', '.join(missing))
 
     return cfg
 
