@@ -6,6 +6,7 @@
 import functools
 import json
 import logging
+import uuid
 
 from cassandra import WriteFailure, WriteTimeout, ReadFailure, ReadTimeout
 from cassandra.cluster import Cluster
@@ -23,36 +24,31 @@ from . import converters
 logger = logging.getLogger(__name__)
 
 
-CREATE_TABLES_QUERIES = [
-    '''
+CREATE_TABLES_QUERIES = '''
 CREATE TYPE IF NOT EXISTS microtimestamp (
     seconds             bigint,
     microseconds        int
-)
-''',
-    '''
+);
+
 CREATE TYPE IF NOT EXISTS microtimestamp_with_timezone (
     timestamp           frozen<microtimestamp>,
     offset              smallint,
     negative_utc        boolean
 );
-''',
-    '''
+
 CREATE TYPE IF NOT EXISTS person (
     fullname    blob,
     name        blob,
     email       blob
 );
-''',
-    '''
+
 CREATE TYPE IF NOT EXISTS dir_entry (
     target  blob,  -- id of target revision
     name    blob,  -- path name, relative to containing dir
     perms   int,   -- unix-like permissions
     type    ascii
 );
-''',
-    '''
+
 CREATE TABLE IF NOT EXISTS revision (
     id                              blob PRIMARY KEY,
     date                            microtimestamp_with_timezone,
@@ -69,14 +65,20 @@ CREATE TABLE IF NOT EXISTS revision (
         -- extra metadata as JSON(tarball checksums,
         -- extra commit information, etc...)
 );
-''',
-    '''
+
 CREATE TABLE IF NOT EXISTS directory (
     id        blob PRIMARY KEY,
     entries_  frozen<list<dir_entry>>
 );
-''',
-]
+
+CREATE TABLE IF NOT EXISTS origin (
+    id        timeuuid PRIMARY KEY,
+    type      ascii,
+    url       text,
+);
+
+CREATE INDEX origin_by_url ON origin (url);
+'''.split('\n\n')
 
 
 def create_keyspace(hosts, keyspace, port=9042):
@@ -142,8 +144,10 @@ def prepared_statement(query):
 
 def prepared_insert_statement(table_name, keys):
     return prepared_statement(
-        'INSERT INTO %s (%s) VALUES (%s)' %
-        (table_name, ', '.join(keys), ', '.join('?' for _ in keys))
+        'INSERT INTO %s (%s) VALUES (%s)' % (
+            table_name,
+            ', '.join(keys), ', '.join('?' for _ in keys),
+        )
     )
 
 
@@ -174,10 +178,12 @@ class CassandraProxy:
     _directory_keys = ['id', 'entries_']
     _directory_attributes = ['id', 'entries']
 
-    def execute_and_retry(self, statement, *args):
+    _origin_keys = ['id', 'type', 'url']
+
+    def execute_and_retry(self, statement, args):
         for nb_retries in range(self.MAX_RETRIES):
             try:
-                return self._session.execute(statement, *args, timeout=100.)
+                return self._session.execute(statement, args, timeout=100.)
             except (WriteFailure, WriteTimeout) as e:
                 logger.error('Failed to write object to cassandra: %r', e)
                 if nb_retries == self.MAX_RETRIES-1:
@@ -188,7 +194,7 @@ class CassandraProxy:
                     raise e
 
     def _add_one(self, statement, obj, keys):
-        self.execute_and_retry(
+        return self.execute_and_retry(
             statement, [getattr(obj, key) for key in keys])
 
     @prepared_insert_statement('revision', _revision_keys)
@@ -198,6 +204,23 @@ class CassandraProxy:
     @prepared_insert_statement('directory', _directory_keys)
     def directory_add_one(self, directory, *, statement):
         self._add_one(statement, directory, self._directory_attributes)
+
+    @prepared_statement('INSERT INTO origin (id, type, url) '
+                        'VALUES (?, ?, ?) IF NOT EXISTS')
+    def origin_add_one(self, origin, *, statement):
+        id_ = uuid.uuid1()
+        self.execute_and_retry(
+            statement, [id_, origin['type'], origin['url']])
+        return id_
+
+    @prepared_statement('SELECT * FROM origin WHERE id = ?')
+    def origin_get_by_id(self, id_, *, statement):
+        return self.execute_and_retry(statement, [id_])
+
+    @prepared_statement('SELECT * FROM origin WHERE url = ? AND type = ? '
+                        'ALLOW FILTERING')
+    def origin_get_by_type_and_url(self, type_, url, *, statement):
+        return self.execute_and_retry(statement, [url, type_])
 
 
 class CassandraStorage:
@@ -394,3 +417,75 @@ class CassandraStorage:
         """
         seen = set()
         yield from self._get_parent_revs(revisions, seen, limit, True)
+
+    def origin_get(self, origins):
+        if isinstance(origins, dict):
+            # Old API
+            return_single = True
+            origins = [origins]
+        else:
+            return_single = False
+
+        # Sanity check to be error-compatible with the pgsql backend
+        if any('id' in origin for origin in origins) \
+                and not all('id' in origin for origin in origins):
+            raise ValueError(
+                'Either all origins or none at all should have an "id".')
+        if any('type' in origin and 'url' in origin for origin in origins) \
+                and not all('type' in origin and 'url' in origin
+                            for origin in origins):
+            raise ValueError(
+                'Either all origins or none at all should have a '
+                '"type" and an "url".')
+
+        results = [self.origin_get_one(origin) for origin in origins]
+
+        if return_single:
+            assert len(results) == 1
+            return results[0]
+        else:
+            return results
+
+    def origin_get_one(self, origin):
+        if 'id' in origin:
+            rows = self._proxy.origin_get_by_id(uuid.UUID(origin['id']))
+        elif 'type' in origin and 'url' in origin:
+            rows = self._proxy.origin_get_by_type_and_url(
+                origin['type'], origin['url'])
+        else:
+            raise ValueError(
+                'Origin must have either id or (type and url).')
+
+        rows = list(rows)
+        if rows:
+            assert len(rows) == 1
+            result = rows[0]._asdict()
+            result['id'] = str(result['id'])
+            return result
+        else:
+            return None
+
+    def origin_add(self, origins):
+        if any('id' in origin for origin in origins):
+            raise ValueError('Origins must not already have an id.')
+        results = []
+        for origin in origins:
+            origin = origin.copy()
+            origin['id'] = str(self.origin_add_one(origin))
+            results.append(origin)
+        return results
+
+    def origin_add_one(self, origin):
+        assert 'id' not in origin
+
+        known_origin = self.origin_get_one(origin)
+
+        if known_origin:
+            origin_id = known_origin['id']
+        else:
+            if self.journal_writer:
+                self.journal_writer.write_addition('origin', origin)
+
+            origin_id = str(self._proxy.origin_add_one(origin))
+
+        return origin_id

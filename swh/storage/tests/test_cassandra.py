@@ -167,6 +167,7 @@ class TestCassandraStorage(CommonTestStorage, unittest.TestCase):
         pass
 
 
+@pytest.mark.xfail
 @pytest.mark.property_based
 class PropTestCassandraStorage(CommonPropTestStorage, unittest.TestCase):
     """Test the Cassandra storage API
@@ -175,9 +176,5 @@ class PropTestCassandraStorage(CommonPropTestStorage, unittest.TestCase):
     functionality between local and remote storage. All the tests are
     therefore defined in CommonPropTestStorage.
     """
-    def setUp(self):
-        super().setUp()
-        assert False
-
     def reset_storage_tables(self):
         assert False
