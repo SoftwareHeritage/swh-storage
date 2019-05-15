@@ -3,14 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import functools
 import json
 import logging
 import uuid
+import warnings
 
 from cassandra import WriteFailure, WriteTimeout, ReadFailure, ReadTimeout
 from cassandra.cluster import Cluster
 from cassandra.policies import RoundRobinPolicy, TokenAwarePolicy
+import dateutil
 
 from swh.model.model import (
     TimestampWithTimezone, Timestamp, Person, RevisionType,
@@ -71,11 +74,27 @@ CREATE TABLE IF NOT EXISTS directory (
     entries_  frozen<list<dir_entry>>
 );
 
-CREATE TABLE IF NOT EXISTS origin (
-    id        timeuuid PRIMARY KEY,
-    type      ascii,
-    url       text,
+CREATE TABLE IF NOT EXISTS origin_visit (
+    origin          timeuuid,
+    visit           bigint,
+    date            timestamp,
+    status          ascii,
+    metadata        text,
+    snapshot        blob,
+    PRIMARY KEY ((origin), visit)
 );
+
+
+CREATE TABLE IF NOT EXISTS origin (
+    id              timeuuid PRIMARY KEY,
+    type            ascii,
+    url             text,
+    next_visit_id   int,
+        -- We need integer visit ids for compatibility with the pgsql
+        -- storage, so we're using lightweight transactions with this trick:
+        -- https://stackoverflow.com/a/29391877/539465
+);
+
 
 CREATE INDEX origin_by_url ON origin (url);
 '''.split('\n\n')
@@ -170,16 +189,6 @@ class CassandraProxy:
 
     MAX_RETRIES = 3
 
-    _revision_keys = [
-        'id', 'date', 'committer_date', 'type', 'directory', 'message',
-        'author', 'committer', 'parents',
-        'synthetic', 'metadata']
-
-    _directory_keys = ['id', 'entries_']
-    _directory_attributes = ['id', 'entries']
-
-    _origin_keys = ['id', 'type', 'url']
-
     def execute_and_retry(self, statement, args):
         for nb_retries in range(self.MAX_RETRIES):
             try:
@@ -197,16 +206,24 @@ class CassandraProxy:
         return self.execute_and_retry(
             statement, [getattr(obj, key) for key in keys])
 
+    _revision_keys = [
+        'id', 'date', 'committer_date', 'type', 'directory', 'message',
+        'author', 'committer', 'parents',
+        'synthetic', 'metadata']
+
     @prepared_insert_statement('revision', _revision_keys)
     def revision_add_one(self, revision, *, statement):
         self._add_one(statement, revision, self._revision_keys)
+
+    _directory_keys = ['id', 'entries_']
+    _directory_attributes = ['id', 'entries']
 
     @prepared_insert_statement('directory', _directory_keys)
     def directory_add_one(self, directory, *, statement):
         self._add_one(statement, directory, self._directory_attributes)
 
-    @prepared_statement('INSERT INTO origin (id, type, url) '
-                        'VALUES (?, ?, ?) IF NOT EXISTS')
+    @prepared_statement('INSERT INTO origin (id, type, url, next_visit_id) '
+                        'VALUES (?, ?, ?, 1) IF NOT EXISTS')
     def origin_add_one(self, origin, *, statement):
         id_ = uuid.uuid1()
         self.execute_and_retry(
@@ -221,6 +238,58 @@ class CassandraProxy:
                         'ALLOW FILTERING')
     def origin_get_by_type_and_url(self, type_, url, *, statement):
         return self.execute_and_retry(statement, [url, type_])
+
+    @prepared_statement('SELECT next_visit_id FROM origin WHERE id = ?')
+    def _origin_get_next_visit_id(self, origin_id, *, statement):
+        rows = list(self.execute_and_retry(statement, [origin_id]))
+        assert len(rows) == 1  # TODO: error handling
+        return rows[0].next_visit_id
+
+    @prepared_statement('UPDATE origin SET next_visit_id=? '
+                        'WHERE id = ? IF next_visit_id=?')
+    def origin_generate_unique_visit_id(self, origin_id, *, statement):
+        origin_id = uuid.UUID(origin_id)
+        next_id = self._origin_get_next_visit_id(origin_id)
+        while True:
+            res = list(self.execute_and_retry(
+                statement, [next_id+1, origin_id, next_id]))
+            assert len(res) == 1
+            if res[0].applied:
+                # No data race
+                return next_id
+            else:
+                # Someone else updated it before we did, let's try again
+                next_id = res[0].next_visit_id
+                # TODO: abort after too many attempts
+
+        return next_id
+
+    _origin_visit_keys = [
+        'origin', 'visit', 'date', 'status', 'metadata', 'snapshot']
+    _origin_visit_update_keys = [
+        'date', 'status', 'metadata', 'snapshot']
+
+    @prepared_insert_statement('origin_visit', _origin_visit_keys)
+    def origin_visit_add_one(self, visit, *, statement):
+        return self.execute_and_retry(
+            statement, [visit[key] for key in self._origin_visit_keys])
+
+    @prepared_statement(
+        'UPDATE origin_visit SET ' +
+        ', '.join('%s = ?' % key for key in _origin_visit_update_keys) +
+        ' WHERE origin = ? AND visit = ?')
+    def origin_visit_upsert(self, visit, *, statement):
+        self.execute_and_retry(
+            statement,
+            [visit[key] for key in self._origin_visit_update_keys]
+            + [uuid.UUID(visit['origin']), visit['visit']])
+
+    @prepared_statement('SELECT * FROM origin_visit '
+                        'WHERE origin = ? AND visit = ?')
+    def origin_visit_get_one(self, origin_id, visit_id, *, statement):
+        # TODO: error handling
+        return self.execute_and_retry(
+            statement, [uuid.UUID(origin_id), visit_id])[0]
 
 
 class CassandraStorage:
@@ -460,8 +529,11 @@ class CassandraStorage:
         if rows:
             assert len(rows) == 1
             result = rows[0]._asdict()
-            result['id'] = str(result['id'])
-            return result
+            return {
+                'id': str(result['id']),
+                'url': result['url'],
+                'type': result['type'],
+            }
         else:
             return None
 
@@ -489,3 +561,138 @@ class CassandraStorage:
             origin_id = str(self._proxy.origin_add_one(origin))
 
         return origin_id
+
+    def origin_visit_add(self, origin, date=None, *, ts=None):
+        if ts is None:
+            if date is None:
+                raise TypeError('origin_visit_add expected 2 arguments.')
+        else:
+            assert date is None
+            warnings.warn("argument 'ts' of origin_visit_add was renamed "
+                          "to 'date' in v0.0.109.",
+                          DeprecationWarning)
+            date = ts
+
+        origin_id = origin  # TODO: rename the argument
+
+        if isinstance(date, str):
+            date = dateutil.parser.parse(date)
+
+        origin = self.origin_get_one({'id': origin_id})
+
+        if not origin:
+            return None
+
+        visit_id = self._proxy.origin_generate_unique_visit_id(origin_id)
+
+        visit = {
+            'origin': uuid.UUID(origin_id),
+            'date': date,
+            'status': 'ongoing',
+            'snapshot': None,
+            'metadata': None,
+            'visit': visit_id
+        }
+
+        if self.journal_writer:
+            origin = self.origin_get_one({'id': origin_id})
+            del origin['id']
+            self.journal_writer.write_addition('origin_visit', {
+                **visit, 'origin': origin})
+
+        self._proxy.origin_visit_add_one(visit)
+
+        return {
+                'origin': origin_id,
+                'visit': visit_id,
+            }
+
+    def origin_visit_update(self, origin, visit_id, status=None,
+                            metadata=None, snapshot=None):
+        origin_id = origin  # TODO: rename the argument
+
+        visit = self._proxy.origin_visit_get_one(origin_id, visit_id)._asdict()
+
+        if self.journal_writer:
+            origin = self.origin_get_one({'id': origin_id})
+            del origin['id']
+            self.journal_writer.write_update('origin_visit', {
+                'origin': origin, 'visit': visit_id,
+                'status': status or visit['status'],
+                'date': visit['date'].replace(tzinfo=datetime.timezone.utc),
+                'metadata': metadata or visit['metadata'],
+                'snapshot': snapshot or visit['snapshot']})
+
+        set_parts = []
+        args = []
+        if status:
+            set_parts.append('status = %s')
+            args.append(status)
+        if metadata:
+            set_parts.append('metadata = %s')
+            args.append(json.dumps(metadata))
+        if snapshot:
+            set_parts.append('snapshot = %s')
+            args.append(snapshot)
+
+        if not set_parts:
+            return
+
+        query = ('UPDATE origin_visit SET ' + ', '.join(set_parts) +
+                 ' WHERE origin = %s AND visit = %s')
+        self._proxy.execute_and_retry(
+            query, args + [uuid.UUID(origin_id), visit_id])
+
+    def origin_visit_upsert(self, visits):
+        if self.journal_writer:
+            for visit in visits:
+                visit = visit.copy()
+                visit['origin'] = self.origin_get([{'id': visit['origin']}])[0]
+                del visit['origin']['id']
+                self.journal_writer.write_addition('origin_visit', visit)
+
+        for visit in visits:
+            visit = visit.copy()
+            if isinstance(visit['date'], str):
+                visit['date'] = dateutil.parser.parse(visit['date'])
+            if visit['metadata']:
+                visit['metadata'] = json.dumps(visit['metadata'])
+            self._proxy.origin_visit_upsert(visit)
+
+    @staticmethod
+    def _format_origin_visit_row(visit):
+        return {
+            **visit._asdict(),
+            'origin': str(visit.origin),
+            'date': visit.date.replace(tzinfo=datetime.timezone.utc),
+            'metadata': (json.loads(visit.metadata)
+                         if visit.metadata else None),
+        }
+
+    def origin_visit_get(self, origin, last_visit=None, limit=None):
+        query_parts = ['SELECT * FROM origin_visit WHERE', 'origin=%s']
+        args = [uuid.UUID(origin)]
+
+        if last_visit:
+            query_parts.append('AND visit > %s')
+            args.append(last_visit)
+
+        # FIXME: is this a noop? (given the table def, it's already ordered)
+        query_parts.append('ORDER BY visit ASC')
+
+        if limit:
+            query_parts.append('LIMIT %s')
+            args.append(limit)
+
+        query_parts.append('ALLOW FILTERING')
+
+        rows = self._proxy.execute_and_retry(' '.join(query_parts), args)
+
+        yield from map(self._format_origin_visit_row, rows)
+
+    def origin_visit_get_by(self, origin, visit):
+        try:
+            return self._format_origin_visit_row(
+                self._proxy.origin_visit_get_one(origin, visit))
+        except IndexError:
+            return None

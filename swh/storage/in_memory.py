@@ -1155,19 +1155,13 @@ class Storage:
         if origin_id <= len(self._origin_visits):
             # visit ids are in the range [1, +inf[
             visit_id = len(self._origin_visits[origin_id-1]) + 1
-            status = 'ongoing'
             visit = {
                 'origin': origin_id,
                 'date': date,
-                'status': status,
+                'status': 'ongoing',
                 'snapshot': None,
                 'metadata': None,
                 'visit': visit_id
-            }
-            self._origin_visits[origin_id-1].append(visit)
-            visit_ret = {
-                'origin': origin_id,
-                'visit': visit_id,
             }
 
             if self.journal_writer:
@@ -1175,6 +1169,12 @@ class Storage:
                 del origin['id']
                 self.journal_writer.write_addition('origin_visit', {
                     **visit, 'origin': origin})
+
+            self._origin_visits[origin_id-1].append(visit)
+            visit_ret = {
+                'origin': origin_id,
+                'visit': visit_id,
+            }
 
         return visit_ret
 
