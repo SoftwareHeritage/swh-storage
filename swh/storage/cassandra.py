@@ -28,6 +28,37 @@ logger = logging.getLogger(__name__)
 
 
 CREATE_TABLES_QUERIES = '''
+CREATE OR REPLACE FUNCTION ascii_bins_count_sfunc (
+    state tuple<int, map<ascii, int>>, -- (nb_none, map<target_type, nb>)
+    bin_name ascii
+)
+CALLED ON NULL INPUT
+RETURNS tuple<int, map<ascii, int>>
+LANGUAGE java AS
+$$
+    if (bin_name == null) {
+        state.setInt(0, state.getInt(0) + 1);
+    }
+    else {
+        Map<String, Integer> counters = state.getMap(
+            1, String.class, Integer.class);
+        Integer nb = counters.get(bin_name);
+        if (nb == null) {
+            nb = 0;
+        }
+        counters.put(bin_name, nb + 1);
+        state.setMap(1, counters, String.class, Integer.class);
+    }
+    return state;
+$$
+;
+
+CREATE OR REPLACE AGGREGATE ascii_bins_count ( ascii )
+SFUNC ascii_bins_count_sfunc
+STYPE tuple<int, map<ascii, int>>
+INITCOND (0, {})
+;
+
 CREATE TYPE IF NOT EXISTS microtimestamp (
     seconds             bigint,
     microseconds        int
@@ -70,8 +101,22 @@ CREATE TABLE IF NOT EXISTS revision (
 );
 
 CREATE TABLE IF NOT EXISTS directory (
-    id        blob PRIMARY KEY,
-    entries_  frozen<list<dir_entry>>
+    id              blob PRIMARY KEY,
+    entries_        frozen<list<dir_entry>>
+);
+
+CREATE TABLE IF NOT EXISTS snapshot (
+    id              blob PRIMARY KEY,
+);
+
+-- For a given snapshot_id, branches are sorted by their name,
+-- allowing easy pagination.
+CREATE TABLE IF NOT EXISTS snapshot_branch (
+    snapshot_id     blob,
+    name            blob,
+    target_type     ascii,
+    target          blob,
+    PRIMARY KEY ((snapshot_id), name)
 );
 
 CREATE TABLE IF NOT EXISTS origin_visit (
@@ -222,6 +267,35 @@ class CassandraProxy:
     def directory_add_one(self, directory, *, statement):
         self._add_one(statement, directory, self._directory_attributes)
 
+    _snapshot_keys = ['id']
+
+    @prepared_statement('SELECT id FROM snapshot WHERE id=? LIMIT 1')
+    def snapshot_exists(self, snapshot_id, *, statement):
+        return len(list(self.execute_and_retry(statement, [snapshot_id]))) > 0
+
+    @prepared_insert_statement('snapshot', _snapshot_keys)
+    def snapshot_add_one(self, snapshot_id, *, statement):
+        return self.execute_and_retry(statement, [snapshot_id])
+
+    _snapshot_branch_keys = ['snapshot_id', 'name', 'target_type', 'target']
+
+    @prepared_insert_statement('snapshot_branch', _snapshot_branch_keys)
+    def snapshot_branch_add_one(self, branch, *, statement):
+        return self.execute_and_retry(
+            statement, [branch[key] for key in self._snapshot_branch_keys])
+
+    @prepared_statement('SELECT ascii_bins_count(target_type) AS counts '
+                        'FROM snapshot_branch '
+                        'WHERE snapshot_id = ? ')
+    def snapshot_count_branches(self, snapshot_id, *, statement):
+        return self.execute_and_retry(statement, [snapshot_id])
+
+    @prepared_statement('SELECT * FROM snapshot_branch '
+                        'WHERE snapshot_id = ? AND name >= ?'
+                        'LIMIT ?')
+    def snapshot_branch_get(self, snapshot_id, from_, limit, *, statement):
+        return self.execute_and_retry(statement, [snapshot_id, from_, limit])
+
     @prepared_statement('INSERT INTO origin (id, type, url, next_visit_id) '
                         'VALUES (?, ?, ?, 1) IF NOT EXISTS')
     def origin_add_one(self, origin, *, statement):
@@ -291,6 +365,22 @@ class CassandraProxy:
         return self.execute_and_retry(
             statement, [uuid.UUID(origin_id), visit_id])[0]
 
+    @prepared_statement('SELECT * FROM origin_visit WHERE origin = ?')
+    def origin_visit_get_latest_with_snap(
+            self, origin, allowed_statuses, *, statement):
+        # TODO: do the ordering and filtering in Cassandra
+        rows = list(self.execute_and_retry(statement, [uuid.UUID(origin)]))
+
+        rows.sort(key=lambda row: (row.date, row.visit), reverse=True)
+
+        for row in rows:
+            has_snapshot = row.snapshot is not None
+            has_allowed_status = \
+                allowed_statuses is None or row.status in allowed_statuses
+            if has_snapshot and has_allowed_status:
+                if self.snapshot_exists(row.snapshot):
+                    return row
+
 
 class CassandraStorage:
     def __init__(self, hosts, keyspace, port=9042, journal_writer=None):
@@ -302,7 +392,8 @@ class CassandraStorage:
             self.journal_writer = None
 
     def check_config(self, check_write=False):
-        self._proxy.execute_and_retry('SELECT uuid() FROM revision LIMIT 1;')
+        self._proxy.execute_and_retry(
+            'SELECT uuid() FROM revision LIMIT 1;', [])
 
         return True
 
@@ -487,6 +578,113 @@ class CassandraStorage:
         seen = set()
         yield from self._get_parent_revs(revisions, seen, limit, True)
 
+    def snapshot_add(self, snapshots, legacy_arg1=None, legacy_arg2=None):
+        if legacy_arg1:
+            assert legacy_arg2
+            (origin, visit, snapshots) = \
+                (snapshots, legacy_arg1, [legacy_arg2])
+        else:
+            origin = visit = None
+
+        count = 0
+        for snapshot in snapshots:
+            if self._proxy.snapshot_exists(snapshot['id']):
+                continue
+
+            count += 1
+
+            if self.journal_writer:
+                self.journal_writer.write_addition('snapshot', snapshot)
+
+            for (branch_name, branch) in snapshot['branches'].items():
+                if branch is None:
+                    branch = {'target_type': None, 'target': None}
+                self._proxy.snapshot_branch_add_one({
+                    'snapshot_id': snapshot['id'],
+                    'name': branch_name,
+                    'target_type': branch['target_type'],
+                    'target': branch['target'],
+                })
+
+            # Add the snapshot *after* adding all the branches, so someone
+            # calling snapshot_get_branch in the meantime won't end up
+            # with half the branches.
+            self._proxy.snapshot_add_one(snapshot['id'])
+
+        if origin:
+            # Legacy API, there can be only one snapshot
+            self.origin_visit_update(
+                origin, visit, snapshot=snapshots[0]['id'])
+
+        return {'snapshot:add': count}
+
+    def snapshot_get(self, snapshot_id):
+        return self.snapshot_get_branches(snapshot_id)
+
+    def snapshot_get_by_origin_visit(self, origin, visit):
+        try:
+            visit = self._proxy.origin_visit_get_one(origin, visit)
+        except IndexError:
+            return None
+
+        return self.snapshot_get(visit.snapshot)
+
+    def snapshot_get_latest(self, origin, allowed_statuses=None):
+        visit = self._proxy.origin_visit_get_latest_with_snap(
+            origin, allowed_statuses)
+
+        if visit:
+            assert visit.snapshot
+            return self.snapshot_get_branches(visit.snapshot)
+
+    def snapshot_count_branches(self, snapshot_id):
+        if not self._proxy.snapshot_exists(snapshot_id):
+            # Makes sure we don't fetch branches for a snapshot that is
+            # being added.
+            return None
+        rows = list(self._proxy.snapshot_count_branches(snapshot_id))
+        assert len(rows) == 1
+        (nb_none, counts) = rows[0].counts
+        counts = dict(counts)
+        if nb_none:
+            counts[None] = nb_none
+        return counts
+
+    def snapshot_get_branches(self, snapshot_id, branches_from=b'',
+                              branches_count=1000, target_types=None):
+        if not self._proxy.snapshot_exists(snapshot_id):
+            # Makes sure we don't fetch branches for a snapshot that is
+            # being added.
+            return None
+
+        branches = list(self._proxy.snapshot_branch_get(
+            snapshot_id, branches_from, branches_count+1))
+
+        if len(branches) > branches_count:
+            last_branch = branches.pop(-1).name
+        else:
+            last_branch = None
+
+        branches = {
+            branch.name: {
+                'target': branch.target,
+                'target_type': branch.target_type,
+            } if branch.target else None
+            for branch in branches
+        }
+
+        if target_types:
+            branches = {name: branch
+                        for (name, branch) in branches.items()
+                        if branch is not None
+                        and branch['target_type'] in target_types}
+
+        return {
+            'id': snapshot_id,
+            'branches': branches,
+            'next_branch': last_branch,
+        }
+
     def origin_get(self, origins):
         if isinstance(origins, dict):
             # Old API
@@ -611,7 +809,11 @@ class CassandraStorage:
                             metadata=None, snapshot=None):
         origin_id = origin  # TODO: rename the argument
 
-        visit = self._proxy.origin_visit_get_one(origin_id, visit_id)._asdict()
+        try:
+            visit = self._proxy.origin_visit_get_one(origin_id, visit_id) \
+                ._asdict()
+        except IndexError:
+            raise ValueError('This origin visit does not exist.')
 
         if self.journal_writer:
             origin = self.origin_get_one({'id': origin_id})

@@ -41,6 +41,7 @@ start_native_transport: true
 listen_address: 127.0.0.1
 start_rpc: false
 
+enable_user_defined_functions: true
 '''
 
 
@@ -106,6 +107,8 @@ def cassandra_cluster(tmpdir_factory):
 
     yield (['127.0.0.1'], native_transport_port)
 
+    # print(open(str(cassandra_data.join('log/debug.log'))).read())
+
     pgrp = os.getpgid(proc.pid)
     os.killpg(pgrp, signal.SIGKILL)
 
@@ -133,14 +136,14 @@ class TestCassandraStorage(CommonTestStorage, unittest.TestCase):
     def setUp(self):
         super().setUp()
         (hosts, port) = self.cassandra_cluster
-        keyspace = os.urandom(10).hex()
+        self._keyspace = os.urandom(10).hex()
 
-        create_keyspace(hosts, keyspace, port)
+        create_keyspace(hosts, self._keyspace, port)
         handler = RequestHandler()
 
         self.storage = get_storage('cassandra', {
             'hosts': hosts, 'port': port,
-            'keyspace': keyspace,
+            'keyspace': self._keyspace,
             'journal_writer': {
                 'cls': 'inmemory',
             }
@@ -148,6 +151,11 @@ class TestCassandraStorage(CommonTestStorage, unittest.TestCase):
         self.storage._proxy._session.add_request_init_listener(
             handler.on_request)
         self.journal_writer = self.storage.journal_writer
+
+    def tearDown(self):
+        self.storage._proxy._session.execute(
+            'DROP KEYSPACE "%s"' % self._keyspace)
+        super().tearDown()
 
     @pytest.mark.skip('postgresql-specific test')
     def test_content_add_db(self):

@@ -2183,14 +2183,21 @@ class CommonTestStorage(TestStorageData):
 
     def test_snapshot_get_nonexistent(self):
         bogus_snapshot_id = b'bogus snapshot id 00'
-        bogus_origin_id = 1
         bogus_visit_id = 1
 
         by_id = self.storage.snapshot_get(bogus_snapshot_id)
         self.assertIsNone(by_id)
 
-        by_ov = self.storage.snapshot_get_by_origin_visit(bogus_origin_id,
-                                                          bogus_visit_id)
+        try:
+            bogus_origin_id = 1
+            by_ov = self.storage.snapshot_get_by_origin_visit(
+                    bogus_origin_id, bogus_visit_id)
+        except AttributeError:
+            # Cassandra uses UUIDs
+            bogus_origin_id = str(uuid.uuid1())
+            by_ov = self.storage.snapshot_get_by_origin_visit(
+                    bogus_origin_id, bogus_visit_id)
+
         self.assertIsNone(by_ov)
 
     def test_snapshot_get_latest(self):
