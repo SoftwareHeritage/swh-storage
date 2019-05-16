@@ -1,4 +1,4 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -63,11 +63,13 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         self._last_rev = None
         self._num_revs = 0
         self._max_revs = max_revs
+        self._missing_revs = set()
         if state:
             self._revs_to_visit = state['revs_to_visit']
             self._done = state['done']
             self._last_rev = state['last_rev']
             self._num_revs = state['num_revs']
+            self._missing_revs = state['missing_revs']
         self.storage = storage
         self.process_rev(rev_start)
 
@@ -152,6 +154,28 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
                 self._revs[rev['id']] = rev
         return self._revs.get(rev_id)
 
+    def missing_revisions(self):
+        """
+        Return a set of revision identifiers whose associated data were
+        found missing into the archive content while walking on the
+        revisions graph.
+
+        Returns:
+            Set[bytes]: a set of revision identifiers
+        """
+        return self._missing_revs
+
+    def is_history_truncated(self):
+        """
+        Return if the revision history generated so far has been truncated
+        of not. A revision history might end up truncated if some revision
+        data were found missing into the archive content.
+
+        Returns:
+            bool: Whether the history got truncated or not
+        """
+        return len(self.missing_revisions()) > 0
+
     def export_state(self):
         """
         Export the internal state of that revision walker to a dict.
@@ -164,7 +188,8 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
             'revs_to_visit': self._revs_to_visit,
             'done': self._done,
             'last_rev': self._last_rev,
-            'num_revs': self._num_revs
+            'num_revs': self._num_revs,
+            'missing_revs': self._missing_revs
         }
 
     def __next__(self):
@@ -178,6 +203,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
             rev = self._get_rev(rev_id)
             # revision data is missing, returned history will be truncated
             if rev is None:
+                self._missing_revs.add(rev_id)
                 continue
             self.process_parent_revs(rev)
             if self.should_return(rev):
@@ -210,6 +236,8 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
             if rev is not None:
                 commit_time = rev['committer_date']['timestamp']['seconds']
                 heapq.heappush(self._revs_to_visit, (-commit_time, rev_id))
+            else:
+                self._missing_revs.add(rev_id)
 
     def get_next_rev_id(self):
         """

@@ -1,4 +1,4 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,7 @@ import unittest
 
 from unittest.mock import patch
 
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.storage.algos.revisions_walker import get_revisions_walker
 
 # For those tests, we will walk the following revisions history
@@ -283,21 +283,39 @@ _revisions_list = \
 
 _rev_start = 'b364f53155044e5308a0f73abb3b5f01995a5b7d'
 
+_rev_missing = '836d498396fb9b5d45c896885f84d8d60a5651dc'
+
 
 class RevisionsWalkerTest(unittest.TestCase):
 
-    @patch('swh.storage.storage.Storage')
     def check_revisions_ordering(self, rev_walker_type, expected_result,
-                                 MockStorage):
-        storage = MockStorage()
-        storage.revision_log.return_value = _revisions_list
+                                 truncated_history):
+        with patch('swh.storage.storage.Storage') as MockStorage:
+            storage = MockStorage()
+            if not truncated_history:
+                storage.revision_log.return_value = _revisions_list
+            else:
+                revs_lists_truncated = [
+                    None if hash_to_hex(rev['id']) == _rev_missing else rev
+                    for rev in _revisions_list
+                ]
 
-        revs_walker = \
-            get_revisions_walker(rev_walker_type, storage,
-                                 hash_to_bytes(_rev_start))
+                storage.revision_log.return_value = revs_lists_truncated
 
-        self.assertEqual(list(map(hash_to_bytes, expected_result)),
-                         [rev['id'] for rev in revs_walker])
+            revs_walker = get_revisions_walker(rev_walker_type, storage,
+                                               hash_to_bytes(_rev_start))
+
+            self.assertEqual(list(map(hash_to_bytes, expected_result)),
+                             [rev['id'] for rev in revs_walker])
+
+            self.assertEqual(revs_walker.is_history_truncated(),
+                             truncated_history)
+
+            if truncated_history:
+                missing_revs = revs_walker.missing_revisions()
+                self.assertEqual(missing_revs, {hash_to_bytes(_rev_missing)})
+            else:
+                self.assertEqual(revs_walker.missing_revisions(), set())
 
     def test_revisions_walker_committer_date(self):
 
@@ -313,7 +331,8 @@ class RevisionsWalkerTest(unittest.TestCase):
                            'ee96c2a2d397b79070d2b6fe3051290963748358',
                            '8f89dda8e072383cf50d42532ae8f52ad89f8fdf']
 
-        self.check_revisions_ordering('committer_date', expected_result)
+        self.check_revisions_ordering('committer_date', expected_result,
+                                      truncated_history=False)
 
     def test_revisions_walker_dfs(self):
 
@@ -330,7 +349,8 @@ class RevisionsWalkerTest(unittest.TestCase):
                            'b401c50863475db4440c85c10ac0b6423b61554d',
                            '9c5051397e5c2e0c258bb639c3dd34406584ca10']
 
-        self.check_revisions_ordering('dfs', expected_result)
+        self.check_revisions_ordering('dfs', expected_result,
+                                      truncated_history=False)
 
     def test_revisions_walker_dfs_post(self):
 
@@ -347,7 +367,8 @@ class RevisionsWalkerTest(unittest.TestCase):
                            'ee96c2a2d397b79070d2b6fe3051290963748358',
                            '8f89dda8e072383cf50d42532ae8f52ad89f8fdf']
 
-        self.check_revisions_ordering('dfs_post', expected_result)
+        self.check_revisions_ordering('dfs_post', expected_result,
+                                      truncated_history=False)
 
     def test_revisions_walker_bfs(self):
 
@@ -364,4 +385,19 @@ class RevisionsWalkerTest(unittest.TestCase):
                            'b401c50863475db4440c85c10ac0b6423b61554d',
                            '9c5051397e5c2e0c258bb639c3dd34406584ca10']
 
-        self.check_revisions_ordering('bfs', expected_result)
+        self.check_revisions_ordering('bfs', expected_result,
+                                      truncated_history=False)
+
+    def test_revisions_walker_truncated_history(self):
+
+        expected_result = ['b364f53155044e5308a0f73abb3b5f01995a5b7d',
+                           'b94886c500c46e32dc3d7ebae8a5409accd592e5',
+                           '0cb6b4611d65bee0f57821dac7f611e2f8a02433',
+                           '2b0240c6d682bad51532eec15b8a7ed6b75c8d31',
+                           'b401c50863475db4440c85c10ac0b6423b61554d',
+                           '9c5051397e5c2e0c258bb639c3dd34406584ca10']
+
+        for revs_walker_type in ('committer_date', 'bfs', 'dfs', 'dfs_post'):
+
+            self.check_revisions_ordering(revs_walker_type, expected_result,
+                                          truncated_history=True)
