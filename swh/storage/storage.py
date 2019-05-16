@@ -511,13 +511,16 @@ class Storage():
             raise ValueError('content keys must contain at least one of: '
                              'sha1, sha1_git, sha256, blake2s256')
 
-        c = db.content_find(sha1=content.get('sha1'),
-                            sha1_git=content.get('sha1_git'),
-                            sha256=content.get('sha256'),
-                            blake2s256=content.get('blake2s256'),
-                            cur=cur)
-        if c:
-            return dict(zip(db.content_find_cols, c))
+        contents = db.content_find(sha1=content.get('sha1'),
+                                   sha1_git=content.get('sha1_git'),
+                                   sha256=content.get('sha256'),
+                                   blake2s256=content.get('blake2s256'),
+                                   cur=cur)
+        if contents:
+            contents_list = []
+            for cont in contents:
+                contents_list.append(dict(zip(db.content_find_cols, cont)))
+            return contents_list
         return None
 
     @db_transaction()
