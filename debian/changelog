@@ -1,3 +1,14 @@
+swh-storage (0.0.140-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.140     - (tagged by mihir(faux__)
+    <karbelkar.mihir@gmail.com> on 2019-03-24 21:47:31 +0530)
+  * Upstream changes:     - Changes the output of content_find method to
+    a list in case of hash collisions and makes the sql query on python
+    side and added test duplicate input, colliding sha256 and colliding
+    blake2s256
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 May 2019 12:09:04 +0000
+
 swh-storage (0.0.139-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.139     - (tagged by Nicolas Dandrimont
