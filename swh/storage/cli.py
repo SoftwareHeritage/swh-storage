@@ -20,13 +20,16 @@ def storage(ctx):
 
 @storage.command(name='rpc-serve')
 @click.argument('config-path', required=1)
-@click.option('--host', default='0.0.0.0', help="Host to run the server")
+@click.option('--host', default='0.0.0.0',
+              metavar='IP', show_default=True,
+              help="Host ip address to bind the server on")
 @click.option('--port', default=5002, type=click.INT,
+              metavar='PORT', show_default=True,
               help="Binding port of the server")
 @click.option('--debug/--no-debug', default=True,
               help="Indicates if the server should run in debug mode")
 def serve(config_path, host, port, debug):
-    '''Software Heritage Storage RPC (standalone) server.
+    '''Software Heritage Storage RPC server.
 
     Do NOT use this in a production environment.
     '''
