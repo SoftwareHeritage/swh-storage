@@ -289,8 +289,10 @@ class Storage:
             hash = content.get(algo)
             if hash and hash in self._content_indexes[algo]:
                 found.append(self._content_indexes[algo][hash])
+
         if not found:
-            return
+            return []
+
         keys = list(set.intersection(*found))
         return copy.deepcopy([self._contents[key] for key in keys])
 

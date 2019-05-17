@@ -516,12 +516,8 @@ class Storage():
                                    sha256=content.get('sha256'),
                                    blake2s256=content.get('blake2s256'),
                                    cur=cur)
-        if contents:
-            contents_list = []
-            for cont in contents:
-                contents_list.append(dict(zip(db.content_find_cols, cont)))
-            return contents_list
-        return None
+        return [dict(zip(db.content_find_cols, content))
+                for content in contents]
 
     @db_transaction()
     def directory_add(self, directories, db, cur):

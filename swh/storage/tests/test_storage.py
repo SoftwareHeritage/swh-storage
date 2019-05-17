@@ -2494,19 +2494,19 @@ class CommonTestStorage(TestStorageData):
         actually_present = self.storage.content_find(
             {'sha1': missing_cont['sha1']})
 
-        self.assertIsNone(actually_present)
+        self.assertEqual(actually_present, [])
 
         # 2. with something that does not exist
         actually_present = self.storage.content_find(
             {'sha1_git': missing_cont['sha1_git']})
 
-        self.assertIsNone(actually_present)
+        self.assertEqual(actually_present, [])
 
         # 3. with something that does not exist
         actually_present = self.storage.content_find(
             {'sha256': missing_cont['sha256']})
 
-        self.assertIsNone(actually_present)
+        self.assertEqual(actually_present, [])
 
     def test_content_find_with_duplicate_input(self):
         cont1 = self.cont
