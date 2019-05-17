@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import unittest
 
-from swh.core.tests.server_testing import ServerTestFixture
+from swh.core.api.tests.server_testing import ServerTestFixture
 import swh.storage.storage as storage
 from swh.storage.journal_writer import \
     get_journal_writer, InMemoryJournalWriter
