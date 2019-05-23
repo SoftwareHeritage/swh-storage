@@ -30,6 +30,11 @@ Archive copies
 
 * :ref:`archive-copies`
 
+Specifications
+--------------
+
+* :ref:`extrinsic-metadata-specification`
+
 
 Reference Documentation
 -----------------------
