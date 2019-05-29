@@ -1321,8 +1321,39 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(len(found_origins), 1)
         self.assertEqual(found_origins[0], origin2_data)
 
+        # Search / (regexp=False)
+
         found_origins = list(self.storage.origin_search('/'))
         self.assertEqual(len(found_origins), 2)
+
+        found_origins0 = list(self.storage.origin_search('/', offset=0, limit=1)) # noqa
+        self.assertEqual(len(found_origins0), 1)
+        self.assertIn(found_origins0[0], [origin_data, origin2_data])
+
+        found_origins1 = list(self.storage.origin_search('/', offset=1, limit=1)) # noqa
+        self.assertEqual(len(found_origins1), 1)
+        self.assertIn(found_origins1[0], [origin_data, origin2_data])
+
+        self.assertCountEqual(found_origins0 + found_origins1,
+                              [origin_data, origin2_data])
+
+        # Search / (regexp=True)
+
+        found_origins = list(self.storage.origin_search('/', regexp=True))
+        self.assertEqual(len(found_origins), 2)
+
+        found_origins0 = list(self.storage.origin_search('/', offset=0, limit=1, regexp=True)) # noqa
+        self.assertEqual(len(found_origins0), 1)
+        self.assertIn(found_origins0[0], [origin_data, origin2_data])
+
+        found_origins1 = list(self.storage.origin_search('/', offset=1, limit=1, regexp=True)) # noqa
+        self.assertEqual(len(found_origins1), 1)
+        self.assertIn(found_origins1[0], [origin_data, origin2_data])
+
+        self.assertCountEqual(found_origins0 + found_origins1,
+                              [origin_data, origin2_data])
+
+        # Search .*/.* (regexp=True)
 
         found_origins = list(self.storage.origin_search('.*/.*', regexp=True))
         self.assertEqual(len(found_origins), 2)
