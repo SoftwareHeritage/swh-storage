@@ -42,7 +42,6 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
         pass
 
 
-@pytest.mark.db
 @pytest.mark.property_based
 class PropTestInMemoryStorage(CommonPropTestStorage, unittest.TestCase):
     """Test the in-memory storage API

@@ -104,7 +104,7 @@ class Storage:
 
         return summary
 
-    def content_add(self, contents):
+    def content_add(self, content):
         """Add content blobs to the storage
 
         Args:
@@ -133,13 +133,13 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        contents = [dict(c.items()) for c in contents]  # semi-shallow copy
+        content = [dict(c.items()) for c in content]  # semi-shallow copy
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in contents:
+        for item in content:
             item['ctime'] = now
-        return self._content_add(contents, with_data=True)
+        return self._content_add(content, with_data=True)
 
-    def content_add_metadata(self, contents):
+    def content_add_metadata(self, content):
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -168,9 +168,9 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        return self._content_add(contents, with_data=False)
+        return self._content_add(content, with_data=False)
 
-    def content_get(self, ids):
+    def content_get(self, content):
         """Retrieve in bulk contents and their data.
 
         This function may yield more blobs than provided sha1 identifiers,
@@ -192,10 +192,10 @@ class Storage:
 
         """
         # FIXME: Make this method support slicing the `data`.
-        if len(ids) > BULK_BLOCK_CONTENT_LEN_MAX:
+        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise ValueError(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
-        for obj_id in ids:
+        for obj_id in content:
             try:
                 data = self.objstorage.get(obj_id)
             except ObjNotFoundError:
@@ -248,7 +248,7 @@ class Storage:
             'next': next_content,
         }
 
-    def content_get_metadata(self, sha1s):
+    def content_get_metadata(self, content):
         """Retrieve content metadata in bulk
 
         Args:
@@ -259,7 +259,7 @@ class Storage:
         """
         # FIXME: the return value should be a mapping from search key to found
         # content*s*
-        for sha1 in sha1s:
+        for sha1 in content:
             if sha1 in self._content_indexes['sha1']:
                 objs = self._content_indexes['sha1'][sha1]
                 # FIXME: rather than selecting one of the objects with that
@@ -296,7 +296,7 @@ class Storage:
         keys = list(set.intersection(*found))
         return copy.deepcopy([self._contents[key] for key in keys])
 
-    def content_missing(self, contents, key_hash='sha1'):
+    def content_missing(self, content, key_hash='sha1'):
         """List content missing from storage
 
         Args:
@@ -313,17 +313,17 @@ class Storage:
             iterable ([bytes]): missing content ids (as per the
             key_hash column)
         """
-        for content in contents:
-            for (algo, hash_) in content.items():
+        for cont in content:
+            for (algo, hash_) in cont.items():
                 if algo not in DEFAULT_ALGORITHMS:
                     continue
                 if hash_ not in self._content_indexes.get(algo, []):
-                    yield content[key_hash]
+                    yield cont[key_hash]
                     break
             else:
-                for result in self.content_find(content):
+                for result in self.content_find(cont):
                     if result['status'] == 'missing':
-                        yield content[key_hash]
+                        yield cont[key_hash]
 
     def content_missing_per_sha1(self, contents):
         """List content missing from storage based only on sha1.
@@ -379,7 +379,7 @@ class Storage:
 
         return {'directory:add': count}
 
-    def directory_missing(self, directory_ids):
+    def directory_missing(self, directories):
         """List directories missing from storage
 
         Args:
@@ -389,7 +389,7 @@ class Storage:
             missing directory ids
 
         """
-        for id in directory_ids:
+        for id in directories:
             if id not in self._directories:
                 yield id
 
@@ -423,7 +423,7 @@ class Storage:
                     yield from self._directory_ls(
                         ret['target'], True, prefix + ret['name'] + b'/')
 
-    def directory_ls(self, directory_id, recursive=False):
+    def directory_ls(self, directory, recursive=False):
         """Get entries for one directory.
 
         Args:
@@ -436,7 +436,7 @@ class Storage:
         If `recursive=True`, names in the path of a dir/file not at the
         root are concatenated with a slash (`/`).
         """
-        yield from self._directory_ls(directory_id, recursive)
+        yield from self._directory_ls(directory, recursive)
 
     def directory_entry_get_by_path(self, directory, paths):
         """Get the directory entry (either file or dir) from directory with path.
@@ -529,7 +529,7 @@ class Storage:
 
         return {'revision:add': count}
 
-    def revision_missing(self, revision_ids):
+    def revision_missing(self, revisions):
         """List revisions missing from storage
 
         Args:
@@ -539,12 +539,12 @@ class Storage:
             missing revision ids
 
         """
-        for id in revision_ids:
+        for id in revisions:
             if id not in self._revisions:
                 yield id
 
-    def revision_get(self, revision_ids):
-        for id in revision_ids:
+    def revision_get(self, revisions):
+        for id in revisions:
             yield copy.deepcopy(self._revisions.get(id))
 
     def _get_parent_revs(self, rev_id, seen, limit):
@@ -557,7 +557,7 @@ class Storage:
         for parent in self._revisions[rev_id]['parents']:
             yield from self._get_parent_revs(parent, seen, limit)
 
-    def revision_log(self, revision_ids, limit=None):
+    def revision_log(self, revisions, limit=None):
         """Fetch revision entry from the given root revisions.
 
         Args:
@@ -569,7 +569,7 @@ class Storage:
 
         """
         seen = set()
-        for rev_id in revision_ids:
+        for rev_id in revisions:
             yield from self._get_parent_revs(rev_id, seen, limit)
 
     def revision_shortlog(self, revisions, limit=None):
@@ -655,7 +655,7 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, snapshots, legacy_arg1=None, legacy_arg2=None):
+    def snapshot_add(self, snapshots, origin=None, visit=None):
         """Add a snapshot to the storage
 
         Args:
@@ -684,12 +684,18 @@ class Storage:
                 snapshot_added: Count of object actually stored in db
 
         """
-        if legacy_arg1:
-            assert legacy_arg2
-            (origin, visit, snapshots) = \
-                (snapshots, legacy_arg1, [legacy_arg2])
-        else:
-            origin = visit = None
+        if origin:
+            if not visit:
+                raise TypeError(
+                    'snapshot_add expects one argument (or, as a legacy '
+                    'behavior, three arguments), not two')
+            if isinstance(snapshots, (int, bytes)):
+                # Called by legacy code that uses the new api/client.py
+                (origin, visit, snapshots) = \
+                    (snapshots, origin, [visit])
+            else:
+                # Called by legacy code that uses the old api/client.py
+                snapshots = [snapshots]
 
         count = 0
         for snapshot in snapshots:
@@ -706,7 +712,7 @@ class Storage:
                 self._objects[snapshot_id].append(('snapshot', snapshot_id))
                 count += 1
 
-        if origin:
+        if visit:
             # Legacy API, there can be only one snapshot
             self.origin_visit_update(
                 origin, visit, snapshot=snapshots[0]['id'])
@@ -1026,7 +1032,7 @@ class Storage:
         origins = self._origins
         if regexp:
             pat = re.compile(url_pattern)
-            origins = [orig for orig in origins if pat.match(orig['url'])]
+            origins = [orig for orig in origins if pat.search(orig['url'])]
         else:
             origins = [orig for orig in origins if url_pattern in orig['url']]
         if with_visit:
@@ -1531,9 +1537,9 @@ class Storage:
 
     @staticmethod
     def _tool_key(tool):
-        return (tool['name'], tool['version'],
-                tuple(sorted(tool['configuration'].items())))
+        return '%r %r %r' % (tool['name'], tool['version'],
+                             tuple(sorted(tool['configuration'].items())))
 
     @staticmethod
     def _metadata_provider_key(provider):
-        return (provider['name'], provider['url'])
+        return '%r %r' % (provider['name'], provider['url'])

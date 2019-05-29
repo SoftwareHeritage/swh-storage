@@ -3,15 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import pytest
 import shutil
 import tempfile
 import unittest
+
+import pytest
 
 from swh.core.api.tests.server_testing import ServerTestFixture
 import swh.storage.storage as storage
 from swh.storage.journal_writer import \
     get_journal_writer, InMemoryJournalWriter
+from swh.storage.in_memory import Storage as InMemoryStorage
 from swh.storage.api.client import RemoteStorage
 import swh.storage.api.server as server
 from swh.storage.api.server import app
@@ -19,7 +21,7 @@ from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage, StorageTestDbFixture
 
 
-class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
+class RemoteStorageFixture(ServerTestFixture,
                            unittest.TestCase):
     """Test the remote storage API.
 
@@ -28,6 +30,13 @@ class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
     therefore defined in CommonTestStorage.
     """
 
+    def setUp(self):
+        self.app = app
+        super().setUp()
+        self.storage = RemoteStorage(self.url())
+
+
+class RemotePgStorageFixture(StorageTestDbFixture, RemoteStorageFixture):
     def setUp(self):
         def mock_get_journal_writer(cls, args=None):
             assert cls == 'inmemory'
@@ -43,6 +52,7 @@ class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
         # To avoid confusion, override the self.objroot to a
         # one chosen in this class.
         self.storage_base = tempfile.mkdtemp()
+        self.objroot = self.storage_base
         self.config = {
             'storage': {
                 'cls': 'local',
@@ -61,19 +71,63 @@ class RemoteStorageFixture(ServerTestFixture, StorageTestDbFixture,
                 }
             }
         }
-        self.app = app
         super().setUp()
-        self.storage = RemoteStorage(self.url())
-        self.objroot = self.storage_base
 
     def tearDown(self):
-        storage.get_journal_writer = get_journal_writer
         super().tearDown()
         shutil.rmtree(self.storage_base)
+        storage.get_journal_writer = get_journal_writer
+
+
+class RemoteMemStorageFixture(RemoteStorageFixture):
+    def setUp(self):
+        self.config = {
+            'storage': {
+                'cls': 'memory',
+                'args': {
+                    'journal_writer': {
+                        'cls': 'inmemory',
+                    }
+                }
+            }
+        }
+        self.__storage = InMemoryStorage(journal_writer={'cls': 'inmemory'})
+        self._get_storage_patcher = unittest.mock.patch(
+            'swh.storage.api.server.get_storage', return_value=self.__storage)
+        self._get_storage_patcher.start()
+        super().setUp()
+        self.journal_writer = self.__storage.journal_writer
+
+    def tearDown(self):
+        super().tearDown()
+        self._get_storage_patcher.stop()
+
+
+class TestRemoteMemStorage(CommonTestStorage, RemoteMemStorageFixture):
+    @pytest.mark.skip('refresh_stat_counters not available in the remote api.')
+    def test_stat_counters(self):
+        pass
+
+    @pytest.mark.skip('postgresql-specific test')
+    def test_content_add_db(self):
+        pass
+
+    @pytest.mark.skip('postgresql-specific test')
+    def test_skipped_content_add_db(self):
+        pass
+
+    @pytest.mark.skip('postgresql-specific test')
+    def test_content_add_metadata_db(self):
+        pass
+
+    @pytest.mark.skip(
+        'not implemented, see https://forge.softwareheritage.org/T1633')
+    def test_skipped_content_add(self):
+        pass
 
 
 @pytest.mark.db
-class TestRemoteStorage(CommonTestStorage, RemoteStorageFixture):
+class TestRemotePgStorage(CommonTestStorage, RemotePgStorageFixture):
     @pytest.mark.skip('refresh_stat_counters not available in the remote api.')
     def test_stat_counters(self):
         pass
@@ -81,7 +135,7 @@ class TestRemoteStorage(CommonTestStorage, RemoteStorageFixture):
 
 @pytest.mark.db
 @pytest.mark.property_based
-class PropTestRemoteStorage(CommonPropTestStorage, RemoteStorageFixture):
+class PropTestRemotePgStorage(CommonPropTestStorage, RemotePgStorageFixture):
     @pytest.mark.skip('too slow')
     def test_add_arbitrary(self):
         pass
