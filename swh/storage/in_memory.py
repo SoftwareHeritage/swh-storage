@@ -450,6 +450,9 @@ class Storage:
             The corresponding directory entry if found, None otherwise.
 
         """
+        return self._directory_entry_get_by_path(directory, paths, b'')
+
+    def _directory_entry_get_by_path(self, directory, paths, prefix):
         if not paths:
             return
 
@@ -461,6 +464,8 @@ class Storage:
         def _get_entry(entries, name):
             for entry in entries:
                 if entry['name'] == name:
+                    entry = entry.copy()
+                    entry['name'] = prefix + entry['name']
                     return entry
 
         first_item = _get_entry(contents, paths[0])
@@ -471,8 +476,8 @@ class Storage:
         if not first_item or first_item['type'] != 'dir':
             return
 
-        return self.directory_entry_get_by_path(
-                first_item['target'], paths[1:])
+        return self._directory_entry_get_by_path(
+                first_item['target'], paths[1:], prefix + paths[0] + b'/')
 
     def revision_add(self, revisions):
         """Add revisions to the storage

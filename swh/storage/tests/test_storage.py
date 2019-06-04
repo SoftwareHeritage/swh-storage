@@ -191,6 +191,18 @@ class TestStorageData:
             ],
         }
 
+        self.dir4 = {
+            'id': hash_to_bytes('33e45d56f88993aae6a0198013efa80716fd8922'),
+            'entries': [
+                {
+                    'name': b'subdir1',
+                    'type': 'dir',
+                    'target': self.dir3['id'],
+                    'perms': from_disk.DentryPerms.directory,
+                },
+            ]
+        }
+
         self.minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
         self.plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
 
@@ -930,8 +942,8 @@ class CommonTestStorage(TestStorageData):
         init_missing = list(self.storage.directory_missing([self.dir3['id']]))
         self.assertEqual([self.dir3['id']], init_missing)
 
-        actual_result = self.storage.directory_add([self.dir3])
-        self.assertEqual(actual_result, {'directory:add': 1})
+        actual_result = self.storage.directory_add([self.dir3, self.dir4])
+        self.assertEqual(actual_result, {'directory:add': 2})
 
         expected_entries = [
             {
@@ -978,6 +990,16 @@ class CommonTestStorage(TestStorageData):
             actual_entry = self.storage.directory_entry_get_by_path(
                 self.dir3['id'],
                 [entry['name']])
+            self.assertEqual(actual_entry, expected_entry)
+
+        # same, but deeper
+        for entry, expected_entry in zip(self.dir3['entries'],
+                                         expected_entries):
+            actual_entry = self.storage.directory_entry_get_by_path(
+                self.dir4['id'],
+                [b'subdir1', entry['name']])
+            expected_entry = expected_entry.copy()
+            expected_entry['name'] = b'subdir1/' + expected_entry['name']
             self.assertEqual(actual_entry, expected_entry)
 
         # when (nothing should be found here since self.dir is not persisted.)
