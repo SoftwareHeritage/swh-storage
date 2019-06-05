@@ -1646,25 +1646,38 @@ class CommonTestStorage(TestStorageData):
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
             date=self.date_visit2)
+        origin_visit2 = self.storage.origin_visit_add(
+            origin_id,
+            date='2018-01-01 23:00:00+00')
 
         # then
         self.assertEqual(origin_visit1['origin'], origin_id)
         self.assertIsNotNone(origin_visit1['visit'])
 
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEqual(actual_origin_visits,
-                         [{
-                             'origin': origin_id,
-                             'date': self.date_visit2,
-                             'visit': origin_visit1['visit'],
-                             'type': 'hg',
-                             'status': 'ongoing',
-                             'metadata': None,
-                             'snapshot': None,
-                         }])
+        self.assertEqual(actual_origin_visits, [
+            {
+                'origin': origin_id,
+                'date': self.date_visit2,
+                'visit': origin_visit1['visit'],
+                'type': 'hg',
+                'status': 'ongoing',
+                'metadata': None,
+                'snapshot': None,
+            },
+            {
+                'origin': origin_id,
+                'date': self.date_visit3,
+                'visit': origin_visit2['visit'],
+                'type': 'hg',
+                'status': 'ongoing',
+                'metadata': None,
+                'snapshot': None,
+            },
+        ])
 
         expected_origin = self.origin2.copy()
-        data = {
+        data1 = {
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
@@ -1673,9 +1686,19 @@ class CommonTestStorage(TestStorageData):
             'metadata': None,
             'snapshot': None,
         }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit3,
+            'visit': origin_visit2['visit'],
+            'type': 'hg',
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
         self.assertEqual(list(self.journal_writer.objects),
                          [('origin', expected_origin),
-                          ('origin_visit', data)])
+                          ('origin_visit', data1),
+                          ('origin_visit', data2)])
 
     def test_origin_visit_update(self):
         # given
