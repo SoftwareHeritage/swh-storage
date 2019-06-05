@@ -636,6 +636,24 @@ class CommonTestStorage(TestStorageData):
             'skipped_content:add': 0
         })
 
+    def test_content_add_again(self):
+        actual_result = self.storage.content_add([self.cont])
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'content:add:bytes': self.cont['length'],
+            'skipped_content:add': 0
+        })
+
+        actual_result = self.storage.content_add([self.cont, self.cont2])
+        self.assertEqual(actual_result, {
+            'content:add': 1,
+            'content:add:bytes': self.cont2['length'],
+            'skipped_content:add': 0
+        })
+
+        self.assertEqual(len(self.storage.content_find(self.cont)), 1)
+        self.assertEqual(len(self.storage.content_find(self.cont2)), 1)
+
     def test_content_add_db(self):
         cont = self.cont
 
