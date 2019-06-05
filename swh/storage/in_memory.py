@@ -1189,6 +1189,9 @@ class Storage:
                 'visit': visit_id,
             }
 
+            self._objects[(origin_id, visit_id)].append(
+                ('origin_visit', None))
+
             if self.journal_writer:
                 origin = self.origin_get([{'id': origin_id}])[0]
                 del origin['id']
@@ -1274,6 +1277,10 @@ class Storage:
         for visit in visits:
             origin_id = visit['origin']
             visit_id = visit['visit']
+
+            self._objects[(origin_id, visit_id)].append(
+                ('origin_visit', None))
+
             while len(self._origin_visits[origin_id-1]) < visit_id:
                 self._origin_visits[origin_id-1].append(None)
             visit = self._origin_visits[origin_id-1][visit_id-1] = visit

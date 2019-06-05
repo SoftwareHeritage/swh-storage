@@ -3038,6 +3038,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(counters['directory'], 1)
         self.assertEqual(counters['snapshot'], 1)
         self.assertEqual(counters['origin'], 1)
+        self.assertEqual(counters['origin_visit'], 1)
         self.assertEqual(counters['revision'], 1)
         self.assertEqual(counters['person'], 2)
 
