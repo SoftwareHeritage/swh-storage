@@ -586,6 +586,30 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
+    def test_content_get_missing(self):
+        cont = self.cont
+
+        self.storage.content_add([cont])
+
+        # Query a single missing content
+        results = list(self.storage.content_get(
+            [self.cont2['sha1']]))
+        self.assertEqual(results,
+                         [None])
+
+        # Check content_get does not abort after finding a missing content
+        results = list(self.storage.content_get(
+            [self.cont['sha1'], self.cont2['sha1']]))
+        self.assertEqual(results,
+                         [{'sha1': cont['sha1'], 'data': cont['data']}, None])
+
+        # Check content_get does not discard found countent when it finds
+        # a missing content.
+        results = list(self.storage.content_get(
+            [self.cont2['sha1'], self.cont['sha1']]))
+        self.assertEqual(results,
+                         [None, {'sha1': cont['sha1'], 'data': cont['data']}])
+
     def test_content_add_same_input(self):
         cont = self.cont
 
