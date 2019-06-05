@@ -572,7 +572,10 @@ class CommonTestStorage(TestStorageData):
     def test_content_add(self):
         cont = self.cont
 
+        insertion_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
         actual_result = self.storage.content_add([cont])
+        insertion_end_time = datetime.datetime.now(tz=datetime.timezone.utc)
+
         self.assertEqual(actual_result, {
             'content:add': 1,
             'content:add:bytes': cont['length'],
@@ -586,8 +589,9 @@ class CommonTestStorage(TestStorageData):
         del expected_cont['data']
         journal_objects = list(self.journal_writer.objects)
         for (obj_type, obj) in journal_objects:
-            if 'ctime' in obj:
-                del obj['ctime']
+            self.assertLessEqual(insertion_start_time, obj['ctime'])
+            self.assertLessEqual(obj['ctime'], insertion_end_time)
+            del obj['ctime']
         self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
@@ -681,8 +685,7 @@ class CommonTestStorage(TestStorageData):
         del expected_cont['data']
         journal_objects = list(self.journal_writer.objects)
         for (obj_type, obj) in journal_objects:
-            if 'ctime' in obj:
-                del obj['ctime']
+            del obj['ctime']
         self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
