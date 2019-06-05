@@ -3703,6 +3703,31 @@ class CommonPropTestStorage:
         self.assert_contents_ok(contents, actual_contents,
                                 keys_to_check=keys_to_check)
 
+    @given(gen_contents(),
+           strategies.binary(min_size=20, max_size=20),
+           strategies.binary(min_size=20, max_size=20))
+    def test_generate_content_get_range(self, contents, start, end):
+        """content_get_range paginates results if limit exceeded"""
+        self.reset_storage_tables()
+        # add contents to storage
+        self.storage.content_add(contents)
+
+        actual_result = self.storage.content_get_range(start, end)
+
+        actual_contents = actual_result['contents']
+        actual_next = actual_result['next']
+
+        self.assertEqual(actual_next, None)
+
+        expected_contents = [c for c in contents
+                             if start <= c['sha1'] <= end]
+        if expected_contents:
+            keys_to_check = set(contents[0].keys()) - {'data'}
+            self.assert_contents_ok(expected_contents, actual_contents,
+                                    keys_to_check)
+        else:
+            self.assertEqual(actual_contents, [])
+
     def test_generate_content_get_range_limit_none(self):
         """content_get_range call with wrong limit input should fail"""
         with self.assertRaises(ValueError) as e:
