@@ -3031,6 +3031,7 @@ class CommonTestStorage(TestStorageData):
                                   self.snapshot)
         self.storage.directory_add([self.dir])
         self.storage.revision_add([self.revision])
+        self.storage.release_add([self.release])
 
         self.storage.refresh_stat_counters()
         counters = self.storage.stat_counters()
@@ -3040,7 +3041,9 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(counters['origin'], 1)
         self.assertEqual(counters['origin_visit'], 1)
         self.assertEqual(counters['revision'], 1)
-        self.assertEqual(counters['person'], 2)
+        self.assertEqual(counters['release'], 1)
+        self.assertEqual(counters['snapshot'], 1)
+        self.assertEqual(counters['person'], 3)
 
     def test_content_find_ctime(self):
         cont = self.cont.copy()
