@@ -2842,7 +2842,7 @@ class CommonTestStorage(TestStorageData):
     def test_content_find_with_present_content(self):
         # 1. with something to find
         cont = self.cont
-        self.storage.content_add([cont])
+        self.storage.content_add([cont, self.cont2])
 
         actually_present = self.storage.content_find(
             {'sha1': cont['sha1']}
