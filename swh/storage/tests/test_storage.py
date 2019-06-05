@@ -880,6 +880,52 @@ class CommonTestStorage(TestStorageData):
                 missing_per_hash[hash]
             )
 
+    def test_content_missing__marked_missing(self):
+        cont2 = self.cont2.copy()
+        cont2['status'] = 'missing'
+        del cont2['data']
+        self.storage.content_add([cont2])
+
+        test_content = {
+            algo: cont2[algo]
+            for algo in ('sha1', 'sha1_git', 'sha256', 'blake2s256')}
+
+        self.assertCountEqual(
+            self.storage.content_missing([test_content]),
+            [cont2['sha1']]
+        )
+
+    @pytest.mark.property_based
+    @given(strategies.sets(
+        elements=strategies.sampled_from(
+            ['sha256', 'sha1_git', 'blake2s256']),
+        min_size=0))
+    def test_content_missing_unknown_algo(self, algos):
+        algos |= {'sha1'}
+        cont2 = self.cont2
+        missing_cont = self.missing_cont
+        self.storage.content_add([cont2])
+        test_contents = [cont2]
+        missing_per_hash = defaultdict(list)
+        for i in range(16):
+            test_content = missing_cont.copy()
+            for hash in algos:
+                test_content[hash] = bytes([i]) + test_content[hash][1:]
+                missing_per_hash[hash].append(test_content[hash])
+            test_content['nonexisting_algo'] = b'\x00'
+            test_contents.append(test_content)
+
+        self.assertCountEqual(
+            self.storage.content_missing(test_contents),
+            missing_per_hash['sha1']
+        )
+
+        for hash in algos:
+            self.assertCountEqual(
+                self.storage.content_missing(test_contents, key_hash=hash),
+                missing_per_hash[hash]
+            )
+
     def test_content_missing_per_sha1(self):
         # given
         cont2 = self.cont2
