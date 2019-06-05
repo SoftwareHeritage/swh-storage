@@ -3560,6 +3560,28 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(len(metadatas_for_origin2), 1)
         self.assertCountEqual(all_metadatas, expected_results)
 
+    def test_metadata_provider_add(self):
+        provider = {
+            'provider_name': 'swMATH',
+            'provider_type': 'registry',
+            'provider_url': 'http://www.swmath.org/',
+            'metadata': {
+                'email': 'contact@swmath.org',
+                'license': 'All rights reserved'
+            }
+        }
+        provider['id'] = provider_id = self.storage.metadata_provider_add(
+            **provider)
+        self.assertEqual(
+            provider,
+            self.storage.metadata_provider_get_by({
+               'provider_name': 'swMATH',
+               'provider_url': 'http://www.swmath.org/'
+            }))
+        self.assertEqual(
+            provider,
+            self.storage.metadata_provider_get(provider_id))
+
     def test_origin_metadata_get_by_provider_type(self):
         # given
         origin_id = self.storage.origin_add([self.origin])[0]['id']

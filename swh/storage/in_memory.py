@@ -1468,7 +1468,7 @@ class Storage:
             item = copy.deepcopy(item)
             provider = self.metadata_provider_get(item['provider_id'])
             for attr in ('name', 'type', 'url'):
-                item['provider_' + attr] = provider[attr]
+                item['provider_' + attr] = provider['provider_' + attr]
             metadata.append(item)
         return metadata
 
@@ -1530,9 +1530,9 @@ class Storage:
             an identifier of the provider
         """
         provider = {
-                'name': provider_name,
-                'type': provider_type,
-                'url': provider_url,
+                'provider_name': provider_name,
+                'provider_type': provider_type,
+                'provider_url': provider_url,
                 'metadata': metadata,
                 }
         key = self._metadata_provider_key(provider)
@@ -1563,9 +1563,7 @@ class Storage:
             dict: same as `metadata_provider_add`;
                   or None if it does not exist.
         """
-        key = self._metadata_provider_key({
-            'name': provider['provider_name'],
-            'url': provider['provider_url']})
+        key = self._metadata_provider_key(provider)
         return self._metadata_providers.get(key)
 
     def _origin_id(self, origin):
@@ -1610,4 +1608,4 @@ class Storage:
 
     @staticmethod
     def _metadata_provider_key(provider):
-        return '%r %r' % (provider['name'], provider['url'])
+        return '%r %r' % (provider['provider_name'], provider['provider_url'])
