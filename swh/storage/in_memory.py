@@ -1250,6 +1250,11 @@ class Storage:
                 snapshot (sha1_git): identifier of the snapshot to add to
                     the visit
         """
+        visits = copy.deepcopy(visits)
+        for visit in visits:
+            if isinstance(visit['date'], str):
+                visit['date'] = dateutil.parser.parse(visit['date'])
+
         if self.journal_writer:
             for visit in visits:
                 visit = visit.copy()
@@ -1260,8 +1265,6 @@ class Storage:
         for visit in visits:
             origin_id = visit['origin']
             visit_id = visit['visit']
-            if isinstance(visit['date'], str):
-                visit['date'] = dateutil.parser.parse(visit['date'])
             while len(self._origin_visits[origin_id-1]) < visit_id:
                 self._origin_visits[origin_id-1].append(None)
             visit = self._origin_visits[origin_id-1][visit_id-1] = visit

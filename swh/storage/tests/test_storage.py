@@ -1664,29 +1664,48 @@ class CommonTestStorage(TestStorageData):
         self.assertIsNotNone(origin_id)
 
         # when
-        self.storage.origin_visit_upsert([{
-             'origin': origin_id,
-             'date': self.date_visit2,
-             'visit': 123,
-             'status': 'full',
-             'metadata': None,
-             'snapshot': None,
-         }])
+        self.storage.origin_visit_upsert([
+            {
+                 'origin': origin_id,
+                 'date': self.date_visit2,
+                 'visit': 123,
+                 'status': 'full',
+                 'metadata': None,
+                 'snapshot': None,
+             },
+            {
+                 'origin': origin_id,
+                 'date': '2018-01-01 23:00:00+00',
+                 'visit': 1234,
+                 'status': 'full',
+                 'metadata': None,
+                 'snapshot': None,
+             },
+        ])
 
         # then
         actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
-        self.assertEqual(actual_origin_visits,
-                         [{
-                             'origin': origin_id,
-                             'date': self.date_visit2,
-                             'visit': 123,
-                             'status': 'full',
-                             'metadata': None,
-                             'snapshot': None,
-                         }])
+        self.assertEqual(actual_origin_visits, [
+            {
+                'origin': origin_id,
+                'date': self.date_visit2,
+                'visit': 123,
+                'status': 'full',
+                'metadata': None,
+                'snapshot': None,
+            },
+            {
+                'origin': origin_id,
+                'date': self.date_visit3,
+                'visit': 1234,
+                'status': 'full',
+                'metadata': None,
+                'snapshot': None,
+            },
+        ])
 
         expected_origin = self.origin2.copy()
-        data = {
+        data1 = {
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': 123,
@@ -1694,9 +1713,18 @@ class CommonTestStorage(TestStorageData):
             'metadata': None,
             'snapshot': None,
         }
+        data2 = {
+            'origin': expected_origin,
+            'date': self.date_visit3,
+            'visit': 1234,
+            'status': 'full',
+            'metadata': None,
+            'snapshot': None,
+        }
         self.assertEqual(list(self.journal_writer.objects),
                          [('origin', expected_origin),
-                          ('origin_visit', data)])
+                          ('origin_visit', data1),
+                          ('origin_visit', data2)])
 
     def test_origin_visit_upsert_existing(self):
         # given
