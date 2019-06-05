@@ -507,6 +507,11 @@ class TestStorageData:
                         '1bd0e65f7d2ff14ae994de17a1e7fe65111dcad8'),
                     'target_type': 'directory',
                 },
+                b'directory2': {
+                    'target': hash_to_bytes(
+                        '1bd0e65f7d2ff14ae994de17a1e7fe65111dcad8'),
+                    'target_type': 'directory',
+                },
                 b'content': {
                     'target': hash_to_bytes(
                         'fe95a46679d128ff167b7c55df5d02356c5a1ae1'),
@@ -2135,7 +2140,7 @@ class CommonTestStorage(TestStorageData):
         expected_snp_size = {
             'alias': 1,
             'content': 1,
-            'directory': 1,
+            'directory': 2,
             'release': 1,
             'revision': 1,
             'snapshot': 1,
@@ -2156,6 +2161,8 @@ class CommonTestStorage(TestStorageData):
         branches = self.complete_snapshot['branches']
         branch_names = list(sorted(branches))
 
+        # Test branch_from
+
         snapshot = self.storage.snapshot_get_branches(snp_id,
                                                       branches_from=b'release')
 
@@ -2171,17 +2178,21 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(snapshot, expected_snapshot)
 
+        # Test branches_count
+
         snapshot = self.storage.snapshot_get_branches(snp_id,
                                                       branches_count=1)
 
         expected_snapshot = {
             'id': snp_id,
             'branches': {
-                 branch_names[0]: branches[branch_names[0]],
+                branch_names[0]: branches[branch_names[0]],
             },
             'next_branch': b'content',
         }
         self.assertEqual(snapshot, expected_snapshot)
+
+        # test branch_from + branches_count
 
         snapshot = self.storage.snapshot_get_branches(
             snp_id, branches_from=b'directory', branches_count=3)
@@ -2235,6 +2246,83 @@ class CommonTestStorage(TestStorageData):
                 if tgt and tgt['target_type'] == 'alias'
             },
             'next_branch': None,
+        }
+
+        self.assertEqual(snapshot, expected_snapshot)
+
+    def test_snapshot_add_get_filtered_and_paginated(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit_id = origin_visit1['visit']
+
+        self.storage.snapshot_add(origin_id, visit_id, self.complete_snapshot)
+
+        snp_id = self.complete_snapshot['id']
+        branches = self.complete_snapshot['branches']
+        branch_names = list(sorted(branches))
+
+        # Test branch_from
+
+        snapshot = self.storage.snapshot_get_branches(
+            snp_id, target_types=['directory', 'release'],
+            branches_from=b'directory2')
+
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                name: branches[name]
+                for name in (b'directory2', b'release')
+            },
+            'next_branch': None,
+        }
+
+        self.assertEqual(snapshot, expected_snapshot)
+
+        # Test branches_count
+
+        snapshot = self.storage.snapshot_get_branches(
+            snp_id, target_types=['directory', 'release'],
+            branches_count=1)
+
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                b'directory': branches[b'directory']
+            },
+            'next_branch': b'directory2',
+        }
+        self.assertEqual(snapshot, expected_snapshot)
+
+        # Test branches_count
+
+        snapshot = self.storage.snapshot_get_branches(
+            snp_id, target_types=['directory', 'release'],
+            branches_count=2)
+
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                name: branches[name]
+                for name in (b'directory', b'directory2')
+            },
+            'next_branch': b'release',
+        }
+        self.assertEqual(snapshot, expected_snapshot)
+
+        # test branch_from + branches_count
+
+        snapshot = self.storage.snapshot_get_branches(
+            snp_id, target_types=['directory', 'release'],
+            branches_from=b'directory2', branches_count=1)
+
+        dir_idx = branch_names.index(b'directory2')
+        expected_snapshot = {
+            'id': snp_id,
+            'branches': {
+                branch_names[dir_idx]: branches[branch_names[dir_idx]],
+            },
+            'next_branch': b'release',
         }
 
         self.assertEqual(snapshot, expected_snapshot)
