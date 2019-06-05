@@ -970,21 +970,54 @@ class CommonTestStorage(TestStorageData):
                           ('directory', self.dir2),
                           ('directory', self.dir3)])
 
+        # List directory containing a file and an unknown subdirectory
         actual_data = list(self.storage.directory_ls(
             self.dir['id'], recursive=True))
         expected_data = list(self._transform_entries(self.dir))
         self.assertCountEqual(expected_data, actual_data)
 
+        # List directory containing a file and an unknown subdirectory
         actual_data = list(self.storage.directory_ls(
             self.dir2['id'], recursive=True))
         expected_data = list(self._transform_entries(self.dir2))
         self.assertCountEqual(expected_data, actual_data)
 
+        # List directory containing a known subdirectory, entries should
+        # be both those of the directory and of the subdir
         actual_data = list(self.storage.directory_ls(
             self.dir3['id'], recursive=True))
         expected_data = list(itertools.chain(
             self._transform_entries(self.dir3),
             self._transform_entries(self.dir, prefix=b'subdir/')))
+        self.assertCountEqual(expected_data, actual_data)
+
+    def test_directory_get_non_recursive(self):
+        init_missing = list(self.storage.directory_missing([self.dir['id']]))
+        self.assertEqual([self.dir['id']], init_missing)
+
+        actual_result = self.storage.directory_add(
+            [self.dir, self.dir2, self.dir3])
+        self.assertEqual(actual_result, {'directory:add': 3})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('directory', self.dir),
+                          ('directory', self.dir2),
+                          ('directory', self.dir3)])
+
+        # List directory containing a file and an unknown subdirectory
+        actual_data = list(self.storage.directory_ls(self.dir['id']))
+        expected_data = list(self._transform_entries(self.dir))
+        self.assertCountEqual(expected_data, actual_data)
+
+        # List directory contaiining a single file
+        actual_data = list(self.storage.directory_ls(self.dir2['id']))
+        expected_data = list(self._transform_entries(self.dir2))
+        self.assertCountEqual(expected_data, actual_data)
+
+        # List directory containing a known subdirectory, entries should
+        # only be those of the parent directory, not of the subdir
+        actual_data = list(self.storage.directory_ls(self.dir3['id']))
+        expected_data = list(self._transform_entries(self.dir3))
         self.assertCountEqual(expected_data, actual_data)
 
     def test_directory_entry_get_by_path(self):
