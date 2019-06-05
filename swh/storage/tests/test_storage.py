@@ -3285,10 +3285,17 @@ class CommonTestStorage(TestStorageData):
                     provider['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
-        actual_om1 = list(self.storage.origin_metadata_get_by(origin_id))
+        self.storage.origin_metadata_add(
+                    origin_id,
+                    '2015-01-01 23:00:00+00',
+                    provider['id'],
+                    tool['id'],
+                    self.origin_metadata2['metadata'])
+        actual_om = list(self.storage.origin_metadata_get_by(origin_id))
         # then
-        self.assertEqual(len(actual_om1), 1)
-        self.assertEqual(actual_om1[0]['origin_id'], origin_id)
+        self.assertCountEqual(
+            [item['origin_id'] for item in actual_om],
+            [origin_id, origin_id])
 
     def test_origin_metadata_get(self):
         # given
