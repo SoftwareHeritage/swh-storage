@@ -2496,6 +2496,68 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(self.complete_snapshot,
                          self.storage.snapshot_get_latest(origin_id))
 
+    def test_snapshot_get_latest_from_url(self):
+        self.storage.origin_add_one(self.origin)
+        origin_url = self.origin['url']
+        origin_visit1 = self.storage.origin_visit_add(origin_url,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_url,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Add a visit with the same date as the previous one
+        origin_visit3 = self.storage.origin_visit_add(origin_url,
+                                                      self.date_visit2)
+        visit3_id = origin_visit3['visit']
+
+        # Two visits, both with no snapshot: latest snapshot is None
+        self.assertIsNone(self.storage.snapshot_get_latest(origin_url))
+
+        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        self.storage.snapshot_add([self.complete_snapshot])
+        self.storage.origin_visit_update(
+            origin_url, visit1_id, snapshot=self.complete_snapshot['id'])
+        self.assertEqual(self.complete_snapshot,
+                         self.storage.snapshot_get_latest(origin_url))
+
+        # Status filter: both visits are status=ongoing, so no snapshot
+        # returned
+        self.assertIsNone(
+            self.storage.snapshot_get_latest(origin_url,
+                                             allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_url, visit1_id, status='full')
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_url,
+                                             allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit2 and check that the new snapshot is returned
+        self.storage.snapshot_add([self.empty_snapshot])
+        self.storage.origin_visit_update(
+            origin_url, visit2_id, snapshot=self.empty_snapshot['id'])
+        self.assertEqual(self.empty_snapshot,
+                         self.storage.snapshot_get_latest(origin_url))
+
+        # Check that the status filter is still working
+        self.assertEqual(
+            self.complete_snapshot,
+            self.storage.snapshot_get_latest(origin_url,
+                                             allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit3 (same date as visit2) and check that
+        # the new snapshot is returned
+        self.storage.snapshot_add([self.complete_snapshot])
+        self.storage.origin_visit_update(
+            origin_url, visit3_id, snapshot=self.complete_snapshot['id'])
+        self.assertEqual(self.complete_snapshot,
+                         self.storage.snapshot_get_latest(origin_url))
+
     def test_snapshot_get_latest__missing_snapshot(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,

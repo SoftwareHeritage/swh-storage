@@ -1049,7 +1049,7 @@ class Storage():
             should be used instead.
 
         Args:
-            origin (int): the origin identifier
+            origin (Union[str,int]): the origin's URL or identifier
             allowed_statuses (list of str): list of visit statuses considered
                 to find the latest snapshot for the visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -1063,6 +1063,9 @@ class Storage():
                   or :const:`None` if the snapshot has less than 1000
                   branches.
         """
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin})['id']
+
         origin_visit = db.origin_visit_get_latest_snapshot(
             origin, allowed_statuses=allowed_statuses, cur=cur)
         if origin_visit:
