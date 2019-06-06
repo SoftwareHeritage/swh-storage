@@ -1346,10 +1346,13 @@ class Storage():
         """Return origins, either all identified by their ids or all
         identified by tuples (type, url).
 
+        If the url is given and the type is omitted, one of the origins with
+        that url is returned.
+
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the keys type and url:
+                These dicts have either the key url (and optionally type):
 
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
@@ -1388,16 +1391,16 @@ class Storage():
             else:
                 raise ValueError(
                     'Either all origins or none at all should have an "id".')
-        elif any(type_ and url for (type_, url) in origin_types_and_urls):
+        elif any(url for (type_, url) in origin_types_and_urls):
             # Lookup per type + URL
-            if all(type_ and url for (type_, url) in origin_types_and_urls):
+            if all(url for (type_, url) in origin_types_and_urls):
                 results = db.origin_get_with(origin_types_and_urls, cur)
             else:
                 raise ValueError(
-                    'Either all origins or none at all should have a '
-                    '"type" and an "url".')
+                    'Either all origins or none at all should have '
+                    'an "url" key.')
         else:  # unsupported lookup
-            raise ValueError('Origin must have either id or (type and url).')
+            raise ValueError('Origin must have either id or url.')
 
         results = [dict(zip(self.origin_keys, result))
                    for result in results]

@@ -650,7 +650,8 @@ class Db(BaseDb):
 
         query = """SELECT %s FROM (VALUES %%s) as t(type, url)
                    LEFT JOIN origin
-                       ON (t.type=origin.type AND t.url=origin.url)
+                       ON ((t.type IS NULL OR t.type=origin.type)
+                           AND t.url=origin.url)
                 """ % ','.join('origin.' + col for col in self.origin_cols)
 
         yield from execute_values_generator(

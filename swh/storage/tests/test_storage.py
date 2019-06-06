@@ -1290,6 +1290,37 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(add1, add2)
 
+    def test_origin_get_without_type(self):
+        origin0 = self.storage.origin_get([self.origin])[0]
+        self.assertIsNone(origin0)
+
+        origin3 = self.origin2.copy()
+        origin3['type'] += 'foo'
+
+        origin1, origin2, origin3 = self.storage.origin_add(
+            [self.origin, self.origin2, origin3])
+
+        actual_origin = self.storage.origin_get([{
+            'url': self.origin['url'],
+        }])[0]
+        self.assertEqual(actual_origin['id'], origin1['id'])
+
+        actual_origin_2_or_3 = self.storage.origin_get([{
+            'url': self.origin2['url'],
+        }])[0]
+        self.assertIn(
+            actual_origin_2_or_3['id'],
+            [origin2['id'], origin3['id']])
+
+        del actual_origin['id']
+        del actual_origin_2_or_3['id']
+        del origin3['id']
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', self.origin),
+                          ('origin', self.origin2),
+                          ('origin', origin3)])
+
     def test_origin_get_legacy(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)

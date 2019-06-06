@@ -929,10 +929,13 @@ class Storage:
         """Return origins, either all identified by their ids or all
         identified by tuples (type, url).
 
+        If the url is given and the type is omitted, one of the origins with
+        that url is returned.
+
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the keys type and url:
+                These dicts have either the key url (and optionally type):
 
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
@@ -964,18 +967,17 @@ class Storage:
                 and not all('id' in origin for origin in origins):
             raise ValueError(
                 'Either all origins or none at all should have an "id".')
-        if any('type' in origin and 'url' in origin for origin in origins) \
-                and not all('type' in origin and 'url' in origin
-                            for origin in origins):
+        if any('url' in origin for origin in origins) \
+                and not all('url' in origin for origin in origins):
             raise ValueError(
-                'Either all origins or none at all should have a '
-                '"type" and an "url".')
+                'Either all origins or none at all should have '
+                'an "url" key.')
 
         results = []
         for origin in origins:
             if 'id' in origin:
                 origin_id = origin['id']
-            elif 'type' in origin and 'url' in origin:
+            elif 'url' in origin:
                 origin_id = self._origin_id(origin)
             else:
                 raise ValueError(
@@ -1512,8 +1514,9 @@ class Storage:
     def _origin_id(self, origin):
         origin_id = None
         for stored_origin in self._origins:
-            if stored_origin['type'] == origin['type'] and \
-               stored_origin['url'] == origin['url']:
+            if stored_origin['url'] == origin['url'] \
+                    and ('type' not in origin
+                         or stored_origin['type'] == origin['type']):
                 origin_id = stored_origin['id']
                 break
         return origin_id
