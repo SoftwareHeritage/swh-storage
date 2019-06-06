@@ -301,21 +301,22 @@ class Db(BaseDb):
     revision_get_cols = revision_add_cols + [
         'author_id', 'committer_id', 'parents']
 
-    def origin_visit_add(self, origin, ts, cur=None):
+    def origin_visit_add(self, origin, ts, type, cur=None):
         """Add a new origin_visit for origin origin at timestamp ts with
         status 'ongoing'.
 
         Args:
             origin: origin concerned by the visit
             ts: the date of the visit
+            type: type of loader for the visit
 
         Returns:
             The new visit index step for that origin
 
         """
         cur = self._cursor(cur)
-        self._cursor(cur).execute('SELECT swh_origin_visit_add(%s, %s)',
-                                  (origin, ts))
+        self._cursor(cur).execute('SELECT swh_origin_visit_add(%s, %s, %s)',
+                                  (origin, ts, type))
         return cur.fetchone()[0]
 
     def origin_visit_update(self, origin_id, visit_id, updates, cur=None):
@@ -346,7 +347,7 @@ class Db(BaseDb):
         })
         cur.execute(query, (*values, *where_values))
 
-    def origin_visit_upsert(self, origin, visit, date, status,
+    def origin_visit_upsert(self, origin, visit, date, type, status,
                             metadata, snapshot, cur=None):
         cur = self._cursor(cur)
         query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
@@ -356,10 +357,11 @@ class Db(BaseDb):
                 values=', '.join('%s' for col in self.origin_visit_get_cols),
                 updates=', '.join('{0}=excluded.{0}'.format(col)
                                   for col in self.origin_visit_get_cols))
-        cur.execute(query, (origin, visit, date, status, metadata, snapshot))
+        cur.execute(
+            query, (origin, visit, date, type, status, metadata, snapshot))
 
-    origin_visit_get_cols = ['origin', 'visit', 'date', 'status', 'metadata',
-                             'snapshot']
+    origin_visit_get_cols = ['origin', 'visit', 'date', 'type', 'status',
+                             'metadata', 'snapshot']
 
     def origin_visit_get_all(self, origin_id,
                              last_visit=None, limit=None, cur=None):

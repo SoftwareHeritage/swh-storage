@@ -209,6 +209,7 @@ create table origin_visit
   origin       bigint not null,
   visit        bigint not null,
   date         timestamptz not null,
+  type         text not null,
   status       origin_visit_status not null,
   metadata     jsonb,
   snapshot     sha1_git
@@ -217,6 +218,7 @@ create table origin_visit
 comment on column origin_visit.origin is 'Visited origin';
 comment on column origin_visit.visit is 'Sequential visit number for the origin';
 comment on column origin_visit.date is 'Visit timestamp';
+comment on column origin_visit.type is 'Type of loader that did the visit (hg, git, ...)';
 comment on column origin_visit.status is 'Visit result';
 comment on column origin_visit.metadata is 'Origin metadata at visit time';
 comment on column origin_visit.snapshot is 'Origin snapshot at visit time';

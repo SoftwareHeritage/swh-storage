@@ -355,7 +355,7 @@ class TestStorageData:
 
         self.origin2 = {
             'url': 'file:///dev/zero',
-            'type': 'git',
+            'type': 'hg',
         }
 
         self.provider = {
@@ -1461,6 +1461,45 @@ class CommonTestStorage(TestStorageData):
         # when
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
+            type='git',
+            date=self.date_visit2)
+
+        actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
+        self.assertEqual(actual_origin_visits,
+                         [{
+                             'origin': origin_id,
+                             'date': self.date_visit2,
+                             'visit': origin_visit1['visit'],
+                             'type': 'git',
+                             'status': 'ongoing',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
+
+        expected_origin = self.origin2.copy()
+        data = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'type': 'git',
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data)])
+
+    def test_origin_visit_add_default_type(self):
+        # given
+        self.assertIsNone(self.storage.origin_get([self.origin2])[0])
+
+        origin_id = self.storage.origin_add_one(self.origin2)
+        self.assertIsNotNone(origin_id)
+
+        # when
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_id,
             date=self.date_visit2)
 
         # then
@@ -1473,6 +1512,7 @@ class CommonTestStorage(TestStorageData):
                              'origin': origin_id,
                              'date': self.date_visit2,
                              'visit': origin_visit1['visit'],
+                             'type': 'hg',
                              'status': 'ongoing',
                              'metadata': None,
                              'snapshot': None,
@@ -1483,6 +1523,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
+            'type': 'hg',
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1493,8 +1534,8 @@ class CommonTestStorage(TestStorageData):
 
     def test_origin_visit_update(self):
         # given
-        origin_id = self.storage.origin_add_one(self.origin2)
-        origin_id2 = self.storage.origin_add_one(self.origin)
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_id2 = self.storage.origin_add_one(self.origin2)
 
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
@@ -1525,6 +1566,7 @@ class CommonTestStorage(TestStorageData):
             'origin': origin_visit2['origin'],
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'full',
             'metadata': visit1_metadata,
             'snapshot': None,
@@ -1532,6 +1574,7 @@ class CommonTestStorage(TestStorageData):
             'origin': origin_visit2['origin'],
             'date': self.date_visit3,
             'visit': origin_visit2['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1544,6 +1587,7 @@ class CommonTestStorage(TestStorageData):
                              'origin': origin_visit2['origin'],
                              'date': self.date_visit2,
                              'visit': origin_visit1['visit'],
+                             'type': self.origin['type'],
                              'status': 'full',
                              'metadata': visit1_metadata,
                              'snapshot': None,
@@ -1556,6 +1600,7 @@ class CommonTestStorage(TestStorageData):
                              'origin': origin_visit2['origin'],
                              'date': self.date_visit3,
                              'visit': origin_visit2['visit'],
+                             'type': self.origin['type'],
                              'status': 'ongoing',
                              'metadata': None,
                              'snapshot': None,
@@ -1567,17 +1612,19 @@ class CommonTestStorage(TestStorageData):
                              'origin': origin_visit3['origin'],
                              'date': self.date_visit3,
                              'visit': origin_visit3['visit'],
+                             'type': self.origin2['type'],
                              'status': 'partial',
                              'metadata': None,
                              'snapshot': None,
                          }])
 
-        expected_origin = self.origin2.copy()
-        expected_origin2 = self.origin.copy()
+        expected_origin = self.origin.copy()
+        expected_origin2 = self.origin2.copy()
         data1 = {
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1586,6 +1633,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit3,
             'visit': origin_visit2['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1594,6 +1642,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin2,
             'date': self.date_visit3,
             'visit': origin_visit3['visit'],
+            'type': self.origin2['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1602,6 +1651,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'metadata': visit1_metadata,
             'status': 'full',
             'snapshot': None,
@@ -1610,6 +1660,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin2,
             'date': self.date_visit3,
             'visit': origin_visit3['visit'],
+            'type': self.origin2['type'],
             'status': 'partial',
             'metadata': None,
             'snapshot': None,
@@ -1646,8 +1697,8 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_origin_visit['snapshot'], self.snapshot['id'])
 
     def test_origin_visit_get_by(self):
-        origin_id = self.storage.origin_add_one(self.origin2)
-        origin_id2 = self.storage.origin_add_one(self.origin)
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_id2 = self.storage.origin_add_one(self.origin2)
 
         origin_visit1 = self.storage.origin_visit_add(
             origin_id,
@@ -1675,6 +1726,7 @@ class CommonTestStorage(TestStorageData):
             'origin': origin_id,
             'visit': origin_visit1['visit'],
             'date': self.date_visit2,
+            'type': self.origin['type'],
             'metadata': visit1_metadata,
             'status': 'full',
             'snapshot': self.snapshot['id'],
@@ -1700,6 +1752,7 @@ class CommonTestStorage(TestStorageData):
                  'origin': origin_id,
                  'date': self.date_visit2,
                  'visit': 123,
+                 'type': self.origin2['type'],
                  'status': 'full',
                  'metadata': None,
                  'snapshot': None,
@@ -1708,6 +1761,7 @@ class CommonTestStorage(TestStorageData):
                  'origin': origin_id,
                  'date': '2018-01-01 23:00:00+00',
                  'visit': 1234,
+                 'type': self.origin2['type'],
                  'status': 'full',
                  'metadata': None,
                  'snapshot': None,
@@ -1721,6 +1775,7 @@ class CommonTestStorage(TestStorageData):
                 'origin': origin_id,
                 'date': self.date_visit2,
                 'visit': 123,
+                'type': self.origin2['type'],
                 'status': 'full',
                 'metadata': None,
                 'snapshot': None,
@@ -1729,6 +1784,7 @@ class CommonTestStorage(TestStorageData):
                 'origin': origin_id,
                 'date': self.date_visit3,
                 'visit': 1234,
+                'type': self.origin2['type'],
                 'status': 'full',
                 'metadata': None,
                 'snapshot': None,
@@ -1740,6 +1796,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': 123,
+            'type': self.origin2['type'],
             'status': 'full',
             'metadata': None,
             'snapshot': None,
@@ -1748,6 +1805,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit3,
             'visit': 1234,
+            'type': self.origin2['type'],
             'status': 'full',
             'metadata': None,
             'snapshot': None,
@@ -1772,6 +1830,7 @@ class CommonTestStorage(TestStorageData):
              'origin': origin_id,
              'date': self.date_visit2,
              'visit': origin_visit1['visit'],
+             'type': self.origin2['type'],
              'status': 'full',
              'metadata': None,
              'snapshot': None,
@@ -1787,6 +1846,7 @@ class CommonTestStorage(TestStorageData):
                              'origin': origin_id,
                              'date': self.date_visit2,
                              'visit': origin_visit1['visit'],
+                             'type': self.origin2['type'],
                              'status': 'full',
                              'metadata': None,
                              'snapshot': None,
@@ -1797,6 +1857,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
+            'type': self.origin2['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1805,6 +1866,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit1['visit'],
+            'type': self.origin2['type'],
             'status': 'full',
             'metadata': None,
             'snapshot': None,
@@ -1913,6 +1975,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1921,6 +1984,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': self.empty_snapshot['id'],
@@ -1950,6 +2014,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -1958,6 +2023,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': self.empty_snapshot['id'],
@@ -2211,6 +2277,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -2219,6 +2286,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': self.snapshot['id'],
@@ -2227,6 +2295,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit2['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -2235,6 +2304,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit2['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': self.snapshot['id'],
@@ -2273,6 +2343,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -2281,6 +2352,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit1,
             'visit': origin_visit1['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': self.snapshot['id'],
@@ -2289,6 +2361,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit2['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None,
@@ -2297,6 +2370,7 @@ class CommonTestStorage(TestStorageData):
             'origin': expected_origin,
             'date': self.date_visit2,
             'visit': origin_visit2['visit'],
+            'type': self.origin['type'],
             'status': 'ongoing',
             'metadata': None,
             'snapshot': self.snapshot['id'],

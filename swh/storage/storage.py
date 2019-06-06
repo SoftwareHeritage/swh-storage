@@ -1149,13 +1149,17 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, date=None, db=None, cur=None, *,
-                         ts=None):
+    def origin_visit_add(self, origin, date=None, type=None,
+                         db=None, cur=None, *, ts=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
+
+        For backward compatibility, `type` is optional and defaults to
+        the origin's type.
 
         Args:
             origin: Visited Origin id
             date: timestamp of such visit
+            type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
             dict: dictionary with keys origin and visit where:
@@ -1179,7 +1183,11 @@ class Storage():
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
-        visit_id = db.origin_visit_add(origin_id, date, cur)
+        if type is None:
+            origin = self.origin_get({'id': origin}, db=db, cur=cur)
+            type = origin['type']
+
+        visit_id = db.origin_visit_add(origin_id, date, type, cur)
 
         if self.journal_writer:
             # We can write to the journal only after inserting to the
@@ -1187,7 +1195,8 @@ class Storage():
             origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
             del origin['id']
             self.journal_writer.write_addition('origin_visit', {
-                'origin': origin, 'date': date, 'visit': visit_id,
+                'origin': origin, 'date': date, 'type': type,
+                'visit': visit_id,
                 'status': 'ongoing', 'metadata': None, 'snapshot': None})
 
         return {
@@ -1265,8 +1274,11 @@ class Storage():
         if self.journal_writer:
             for visit in visits:
                 visit = visit.copy()
-                visit['origin'] = self.origin_get(
+                origin = self.origin_get(
                     [{'id': visit['origin']}], db=db, cur=cur)[0]
+                visit['origin'] = origin
+                if visit.get('type') is None:
+                    visit['type'] = origin['type']
                 del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
