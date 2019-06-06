@@ -1146,7 +1146,7 @@ class Storage:
         the origin's type.
 
         Args:
-            origin (int): visited origin's identifier
+            origin (Union[int,str]): visited origin's identifier or URL
             date: timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
@@ -1167,7 +1167,10 @@ class Storage:
                           DeprecationWarning)
             date = ts
 
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin_id = self.origin_get({'url': origin})['id']
+        else:
+            origin_id = origin
 
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
@@ -1205,7 +1208,7 @@ class Storage:
         """Update an origin_visit's status.
 
         Args:
-            origin (int): visited origin's identifier
+            origin (Union[int,str]): visited origin's identifier or URL
             visit_id (int): visit's identifier
             status: visit's new status
             metadata: data associated to the visit
@@ -1216,7 +1219,10 @@ class Storage:
             None
 
         """
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin_id = self.origin_get({'url': origin})['id']
+        else:
+            origin_id = origin
 
         try:
             visit = self._origin_visits[origin_id-1][visit_id-1]

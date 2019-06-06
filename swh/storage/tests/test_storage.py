@@ -1490,6 +1490,46 @@ class CommonTestStorage(TestStorageData):
                          [('origin', expected_origin),
                           ('origin_visit', data)])
 
+    def test_origin_visit_add_from_url(self):
+        # given
+        self.assertIsNone(self.storage.origin_get([self.origin2])[0])
+
+        origin_id = self.storage.origin_add_one(self.origin2)
+        origin_url = self.origin2['url']
+        self.assertIsNotNone(origin_id)
+
+        # when
+        origin_visit1 = self.storage.origin_visit_add(
+            origin_url,
+            type='git',
+            date=self.date_visit2)
+
+        actual_origin_visits = list(self.storage.origin_visit_get(origin_id))
+        self.assertEqual(actual_origin_visits,
+                         [{
+                             'origin': origin_id,
+                             'date': self.date_visit2,
+                             'visit': origin_visit1['visit'],
+                             'type': 'git',
+                             'status': 'ongoing',
+                             'metadata': None,
+                             'snapshot': None,
+                         }])
+
+        expected_origin = self.origin2.copy()
+        data = {
+            'origin': expected_origin,
+            'date': self.date_visit2,
+            'visit': origin_visit1['visit'],
+            'type': 'git',
+            'status': 'ongoing',
+            'metadata': None,
+            'snapshot': None,
+        }
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', expected_origin),
+                          ('origin_visit', data)])
+
     def test_origin_visit_add_default_type(self):
         # given
         self.assertIsNone(self.storage.origin_get([self.origin2])[0])

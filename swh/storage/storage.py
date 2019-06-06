@@ -1157,7 +1157,7 @@ class Storage():
         the origin's type.
 
         Args:
-            origin: Visited Origin id
+            origin (Union[int,str]): visited origin's identifier or URL
             date: timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
@@ -1178,13 +1178,17 @@ class Storage():
                           DeprecationWarning)
             date = ts
 
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin}, db=db, cur=cur)
+            origin_id = origin['id']
+        else:
+            origin = self.origin_get({'id': origin}, db=db, cur=cur)
+            origin_id = origin['id']
 
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
         if type is None:
-            origin = self.origin_get({'id': origin}, db=db, cur=cur)
             type = origin['type']
 
         visit_id = db.origin_visit_add(origin_id, date, type, cur)
@@ -1192,7 +1196,6 @@ class Storage():
         if self.journal_writer:
             # We can write to the journal only after inserting to the
             # DB, because we want the id of the visit
-            origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
             del origin['id']
             self.journal_writer.write_addition('origin_visit', {
                 'origin': origin, 'date': date, 'type': type,
@@ -1211,7 +1214,7 @@ class Storage():
         """Update an origin_visit's status.
 
         Args:
-            origin: Visited Origin id
+            origin (Union[int,str]): visited origin's identifier or URL
             visit_id: Visit's id
             status: Visit's new status
             metadata: Data associated to the visit
@@ -1222,7 +1225,10 @@ class Storage():
             None
 
         """
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin_id = self.origin_get({'url': origin}, db=db, cur=cur)['id']
+        else:
+            origin_id = origin
 
         visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
 
