@@ -1,3 +1,11 @@
+swh-storage (0.0.142-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.142     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-06-11 15:24:49 +0200)
+  * Upstream changes:     - Mark network tests, so they can be disabled.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 11 Jun 2019 13:44:19 +0000
+
 swh-storage (0.0.141-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.141     - (tagged by Valentin Lorentz
