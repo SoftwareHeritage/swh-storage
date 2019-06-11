@@ -693,7 +693,7 @@ $$;
 -- add a new origin_visit for origin origin_id at date.
 --
 -- Returns the new visit id.
-create or replace function swh_origin_visit_add(origin_id bigint, date timestamptz)
+create or replace function swh_origin_visit_add(origin_id bigint, date timestamptz, type text)
     returns bigint
     language sql
 as $$
@@ -702,8 +702,8 @@ as $$
     from origin_visit
     where origin = origin_id
   )
-  insert into origin_visit (origin, date, visit, status)
-  values (origin_id, date, (select visit from last_known_visit) + 1, 'ongoing')
+  insert into origin_visit (origin, date, type, visit, status)
+  values (origin_id, date, type, (select visit from last_known_visit) + 1, 'ongoing')
   returning visit;
 $$;
 
