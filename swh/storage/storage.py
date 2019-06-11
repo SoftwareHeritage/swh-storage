@@ -300,7 +300,7 @@ class Storage():
         without inserting to the objstorage).
 
         Args:
-            contents (iterable): iterable of dictionaries representing
+            content (iterable): iterable of dictionaries representing
                 individual pieces of content to add. Each dictionary has the
                 following keys:
 
