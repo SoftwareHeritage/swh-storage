@@ -175,7 +175,7 @@ class RemoteStorage(SWHRemoteAPI):
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
-    def origin_visit_add(self, origin, date, *, ts=None):
+    def origin_visit_add(self, origin, date, type=None, *, ts=None):
         if ts is None:
             if date is None:
                 raise TypeError('origin_visit_add expected 2 arguments.')
@@ -185,7 +185,9 @@ class RemoteStorage(SWHRemoteAPI):
                           "to 'date' in v0.0.109.",
                           DeprecationWarning)
             date = ts
-        return self.post('origin/visit/add', {'origin': origin, 'date': date})
+        return self.post(
+            'origin/visit/add',
+            {'origin': origin, 'date': date, 'type': type})
 
     def origin_visit_update(self, origin, visit_id, status=None,
                             metadata=None, snapshot=None):

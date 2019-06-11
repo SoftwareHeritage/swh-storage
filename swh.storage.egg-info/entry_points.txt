@@ -1,4 +1,6 @@
 
         [console_scripts]
         swh-storage=swh.storage.cli:main
+        [swh.cli.subcommands]
+        storage=swh.storage.cli:storage
     

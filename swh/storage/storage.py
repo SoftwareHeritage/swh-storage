@@ -300,7 +300,7 @@ class Storage():
         without inserting to the objstorage).
 
         Args:
-            contents (iterable): iterable of dictionaries representing
+            content (iterable): iterable of dictionaries representing
                 individual pieces of content to add. Each dictionary has the
                 following keys:
 
@@ -516,12 +516,8 @@ class Storage():
                                    sha256=content.get('sha256'),
                                    blake2s256=content.get('blake2s256'),
                                    cur=cur)
-        if contents:
-            contents_list = []
-            for cont in contents:
-                contents_list.append(dict(zip(db.content_find_cols, cont)))
-            return contents_list
-        return None
+        return [dict(zip(db.content_find_cols, content))
+                for content in contents]
 
     @db_transaction()
     def directory_add(self, directories, db, cur):
@@ -1053,7 +1049,7 @@ class Storage():
             should be used instead.
 
         Args:
-            origin (int): the origin identifier
+            origin (Union[str,int]): the origin's URL or identifier
             allowed_statuses (list of str): list of visit statuses considered
                 to find the latest snapshot for the visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -1067,6 +1063,9 @@ class Storage():
                   or :const:`None` if the snapshot has less than 1000
                   branches.
         """
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin})['id']
+
         origin_visit = db.origin_visit_get_latest_snapshot(
             origin, allowed_statuses=allowed_statuses, cur=cur)
         if origin_visit:
@@ -1153,13 +1152,17 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, date=None, db=None, cur=None, *,
-                         ts=None):
+    def origin_visit_add(self, origin, date=None, type=None,
+                         db=None, cur=None, *, ts=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
+        For backward compatibility, `type` is optional and defaults to
+        the origin's type.
+
         Args:
-            origin: Visited Origin id
+            origin (Union[int,str]): visited origin's identifier or URL
             date: timestamp of such visit
+            type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
             dict: dictionary with keys origin and visit where:
@@ -1178,20 +1181,28 @@ class Storage():
                           DeprecationWarning)
             date = ts
 
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin}, db=db, cur=cur)
+            origin_id = origin['id']
+        else:
+            origin = self.origin_get({'id': origin}, db=db, cur=cur)
+            origin_id = origin['id']
 
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
-        visit_id = db.origin_visit_add(origin_id, date, cur)
+        if type is None:
+            type = origin['type']
+
+        visit_id = db.origin_visit_add(origin_id, date, type, cur)
 
         if self.journal_writer:
             # We can write to the journal only after inserting to the
             # DB, because we want the id of the visit
-            origin = self.origin_get([{'id': origin_id}], db=db, cur=cur)[0]
             del origin['id']
             self.journal_writer.write_addition('origin_visit', {
-                'origin': origin, 'date': date, 'visit': visit_id,
+                'origin': origin, 'date': date, 'type': type,
+                'visit': visit_id,
                 'status': 'ongoing', 'metadata': None, 'snapshot': None})
 
         return {
@@ -1206,7 +1217,7 @@ class Storage():
         """Update an origin_visit's status.
 
         Args:
-            origin: Visited Origin id
+            origin (Union[int,str]): visited origin's identifier or URL
             visit_id: Visit's id
             status: Visit's new status
             metadata: Data associated to the visit
@@ -1217,7 +1228,10 @@ class Storage():
             None
 
         """
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin_id = self.origin_get({'url': origin}, db=db, cur=cur)['id']
+        else:
+            origin_id = origin
 
         visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
 
@@ -1261,11 +1275,19 @@ class Storage():
                 snapshot (sha1_git): identifier of the snapshot to add to
                     the visit
         """
+        visits = copy.deepcopy(visits)
+        for visit in visits:
+            if isinstance(visit['date'], str):
+                visit['date'] = dateutil.parser.parse(visit['date'])
+
         if self.journal_writer:
             for visit in visits:
                 visit = visit.copy()
-                visit['origin'] = self.origin_get(
+                origin = self.origin_get(
                     [{'id': visit['origin']}], db=db, cur=cur)[0]
+                visit['origin'] = origin
+                if visit.get('type') is None:
+                    visit['type'] = origin['type']
                 del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
@@ -1345,10 +1367,13 @@ class Storage():
         """Return origins, either all identified by their ids or all
         identified by tuples (type, url).
 
+        If the url is given and the type is omitted, one of the origins with
+        that url is returned.
+
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the keys type and url:
+                These dicts have either the key url (and optionally type):
 
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
@@ -1387,16 +1412,16 @@ class Storage():
             else:
                 raise ValueError(
                     'Either all origins or none at all should have an "id".')
-        elif any(type_ and url for (type_, url) in origin_types_and_urls):
+        elif any(url for (type_, url) in origin_types_and_urls):
             # Lookup per type + URL
-            if all(type_ and url for (type_, url) in origin_types_and_urls):
+            if all(url for (type_, url) in origin_types_and_urls):
                 results = db.origin_get_with(origin_types_and_urls, cur)
             else:
                 raise ValueError(
-                    'Either all origins or none at all should have a '
-                    '"type" and an "url".')
+                    'Either all origins or none at all should have '
+                    'an "url" key.')
         else:  # unsupported lookup
-            raise ValueError('Origin must have either id or (type and url).')
+            raise ValueError('Origin must have either id or url.')
 
         results = [dict(zip(self.origin_keys, result))
                    for result in results]

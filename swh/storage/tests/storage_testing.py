@@ -8,7 +8,7 @@ import tempfile
 
 from swh.storage import get_storage
 
-from swh.core.tests.db_testing import SingleDbTestFixture
+from swh.core.db.tests.db_testing import SingleDbTestFixture
 from swh.storage.tests import SQL_DIR
 
 
