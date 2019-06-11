@@ -103,6 +103,7 @@ class RemoteMemStorageFixture(RemoteStorageFixture):
         self._get_storage_patcher.stop()
 
 
+@pytest.mark.network
 class TestRemoteMemStorage(CommonTestStorage, RemoteMemStorageFixture):
     @pytest.mark.skip('refresh_stat_counters not available in the remote api.')
     def test_stat_counters(self):
@@ -127,6 +128,7 @@ class TestRemoteMemStorage(CommonTestStorage, RemoteMemStorageFixture):
 
 
 @pytest.mark.db
+@pytest.mark.network
 class TestRemotePgStorage(CommonTestStorage, RemotePgStorageFixture):
     @pytest.mark.skip('refresh_stat_counters not available in the remote api.')
     def test_stat_counters(self):
