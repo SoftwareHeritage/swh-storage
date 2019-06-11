@@ -50,6 +50,8 @@ setup(
     entry_points='''
         [console_scripts]
         swh-storage=swh.storage.cli:main
+        [swh.cli.subcommands]
+        storage=swh.storage.cli:storage
     ''',
     setup_requires=['vcversioner'],
     install_requires=parse_requirements() + parse_requirements('swh'),

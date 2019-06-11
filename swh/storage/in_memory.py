@@ -104,7 +104,7 @@ class Storage:
 
         return summary
 
-    def content_add(self, contents):
+    def content_add(self, content):
         """Add content blobs to the storage
 
         Args:
@@ -133,13 +133,13 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        contents = [dict(c.items()) for c in contents]  # semi-shallow copy
+        content = [dict(c.items()) for c in content]  # semi-shallow copy
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in contents:
+        for item in content:
             item['ctime'] = now
-        return self._content_add(contents, with_data=True)
+        return self._content_add(content, with_data=True)
 
-    def content_add_metadata(self, contents):
+    def content_add_metadata(self, content):
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -168,9 +168,9 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        return self._content_add(contents, with_data=False)
+        return self._content_add(content, with_data=False)
 
-    def content_get(self, ids):
+    def content_get(self, content):
         """Retrieve in bulk contents and their data.
 
         This function may yield more blobs than provided sha1 identifiers,
@@ -192,10 +192,10 @@ class Storage:
 
         """
         # FIXME: Make this method support slicing the `data`.
-        if len(ids) > BULK_BLOCK_CONTENT_LEN_MAX:
+        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise ValueError(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
-        for obj_id in ids:
+        for obj_id in content:
             try:
                 data = self.objstorage.get(obj_id)
             except ObjNotFoundError:
@@ -248,7 +248,7 @@ class Storage:
             'next': next_content,
         }
 
-    def content_get_metadata(self, sha1s):
+    def content_get_metadata(self, content):
         """Retrieve content metadata in bulk
 
         Args:
@@ -259,7 +259,7 @@ class Storage:
         """
         # FIXME: the return value should be a mapping from search key to found
         # content*s*
-        for sha1 in sha1s:
+        for sha1 in content:
             if sha1 in self._content_indexes['sha1']:
                 objs = self._content_indexes['sha1'][sha1]
                 # FIXME: rather than selecting one of the objects with that
@@ -289,12 +289,14 @@ class Storage:
             hash = content.get(algo)
             if hash and hash in self._content_indexes[algo]:
                 found.append(self._content_indexes[algo][hash])
+
         if not found:
-            return
+            return []
+
         keys = list(set.intersection(*found))
         return copy.deepcopy([self._contents[key] for key in keys])
 
-    def content_missing(self, contents, key_hash='sha1'):
+    def content_missing(self, content, key_hash='sha1'):
         """List content missing from storage
 
         Args:
@@ -311,17 +313,17 @@ class Storage:
             iterable ([bytes]): missing content ids (as per the
             key_hash column)
         """
-        for content in contents:
-            for (algo, hash_) in content.items():
+        for cont in content:
+            for (algo, hash_) in cont.items():
                 if algo not in DEFAULT_ALGORITHMS:
                     continue
                 if hash_ not in self._content_indexes.get(algo, []):
-                    yield content[key_hash]
+                    yield cont[key_hash]
                     break
             else:
-                for result in self.content_find(content):
+                for result in self.content_find(cont):
                     if result['status'] == 'missing':
-                        yield content[key_hash]
+                        yield cont[key_hash]
 
     def content_missing_per_sha1(self, contents):
         """List content missing from storage based only on sha1.
@@ -377,7 +379,7 @@ class Storage:
 
         return {'directory:add': count}
 
-    def directory_missing(self, directory_ids):
+    def directory_missing(self, directories):
         """List directories missing from storage
 
         Args:
@@ -387,7 +389,7 @@ class Storage:
             missing directory ids
 
         """
-        for id in directory_ids:
+        for id in directories:
             if id not in self._directories:
                 yield id
 
@@ -421,7 +423,7 @@ class Storage:
                     yield from self._directory_ls(
                         ret['target'], True, prefix + ret['name'] + b'/')
 
-    def directory_ls(self, directory_id, recursive=False):
+    def directory_ls(self, directory, recursive=False):
         """Get entries for one directory.
 
         Args:
@@ -434,7 +436,7 @@ class Storage:
         If `recursive=True`, names in the path of a dir/file not at the
         root are concatenated with a slash (`/`).
         """
-        yield from self._directory_ls(directory_id, recursive)
+        yield from self._directory_ls(directory, recursive)
 
     def directory_entry_get_by_path(self, directory, paths):
         """Get the directory entry (either file or dir) from directory with path.
@@ -448,6 +450,9 @@ class Storage:
             The corresponding directory entry if found, None otherwise.
 
         """
+        return self._directory_entry_get_by_path(directory, paths, b'')
+
+    def _directory_entry_get_by_path(self, directory, paths, prefix):
         if not paths:
             return
 
@@ -459,6 +464,8 @@ class Storage:
         def _get_entry(entries, name):
             for entry in entries:
                 if entry['name'] == name:
+                    entry = entry.copy()
+                    entry['name'] = prefix + entry['name']
                     return entry
 
         first_item = _get_entry(contents, paths[0])
@@ -469,8 +476,8 @@ class Storage:
         if not first_item or first_item['type'] != 'dir':
             return
 
-        return self.directory_entry_get_by_path(
-                first_item['target'], paths[1:])
+        return self._directory_entry_get_by_path(
+                first_item['target'], paths[1:], prefix + paths[0] + b'/')
 
     def revision_add(self, revisions):
         """Add revisions to the storage
@@ -527,7 +534,7 @@ class Storage:
 
         return {'revision:add': count}
 
-    def revision_missing(self, revision_ids):
+    def revision_missing(self, revisions):
         """List revisions missing from storage
 
         Args:
@@ -537,12 +544,12 @@ class Storage:
             missing revision ids
 
         """
-        for id in revision_ids:
+        for id in revisions:
             if id not in self._revisions:
                 yield id
 
-    def revision_get(self, revision_ids):
-        for id in revision_ids:
+    def revision_get(self, revisions):
+        for id in revisions:
             yield copy.deepcopy(self._revisions.get(id))
 
     def _get_parent_revs(self, rev_id, seen, limit):
@@ -555,7 +562,7 @@ class Storage:
         for parent in self._revisions[rev_id]['parents']:
             yield from self._get_parent_revs(parent, seen, limit)
 
-    def revision_log(self, revision_ids, limit=None):
+    def revision_log(self, revisions, limit=None):
         """Fetch revision entry from the given root revisions.
 
         Args:
@@ -567,7 +574,7 @@ class Storage:
 
         """
         seen = set()
-        for rev_id in revision_ids:
+        for rev_id in revisions:
             yield from self._get_parent_revs(rev_id, seen, limit)
 
     def revision_shortlog(self, revisions, limit=None):
@@ -653,7 +660,7 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, snapshots, legacy_arg1=None, legacy_arg2=None):
+    def snapshot_add(self, snapshots, origin=None, visit=None):
         """Add a snapshot to the storage
 
         Args:
@@ -682,12 +689,18 @@ class Storage:
                 snapshot_added: Count of object actually stored in db
 
         """
-        if legacy_arg1:
-            assert legacy_arg2
-            (origin, visit, snapshots) = \
-                (snapshots, legacy_arg1, [legacy_arg2])
-        else:
-            origin = visit = None
+        if origin:
+            if not visit:
+                raise TypeError(
+                    'snapshot_add expects one argument (or, as a legacy '
+                    'behavior, three arguments), not two')
+            if isinstance(snapshots, (int, bytes)):
+                # Called by legacy code that uses the new api/client.py
+                (origin, visit, snapshots) = \
+                    (snapshots, origin, [visit])
+            else:
+                # Called by legacy code that uses the old api/client.py
+                snapshots = [snapshots]
 
         count = 0
         for snapshot in snapshots:
@@ -704,7 +717,7 @@ class Storage:
                 self._objects[snapshot_id].append(('snapshot', snapshot_id))
                 count += 1
 
-        if origin:
+        if visit:
             # Legacy API, there can be only one snapshot
             self.origin_visit_update(
                 origin, visit, snapshot=snapshots[0]['id'])
@@ -783,7 +796,7 @@ class Storage:
             should be used instead.
 
         Args:
-            origin (int): the origin's identifier
+            origin (Union[str,int]): the origin's URL or identifier
             allowed_statuses (list of str): list of visit statuses considered
                 to find the latest snapshot for the visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -797,6 +810,8 @@ class Storage:
                   or :const:`None` if the snapshot has less than 1000
                   branches.
         """
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin})['id']
         visits = self._origin_visits[origin-1]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
@@ -916,10 +931,13 @@ class Storage:
         """Return origins, either all identified by their ids or all
         identified by tuples (type, url).
 
+        If the url is given and the type is omitted, one of the origins with
+        that url is returned.
+
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the keys type and url:
+                These dicts have either the key url (and optionally type):
 
                 - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
@@ -951,18 +969,17 @@ class Storage:
                 and not all('id' in origin for origin in origins):
             raise ValueError(
                 'Either all origins or none at all should have an "id".')
-        if any('type' in origin and 'url' in origin for origin in origins) \
-                and not all('type' in origin and 'url' in origin
-                            for origin in origins):
+        if any('url' in origin for origin in origins) \
+                and not all('url' in origin for origin in origins):
             raise ValueError(
-                'Either all origins or none at all should have a '
-                '"type" and an "url".')
+                'Either all origins or none at all should have '
+                'an "url" key.')
 
         results = []
         for origin in origins:
             if 'id' in origin:
                 origin_id = origin['id']
-            elif 'type' in origin and 'url' in origin:
+            elif 'url' in origin:
                 origin_id = self._origin_id(origin)
             else:
                 raise ValueError(
@@ -1024,7 +1041,7 @@ class Storage:
         origins = self._origins
         if regexp:
             pat = re.compile(url_pattern)
-            origins = [orig for orig in origins if pat.match(orig['url'])]
+            origins = [orig for orig in origins if pat.search(orig['url'])]
         else:
             origins = [orig for orig in origins if url_pattern in orig['url']]
         if with_visit:
@@ -1124,12 +1141,16 @@ class Storage:
         raise NotImplementedError('fetch_history_get is deprecated, use '
                                   'origin_visit_get instead.')
 
-    def origin_visit_add(self, origin, date=None, *, ts=None):
+    def origin_visit_add(self, origin, date=None, type=None, *, ts=None):
         """Add an origin_visit for the origin at date with status 'ongoing'.
 
+        For backward compatibility, `type` is optional and defaults to
+        the origin's type.
+
         Args:
-            origin (int): visited origin's identifier
+            origin (Union[int,str]): visited origin's identifier or URL
             date: timestamp of such visit
+            type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
             dict: dictionary with keys origin and visit where:
@@ -1148,7 +1169,10 @@ class Storage:
                           DeprecationWarning)
             date = ts
 
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin_id = self.origin_get({'url': origin})['id']
+        else:
+            origin_id = origin
 
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
@@ -1161,6 +1185,7 @@ class Storage:
             visit = {
                 'origin': origin_id,
                 'date': date,
+                'type': type or self._origins[origin_id-1]['type'],
                 'status': status,
                 'snapshot': None,
                 'metadata': None,
@@ -1185,7 +1210,7 @@ class Storage:
         """Update an origin_visit's status.
 
         Args:
-            origin (int): visited origin's identifier
+            origin (Union[int,str]): visited origin's identifier or URL
             visit_id (int): visit's identifier
             status: visit's new status
             metadata: data associated to the visit
@@ -1196,7 +1221,10 @@ class Storage:
             None
 
         """
-        origin_id = origin  # TODO: rename the argument
+        if isinstance(origin, str):
+            origin_id = self.origin_get({'url': origin})['id']
+        else:
+            origin_id = origin
 
         try:
             visit = self._origin_visits[origin_id-1][visit_id-1]
@@ -1206,7 +1234,8 @@ class Storage:
             origin = self.origin_get([{'id': origin_id}])[0]
             del origin['id']
             self.journal_writer.write_update('origin_visit', {
-                'origin': origin, 'visit': visit_id,
+                'origin': origin, 'type': origin['type'],
+                'visit': visit_id,
                 'status': status or visit['status'],
                 'date': visit['date'],
                 'metadata': metadata or visit['metadata'],
@@ -1231,12 +1260,18 @@ class Storage:
 
                 origin: Visited Origin id
                 visit: origin visit id
+                type: type of loader used for the visit
                 date: timestamp of such visit
                 status: Visit's new status
                 metadata: Data associated to the visit
                 snapshot (sha1_git): identifier of the snapshot to add to
                     the visit
         """
+        visits = copy.deepcopy(visits)
+        for visit in visits:
+            if isinstance(visit['date'], str):
+                visit['date'] = dateutil.parser.parse(visit['date'])
+
         if self.journal_writer:
             for visit in visits:
                 visit = visit.copy()
@@ -1247,8 +1282,6 @@ class Storage:
         for visit in visits:
             origin_id = visit['origin']
             visit_id = visit['visit']
-            if isinstance(visit['date'], str):
-                visit['date'] = dateutil.parser.parse(visit['date'])
             while len(self._origin_visits[origin_id-1]) < visit_id:
                 self._origin_visits[origin_id-1].append(None)
             visit = self._origin_visits[origin_id-1][visit_id-1] = visit
@@ -1496,8 +1529,9 @@ class Storage:
     def _origin_id(self, origin):
         origin_id = None
         for stored_origin in self._origins:
-            if stored_origin['type'] == origin['type'] and \
-               stored_origin['url'] == origin['url']:
+            if stored_origin['url'] == origin['url'] \
+                    and ('type' not in origin
+                         or stored_origin['type'] == origin['type']):
                 origin_id = stored_origin['id']
                 break
         return origin_id
@@ -1529,9 +1563,9 @@ class Storage:
 
     @staticmethod
     def _tool_key(tool):
-        return (tool['name'], tool['version'],
-                tuple(sorted(tool['configuration'].items())))
+        return '%r %r %r' % (tool['name'], tool['version'],
+                             tuple(sorted(tool['configuration'].items())))
 
     @staticmethod
     def _metadata_provider_key(provider):
-        return (provider['name'], provider['url'])
+        return '%r %r' % (provider['name'], provider['url'])

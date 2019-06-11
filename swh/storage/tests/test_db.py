@@ -8,7 +8,7 @@ import unittest
 
 import pytest
 
-from swh.core.tests.db_testing import SingleDbTestFixture
+from swh.core.db.tests.db_testing import SingleDbTestFixture
 from swh.model.hashutil import hash_to_bytes
 from swh.storage.db import Db
 from . import SQL_DIR
