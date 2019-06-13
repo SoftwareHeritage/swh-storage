@@ -2089,6 +2089,125 @@ class CommonTestStorage(TestStorageData):
         expected_persons.reverse()
         self.assertEqual(list(actual_persons), expected_persons)
 
+    def test_origin_visit_get_latest(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        origin_url = self.origin['url']
+        origin_visit1 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit1)
+        visit1_id = origin_visit1['visit']
+        origin_visit2 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit2_id = origin_visit2['visit']
+
+        # Add a visit with the same date as the previous one
+        origin_visit3 = self.storage.origin_visit_add(origin_id,
+                                                      self.date_visit2)
+        visit3_id = origin_visit3['visit']
+
+        origin_visit1 = self.storage.origin_visit_get_by(origin_url, visit1_id)
+        origin_visit2 = self.storage.origin_visit_get_by(origin_url, visit2_id)
+        origin_visit3 = self.storage.origin_visit_get_by(origin_url, visit3_id)
+
+        # Two visits, both with no snapshot
+        self.assertEqual(
+            origin_visit3,
+            self.storage.origin_visit_get_latest(origin_url))
+        self.assertIsNone(
+            self.storage.origin_visit_get_latest(origin_url,
+                                                 require_snapshot=True))
+
+        # Add snapshot to visit1; require_snapshot=True makes it return
+        # visit1 and require_snapshot=False still returns visit2
+        self.storage.snapshot_add([self.complete_snapshot])
+        self.storage.origin_visit_update(
+            origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
+        self.assertEqual(
+            {**origin_visit1, 'snapshot': self.complete_snapshot['id']},
+            self.storage.origin_visit_get_latest(
+                origin_url, require_snapshot=True)
+        )
+        self.assertEqual(
+            origin_visit3,
+            self.storage.origin_visit_get_latest(origin_url)
+        )
+
+        # Status filter: all three visits are status=ongoing, so no visit
+        # returned
+        self.assertIsNone(
+            self.storage.origin_visit_get_latest(
+                origin_url, allowed_statuses=['full'])
+        )
+
+        # Mark the first visit as completed and check status filter again
+        self.storage.origin_visit_update(origin_id, visit1_id, status='full')
+        self.assertEqual(
+            {
+                **origin_visit1,
+                'snapshot': self.complete_snapshot['id'],
+                'status': 'full'},
+            self.storage.origin_visit_get_latest(
+                origin_url, allowed_statuses=['full']),
+        )
+        self.assertEqual(
+            origin_visit3,
+            self.storage.origin_visit_get_latest(origin_url),
+        )
+
+        # Add snapshot to visit2 and check that the new snapshot is returned
+        self.storage.snapshot_add([self.empty_snapshot])
+        self.storage.origin_visit_update(
+            origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
+        self.assertEqual(
+            {**origin_visit2, 'snapshot': self.empty_snapshot['id']},
+            self.storage.origin_visit_get_latest(
+                origin_url, require_snapshot=True),
+        )
+        self.assertEqual(
+            origin_visit3,
+            self.storage.origin_visit_get_latest(origin_url),
+        )
+
+        # Check that the status filter is still working
+        self.assertEqual(
+            {
+                **origin_visit1,
+                'snapshot': self.complete_snapshot['id'],
+                'status': 'full'},
+            self.storage.origin_visit_get_latest(
+                origin_url, allowed_statuses=['full']),
+        )
+
+        # Add snapshot to visit3 (same date as visit2)
+        self.storage.snapshot_add([self.complete_snapshot])
+        self.storage.origin_visit_update(
+            origin_id, visit3_id, snapshot=self.complete_snapshot['id'])
+        self.assertEqual(
+            {
+                **origin_visit1,
+                'snapshot': self.complete_snapshot['id'],
+                'status': 'full'},
+            self.storage.origin_visit_get_latest(
+                origin_url, allowed_statuses=['full']),
+        )
+        self.assertEqual(
+            {
+                **origin_visit1,
+                'snapshot': self.complete_snapshot['id'],
+                'status': 'full'},
+            self.storage.origin_visit_get_latest(
+                origin_url, allowed_statuses=['full'], require_snapshot=True),
+        )
+        self.assertEqual(
+            {**origin_visit3, 'snapshot': self.complete_snapshot['id']},
+            self.storage.origin_visit_get_latest(
+                origin_url),
+        )
+        self.assertEqual(
+            {**origin_visit3, 'snapshot': self.complete_snapshot['id']},
+            self.storage.origin_visit_get_latest(
+                origin_url, require_snapshot=True),
+        )
+
     def test_person_get_fullname_unicity(self):
         # given (person injection through revisions for example)
         revision = self.revision
@@ -2670,7 +2789,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(self.complete_snapshot,
                          self.storage.snapshot_get_latest(origin_id))
 
-        # Status filter: both visits are status=ongoing, so no snapshot
+        # Status filter: all three visits are status=ongoing, so no snapshot
         # returned
         self.assertIsNone(
             self.storage.snapshot_get_latest(origin_id,

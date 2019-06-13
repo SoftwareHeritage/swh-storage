@@ -397,6 +397,13 @@ def origin_visit_get_by():
         get_storage().origin_visit_get_by(**decode_request(request)))
 
 
+@app.route('/origin/visit/get_latest', methods=['POST'])
+@timed
+def origin_visit_get_latest():
+    return encode_data(
+        get_storage().origin_visit_get_latest(**decode_request(request)))
+
+
 @app.route('/origin/visit/add', methods=['POST'])
 @timed
 @encode
