@@ -452,11 +452,6 @@ class Db(BaseDb):
             'SELECT %s' % ', '.join(self.origin_visit_get_cols),
             'FROM origin_visit']
 
-        if require_snapshot:
-            # Makes sure the snapshot is known
-            query_parts.append(
-                'INNER JOIN snapshot ON (origin_visit.snapshot=snapshot.id)')
-
         query_parts.append('WHERE origin = %s')
 
         if require_snapshot:

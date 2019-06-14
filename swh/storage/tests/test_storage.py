@@ -2900,10 +2900,12 @@ class CommonTestStorage(TestStorageData):
         # Two visits, both with no snapshot: latest snapshot is None
         self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
 
-        # Add unknown snapshot to visit1, latest snapshot = None
+        # Add unknown snapshot to visit1, check that the inconsistency is
+        # detected
         self.storage.origin_visit_update(
             origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
-        self.assertIsNone(self.storage.snapshot_get_latest(origin_id))
+        with self.assertRaises(ValueError):
+            self.storage.snapshot_get_latest(origin_id)
 
         # Status filter: both visits are status=ongoing, so no snapshot
         # returned
@@ -2914,10 +2916,9 @@ class CommonTestStorage(TestStorageData):
 
         # Mark the first visit as completed and check status filter again
         self.storage.origin_visit_update(origin_id, visit1_id, status='full')
-        self.assertIsNone(
+        with self.assertRaises(ValueError):
             self.storage.snapshot_get_latest(origin_id,
                                              allowed_statuses=['full']),
-        )
 
         # Actually add the snapshot and check status filter again
         self.storage.snapshot_add([self.complete_snapshot])
@@ -2926,18 +2927,17 @@ class CommonTestStorage(TestStorageData):
             self.storage.snapshot_get_latest(origin_id)
         )
 
-        # Add unknown snapshot to visit2 and check that the old snapshot
-        # is still returned
+        # Add unknown snapshot to visit2 and check that the inconsistency
+        # is detected
         self.storage.origin_visit_update(
-            origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
-        self.assertEqual(
-            self.complete_snapshot,
-            self.storage.snapshot_get_latest(origin_id))
+            origin_id, visit2_id, snapshot=self.snapshot['id'])
+        with self.assertRaises(ValueError):
+            self.storage.snapshot_get_latest(origin_id)
 
         # Actually add that snapshot and check that the new one is returned
-        self.storage.snapshot_add([self.empty_snapshot])
+        self.storage.snapshot_add([self.snapshot])
         self.assertEqual(
-            self.empty_snapshot,
+            self.snapshot,
             self.storage.snapshot_get_latest(origin_id)
         )
 

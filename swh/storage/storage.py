@@ -1070,7 +1070,12 @@ class Storage():
             origin, allowed_statuses=allowed_statuses, require_snapshot=True,
             db=db, cur=cur)
         if origin_visit and origin_visit['snapshot']:
-            return self.snapshot_get(origin_visit['snapshot'], db=db, cur=cur)
+            snapshot = self.snapshot_get(
+                    origin_visit['snapshot'], db=db, cur=cur)
+            if not snapshot:
+                raise ValueError(
+                    'last origin visit references an unknown snapshot')
+            return snapshot
 
     @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):

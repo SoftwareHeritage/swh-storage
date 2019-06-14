@@ -816,7 +816,11 @@ class Storage:
         visit = self.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses, require_snapshot=True)
         if visit and visit['snapshot']:
-            return self.snapshot_get(visit['snapshot'])
+            snapshot = self.snapshot_get(visit['snapshot'])
+            if not snapshot:
+                raise ValueError(
+                    'last origin visit references an unknown snapshot')
+            return snapshot
 
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
         """Count the number of branches in the snapshot with the given id
@@ -1363,8 +1367,7 @@ class Storage:
                       if visit['status'] in allowed_statuses]
         if require_snapshot:
             visits = [visit for visit in visits
-                      if visit['snapshot']
-                      and visit['snapshot'] in self._snapshots]
+                      if visit['snapshot']]
 
         return max(visits, key=lambda v: (v['date'], v['visit']), default=None)
 
