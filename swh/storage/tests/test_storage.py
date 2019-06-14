@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from hypothesis import given, strategies
+from hypothesis import given, strategies, settings, HealthCheck
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
@@ -3725,6 +3725,7 @@ class CommonPropTestStorage:
         self.assertEqual(
             self.storage.origin_count('.*user1.*', regexp=False), 0)
 
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(strategies.lists(objects(), max_size=2))
     def test_add_arbitrary(self, objects):
         self.reset_storage_tables()
