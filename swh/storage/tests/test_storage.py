@@ -3896,11 +3896,16 @@ class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
 
     # Can only be tested with local storage as you can't mock
     # datetimes for the remote server
-    def test_fetch_history(self):
+    @given(strategies.booleans())
+    def test_fetch_history(self, use_url):
         origin = self.storage.origin_add_one(self.origin)
+        if use_url:
+            origin_id = self.origin['url']
+        else:
+            origin_id = origin
         with patch('datetime.datetime'):
             datetime.datetime.now.return_value = self.fetch_history_date
-            fetch_history_id = self.storage.fetch_history_start(origin)
+            fetch_history_id = self.storage.fetch_history_start(origin_id)
             datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
 
         with patch('datetime.datetime'):

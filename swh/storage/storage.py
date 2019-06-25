@@ -1605,6 +1605,9 @@ class Storage():
         """Add an entry for origin origin_id in fetch_history. Returns the id
         of the added fetch_history entry
         """
+        if isinstance(origin_id, str):
+            origin_id = \
+                self.origin_get([{'url': origin_id}], db=db, cur=cur)[0]['id']
         fetch_history = {
             'origin': origin_id,
             'date': datetime.datetime.now(tz=datetime.timezone.utc),
