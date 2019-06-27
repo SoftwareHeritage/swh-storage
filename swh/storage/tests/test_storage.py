@@ -1842,6 +1842,32 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data4),
                           ('origin_visit', data5)])
 
+    def test_origin_visit_find_by_date(self):
+        # given
+        self.storage.origin_add_one(self.origin)
+
+        self.storage.origin_visit_add(
+            self.origin['url'],
+            date=self.date_visit2)
+
+        origin_visit2 = self.storage.origin_visit_add(
+            self.origin['url'],
+            date=self.date_visit3)
+
+        origin_visit3 = self.storage.origin_visit_add(
+            self.origin['url'],
+            date=self.date_visit2)
+
+        # Simple case
+        visit = self.storage.origin_visit_find_by_date(
+            self.origin['url'], self.date_visit3)
+        self.assertEqual(visit['visit'], origin_visit2['visit'])
+
+        # There are two visits at the same date, the latest must be returned
+        visit = self.storage.origin_visit_find_by_date(
+            self.origin['url'], self.date_visit2)
+        self.assertEqual(visit['visit'], origin_visit3['visit'])
+
     def test_origin_visit_update_missing_snapshot(self):
         # given
         origin_id = self.storage.origin_add_one(self.origin)

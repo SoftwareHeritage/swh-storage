@@ -396,6 +396,13 @@ def origin_visit_get():
         **decode_request(request)))
 
 
+@app.route('/origin/visit/find_by_date', methods=['POST'])
+@timed
+def origin_visit_find_by_date():
+    return encode_data(get_storage().origin_visit_find_by_date(
+        **decode_request(request)))
+
+
 @app.route('/origin/visit/getby', methods=['POST'])
 @timed
 def origin_visit_get_by():

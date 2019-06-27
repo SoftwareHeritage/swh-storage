@@ -1319,6 +1319,26 @@ class Storage:
                 visit_id = visit['visit']
                 yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
 
+    def origin_visit_find_by_date(self, origin, visit_date):
+        """Retrieves the origin visit whose date is closest to the provided
+        timestamp.
+        In case of a tie, the visit with largest id is selected.
+
+        Args:
+            origin (str): The occurrence's origin (URL).
+            target (datetime): target timestamp
+
+        Returns:
+            A visit.
+
+        """
+        origin = self.origin_get([{'url': origin}])[0]['id']
+        if origin <= len(self._origin_visits):
+            visits = self._origin_visits[origin-1]
+            return min(
+                visits,
+                key=lambda v: (abs(v['date'] - visit_date), -v['visit']))
+
     def origin_visit_get_by(self, origin, visit):
         """Retrieve origin visit's information.
 

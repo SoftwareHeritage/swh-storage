@@ -1322,6 +1322,25 @@ class Storage():
             yield data
 
     @db_transaction(statement_timeout=500)
+    def origin_visit_find_by_date(self, origin, visit_date, db=None, cur=None):
+        """Retrieves the origin visit whose date is closest to the provided
+        timestamp.
+        In case of a tie, the visit with largest id is selected.
+
+        Args:
+            origin (str): The occurrence's origin (URL).
+            target (datetime): target timestamp
+
+        Returns:
+            A visit.
+
+        """
+        origin = self.origin_get([{'url': origin}], db=db, cur=cur)[0]['id']
+        line = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        if line:
+            return dict(zip(db.origin_visit_get_cols, line))
+
+    @db_transaction(statement_timeout=500)
     def origin_visit_get_by(self, origin, visit, db=None, cur=None):
         """Retrieve origin visit's information.
 

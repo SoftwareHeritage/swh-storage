@@ -421,6 +421,15 @@ class Db(BaseDb):
             return None
         return r[0]
 
+    def origin_visit_find_by_date(self, origin, visit_date, cur=None):
+        cur = self._cursor(cur)
+        cur.execute(
+            'SELECT * FROM swh_visit_find_by_date(%s, %s)',
+            (origin, visit_date))
+        r = cur.fetchall()
+        if r:
+            return r[0]
+
     def origin_visit_exists(self, origin_id, visit_id, cur=None):
         """Check whether an origin visit with the given ids exists"""
         cur = self._cursor(cur)
