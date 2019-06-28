@@ -1316,6 +1316,11 @@ class Storage():
             List of visits.
 
         """
+        if isinstance(origin, str):
+            origin = self.origin_get([{'url': origin}], db=db, cur=cur)[0]
+            if not origin:
+                return
+            origin = origin['id']
         for line in db.origin_visit_get_all(
                 origin, last_visit=last_visit, limit=limit, cur=cur):
             data = dict(zip(db.origin_visit_get_cols, line))

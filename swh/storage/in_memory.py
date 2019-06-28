@@ -1307,6 +1307,11 @@ class Storage:
             List of visits.
 
         """
+        if isinstance(origin, str):
+            origin = self.origin_get([{'url': origin}])[0]
+            if not origin:
+                return
+            origin = origin['id']
         if origin <= len(self._origin_visits):
             visits = self._origin_visits[origin-1]
             if last_visit is not None:

@@ -21,8 +21,7 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
     """
     def setUp(self):
         super().setUp()
-        self.storage = Storage(journal_writer={'cls': 'inmemory'})
-        self.journal_writer = self.storage.journal_writer
+        self.reset_storage()
 
     @pytest.mark.skip('postgresql-specific test')
     def test_content_add_db(self):
@@ -41,6 +40,10 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
     def test_skipped_content_add(self):
         pass
 
+    def reset_storage(self):
+        self.storage = Storage(journal_writer={'cls': 'inmemory'})
+        self.journal_writer = self.storage.journal_writer
+
 
 @pytest.mark.property_based
 class PropTestInMemoryStorage(CommonPropTestStorage, unittest.TestCase):
@@ -54,5 +57,5 @@ class PropTestInMemoryStorage(CommonPropTestStorage, unittest.TestCase):
         super().setUp()
         self.storage = Storage()
 
-    def reset_storage_tables(self):
+    def reset_storage(self):
         self.storage = Storage()
