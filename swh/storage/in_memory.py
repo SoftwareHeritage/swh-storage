@@ -698,7 +698,7 @@ class Storage:
                 raise TypeError(
                     'snapshot_add expects one argument (or, as a legacy '
                     'behavior, three arguments), not two')
-            if isinstance(snapshots, (int, bytes)):
+            if isinstance(snapshots, (int, str)):
                 # Called by legacy code that uses the new api/client.py
                 (origin, visit, snapshots) = \
                     (snapshots, origin, [visit])
@@ -815,7 +815,10 @@ class Storage:
                   branches.
         """
         if isinstance(origin, int):
-            origin = self.origin_get({'id': origin})['url']
+            origin = self.origin_get({'id': origin})
+            if not origin:
+                return
+            origin = origin['url']
 
         visit = self.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses, require_snapshot=True)
@@ -1274,6 +1277,12 @@ class Storage:
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
+            if isinstance(visit['origin'], str):
+                origin = \
+                    self.origin_get([{'url': visit['origin']}])[0]
+                if not origin:
+                    raise ValueError('Unknown origin: %s' % visit['origin'])
+                visit['origin'] = origin['id']
 
         if self.journal_writer:
             for visit in visits:
@@ -1291,6 +1300,10 @@ class Storage:
 
             while len(self._origin_visits[origin_id-1]) < visit_id:
                 self._origin_visits[origin_id-1].append(None)
+
+            visit = visit.copy()
+            visit['origin'] = origin_id
+
             visit = self._origin_visits[origin_id-1][visit_id-1] = visit
 
     def origin_visit_get(self, origin, last_visit=None, limit=None):
@@ -1337,7 +1350,10 @@ class Storage:
             A visit.
 
         """
-        origin = self.origin_get([{'url': origin}])[0]['id']
+        origin = self.origin_get([{'url': origin}])[0]
+        if not origin:
+            return
+        origin = origin['id']
         if origin <= len(self._origin_visits):
             visits = self._origin_visits[origin-1]
             return min(
@@ -1356,7 +1372,10 @@ class Storage:
 
         """
         if isinstance(origin, str):
-            origin = self.origin_get({'url': origin})['id']
+            origin = self.origin_get({'url': origin})
+            if not origin:
+                return
+            origin = origin['id']
         origin_visit = None
         if origin <= len(self._origin_visits) and \
            visit <= len(self._origin_visits[origin-1]):
@@ -1389,7 +1408,10 @@ class Storage:
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        origin = self.origin_get({'url': origin})['id']
+        origin = self.origin_get({'url': origin})
+        if not origin:
+            return
+        origin = origin['id']
         visits = self._origin_visits[origin-1]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
