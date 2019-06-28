@@ -135,6 +135,12 @@ def check_config():
     return encode_data(get_storage().check_config(**decode_request(request)))
 
 
+@app.route('/reset', methods=['POST'])
+@timed
+def reset():
+    return encode_data(get_storage().reset(**decode_request(request)))
+
+
 @app.route('/content/missing', methods=['POST'])
 @timed
 def content_missing():

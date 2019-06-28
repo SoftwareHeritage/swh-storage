@@ -34,6 +34,14 @@ class Storage:
         self._contents = {}
         self._content_indexes = defaultdict(lambda: defaultdict(set))
 
+        self.reset()
+
+        if journal_writer:
+            self.journal_writer = get_journal_writer(**journal_writer)
+        else:
+            self.journal_writer = None
+
+    def reset(self):
         self._directories = {}
         self._revisions = {}
         self._releases = {}
@@ -50,10 +58,6 @@ class Storage:
         self._sorted_sha1s = []
 
         self.objstorage = get_objstorage('memory', {})
-        if journal_writer:
-            self.journal_writer = get_journal_writer(**journal_writer)
-        else:
-            self.journal_writer = None
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
