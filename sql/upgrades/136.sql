@@ -33,9 +33,9 @@ $$;
 
 
 update origin_visit
-    set origin_visit.type = origin.type
+    set type = origin.type
     from origin
     where origin_visit.origin = origin.id;
 
 alter table origin_visit
-    alter column type text set not null;
+    alter column type set not null;

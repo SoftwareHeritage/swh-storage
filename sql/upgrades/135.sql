@@ -8,6 +8,6 @@ insert into dbversion(version, release, description)
 
 create extension if not exists pg_trgm;
 
+create index on origin using gin (url gin_trgm_ops);
+create index on origin using hash (url);
 drop index origin_type_url_idx;
-create index concurrently on origin using gin (url gin_trgm_ops);
-create index concurrently on origin using hash (url);

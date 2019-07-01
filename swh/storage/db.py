@@ -431,34 +431,45 @@ class Db(BaseDb):
 
         return bool(cur.fetchone())
 
-    def origin_visit_get_latest_snapshot(self, origin_id,
-                                         allowed_statuses=None,
-                                         cur=None):
-        """Retrieve the most recent origin_visit which references a snapshot
+    def origin_visit_get_latest(
+            self, origin_id, allowed_statuses=None, require_snapshot=False,
+            cur=None):
+        """Retrieve the most recent origin_visit of the given origin,
+        with optional filters.
 
         Args:
             origin_id: the origin concerned
             allowed_statuses: the visit statuses allowed for the returned visit
+            require_snapshot (bool): If True, only a visit with a known
+                snapshot will be returned.
 
         Returns:
             The origin_visit information, or None if no visit matches.
         """
         cur = self._cursor(cur)
 
-        extra_clause = ""
-        if allowed_statuses:
-            extra_clause = cur.mogrify("AND status IN %s",
-                                       (tuple(allowed_statuses),)).decode()
+        query_parts = [
+            'SELECT %s' % ', '.join(self.origin_visit_get_cols),
+            'FROM origin_visit']
 
-        query = """\
-            SELECT %s
-            FROM origin_visit
-            INNER JOIN snapshot ON (origin_visit.snapshot=snapshot.id)
-            WHERE
-                origin = %%s AND snapshot is not null %s
-            ORDER BY date DESC, visit DESC
-            LIMIT 1
-            """ % (', '.join(self.origin_visit_get_cols), extra_clause)
+        if require_snapshot:
+            # Makes sure the snapshot is known
+            query_parts.append(
+                'INNER JOIN snapshot ON (origin_visit.snapshot=snapshot.id)')
+
+        query_parts.append('WHERE origin = %s')
+
+        if require_snapshot:
+            query_parts.append('AND snapshot is not null')
+
+        if allowed_statuses:
+            query_parts.append(
+                cur.mogrify('AND status IN %s',
+                            (tuple(allowed_statuses),)).decode())
+
+        query_parts.append('ORDER BY date DESC, visit DESC LIMIT 1')
+
+        query = '\n'.join(query_parts)
 
         cur.execute(query, (origin_id,))
         r = cur.fetchone()
