@@ -1063,13 +1063,13 @@ class Storage():
                   or :const:`None` if the snapshot has less than 1000
                   branches.
         """
-        if isinstance(origin, str):
-            origin = self.origin_get({'url': origin})['id']
+        if isinstance(origin, int):
+            origin = self.origin_get({'id': origin}, db=db, cur=cur)['url']
 
-        origin_visit = db.origin_visit_get_latest_snapshot(
-            origin, allowed_statuses=allowed_statuses, cur=cur)
-        if origin_visit:
-            origin_visit = dict(zip(db.origin_visit_get_cols, origin_visit))
+        origin_visit = self.origin_visit_get_latest(
+            origin, allowed_statuses=allowed_statuses, require_snapshot=True,
+            db=db, cur=cur)
+        if origin_visit and origin_visit['snapshot']:
             return self.snapshot_get(origin_visit['snapshot'], db=db, cur=cur)
 
     @db_transaction(statement_timeout=2000)
@@ -1328,11 +1328,49 @@ class Storage():
             it does not exist
 
         """
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin}, db=db, cur=cur)['id']
         ori_visit = db.origin_visit_get(origin, visit, cur)
         if not ori_visit:
             return None
 
         return dict(zip(db.origin_visit_get_cols, ori_visit))
+
+    @db_transaction(statement_timeout=4000)
+    def origin_visit_get_latest(
+            self, origin, allowed_statuses=None, require_snapshot=False,
+            db=None, cur=None):
+        """Get the latest origin visit for the given origin, optionally
+        looking only for those with one of the given allowed_statuses
+        or for those with a known snapshot.
+
+        Args:
+            origin (str): the origin's URL
+            allowed_statuses (list of str): list of visit statuses considered
+                to find the latest visit. For instance,
+                ``allowed_statuses=['full']`` will only consider visits that
+                have successfully run to completion.
+            require_snapshot (bool): If True, only a visit with a snapshot
+                will be returned.
+        Returns:
+            dict: a dict with the following keys:
+
+                origin: the URL of the origin
+                visit: origin visit id
+                type: type of loader used for the visit
+                date: timestamp of such visit
+                status: Visit's new status
+                metadata: Data associated to the visit
+                snapshot (Optional[sha1_git]): identifier of the snapshot
+                    associated to the visit
+        """
+        origin = self.origin_get({'url': origin}, db=db, cur=cur)['id']
+
+        origin_visit = db.origin_visit_get_latest(
+            origin, allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot, cur=cur)
+        if origin_visit:
+            return dict(zip(db.origin_visit_get_cols, origin_visit))
 
     @db_transaction(statement_timeout=2000)
     def object_find_by_sha1_git(self, ids, db=None, cur=None):

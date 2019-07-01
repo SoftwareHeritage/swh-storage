@@ -21,22 +21,8 @@ from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage, StorageTestDbFixture
 
 
-class RemoteStorageFixture(ServerTestFixture,
-                           unittest.TestCase):
-    """Test the remote storage API.
-
-    This class doesn't define any tests as we want identical
-    functionality between local and remote storage. All the tests are
-    therefore defined in CommonTestStorage.
-    """
-
-    def setUp(self):
-        self.app = app
-        super().setUp()
-        self.storage = RemoteStorage(self.url())
-
-
-class RemotePgStorageFixture(StorageTestDbFixture, RemoteStorageFixture):
+class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
+                             unittest.TestCase):
     def setUp(self):
         def mock_get_journal_writer(cls, args=None):
             assert cls == 'inmemory'
@@ -71,7 +57,9 @@ class RemotePgStorageFixture(StorageTestDbFixture, RemoteStorageFixture):
                 }
             }
         }
+        self.app = app
         super().setUp()
+        self.storage = RemoteStorage(self.url())
 
     def tearDown(self):
         super().tearDown()
@@ -79,7 +67,7 @@ class RemotePgStorageFixture(StorageTestDbFixture, RemoteStorageFixture):
         storage.get_journal_writer = get_journal_writer
 
 
-class RemoteMemStorageFixture(RemoteStorageFixture):
+class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):
     def setUp(self):
         self.config = {
             'storage': {
@@ -95,7 +83,9 @@ class RemoteMemStorageFixture(RemoteStorageFixture):
         self._get_storage_patcher = unittest.mock.patch(
             'swh.storage.api.server.get_storage', return_value=self.__storage)
         self._get_storage_patcher.start()
+        self.app = app
         super().setUp()
+        self.storage = RemoteStorage(self.url())
         self.journal_writer = self.__storage.journal_writer
 
     def tearDown(self):
