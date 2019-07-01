@@ -3763,7 +3763,7 @@ class CommonPropTestStorage:
            strategies.binary(min_size=20, max_size=20))
     def test_generate_content_get_range(self, contents, start, end):
         """content_get_range paginates results if limit exceeded"""
-        self.reset_storage_tables()
+        self.reset_storage()
         # add contents to storage
         self.storage.content_add(contents)
 
