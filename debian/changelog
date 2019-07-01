@@ -1,8 +1,10 @@
-swh-storage (0.0.142-1~swh1~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.143-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.143     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-06-05 13:18:14 +0200)
+  * Upstream changes:     - Add test for snapshot/release counters.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 11 Jun 2019 13:45:52 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 01 Jul 2019 12:38:40 +0000
 
 swh-storage (0.0.142-1~swh1) unstable-swh; urgency=medium
 

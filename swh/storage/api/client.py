@@ -208,6 +208,13 @@ class RemoteStorage(SWHRemoteAPI):
         return self.post('origin/visit/getby', {'origin': origin,
                                                 'visit': visit})
 
+    def origin_visit_get_latest(self, origin, allowed_statuses=None,
+                                require_snapshot=False):
+        return self.post(
+            'origin/visit/get_latest',
+            {'origin': origin, 'allowed_statuses': allowed_statuses,
+             'require_snapshot': require_snapshot})
+
     def person_get(self, person):
         return self.post('person', {'person': person})
 

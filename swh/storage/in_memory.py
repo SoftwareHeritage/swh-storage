@@ -792,13 +792,13 @@ class Storage:
 
         .. warning:: At most 1000 branches contained in the snapshot will be
             returned for performance reasons. In order to browse the whole
-            set of branches, the method :meth:`snapshot_get_branches`
-            should be used instead.
+            set of branches, the methods :meth:`origin_visit_get_latest`
+            and :meth:`snapshot_get_branches` should be used instead.
 
         Args:
             origin (Union[str,int]): the origin's URL or identifier
             allowed_statuses (list of str): list of visit statuses considered
-                to find the latest snapshot for the visit. For instance,
+                to find the latest snapshot for the origin. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
                 have successfully run to completion.
         Returns:
@@ -810,21 +810,13 @@ class Storage:
                   or :const:`None` if the snapshot has less than 1000
                   branches.
         """
-        if isinstance(origin, str):
-            origin = self.origin_get({'url': origin})['id']
-        visits = self._origin_visits[origin-1]
-        if allowed_statuses is not None:
-            visits = [visit for visit in visits
-                      if visit['status'] in allowed_statuses]
-        snapshot = None
-        for visit in sorted(visits, key=lambda v: (v['date'], v['visit']),
-                            reverse=True):
-            snapshot_id = visit['snapshot']
-            snapshot = self.snapshot_get(snapshot_id)
-            if snapshot:
-                break
+        if isinstance(origin, int):
+            origin = self.origin_get({'id': origin})['url']
 
-        return snapshot
+        visit = self.origin_visit_get_latest(
+            origin, allowed_statuses=allowed_statuses, require_snapshot=True)
+        if visit and visit['snapshot']:
+            return self.snapshot_get(visit['snapshot'])
 
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
         """Count the number of branches in the snapshot with the given id
@@ -1197,6 +1189,9 @@ class Storage:
                 'visit': visit_id,
             }
 
+            self._objects[(origin_id, visit_id)].append(
+                ('origin_visit', None))
+
             if self.journal_writer:
                 origin = self.origin_get([{'id': origin_id}])[0]
                 del origin['id']
@@ -1282,6 +1277,10 @@ class Storage:
         for visit in visits:
             origin_id = visit['origin']
             visit_id = visit['visit']
+
+            self._objects[(origin_id, visit_id)].append(
+                ('origin_visit', None))
+
             while len(self._origin_visits[origin_id-1]) < visit_id:
                 self._origin_visits[origin_id-1].append(None)
             visit = self._origin_visits[origin_id-1][visit_id-1] = visit
@@ -1323,11 +1322,51 @@ class Storage:
             it does not exist
 
         """
+        if isinstance(origin, str):
+            origin = self.origin_get({'url': origin})['id']
         origin_visit = None
         if origin <= len(self._origin_visits) and \
            visit <= len(self._origin_visits[origin-1]):
             origin_visit = self._origin_visits[origin-1][visit-1]
         return copy.deepcopy(origin_visit)
+
+    def origin_visit_get_latest(
+            self, origin, allowed_statuses=None, require_snapshot=False):
+        """Get the latest origin visit for the given origin, optionally
+        looking only for those with one of the given allowed_statuses
+        or for those with a known snapshot.
+
+        Args:
+            origin (str): the origin's URL
+            allowed_statuses (list of str): list of visit statuses considered
+                to find the latest visit. For instance,
+                ``allowed_statuses=['full']`` will only consider visits that
+                have successfully run to completion.
+            require_snapshot (bool): If True, only a visit with a snapshot
+                will be returned.
+        Returns:
+            dict: a dict with the following keys:
+
+                origin: the URL of the origin
+                visit: origin visit id
+                type: type of loader used for the visit
+                date: timestamp of such visit
+                status: Visit's new status
+                metadata: Data associated to the visit
+                snapshot (Optional[sha1_git]): identifier of the snapshot
+                    associated to the visit
+        """
+        origin = self.origin_get({'url': origin})['id']
+        visits = self._origin_visits[origin-1]
+        if allowed_statuses is not None:
+            visits = [visit for visit in visits
+                      if visit['status'] in allowed_statuses]
+        if require_snapshot:
+            visits = [visit for visit in visits
+                      if visit['snapshot']
+                      and visit['snapshot'] in self._snapshots]
+
+        return max(visits, key=lambda v: (v['date'], v['visit']), default=None)
 
     def person_get(self, person):
         """Return the persons identified by their ids.
