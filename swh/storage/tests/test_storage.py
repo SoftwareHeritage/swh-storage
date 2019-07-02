@@ -1421,10 +1421,21 @@ class CommonTestStorage(TestStorageData):
         del actual_origin_2_or_3['id']
         del origin3['id']
 
-        self.assertEqual(list(self.journal_writer.objects),
-                         [('origin', self.origin),
-                          ('origin', self.origin2),
-                          ('origin', origin3)])
+        objects = list(self.journal_writer.objects)
+
+        if len(objects) == 3:
+            # current behavior of the pg storage, where 'type' is part of
+            # the primary key
+            self.assertEqual(objects,
+                             [('origin', self.origin),
+                              ('origin', self.origin2),
+                              ('origin', origin3)])
+        else:
+            # current behavior of the in-mem storage, and future behavior
+            # of the pg storage, where 'type' is not part of the PK
+            self.assertEqual(objects,
+                             [('origin', self.origin),
+                              ('origin', self.origin2)])
 
     def test_origin_get_legacy(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
