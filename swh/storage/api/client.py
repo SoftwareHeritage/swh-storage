@@ -17,6 +17,9 @@ class RemoteStorage(SWHRemoteAPI):
     def check_config(self, *, check_write):
         return self.post('check_config', {'check_write': check_write})
 
+    def reset(self):
+        return self.post('reset', {})
+
     def content_add(self, content):
         return self.post('content/add', {'content': content})
 
@@ -203,6 +206,10 @@ class RemoteStorage(SWHRemoteAPI):
     def origin_visit_get(self, origin, last_visit=None, limit=None):
         return self.post('origin/visit/get', {
             'origin': origin, 'last_visit': last_visit, 'limit': limit})
+
+    def origin_visit_find_by_date(self, origin, visit_date, limit=None):
+        return self.post('origin/visit/find_by_date', {
+            'origin': origin, 'visit_date': visit_date})
 
     def origin_visit_get_by(self, origin, visit):
         return self.post('origin/visit/getby', {'origin': origin,

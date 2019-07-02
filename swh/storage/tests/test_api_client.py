@@ -66,6 +66,11 @@ class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
         shutil.rmtree(self.storage_base)
         storage.get_journal_writer = get_journal_writer
 
+    def reset_storage(self):
+        excluded = {'dbversion', 'tool'}
+        self.reset_db_tables(self.TEST_DB_NAME, excluded=excluded)
+        self.journal_writer.objects[:] = []
+
 
 class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):
     def setUp(self):
@@ -79,7 +84,9 @@ class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):
                 }
             }
         }
-        self.__storage = InMemoryStorage(journal_writer={'cls': 'inmemory'})
+        self.__storage = InMemoryStorage(
+            journal_writer={'cls': 'inmemory'})
+
         self._get_storage_patcher = unittest.mock.patch(
             'swh.storage.api.server.get_storage', return_value=self.__storage)
         self._get_storage_patcher.start()
@@ -91,6 +98,10 @@ class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):
     def tearDown(self):
         super().tearDown()
         self._get_storage_patcher.stop()
+
+    def reset_storage(self):
+        self.storage.reset()
+        self.journal_writer.objects[:] = []
 
 
 @pytest.mark.network

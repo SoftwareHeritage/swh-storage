@@ -135,6 +135,12 @@ def check_config():
     return encode_data(get_storage().check_config(**decode_request(request)))
 
 
+@app.route('/reset', methods=['POST'])
+@timed
+def reset():
+    return encode_data(get_storage().reset(**decode_request(request)))
+
+
 @app.route('/content/missing', methods=['POST'])
 @timed
 def content_missing():
@@ -387,6 +393,13 @@ def origin_add_one():
 @timed
 def origin_visit_get():
     return encode_data(get_storage().origin_visit_get(
+        **decode_request(request)))
+
+
+@app.route('/origin/visit/find_by_date', methods=['POST'])
+@timed
+def origin_visit_find_by_date():
+    return encode_data(get_storage().origin_visit_find_by_date(
         **decode_request(request)))
 
 
