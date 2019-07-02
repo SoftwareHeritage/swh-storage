@@ -1959,7 +1959,7 @@ class CommonTestStorage(TestStorageData):
         # when
         self.storage.origin_visit_upsert([
             {
-                 'origin': origin_id_or_url,
+                 'origin': self.origin2,
                  'date': self.date_visit2,
                  'visit': 123,
                  'type': self.origin2['type'],
@@ -1968,7 +1968,7 @@ class CommonTestStorage(TestStorageData):
                  'snapshot': None,
              },
             {
-                 'origin': origin_id_or_url,
+                 'origin': self.origin2,
                  'date': '2018-01-01 23:00:00+00',
                  'visit': 1234,
                  'type': self.origin2['type'],
@@ -2042,7 +2042,7 @@ class CommonTestStorage(TestStorageData):
             origin_id_or_url,
             date=self.date_visit2)
         self.storage.origin_visit_upsert([{
-             'origin': origin_id_or_url,
+             'origin': self.origin2,
              'date': self.date_visit2,
              'visit': origin_visit1['visit'],
              'type': self.origin2['type'],

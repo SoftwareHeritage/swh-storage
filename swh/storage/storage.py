@@ -1275,7 +1275,7 @@ class Storage():
         Args:
             visits: iterable of dicts with keys:
 
-                origin: Visited Origin id
+                origin: dict with keys either `id` or `url`
                 visit: origin visit id
                 date: timestamp of such visit
                 status: Visit's new status
@@ -1287,22 +1287,19 @@ class Storage():
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
-            if isinstance(visit['origin'], str):
-                visit['origin'] = \
-                    self.origin_get({'url': visit['origin']})['id']
+            visit['origin'] = \
+                self.origin_get([visit['origin']], db=db, cur=cur)[0]
 
         if self.journal_writer:
             for visit in visits:
-                visit = visit.copy()
-                origin = self.origin_get(
-                    [{'id': visit['origin']}], db=db, cur=cur)[0]
-                visit['origin'] = origin
+                visit = copy.deepcopy(visit)
                 if visit.get('type') is None:
-                    visit['type'] = origin['type']
+                    visit['type'] = visit['origin']['type']
                 del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
+            visit['origin'] = visit['origin']['id']
             # TODO: upsert them all in a single query
             db.origin_visit_upsert(**visit, cur=cur)
 

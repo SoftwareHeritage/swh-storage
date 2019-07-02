@@ -1264,7 +1264,7 @@ class Storage:
         Args:
             visits: iterable of dicts with keys:
 
-                origin: Visited Origin id
+                origin: dict with keys either `id` or `url`
                 visit: origin visit id
                 type: type of loader used for the visit
                 date: timestamp of such visit
@@ -1277,22 +1277,19 @@ class Storage:
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
-            if isinstance(visit['origin'], str):
-                origin = \
-                    self.origin_get([{'url': visit['origin']}])[0]
-                if not origin:
-                    raise ValueError('Unknown origin: %s' % visit['origin'])
-                visit['origin'] = origin['id']
+            origin = visit['origin']
+            visit['origin'] = self.origin_get([origin])[0]
+            if not visit['origin']:
+                raise ValueError('Unknown origin: %s' % origin)
 
         if self.journal_writer:
             for visit in visits:
-                visit = visit.copy()
-                visit['origin'] = self.origin_get([{'id': visit['origin']}])[0]
+                visit = copy.deepcopy(visit)
                 del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
-            origin_id = visit['origin']
+            origin_id = visit['origin']['id']
             visit_id = visit['visit']
 
             self._objects[(origin_id, visit_id)].append(
