@@ -1,3 +1,13 @@
+swh-storage (0.0.145-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.145     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-07-02 12:00:53 +0200)
+  * Upstream changes:     - v0.0.145     - Add an
+    'origin_visit_find_by_date' endpoint.     - Add support for origin
+    urls in all endpoints
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 02 Jul 2019 10:19:19 +0000
+
 swh-storage (0.0.143-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.143     - (tagged by Valentin Lorentz
