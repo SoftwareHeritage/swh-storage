@@ -923,7 +923,7 @@ class Storage():
                 raise TypeError(
                     'snapshot_add expects one argument (or, as a legacy '
                     'behavior, three arguments), not two')
-            if isinstance(snapshots, int):
+            if isinstance(snapshots, (int, str)):
                 # Called by legacy code that uses the new api/client.py
                 (origin_id, visit_id, snapshots) = \
                     (snapshots, origin, [visit])
@@ -1064,13 +1064,21 @@ class Storage():
                   branches.
         """
         if isinstance(origin, int):
-            origin = self.origin_get({'id': origin}, db=db, cur=cur)['url']
+            origin = self.origin_get({'id': origin}, db=db, cur=cur)
+            if not origin:
+                return
+            origin = origin['url']
 
         origin_visit = self.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses, require_snapshot=True,
             db=db, cur=cur)
         if origin_visit and origin_visit['snapshot']:
-            return self.snapshot_get(origin_visit['snapshot'], db=db, cur=cur)
+            snapshot = self.snapshot_get(
+                    origin_visit['snapshot'], db=db, cur=cur)
+            if not snapshot:
+                raise ValueError(
+                    'last origin visit references an unknown snapshot')
+            return snapshot
 
     @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
@@ -1279,6 +1287,9 @@ class Storage():
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
+            if isinstance(visit['origin'], str):
+                visit['origin'] = \
+                    self.origin_get({'url': visit['origin']})['id']
 
         if self.journal_writer:
             for visit in visits:
@@ -1301,7 +1312,7 @@ class Storage():
         """Retrieve all the origin's visit's information.
 
         Args:
-            origin (int): The occurrence's origin (identifier).
+            origin (Union[int,str]): The occurrence's origin (identifier/URL).
             last_visit: Starting point from which listing the next visits
                 Default to None
             limit (int): Number of results to return from the last visit.
@@ -1311,10 +1322,37 @@ class Storage():
             List of visits.
 
         """
+        if isinstance(origin, str):
+            origin = self.origin_get([{'url': origin}], db=db, cur=cur)[0]
+            if not origin:
+                return
+            origin = origin['id']
         for line in db.origin_visit_get_all(
                 origin, last_visit=last_visit, limit=limit, cur=cur):
             data = dict(zip(db.origin_visit_get_cols, line))
             yield data
+
+    @db_transaction(statement_timeout=500)
+    def origin_visit_find_by_date(self, origin, visit_date, db=None, cur=None):
+        """Retrieves the origin visit whose date is closest to the provided
+        timestamp.
+        In case of a tie, the visit with largest id is selected.
+
+        Args:
+            origin (str): The occurrence's origin (URL).
+            target (datetime): target timestamp
+
+        Returns:
+            A visit.
+
+        """
+        origin = self.origin_get([{'url': origin}], db=db, cur=cur)[0]
+        if not origin:
+            return
+        origin = origin['id']
+        line = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        if line:
+            return dict(zip(db.origin_visit_get_cols, line))
 
     @db_transaction(statement_timeout=500)
     def origin_visit_get_by(self, origin, visit, db=None, cur=None):
@@ -1329,7 +1367,10 @@ class Storage():
 
         """
         if isinstance(origin, str):
-            origin = self.origin_get({'url': origin}, db=db, cur=cur)['id']
+            origin = self.origin_get({'url': origin}, db=db, cur=cur)
+            if not origin:
+                return
+            origin = origin['id']
         ori_visit = db.origin_visit_get(origin, visit, cur)
         if not ori_visit:
             return None
@@ -1364,7 +1405,10 @@ class Storage():
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        origin = self.origin_get({'url': origin}, db=db, cur=cur)['id']
+        origin = self.origin_get({'url': origin}, db=db, cur=cur)
+        if not origin:
+            return
+        origin = origin['id']
 
         origin_visit = db.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses,
@@ -1600,6 +1644,12 @@ class Storage():
         """Add an entry for origin origin_id in fetch_history. Returns the id
         of the added fetch_history entry
         """
+        if isinstance(origin_id, str):
+            origin = \
+                self.origin_get([{'url': origin_id}], db=db, cur=cur)
+            if not origin:
+                return
+            origin_id = origin[0]['id']
         fetch_history = {
             'origin': origin_id,
             'date': datetime.datetime.now(tz=datetime.timezone.utc),
