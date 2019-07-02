@@ -34,6 +34,14 @@ class Storage:
         self._contents = {}
         self._content_indexes = defaultdict(lambda: defaultdict(set))
 
+        self.reset()
+
+        if journal_writer:
+            self.journal_writer = get_journal_writer(**journal_writer)
+        else:
+            self.journal_writer = None
+
+    def reset(self):
         self._directories = {}
         self._revisions = {}
         self._releases = {}
@@ -50,10 +58,6 @@ class Storage:
         self._sorted_sha1s = []
 
         self.objstorage = get_objstorage('memory', {})
-        if journal_writer:
-            self.journal_writer = get_journal_writer(**journal_writer)
-        else:
-            self.journal_writer = None
 
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
@@ -694,7 +698,7 @@ class Storage:
                 raise TypeError(
                     'snapshot_add expects one argument (or, as a legacy '
                     'behavior, three arguments), not two')
-            if isinstance(snapshots, (int, bytes)):
+            if isinstance(snapshots, (int, str)):
                 # Called by legacy code that uses the new api/client.py
                 (origin, visit, snapshots) = \
                     (snapshots, origin, [visit])
@@ -811,12 +815,19 @@ class Storage:
                   branches.
         """
         if isinstance(origin, int):
-            origin = self.origin_get({'id': origin})['url']
+            origin = self.origin_get({'id': origin})
+            if not origin:
+                return
+            origin = origin['url']
 
         visit = self.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses, require_snapshot=True)
         if visit and visit['snapshot']:
-            return self.snapshot_get(visit['snapshot'])
+            snapshot = self.snapshot_get(visit['snapshot'])
+            if not snapshot:
+                raise ValueError(
+                    'last origin visit references an unknown snapshot')
+            return snapshot
 
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
         """Count the number of branches in the snapshot with the given id
@@ -1266,6 +1277,12 @@ class Storage:
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
+            if isinstance(visit['origin'], str):
+                origin = \
+                    self.origin_get([{'url': visit['origin']}])[0]
+                if not origin:
+                    raise ValueError('Unknown origin: %s' % visit['origin'])
+                visit['origin'] = origin['id']
 
         if self.journal_writer:
             for visit in visits:
@@ -1283,6 +1300,10 @@ class Storage:
 
             while len(self._origin_visits[origin_id-1]) < visit_id:
                 self._origin_visits[origin_id-1].append(None)
+
+            visit = visit.copy()
+            visit['origin'] = origin_id
+
             visit = self._origin_visits[origin_id-1][visit_id-1] = visit
 
     def origin_visit_get(self, origin, last_visit=None, limit=None):
@@ -1299,6 +1320,11 @@ class Storage:
             List of visits.
 
         """
+        if isinstance(origin, str):
+            origin = self.origin_get([{'url': origin}])[0]
+            if not origin:
+                return
+            origin = origin['id']
         if origin <= len(self._origin_visits):
             visits = self._origin_visits[origin-1]
             if last_visit is not None:
@@ -1310,6 +1336,29 @@ class Storage:
                     continue
                 visit_id = visit['visit']
                 yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
+
+    def origin_visit_find_by_date(self, origin, visit_date):
+        """Retrieves the origin visit whose date is closest to the provided
+        timestamp.
+        In case of a tie, the visit with largest id is selected.
+
+        Args:
+            origin (str): The occurrence's origin (URL).
+            target (datetime): target timestamp
+
+        Returns:
+            A visit.
+
+        """
+        origin = self.origin_get([{'url': origin}])[0]
+        if not origin:
+            return
+        origin = origin['id']
+        if origin <= len(self._origin_visits):
+            visits = self._origin_visits[origin-1]
+            return min(
+                visits,
+                key=lambda v: (abs(v['date'] - visit_date), -v['visit']))
 
     def origin_visit_get_by(self, origin, visit):
         """Retrieve origin visit's information.
@@ -1323,7 +1372,10 @@ class Storage:
 
         """
         if isinstance(origin, str):
-            origin = self.origin_get({'url': origin})['id']
+            origin = self.origin_get({'url': origin})
+            if not origin:
+                return
+            origin = origin['id']
         origin_visit = None
         if origin <= len(self._origin_visits) and \
            visit <= len(self._origin_visits[origin-1]):
@@ -1356,15 +1408,17 @@ class Storage:
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        origin = self.origin_get({'url': origin})['id']
+        origin = self.origin_get({'url': origin})
+        if not origin:
+            return
+        origin = origin['id']
         visits = self._origin_visits[origin-1]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
                       if visit['status'] in allowed_statuses]
         if require_snapshot:
             visits = [visit for visit in visits
-                      if visit['snapshot']
-                      and visit['snapshot'] in self._snapshots]
+                      if visit['snapshot']]
 
         return max(visits, key=lambda v: (v['date'], v['visit']), default=None)
 
@@ -1465,7 +1519,7 @@ class Storage:
             item = copy.deepcopy(item)
             provider = self.metadata_provider_get(item['provider_id'])
             for attr in ('name', 'type', 'url'):
-                item['provider_' + attr] = provider[attr]
+                item['provider_' + attr] = provider['provider_' + attr]
             metadata.append(item)
         return metadata
 
@@ -1527,9 +1581,9 @@ class Storage:
             an identifier of the provider
         """
         provider = {
-                'name': provider_name,
-                'type': provider_type,
-                'url': provider_url,
+                'provider_name': provider_name,
+                'provider_type': provider_type,
+                'provider_url': provider_url,
                 'metadata': metadata,
                 }
         key = self._metadata_provider_key(provider)
@@ -1560,9 +1614,7 @@ class Storage:
             dict: same as `metadata_provider_add`;
                   or None if it does not exist.
         """
-        key = self._metadata_provider_key({
-            'name': provider['provider_name'],
-            'url': provider['provider_url']})
+        key = self._metadata_provider_key(provider)
         return self._metadata_providers.get(key)
 
     def _origin_id(self, origin):
@@ -1607,4 +1659,4 @@ class Storage:
 
     @staticmethod
     def _metadata_provider_key(provider):
-        return '%r %r' % (provider['name'], provider['url'])
+        return '%r %r' % (provider['provider_name'], provider['provider_url'])

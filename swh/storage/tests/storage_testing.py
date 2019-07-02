@@ -56,6 +56,7 @@ class StorageTestFixture(SingleDbTestFixture):
         self.storage = None
         super().tearDown()
 
-    def reset_storage_tables(self):
+    def reset_storage(self):
         excluded = {'dbversion', 'tool'}
         self.reset_db_tables(self.TEST_DB_NAME, excluded=excluded)
+        self.journal_writer.objects[:] = []

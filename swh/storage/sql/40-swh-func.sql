@@ -829,26 +829,27 @@ as $$
 $$;
 
 -- Find the visit of origin id closest to date visit_date
+-- Breaks ties by selecting the largest visit id
 create or replace function swh_visit_find_by_date(origin bigint, visit_date timestamptz default NOW())
     returns origin_visit
     language sql
     stable
 as $$
   with closest_two_visits as ((
-    select ov, (date - visit_date) as interval
+    select ov, (date - visit_date), visit as interval
     from origin_visit ov
     where ov.origin = origin
           and ov.date >= visit_date
-    order by ov.date asc
+    order by ov.date asc, ov.visit desc
     limit 1
   ) union (
-    select ov, (visit_date - date) as interval
+    select ov, (visit_date - date), visit as interval
     from origin_visit ov
     where ov.origin = origin
           and ov.date < visit_date
-    order by ov.date desc
+    order by ov.date desc, ov.visit desc
     limit 1
-  )) select (ov).* from closest_two_visits order by interval limit 1
+  )) select (ov).* from closest_two_visits order by interval, visit limit 1
 $$;
 
 -- Find the visit of origin id closest to date visit_date
