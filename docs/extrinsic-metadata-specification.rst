@@ -29,8 +29,12 @@ Metadata authorities are entities that provide metadata about an
 
 An authority is uniquely defined by these properties:
 
-* its type, representing the software/database from which metadata is
-  extracted (eg. `gitlab`, `wikidata`, `hal`).
+* its type, representing the kind of authority, which is one of these values:
+  * `deposit`, for metadata pushed to Software Heritage at the same time
+    as a software artifact
+  * `forge`, for metadata pulled from the same source as the one hosting
+    the software artifacts (which includes package managers)
+  * `registry`, for metadata pulled from a third-party
 
 * its URL, which unambiguously identifies an instance of the authority type.
 
@@ -42,13 +46,13 @@ type            url
 deposit         https://hal.archives-ouvertes.fr/
 deposit         https://hal.inria.fr/
 deposit         https://software.intel.com/
-gitlab          https://gitlab.com/
-gitlab          https://gitlab.inria.fr/
-gitlab          https://0xacab.org/
-github          https://github.com/
-wikidata        https://www.wikidata.org/
-swmath          https://swmath.org/
-ascl.net        http://ascl.net/
+forge           https://gitlab.com/
+forge           https://gitlab.inria.fr/
+forge           https://0xacab.org/
+forge           https://github.com/
+registry        https://www.wikidata.org/
+registry        https://swmath.org/
+registry        https://ascl.net/
 =============== =================================
 
 Metadata fetchers
