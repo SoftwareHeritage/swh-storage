@@ -885,8 +885,7 @@ class Storage():
             yield data if data['target_type'] else None
 
     @db_transaction()
-    def snapshot_add(self, snapshots, origin=None, visit=None,
-                     db=None, cur=None):
+    def snapshot_add(self, snapshots, db=None, cur=None):
         """Add snapshots to the storage.
 
         Args:
@@ -905,8 +904,6 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
-            origin (int): legacy argument for backward compatibility
-            visit (int): legacy argument for backward compatibility
 
         Raises:
             ValueError: if the origin or visit id does not exist.
@@ -918,24 +915,6 @@ class Storage():
                 snapshot:add: Count of object actually stored in db
 
         """
-        if origin:
-            if not visit:
-                raise TypeError(
-                    'snapshot_add expects one argument (or, as a legacy '
-                    'behavior, three arguments), not two')
-            if isinstance(snapshots, (int, str)):
-                # Called by legacy code that uses the new api/client.py
-                (origin_id, visit_id, snapshots) = \
-                    (snapshots, origin, [visit])
-            else:
-                # Called by legacy code that uses the old api/client.py
-                origin_id = origin
-                visit_id = visit
-                snapshots = [snapshots]
-        else:
-            # Called by new code that uses the new api/client.py
-            origin_id = visit_id = None
-
         created_temp_table = False
 
         count = 0
@@ -965,12 +944,6 @@ class Storage():
 
                 db.snapshot_add(snapshot['id'], cur)
                 count += 1
-
-        if visit_id:
-            # Legacy API, there can be only one snapshot
-            self.origin_visit_update(
-                origin_id, visit_id, snapshot=snapshots[0]['id'],
-                db=db, cur=cur)
 
         return {'snapshot:add': count}
 

@@ -670,7 +670,7 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, snapshots, origin=None, visit=None):
+    def snapshot_add(self, snapshots):
         """Add a snapshot to the storage
 
         Args:
@@ -699,19 +699,6 @@ class Storage:
                 snapshot_added: Count of object actually stored in db
 
         """
-        if origin:
-            if not visit:
-                raise TypeError(
-                    'snapshot_add expects one argument (or, as a legacy '
-                    'behavior, three arguments), not two')
-            if isinstance(snapshots, (int, str)):
-                # Called by legacy code that uses the new api/client.py
-                (origin, visit, snapshots) = \
-                    (snapshots, origin, [visit])
-            else:
-                # Called by legacy code that uses the old api/client.py
-                snapshots = [snapshots]
-
         count = 0
         for snapshot in snapshots:
             snapshot_id = snapshot['id']
@@ -726,11 +713,6 @@ class Storage:
                     }
                 self._objects[snapshot_id].append(('snapshot', snapshot_id))
                 count += 1
-
-        if visit:
-            # Legacy API, there can be only one snapshot
-            self.origin_visit_update(
-                origin, visit, snapshot=snapshots[0]['id'])
 
         return {'snapshot:add': count}
 
