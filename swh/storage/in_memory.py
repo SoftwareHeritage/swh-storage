@@ -1287,7 +1287,8 @@ class Storage:
             for visit in visits:
                 visit = visit.copy()
                 visit['origin'] = self._origins[visit['origin']['url']].copy()
-                del visit['origin']['id']
+                if 'id' in visit['origin']:
+                    del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
