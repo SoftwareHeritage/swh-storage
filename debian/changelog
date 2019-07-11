@@ -1,3 +1,9 @@
+swh-storage (0.0.145-1~swh2) buster-swh; urgency=medium
+
+  * Remove useless swh.scheduler dependency
+
+ -- Nicolas Dandrimont <olasd@debian.org>  Thu, 11 Jul 2019 13:53:45 +0200
+
 swh-storage (0.0.145-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.145     - (tagged by Valentin Lorentz
