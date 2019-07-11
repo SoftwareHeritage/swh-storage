@@ -1,3 +1,9 @@
+swh-storage (0.0.145-1~swh3) unstable-swh; urgency=medium
+
+  * Properly rebuild for unstable-swh
+
+ -- Nicolas Dandrimont <olasd@debian.org>  Thu, 11 Jul 2019 14:03:30 +0200
+
 swh-storage (0.0.145-1~swh2) buster-swh; urgency=medium
 
   * Remove useless swh.scheduler dependency
