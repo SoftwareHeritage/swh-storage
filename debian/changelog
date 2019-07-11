@@ -1,3 +1,9 @@
+swh-storage (0.0.145-1~swh3~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Nicolas Dandrimont <olasd@debian.org>  Thu, 11 Jul 2019 14:04:20 +0200
+
 swh-storage (0.0.145-1~swh3) unstable-swh; urgency=medium
 
   * Properly rebuild for unstable-swh
