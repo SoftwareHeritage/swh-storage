@@ -1189,7 +1189,7 @@ class Storage:
             visit_id = len(self._origin_visits[origin_url]) + 1
             status = 'ongoing'
             visit = {
-                'origin': origin,
+                'origin': {'url': origin['url']},
                 'date': date,
                 'type': type or origin['type'],
                 'status': status,
@@ -1245,7 +1245,8 @@ class Storage:
             if 'id' in origin:
                 del origin['id']
             self.journal_writer.write_update('origin_visit', {
-                'origin': origin, 'type': origin['type'],
+                'origin': origin,
+                'type': origin['type'],
                 'visit': visit_id,
                 'status': status or visit['status'],
                 'date': visit['date'],
@@ -1302,6 +1303,7 @@ class Storage:
                 self._origin_visits[origin_url].append(None)
 
             visit = visit.copy()
+            visit['origin'] = {'url': visit['origin']['url']}
 
             visit = self._origin_visits[origin_url][visit_id-1] = visit
 
