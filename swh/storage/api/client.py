@@ -5,12 +5,12 @@
 
 import warnings
 
-from swh.core.api import SWHRemoteAPI
+from swh.core.api import RPCClient
 
 from ..exc import StorageAPIError
 
 
-class RemoteStorage(SWHRemoteAPI):
+class RemoteStorage(RPCClient):
     """Proxy to a remote storage API"""
     api_exception = StorageAPIError
 

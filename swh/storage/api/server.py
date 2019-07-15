@@ -11,13 +11,13 @@ from functools import wraps
 
 from swh.core import config
 from swh.storage import get_storage as get_swhstorage
-from swh.core.api import (SWHServerAPIApp, decode_request,
+from swh.core.api import (RPCServerApp, decode_request,
                           error_handler,
                           encode_data_server as encode_data)
 from swh.core.statsd import statsd
 
 
-app = SWHServerAPIApp(__name__)
+app = RPCServerApp(__name__)
 storage = None
 
 
