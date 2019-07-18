@@ -661,21 +661,19 @@ class Db(BaseDb):
 
     origin_cols = ['id', 'type', 'url']
 
-    def origin_get_with(self, origins, cur=None):
-        """Retrieve the origin id from its type and url if found."""
+    def origin_get_by_url(self, origins, cur=None):
+        """Retrieve origin `(id, type, url)` from urls if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s FROM (VALUES %%s) as t(type, url)
-                   LEFT JOIN origin
-                       ON ((t.type IS NULL OR t.type=origin.type)
-                           AND t.url=origin.url)
+        query = """SELECT %s FROM (VALUES %%s) as t(url)
+                   LEFT JOIN origin ON t.url = origin.url
                 """ % ','.join('origin.' + col for col in self.origin_cols)
 
         yield from execute_values_generator(
-            cur, query, origins)
+            cur, query, ((url,) for url in origins))
 
-    def origin_get(self, ids, cur=None):
-        """Retrieve the origin per its identifier.
+    def origin_get_by_id(self, ids, cur=None):
+        """Retrieve origin `(id, type, url)` from ids if found.
 
         """
         cur = self._cursor(cur)

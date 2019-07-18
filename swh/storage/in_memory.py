@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
 import re
 import bisect
 import dateutil
@@ -29,6 +30,10 @@ def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
+ENABLE_ORIGIN_IDS = \
+    os.environ.get('SWH_STORAGE_IN_MEMORY_ENABLE_ORIGIN_IDS', 'true') == 'true'
+
+
 class Storage:
     def __init__(self, journal_writer=None):
         self._contents = {}
@@ -46,8 +51,9 @@ class Storage:
         self._revisions = {}
         self._releases = {}
         self._snapshots = {}
-        self._origins = []
-        self._origin_visits = []
+        self._origins = {}
+        self._origins_by_id = []
+        self._origin_visits = {}
         self._persons = []
         self._origin_metadata = defaultdict(list)
         self._tools = {}
@@ -664,7 +670,7 @@ class Storage:
         for rel_id in releases:
             yield copy.deepcopy(self._releases.get(rel_id))
 
-    def snapshot_add(self, snapshots, origin=None, visit=None):
+    def snapshot_add(self, snapshots):
         """Add a snapshot to the storage
 
         Args:
@@ -693,19 +699,6 @@ class Storage:
                 snapshot_added: Count of object actually stored in db
 
         """
-        if origin:
-            if not visit:
-                raise TypeError(
-                    'snapshot_add expects one argument (or, as a legacy '
-                    'behavior, three arguments), not two')
-            if isinstance(snapshots, (int, str)):
-                # Called by legacy code that uses the new api/client.py
-                (origin, visit, snapshots) = \
-                    (snapshots, origin, [visit])
-            else:
-                # Called by legacy code that uses the old api/client.py
-                snapshots = [snapshots]
-
         count = 0
         for snapshot in snapshots:
             snapshot_id = snapshot['id']
@@ -720,11 +713,6 @@ class Storage:
                     }
                 self._objects[snapshot_id].append(('snapshot', snapshot_id))
                 count += 1
-
-        if visit:
-            # Legacy API, there can be only one snapshot
-            self.origin_visit_update(
-                origin, visit, snapshot=snapshots[0]['id'])
 
         return {'snapshot:add': count}
 
@@ -777,10 +765,14 @@ class Storage:
                   branches.
 
         """
-        if origin > len(self._origins) or \
-           visit > len(self._origin_visits[origin-1]):
+        origin_url = self._get_origin_url(origin)
+        if not origin_url:
+            return
+
+        if origin_url not in self._origins or \
+           visit > len(self._origin_visits[origin_url]):
             return None
-        snapshot_id = self._origin_visits[origin-1][visit-1]['snapshot']
+        snapshot_id = self._origin_visits[origin_url][visit-1]['snapshot']
         if snapshot_id:
             return self.snapshot_get(snapshot_id)
         else:
@@ -814,14 +806,14 @@ class Storage:
                   or :const:`None` if the snapshot has less than 1000
                   branches.
         """
-        if isinstance(origin, int):
-            origin = self.origin_get({'id': origin})
-            if not origin:
-                return
-            origin = origin['url']
+        origin_url = self._get_origin_url(origin)
+        if not origin_url:
+            return
 
         visit = self.origin_visit_get_latest(
-            origin, allowed_statuses=allowed_statuses, require_snapshot=True)
+            origin_url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=True)
         if visit and visit['snapshot']:
             snapshot = self.snapshot_get(visit['snapshot'])
             if not snapshot:
@@ -980,19 +972,18 @@ class Storage:
 
         results = []
         for origin in origins:
+            result = None
             if 'id' in origin:
-                origin_id = origin['id']
+                assert ENABLE_ORIGIN_IDS, 'origin ids are disabled'
+                if origin['id'] <= len(self._origins_by_id):
+                    result = self._origins[self._origins_by_id[origin['id']-1]]
             elif 'url' in origin:
-                origin_id = self._origin_id(origin)
+                if origin['url'] in self._origins:
+                    result = copy.deepcopy(self._origins[origin['url']])
             else:
                 raise ValueError(
-                    'Origin must have either id or (type and url).')
-            origin = None
-            # self._origin_id can return None
-            if origin_id is not None and origin_id <= len(self._origins):
-                origin = copy.deepcopy(self._origins[origin_id-1])
-                origin['id'] = origin_id
-            results.append(origin)
+                    'Origin must have either id or url.')
+            results.append(result)
 
         if return_single:
             assert len(results) == 1
@@ -1015,12 +1006,12 @@ class Storage:
             by :meth:`swh.storage.in_memory.Storage.origin_get`.
         """
         origin_from = max(origin_from, 1)
-        if origin_from <= len(self._origins):
+        if origin_from <= len(self._origins_by_id):
             max_idx = origin_from + origin_count - 1
-            if max_idx > len(self._origins):
-                max_idx = len(self._origins)
+            if max_idx > len(self._origins_by_id):
+                max_idx = len(self._origins_by_id)
             for idx in range(origin_from-1, max_idx):
-                yield copy.deepcopy(self._origins[idx])
+                yield copy.deepcopy(self._origins[self._origins_by_id[idx]])
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):
@@ -1041,7 +1032,7 @@ class Storage:
             An iterable of dict containing origin information as returned
             by :meth:`swh.storage.storage.Storage.origin_get`.
         """
-        origins = self._origins
+        origins = self._origins.values()
         if regexp:
             pat = re.compile(url_pattern)
             origins = [orig for orig in origins if pat.search(orig['url'])]
@@ -1049,7 +1040,10 @@ class Storage:
             origins = [orig for orig in origins if url_pattern in orig['url']]
         if with_visit:
             origins = [orig for orig in origins
-                       if len(self._origin_visits[orig['id']-1]) > 0]
+                       if len(self._origin_visits[orig['url']]) > 0]
+
+        if ENABLE_ORIGIN_IDS:
+            origins.sort(key=lambda origin: origin['id'])
 
         origins = copy.deepcopy(origins[offset:offset+limit])
         return origins
@@ -1090,7 +1084,10 @@ class Storage:
         """
         origins = copy.deepcopy(origins)
         for origin in origins:
-            origin['id'] = self.origin_add_one(origin)
+            if ENABLE_ORIGIN_IDS:
+                origin['id'] = self.origin_add_one(origin)
+            else:
+                self.origin_add_one(origin)
         return origins
 
     def origin_add_one(self, origin):
@@ -1110,26 +1107,32 @@ class Storage:
         """
         origin = copy.deepcopy(origin)
         assert 'id' not in origin
-        origin_id = self._origin_id(origin)
-        if origin_id is None:
+        if origin['url'] in self._origins:
+            if ENABLE_ORIGIN_IDS:
+                origin_id = self._origins[origin['url']]['id']
+        else:
             if self.journal_writer:
                 self.journal_writer.write_addition('origin', origin)
-            # origin ids are in the range [1, +inf[
-            origin_id = len(self._origins) + 1
-            origin['id'] = origin_id
-            self._origins.append(origin)
-            self._origin_visits.append([])
-            key = (origin['type'], origin['url'])
-            self._objects[key].append(('origin', origin_id))
-        else:
-            origin['id'] = origin_id
+            if ENABLE_ORIGIN_IDS:
+                # origin ids are in the range [1, +inf[
+                origin_id = len(self._origins) + 1
+                origin['id'] = origin_id
+                self._origins_by_id.append(origin['url'])
+                assert len(self._origins_by_id) == origin_id
+            self._origins[origin['url']] = origin
+            self._origin_visits[origin['url']] = []
+            self._objects[origin['url']].append(('origin', origin['url']))
 
-        return origin_id
+        if ENABLE_ORIGIN_IDS:
+            return origin_id
+        else:
+            return origin['url']
 
     def fetch_history_start(self, origin_id):
         """Add an entry for origin origin_id in fetch_history. Returns the id
         of the added fetch_history entry
         """
+        assert not ENABLE_ORIGIN_IDS, 'origin ids are disabled'
         pass
 
     def fetch_history_end(self, fetch_history_id, data):
@@ -1172,40 +1175,41 @@ class Storage:
                           DeprecationWarning)
             date = ts
 
-        if isinstance(origin, str):
-            origin_id = self.origin_get({'url': origin})['id']
-        else:
-            origin_id = origin
+        origin_url = self._get_origin_url(origin)
+        if origin_url is None:
+            raise ValueError('Unknown origin.')
 
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
 
         visit_ret = None
-        if origin_id <= len(self._origin_visits):
+        if origin_url in self._origins:
+            origin = self._origins[origin_url]
             # visit ids are in the range [1, +inf[
-            visit_id = len(self._origin_visits[origin_id-1]) + 1
+            visit_id = len(self._origin_visits[origin_url]) + 1
             status = 'ongoing'
             visit = {
-                'origin': origin_id,
+                'origin': {'url': origin['url']},
                 'date': date,
-                'type': type or self._origins[origin_id-1]['type'],
+                'type': type or origin['type'],
                 'status': status,
                 'snapshot': None,
                 'metadata': None,
                 'visit': visit_id
             }
-            self._origin_visits[origin_id-1].append(visit)
+            self._origin_visits[origin_url].append(visit)
             visit_ret = {
-                'origin': origin_id,
+                'origin': origin['id'] if ENABLE_ORIGIN_IDS else origin['url'],
                 'visit': visit_id,
             }
 
-            self._objects[(origin_id, visit_id)].append(
+            self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
 
             if self.journal_writer:
-                origin = self.origin_get([{'id': origin_id}])[0]
-                del origin['id']
+                origin = self._origins[origin_url].copy()
+                if 'id' in origin:
+                    del origin['id']
                 self.journal_writer.write_addition('origin_visit', {
                     **visit, 'origin': origin})
 
@@ -1227,27 +1231,29 @@ class Storage:
             None
 
         """
-        if isinstance(origin, str):
-            origin_id = self.origin_get({'url': origin})['id']
-        else:
-            origin_id = origin
+        origin_url = self._get_origin_url(origin)
+        if origin_url is None:
+            raise ValueError('Unknown origin.')
 
         try:
-            visit = self._origin_visits[origin_id-1][visit_id-1]
+            visit = self._origin_visits[origin_url][visit_id-1]
         except IndexError:
-            raise ValueError('Invalid origin_id or visit_id') from None
+            raise ValueError('Unknown visit_id for this origin') \
+                from None
         if self.journal_writer:
-            origin = self.origin_get([{'id': origin_id}])[0]
-            del origin['id']
+            origin = self._origins[origin_url].copy()
+            if 'id' in origin:
+                del origin['id']
             self.journal_writer.write_update('origin_visit', {
-                'origin': origin, 'type': origin['type'],
+                'origin': origin,
+                'type': origin['type'],
                 'visit': visit_id,
                 'status': status or visit['status'],
                 'date': visit['date'],
                 'metadata': metadata or visit['metadata'],
                 'snapshot': snapshot or visit['snapshot']})
-        if origin_id > len(self._origin_visits) or \
-           visit_id > len(self._origin_visits[origin_id-1]):
+        if origin_url not in self._origin_visits or \
+                visit_id > len(self._origin_visits[origin_url]):
             return
         if status:
             visit['status'] = status
@@ -1259,12 +1265,12 @@ class Storage:
     def origin_visit_upsert(self, visits):
         """Add a origin_visits with a specific id and with all its data.
         If there is already an origin_visit with the same
-        `(origin_id, visit_id)`, updates it instead of inserting a new one.
+        `(origin_url, visit_id)`, updates it instead of inserting a new one.
 
         Args:
             visits: iterable of dicts with keys:
 
-                origin: Visited Origin id
+                origin: dict with keys either `id` or `url`
                 visit: origin visit id
                 type: type of loader used for the visit
                 date: timestamp of such visit
@@ -1277,34 +1283,42 @@ class Storage:
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
-            if isinstance(visit['origin'], str):
-                origin = \
-                    self.origin_get([{'url': visit['origin']}])[0]
-                if not origin:
-                    raise ValueError('Unknown origin: %s' % visit['origin'])
-                visit['origin'] = origin['id']
 
         if self.journal_writer:
             for visit in visits:
                 visit = visit.copy()
-                visit['origin'] = self.origin_get([{'id': visit['origin']}])[0]
-                del visit['origin']['id']
+                visit['origin'] = self._origins[visit['origin']['url']].copy()
+                if 'id' in visit['origin']:
+                    del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
-            origin_id = visit['origin']
             visit_id = visit['visit']
+            origin_url = visit['origin']['url']
 
-            self._objects[(origin_id, visit_id)].append(
+            self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
 
-            while len(self._origin_visits[origin_id-1]) < visit_id:
-                self._origin_visits[origin_id-1].append(None)
+            while len(self._origin_visits[origin_url]) < visit_id:
+                self._origin_visits[origin_url].append(None)
 
             visit = visit.copy()
-            visit['origin'] = origin_id
+            visit['origin'] = {'url': visit['origin']['url']}
 
-            visit = self._origin_visits[origin_id-1][visit_id-1] = visit
+            visit = self._origin_visits[origin_url][visit_id-1] = visit
+
+    def _convert_visit(self, visit):
+        if visit is None:
+            return
+
+        visit = visit.copy()
+        origin = self._origins[visit['origin']['url']]
+        if ENABLE_ORIGIN_IDS:
+            visit['origin'] = origin['id']
+        else:
+            visit['origin'] = origin['url']
+
+        return visit
 
     def origin_visit_get(self, origin, last_visit=None, limit=None):
         """Retrieve all the origin's visit's information.
@@ -1320,13 +1334,9 @@ class Storage:
             List of visits.
 
         """
-        if isinstance(origin, str):
-            origin = self.origin_get([{'url': origin}])[0]
-            if not origin:
-                return
-            origin = origin['id']
-        if origin <= len(self._origin_visits):
-            visits = self._origin_visits[origin-1]
+        origin_url = self._get_origin_url(origin)
+        if origin_url in self._origin_visits:
+            visits = self._origin_visits[origin_url]
             if last_visit is not None:
                 visits = visits[last_visit:]
             if limit is not None:
@@ -1335,7 +1345,9 @@ class Storage:
                 if not visit:
                     continue
                 visit_id = visit['visit']
-                yield copy.deepcopy(self._origin_visits[origin-1][visit_id-1])
+
+                yield self._convert_visit(
+                    self._origin_visits[origin_url][visit_id-1])
 
     def origin_visit_find_by_date(self, origin, visit_date):
         """Retrieves the origin visit whose date is closest to the provided
@@ -1350,15 +1362,13 @@ class Storage:
             A visit.
 
         """
-        origin = self.origin_get([{'url': origin}])[0]
-        if not origin:
-            return
-        origin = origin['id']
-        if origin <= len(self._origin_visits):
-            visits = self._origin_visits[origin-1]
-            return min(
+        origin_url = self._get_origin_url(origin)
+        if origin_url in self._origin_visits:
+            visits = self._origin_visits[origin_url]
+            visit = min(
                 visits,
                 key=lambda v: (abs(v['date'] - visit_date), -v['visit']))
+            return self._convert_visit(visit)
 
     def origin_visit_get_by(self, origin, visit):
         """Retrieve origin visit's information.
@@ -1371,16 +1381,11 @@ class Storage:
             it does not exist
 
         """
-        if isinstance(origin, str):
-            origin = self.origin_get({'url': origin})
-            if not origin:
-                return
-            origin = origin['id']
-        origin_visit = None
-        if origin <= len(self._origin_visits) and \
-           visit <= len(self._origin_visits[origin-1]):
-            origin_visit = self._origin_visits[origin-1][visit-1]
-        return copy.deepcopy(origin_visit)
+        origin_url = self._get_origin_url(origin)
+        if origin_url in self._origin_visits and \
+           visit <= len(self._origin_visits[origin_url]):
+            return self._convert_visit(
+                self._origin_visits[origin_url][visit-1])
 
     def origin_visit_get_latest(
             self, origin, allowed_statuses=None, require_snapshot=False):
@@ -1408,11 +1413,10 @@ class Storage:
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        origin = self.origin_get({'url': origin})
+        origin = self._origins.get(origin)
         if not origin:
             return
-        origin = origin['id']
-        visits = self._origin_visits[origin-1]
+        visits = self._origin_visits[origin['url']]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
                       if visit['status'] in allowed_statuses]
@@ -1420,7 +1424,9 @@ class Storage:
             visits = [visit for visit in visits
                       if visit['snapshot']]
 
-        return max(visits, key=lambda v: (v['date'], v['visit']), default=None)
+        visit = max(
+            visits, key=lambda v: (v['date'], v['visit']), default=None)
+        return self._convert_visit(visit)
 
     def person_get(self, person):
         """Return the persons identified by their ids.
@@ -1617,15 +1623,16 @@ class Storage:
         key = self._metadata_provider_key(provider)
         return self._metadata_providers.get(key)
 
-    def _origin_id(self, origin):
-        origin_id = None
-        for stored_origin in self._origins:
-            if stored_origin['url'] == origin['url'] \
-                    and ('type' not in origin
-                         or stored_origin['type'] == origin['type']):
-                origin_id = stored_origin['id']
-                break
-        return origin_id
+    def _get_origin_url(self, origin):
+        if isinstance(origin, str):
+            return origin
+        elif isinstance(origin, int):
+            if origin <= len(self._origins_by_id):
+                return self._origins_by_id[origin-1]
+            else:
+                return None
+        else:
+            raise TypeError('origin must be a string or an integer.')
 
     def _person_add(self, person):
         """Add a person in storage.

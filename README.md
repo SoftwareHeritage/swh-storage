@@ -23,7 +23,7 @@ $ sudo apt install libpq-dev postgresql
 
 ### Installation
 
-It is strongly recommanded to use a virtualenv. In the following, we
+It is strongly recommended to use a virtualenv. In the following, we
 consider you work in a virtualenv named `swh`. See the
 [developer setup guide](https://docs.softwareheritage.org/devel/developer-setup.html#developer-setup)
 for a more details on how to setup a working environment.

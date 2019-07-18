@@ -93,24 +93,8 @@ class RemoteStorage(SWHRemoteAPI):
     def object_find_by_sha1_git(self, ids):
         return self.post('object/find_by_sha1_git', {'ids': ids})
 
-    def snapshot_add(self, snapshots, origin=None, visit=None):
-        if origin:
-            assert visit
-            (origin, visit, snapshots) = (snapshots, origin, visit)
-            warnings.warn("arguments 'origin' and 'visit' of snapshot_add "
-                          "are deprecated since v0.0.131, please use "
-                          "snapshot_add([snapshot]) + "
-                          "origin_visit_update(origin, visit, "
-                          "snapshot=snapshot['id']) instead.",
-                          DeprecationWarning)
-            return self.post('snapshot/add', {
-                'origin': origin, 'visit': visit, 'snapshots': snapshots,
-            })
-        else:
-            assert not visit
-            return self.post('snapshot/add', {
-                'snapshots': snapshots,
-            })
+    def snapshot_add(self, snapshots):
+        return self.post('snapshot/add', {'snapshots': snapshots})
 
     def snapshot_get(self, snapshot_id):
         return self.post('snapshot', {
