@@ -885,8 +885,7 @@ class Storage():
             yield data if data['target_type'] else None
 
     @db_transaction()
-    def snapshot_add(self, snapshots, origin=None, visit=None,
-                     db=None, cur=None):
+    def snapshot_add(self, snapshots, db=None, cur=None):
         """Add snapshots to the storage.
 
         Args:
@@ -905,8 +904,6 @@ class Storage():
                 - **target** (:class:`bytes`): identifier of the target
                   (currently a ``sha1_git`` for all object kinds, or the name
                   of the target branch for aliases)
-            origin (int): legacy argument for backward compatibility
-            visit (int): legacy argument for backward compatibility
 
         Raises:
             ValueError: if the origin or visit id does not exist.
@@ -918,24 +915,6 @@ class Storage():
                 snapshot:add: Count of object actually stored in db
 
         """
-        if origin:
-            if not visit:
-                raise TypeError(
-                    'snapshot_add expects one argument (or, as a legacy '
-                    'behavior, three arguments), not two')
-            if isinstance(snapshots, (int, str)):
-                # Called by legacy code that uses the new api/client.py
-                (origin_id, visit_id, snapshots) = \
-                    (snapshots, origin, [visit])
-            else:
-                # Called by legacy code that uses the old api/client.py
-                origin_id = origin
-                visit_id = visit
-                snapshots = [snapshots]
-        else:
-            # Called by new code that uses the new api/client.py
-            origin_id = visit_id = None
-
         created_temp_table = False
 
         count = 0
@@ -965,12 +944,6 @@ class Storage():
 
                 db.snapshot_add(snapshot['id'], cur)
                 count += 1
-
-        if visit_id:
-            # Legacy API, there can be only one snapshot
-            self.origin_visit_update(
-                origin_id, visit_id, snapshot=snapshots[0]['id'],
-                db=db, cur=cur)
 
         return {'snapshot:add': count}
 
@@ -1275,7 +1248,7 @@ class Storage():
         Args:
             visits: iterable of dicts with keys:
 
-                origin: Visited Origin id
+                origin: dict with keys either `id` or `url`
                 visit: origin visit id
                 date: timestamp of such visit
                 status: Visit's new status
@@ -1287,22 +1260,19 @@ class Storage():
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
-            if isinstance(visit['origin'], str):
-                visit['origin'] = \
-                    self.origin_get({'url': visit['origin']})['id']
+            visit['origin'] = \
+                self.origin_get([visit['origin']], db=db, cur=cur)[0]
 
         if self.journal_writer:
             for visit in visits:
-                visit = visit.copy()
-                origin = self.origin_get(
-                    [{'id': visit['origin']}], db=db, cur=cur)[0]
-                visit['origin'] = origin
+                visit = copy.deepcopy(visit)
                 if visit.get('type') is None:
-                    visit['type'] = origin['type']
+                    visit['type'] = visit['origin']['type']
                 del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
+            visit['origin'] = visit['origin']['id']
             # TODO: upsert them all in a single query
             db.origin_visit_upsert(**visit, cur=cur)
 

@@ -307,8 +307,6 @@ def object_find_by_sha1_git():
 @process_metrics
 def snapshot_add():
     req_data = decode_request(request)
-    if 'snapshot' in req_data:
-        req_data['snapshots'] = req_data.pop('snapshot')
     return get_storage().snapshot_add(**req_data)
 
 
