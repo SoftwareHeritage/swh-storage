@@ -1,3 +1,11 @@
+swh-storage (0.0.147-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.147     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-07-18 12:11:37 +0200)
+  * Upstream changes:     - Make origin_get ignore the `type` argument
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 18 Jul 2019 10:16:16 +0000
+
 swh-storage (0.0.146-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.146     - (tagged by Valentin Lorentz
