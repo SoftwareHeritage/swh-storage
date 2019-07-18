@@ -1,8 +1,21 @@
-swh-storage (0.0.145-1~swh3~bpo9+1) stretch-swh; urgency=medium
+swh-storage (0.0.147-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for stretch-swh
+  * New upstream release 0.0.147     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-07-18 12:11:37 +0200)
+  * Upstream changes:     - Make origin_get ignore the `type` argument
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 11 Jul 2019 12:05:31 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 18 Jul 2019 10:16:16 +0000
+
+swh-storage (0.0.146-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.146     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-07-18 10:46:21 +0200)
+  * Upstream changes:     - Progress toward getting rid of origin ids
+    - * Less dependency on origin ids in the in-mem storage     - * add
+    the SWH_STORAGE_IN_MEMORY_ENABLE_ORIGIN_IDS env var     - * Remove
+    legacy behavior of snapshot_add
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 18 Jul 2019 08:52:09 +0000
 
 swh-storage (0.0.145-1~swh3) unstable-swh; urgency=medium
 
