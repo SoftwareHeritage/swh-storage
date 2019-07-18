@@ -1455,19 +1455,18 @@ class Storage():
             return_single = False
 
         origin_ids = [origin.get('id') for origin in origins]
-        origin_types_and_urls = [(origin.get('type'), origin.get('url'))
-                                 for origin in origins]
+        origin_urls = [origin.get('url') for origin in origins]
         if any(origin_ids):
             # Lookup per ID
             if all(origin_ids):
-                results = db.origin_get(origin_ids, cur)
+                results = db.origin_get_by_id(origin_ids, cur)
             else:
                 raise ValueError(
                     'Either all origins or none at all should have an "id".')
-        elif any(url for (type_, url) in origin_types_and_urls):
+        elif any(origin_urls):
             # Lookup per type + URL
-            if all(url for (type_, url) in origin_types_and_urls):
-                results = db.origin_get_with(origin_types_and_urls, cur)
+            if all(origin_urls):
+                results = db.origin_get_by_url(origin_urls, cur)
             else:
                 raise ValueError(
                     'Either all origins or none at all should have '
@@ -1599,8 +1598,8 @@ class Storage():
             exists.
 
         """
-        origin_id = list(db.origin_get_with(
-            [(origin['type'], origin['url'])], cur))[0][0]
+        origin_id = list(db.origin_get_by_url(
+            [origin['url']], cur))[0][0]
         if origin_id:
             return origin_id
 
