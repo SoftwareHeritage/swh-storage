@@ -882,21 +882,6 @@ class CommonTestStorage(TestStorageData):
                 missing_per_hash[hash]
             )
 
-    def test_content_missing__marked_missing(self):
-        cont2 = self.cont2.copy()
-        cont2['status'] = 'missing'
-        del cont2['data']
-        self.storage.content_add([cont2])
-
-        test_content = {
-            algo: cont2[algo]
-            for algo in ('sha1', 'sha1_git', 'sha256', 'blake2s256')}
-
-        self.assertCountEqual(
-            self.storage.content_missing([test_content]),
-            [cont2['sha1']]
-        )
-
     @pytest.mark.property_based
     @given(strategies.sets(
         elements=strategies.sampled_from(
