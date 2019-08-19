@@ -105,16 +105,41 @@ class Storage():
             return hash
         return tuple([hash[k] for k in keys])
 
+    @staticmethod
+    def _normalize_content(d):
+        d = d.copy()
+
+        if 'status' not in d:
+            d['status'] = 'visible'
+
+        if 'length' not in d:
+            d['length'] = -1
+
+        return d
+
+    @staticmethod
+    def _validate_content(d):
+        """Sanity checks on status / reason / length, that postgresql
+        doesn't enforce."""
+        if d['status'] not in ('visible', 'absent', 'hidden'):
+            raise ValueError('Invalid content status: {}'.format(d['status']))
+
+        if d['status'] != 'absent' and d.get('reason') is not None:
+            raise ValueError(
+                'Must not provide a reason if content is not absent.')
+
+        if d['length'] < -1:
+            raise ValueError('Content length must be positive or -1.')
+
     def _filter_new_content(self, content, db, cur):
+        """Sort contents into buckets 'with data' and 'without data',
+        and filter out those already in the database."""
         content_by_status = defaultdict(list)
         for d in content:
-            if 'status' not in d:
-                d['status'] = 'visible'
-            if 'length' not in d:
-                d['length'] = -1
             content_by_status[d['status']].append(d)
 
-        content_with_data = content_by_status['visible']
+        content_with_data = content_by_status['visible'] \
+            + content_by_status['hidden']
         content_without_data = content_by_status['absent']
 
         missing_content = set(self.content_missing(content_with_data,
@@ -139,6 +164,8 @@ class Storage():
 
     def _content_add_metadata(self, db, cur,
                               content_with_data, content_without_data):
+        """Add content to the postgresql database but not the object storage.
+        """
         if content_with_data:
             # create temporary table for metadata injection
             db.mktemp('content', cur)
@@ -222,6 +249,10 @@ class Storage():
                     item = item.copy()
                     del item['data']
                 self.journal_writer.write_addition('content', item)
+
+        content = [self._normalize_content(c) for c in content]
+        for c in content:
+            self._validate_content(c)
 
         (content_with_data, content_without_data, summary) = \
             self._filter_new_content(content, db, cur)
@@ -324,6 +355,10 @@ class Storage():
             for item in content:
                 assert 'data' not in content
                 self.journal_writer.write_addition('content', item)
+
+        content = [self._normalize_content(c) for c in content]
+        for c in content:
+            self._validate_content(c)
 
         (content_with_data, content_without_data, summary) = \
             self._filter_new_content(content, db, cur)

@@ -15,6 +15,9 @@ import itertools
 import random
 import warnings
 
+import attr
+
+from swh.model.model import Content
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import normalize_timestamp
 from swh.objstorage import get_objstorage
@@ -74,21 +77,19 @@ class Storage:
     def _content_add(self, contents, with_data):
         if self.journal_writer:
             for content in contents:
-                if 'data' in content:
-                    content = content.copy()
-                    del content['data']
+                content = attr.evolve(content, data=None)
                 self.journal_writer.write_addition('content', content)
 
         content_with_data = []
         content_without_data = []
         for content in contents:
-            if 'status' not in content:
-                content['status'] = 'visible'
-            if 'length' not in content:
-                content['length'] = -1
-            if content['status'] == 'visible':
+            if content.status is None:
+                content.status = 'visible'
+            if content.length is None:
+                content.length = -1
+            if content.status == 'visible':
                 content_with_data.append(content)
-            elif content['status'] == 'absent':
+            elif content.status == 'absent':
                 content_without_data.append(content)
 
         count_content_added, count_content_bytes_added = \
@@ -116,21 +117,24 @@ class Storage:
             if key in self._contents:
                 continue
             for algorithm in DEFAULT_ALGORITHMS:
-                if content[algorithm] in self._content_indexes[algorithm]\
+                hash_ = content.get_hash(algorithm)
+                if hash_ in self._content_indexes[algorithm]\
                    and (algorithm not in {'blake2s256', 'sha256'}):
                     from . import HashCollision
-                    raise HashCollision(algorithm, content[algorithm], key)
+                    raise HashCollision(algorithm, hash_, key)
             for algorithm in DEFAULT_ALGORITHMS:
-                self._content_indexes[algorithm][content[algorithm]].add(key)
-            self._objects[content['sha1_git']].append(
-                ('content', content['sha1']))
-            self._contents[key] = copy.deepcopy(content)
-            bisect.insort(self._sorted_sha1s, content['sha1'])
+                hash_ = content.get_hash(algorithm)
+                self._content_indexes[algorithm][hash_].add(key)
+            self._objects[content.sha1_git].append(
+                ('content', content.sha1))
+            self._contents[key] = content
+            bisect.insort(self._sorted_sha1s, content.sha1)
             count_content_added += 1
             if with_data:
-                content_data = self._contents[key].pop('data')
+                content_data = self._contents[key].data
+                self._contents[key].data = None
                 count_content_bytes_added += len(content_data)
-                self.objstorage.add(content_data, content['sha1'])
+                self.objstorage.add(content_data, content.sha1)
 
         return (count_content_added, count_content_bytes_added)
 
@@ -140,8 +144,9 @@ class Storage:
         for content in skipped_content_missing:
             key = self._content_key(content)
             for algo in DEFAULT_ALGORITHMS:
-                self._skipped_content_indexes[algo][content[algo]].add(key)
-            self._skipped_contents[key] = copy.deepcopy(content)
+                self._skipped_content_indexes[algo][content.get_hash(algo)] \
+                    .add(key)
+            self._skipped_contents[key] = content
             count += 1
 
         return count
@@ -175,10 +180,10 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = [dict(c.items()) for c in content]  # semi-shallow copy
+        content = [Content.from_dict(c) for c in content]
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         for item in content:
-            item['ctime'] = now
+            item.ctime = now
         return self._content_add(content, with_data=True)
 
     def content_add_metadata(self, content):
@@ -210,6 +215,7 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
+        content = [Content.from_dict(c) for c in content]
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -282,9 +288,7 @@ class Storage:
             if len(matched) >= limit:
                 next_content = sha1
                 break
-            matched.append({
-                **self._contents[key],
-            })
+            matched.append(self._contents[key].to_dict())
         return {
             'contents': matched,
             'next': next_content,
@@ -308,9 +312,9 @@ class Storage:
                 # hash, we should return all of them. See:
                 # https://forge.softwareheritage.org/D645?id=1994#inline-3389
                 key = random.sample(objs, 1)[0]
-                data = copy.deepcopy(self._contents[key])
-                data.pop('ctime')
-                yield data
+                d = self._contents[key].to_dict()
+                del d['ctime']
+                yield d
             else:
                 # FIXME: should really be None
                 yield {
@@ -336,7 +340,7 @@ class Storage:
             return []
 
         keys = list(set.intersection(*found))
-        return copy.deepcopy([self._contents[key] for key in keys])
+        return [self._contents[key].to_dict() for key in keys]
 
     def content_missing(self, content, key_hash='sha1'):
         """List content missing from storage
@@ -1560,8 +1564,9 @@ class Storage:
         for item in self._origin_metadata[origin_id]:
             item = copy.deepcopy(item)
             provider = self.metadata_provider_get(item['provider_id'])
-            for attr in ('name', 'type', 'url'):
-                item['provider_' + attr] = provider['provider_' + attr]
+            for attr_name in ('name', 'type', 'url'):
+                item['provider_' + attr_name] = \
+                    provider['provider_' + attr_name]
             metadata.append(item)
         return metadata
 
@@ -1692,11 +1697,14 @@ class Storage:
     @staticmethod
     def _content_key(content):
         """A stable key for a content"""
-        return tuple(content.get(key) for key in sorted(DEFAULT_ALGORITHMS))
+        return tuple(getattr(content, key)
+                     for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
     def _content_key_algorithm(content):
         """ A stable key and the algorithm for a content"""
+        if isinstance(content, Content):
+            content = content.to_dict()
         return tuple((content.get(key), key)
                      for key in sorted(DEFAULT_ALGORITHMS))
 

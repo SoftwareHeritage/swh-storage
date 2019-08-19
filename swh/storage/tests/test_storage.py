@@ -11,6 +11,7 @@ import unittest
 from collections import defaultdict
 from unittest.mock import Mock, patch
 
+import psycopg2.errors
 import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
@@ -592,6 +593,25 @@ class CommonTestStorage(TestStorageData):
             del obj['ctime']
         self.assertEqual(journal_objects,
                          [('content', expected_cont)])
+
+    def test_content_add_validation(self):
+        cont = self.cont
+
+        with self.assertRaisesRegex(ValueError, 'status'):
+            self.storage.content_add([{**cont, 'status': 'foobar'}])
+
+        with self.assertRaisesRegex(ValueError, "(?i)length"):
+            self.storage.content_add([{**cont, 'length': -2}])
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.errors.NotNullViolation),
+                "reason"):
+            self.storage.content_add([{**cont, 'status': 'absent'}])
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "^Must not provide a reason if content is not absent.$"):
+            self.storage.content_add([{**cont, 'reason': 'foobar'}])
 
     def test_content_get_missing(self):
         cont = self.cont
