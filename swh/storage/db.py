@@ -777,22 +777,6 @@ class Db(BaseDb):
                            regexp=regexp, with_visit=with_visit, cur=cur)
         return cur.fetchone()[0]
 
-    person_cols = ['fullname', 'name', 'email']
-    person_get_cols = person_cols + ['id']
-
-    def person_get(self, ids, cur=None):
-        """Retrieve the persons identified by the list of ids.
-
-        """
-        cur = self._cursor(cur)
-
-        query = """SELECT %s FROM (VALUES %%s) as t(id)
-                   LEFT JOIN person ON t.id = person.id
-                """ % ','.join('person.' + col for col in self.person_get_cols)
-
-        yield from execute_values_generator(
-            cur, query, ((id,) for id in ids))
-
     release_add_cols = [
         'id', 'target', 'target_type', 'date', 'date_offset',
         'date_neg_utc_offset', 'name', 'comment', 'synthetic',

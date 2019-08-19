@@ -2134,44 +2134,6 @@ class CommonTestStorage(TestStorageData):
             self.origin['url'], 999)
         self.assertIsNone(actual_origin_visit)
 
-    def test_person_get(self):
-        # given (person injection through revision for example)
-        self.storage.revision_add([self.revision])
-        rev = list(self.storage.revision_get([self.revision['id']]))[0]
-
-        id0 = rev['committer']['id']
-        person0 = self.revision['committer']
-
-        id1 = rev['author']['id']
-        person1 = self.revision['author']
-
-        # when
-        actual_persons = self.storage.person_get([id0, id1])
-
-        # then
-        expected_persons = [
-            {
-                'id': id0,
-                'fullname': person0['fullname'],
-                'name': person0['name'],
-                'email': person0['email'],
-            },
-            {
-                'id': id1,
-                'fullname': person1['fullname'],
-                'name': person1['name'],
-                'email': person1['email'],
-            }
-        ]
-        self.assertEqual(list(actual_persons), expected_persons)
-
-        # when
-        actual_persons = self.storage.person_get([id1, id0])
-
-        # then
-        expected_persons.reverse()
-        self.assertEqual(list(actual_persons), expected_persons)
-
     @settings(deadline=None)  # this test is very slow
     @given(strategies.booleans())
     def test_origin_visit_get_latest(self, use_url):
@@ -2305,7 +2267,7 @@ class CommonTestStorage(TestStorageData):
                 origin_url, require_snapshot=True),
         )
 
-    def test_person_get_fullname_unicity(self):
+    def test_person_fullname_unicity(self):
         # given (person injection through revisions for example)
         revision = self.revision
 
@@ -2326,15 +2288,6 @@ class CommonTestStorage(TestStorageData):
         # check committers are the same
         self.assertEqual(revisions[0]['committer'],
                          revisions[1]['committer'])
-
-        # check person_get return same result
-        person0 = list(
-            self.storage.person_get([revisions[0]['committer']['id']]))[0]
-
-        person1 = list(
-            self.storage.person_get([revisions[1]['committer']['id']]))[0]
-
-        self.assertEqual(person0, person1)
 
     def test_snapshot_add_get_empty(self):
         origin_id = self.storage.origin_add_one(self.origin)

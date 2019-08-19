@@ -1480,22 +1480,6 @@ class Storage:
             visits, key=lambda v: (v['date'], v['visit']), default=None)
         return self._convert_visit(visit)
 
-    def person_get(self, person):
-        """Return the persons identified by their ids.
-
-        Args:
-            person: array of ids.
-
-        Returns:
-            The array of persons corresponding of the ids.
-
-        """
-        for p in person:
-            if 0 <= (p - 1) < len(self._persons):
-                yield dict(self._persons[p - 1], id=p)
-            else:
-                yield None
-
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
 
@@ -1702,7 +1686,7 @@ class Storage:
             self._objects[key].append(('person', person_id))
         else:
             person_id = self._objects[key][0][1]
-            p = next(self.person_get([person_id]))
+            p = self._persons[person_id-1]
             person.update(p.items())
         person['id'] = person_id
 

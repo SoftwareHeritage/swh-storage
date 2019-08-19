@@ -439,12 +439,6 @@ def origin_visit_upsert():
         **decode_request(request)))
 
 
-@app.route('/person', methods=['POST'])
-@timed
-def person_get():
-    return encode_data(get_storage().person_get(**decode_request(request)))
-
-
 @app.route('/fetch_history', methods=['GET'])
 @timed
 def fetch_history_get():

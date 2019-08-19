@@ -206,9 +206,6 @@ class RemoteStorage(RPCClient):
             {'origin': origin, 'allowed_statuses': allowed_statuses,
              'require_snapshot': require_snapshot})
 
-    def person_get(self, person):
-        return self.post('person', {'person': person})
-
     def fetch_history_start(self, origin_id):
         return self.post('fetch_history/start', {'origin_id': origin_id})
 
