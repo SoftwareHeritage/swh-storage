@@ -1688,7 +1688,6 @@ class Storage:
             person_id = self._objects[key][0][1]
             p = self._persons[person_id-1]
             person.update(p.items())
-        person['id'] = person_id
 
     @staticmethod
     def _content_key(content):

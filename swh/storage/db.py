@@ -298,8 +298,7 @@ class Db(BaseDb):
         'committer_email', 'metadata', 'synthetic',
     ]
 
-    revision_get_cols = revision_add_cols + [
-        'author_id', 'committer_id', 'parents']
+    revision_get_cols = revision_add_cols + ['parents']
 
     def origin_visit_add(self, origin, ts, type, cur=None):
         """Add a new origin_visit for origin origin at timestamp ts with
@@ -782,7 +781,7 @@ class Db(BaseDb):
         'date_neg_utc_offset', 'name', 'comment', 'synthetic',
         'author_fullname', 'author_name', 'author_email',
     ]
-    release_get_cols = release_add_cols + ['author_id']
+    release_get_cols = release_add_cols
 
     def release_get_from_list(self, releases, cur=None):
         cur = self._cursor(cur)
