@@ -597,6 +597,10 @@ class Storage():
             for src_entry in cur_dir['entries']:
                 entry = src_entry.copy()
                 entry['dir_id'] = dir_id
+                if entry['type'] not in ('file', 'dir', 'rev'):
+                    raise ValueError(
+                        'Entry type must be file, dir, or rev; not %s'
+                        % entry['type'])
                 dir_entries[entry['type']][dir_id].append(entry)
 
         dirs_missing = set(self.directory_missing(dirs, db=db, cur=cur))

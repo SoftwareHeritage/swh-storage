@@ -1007,6 +1007,20 @@ class CommonTestStorage(TestStorageData):
         after_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([], after_missing)
 
+    def test_directory_add_validation(self):
+        dir_ = copy.deepcopy(self.dir)
+        dir_['entries'][0]['type'] = 'foobar'
+
+        with self.assertRaisesRegex(ValueError, 'type.*foobar'):
+            self.storage.directory_add([dir_])
+
+        dir_ = copy.deepcopy(self.dir)
+        del dir_['entries'][0]['target']
+
+        with self.assertRaisesRegex(
+                (TypeError, psycopg2.errors.NotNullViolation), 'target'):
+            self.storage.directory_add([dir_])
+
     def test_directory_get_recursive(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)

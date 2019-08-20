@@ -17,7 +17,7 @@ import warnings
 
 import attr
 
-from swh.model.model import Content
+from swh.model.model import Content, Directory
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import normalize_timestamp
 from swh.objstorage import get_objstorage
@@ -435,13 +435,15 @@ class Storage:
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
+        directories = [Directory.from_dict(d) for d in directories]
+
         count = 0
         for directory in directories:
-            if directory['id'] not in self._directories:
+            if directory.id not in self._directories:
                 count += 1
-                self._directories[directory['id']] = copy.deepcopy(directory)
-                self._objects[directory['id']].append(
-                    ('directory', directory['id']))
+                self._directories[directory.id] = directory
+                self._objects[directory.id].append(
+                    ('directory', directory.id))
 
         return {'directory:add': count}
 
@@ -480,8 +482,8 @@ class Storage:
 
     def _directory_ls(self, directory_id, recursive, prefix=b''):
         if directory_id in self._directories:
-            for entry in self._directories[directory_id]['entries']:
-                ret = self._join_dentry_to_content(entry)
+            for entry in self._directories[directory_id].entries:
+                ret = self._join_dentry_to_content(entry.to_dict())
                 ret['name'] = prefix + ret['name']
                 ret['dir_id'] = directory_id
                 yield ret
