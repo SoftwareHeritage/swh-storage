@@ -17,9 +17,8 @@ import warnings
 
 import attr
 
-from swh.model.model import Content, Directory
+from swh.model.model import Content, Directory, Revision, Release
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.identifiers import normalize_timestamp
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
@@ -587,17 +586,16 @@ class Storage:
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
+        revisions = [Revision.from_dict(rev) for rev in revisions]
+
         count = 0
         for revision in revisions:
-            if revision['id'] not in self._revisions:
-                self._revisions[revision['id']] = rev = copy.deepcopy(revision)
-                self._person_add(rev['committer'])
-                self._person_add(rev['author'])
-                rev['date'] = normalize_timestamp(rev.get('date'))
-                rev['committer_date'] = normalize_timestamp(
-                        rev.get('committer_date'))
-                self._objects[revision['id']].append(
-                    ('revision', revision['id']))
+            if revision.id not in self._revisions:
+                revision.committer = self._person_add(revision.committer)
+                revision.author = self._person_add(revision.author)
+                self._revisions[revision.id] = revision
+                self._objects[revision.id].append(
+                    ('revision', revision.id))
                 count += 1
 
         return {'revision:add': count}
@@ -618,7 +616,10 @@ class Storage:
 
     def revision_get(self, revisions):
         for id in revisions:
-            yield copy.deepcopy(self._revisions.get(id))
+            if id in self._revisions:
+                yield self._revisions.get(id).to_dict()
+            else:
+                yield None
 
     def _get_parent_revs(self, rev_id, seen, limit):
         if limit and len(seen) >= limit:
@@ -626,8 +627,8 @@ class Storage:
         if rev_id in seen or rev_id not in self._revisions:
             return
         seen.add(rev_id)
-        yield self._revisions[rev_id]
-        for parent in self._revisions[rev_id]['parents']:
+        yield self._revisions[rev_id].to_dict()
+        for parent in self._revisions[rev_id].parents:
             yield from self._get_parent_revs(parent, seen, limit)
 
     def revision_log(self, revisions, limit=None):
@@ -688,16 +689,16 @@ class Storage:
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
+        releases = [Release.from_dict(rel) for rel in releases]
+
         count = 0
         for rel in releases:
-            if rel['id'] not in self._releases:
-                rel = copy.deepcopy(rel)
-                rel['date'] = normalize_timestamp(rel['date'])
-                if rel['author']:
-                    self._person_add(rel['author'])
-                self._objects[rel['id']].append(
-                    ('release', rel['id']))
-                self._releases[rel['id']] = rel
+            if rel.id not in self._releases:
+                if rel.author:
+                    self._person_add(rel.author)
+                self._objects[rel.id].append(
+                    ('release', rel.id))
+                self._releases[rel.id] = rel
                 count += 1
 
         return {'release:add': count}
@@ -726,7 +727,10 @@ class Storage:
 
         """
         for rel_id in releases:
-            yield copy.deepcopy(self._releases.get(rel_id))
+            if rel_id in self._releases:
+                yield self._releases[rel_id].to_dict()
+            else:
+                yield None
 
     def snapshot_add(self, snapshots):
         """Add a snapshot to the storage
@@ -1686,15 +1690,15 @@ class Storage:
             person: dictionary with keys fullname, name and email.
 
         """
-        key = ('person', person['fullname'])
+        key = ('person', person.fullname)
         if key not in self._objects:
             person_id = len(self._persons) + 1
-            self._persons.append(dict(person))
+            self._persons.append(person)
             self._objects[key].append(('person', person_id))
         else:
             person_id = self._objects[key][0][1]
-            p = self._persons[person_id-1]
-            person.update(p.items())
+            person = self._persons[person_id-1]
+        return person
 
     @staticmethod
     def _content_key(content):

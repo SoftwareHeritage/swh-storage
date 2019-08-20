@@ -1173,6 +1173,31 @@ class CommonTestStorage(TestStorageData):
         actual_result = self.storage.revision_add([self.revision])
         self.assertEqual(actual_result, {'revision:add': 0})
 
+    def test_revision_add_validation(self):
+        rev = copy.deepcopy(self.revision)
+        rev['date']['offset'] = 2**16
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.errors.NumericValueOutOfRange),
+                'offset'):
+            self.storage.revision_add([rev])
+
+        rev = copy.deepcopy(self.revision)
+        rev['committer_date']['offset'] = 2**16
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.errors.NumericValueOutOfRange),
+                'offset'):
+            self.storage.revision_add([rev])
+
+        rev = copy.deepcopy(self.revision)
+        rev['type'] = 'foobar'
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.errors.InvalidTextRepresentation),
+                '(?i)type'):
+            self.storage.revision_add([rev])
+
     def test_revision_add_name_clash(self):
         revision1 = self.revision.copy()
         revision2 = self.revision2.copy()
@@ -1329,6 +1354,23 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(list(self.journal_writer.objects),
                          [('release', release)])
+
+    def test_release_add_validation(self):
+        rel = copy.deepcopy(self.release)
+        rel['date']['offset'] = 2**16
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.errors.NumericValueOutOfRange),
+                'offset'):
+            self.storage.release_add([rel])
+
+        rel = copy.deepcopy(self.release)
+        rel['author'] = None
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.errors.CheckViolation),
+                'date'):
+            self.storage.release_add([rel])
 
     def test_release_add_name_clash(self):
         release1 = self.release.copy()
