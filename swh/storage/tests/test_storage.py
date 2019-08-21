@@ -2453,6 +2453,19 @@ class CommonTestStorage(TestStorageData):
             {**self.snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.snapshot['id']))
 
+    def test_snapshot_add_validation(self):
+        snap = copy.deepcopy(self.snapshot)
+        snap['branches'][b'foo'] = {'target_type': 'revision'}
+
+        with self.assertRaisesRegex(KeyError, 'target'):
+            self.storage.snapshot_add([snap])
+
+        snap = copy.deepcopy(self.snapshot)
+        snap['branches'][b'foo'] = {'target': b'\x42'*20}
+
+        with self.assertRaisesRegex(KeyError, 'target_type'):
+            self.storage.snapshot_add([snap])
+
     def test_snapshot_add_count_branches(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
