@@ -1459,6 +1459,13 @@ class CommonTestStorage(TestStorageData):
 
         self.assertEqual(add1, add2)
 
+    def test_origin_add_validation(self):
+        with self.assertRaisesRegex((TypeError, KeyError), 'url'):
+            self.storage.origin_add([{'type': 'git'}])
+
+        with self.assertRaisesRegex((TypeError, KeyError), 'type'):
+            self.storage.origin_add([{'url': 'file:///dev/null'}])
+
     def test_origin_get_legacy(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
@@ -1762,6 +1769,12 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data1),
                           ('origin_visit', data2)])
 
+    def test_origin_visit_add_validation(self):
+        origin_id_or_url = self.storage.origin_add_one(self.origin2)
+
+        with self.assertRaises((TypeError, psycopg2.errors.UndefinedFunction)):
+            self.storage.origin_visit_add(origin_id_or_url, date=[b'foo'])
+
     @given(strategies.booleans())
     def test_origin_visit_update(self, use_url):
         if not self._test_origin_ids and not use_url:
@@ -1917,6 +1930,18 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data3),
                           ('origin_visit', data4),
                           ('origin_visit', data5)])
+
+    def test_origin_visit_update_validation(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        visit = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit2)
+
+        with self.assertRaisesRegexp(
+                (ValueError, psycopg2.errors.InvalidTextRepresentation),
+                'status'):
+            self.storage.origin_visit_update(
+                origin_id, visit['visit'], status='foobar')
 
     def test_origin_visit_find_by_date(self):
         # given
