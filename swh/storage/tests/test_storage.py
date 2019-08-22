@@ -3764,7 +3764,8 @@ class CommonPropTestStorage:
                 origin_id = self.storage.origin_add_one(obj.pop('origin'))
                 if 'visit' in obj:
                     del obj['visit']
-                self.storage.origin_visit_add(origin_id, **obj)
+                self.storage.origin_visit_add(
+                    origin_id, obj['date'], obj['type'])
             else:
                 method = getattr(self.storage, obj_type + '_add')
                 try:
