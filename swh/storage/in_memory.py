@@ -1351,7 +1351,7 @@ class Storage:
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
 
-            while len(self._origin_visits[origin_url]) < visit_id:
+            while len(self._origin_visits[origin_url]) <= visit_id:
                 self._origin_visits[origin_url].append(None)
 
             visit = visit.copy()
