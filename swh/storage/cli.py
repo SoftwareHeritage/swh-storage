@@ -28,11 +28,14 @@ def storage(ctx):
               help="Binding port of the server")
 @click.option('--debug/--no-debug', default=True,
               help="Indicates if the server should run in debug mode")
-def serve(config_path, host, port, debug):
+@click.pass_context
+def serve(ctx, config_path, host, port, debug):
     '''Software Heritage Storage RPC server.
 
     Do NOT use this in a production environment.
     '''
+    if 'log_level' in ctx.obj:
+        logging.getLogger('werkzeug').setLevel(ctx.obj['log_level'])
     api_cfg = load_and_check_config(config_path, type='any')
     app.config.update(api_cfg)
     app.run(host, port=int(port), debug=bool(debug))
