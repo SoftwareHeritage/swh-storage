@@ -1547,20 +1547,6 @@ class Storage():
         """
         return db.origin_count(url_pattern, regexp, with_visit, cur)
 
-    @db_transaction_generator(statement_timeout=500)
-    def person_get(self, person, db=None, cur=None):
-        """Return the persons identified by their ids.
-
-        Args:
-            person: array of ids.
-
-        Returns:
-            The array of persons corresponding of the ids.
-
-        """
-        for person in db.person_get(person):
-            yield dict(zip(db.person_get_cols, person))
-
     @db_transaction()
     def origin_add(self, origins, db=None, cur=None):
         """Add origins to the storage

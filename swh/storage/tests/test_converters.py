@@ -15,11 +15,10 @@ class TestConverters(unittest.TestCase):
     def test_db_to_author(self):
         # when
         actual_author = converters.db_to_author(
-            1, b'fullname', b'name', b'email')
+            b'fullname', b'name', b'email')
 
         # then
         self.assertEqual(actual_author, {
-            'id': 1,
             'fullname': b'fullname',
             'name': b'name',
             'email': b'email',
@@ -38,11 +37,9 @@ class TestConverters(unittest.TestCase):
             'type': 'rev',
             'directory': b'dir-sha1',
             'message': b'commit message',
-            'author_id': 'auth-id',
             'author_fullname': b'auth-fullname',
             'author_name': b'auth-name',
             'author_email': b'auth-email',
-            'committer_id': 'comm-id',
             'committer_fullname': b'comm-fullname',
             'committer_name': b'comm-name',
             'committer_email': b'comm-email',
@@ -55,14 +52,12 @@ class TestConverters(unittest.TestCase):
         self.assertEqual(actual_revision, {
             'id': 'revision-id',
             'author': {
-                'id': 'auth-id',
                 'fullname': b'auth-fullname',
                 'name': b'auth-name',
                 'email': b'auth-email',
             },
             'date': None,
             'committer': {
-                'id': 'comm-id',
                 'fullname': b'comm-fullname',
                 'name': b'comm-name',
                 'email': b'comm-email',
@@ -88,7 +83,6 @@ class TestConverters(unittest.TestCase):
             'name': b'release-name',
             'comment': b'release comment',
             'synthetic': True,
-            'author_id': 'auth-id',
             'author_fullname': b'auth-fullname',
             'author_name': b'auth-name',
             'author_email': b'auth-email',
@@ -97,7 +91,6 @@ class TestConverters(unittest.TestCase):
         # then
         self.assertEqual(actual_release, {
             'author': {
-                'id': 'auth-id',
                 'fullname': b'auth-fullname',
                 'name': b'auth-name',
                 'email': b'auth-email',
