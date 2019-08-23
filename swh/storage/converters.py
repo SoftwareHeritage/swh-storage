@@ -38,7 +38,7 @@ def author_to_db(author):
     return author
 
 
-def db_to_author(id, fullname, name, email):
+def db_to_author(fullname, name, email):
     """Convert the DB representation of an author to a swh-model author.
 
     Args:
@@ -51,12 +51,7 @@ def db_to_author(id, fullname, name, email):
         dict: a dictionary with four keys: id, fullname, name and email, or
         None if the id is None
     """
-
-    if id is None:
-        return None
-
     return {
-        'id': id,
         'fullname': fullname,
         'name': name,
         'email': email,
@@ -208,7 +203,6 @@ def db_to_revision(db_revision):
     representation."""
 
     author = db_to_author(
-        db_revision['author_id'],
         db_revision['author_fullname'],
         db_revision['author_name'],
         db_revision['author_email'],
@@ -220,7 +214,6 @@ def db_to_revision(db_revision):
     )
 
     committer = db_to_author(
-        db_revision['committer_id'],
         db_revision['committer_fullname'],
         db_revision['committer_name'],
         db_revision['committer_email'],
@@ -292,7 +285,6 @@ def db_to_release(db_release):
     """
 
     author = db_to_author(
-        db_release['author_id'],
         db_release['author_fullname'],
         db_release['author_name'],
         db_release['author_email'],

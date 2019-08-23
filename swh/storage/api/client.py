@@ -5,12 +5,12 @@
 
 import warnings
 
-from swh.core.api import SWHRemoteAPI
+from swh.core.api import RPCClient
 
 from ..exc import StorageAPIError
 
 
-class RemoteStorage(SWHRemoteAPI):
+class RemoteStorage(RPCClient):
     """Proxy to a remote storage API"""
     api_exception = StorageAPIError
 
@@ -205,9 +205,6 @@ class RemoteStorage(SWHRemoteAPI):
             'origin/visit/get_latest',
             {'origin': origin, 'allowed_statuses': allowed_statuses,
              'require_snapshot': require_snapshot})
-
-    def person_get(self, person):
-        return self.post('person', {'person': person})
 
     def fetch_history_start(self, origin_id):
         return self.post('fetch_history/start', {'origin_id': origin_id})

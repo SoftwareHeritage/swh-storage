@@ -38,6 +38,8 @@ class Storage:
     def __init__(self, journal_writer=None):
         self._contents = {}
         self._content_indexes = defaultdict(lambda: defaultdict(set))
+        self._skipped_contents = {}
+        self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
 
         self.reset()
 
@@ -77,10 +79,38 @@ class Storage:
                     del content['data']
                 self.journal_writer.write_addition('content', content)
 
-        count_contents = 0
+        content_with_data = []
+        content_without_data = []
+        for content in contents:
+            if 'status' not in content:
+                content['status'] = 'visible'
+            if 'length' not in content:
+                content['length'] = -1
+            if content['status'] == 'visible':
+                content_with_data.append(content)
+            elif content['status'] == 'absent':
+                content_without_data.append(content)
+
+        count_content_added, count_content_bytes_added = \
+            self._content_add_present(content_with_data, with_data)
+
+        count_skipped_content_added = self._content_add_absent(
+            content_without_data
+        )
+
+        summary = {
+            'content:add': count_content_added,
+            'skipped_content:add': count_skipped_content_added,
+        }
+
+        if with_data:
+            summary['content:add:bytes'] = count_content_bytes_added
+
+        return summary
+
+    def _content_add_present(self, contents, with_data):
         count_content_added = 0
         count_content_bytes_added = 0
-
         for content in contents:
             key = self._content_key(content)
             if key in self._contents:
@@ -96,23 +126,25 @@ class Storage:
                 ('content', content['sha1']))
             self._contents[key] = copy.deepcopy(content)
             bisect.insort(self._sorted_sha1s, content['sha1'])
-            count_contents += 1
-            if self._contents[key]['status'] == 'visible':
-                count_content_added += 1
-                if with_data:
-                    content_data = self._contents[key].pop('data')
-                    count_content_bytes_added += len(content_data)
-                    self.objstorage.add(content_data, content['sha1'])
+            count_content_added += 1
+            if with_data:
+                content_data = self._contents[key].pop('data')
+                count_content_bytes_added += len(content_data)
+                self.objstorage.add(content_data, content['sha1'])
 
-        summary = {
-            'content:add': count_content_added,
-            'skipped_content:add': count_contents - count_content_added,
-        }
+        return (count_content_added, count_content_bytes_added)
 
-        if with_data:
-            summary['content:add:bytes'] = count_content_bytes_added
+    def _content_add_absent(self, contents):
+        count = 0
+        skipped_content_missing = self.skipped_content_missing(contents)
+        for content in skipped_content_missing:
+            key = self._content_key(content)
+            for algo in DEFAULT_ALGORITHMS:
+                self._skipped_content_indexes[algo][content[algo]].add(key)
+            self._skipped_contents[key] = copy.deepcopy(content)
+            count += 1
 
-        return summary
+        return count
 
     def content_add(self, content):
         """Add content blobs to the storage
@@ -351,6 +383,26 @@ class Storage:
         for content in contents:
             if content not in self._content_indexes['sha1']:
                 yield content
+
+    def skipped_content_missing(self, contents):
+        """List all skipped_content missing from storage
+
+        Args:
+            contents: Iterable of sha1 to check for skipped content entry
+
+        Returns:
+            iterable: dict of skipped content entry
+        """
+
+        for content in contents:
+            for (key, algorithm) in self._content_key_algorithm(content):
+                if algorithm == 'blake2s256':
+                    continue
+                if key not in self._skipped_content_indexes[algorithm]:
+                    # index must contain hashes of algos except blake2s256
+                    # else the content is considered skipped
+                    yield content
+                    break
 
     def directory_add(self, directories):
         """Add directories to the storage
@@ -1299,7 +1351,7 @@ class Storage:
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
 
-            while len(self._origin_visits[origin_url]) < visit_id:
+            while len(self._origin_visits[origin_url]) <= visit_id:
                 self._origin_visits[origin_url].append(None)
 
             visit = visit.copy()
@@ -1427,22 +1479,6 @@ class Storage:
         visit = max(
             visits, key=lambda v: (v['date'], v['visit']), default=None)
         return self._convert_visit(visit)
-
-    def person_get(self, person):
-        """Return the persons identified by their ids.
-
-        Args:
-            person: array of ids.
-
-        Returns:
-            The array of persons corresponding of the ids.
-
-        """
-        for p in person:
-            if 0 <= (p - 1) < len(self._persons):
-                yield dict(self._persons[p - 1], id=p)
-            else:
-                yield None
 
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
@@ -1650,14 +1686,19 @@ class Storage:
             self._objects[key].append(('person', person_id))
         else:
             person_id = self._objects[key][0][1]
-            p = next(self.person_get([person_id]))
+            p = self._persons[person_id-1]
             person.update(p.items())
-        person['id'] = person_id
 
     @staticmethod
     def _content_key(content):
         """A stable key for a content"""
         return tuple(content.get(key) for key in sorted(DEFAULT_ALGORITHMS))
+
+    @staticmethod
+    def _content_key_algorithm(content):
+        """ A stable key and the algorithm for a content"""
+        return tuple((content.get(key), key)
+                     for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
     def _tool_key(tool):

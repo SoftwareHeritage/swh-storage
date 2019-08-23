@@ -707,7 +707,7 @@ as $$
   returning visit;
 $$;
 
-create or replace function swh_snapshot_add(snapshot_id snapshot.id%type)
+create or replace function swh_snapshot_add(snapshot_id sha1_git)
   returns void
   language plpgsql
 as $$
@@ -752,7 +752,7 @@ create type snapshot_result as (
   target_type  snapshot_target
 );
 
-create or replace function swh_snapshot_get_by_id(id snapshot.id%type,
+create or replace function swh_snapshot_get_by_id(id sha1_git,
     branches_from bytea default '', branches_count bigint default null,
     target_types snapshot_target[] default NULL)
   returns setof snapshot_result
@@ -774,7 +774,7 @@ create type snapshot_size as (
   count bigint
 );
 
-create or replace function swh_snapshot_count_branches(id snapshot.id%type)
+create or replace function swh_snapshot_count_branches(id sha1_git)
   returns setof snapshot_size
   language sql
   stable
