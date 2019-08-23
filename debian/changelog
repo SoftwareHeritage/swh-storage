@@ -1,8 +1,20 @@
-swh-storage (0.0.147-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.148-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.148     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-08-23 10:33:02 +0200)
+  * Upstream changes:     - v0.0.148     - Tests improvements:     - *
+    Remove 'next_branch' from test input data.     - * Fix off-by-one
+    error when using origin_visit_upsert on with an unknown visit id.
+    - * Use explicit arguments for origin_visit_add.     - * Remove
+    test_content_missing__marked_missing, it makes no sense.     - Drop
+    person ids:     - * Stop leaking person ids.     - * Remove
+    person_get endpoint.     - Logging fixes:     - * Enforce log level
+    for the werkzeug logger.     - * Eliminate warnings about %TYPE.
+    - * api: use RPCServerApp and RPCClient instead of deprecated
+    classes     - Other:     - * Add support for skipped content in in-
+    memory storage
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 18 Jul 2019 10:17:51 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 23 Aug 2019 08:48:21 +0000
 
 swh-storage (0.0.147-1~swh1) unstable-swh; urgency=medium
 

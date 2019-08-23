@@ -490,13 +490,11 @@ class TestStorageData:
                     'target_type': 'revision',
                 },
             },
-            'next_branch': None
         }
 
         self.empty_snapshot = {
             'id': hash_to_bytes('1a8893e6a86f444e8be8e7bda6cb34fb1735a00e'),
             'branches': {},
-            'next_branch': None
         }
 
         self.complete_snapshot = {
@@ -538,7 +536,6 @@ class TestStorageData:
                 },
                 b'dangling': None,
             },
-            'next_branch': None
         }
 
 
@@ -881,21 +878,6 @@ class CommonTestStorage(TestStorageData):
                 self.storage.content_missing(test_contents, key_hash=hash),
                 missing_per_hash[hash]
             )
-
-    def test_content_missing__marked_missing(self):
-        cont2 = self.cont2.copy()
-        cont2['status'] = 'missing'
-        del cont2['data']
-        self.storage.content_add([cont2])
-
-        test_content = {
-            algo: cont2[algo]
-            for algo in ('sha1', 'sha1_git', 'sha256', 'blake2s256')}
-
-        self.assertCountEqual(
-            self.storage.content_missing([test_content]),
-            [cont2['sha1']]
-        )
 
     @pytest.mark.property_based
     @given(strategies.sets(
@@ -2149,44 +2131,6 @@ class CommonTestStorage(TestStorageData):
             self.origin['url'], 999)
         self.assertIsNone(actual_origin_visit)
 
-    def test_person_get(self):
-        # given (person injection through revision for example)
-        self.storage.revision_add([self.revision])
-        rev = list(self.storage.revision_get([self.revision['id']]))[0]
-
-        id0 = rev['committer']['id']
-        person0 = self.revision['committer']
-
-        id1 = rev['author']['id']
-        person1 = self.revision['author']
-
-        # when
-        actual_persons = self.storage.person_get([id0, id1])
-
-        # then
-        expected_persons = [
-            {
-                'id': id0,
-                'fullname': person0['fullname'],
-                'name': person0['name'],
-                'email': person0['email'],
-            },
-            {
-                'id': id1,
-                'fullname': person1['fullname'],
-                'name': person1['name'],
-                'email': person1['email'],
-            }
-        ]
-        self.assertEqual(list(actual_persons), expected_persons)
-
-        # when
-        actual_persons = self.storage.person_get([id1, id0])
-
-        # then
-        expected_persons.reverse()
-        self.assertEqual(list(actual_persons), expected_persons)
-
     @settings(deadline=None)  # this test is very slow
     @given(strategies.booleans())
     def test_origin_visit_get_latest(self, use_url):
@@ -2320,7 +2264,7 @@ class CommonTestStorage(TestStorageData):
                 origin_url, require_snapshot=True),
         )
 
-    def test_person_get_fullname_unicity(self):
+    def test_person_fullname_unicity(self):
         # given (person injection through revisions for example)
         revision = self.revision
 
@@ -2342,15 +2286,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(revisions[0]['committer'],
                          revisions[1]['committer'])
 
-        # check person_get return same result
-        person0 = list(
-            self.storage.person_get([revisions[0]['committer']['id']]))[0]
-
-        person1 = list(
-            self.storage.person_get([revisions[1]['committer']['id']]))[0]
-
-        self.assertEqual(person0, person1)
-
     def test_snapshot_add_get_empty(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
@@ -2364,10 +2299,10 @@ class CommonTestStorage(TestStorageData):
             origin_id, visit_id, snapshot=self.empty_snapshot['id'])
 
         by_id = self.storage.snapshot_get(self.empty_snapshot['id'])
-        self.assertEqual(by_id, self.empty_snapshot)
+        self.assertEqual(by_id, {**self.empty_snapshot, 'next_branch': None})
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-        self.assertEqual(by_ov, self.empty_snapshot)
+        self.assertEqual(by_ov, {**self.empty_snapshot, 'next_branch': None})
 
         expected_origin = self.origin.copy()
         data1 = {
@@ -2406,10 +2341,12 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_result, {'snapshot:add': 1})
 
         by_id = self.storage.snapshot_get(self.complete_snapshot['id'])
-        self.assertEqual(by_id, self.complete_snapshot)
+        self.assertEqual(by_id,
+                         {**self.complete_snapshot, 'next_branch': None})
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-        self.assertEqual(by_ov, self.complete_snapshot)
+        self.assertEqual(by_ov,
+                         {**self.complete_snapshot, 'next_branch': None})
 
     def test_snapshot_add_many(self):
         actual_result = self.storage.snapshot_add(
@@ -2417,11 +2354,11 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_result, {'snapshot:add': 2})
 
         self.assertEqual(
-            self.complete_snapshot,
+            {**self.complete_snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.complete_snapshot['id']))
 
         self.assertEqual(
-            self.snapshot,
+            {**self.snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.snapshot['id']))
 
     def test_snapshot_add_many_incremental(self):
@@ -2433,11 +2370,11 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(actual_result2, {'snapshot:add': 1})
 
         self.assertEqual(
-            self.complete_snapshot,
+            {**self.complete_snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.complete_snapshot['id']))
 
         self.assertEqual(
-            self.snapshot,
+            {**self.snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.snapshot['id']))
 
     def test_snapshot_add_count_branches(self):
@@ -2662,10 +2599,10 @@ class CommonTestStorage(TestStorageData):
             origin_id, visit_id, snapshot=self.snapshot['id'])
 
         by_id = self.storage.snapshot_get(self.snapshot['id'])
-        self.assertEqual(by_id, self.snapshot)
+        self.assertEqual(by_id, {**self.snapshot, 'next_branch': None})
 
         by_ov = self.storage.snapshot_get_by_origin_visit(origin_id, visit_id)
-        self.assertEqual(by_ov, self.snapshot)
+        self.assertEqual(by_ov, {**self.snapshot, 'next_branch': None})
 
         origin_visit_info = self.storage.origin_visit_get_by(origin_id,
                                                              visit_id)
@@ -2697,7 +2634,7 @@ class CommonTestStorage(TestStorageData):
 
         by_ov1 = self.storage.snapshot_get_by_origin_visit(origin_id,
                                                            visit1_id)
-        self.assertEqual(by_ov1, self.snapshot)
+        self.assertEqual(by_ov1, {**self.snapshot, 'next_branch': None})
 
         origin_visit2 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit2)
@@ -2709,7 +2646,7 @@ class CommonTestStorage(TestStorageData):
 
         by_ov2 = self.storage.snapshot_get_by_origin_visit(origin_id,
                                                            visit2_id)
-        self.assertEqual(by_ov2, self.snapshot)
+        self.assertEqual(by_ov2, {**self.snapshot, 'next_branch': None})
 
         expected_origin = self.origin.copy()
         data1 = {
@@ -2785,7 +2722,7 @@ class CommonTestStorage(TestStorageData):
         self.storage.snapshot_add([self.complete_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit1_id, snapshot=self.complete_snapshot['id'])
-        self.assertEqual(self.complete_snapshot,
+        self.assertEqual({**self.complete_snapshot, 'next_branch': None},
                          self.storage.snapshot_get_latest(
                              origin_id_or_url))
 
@@ -2800,7 +2737,7 @@ class CommonTestStorage(TestStorageData):
         # Mark the first visit as completed and check status filter again
         self.storage.origin_visit_update(origin_id, visit1_id, status='full')
         self.assertEqual(
-            self.complete_snapshot,
+            {**self.complete_snapshot, 'next_branch': None},
             self.storage.snapshot_get_latest(
                 origin_id_or_url,
                 allowed_statuses=['full']),
@@ -2810,12 +2747,12 @@ class CommonTestStorage(TestStorageData):
         self.storage.snapshot_add([self.empty_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit2_id, snapshot=self.empty_snapshot['id'])
-        self.assertEqual(self.empty_snapshot,
+        self.assertEqual({**self.empty_snapshot, 'next_branch': None},
                          self.storage.snapshot_get_latest(origin_id))
 
         # Check that the status filter is still working
         self.assertEqual(
-            self.complete_snapshot,
+            {**self.complete_snapshot, 'next_branch': None},
             self.storage.snapshot_get_latest(
                 origin_id_or_url,
                 allowed_statuses=['full']),
@@ -2826,7 +2763,7 @@ class CommonTestStorage(TestStorageData):
         self.storage.snapshot_add([self.complete_snapshot])
         self.storage.origin_visit_update(
             origin_id, visit3_id, snapshot=self.complete_snapshot['id'])
-        self.assertEqual(self.complete_snapshot,
+        self.assertEqual({**self.complete_snapshot, 'next_branch': None},
                          self.storage.snapshot_get_latest(
                              origin_id_or_url))
 
@@ -2884,7 +2821,7 @@ class CommonTestStorage(TestStorageData):
         # Actually add the snapshot and check status filter again
         self.storage.snapshot_add([self.complete_snapshot])
         self.assertEqual(
-            self.complete_snapshot,
+            {**self.complete_snapshot, 'next_branch': None},
             self.storage.snapshot_get_latest(
                 origin_id_or_url)
         )
@@ -2901,7 +2838,7 @@ class CommonTestStorage(TestStorageData):
         # Actually add that snapshot and check that the new one is returned
         self.storage.snapshot_add([self.snapshot])
         self.assertEqual(
-            self.snapshot,
+            {**self.snapshot, 'next_branch': None},
             self.storage.snapshot_get_latest(
                 origin_id_or_url)
         )
@@ -3826,7 +3763,8 @@ class CommonPropTestStorage:
                 origin_id = self.storage.origin_add_one(obj.pop('origin'))
                 if 'visit' in obj:
                     del obj['visit']
-                self.storage.origin_visit_add(origin_id, **obj)
+                self.storage.origin_visit_add(
+                    origin_id, obj['date'], obj['type'])
             else:
                 method = getattr(self.storage, obj_type + '_add')
                 try:

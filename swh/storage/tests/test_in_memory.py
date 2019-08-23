@@ -37,11 +37,6 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
     def test_content_add_metadata_db(self):
         pass
 
-    @pytest.mark.skip(
-        'not implemented, see https://forge.softwareheritage.org/T1633')
-    def test_skipped_content_add(self):
-        pass
-
     if not _test_origin_ids:
         @pytest.mark.skip('requires origin ids')
         def test_origin_metadata_add(self):
