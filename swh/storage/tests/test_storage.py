@@ -3419,12 +3419,19 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertTrue(provider_id, actual_provider['id'])
 
-    def test_origin_metadata_add(self):
+    @given(strategies.booleans())
+    def test_origin_metadata_add(self, use_url):
+        self.reset_storage()
         # given
-        origin_id = self.storage.origin_add([self.origin])[0]['id']
+        origin = self.storage.origin_add([self.origin])[0]
+        origin_id = origin['id']
+        if use_url:
+            origin = origin['url']
+        else:
+            origin = origin['id']
         origin_metadata0 = list(self.storage.origin_metadata_get_by(
-            origin_id))
-        self.assertTrue(len(origin_metadata0) == 0)
+            origin))
+        self.assertEqual(len(origin_metadata0), 0, origin_metadata0)
 
         tools = self.storage.tool_add([self.metadata_tool])
         tool = tools[0]
@@ -3441,19 +3448,19 @@ class CommonTestStorage(TestStorageData):
 
         # when adding for the same origin 2 metadatas
         self.storage.origin_metadata_add(
-                    origin_id,
+                    origin,
                     self.origin_metadata['discovery_date'],
                     provider['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
         self.storage.origin_metadata_add(
-                    origin_id,
+                    origin,
                     '2015-01-01 23:00:00+00',
                     provider['id'],
                     tool['id'],
                     self.origin_metadata2['metadata'])
         actual_om = list(self.storage.origin_metadata_get_by(
-            origin_id))
+            origin))
         # then
         self.assertCountEqual(
             [item['origin_id'] for item in actual_om],

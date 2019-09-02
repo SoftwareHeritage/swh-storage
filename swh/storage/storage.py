@@ -1722,6 +1722,12 @@ class Storage():
         Returns:
             id (int): the origin_metadata unique id
         """
+        if isinstance(origin_id, str):
+            origin = self.origin_get({'url': origin_id}, db=db, cur=cur)
+            if not origin:
+                return
+            origin_id = origin['id']
+
         if isinstance(ts, str):
             ts = dateutil.parser.parse(ts)
 
@@ -1750,6 +1756,12 @@ class Storage():
             - provider_url (str)
 
         """
+        if isinstance(origin_id, str):
+            origin = self.origin_get({'url': origin_id}, db=db, cur=cur)
+            if not origin:
+                return
+            origin_id = origin['id']
+
         for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
             yield dict(zip(db.origin_metadata_get_cols, line))
 

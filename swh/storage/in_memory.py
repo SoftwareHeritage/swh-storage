@@ -1533,6 +1533,12 @@ class Storage:
             tool: id of the tool used to extract metadata
             metadata (jsonb): the metadata retrieved at the time and location
         """
+        if isinstance(origin_id, str):
+            origin = self.origin_get({'url': origin_id})
+            if not origin:
+                return
+            origin_id = origin['id']
+
         if isinstance(ts, str):
             ts = dateutil.parser.parse(ts)
 
@@ -1567,6 +1573,12 @@ class Storage:
             - provider_url (str)
 
         """
+        if isinstance(origin_id, str):
+            origin = self.origin_get({'url': origin_id})
+            if not origin:
+                return
+            origin_id = origin['id']
+
         metadata = []
         for item in self._origin_metadata[origin_id]:
             item = copy.deepcopy(item)
