@@ -146,6 +146,10 @@ create unique index concurrently on release(object_id);
 alter table release add constraint release_author_fkey foreign key (author) references person(id) not valid;
 alter table release validate constraint release_author_fkey;
 
+-- if the author is null, then the date must be null
+alter table release add constraint release_author_date_check check ((date is null) or (author is not null)) not valid;
+alter table release validate constraint release_author_date_check;
+
 -- tool
 create unique index tool_pkey on tool(id);
 alter table tool add primary key using index tool_pkey;

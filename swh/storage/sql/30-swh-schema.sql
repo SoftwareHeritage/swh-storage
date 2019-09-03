@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(138, now(), 'Work In Progress');
+      values(140, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -176,9 +176,9 @@ comment on column directory.object_id is 'Short object identifier';
 create table directory_entry_dir
 (
   id      bigserial,
-  target  sha1_git,   -- id of target directory
-  name    unix_path,  -- path name, relative to containing dir
-  perms   file_perms  -- unix-like permissions
+  target  sha1_git not null,   -- id of target directory
+  name    unix_path not null,  -- path name, relative to containing dir
+  perms   file_perms not null  -- unix-like permissions
 );
 
 comment on table directory_entry_dir is 'Directory entry for directory';
@@ -192,9 +192,9 @@ comment on column directory_entry_dir.perms is 'Unix-like permissions';
 create table directory_entry_file
 (
   id      bigserial,
-  target  sha1_git,   -- id of target file
-  name    unix_path,  -- path name, relative to containing dir
-  perms   file_perms  -- unix-like permissions
+  target  sha1_git not null,   -- id of target file
+  name    unix_path not null,  -- path name, relative to containing dir
+  perms   file_perms not null  -- unix-like permissions
 );
 
 comment on table directory_entry_file is 'Directory entry for file';
@@ -208,9 +208,9 @@ comment on column directory_entry_file.perms is 'Unix-like permissions';
 create table directory_entry_rev
 (
   id      bigserial,
-  target  sha1_git,   -- id of target revision
-  name    unix_path,  -- path name, relative to containing dir
-  perms   file_perms  -- unix-like permissions
+  target  sha1_git not null,   -- id of target revision
+  name    unix_path not null,  -- path name, relative to containing dir
+  perms   file_perms not null  -- unix-like permissions
 );
 
 comment on table directory_entry_rev is 'Directory entry for revision';
