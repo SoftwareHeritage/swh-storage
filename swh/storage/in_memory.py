@@ -15,8 +15,11 @@ import itertools
 import random
 import warnings
 
+import attr
+
+from swh.model.model import \
+    Content, Directory, Revision, Release, Snapshot, OriginVisit, Origin
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.identifiers import normalize_timestamp
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
@@ -74,21 +77,19 @@ class Storage:
     def _content_add(self, contents, with_data):
         if self.journal_writer:
             for content in contents:
-                if 'data' in content:
-                    content = content.copy()
-                    del content['data']
+                content = attr.evolve(content, data=None)
                 self.journal_writer.write_addition('content', content)
 
         content_with_data = []
         content_without_data = []
         for content in contents:
-            if 'status' not in content:
-                content['status'] = 'visible'
-            if 'length' not in content:
-                content['length'] = -1
-            if content['status'] == 'visible':
+            if content.status is None:
+                content.status = 'visible'
+            if content.length is None:
+                content.length = -1
+            if content.status == 'visible':
                 content_with_data.append(content)
-            elif content['status'] == 'absent':
+            elif content.status == 'absent':
                 content_without_data.append(content)
 
         count_content_added, count_content_bytes_added = \
@@ -116,21 +117,24 @@ class Storage:
             if key in self._contents:
                 continue
             for algorithm in DEFAULT_ALGORITHMS:
-                if content[algorithm] in self._content_indexes[algorithm]\
+                hash_ = content.get_hash(algorithm)
+                if hash_ in self._content_indexes[algorithm]\
                    and (algorithm not in {'blake2s256', 'sha256'}):
                     from . import HashCollision
-                    raise HashCollision(algorithm, content[algorithm], key)
+                    raise HashCollision(algorithm, hash_, key)
             for algorithm in DEFAULT_ALGORITHMS:
-                self._content_indexes[algorithm][content[algorithm]].add(key)
-            self._objects[content['sha1_git']].append(
-                ('content', content['sha1']))
-            self._contents[key] = copy.deepcopy(content)
-            bisect.insort(self._sorted_sha1s, content['sha1'])
+                hash_ = content.get_hash(algorithm)
+                self._content_indexes[algorithm][hash_].add(key)
+            self._objects[content.sha1_git].append(
+                ('content', content.sha1))
+            self._contents[key] = content
+            bisect.insort(self._sorted_sha1s, content.sha1)
             count_content_added += 1
             if with_data:
-                content_data = self._contents[key].pop('data')
+                content_data = self._contents[key].data
+                self._contents[key].data = None
                 count_content_bytes_added += len(content_data)
-                self.objstorage.add(content_data, content['sha1'])
+                self.objstorage.add(content_data, content.sha1)
 
         return (count_content_added, count_content_bytes_added)
 
@@ -140,8 +144,9 @@ class Storage:
         for content in skipped_content_missing:
             key = self._content_key(content)
             for algo in DEFAULT_ALGORITHMS:
-                self._skipped_content_indexes[algo][content[algo]].add(key)
-            self._skipped_contents[key] = copy.deepcopy(content)
+                self._skipped_content_indexes[algo][content.get_hash(algo)] \
+                    .add(key)
+            self._skipped_contents[key] = content
             count += 1
 
         return count
@@ -175,10 +180,10 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = [dict(c.items()) for c in content]  # semi-shallow copy
+        content = [Content.from_dict(c) for c in content]
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         for item in content:
-            item['ctime'] = now
+            item.ctime = now
         return self._content_add(content, with_data=True)
 
     def content_add_metadata(self, content):
@@ -210,6 +215,7 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
+        content = [Content.from_dict(c) for c in content]
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -282,9 +288,7 @@ class Storage:
             if len(matched) >= limit:
                 next_content = sha1
                 break
-            matched.append({
-                **self._contents[key],
-            })
+            matched.append(self._contents[key].to_dict())
         return {
             'contents': matched,
             'next': next_content,
@@ -308,9 +312,9 @@ class Storage:
                 # hash, we should return all of them. See:
                 # https://forge.softwareheritage.org/D645?id=1994#inline-3389
                 key = random.sample(objs, 1)[0]
-                data = copy.deepcopy(self._contents[key])
-                data.pop('ctime')
-                yield data
+                d = self._contents[key].to_dict()
+                del d['ctime']
+                yield d
             else:
                 # FIXME: should really be None
                 yield {
@@ -336,7 +340,7 @@ class Storage:
             return []
 
         keys = list(set.intersection(*found))
-        return copy.deepcopy([self._contents[key] for key in keys])
+        return [self._contents[key].to_dict() for key in keys]
 
     def content_missing(self, content, key_hash='sha1'):
         """List content missing from storage
@@ -431,13 +435,15 @@ class Storage:
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
+        directories = [Directory.from_dict(d) for d in directories]
+
         count = 0
         for directory in directories:
-            if directory['id'] not in self._directories:
+            if directory.id not in self._directories:
                 count += 1
-                self._directories[directory['id']] = copy.deepcopy(directory)
-                self._objects[directory['id']].append(
-                    ('directory', directory['id']))
+                self._directories[directory.id] = directory
+                self._objects[directory.id].append(
+                    ('directory', directory.id))
 
         return {'directory:add': count}
 
@@ -476,8 +482,8 @@ class Storage:
 
     def _directory_ls(self, directory_id, recursive, prefix=b''):
         if directory_id in self._directories:
-            for entry in self._directories[directory_id]['entries']:
-                ret = self._join_dentry_to_content(entry)
+            for entry in self._directories[directory_id].entries:
+                ret = self._join_dentry_to_content(entry.to_dict())
                 ret['name'] = prefix + ret['name']
                 ret['dir_id'] = directory_id
                 yield ret
@@ -581,17 +587,16 @@ class Storage:
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
+        revisions = [Revision.from_dict(rev) for rev in revisions]
+
         count = 0
         for revision in revisions:
-            if revision['id'] not in self._revisions:
-                self._revisions[revision['id']] = rev = copy.deepcopy(revision)
-                self._person_add(rev['committer'])
-                self._person_add(rev['author'])
-                rev['date'] = normalize_timestamp(rev.get('date'))
-                rev['committer_date'] = normalize_timestamp(
-                        rev.get('committer_date'))
-                self._objects[revision['id']].append(
-                    ('revision', revision['id']))
+            if revision.id not in self._revisions:
+                revision.committer = self._person_add(revision.committer)
+                revision.author = self._person_add(revision.author)
+                self._revisions[revision.id] = revision
+                self._objects[revision.id].append(
+                    ('revision', revision.id))
                 count += 1
 
         return {'revision:add': count}
@@ -612,7 +617,10 @@ class Storage:
 
     def revision_get(self, revisions):
         for id in revisions:
-            yield copy.deepcopy(self._revisions.get(id))
+            if id in self._revisions:
+                yield self._revisions.get(id).to_dict()
+            else:
+                yield None
 
     def _get_parent_revs(self, rev_id, seen, limit):
         if limit and len(seen) >= limit:
@@ -620,8 +628,8 @@ class Storage:
         if rev_id in seen or rev_id not in self._revisions:
             return
         seen.add(rev_id)
-        yield self._revisions[rev_id]
-        for parent in self._revisions[rev_id]['parents']:
+        yield self._revisions[rev_id].to_dict()
+        for parent in self._revisions[rev_id].parents:
             yield from self._get_parent_revs(parent, seen, limit)
 
     def revision_log(self, revisions, limit=None):
@@ -682,16 +690,16 @@ class Storage:
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
+        releases = [Release.from_dict(rel) for rel in releases]
+
         count = 0
         for rel in releases:
-            if rel['id'] not in self._releases:
-                rel = copy.deepcopy(rel)
-                rel['date'] = normalize_timestamp(rel['date'])
-                if rel['author']:
-                    self._person_add(rel['author'])
-                self._objects[rel['id']].append(
-                    ('release', rel['id']))
-                self._releases[rel['id']] = rel
+            if rel.id not in self._releases:
+                if rel.author:
+                    self._person_add(rel.author)
+                self._objects[rel.id].append(
+                    ('release', rel.id))
+                self._releases[rel.id] = rel
                 count += 1
 
         return {'release:add': count}
@@ -720,7 +728,10 @@ class Storage:
 
         """
         for rel_id in releases:
-            yield copy.deepcopy(self._releases.get(rel_id))
+            if rel_id in self._releases:
+                yield self._releases[rel_id].to_dict()
+            else:
+                yield None
 
     def snapshot_add(self, snapshots):
         """Add a snapshot to the storage
@@ -752,19 +763,17 @@ class Storage:
 
         """
         count = 0
+        snapshots = (Snapshot.from_dict(d) for d in snapshots)
+        snapshots = (snap for snap in snapshots
+                     if snap.id not in self._snapshots)
         for snapshot in snapshots:
-            snapshot_id = snapshot['id']
-            if snapshot_id not in self._snapshots:
-                if self.journal_writer:
-                    self.journal_writer.write_addition('snapshot', snapshot)
+            if self.journal_writer:
+                self.journal_writer.write_addition('snapshot', snapshot)
 
-                self._snapshots[snapshot_id] = {
-                    'id': snapshot_id,
-                    'branches': copy.deepcopy(snapshot['branches']),
-                    '_sorted_branch_names': sorted(snapshot['branches'])
-                    }
-                self._objects[snapshot_id].append(('snapshot', snapshot_id))
-                count += 1
+            sorted_branch_names = sorted(snapshot.branches)
+            self._snapshots[snapshot.id] = (snapshot, sorted_branch_names)
+            self._objects[snapshot.id].append(('snapshot', snapshot.id))
+            count += 1
 
         return {'snapshot:add': count}
 
@@ -824,7 +833,7 @@ class Storage:
         if origin_url not in self._origins or \
            visit > len(self._origin_visits[origin_url]):
             return None
-        snapshot_id = self._origin_visits[origin_url][visit-1]['snapshot']
+        snapshot_id = self._origin_visits[origin_url][visit-1].snapshot
         if snapshot_id:
             return self.snapshot_get(snapshot_id)
         else:
@@ -883,9 +892,9 @@ class Storage:
             dict: A dict whose keys are the target types of branches and
             values their corresponding amount
         """
-        branches = list(self._snapshots[snapshot_id]['branches'].values())
-        return collections.Counter(branch['target_type'] if branch else None
-                                   for branch in branches)
+        (snapshot, _) = self._snapshots[snapshot_id]
+        return collections.Counter(branch.target_type.value if branch else None
+                                   for branch in snapshot.branches.values())
 
     def snapshot_get_branches(self, snapshot_id, branches_from=b'',
                               branches_count=1000, target_types=None):
@@ -914,18 +923,18 @@ class Storage:
                   or :const:`None` if the snapshot has less than
                   `branches_count` branches after `branches_from` included.
         """
-        snapshot = self._snapshots.get(snapshot_id)
-        if snapshot is None:
+        res = self._snapshots.get(snapshot_id)
+        if res is None:
             return None
-        sorted_branch_names = snapshot['_sorted_branch_names']
+        (snapshot, sorted_branch_names) = res
         from_index = bisect.bisect_left(
                 sorted_branch_names, branches_from)
         if target_types:
             next_branch = None
             branches = {}
             for branch_name in sorted_branch_names[from_index:]:
-                branch = snapshot['branches'][branch_name]
-                if branch and branch['target_type'] in target_types:
+                branch = snapshot.branches[branch_name]
+                if branch and branch.target_type.value in target_types:
                     if len(branches) < branches_count:
                         branches[branch_name] = branch
                     else:
@@ -935,12 +944,16 @@ class Storage:
             # As there is no 'target_types', we can do that much faster
             to_index = from_index + branches_count
             returned_branch_names = sorted_branch_names[from_index:to_index]
-            branches = {branch_name: snapshot['branches'][branch_name]
+            branches = {branch_name: snapshot.branches[branch_name]
                         for branch_name in returned_branch_names}
             if to_index >= len(sorted_branch_names):
                 next_branch = None
             else:
                 next_branch = sorted_branch_names[to_index]
+
+        branches = {name: branch.to_dict() if branch else None
+                    for (name, branch) in branches.items()}
+
         return {
                 'id': snapshot_id,
                 'branches': branches,
@@ -973,6 +986,15 @@ class Storage:
                     'object_id': id_,
                     } for obj in objs]
         return ret
+
+    def _convert_origin(self, t):
+        if t is None:
+            return None
+        (origin_id, origin) = t
+        origin = origin.to_dict()
+        if ENABLE_ORIGIN_IDS:
+            origin['id'] = origin_id
+        return origin
 
     def origin_get(self, origins):
         """Return origins, either all identified by their ids or all
@@ -1031,11 +1053,11 @@ class Storage:
                     result = self._origins[self._origins_by_id[origin['id']-1]]
             elif 'url' in origin:
                 if origin['url'] in self._origins:
-                    result = copy.deepcopy(self._origins[origin['url']])
+                    result = self._origins[origin['url']]
             else:
                 raise ValueError(
                     'Origin must have either id or url.')
-            results.append(result)
+            results.append(self._convert_origin(result))
 
         if return_single:
             assert len(results) == 1
@@ -1063,7 +1085,8 @@ class Storage:
             if max_idx > len(self._origins_by_id):
                 max_idx = len(self._origins_by_id)
             for idx in range(origin_from-1, max_idx):
-                yield copy.deepcopy(self._origins[self._origins_by_id[idx]])
+                yield self._convert_origin(
+                    self._origins[self._origins_by_id[idx]])
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):
@@ -1084,7 +1107,7 @@ class Storage:
             An iterable of dict containing origin information as returned
             by :meth:`swh.storage.storage.Storage.origin_get`.
         """
-        origins = self._origins.values()
+        origins = map(self._convert_origin, self._origins.values())
         if regexp:
             pat = re.compile(url_pattern)
             origins = [orig for orig in origins if pat.search(orig['url'])]
@@ -1097,8 +1120,7 @@ class Storage:
         if ENABLE_ORIGIN_IDS:
             origins.sort(key=lambda origin: origin['id'])
 
-        origins = copy.deepcopy(origins[offset:offset+limit])
-        return origins
+        return origins[offset:offset+limit]
 
     def origin_count(self, url_pattern, regexp=False, with_visit=False,
                      db=None, cur=None):
@@ -1157,28 +1179,28 @@ class Storage:
             exists.
 
         """
-        origin = copy.deepcopy(origin)
-        assert 'id' not in origin
-        if origin['url'] in self._origins:
+        origin = Origin.from_dict(origin)
+        if origin.url in self._origins:
             if ENABLE_ORIGIN_IDS:
-                origin_id = self._origins[origin['url']]['id']
+                (origin_id, _) = self._origins[origin.url]
         else:
             if self.journal_writer:
                 self.journal_writer.write_addition('origin', origin)
             if ENABLE_ORIGIN_IDS:
                 # origin ids are in the range [1, +inf[
                 origin_id = len(self._origins) + 1
-                origin['id'] = origin_id
-                self._origins_by_id.append(origin['url'])
+                self._origins_by_id.append(origin.url)
                 assert len(self._origins_by_id) == origin_id
-            self._origins[origin['url']] = origin
-            self._origin_visits[origin['url']] = []
-            self._objects[origin['url']].append(('origin', origin['url']))
+            else:
+                origin_id = None
+            self._origins[origin.url] = (origin_id, origin)
+            self._origin_visits[origin.url] = []
+            self._objects[origin.url].append(('origin', origin.url))
 
         if ENABLE_ORIGIN_IDS:
             return origin_id
         else:
-            return origin['url']
+            return origin.url
 
     def fetch_history_start(self, origin_id):
         """Add an entry for origin origin_id in fetch_history. Returns the id
@@ -1233,25 +1255,27 @@ class Storage:
 
         if isinstance(date, str):
             date = dateutil.parser.parse(date)
+        elif not isinstance(date, datetime.datetime):
+            raise TypeError('date must be a datetime or a string.')
 
         visit_ret = None
         if origin_url in self._origins:
-            origin = self._origins[origin_url]
+            (origin_id, origin) = self._origins[origin_url]
             # visit ids are in the range [1, +inf[
             visit_id = len(self._origin_visits[origin_url]) + 1
             status = 'ongoing'
-            visit = {
-                'origin': {'url': origin['url']},
-                'date': date,
-                'type': type or origin['type'],
-                'status': status,
-                'snapshot': None,
-                'metadata': None,
-                'visit': visit_id
-            }
+            visit = OriginVisit(
+                origin=origin,
+                date=date,
+                type=type or origin.type,
+                status=status,
+                snapshot=None,
+                metadata=None,
+                visit=visit_id,
+            )
             self._origin_visits[origin_url].append(visit)
             visit_ret = {
-                'origin': origin['id'] if ENABLE_ORIGIN_IDS else origin['url'],
+                'origin': origin_id if ENABLE_ORIGIN_IDS else origin.url,
                 'visit': visit_id,
             }
 
@@ -1259,11 +1283,7 @@ class Storage:
                 ('origin_visit', None))
 
             if self.journal_writer:
-                origin = self._origins[origin_url].copy()
-                if 'id' in origin:
-                    del origin['id']
-                self.journal_writer.write_addition('origin_visit', {
-                    **visit, 'origin': origin})
+                self.journal_writer.write_addition('origin_visit', visit)
 
         return visit_ret
 
@@ -1292,27 +1312,26 @@ class Storage:
         except IndexError:
             raise ValueError('Unknown visit_id for this origin') \
                 from None
+
+        updates = {}
+        if status:
+            updates['status'] = status
+        if metadata:
+            updates['metadata'] = metadata
+        if snapshot:
+            updates['snapshot'] = snapshot
+
+        visit = attr.evolve(visit, **updates)
+
         if self.journal_writer:
-            origin = self._origins[origin_url].copy()
-            if 'id' in origin:
-                del origin['id']
-            self.journal_writer.write_update('origin_visit', {
-                'origin': origin,
-                'type': origin['type'],
-                'visit': visit_id,
-                'status': status or visit['status'],
-                'date': visit['date'],
-                'metadata': metadata or visit['metadata'],
-                'snapshot': snapshot or visit['snapshot']})
+            (_, origin) = self._origins[origin_url]
+            self.journal_writer.write_update('origin_visit', visit)
+
+        self._origin_visits[origin_url][visit_id-1] = visit
+
         if origin_url not in self._origin_visits or \
                 visit_id > len(self._origin_visits[origin_url]):
             return
-        if status:
-            visit['status'] = status
-        if metadata:
-            visit['metadata'] = metadata
-        if snapshot:
-            visit['snapshot'] = snapshot
 
     def origin_visit_upsert(self, visits):
         """Add a origin_visits with a specific id and with all its data.
@@ -1331,22 +1350,16 @@ class Storage:
                 snapshot (sha1_git): identifier of the snapshot to add to
                     the visit
         """
-        visits = copy.deepcopy(visits)
-        for visit in visits:
-            if isinstance(visit['date'], str):
-                visit['date'] = dateutil.parser.parse(visit['date'])
+        visits = [OriginVisit.from_dict(d) for d in visits]
 
         if self.journal_writer:
             for visit in visits:
-                visit = visit.copy()
-                visit['origin'] = self._origins[visit['origin']['url']].copy()
-                if 'id' in visit['origin']:
-                    del visit['origin']['id']
+                (_, visit.origin) = self._origins[visit.origin.url]
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
-            visit_id = visit['visit']
-            origin_url = visit['origin']['url']
+            visit_id = visit.visit
+            origin_url = visit.origin.url
 
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
@@ -1354,21 +1367,18 @@ class Storage:
             while len(self._origin_visits[origin_url]) <= visit_id:
                 self._origin_visits[origin_url].append(None)
 
-            visit = visit.copy()
-            visit['origin'] = {'url': visit['origin']['url']}
-
-            visit = self._origin_visits[origin_url][visit_id-1] = visit
+            self._origin_visits[origin_url][visit_id-1] = visit
 
     def _convert_visit(self, visit):
         if visit is None:
             return
 
-        visit = visit.copy()
-        origin = self._origins[visit['origin']['url']]
+        (origin_id, origin) = self._origins[visit.origin.url]
+        visit = visit.to_dict()
         if ENABLE_ORIGIN_IDS:
-            visit['origin'] = origin['id']
+            visit['origin'] = origin_id
         else:
-            visit['origin'] = origin['url']
+            visit['origin'] = origin.url
 
         return visit
 
@@ -1396,7 +1406,7 @@ class Storage:
             for visit in visits:
                 if not visit:
                     continue
-                visit_id = visit['visit']
+                visit_id = visit.visit
 
                 yield self._convert_visit(
                     self._origin_visits[origin_url][visit_id-1])
@@ -1419,7 +1429,7 @@ class Storage:
             visits = self._origin_visits[origin_url]
             visit = min(
                 visits,
-                key=lambda v: (abs(v['date'] - visit_date), -v['visit']))
+                key=lambda v: (abs(v.date - visit_date), -v.visit))
             return self._convert_visit(visit)
 
     def origin_visit_get_by(self, origin, visit):
@@ -1465,19 +1475,20 @@ class Storage:
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        origin = self._origins.get(origin)
-        if not origin:
+        res = self._origins.get(origin)
+        if not res:
             return
-        visits = self._origin_visits[origin['url']]
+        (_, origin) = res
+        visits = self._origin_visits[origin.url]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
-                      if visit['status'] in allowed_statuses]
+                      if visit.status in allowed_statuses]
         if require_snapshot:
             visits = [visit for visit in visits
-                      if visit['snapshot']]
+                      if visit.snapshot]
 
         visit = max(
-            visits, key=lambda v: (v['date'], v['visit']), default=None)
+            visits, key=lambda v: (v.date, v.visit), default=None)
         return self._convert_visit(visit)
 
     def stat_counters(self):
@@ -1522,6 +1533,12 @@ class Storage:
             tool: id of the tool used to extract metadata
             metadata (jsonb): the metadata retrieved at the time and location
         """
+        if isinstance(origin_id, str):
+            origin = self.origin_get({'url': origin_id})
+            if not origin:
+                return
+            origin_id = origin['id']
+
         if isinstance(ts, str):
             ts = dateutil.parser.parse(ts)
 
@@ -1556,12 +1573,19 @@ class Storage:
             - provider_url (str)
 
         """
+        if isinstance(origin_id, str):
+            origin = self.origin_get({'url': origin_id})
+            if not origin:
+                return
+            origin_id = origin['id']
+
         metadata = []
         for item in self._origin_metadata[origin_id]:
             item = copy.deepcopy(item)
             provider = self.metadata_provider_get(item['provider_id'])
-            for attr in ('name', 'type', 'url'):
-                item['provider_' + attr] = provider['provider_' + attr]
+            for attr_name in ('name', 'type', 'url'):
+                item['provider_' + attr_name] = \
+                    provider['provider_' + attr_name]
             metadata.append(item)
         return metadata
 
@@ -1679,24 +1703,27 @@ class Storage:
             person: dictionary with keys fullname, name and email.
 
         """
-        key = ('person', person['fullname'])
+        key = ('person', person.fullname)
         if key not in self._objects:
             person_id = len(self._persons) + 1
-            self._persons.append(dict(person))
+            self._persons.append(person)
             self._objects[key].append(('person', person_id))
         else:
             person_id = self._objects[key][0][1]
-            p = self._persons[person_id-1]
-            person.update(p.items())
+            person = self._persons[person_id-1]
+        return person
 
     @staticmethod
     def _content_key(content):
         """A stable key for a content"""
-        return tuple(content.get(key) for key in sorted(DEFAULT_ALGORITHMS))
+        return tuple(getattr(content, key)
+                     for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
     def _content_key_algorithm(content):
         """ A stable key and the algorithm for a content"""
+        if isinstance(content, Content):
+            content = content.to_dict()
         return tuple((content.get(key), key)
                      for key in sorted(DEFAULT_ALGORITHMS))
 
