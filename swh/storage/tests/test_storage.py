@@ -1485,9 +1485,6 @@ class CommonTestStorage(TestStorageData):
         with self.assertRaisesRegex((TypeError, KeyError), 'url'):
             self.storage.origin_add([{'type': 'git'}])
 
-        with self.assertRaisesRegex((TypeError, KeyError), 'type'):
-            self.storage.origin_add([{'url': 'file:///dev/null'}])
-
     def test_origin_get_legacy(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
         id = self.storage.origin_add_one(self.origin)
