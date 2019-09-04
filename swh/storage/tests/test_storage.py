@@ -11,7 +11,7 @@ import unittest
 from collections import defaultdict
 from unittest.mock import Mock, patch
 
-import psycopg2.errors
+import psycopg2
 import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
@@ -604,9 +604,12 @@ class CommonTestStorage(TestStorageData):
             self.storage.content_add([{**cont, 'length': -2}])
 
         with self.assertRaisesRegex(
-                (ValueError, psycopg2.errors.NotNullViolation),
-                "reason"):
+                (ValueError, psycopg2.IntegrityError), 'reason') as cm:
             self.storage.content_add([{**cont, 'status': 'absent'}])
+
+        if type(cm.exception) == psycopg2.IntegrityError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NOT_NULL_VIOLATION)
 
         with self.assertRaisesRegex(
                 ValueError,
@@ -1018,8 +1021,12 @@ class CommonTestStorage(TestStorageData):
         del dir_['entries'][0]['target']
 
         with self.assertRaisesRegex(
-                (TypeError, psycopg2.errors.NotNullViolation), 'target'):
+                (TypeError, psycopg2.IntegrityError), 'target') as cm:
             self.storage.directory_add([dir_])
+
+        if type(cm.exception) == psycopg2.IntegrityError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NOT_NULL_VIOLATION)
 
     def test_directory_get_recursive(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
@@ -1178,25 +1185,34 @@ class CommonTestStorage(TestStorageData):
         rev['date']['offset'] = 2**16
 
         with self.assertRaisesRegex(
-                (ValueError, psycopg2.errors.NumericValueOutOfRange),
-                'offset'):
+                (ValueError, psycopg2.DataError), 'offset') as cm:
             self.storage.revision_add([rev])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE)
 
         rev = copy.deepcopy(self.revision)
         rev['committer_date']['offset'] = 2**16
 
         with self.assertRaisesRegex(
-                (ValueError, psycopg2.errors.NumericValueOutOfRange),
-                'offset'):
+                (ValueError, psycopg2.DataError), 'offset') as cm:
             self.storage.revision_add([rev])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE)
 
         rev = copy.deepcopy(self.revision)
         rev['type'] = 'foobar'
 
         with self.assertRaisesRegex(
-                (ValueError, psycopg2.errors.InvalidTextRepresentation),
-                '(?i)type'):
+                (ValueError, psycopg2.DataError), '(?i)type') as cm:
             self.storage.revision_add([rev])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION)
 
     def test_revision_add_name_clash(self):
         revision1 = self.revision.copy()
@@ -1360,17 +1376,23 @@ class CommonTestStorage(TestStorageData):
         rel['date']['offset'] = 2**16
 
         with self.assertRaisesRegex(
-                (ValueError, psycopg2.errors.NumericValueOutOfRange),
-                'offset'):
+                (ValueError, psycopg2.DataError), 'offset') as cm:
             self.storage.release_add([rel])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE)
 
         rel = copy.deepcopy(self.release)
         rel['author'] = None
 
         with self.assertRaisesRegex(
-                (ValueError, psycopg2.errors.CheckViolation),
-                'date'):
+                (ValueError, psycopg2.IntegrityError), 'date') as cm:
             self.storage.release_add([rel])
+
+        if type(cm.exception) == psycopg2.IntegrityError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.CHECK_VIOLATION)
 
     def test_release_add_name_clash(self):
         release1 = self.release.copy()
@@ -1772,8 +1794,12 @@ class CommonTestStorage(TestStorageData):
     def test_origin_visit_add_validation(self):
         origin_id_or_url = self.storage.origin_add_one(self.origin2)
 
-        with self.assertRaises((TypeError, psycopg2.errors.UndefinedFunction)):
+        with self.assertRaises((TypeError, psycopg2.ProgrammingError)) as cm:
             self.storage.origin_visit_add(origin_id_or_url, date=[b'foo'])
+
+        if type(cm.exception) == psycopg2.ProgrammingError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.UNDEFINED_FUNCTION)
 
     @given(strategies.booleans())
     def test_origin_visit_update(self, use_url):
@@ -1937,11 +1963,14 @@ class CommonTestStorage(TestStorageData):
             origin_id,
             date=self.date_visit2)
 
-        with self.assertRaisesRegexp(
-                (ValueError, psycopg2.errors.InvalidTextRepresentation),
-                'status'):
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.DataError), 'status') as cm:
             self.storage.origin_visit_update(
                 origin_id, visit['visit'], status='foobar')
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION)
 
     def test_origin_visit_find_by_date(self):
         # given
