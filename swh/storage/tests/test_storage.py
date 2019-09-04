@@ -11,6 +11,7 @@ import unittest
 from collections import defaultdict
 from unittest.mock import Mock, patch
 
+import psycopg2
 import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
@@ -593,6 +594,28 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(journal_objects,
                          [('content', expected_cont)])
 
+    def test_content_add_validation(self):
+        cont = self.cont
+
+        with self.assertRaisesRegex(ValueError, 'status'):
+            self.storage.content_add([{**cont, 'status': 'foobar'}])
+
+        with self.assertRaisesRegex(ValueError, "(?i)length"):
+            self.storage.content_add([{**cont, 'length': -2}])
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.IntegrityError), 'reason') as cm:
+            self.storage.content_add([{**cont, 'status': 'absent'}])
+
+        if type(cm.exception) == psycopg2.IntegrityError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NOT_NULL_VIOLATION)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "^Must not provide a reason if content is not absent.$"):
+            self.storage.content_add([{**cont, 'reason': 'foobar'}])
+
     def test_content_get_missing(self):
         cont = self.cont
 
@@ -987,6 +1010,24 @@ class CommonTestStorage(TestStorageData):
         after_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([], after_missing)
 
+    def test_directory_add_validation(self):
+        dir_ = copy.deepcopy(self.dir)
+        dir_['entries'][0]['type'] = 'foobar'
+
+        with self.assertRaisesRegex(ValueError, 'type.*foobar'):
+            self.storage.directory_add([dir_])
+
+        dir_ = copy.deepcopy(self.dir)
+        del dir_['entries'][0]['target']
+
+        with self.assertRaisesRegex(
+                (TypeError, psycopg2.IntegrityError), 'target') as cm:
+            self.storage.directory_add([dir_])
+
+        if type(cm.exception) == psycopg2.IntegrityError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NOT_NULL_VIOLATION)
+
     def test_directory_get_recursive(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
@@ -1138,6 +1179,40 @@ class CommonTestStorage(TestStorageData):
         # already there so nothing added
         actual_result = self.storage.revision_add([self.revision])
         self.assertEqual(actual_result, {'revision:add': 0})
+
+    def test_revision_add_validation(self):
+        rev = copy.deepcopy(self.revision)
+        rev['date']['offset'] = 2**16
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.DataError), 'offset') as cm:
+            self.storage.revision_add([rev])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE)
+
+        rev = copy.deepcopy(self.revision)
+        rev['committer_date']['offset'] = 2**16
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.DataError), 'offset') as cm:
+            self.storage.revision_add([rev])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE)
+
+        rev = copy.deepcopy(self.revision)
+        rev['type'] = 'foobar'
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.DataError), '(?i)type') as cm:
+            self.storage.revision_add([rev])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION)
 
     def test_revision_add_name_clash(self):
         revision1 = self.revision.copy()
@@ -1296,6 +1371,29 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects),
                          [('release', release)])
 
+    def test_release_add_validation(self):
+        rel = copy.deepcopy(self.release)
+        rel['date']['offset'] = 2**16
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.DataError), 'offset') as cm:
+            self.storage.release_add([rel])
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE)
+
+        rel = copy.deepcopy(self.release)
+        rel['author'] = None
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.IntegrityError), 'date') as cm:
+            self.storage.release_add([rel])
+
+        if type(cm.exception) == psycopg2.IntegrityError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.CHECK_VIOLATION)
+
     def test_release_add_name_clash(self):
         release1 = self.release.copy()
         release2 = self.release2.copy()
@@ -1382,6 +1480,10 @@ class CommonTestStorage(TestStorageData):
         add2 = self.storage.origin_add([self.origin, self.origin2])
 
         self.assertEqual(add1, add2)
+
+    def test_origin_add_validation(self):
+        with self.assertRaisesRegex((TypeError, KeyError), 'url'):
+            self.storage.origin_add([{'type': 'git'}])
 
     def test_origin_get_legacy(self):
         self.assertIsNone(self.storage.origin_get(self.origin))
@@ -1686,6 +1788,16 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data1),
                           ('origin_visit', data2)])
 
+    def test_origin_visit_add_validation(self):
+        origin_id_or_url = self.storage.origin_add_one(self.origin2)
+
+        with self.assertRaises((TypeError, psycopg2.ProgrammingError)) as cm:
+            self.storage.origin_visit_add(origin_id_or_url, date=[b'foo'])
+
+        if type(cm.exception) == psycopg2.ProgrammingError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.UNDEFINED_FUNCTION)
+
     @given(strategies.booleans())
     def test_origin_visit_update(self, use_url):
         if not self._test_origin_ids and not use_url:
@@ -1841,6 +1953,21 @@ class CommonTestStorage(TestStorageData):
                           ('origin_visit', data3),
                           ('origin_visit', data4),
                           ('origin_visit', data5)])
+
+    def test_origin_visit_update_validation(self):
+        origin_id = self.storage.origin_add_one(self.origin)
+        visit = self.storage.origin_visit_add(
+            origin_id,
+            date=self.date_visit2)
+
+        with self.assertRaisesRegex(
+                (ValueError, psycopg2.DataError), 'status') as cm:
+            self.storage.origin_visit_update(
+                origin_id, visit['visit'], status='foobar')
+
+        if type(cm.exception) == psycopg2.DataError:
+            self.assertEqual(cm.exception.pgcode,
+                             psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION)
 
     def test_origin_visit_find_by_date(self):
         # given
@@ -2376,6 +2503,19 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(
             {**self.snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.snapshot['id']))
+
+    def test_snapshot_add_validation(self):
+        snap = copy.deepcopy(self.snapshot)
+        snap['branches'][b'foo'] = {'target_type': 'revision'}
+
+        with self.assertRaisesRegex(KeyError, 'target'):
+            self.storage.snapshot_add([snap])
+
+        snap = copy.deepcopy(self.snapshot)
+        snap['branches'][b'foo'] = {'target': b'\x42'*20}
+
+        with self.assertRaisesRegex(KeyError, 'target_type'):
+            self.storage.snapshot_add([snap])
 
     def test_snapshot_add_count_branches(self):
         origin_id = self.storage.origin_add_one(self.origin)
@@ -3305,12 +3445,19 @@ class CommonTestStorage(TestStorageData):
         # then
         self.assertTrue(provider_id, actual_provider['id'])
 
-    def test_origin_metadata_add(self):
+    @given(strategies.booleans())
+    def test_origin_metadata_add(self, use_url):
+        self.reset_storage()
         # given
-        origin_id = self.storage.origin_add([self.origin])[0]['id']
+        origin = self.storage.origin_add([self.origin])[0]
+        origin_id = origin['id']
+        if use_url:
+            origin = origin['url']
+        else:
+            origin = origin['id']
         origin_metadata0 = list(self.storage.origin_metadata_get_by(
-            origin_id))
-        self.assertTrue(len(origin_metadata0) == 0)
+            origin))
+        self.assertEqual(len(origin_metadata0), 0, origin_metadata0)
 
         tools = self.storage.tool_add([self.metadata_tool])
         tool = tools[0]
@@ -3327,19 +3474,19 @@ class CommonTestStorage(TestStorageData):
 
         # when adding for the same origin 2 metadatas
         self.storage.origin_metadata_add(
-                    origin_id,
+                    origin,
                     self.origin_metadata['discovery_date'],
                     provider['id'],
                     tool['id'],
                     self.origin_metadata['metadata'])
         self.storage.origin_metadata_add(
-                    origin_id,
+                    origin,
                     '2015-01-01 23:00:00+00',
                     provider['id'],
                     tool['id'],
                     self.origin_metadata2['metadata'])
         actual_om = list(self.storage.origin_metadata_get_by(
-            origin_id))
+            origin))
         # then
         self.assertCountEqual(
             [item['origin_id'] for item in actual_om],
