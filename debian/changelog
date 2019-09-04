@@ -1,3 +1,14 @@
+swh-storage (0.0.150-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.150     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-09-04 16:09:59
+    +0200)
+  * Upstream changes:     - v0.0.150     - tests/test_storage: Remove
+    failing assertion after swh-model update     - tests/test_storage:
+    Fix tests execution with psycopg2 < 2.8
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 04 Sep 2019 14:16:09 +0000
+
 swh-storage (0.0.149-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.149     - (tagged by Antoine R. Dumont
