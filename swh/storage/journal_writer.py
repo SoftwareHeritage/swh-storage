@@ -7,6 +7,9 @@ import copy
 from multiprocessing import Manager
 
 
+from swh.model.model import BaseModel
+
+
 class InMemoryJournalWriter:
     def __init__(self):
         # Share the list of objects across processes, for RemoteAPI tests.
@@ -14,6 +17,8 @@ class InMemoryJournalWriter:
         self.objects = self.manager.list()
 
     def write_addition(self, object_type, object_):
+        if isinstance(object_, BaseModel):
+            object_ = object_.to_dict()
         self.objects.append((object_type, copy.deepcopy(object_)))
 
     write_update = write_addition
