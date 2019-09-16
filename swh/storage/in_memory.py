@@ -22,7 +22,7 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
-from .journal_writer import get_journal_writer
+from .storage import get_journal_writer
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000

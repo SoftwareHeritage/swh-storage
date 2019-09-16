@@ -10,9 +10,7 @@ import unittest
 import pytest
 
 from swh.core.api.tests.server_testing import ServerTestFixture
-import swh.storage.storage as storage
-from swh.storage.journal_writer import \
-    get_journal_writer, InMemoryJournalWriter
+from swh.journal import writer
 from swh.storage.in_memory import Storage as InMemoryStorage
 from swh.storage.api.client import RemoteStorage
 import swh.storage.api.server as server
@@ -24,13 +22,16 @@ from swh.storage.tests.test_storage import \
 class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
                              unittest.TestCase):
     def setUp(self):
+        journal_writer = writer.get_journal_writer(cls='inmemory')
+
         def mock_get_journal_writer(cls, args=None):
             assert cls == 'inmemory'
             return journal_writer
-        server.storage = None
-        storage.get_journal_writer = mock_get_journal_writer
-        journal_writer = InMemoryJournalWriter()
+
         self.journal_writer = journal_writer
+        server.storage = None
+        self.get_journal_writer = writer.get_journal_writer
+        writer.get_journal_writer = mock_get_journal_writer
 
         # ServerTestFixture needs to have self.objroot for
         # setUp() method, but this field is defined in
@@ -64,7 +65,7 @@ class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
     def tearDown(self):
         super().tearDown()
         shutil.rmtree(self.storage_base)
-        storage.get_journal_writer = get_journal_writer
+        writer.get_journal_writer = self.get_journal_writer
 
     def reset_storage(self):
         excluded = {'dbversion', 'tool'}

@@ -20,11 +20,14 @@ from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageDBError
 from .algos import diff
-from .journal_writer import get_journal_writer
 
 from swh.model.hashutil import ALGORITHMS, hash_to_bytes
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
+try:
+    from swh.journal.writer import get_journal_writer
+except ImportError:
+    get_journal_writer = None
 
 
 # Max block size of contents to return
@@ -61,6 +64,10 @@ class Storage():
 
         self.objstorage = get_objstorage(**objstorage)
         if journal_writer:
+            if get_journal_writer is None:
+                raise EnvironmentError(
+                    'You need the swh.journal package to use the '
+                    'journal_writer feature')
             self.journal_writer = get_journal_writer(**journal_writer)
         else:
             self.journal_writer = None
