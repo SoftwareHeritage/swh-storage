@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 import itertools
 import json
-import warnings
 
 import dateutil.parser
 import psycopg2
@@ -1172,8 +1171,8 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, date=None, type=None,
-                         db=None, cur=None, *, ts=None):
+    def origin_visit_add(self, origin, date, type=None,
+                         db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         For backward compatibility, `type` is optional and defaults to
@@ -1181,7 +1180,7 @@ class Storage():
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
-            date: timestamp of such visit
+            date (Union[str,datetime]): timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
@@ -1191,16 +1190,6 @@ class Storage():
             - visit: the visit identifier for the new visit occurrence
 
         """
-        if ts is None:
-            if date is None:
-                raise TypeError('origin_visit_add expected 2 arguments.')
-        else:
-            assert date is None
-            warnings.warn("argument 'ts' of origin_visit_add was renamed "
-                          "to 'date' in v0.0.109.",
-                          DeprecationWarning)
-            date = ts
-
         if isinstance(origin, str):
             origin = self.origin_get({'url': origin}, db=db, cur=cur)
             origin_id = origin['id']
@@ -1209,6 +1198,7 @@ class Storage():
             origin_id = origin['id']
 
         if isinstance(date, str):
+            # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
 
         if type is None:

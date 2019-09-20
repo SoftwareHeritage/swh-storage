@@ -13,7 +13,6 @@ import copy
 import datetime
 import itertools
 import random
-import warnings
 
 import attr
 
@@ -1221,7 +1220,7 @@ class Storage:
         raise NotImplementedError('fetch_history_get is deprecated, use '
                                   'origin_visit_get instead.')
 
-    def origin_visit_add(self, origin, date=None, type=None, *, ts=None):
+    def origin_visit_add(self, origin, date, type=None):
         """Add an origin_visit for the origin at date with status 'ongoing'.
 
         For backward compatibility, `type` is optional and defaults to
@@ -1229,7 +1228,7 @@ class Storage:
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
-            date: timestamp of such visit
+            date (Union[str,datetime]): timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
@@ -1239,21 +1238,12 @@ class Storage:
             - visit: the visit's identifier for the new visit occurrence
 
         """
-        if ts is None:
-            if date is None:
-                raise TypeError('origin_visit_add expected 2 arguments.')
-        else:
-            assert date is None
-            warnings.warn("argument 'ts' of origin_visit_add was renamed "
-                          "to 'date' in v0.0.109.",
-                          DeprecationWarning)
-            date = ts
-
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
             raise ValueError('Unknown origin.')
 
         if isinstance(date, str):
+            # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
         elif not isinstance(date, datetime.datetime):
             raise TypeError('date must be a datetime or a string.')
