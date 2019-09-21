@@ -16,6 +16,8 @@ import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
 
+from typing import ClassVar, Optional
+
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import origins, objects
@@ -42,8 +44,8 @@ class StorageTestDbFixture(StorageTestFixture):
 
 
 class TestStorageData:
-    def setUp(self):
-        super().setUp()
+    def setUp(self, *args, **kwargs):
+        super().setUp(*args, **kwargs)
 
         self.cont = {
             'data': b'42\n',
@@ -553,7 +555,7 @@ class CommonTestStorage(TestStorageData):
     class twice.
 
     """
-    maxDiff = None
+    maxDiff = None  # type: ClassVar[Optional[int]]
     _test_origin_ids = True
 
     @staticmethod
