@@ -258,19 +258,21 @@ class Storage():
         for item in content:
             item['ctime'] = now
 
-        if self.journal_writer:
-            for item in content:
-                if 'data' in item:
-                    item = item.copy()
-                    del item['data']
-                self.journal_writer.write_addition('content', item)
-
         content = [self._normalize_content(c) for c in content]
         for c in content:
             self._validate_content(c)
 
         (content_with_data, content_without_data, summary) = \
             self._filter_new_content(content, db, cur)
+
+        if self.journal_writer:
+            for item in content_with_data:
+                if 'data' in item:
+                    item = item.copy()
+                    del item['data']
+                self.journal_writer.write_addition('content', item)
+            for item in content_without_data:
+                self.journal_writer.write_addition('content', item)
 
         def add_to_objstorage():
             """Add to objstorage the new missing_content
@@ -366,10 +368,6 @@ class Storage():
                 content:add: New contents added
                 skipped_content:add: New skipped contents (no data) added
         """
-        if self.journal_writer:
-            for item in content:
-                assert 'data' not in content
-                self.journal_writer.write_addition('content', item)
 
         content = [self._normalize_content(c) for c in content]
         for c in content:
@@ -377,6 +375,12 @@ class Storage():
 
         (content_with_data, content_without_data, summary) = \
             self._filter_new_content(content, db, cur)
+
+        if self.journal_writer:
+            for item in itertools.chain(content_with_data,
+                                        content_without_data):
+                assert 'data' not in content
+                self.journal_writer.write_addition('content', item)
 
         self._content_add_metadata(
             db, cur, content_with_data, content_without_data)
@@ -596,8 +600,6 @@ class Storage():
 
         """
         summary = {'directory:add': 0}
-        if self.journal_writer:
-            self.journal_writer.write_additions('directory', directories)
 
         dirs = set()
         dir_entries = {
@@ -621,6 +623,12 @@ class Storage():
         dirs_missing = set(self.directory_missing(dirs, db=db, cur=cur))
         if not dirs_missing:
             return summary
+
+        if self.journal_writer:
+            self.journal_writer.write_additions(
+                'directory',
+                (dir_ for dir_ in directories
+                 if dir_['id'] in dirs_missing))
 
         # Copy directory ids
         dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
@@ -744,9 +752,6 @@ class Storage():
         """
         summary = {'revision:add': 0}
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('revision', revisions)
-
         revisions_missing = set(self.revision_missing(
             set(revision['id'] for revision in revisions),
             db=db, cur=cur))
@@ -756,9 +761,14 @@ class Storage():
 
         db.mktemp_revision(cur)
 
-        revisions_filtered = (
-            converters.revision_to_db(revision) for revision in revisions
-            if revision['id'] in revisions_missing)
+        revisions_filtered = [
+            revision for revision in revisions
+            if revision['id'] in revisions_missing]
+
+        if self.journal_writer:
+            self.journal_writer.write_additions('revision', revisions_filtered)
+
+        revisions_filtered = map(converters.revision_to_db, revisions_filtered)
 
         parents_filtered = []
 
@@ -877,9 +887,6 @@ class Storage():
         """
         summary = {'release:add': 0}
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('release', releases)
-
         release_ids = set(release['id'] for release in releases)
         releases_missing = set(self.release_missing(release_ids,
                                                     db=db, cur=cur))
@@ -891,10 +898,15 @@ class Storage():
 
         releases_missing = list(releases_missing)
 
-        releases_filtered = (
-            converters.release_to_db(release) for release in releases
+        releases_filtered = [
+            release for release in releases
             if release['id'] in releases_missing
-        )
+        ]
+
+        if self.journal_writer:
+            self.journal_writer.write_additions('release', releases_filtered)
+
+        releases_filtered = map(converters.release_to_db, releases_filtered)
 
         db.copy_to(releases_filtered, 'tmp_release', db.release_add_cols,
                    cur)

@@ -74,11 +74,6 @@ class Storage:
         return True
 
     def _content_add(self, contents, with_data):
-        if self.journal_writer:
-            for content in contents:
-                content = attr.evolve(content, data=None)
-                self.journal_writer.write_addition('content', content)
-
         content_with_data = []
         content_without_data = []
         for content in contents:
@@ -87,9 +82,18 @@ class Storage:
             if content.length is None:
                 content.length = -1
             if content.status == 'visible':
-                content_with_data.append(content)
+                if self._content_key(content) not in self._contents:
+                    content_with_data.append(content)
             elif content.status == 'absent':
-                content_without_data.append(content)
+                if self._content_key(content) not in self._skipped_contents:
+                    content_without_data.append(content)
+
+        if self.journal_writer:
+            for content in content_with_data:
+                content = attr.evolve(content, data=None)
+                self.journal_writer.write_addition('content', content)
+            for content in content_without_data:
+                self.journal_writer.write_addition('content', content)
 
         count_content_added, count_content_bytes_added = \
             self._content_add_present(content_with_data, with_data)
@@ -440,7 +444,10 @@ class Storage:
 
         """
         if self.journal_writer:
-            self.journal_writer.write_additions('directory', directories)
+            self.journal_writer.write_additions(
+                'directory',
+                (dir_ for dir_ in directories
+                 if dir_['id'] not in self._directories))
 
         directories = [Directory.from_dict(d) for d in directories]
 
@@ -592,7 +599,10 @@ class Storage:
 
         """
         if self.journal_writer:
-            self.journal_writer.write_additions('revision', revisions)
+            self.journal_writer.write_additions(
+                'revision',
+                (rev for rev in revisions
+                 if rev['id'] not in self._revisions))
 
         revisions = [Revision.from_dict(rev) for rev in revisions]
 
@@ -695,7 +705,10 @@ class Storage:
 
         """
         if self.journal_writer:
-            self.journal_writer.write_additions('release', releases)
+            self.journal_writer.write_additions(
+                'release',
+                (rel for rel in releases
+                 if rel['id'] not in self._releases))
 
         releases = [Release.from_dict(rel) for rel in releases]
 

@@ -662,13 +662,14 @@ class CommonTestStorage(TestStorageData):
             'skipped_content:add': 0
         })
 
-    def test_content_add_again(self):
+    def test_content_add_twice(self):
         actual_result = self.storage.content_add([self.cont])
         self.assertEqual(actual_result, {
             'content:add': 1,
             'content:add:bytes': self.cont['length'],
             'skipped_content:add': 0
         })
+        self.assertEqual(len(self.journal_writer.objects), 1)
 
         actual_result = self.storage.content_add([self.cont, self.cont2])
         self.assertEqual(actual_result, {
@@ -676,6 +677,7 @@ class CommonTestStorage(TestStorageData):
             'content:add:bytes': self.cont2['length'],
             'skipped_content:add': 0
         })
+        self.assertEqual(len(self.journal_writer.objects), 2)
 
         self.assertEqual(len(self.storage.content_find(self.cont)), 1)
         self.assertEqual(len(self.storage.content_find(self.cont2)), 1)
@@ -1029,6 +1031,19 @@ class CommonTestStorage(TestStorageData):
             self.assertEqual(cm.exception.pgcode,
                              psycopg2.errorcodes.NOT_NULL_VIOLATION)
 
+    def test_directory_add_twice(self):
+        actual_result = self.storage.directory_add([self.dir])
+        self.assertEqual(actual_result, {'directory:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('directory', self.dir)])
+
+        actual_result = self.storage.directory_add([self.dir])
+        self.assertEqual(actual_result, {'directory:add': 0})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('directory', self.dir)])
+
     def test_directory_get_recursive(self):
         init_missing = list(self.storage.directory_missing([self.dir['id']]))
         self.assertEqual([self.dir['id']], init_missing)
@@ -1177,10 +1192,6 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects),
                          [('revision', self.revision)])
 
-        # already there so nothing added
-        actual_result = self.storage.revision_add([self.revision])
-        self.assertEqual(actual_result, {'revision:add': 0})
-
     def test_revision_add_validation(self):
         rev = copy.deepcopy(self.revision)
         rev['date']['offset'] = 2**16
@@ -1214,6 +1225,21 @@ class CommonTestStorage(TestStorageData):
         if type(cm.exception) == psycopg2.DataError:
             self.assertEqual(cm.exception.pgcode,
                              psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION)
+
+    def test_revision_add_twice(self):
+        actual_result = self.storage.revision_add([self.revision])
+        self.assertEqual(actual_result, {'revision:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('revision', self.revision)])
+
+        actual_result = self.storage.revision_add(
+            [self.revision, self.revision2])
+        self.assertEqual(actual_result, {'revision:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('revision', self.revision),
+                          ('revision', self.revision2)])
 
     def test_revision_add_name_clash(self):
         revision1 = self.revision.copy()
@@ -1354,10 +1380,6 @@ class CommonTestStorage(TestStorageData):
                          [('release', self.release),
                           ('release', self.release2)])
 
-        # already present so nothing added
-        actual_result = self.storage.release_add([self.release, self.release2])
-        self.assertEqual(actual_result, {'release:add': 0})
-
     def test_release_add_no_author_date(self):
         release = self.release.copy()
         release['author'] = None
@@ -1394,6 +1416,20 @@ class CommonTestStorage(TestStorageData):
         if type(cm.exception) == psycopg2.IntegrityError:
             self.assertEqual(cm.exception.pgcode,
                              psycopg2.errorcodes.CHECK_VIOLATION)
+
+    def test_release_add_twice(self):
+        actual_result = self.storage.release_add([self.release])
+        self.assertEqual(actual_result, {'release:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('release', self.release)])
+
+        actual_result = self.storage.release_add([self.release, self.release2])
+        self.assertEqual(actual_result, {'release:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('release', self.release),
+                          ('release', self.release2)])
 
     def test_release_add_name_clash(self):
         release1 = self.release.copy()
@@ -1478,7 +1514,16 @@ class CommonTestStorage(TestStorageData):
 
     def test_origin_add_twice(self):
         add1 = self.storage.origin_add([self.origin, self.origin2])
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', self.origin),
+                          ('origin', self.origin2)])
+
         add2 = self.storage.origin_add([self.origin, self.origin2])
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('origin', self.origin),
+                          ('origin', self.origin2)])
 
         self.assertEqual(add1, add2)
 
@@ -2505,6 +2550,20 @@ class CommonTestStorage(TestStorageData):
             {**self.snapshot, 'next_branch': None},
             self.storage.snapshot_get(self.snapshot['id']))
 
+    def test_snapshot_add_twice(self):
+        actual_result = self.storage.snapshot_add([self.empty_snapshot])
+        self.assertEqual(actual_result, {'snapshot:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('snapshot', self.empty_snapshot)])
+
+        actual_result = self.storage.snapshot_add([self.snapshot])
+        self.assertEqual(actual_result, {'snapshot:add': 1})
+
+        self.assertEqual(list(self.journal_writer.objects),
+                         [('snapshot', self.empty_snapshot),
+                          ('snapshot', self.snapshot)])
+
     def test_snapshot_add_validation(self):
         snap = copy.deepcopy(self.snapshot)
         snap['branches'][b'foo'] = {'target_type': 'revision'}
@@ -2764,7 +2823,7 @@ class CommonTestStorage(TestStorageData):
         self.assertEqual(list(self.journal_writer.objects), [
             ('snapshot', self.snapshot)])
 
-    def test_snapshot_add_twice(self):
+    def test_snapshot_add_twice__by_origin_visit(self):
         origin_id = self.storage.origin_add_one(self.origin)
         origin_visit1 = self.storage.origin_visit_add(origin_id,
                                                       self.date_visit1)
