@@ -27,7 +27,8 @@ from swh.objstorage.exc import ObjNotFoundError
 try:
     from swh.journal.writer import get_journal_writer
 except ImportError:
-    get_journal_writer = None
+    get_journal_writer = None  # type: ignore
+    # mypy limitation, see https://github.com/python/mypy/issues/1153
 
 
 # Max block size of contents to return
