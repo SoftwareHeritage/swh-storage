@@ -119,6 +119,7 @@ class TestStorageData:
                 '2c772cc193778aac9a137b8dc5834b9b'),
             'reason': 'Content too long',
             'status': 'absent',
+            'origin': 'file:///dev/zero',
         }
 
         self.skipped_cont2 = {

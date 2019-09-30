@@ -150,6 +150,14 @@ class Storage:
 
         return count
 
+    def _content_to_model(self, contents):
+        """Takes a list of content dicts, optionally with an extra 'origin'
+        key, and yields tuples (model.Content, origin)."""
+        for content in contents:
+            content = content.copy()
+            content.pop('origin', None)
+            yield Content.from_dict(content)
+
     def content_add(self, content):
         """Add content blobs to the storage
 
@@ -179,7 +187,7 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = [Content.from_dict(c) for c in content]
+        content = list(self._content_to_model(content))
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         for item in content:
             item.ctime = now
@@ -214,7 +222,7 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = [Content.from_dict(c) for c in content]
+        content = list(self._content_to_model(content))
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):

@@ -198,6 +198,15 @@ class Storage():
                     raise
 
         if content_without_data:
+            content_without_data = \
+                [cont.copy() for cont in content_without_data]
+            origins = db.origin_get_by_url(
+                [cont.get('origin') for cont in content_without_data],
+                cur=cur)
+            for (cont, origin) in zip(content_without_data, origins):
+                origin = dict(zip(db.origin_cols, origin))
+                if 'origin' in cont:
+                    cont['origin'] = origin['id']
             db.mktemp('skipped_content', cur)
             db.copy_to(content_without_data, 'tmp_skipped_content',
                        db.skipped_content_keys, cur)
