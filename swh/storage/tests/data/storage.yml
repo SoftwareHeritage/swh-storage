@@ -1,0 +1,13 @@
+storage:
+  cls: local
+  args:
+    db: dbname=%s
+
+    objstorage:
+      cls: pathslicing
+      args:
+        root: TMPDIR
+        slicing: "0:1/1:5"
+
+    journal_writer:
+      cls: inmemory
