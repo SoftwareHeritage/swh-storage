@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2019  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 import itertools
 import json
-import warnings
 
 import dateutil.parser
 import psycopg2
@@ -21,11 +20,15 @@ from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageDBError
 from .algos import diff
-from .journal_writer import get_journal_writer
 
 from swh.model.hashutil import ALGORITHMS, hash_to_bytes
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
+try:
+    from swh.journal.writer import get_journal_writer
+except ImportError:
+    get_journal_writer = None  # type: ignore
+    # mypy limitation, see https://github.com/python/mypy/issues/1153
 
 
 # Max block size of contents to return
@@ -62,6 +65,10 @@ class Storage():
 
         self.objstorage = get_objstorage(**objstorage)
         if journal_writer:
+            if get_journal_writer is None:
+                raise EnvironmentError(
+                    'You need the swh.journal package to use the '
+                    'journal_writer feature')
             self.journal_writer = get_journal_writer(**journal_writer)
         else:
             self.journal_writer = None
@@ -192,6 +199,15 @@ class Storage():
                     raise
 
         if content_without_data:
+            content_without_data = \
+                [cont.copy() for cont in content_without_data]
+            origins = db.origin_get_by_url(
+                [cont.get('origin') for cont in content_without_data],
+                cur=cur)
+            for (cont, origin) in zip(content_without_data, origins):
+                origin = dict(zip(db.origin_cols, origin))
+                if 'origin' in cont:
+                    cont['origin'] = origin['id']
             db.mktemp('skipped_content', cur)
             db.copy_to(content_without_data, 'tmp_skipped_content',
                        db.skipped_content_keys, cur)
@@ -243,19 +259,21 @@ class Storage():
         for item in content:
             item['ctime'] = now
 
-        if self.journal_writer:
-            for item in content:
-                if 'data' in item:
-                    item = item.copy()
-                    del item['data']
-                self.journal_writer.write_addition('content', item)
-
         content = [self._normalize_content(c) for c in content]
         for c in content:
             self._validate_content(c)
 
         (content_with_data, content_without_data, summary) = \
             self._filter_new_content(content, db, cur)
+
+        if self.journal_writer:
+            for item in content_with_data:
+                if 'data' in item:
+                    item = item.copy()
+                    del item['data']
+                self.journal_writer.write_addition('content', item)
+            for item in content_without_data:
+                self.journal_writer.write_addition('content', item)
 
         def add_to_objstorage():
             """Add to objstorage the new missing_content
@@ -351,10 +369,6 @@ class Storage():
                 content:add: New contents added
                 skipped_content:add: New skipped contents (no data) added
         """
-        if self.journal_writer:
-            for item in content:
-                assert 'data' not in content
-                self.journal_writer.write_addition('content', item)
 
         content = [self._normalize_content(c) for c in content]
         for c in content:
@@ -362,6 +376,12 @@ class Storage():
 
         (content_with_data, content_without_data, summary) = \
             self._filter_new_content(content, db, cur)
+
+        if self.journal_writer:
+            for item in itertools.chain(content_with_data,
+                                        content_without_data):
+                assert 'data' not in content
+                self.journal_writer.write_addition('content', item)
 
         self._content_add_metadata(
             db, cur, content_with_data, content_without_data)
@@ -581,8 +601,6 @@ class Storage():
 
         """
         summary = {'directory:add': 0}
-        if self.journal_writer:
-            self.journal_writer.write_additions('directory', directories)
 
         dirs = set()
         dir_entries = {
@@ -606,6 +624,12 @@ class Storage():
         dirs_missing = set(self.directory_missing(dirs, db=db, cur=cur))
         if not dirs_missing:
             return summary
+
+        if self.journal_writer:
+            self.journal_writer.write_additions(
+                'directory',
+                (dir_ for dir_ in directories
+                 if dir_['id'] in dirs_missing))
 
         # Copy directory ids
         dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
@@ -729,9 +753,6 @@ class Storage():
         """
         summary = {'revision:add': 0}
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('revision', revisions)
-
         revisions_missing = set(self.revision_missing(
             set(revision['id'] for revision in revisions),
             db=db, cur=cur))
@@ -741,9 +762,14 @@ class Storage():
 
         db.mktemp_revision(cur)
 
-        revisions_filtered = (
-            converters.revision_to_db(revision) for revision in revisions
-            if revision['id'] in revisions_missing)
+        revisions_filtered = [
+            revision for revision in revisions
+            if revision['id'] in revisions_missing]
+
+        if self.journal_writer:
+            self.journal_writer.write_additions('revision', revisions_filtered)
+
+        revisions_filtered = map(converters.revision_to_db, revisions_filtered)
 
         parents_filtered = []
 
@@ -862,9 +888,6 @@ class Storage():
         """
         summary = {'release:add': 0}
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('release', releases)
-
         release_ids = set(release['id'] for release in releases)
         releases_missing = set(self.release_missing(release_ids,
                                                     db=db, cur=cur))
@@ -876,10 +899,15 @@ class Storage():
 
         releases_missing = list(releases_missing)
 
-        releases_filtered = (
-            converters.release_to_db(release) for release in releases
+        releases_filtered = [
+            release for release in releases
             if release['id'] in releases_missing
-        )
+        ]
+
+        if self.journal_writer:
+            self.journal_writer.write_additions('release', releases_filtered)
+
+        releases_filtered = map(converters.release_to_db, releases_filtered)
 
         db.copy_to(releases_filtered, 'tmp_release', db.release_add_cols,
                    cur)
@@ -1172,8 +1200,8 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, date=None, type=None,
-                         db=None, cur=None, *, ts=None):
+    def origin_visit_add(self, origin, date, type=None,
+                         db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         For backward compatibility, `type` is optional and defaults to
@@ -1181,7 +1209,7 @@ class Storage():
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
-            date: timestamp of such visit
+            date (Union[str,datetime]): timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
@@ -1191,16 +1219,6 @@ class Storage():
             - visit: the visit identifier for the new visit occurrence
 
         """
-        if ts is None:
-            if date is None:
-                raise TypeError('origin_visit_add expected 2 arguments.')
-        else:
-            assert date is None
-            warnings.warn("argument 'ts' of origin_visit_add was renamed "
-                          "to 'date' in v0.0.109.",
-                          DeprecationWarning)
-            date = ts
-
         if isinstance(origin, str):
             origin = self.origin_get({'url': origin}, db=db, cur=cur)
             origin_id = origin['id']
@@ -1209,6 +1227,7 @@ class Storage():
             origin_id = origin['id']
 
         if isinstance(date, str):
+            # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
 
         if type is None:
