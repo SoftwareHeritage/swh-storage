@@ -19,7 +19,7 @@ def storage(ctx):
 
 
 @storage.command(name='rpc-serve')
-@click.argument('config-path', required=1)
+@click.argument('config-path', required=True)
 @click.option('--host', default='0.0.0.0',
               metavar='IP', show_default=True,
               help="Host ip address to bind the server on")
