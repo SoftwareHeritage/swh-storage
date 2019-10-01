@@ -13,7 +13,6 @@ import copy
 import datetime
 import itertools
 import random
-import warnings
 
 import attr
 
@@ -23,7 +22,7 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
-from .journal_writer import get_journal_writer
+from .storage import get_journal_writer
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -75,11 +74,6 @@ class Storage:
         return True
 
     def _content_add(self, contents, with_data):
-        if self.journal_writer:
-            for content in contents:
-                content = attr.evolve(content, data=None)
-                self.journal_writer.write_addition('content', content)
-
         content_with_data = []
         content_without_data = []
         for content in contents:
@@ -88,9 +82,18 @@ class Storage:
             if content.length is None:
                 content.length = -1
             if content.status == 'visible':
-                content_with_data.append(content)
+                if self._content_key(content) not in self._contents:
+                    content_with_data.append(content)
             elif content.status == 'absent':
-                content_without_data.append(content)
+                if self._content_key(content) not in self._skipped_contents:
+                    content_without_data.append(content)
+
+        if self.journal_writer:
+            for content in content_with_data:
+                content = attr.evolve(content, data=None)
+                self.journal_writer.write_addition('content', content)
+            for content in content_without_data:
+                self.journal_writer.write_addition('content', content)
 
         count_content_added, count_content_bytes_added = \
             self._content_add_present(content_with_data, with_data)
@@ -151,6 +154,14 @@ class Storage:
 
         return count
 
+    def _content_to_model(self, contents):
+        """Takes a list of content dicts, optionally with an extra 'origin'
+        key, and yields tuples (model.Content, origin)."""
+        for content in contents:
+            content = content.copy()
+            content.pop('origin', None)
+            yield Content.from_dict(content)
+
     def content_add(self, content):
         """Add content blobs to the storage
 
@@ -180,7 +191,7 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = [Content.from_dict(c) for c in content]
+        content = list(self._content_to_model(content))
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         for item in content:
             item.ctime = now
@@ -215,7 +226,7 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = [Content.from_dict(c) for c in content]
+        content = list(self._content_to_model(content))
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -433,7 +444,10 @@ class Storage:
 
         """
         if self.journal_writer:
-            self.journal_writer.write_additions('directory', directories)
+            self.journal_writer.write_additions(
+                'directory',
+                (dir_ for dir_ in directories
+                 if dir_['id'] not in self._directories))
 
         directories = [Directory.from_dict(d) for d in directories]
 
@@ -585,7 +599,10 @@ class Storage:
 
         """
         if self.journal_writer:
-            self.journal_writer.write_additions('revision', revisions)
+            self.journal_writer.write_additions(
+                'revision',
+                (rev for rev in revisions
+                 if rev['id'] not in self._revisions))
 
         revisions = [Revision.from_dict(rev) for rev in revisions]
 
@@ -688,7 +705,10 @@ class Storage:
 
         """
         if self.journal_writer:
-            self.journal_writer.write_additions('release', releases)
+            self.journal_writer.write_additions(
+                'release',
+                (rel for rel in releases
+                 if rel['id'] not in self._releases))
 
         releases = [Release.from_dict(rel) for rel in releases]
 
@@ -1221,7 +1241,7 @@ class Storage:
         raise NotImplementedError('fetch_history_get is deprecated, use '
                                   'origin_visit_get instead.')
 
-    def origin_visit_add(self, origin, date=None, type=None, *, ts=None):
+    def origin_visit_add(self, origin, date, type=None):
         """Add an origin_visit for the origin at date with status 'ongoing'.
 
         For backward compatibility, `type` is optional and defaults to
@@ -1229,7 +1249,7 @@ class Storage:
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
-            date: timestamp of such visit
+            date (Union[str,datetime]): timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
         Returns:
@@ -1239,21 +1259,12 @@ class Storage:
             - visit: the visit's identifier for the new visit occurrence
 
         """
-        if ts is None:
-            if date is None:
-                raise TypeError('origin_visit_add expected 2 arguments.')
-        else:
-            assert date is None
-            warnings.warn("argument 'ts' of origin_visit_add was renamed "
-                          "to 'date' in v0.0.109.",
-                          DeprecationWarning)
-            date = ts
-
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
             raise ValueError('Unknown origin.')
 
         if isinstance(date, str):
+            # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
         elif not isinstance(date, datetime.datetime):
             raise TypeError('date must be a datetime or a string.')

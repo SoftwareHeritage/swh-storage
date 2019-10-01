@@ -38,13 +38,13 @@ def prepare_config_file(tmpdir, content, name='config.yml'):
 
 
 def test_load_and_check_config_no_configuration():
-    """Inexistant configuration files raises"""
+    """Inexistent configuration files raises"""
     with pytest.raises(EnvironmentError) as e:
         load_and_check_config(None)
 
     assert e.value.args[0] == 'Configuration file must be defined'
 
-    config_path = '/some/inexistant/config.yml'
+    config_path = '/some/inexistent/config.yml'
     with pytest.raises(FileNotFoundError) as e:
         load_and_check_config(config_path)
 
