@@ -174,7 +174,7 @@ swh/storage/converters.py
 swh/storage/db.py
 swh/storage/exc.py
 swh/storage/in_memory.py
-swh/storage/journal_writer.py
+swh/storage/py.typed
 swh/storage/storage.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py

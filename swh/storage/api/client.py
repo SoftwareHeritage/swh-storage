@@ -162,16 +162,7 @@ class RemoteStorage(RPCClient):
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
-    def origin_visit_add(self, origin, date, type=None, *, ts=None):
-        if ts is None:
-            if date is None:
-                raise TypeError('origin_visit_add expected 2 arguments.')
-        else:
-            assert date is None
-            warnings.warn("argument 'ts' of origin_visit_add was renamed "
-                          "to 'date' in v0.0.109.",
-                          DeprecationWarning)
-            date = ts
+    def origin_visit_add(self, origin, date, type=None):
         return self.post(
             'origin/visit/add',
             {'origin': origin, 'date': date, 'type': type})

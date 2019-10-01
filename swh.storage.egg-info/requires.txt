@@ -8,9 +8,14 @@ swh.core[db,http]>=0.0.65
 swh.model>=0.0.41
 swh.objstorage>=0.0.17
 
+[journal]
+swh.journal>=0.0.17
+
 [schemata]
 SQLAlchemy
 
 [testing]
 hypothesis>=3.11.0
 pytest
+sqlalchemy-stubs
+swh.journal>=0.0.17
