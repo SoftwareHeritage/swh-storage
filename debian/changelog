@@ -1,3 +1,24 @@
+swh-storage (0.0.151-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.151     - (tagged by Stefano Zacchiroli
+    <zack@upsilon.cc> on 2019-10-01 10:04:36 +0200)
+  * Upstream changes:     - v0.0.151     - * tox: anticipate mypy run to
+    just after flake8     - * mypy.ini: be less flaky w.r.t. the
+    packages installed in tox     - * storage.py: ignore typing of
+    optional get_journal_writer import     - * mypy: ignore swh.journal
+    to work-around dependency loop     - * init.py: switch to documented
+    way of extending path     - * typing: minimal changes to make a no-
+    op mypy run pass     - * Write objects to the journal only if they
+    don't exist yet.     - * Use origin URLs for
+    skipped_content['origin'] instead of origin ids.     - * Properly
+    mock get_journal_writer for the remote-pg-storage tests.     - *
+    journal_writer: use journal writer from swh.journal     - * fix
+    typos in docstrings and sample paths     - *
+    storage.origin_visit_add: Remove deprecated 'ts' parameter     - *
+    click "required" param wants bool, not int
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 01 Oct 2019 08:09:53 +0000
+
 swh-storage (0.0.150-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.150     - (tagged by Antoine R. Dumont
