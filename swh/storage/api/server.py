@@ -126,6 +126,7 @@ storage server.<br />
 See its
 <a href="https://docs.softwareheritage.org/devel/swh-storage/">documentation
 and API</a> for more information</p>
+</body>
 </html>'''
 
 
