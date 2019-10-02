@@ -42,6 +42,8 @@ class StorageTestDbFixture(StorageTestFixture):
 
     def tearDown(self):
         self.reset_storage()
+        if hasattr(self.storage, '_pool') and self.storage._pool:
+            self.storage._pool.closeall()
         super().tearDown()
 
 
