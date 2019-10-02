@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from contextlib import contextmanager
 import shutil
 import tempfile
 import unittest
@@ -16,6 +17,7 @@ import swh.storage.api.server as server
 from swh.storage.api.server import app
 from swh.storage.in_memory import Storage as InMemoryStorage
 import swh.storage.storage
+from swh.storage.db import Db
 from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage, StorageTestDbFixture
 
@@ -72,6 +74,10 @@ class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
         excluded = {'dbversion', 'tool'}
         self.reset_db_tables(self.TEST_DB_NAME, excluded=excluded)
         self.journal_writer.objects[:] = []
+
+    @contextmanager
+    def get_db(self):
+        yield Db(self.conn)
 
 
 class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):

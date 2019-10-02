@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import copy
+from contextlib import contextmanager
 import datetime
 import itertools
 import queue
@@ -45,6 +46,15 @@ class StorageTestDbFixture(StorageTestFixture):
         if hasattr(self.storage, '_pool') and self.storage._pool:
             self.storage._pool.closeall()
         super().tearDown()
+
+    def get_db(self):
+        return self.storage.db()
+
+    @contextmanager
+    def db_transaction(self):
+        with self.get_db() as db:
+            with db.transaction() as cur:
+                yield db, cur
 
 
 class TestStorageData:
