@@ -51,7 +51,7 @@ class TestInMemoryStorage(CommonTestStorage, unittest.TestCase):
             pass
 
     def reset_storage(self):
-        self.storage = Storage(journal_writer={'cls': 'inmemory'})
+        self.storage = Storage(journal_writer={'cls': 'memory'})
         self.journal_writer = self.storage.journal_writer
 
 

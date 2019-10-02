@@ -44,7 +44,7 @@ class StorageTestFixture(SingleDbTestFixture):
                     },
                 },
                 'journal_writer': {
-                    'cls': 'inmemory',
+                    'cls': 'memory',
                 },
             },
         }
