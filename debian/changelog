@@ -1,3 +1,16 @@
+swh-storage (0.0.152-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.152     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-10-08 16:55:43
+    +0200)
+  * Upstream changes:     - v0.0.152     - swh.storage.buffer: Add
+    buffering proxy storage implementation     - swh.storage.filter: Add
+    filtering storage implementation     - swh.storage.tests: Improve db
+    transaction handling     - swh.storage.tests: Add more tests     -
+    swh.storage.storage: introduce a db() context manager
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 08 Oct 2019 15:03:16 +0000
+
 swh-storage (0.0.151-1~swh2) unstable-swh; urgency=medium
 
   * Add missing build-dependency on python3-swh.journal
