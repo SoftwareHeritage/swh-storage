@@ -13,7 +13,7 @@ class HashCollision(Exception):
     pass
 
 
-STORAGE_IMPLEMENTATION = {'local', 'remote', 'memory'}
+STORAGE_IMPLEMENTATION = {'local', 'remote', 'memory', 'filter'}
 
 
 def get_storage(cls, args):
@@ -22,7 +22,7 @@ def get_storage(cls, args):
 
     Args:
         storage (dict): dictionary with keys:
-        - cls (str): storage's class, either local, remote, memory
+        - cls (str): storage's class, either local, remote, memory, filter
         - args (dict): dictionary with keys
 
     Returns:
@@ -42,5 +42,7 @@ def get_storage(cls, args):
         from .storage import Storage
     elif cls == 'memory':
         from .in_memory import Storage
+    elif cls == 'filter':
+        from .filter import FilteringProxyStorage as Storage
 
     return Storage(**args)
