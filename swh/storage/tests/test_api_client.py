@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from contextlib import contextmanager
 import shutil
 import tempfile
 import unittest
@@ -16,6 +17,7 @@ import swh.storage.api.server as server
 from swh.storage.api.server import app
 from swh.storage.in_memory import Storage as InMemoryStorage
 import swh.storage.storage
+from swh.storage.db import Db
 from swh.storage.tests.test_storage import \
     CommonTestStorage, CommonPropTestStorage, StorageTestDbFixture
 
@@ -23,10 +25,10 @@ from swh.storage.tests.test_storage import \
 class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
                              unittest.TestCase):
     def setUp(self):
-        journal_writer = get_journal_writer(cls='inmemory')
+        journal_writer = get_journal_writer(cls='memory')
 
         def mock_get_journal_writer(cls, args=None):
-            assert cls == 'inmemory'
+            assert cls == 'memory'
             return journal_writer
 
         self.journal_writer = journal_writer
@@ -54,7 +56,7 @@ class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
                         },
                     },
                     'journal_writer': {
-                        'cls': 'inmemory',
+                        'cls': 'memory',
                     }
                 }
             }
@@ -73,6 +75,10 @@ class RemotePgStorageFixture(StorageTestDbFixture, ServerTestFixture,
         self.reset_db_tables(self.TEST_DB_NAME, excluded=excluded)
         self.journal_writer.objects[:] = []
 
+    @contextmanager
+    def get_db(self):
+        yield Db(self.conn)
+
 
 class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):
     def setUp(self):
@@ -81,13 +87,13 @@ class RemoteMemStorageFixture(ServerTestFixture, unittest.TestCase):
                 'cls': 'memory',
                 'args': {
                     'journal_writer': {
-                        'cls': 'inmemory',
+                        'cls': 'memory',
                     }
                 }
             }
         }
         self.__storage = InMemoryStorage(
-            journal_writer={'cls': 'inmemory'})
+            journal_writer={'cls': 'memory'})
 
         self._get_storage_patcher = unittest.mock.patch(
             'swh.storage.api.server.get_storage', return_value=self.__storage)
