@@ -2879,14 +2879,14 @@ class TestStorage:
                     provider['id'],
                     tool['id'],
                     data.origin_metadata2['metadata'])
-        all_metadatas = list(swh_storage.origin_metadata_get_by(
-            origin_id))
+        all_metadatas = list(sorted(swh_storage.origin_metadata_get_by(
+            origin_id), key=lambda x: x['discovery_date']))
         metadatas_for_origin2 = list(swh_storage.origin_metadata_get_by(
             origin_id2))
         expected_results = [{
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
-                                2017, 1, 1, 23, 0,
+                                2015, 1, 1, 23, 0,
                                 tzinfo=datetime.timezone.utc),
             'metadata': {
                 'name': 'test_origin_metadata',
@@ -2900,7 +2900,7 @@ class TestStorage:
         }, {
             'origin_id': origin_id,
             'discovery_date': datetime.datetime(
-                                2015, 1, 1, 23, 0,
+                                2017, 1, 1, 23, 0,
                                 tzinfo=datetime.timezone.utc),
             'metadata': {
                 'name': 'test_origin_metadata',
