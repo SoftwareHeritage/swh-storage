@@ -4,9 +4,12 @@
 # See top-level LICENSE file for more information
 
 import copy
+from contextlib import contextmanager
 import datetime
 import itertools
+import queue
 import random
+import threading
 import unittest
 from collections import defaultdict
 from unittest.mock import Mock, patch
@@ -31,16 +34,22 @@ from .generate_data_test import gen_contents
 class StorageTestDbFixture(StorageTestFixture):
     def setUp(self):
         super().setUp()
-
-        db = self.test_db[self.TEST_DB_NAME]
-        self.conn = db.conn
-        self.cursor = db.cursor
-
         self.maxDiff = None
 
     def tearDown(self):
         self.reset_storage()
+        if hasattr(self.storage, '_pool') and self.storage._pool:
+            self.storage._pool.closeall()
         super().tearDown()
+
+    def get_db(self):
+        return self.storage.db()
+
+    @contextmanager
+    def db_transaction(self):
+        with self.get_db() as db:
+            with db.transaction() as cur:
+                yield db, cur
 
 
 class TestStorageData:
@@ -697,13 +706,15 @@ class CommonTestStorage(TestStorageData):
 
         if hasattr(self.storage, 'objstorage'):
             self.assertIn(cont['sha1'], self.storage.objstorage)
-        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
-                            ' FROM content WHERE sha1 = %s',
-                            (cont['sha1'],))
-        datum = self.cursor.fetchone()
+
+        with self.db_transaction() as (_, cur):
+            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
+                        ' FROM content WHERE sha1 = %s',
+                        (cont['sha1'],))
+            datum = cur.fetchone()
+
         self.assertEqual(
-            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
-             datum[3], datum[4]),
+            datum,
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible'))
 
@@ -788,13 +799,15 @@ class CommonTestStorage(TestStorageData):
 
         if hasattr(self.storage, 'objstorage'):
             self.assertNotIn(cont['sha1'], self.storage.objstorage)
-        self.cursor.execute('SELECT sha1, sha1_git, sha256, length, status'
-                            ' FROM content WHERE sha1 = %s',
-                            (cont['sha1'],))
-        datum = self.cursor.fetchone()
+
+        with self.db_transaction() as (_, cur):
+            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
+                        ' FROM content WHERE sha1 = %s',
+                        (cont['sha1'],))
+            datum = cur.fetchone()
+
         self.assertEqual(
-            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
-             datum[3], datum[4]),
+            datum,
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible'))
 
@@ -830,26 +843,23 @@ class CommonTestStorage(TestStorageData):
             'skipped_content:add': 2,
         })
 
-        self.cursor.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
-                            'length, status, reason '
-                            'FROM skipped_content ORDER BY sha1_git')
+        with self.db_transaction() as (_, cur):
+            cur.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
+                        'length, status, reason '
+                        'FROM skipped_content ORDER BY sha1_git')
 
-        datums = self.cursor.fetchall()
+            data = cur.fetchall()
 
-        self.assertEqual(2, len(datums))
-        datum = datums[0]
+        self.assertEqual(2, len(data))
         self.assertEqual(
-            (datum[0].tobytes(), datum[1].tobytes(), datum[2].tobytes(),
-             datum[3].tobytes(), datum[4], datum[5], datum[6]),
+            data[0],
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['blake2s256'], cont['length'], 'absent',
              'Content too long')
         )
 
-        datum2 = datums[1]
         self.assertEqual(
-            (datum2[0].tobytes(), datum2[1].tobytes(), datum2[2].tobytes(),
-             datum2[3], datum2[4], datum2[5], datum2[6]),
+            data[1],
             (cont2['sha1'], cont2['sha1_git'], cont2['sha256'],
              cont2['blake2s256'], cont2['length'], 'absent',
              'Content too long')
@@ -4034,6 +4044,43 @@ class TestLocalStorage(CommonTestStorage, StorageTestDbFixture,
 
 
 @pytest.mark.db
+class TestStorageRaceConditions(TestStorageData, StorageTestDbFixture,
+                                unittest.TestCase):
+    @pytest.mark.xfail
+    def test_content_add_race(self):
+
+        results = queue.Queue()
+
+        def thread():
+            try:
+                with self.db_transaction() as (db, cur):
+                    ret = self.storage.content_add([self.cont], db=db,
+                                                   cur=cur)
+                results.put((threading.get_ident(), 'data', ret))
+            except Exception as e:
+                results.put((threading.get_ident(), 'exc', e))
+
+        t1 = threading.Thread(target=thread)
+        t2 = threading.Thread(target=thread)
+        t1.start()
+        # this avoids the race condition
+        # import time
+        # time.sleep(1)
+        t2.start()
+        t1.join()
+        t2.join()
+
+        r1 = results.get(block=False)
+        r2 = results.get(block=False)
+
+        with pytest.raises(queue.Empty):
+            results.get(block=False)
+        assert r1[0] != r2[0]
+        assert r1[1] == 'data', 'Got exception %r in Thread%s' % (r1[2], r1[0])
+        assert r2[1] == 'data', 'Got exception %r in Thread%s' % (r2[2], r2[0])
+
+
+@pytest.mark.db
 @pytest.mark.property_based
 class PropTestLocalStorage(CommonPropTestStorage, StorageTestDbFixture,
                            unittest.TestCase):
@@ -4060,7 +4107,7 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
 
         self.storage.content_update([cont], keys=['sha1_git'])
 
-        with self.storage.get_db().transaction() as cur:
+        with self.db_transaction() as (_, cur):
             cur.execute('SELECT sha1, sha1_git, sha256, length, status'
                         ' FROM content WHERE sha1 = %s',
                         (cont['sha1'],))
@@ -4075,7 +4122,7 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
     def test_content_update_with_new_cols(self):
         self.storage.journal_writer = None  # TODO, not supported
 
-        with self.storage.get_db().transaction() as cur:
+        with self.db_transaction() as (db, cur):
             cur.execute("""alter table content
                            add column test text default null,
                            add column test2 text default null""")
@@ -4086,10 +4133,11 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
         cont['test2'] = 'value-2'
 
         self.storage.content_update([cont], keys=['test', 'test2'])
-        with self.storage.get_db().transaction() as cur:
+        with self.db_transaction() as (_, cur):
             cur.execute(
-                'SELECT sha1, sha1_git, sha256, length, status, test, test2'
-                ' FROM content WHERE sha1 = %s',
+                '''SELECT sha1, sha1_git, sha256, length, status,
+                   test, test2
+                   FROM content WHERE sha1 = %s''',
                 (cont['sha1'],))
 
             datum = cur.fetchone()
@@ -4100,6 +4148,6 @@ class AlteringSchemaTest(TestStorageData, StorageTestDbFixture,
             (cont['sha1'], cont['sha1_git'], cont['sha256'],
              cont['length'], 'visible', cont['test'], cont['test2']))
 
-        with self.storage.get_db().transaction() as cur:
+        with self.db_transaction() as (_, cur):
             cur.execute("""alter table content drop column test,
-                           drop column test2""")
+                                               drop column test2""")

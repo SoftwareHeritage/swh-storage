@@ -7,6 +7,7 @@
 from collections import defaultdict
 import copy
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import datetime
 import itertools
 import json
@@ -82,6 +83,16 @@ class Storage():
     def put_db(self, db):
         if db is not self._db:
             db.put_conn()
+
+    @contextmanager
+    def db(self):
+        db = None
+        try:
+            db = self.get_db()
+            yield db
+        finally:
+            if db:
+                self.put_db(db)
 
     @db_transaction()
     def check_config(self, *, check_write, db, cur):
