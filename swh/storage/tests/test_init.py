@@ -12,6 +12,7 @@ from swh.storage import get_storage
 from swh.storage.api.client import RemoteStorage
 from swh.storage.storage import Storage as DbStorage
 from swh.storage.in_memory import Storage as MemoryStorage
+from swh.storage.buffer import BufferingProxyStorage
 from swh.storage.filter import FilteringProxyStorage
 
 
@@ -31,7 +32,10 @@ def test_get_storage(mock_pool):
             }),
             ('filter', FilteringProxyStorage, {'storage': {
                 'cls': 'memory', 'args': {}}
-            })
+            }),
+            ('buffer', BufferingProxyStorage, {'storage': {
+                'cls': 'memory', 'args': {}}
+            }),
     ]:
         actual_storage = get_storage(cls, args=dummy_args)
         assert actual_storage is not None
