@@ -22,32 +22,9 @@ from typing import ClassVar, Optional
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
-from swh.storage.tests.storage_testing import StorageTestFixture
 from swh.storage import HashCollision
 
 from .storage_data import data
-
-
-@pytest.mark.db
-class StorageTestDbFixture(StorageTestFixture):
-    def setUp(self):
-        super().setUp()
-        self.maxDiff = None
-
-    def tearDown(self):
-        self.reset_storage()
-        if hasattr(self.storage, '_pool') and self.storage._pool:
-            self.storage._pool.closeall()
-        super().tearDown()
-
-    def get_db(self):
-        return self.storage.db()
-
-    @contextmanager
-    def db_transaction(self):
-        with self.get_db() as db:
-            with db.transaction() as cur:
-                yield db, cur
 
 
 @contextmanager
