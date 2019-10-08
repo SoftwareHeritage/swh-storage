@@ -10,7 +10,7 @@ from swh.storage.in_memory import Storage, ENABLE_ORIGIN_IDS
 
 from swh.storage.tests.test_storage import (
     TestStorage as _TestStorage,
-    TestStorageCommonProp as _TestStorageCommonProp)
+    TestStorageGeneratedData as _TestStorageCommonProp)
 
 
 @pytest.mark.xfail

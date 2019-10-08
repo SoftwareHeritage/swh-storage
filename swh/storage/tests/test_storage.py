@@ -90,7 +90,7 @@ def short_revision(revision):
 
 
 class TestStorage:
-    """Base class for Storage testing.
+    """Main class for Storage testing.
 
     This class is used as-is to test local storage (see TestLocalStorage
     below) and remote storage (see TestRemoteStorage in
@@ -3010,7 +3010,7 @@ class TestStorage:
         assert m_by_provider == expected_results
 
 
-class TestStorageCommonProp:
+class TestStorageGeneratedData:
     _test_origin_ids = True
 
     def assert_contents_ok(self, expected_contents, actual_contents,
