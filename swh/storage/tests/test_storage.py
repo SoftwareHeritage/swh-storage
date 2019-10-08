@@ -216,36 +216,6 @@ class TestStorage:
         assert len(swh_storage.content_find(data.cont)) == 1
         assert len(swh_storage.content_find(data.cont2)) == 1
 
-    def test_content_add_db(self, swh_storage):
-        cont = data.cont
-
-        actual_result = swh_storage.content_add([cont])
-
-        assert actual_result == {
-            'content:add': 1,
-            'content:add:bytes': cont['length'],
-            'skipped_content:add': 0
-            }
-
-        if hasattr(swh_storage, 'objstorage'):
-            assert cont['sha1'] in swh_storage.objstorage
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
-                        ' FROM content WHERE sha1 = %s',
-                        (cont['sha1'],))
-            datum = cur.fetchone()
-
-        assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
-                         cont['length'], 'visible')
-
-        expected_cont = cont.copy()
-        del expected_cont['data']
-        journal_objects = list(swh_storage.journal_writer.objects)
-        for (obj_type, obj) in journal_objects:
-            del obj['ctime']
-        assert journal_objects == [('content', expected_cont)]
-
     def test_content_add_collision(self, swh_storage):
         cont1 = data.cont
 
@@ -303,30 +273,6 @@ class TestStorage:
             'skipped_content:add': 0
             }
 
-    def test_content_add_metadata_db(self, swh_storage):
-        cont = data.cont
-        del cont['data']
-        cont['ctime'] = datetime.datetime.now()
-
-        actual_result = swh_storage.content_add_metadata([cont])
-
-        assert actual_result == {
-            'content:add': 1,
-            'skipped_content:add': 0
-            }
-
-        if hasattr(swh_storage, 'objstorage'):
-            assert cont['sha1'] not in swh_storage.objstorage
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
-                        ' FROM content WHERE sha1 = %s',
-                        (cont['sha1'],))
-            datum = cur.fetchone()
-        assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
-                         cont['length'], 'visible')
-
-        assert list(swh_storage.journal_writer.objects) == [('content', cont)]
-
     def test_content_add_metadata_collision(self, swh_storage):
         cont1 = data.cont
         del cont1['data']
@@ -342,35 +288,6 @@ class TestStorage:
             swh_storage.content_add_metadata([cont1, cont1b])
 
         assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
-
-    def test_skipped_content_add_db(self, swh_storage):
-        cont = data.skipped_cont
-        cont2 = data.skipped_cont2
-        cont2['blake2s256'] = None
-
-        actual_result = swh_storage.content_add([cont, cont, cont2])
-
-        assert actual_result == {
-            'content:add': 0,
-            'content:add:bytes': 0,
-            'skipped_content:add': 2,
-            }
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
-                        'length, status, reason '
-                        'FROM skipped_content ORDER BY sha1_git')
-
-            datum = cur.fetchall()
-
-        assert len(datum) == 2
-        assert datum[0] == (cont['sha1'], cont['sha1_git'], cont['sha256'],
-                            cont['blake2s256'], cont['length'], 'absent',
-                            'Content too long')
-
-        assert datum[1] == (cont2['sha1'], cont2['sha1_git'], cont2['sha256'],
-                            cont2['blake2s256'], cont2['length'], 'absent',
-                            'Content too long')
 
     def test_skipped_content_add(self, swh_storage):
         cont = data.skipped_cont
@@ -3462,7 +3379,7 @@ class TestStorageRaceConditions:
 
 
 @pytest.mark.db
-class TestAlteringSchema:
+class TestPgStorage:
     """This class is dedicated for the rare case where the schema needs to
        be altered dynamically.
 
@@ -3520,3 +3437,86 @@ class TestAlteringSchema:
         with db_transaction(swh_storage) as (_, cur):
             cur.execute("""alter table content drop column test,
                                                drop column test2""")
+
+    def test_content_add_db(self, swh_storage):
+        cont = data.cont
+
+        actual_result = swh_storage.content_add([cont])
+
+        assert actual_result == {
+            'content:add': 1,
+            'content:add:bytes': cont['length'],
+            'skipped_content:add': 0
+            }
+
+        if hasattr(swh_storage, 'objstorage'):
+            assert cont['sha1'] in swh_storage.objstorage
+
+        with db_transaction(swh_storage) as (_, cur):
+            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
+                        ' FROM content WHERE sha1 = %s',
+                        (cont['sha1'],))
+            datum = cur.fetchone()
+
+        assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
+                         cont['length'], 'visible')
+
+        expected_cont = cont.copy()
+        del expected_cont['data']
+        journal_objects = list(swh_storage.journal_writer.objects)
+        for (obj_type, obj) in journal_objects:
+            del obj['ctime']
+        assert journal_objects == [('content', expected_cont)]
+
+    def test_content_add_metadata_db(self, swh_storage):
+        cont = data.cont
+        del cont['data']
+        cont['ctime'] = datetime.datetime.now()
+
+        actual_result = swh_storage.content_add_metadata([cont])
+
+        assert actual_result == {
+            'content:add': 1,
+            'skipped_content:add': 0
+            }
+
+        if hasattr(swh_storage, 'objstorage'):
+            assert cont['sha1'] not in swh_storage.objstorage
+        with db_transaction(swh_storage) as (_, cur):
+            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
+                        ' FROM content WHERE sha1 = %s',
+                        (cont['sha1'],))
+            datum = cur.fetchone()
+        assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
+                         cont['length'], 'visible')
+
+        assert list(swh_storage.journal_writer.objects) == [('content', cont)]
+
+    def test_skipped_content_add_db(self, swh_storage):
+        cont = data.skipped_cont
+        cont2 = data.skipped_cont2
+        cont2['blake2s256'] = None
+
+        actual_result = swh_storage.content_add([cont, cont, cont2])
+
+        assert actual_result == {
+            'content:add': 0,
+            'content:add:bytes': 0,
+            'skipped_content:add': 2,
+            }
+
+        with db_transaction(swh_storage) as (_, cur):
+            cur.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
+                        'length, status, reason '
+                        'FROM skipped_content ORDER BY sha1_git')
+
+            dbdata = cur.fetchall()
+
+        assert len(dbdata) == 2
+        assert dbdata[0] == (cont['sha1'], cont['sha1_git'], cont['sha256'],
+                             cont['blake2s256'], cont['length'], 'absent',
+                             'Content too long')
+
+        assert dbdata[1] == (cont2['sha1'], cont2['sha1_git'], cont2['sha256'],
+                             cont2['blake2s256'], cont2['length'], 'absent',
+                             'Content too long')
