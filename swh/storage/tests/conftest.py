@@ -18,10 +18,7 @@ DUMP_FILES = path.join(SQL_DIR, '*.sql')
 
 
 @pytest.fixture
-def swh_storage(postgresql_proc, swh_storage_postgresql, tmp_path):
-
-    objdir = tmp_path / 'objstorage'
-    objdir.mkdir()
+def swh_storage(postgresql_proc, swh_storage_postgresql):
     storage_config = {
         'cls': 'local',
         'args': {
@@ -31,11 +28,8 @@ def swh_storage(postgresql_proc, swh_storage_postgresql, tmp_path):
                 user='postgres',
                 dbname='tests'),
             'objstorage': {
-                'cls': 'pathslicing',
-                'args': {
-                    'root': str(objdir),
-                    'slicing': '0:1/1:5',
-                },
+                'cls': 'memory',
+                'args': {}
             },
             'journal_writer': {
                 'cls': 'memory',
