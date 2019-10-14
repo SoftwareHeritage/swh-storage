@@ -3,51 +3,41 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import unittest
-
-import pytest
-
 from hypothesis import given
-from hypothesis.strategies import datetimes
 
 from swh.model.identifiers import snapshot_identifier, identifier_to_bytes
 from swh.model.hypothesis_strategies import \
-    origins, snapshots, branch_names, branch_targets
+    snapshots, branch_names, branch_targets
 
 from swh.storage.algos.snapshot import snapshot_get_all_branches
+from swh.storage.tests.test_in_memory import swh_storage  # noqa
 
 
-@pytest.mark.xfail
-@pytest.mark.db
-@pytest.mark.property_based
-class TestSnapshotAllBranches(unittest.TestCase):
-    @given(origins().map(lambda x: x.to_dict()),
-           datetimes(),
-           snapshots(min_size=0, max_size=10, only_objects=False))
-    def test_snapshot_small(self, origin, ts, snapshot):
-        snapshot = snapshot.to_dict()
-        self.storage.snapshot_add([snapshot])
+@given(snapshot=snapshots(min_size=0, max_size=10, only_objects=False))
+def test_snapshot_small(swh_storage, snapshot):  # noqa
+    snapshot = snapshot.to_dict()
+    swh_storage.snapshot_add([snapshot])
 
-        returned_snapshot = snapshot_get_all_branches(self.storage,
-                                                      snapshot['id'])
-        self.assertEqual(snapshot, returned_snapshot)
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot['id'])
+    assert snapshot == returned_snapshot
 
-    @given(origins().map(lambda x: x.to_dict()),
-           datetimes(),
-           branch_names(), branch_targets(only_objects=True))
-    def test_snapshot_large(self, origin, ts, branch_name, branch_target):
-        branch_target = branch_target.to_dict()
 
-        snapshot = {
-            'branches': {
-                b'%s%05d' % (branch_name, i): branch_target
-                for i in range(10000)
-            }
+@given(branch_name=branch_names(),
+       branch_target=branch_targets(only_objects=True))
+def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
+    branch_target = branch_target.to_dict()
+
+    snapshot = {
+        'branches': {
+            b'%s%05d' % (branch_name, i): branch_target
+            for i in range(10000)
         }
-        snapshot['id'] = identifier_to_bytes(snapshot_identifier(snapshot))
+    }
+    snapshot['id'] = identifier_to_bytes(snapshot_identifier(snapshot))
 
-        self.storage.snapshot_add([snapshot])
+    swh_storage.snapshot_add([snapshot])
 
-        returned_snapshot = snapshot_get_all_branches(self.storage,
-                                                      snapshot['id'])
-        self.assertEqual(snapshot, returned_snapshot)
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot['id'])
+    assert snapshot == returned_snapshot
