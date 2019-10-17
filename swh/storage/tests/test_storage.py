@@ -10,7 +10,7 @@ import itertools
 import queue
 import threading
 from collections import defaultdict
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import psycopg2
 import pytest
@@ -3273,36 +3273,6 @@ class TestStorageGeneratedData:
 class TestLocalStorage:
     """Test the local storage"""
     _test_origin_ids = True
-
-    # Can only be tested with local storage as you can't mock
-    # datetimes for the remote server
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_fetch_history(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
-
-        origin_id = swh_storage.origin_add_one(data.origin)
-        origin_id_or_url = data.origin['url'] if use_url else origin_id
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = data.fetch_history_date
-            fetch_history_id = swh_storage.fetch_history_start(
-                origin_id_or_url)
-            datetime.datetime.now.assert_called_with(tz=datetime.timezone.utc)
-
-        with patch('datetime.datetime'):
-            datetime.datetime.now.return_value = data.fetch_history_end
-            swh_storage.fetch_history_end(fetch_history_id,
-                                          data.fetch_history_data)
-
-        fetch_history = swh_storage.fetch_history_get(fetch_history_id)
-        expected_fetch_history = data.fetch_history_data.copy()
-
-        expected_fetch_history['id'] = fetch_history_id
-        expected_fetch_history['origin'] = origin_id
-        expected_fetch_history['date'] = data.fetch_history_date
-        expected_fetch_history['duration'] = data.fetch_history_duration
-
-        assert expected_fetch_history == fetch_history
 
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception

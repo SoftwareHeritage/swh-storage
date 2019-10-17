@@ -440,26 +440,6 @@ def origin_visit_upsert():
         **decode_request(request)))
 
 
-@app.route('/fetch_history', methods=['GET'])
-@timed
-def fetch_history_get():
-    return encode_data(get_storage().fetch_history_get(request.args['id']))
-
-
-@app.route('/fetch_history/start', methods=['POST'])
-@timed
-def fetch_history_start():
-    return encode_data(
-        get_storage().fetch_history_start(**decode_request(request)))
-
-
-@app.route('/fetch_history/end', methods=['POST'])
-@timed
-def fetch_history_end():
-    return encode_data(
-        get_storage().fetch_history_end(**decode_request(request)))
-
-
 @app.route('/tool/data', methods=['POST'])
 @timed
 def tool_get():

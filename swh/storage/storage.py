@@ -1663,47 +1663,6 @@ class Storage():
 
         return db.origin_add(origin['type'], origin['url'], cur)
 
-    @db_transaction()
-    def fetch_history_start(self, origin_id, db=None, cur=None):
-        """Add an entry for origin origin_id in fetch_history. Returns the id
-        of the added fetch_history entry
-        """
-        if isinstance(origin_id, str):
-            origin = \
-                self.origin_get([{'url': origin_id}], db=db, cur=cur)
-            if not origin:
-                return
-            origin_id = origin[0]['id']
-        fetch_history = {
-            'origin': origin_id,
-            'date': datetime.datetime.now(tz=datetime.timezone.utc),
-        }
-
-        return db.create_fetch_history(fetch_history, cur)
-
-    @db_transaction()
-    def fetch_history_end(self, fetch_history_id, data, db=None, cur=None):
-        """Close the fetch_history entry with id `fetch_history_id`, replacing
-           its data with `data`.
-        """
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        fetch_history = db.get_fetch_history(fetch_history_id, cur)
-
-        if not fetch_history:
-            raise ValueError('No fetch_history with id %d' % fetch_history_id)
-
-        fetch_history['duration'] = now - fetch_history['date']
-
-        fetch_history.update(data)
-
-        db.update_fetch_history(fetch_history, cur)
-
-    @db_transaction()
-    def fetch_history_get(self, fetch_history_id, db=None, cur=None):
-        """Get the fetch_history entry with id `fetch_history_id`.
-        """
-        return db.get_fetch_history(fetch_history_id, cur)
-
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):
         """compute statistics about the number of tuples in various tables

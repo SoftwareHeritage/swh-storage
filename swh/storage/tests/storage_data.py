@@ -435,21 +435,6 @@ release3 = {
 releases = (release, release2, release3)
 
 
-fetch_history_date = datetime.datetime(
-    2015, 1, 2, 21, 0, 0,
-    tzinfo=datetime.timezone.utc)
-
-fetch_history_end = datetime.datetime(
-    2015, 1, 2, 23, 0, 0,
-    tzinfo=datetime.timezone.utc)
-
-fetch_history_data = {
-    'status': True,
-    'result': {'foo': 'bar'},
-    'stdout': 'blabla',
-    'stderr': 'blablabla',
-}
-
 snapshot = {
     'id': hash_to_bytes('2498dbf535f882bc7f9a18fb16c9ad27fda7bab7'),
     'branches': {
@@ -528,5 +513,3 @@ origin_metadata2 = {
             'version': '0.0.1'
         }
     }
-
-fetch_history_duration = (fetch_history_end - fetch_history_date)
