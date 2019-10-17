@@ -17,5 +17,6 @@ SQLAlchemy
 [testing]
 hypothesis>=3.11.0
 pytest
+pytest-postgresql
 sqlalchemy-stubs
 swh.journal>=0.0.17

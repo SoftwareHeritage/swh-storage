@@ -525,6 +525,12 @@ def stat_counters():
     return encode_data(get_storage().stat_counters())
 
 
+@app.route('/stat/refresh', methods=['GET'])
+@timed
+def refresh_stat_counters():
+    return encode_data(get_storage().refresh_stat_counters())
+
+
 @app.route('/algos/diff_directories', methods=['POST'])
 @timed
 def diff_directories():
