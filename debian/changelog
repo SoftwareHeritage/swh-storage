@@ -1,3 +1,12 @@
+swh-storage (0.0.154-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.154     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-10-17 13:47:57
+    +0200)
+  * Upstream changes:     - v0.0.154     - Fix tests in debian build
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 17 Oct 2019 11:52:46 +0000
+
 swh-storage (0.0.153-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.153     - (tagged by Antoine R. Dumont
