@@ -81,10 +81,10 @@ class Storage:
                 content.status = 'visible'
             if content.length is None:
                 content.length = -1
-            if content.status == 'visible':
+            if content.status != 'absent':
                 if self._content_key(content) not in self._contents:
                     content_with_data.append(content)
-            elif content.status == 'absent':
+            else:
                 if self._content_key(content) not in self._skipped_contents:
                     content_without_data.append(content)
 
