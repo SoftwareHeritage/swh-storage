@@ -368,12 +368,15 @@ metadata_tool = {
 
 date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0,
                                 tzinfo=datetime.timezone.utc)
+type_visit1 = 'git'
 
 date_visit2 = datetime.datetime(2017, 1, 1, 23, 0, 0,
                                 tzinfo=datetime.timezone.utc)
+type_visit2 = 'hg'
 
 date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0,
                                 tzinfo=datetime.timezone.utc)
+type_visit3 = 'deb'
 
 release = {
     'id': b'87659012345678901234',
