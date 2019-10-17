@@ -1881,14 +1881,7 @@ class TestStorage:
             swh_storage.snapshot_add([snap])
 
     def test_snapshot_add_count_branches(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
-        origin_visit1 = swh_storage.origin_visit_add(
-            origin_id, data.date_visit1)
-        visit_id = origin_visit1['visit']
-
         actual_result = swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_id, visit_id, snapshot=data.complete_snapshot['id'])
         assert actual_result == {'snapshot:add': 1}
 
         snp_id = data.complete_snapshot['id']
@@ -1906,15 +1899,7 @@ class TestStorage:
         assert snp_size == expected_snp_size
 
     def test_snapshot_add_get_paginated(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
-        origin_visit1 = swh_storage.origin_visit_add(
-            origin_id, data.date_visit1)
-        visit_id = origin_visit1['visit']
-
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_id, visit_id,
-            snapshot=data.complete_snapshot['id'])
 
         snp_id = data.complete_snapshot['id']
         branches = data.complete_snapshot['branches']
@@ -2010,14 +1995,7 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get_filtered_and_paginated(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
-        origin_visit1 = swh_storage.origin_visit_add(
-            origin_id, data.date_visit1)
-        visit_id = origin_visit1['visit']
-
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_id, visit_id, snapshot=data.complete_snapshot['id'])
 
         snp_id = data.complete_snapshot['id']
         branches = data.complete_snapshot['branches']
