@@ -1211,12 +1211,9 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, date, type=None,
+    def origin_visit_add(self, origin, date, type,
                          db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
-
-        For backward compatibility, `type` is optional and defaults to
-        the origin's type.
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
@@ -1240,9 +1237,6 @@ class Storage():
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
-
-        if type is None:
-            type = origin['type']
 
         visit_id = db.origin_visit_add(origin_id, date, type, cur)
 

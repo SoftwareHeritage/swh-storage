@@ -1222,11 +1222,8 @@ class Storage:
         else:
             return origin.url
 
-    def origin_visit_add(self, origin, date, type=None):
+    def origin_visit_add(self, origin, date, type):
         """Add an origin_visit for the origin at date with status 'ongoing'.
-
-        For backward compatibility, `type` is optional and defaults to
-        the origin's type.
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
@@ -1259,7 +1256,7 @@ class Storage:
             visit = OriginVisit(
                 origin=origin,
                 date=date,
-                type=type or origin.type,
+                type=type,
                 status=status,
                 snapshot=None,
                 metadata=None,

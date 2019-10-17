@@ -162,7 +162,7 @@ class RemoteStorage(RPCClient):
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
-    def origin_visit_add(self, origin, date, type=None):
+    def origin_visit_add(self, origin, date, type):
         return self.post(
             'origin/visit/add',
             {'origin': origin, 'date': date, 'type': type})
