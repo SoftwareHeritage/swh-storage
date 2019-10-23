@@ -10,7 +10,7 @@ from pytest_postgresql import factories
 from pytest_postgresql.janitor import DatabaseJanitor, psycopg2
 
 from os import path, environ
-from hypothesis import strategies
+from hypothesis import settings, strategies
 from typing import Dict
 
 import swh.storage
@@ -24,6 +24,11 @@ SQL_DIR = path.join(path.dirname(swh.storage.__file__), 'sql')
 environ['LC_ALL'] = 'C.UTF-8'
 
 DUMP_FILES = path.join(SQL_DIR, '*.sql')
+
+# define tests profile. Full documentation is at:
+# https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
+settings.register_profile("fast", max_examples=5, deadline=5000)
+settings.register_profile("slow", max_examples=20, deadline=5000)
 
 
 @pytest.fixture
