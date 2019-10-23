@@ -604,15 +604,15 @@ class Db(BaseDb):
         cur.execute('SELECT * FROM swh_stat_counters()')
         yield from cur
 
-    def origin_add(self, type, url, cur=None):
+    def origin_add(self, url, cur=None):
         """Insert a new origin and return the new identifier."""
-        insert = """INSERT INTO origin (type, url) values (%s, %s)
+        insert = """INSERT INTO origin (url) values (%s)
                     RETURNING id"""
 
-        cur.execute(insert, (type, url))
+        cur.execute(insert, (url,))
         return cur.fetchone()[0]
 
-    origin_cols = ['id', 'type', 'url']
+    origin_cols = ['id', 'url']
 
     def origin_get_by_url(self, origins, cur=None):
         """Retrieve origin `(id, type, url)` from urls if found."""

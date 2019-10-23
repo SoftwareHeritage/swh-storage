@@ -1014,21 +1014,21 @@ class Storage:
         origin = origin.to_dict()
         if ENABLE_ORIGIN_IDS:
             origin['id'] = origin_id
+
+        if 'type' in origin:
+            del origin['type']
+
         return origin
 
     def origin_get(self, origins):
         """Return origins, either all identified by their ids or all
-        identified by tuples (type, url).
-
-        If the url is given and the type is omitted, one of the origins with
-        that url is returned.
+        identified by urls.
 
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
                 These dicts have either the key url (and optionally type):
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
                 or the id:
@@ -1039,7 +1039,6 @@ class Storage:
             dict: the origin dictionary with the keys:
 
             - id: origin's id
-            - type: origin's type
             - url: origin's url
 
         Raises:
@@ -1169,7 +1168,6 @@ class Storage:
             origins: list of dictionaries representing the individual origins,
                 with the following keys:
 
-                - type: the origin type ('git', 'svn', 'deb', ...)
                 - url (bytes): the url the origin points to
 
         Returns:
@@ -1191,7 +1189,6 @@ class Storage:
             origin: dictionary representing the individual origin to add. This
                 dict has the following keys:
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
         Returns:
@@ -1200,6 +1197,7 @@ class Storage:
 
         """
         origin = Origin.from_dict(origin)
+
         if origin.url in self._origins:
             if ENABLE_ORIGIN_IDS:
                 (origin_id, _) = self._origins[origin.url]

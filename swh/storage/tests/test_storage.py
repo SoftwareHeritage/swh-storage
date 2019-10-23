@@ -941,7 +941,6 @@ class TestStorage:
             actual_origin1 = swh_storage.origin_get({'id': id})
 
             assert actual_origin1 == {'id': id,
-                                      'type': data.origin['type'],
                                       'url': data.origin['url']}
 
     def test_origin_get(self, swh_storage):
@@ -960,7 +959,6 @@ class TestStorage:
 
             assert len(actual_origin1) == 1
             assert actual_origin1[0] == {'id': origin_id,
-                                         'type': data.origin['type'],
                                          'url': data.origin['url']}
 
     def test_origin_get_consistency(self, swh_storage):
@@ -982,7 +980,6 @@ class TestStorage:
 
         swh_storage.origin_add_one(data.origin)
         origin_data = {
-            'type': data.origin['type'],
             'url': data.origin['url']}
         found_origins = list(swh_storage.origin_search(data.origin['url']))
         assert len(found_origins) == 1
@@ -998,9 +995,7 @@ class TestStorage:
         assert found_origins[0] == origin_data
 
         swh_storage.origin_add_one(data.origin2)
-        origin2_data = {
-            'type': data.origin2['type'],
-            'url': data.origin2['url']}
+        origin2_data = {'url': data.origin2['url']}
         found_origins = list(swh_storage.origin_search(data.origin2['url']))
         assert len(found_origins) == 1
         if 'id' in found_origins[0]:

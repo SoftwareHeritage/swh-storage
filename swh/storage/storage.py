@@ -1475,7 +1475,7 @@ class Storage():
 
         return ret
 
-    origin_keys = ['id', 'type', 'url']
+    origin_keys = ['id', 'url']
 
     @db_transaction(statement_timeout=500)
     def origin_get(self, origins, db=None, cur=None):
@@ -1488,9 +1488,8 @@ class Storage():
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the key url (and optionally type):
+                These dicts have either the key url:
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
                 or the id:
@@ -1501,11 +1500,10 @@ class Storage():
             dict: the origin dictionary with the keys:
 
             - id: origin's id
-            - type: origin's type
             - url: origin's url
 
         Raises:
-            ValueError: if the keys does not match (url and type) nor id.
+            ValueError: if the url or the id don't exist.
 
         """
         if isinstance(origins, dict):
@@ -1655,7 +1653,7 @@ class Storage():
         if self.journal_writer:
             self.journal_writer.write_addition('origin', origin)
 
-        return db.origin_add(origin['type'], origin['url'], cur)
+        return db.origin_add(origin['url'], cur)
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

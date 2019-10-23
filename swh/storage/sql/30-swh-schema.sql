@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(141, now(), 'Work In Progress');
+      values(142, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -76,12 +76,10 @@ comment on column content.object_id is 'Content identifier';
 create table origin
 (
   id       bigserial not null,
-  type     text, -- TODO use an enum here (?)
   url      text not null
 );
 
 comment on column origin.id is 'Artifact origin id';
-comment on column origin.type is 'Type of origin';
 comment on column origin.url is 'URL of origin';
 
 

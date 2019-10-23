@@ -338,12 +338,10 @@ revisions = (revision, revision2, revision3, revision4)
 
 origin = {
     'url': 'file:///dev/null',
-    'type': 'git',
 }
 
 origin2 = {
     'url': 'file:///dev/zero',
-    'type': 'hg',
 }
 
 origins = (origin, origin2)
