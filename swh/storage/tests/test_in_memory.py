@@ -8,11 +8,6 @@ import pytest
 from swh.storage import get_storage
 from swh.storage.tests.test_storage import (  # noqa
     TestStorage, TestStorageGeneratedData)
-from swh.storage.in_memory import ENABLE_ORIGIN_IDS
-
-
-TestStorage._test_origin_ids = ENABLE_ORIGIN_IDS
-TestStorageGeneratedData._test_origin_ids = ENABLE_ORIGIN_IDS
 
 
 # tests are executed using imported classes (TestStorage and
