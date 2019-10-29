@@ -3235,10 +3235,10 @@ class TestStorageGeneratedData:
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=21))
-        assert len(actual_origins) == 20
+                                         origin_count=101))
+        assert len(actual_origins) == 100
         assert actual_origins[0]['id'] == 1
-        assert actual_origins[-1]['id'] == 20
+        assert actual_origins[-1]['id'] == 100
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=11,
@@ -3253,11 +3253,11 @@ class TestStorageGeneratedData:
         assert actual_origins[-1]['id'] == 20
 
         actual_origins = list(
-            swh_storage.origin_get_range(origin_from=11,
+            swh_storage.origin_get_range(origin_from=91,
                                          origin_count=11))
         assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 11
-        assert actual_origins[-1]['id'] == 20
+        assert actual_origins[0]['id'] == 91
+        assert actual_origins[-1]['id'] == 100
 
     def test_origin_count(self, swh_storage):
         new_origins = [

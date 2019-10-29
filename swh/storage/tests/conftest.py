@@ -10,13 +10,14 @@ from pytest_postgresql import factories
 from pytest_postgresql.janitor import DatabaseJanitor, psycopg2
 
 from os import path, environ
-from hypothesis import settings, strategies
+from hypothesis import settings
 from typing import Dict
 
 import swh.storage
 
-from swh.model.hypothesis_strategies import origins, contents
 from swh.core.utils import numfile_sortkey as sortkey
+
+from swh.model.tests.generate_testdata import gen_contents, gen_origins
 
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), 'sql')
@@ -54,30 +55,16 @@ def swh_storage(postgresql_proc, swh_storage_postgresql):
     return storage
 
 
-def gen_origins(n=20):
-    return strategies.lists(
-        origins().map(lambda x: x.to_dict()),
-        unique_by=lambda x: x['url'],
-        min_size=n, max_size=n).example()
-
-
-def gen_contents(n=20):
-    return strategies.lists(
-        contents().map(lambda x: x.to_dict()),
-        unique_by=lambda x: (x['sha1'], x['sha1_git']),
-        min_size=n, max_size=n).example()
-
-
 @pytest.fixture
 def swh_contents(swh_storage):
-    contents = gen_contents()
+    contents = gen_contents(n=20)
     swh_storage.content_add(contents)
     return contents
 
 
 @pytest.fixture
 def swh_origins(swh_storage):
-    origins = gen_origins()
+    origins = gen_origins(n=100)
     swh_storage.origin_add(origins)
     return origins
 
