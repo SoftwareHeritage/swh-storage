@@ -135,7 +135,9 @@ class Storage:
             count_content_added += 1
             if with_data:
                 content_data = self._contents[key].data
-                self._contents[key].data = None
+                self._contents[key] = attr.evolve(
+                    self._contents[key],
+                    data=None)
                 count_content_bytes_added += len(content_data)
                 self.objstorage.add(content_data, content.sha1)
 
@@ -191,10 +193,9 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = list(self._content_to_model(content))
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in content:
-            item.ctime = now
+        content = [attr.evolve(c, ctime=now)
+                   for c in self._content_to_model(content)]
         return self._content_add(content, with_data=True)
 
     def content_add_metadata(self, content):
@@ -609,8 +610,10 @@ class Storage:
         count = 0
         for revision in revisions:
             if revision.id not in self._revisions:
-                revision.committer = self._person_add(revision.committer)
-                revision.author = self._person_add(revision.author)
+                revision = attr.evolve(
+                    revision,
+                    committer=self._person_add(revision.committer),
+                    author=self._person_add(revision.author))
                 self._revisions[revision.id] = revision
                 self._objects[revision.id].append(
                     ('revision', revision.id))
@@ -1341,7 +1344,9 @@ class Storage:
 
         if self.journal_writer:
             for visit in visits:
-                (_, visit.origin) = self._origins[visit.origin.url]
+                visit = attr.evolve(
+                    visit,
+                    origin=self._origins[visit.origin.url][1])
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
