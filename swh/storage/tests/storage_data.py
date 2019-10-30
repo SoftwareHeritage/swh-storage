@@ -338,12 +338,10 @@ revisions = (revision, revision2, revision3, revision4)
 
 origin = {
     'url': 'file:///dev/null',
-    'type': 'git',
 }
 
 origin2 = {
     'url': 'file:///dev/zero',
-    'type': 'hg',
 }
 
 origins = (origin, origin2)
@@ -368,12 +366,15 @@ metadata_tool = {
 
 date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0,
                                 tzinfo=datetime.timezone.utc)
+type_visit1 = 'git'
 
 date_visit2 = datetime.datetime(2017, 1, 1, 23, 0, 0,
                                 tzinfo=datetime.timezone.utc)
+type_visit2 = 'hg'
 
 date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0,
                                 tzinfo=datetime.timezone.utc)
+type_visit3 = 'deb'
 
 release = {
     'id': b'87659012345678901234',
@@ -434,21 +435,6 @@ release3 = {
 
 releases = (release, release2, release3)
 
-
-fetch_history_date = datetime.datetime(
-    2015, 1, 2, 21, 0, 0,
-    tzinfo=datetime.timezone.utc)
-
-fetch_history_end = datetime.datetime(
-    2015, 1, 2, 23, 0, 0,
-    tzinfo=datetime.timezone.utc)
-
-fetch_history_data = {
-    'status': True,
-    'result': {'foo': 'bar'},
-    'stdout': 'blabla',
-    'stderr': 'blablabla',
-}
 
 snapshot = {
     'id': hash_to_bytes('2498dbf535f882bc7f9a18fb16c9ad27fda7bab7'),
@@ -528,5 +514,3 @@ origin_metadata2 = {
             'version': '0.0.1'
         }
     }
-
-fetch_history_duration = (fetch_history_end - fetch_history_date)

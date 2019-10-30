@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(140, now(), 'Work In Progress');
+      values(142, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -76,12 +76,10 @@ comment on column content.object_id is 'Content identifier';
 create table origin
 (
   id       bigserial not null,
-  type     text, -- TODO use an enum here (?)
   url      text not null
 );
 
 comment on column origin.id is 'Artifact origin id';
-comment on column origin.type is 'Type of origin';
 comment on column origin.url is 'URL of origin';
 
 
@@ -117,31 +115,6 @@ comment on column skipped_content.status is 'Skipped content status (absent, vis
 comment on column skipped_content.reason is 'Reason for skipping';
 comment on column skipped_content.origin is 'Origin table identifier';
 comment on column skipped_content.object_id is 'Skipped content identifier';
-
-
--- Log of all origin fetches (i.e., origin crawling) that have been done in the
--- past, or are still ongoing. Similar to list_history, but for origins.
-create table fetch_history
-(
-  id        bigserial,
-  origin    bigint,
-  date      timestamptz not null,
-  status    boolean,  -- true if and only if the fetch has been successful
-  result    jsonb,     -- more detailed returned values, times, etc...
-  stdout    text,
-  stderr    text,     -- null when status is true, filled otherwise
-  duration  interval  -- fetch duration of NULL if still ongoing
-);
-
-comment on table fetch_history is 'Log of all origin fetches';
-comment on column fetch_history.id is 'Identifier for fetch history';
-comment on column fetch_history.origin is 'Origin table identifier';
-comment on column fetch_history.date is 'Fetch start time';
-comment on column fetch_history.status is 'True indicates successful fetch';
-comment on column fetch_history.result is 'Detailed return values, times etc';
-comment on column fetch_history.stdout is 'Standard output of fetch operation';
-comment on column fetch_history.stderr is 'Standard error of fetch operation';
-comment on column fetch_history.duration is 'Time taken to complete fetch, NULL if ongoing';
 
 
 -- A file-system directory.  A directory is a list of directory entries (see
