@@ -1,3 +1,11 @@
+swh-storage (0.0.155-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.155     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2019-10-30 12:14:14 +0100)
+  * Upstream changes:     - v0.0.155
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 30 Oct 2019 11:18:37 +0000
+
 swh-storage (0.0.154-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.154     - (tagged by Antoine R. Dumont
