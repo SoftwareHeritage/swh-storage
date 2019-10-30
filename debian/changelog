@@ -1,8 +1,51 @@
-swh-storage (0.0.151-1~swh2~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.156-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.156     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2019-10-30 15:12:10 +0100)
+  * Upstream changes:     - v0.0.156     - * Stop supporting origin ids
+    in API (except in origin_get_range).     - * Make visit['origin'] a
+    string everywhere (instead of a dict).
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 01 Oct 2019 16:32:21 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 30 Oct 2019 14:29:28 +0000
+
+swh-storage (0.0.155-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.155     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2019-10-30 12:14:14 +0100)
+  * Upstream changes:     - v0.0.155
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 30 Oct 2019 11:18:37 +0000
+
+swh-storage (0.0.154-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.154     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-10-17 13:47:57
+    +0200)
+  * Upstream changes:     - v0.0.154     - Fix tests in debian build
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 17 Oct 2019 11:52:46 +0000
+
+swh-storage (0.0.153-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.153     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-10-17 13:21:00
+    +0200)
+  * Upstream changes:     - v0.0.153     - Deploy new test fixture
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 17 Oct 2019 11:26:12 +0000
+
+swh-storage (0.0.152-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.152     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-10-08 16:55:43
+    +0200)
+  * Upstream changes:     - v0.0.152     - swh.storage.buffer: Add
+    buffering proxy storage implementation     - swh.storage.filter: Add
+    filtering storage implementation     - swh.storage.tests: Improve db
+    transaction handling     - swh.storage.tests: Add more tests     -
+    swh.storage.storage: introduce a db() context manager
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 08 Oct 2019 15:03:16 +0000
 
 swh-storage (0.0.151-1~swh2) unstable-swh; urgency=medium
 

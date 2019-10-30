@@ -6,8 +6,6 @@
 
 set -e
 
-SQLS="swh-*.sql"
-VERSION_SQL="swh-schema.sql"
 UPGRADE_DIR="upgrades"
 DB_NAME="softwareheritage-dev"
 
@@ -51,7 +49,7 @@ old_dump=$(mktemp tmp.swh-db-upgrade.XXXXXXXXXX)
 new_dump=$(mktemp tmp.swh-db-upgrade.XXXXXXXXXX)
 trap "rm -f $old_dump $new_dump" EXIT
 
-schema_version=$(grep -i -A 1 '^insert into dbversion' "$VERSION_SQL" | tail -n 1 \
+schema_version=$(grep -hri -A 1 '^insert into dbversion' ../swh/storage/sql | tail -n 1 \
 	      | sed -e 's/.*values(//i' -e 's/,.*//')
 upgrade_script=$(mktemp -p "$UPGRADE_DIR" $(printf '%.03d' ${schema_version}).XXXX.sql)
 pg_dump_revision "$from_rev" "$old_dump"

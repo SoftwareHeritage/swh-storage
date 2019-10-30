@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import os
 import re
 import bisect
 import dateutil
@@ -30,10 +29,6 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
-
-
-ENABLE_ORIGIN_IDS = \
-    os.environ.get('SWH_STORAGE_IN_MEMORY_ENABLE_ORIGIN_IDS', 'true') == 'true'
 
 
 class Storage:
@@ -81,10 +76,10 @@ class Storage:
                 content.status = 'visible'
             if content.length is None:
                 content.length = -1
-            if content.status == 'visible':
+            if content.status != 'absent':
                 if self._content_key(content) not in self._contents:
                     content_with_data.append(content)
-            elif content.status == 'absent':
+            else:
                 if self._content_key(content) not in self._skipped_contents:
                     content_without_data.append(content)
 
@@ -135,7 +130,9 @@ class Storage:
             count_content_added += 1
             if with_data:
                 content_data = self._contents[key].data
-                self._contents[key].data = None
+                self._contents[key] = attr.evolve(
+                    self._contents[key],
+                    data=None)
                 count_content_bytes_added += len(content_data)
                 self.objstorage.add(content_data, content.sha1)
 
@@ -191,10 +188,9 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = list(self._content_to_model(content))
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in content:
-            item.ctime = now
+        content = [attr.evolve(c, ctime=now)
+                   for c in self._content_to_model(content)]
         return self._content_add(content, with_data=True)
 
     def content_add_metadata(self, content):
@@ -609,8 +605,10 @@ class Storage:
         count = 0
         for revision in revisions:
             if revision.id not in self._revisions:
-                revision.committer = self._person_add(revision.committer)
-                revision.author = self._person_add(revision.author)
+                revision = attr.evolve(
+                    revision,
+                    committer=self._person_add(revision.committer),
+                    author=self._person_add(revision.author))
                 self._revisions[revision.id] = revision
                 self._objects[revision.id].append(
                     ('revision', revision.id))
@@ -873,7 +871,7 @@ class Storage:
             and :meth:`snapshot_get_branches` should be used instead.
 
         Args:
-            origin (Union[str,int]): the origin's URL or identifier
+            origin (str): the origin's URL
             allowed_statuses (list of str): list of visit statuses considered
                 to find the latest snapshot for the origin. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -1010,25 +1008,18 @@ class Storage:
     def _convert_origin(self, t):
         if t is None:
             return None
-        (origin_id, origin) = t
-        origin = origin.to_dict()
-        if ENABLE_ORIGIN_IDS:
-            origin['id'] = origin_id
-        return origin
+
+        return t.to_dict()
 
     def origin_get(self, origins):
         """Return origins, either all identified by their ids or all
-        identified by tuples (type, url).
-
-        If the url is given and the type is omitted, one of the origins with
-        that url is returned.
+        identified by urls.
 
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
                 These dicts have either the key url (and optionally type):
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
                 or the id:
@@ -1039,7 +1030,6 @@ class Storage:
             dict: the origin dictionary with the keys:
 
             - id: origin's id
-            - type: origin's type
             - url: origin's url
 
         Raises:
@@ -1067,16 +1057,12 @@ class Storage:
         results = []
         for origin in origins:
             result = None
-            if 'id' in origin:
-                assert ENABLE_ORIGIN_IDS, 'origin ids are disabled'
-                if origin['id'] <= len(self._origins_by_id):
-                    result = self._origins[self._origins_by_id[origin['id']-1]]
-            elif 'url' in origin:
+            if 'url' in origin:
                 if origin['url'] in self._origins:
                     result = self._origins[origin['url']]
             else:
                 raise ValueError(
-                    'Origin must have either id or url.')
+                    'Origin must have an url.')
             results.append(self._convert_origin(result))
 
         if return_single:
@@ -1097,7 +1083,8 @@ class Storage:
 
         Yields:
             dicts containing origin information as returned
-            by :meth:`swh.storage.in_memory.Storage.origin_get`.
+            by :meth:`swh.storage.in_memory.Storage.origin_get`, plus
+            an 'id' key.
         """
         origin_from = max(origin_from, 1)
         if origin_from <= len(self._origins_by_id):
@@ -1105,8 +1092,9 @@ class Storage:
             if max_idx > len(self._origins_by_id):
                 max_idx = len(self._origins_by_id)
             for idx in range(origin_from-1, max_idx):
-                yield self._convert_origin(
+                origin = self._convert_origin(
                     self._origins[self._origins_by_id[idx]])
+                yield {'id': idx+1, **origin}
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):
@@ -1137,9 +1125,6 @@ class Storage:
             origins = [orig for orig in origins
                        if len(self._origin_visits[orig['url']]) > 0]
 
-        if ENABLE_ORIGIN_IDS:
-            origins.sort(key=lambda origin: origin['id'])
-
         return origins[offset:offset+limit]
 
     def origin_count(self, url_pattern, regexp=False, with_visit=False,
@@ -1169,7 +1154,6 @@ class Storage:
             origins: list of dictionaries representing the individual origins,
                 with the following keys:
 
-                - type: the origin type ('git', 'svn', 'deb', ...)
                 - url (bytes): the url the origin points to
 
         Returns:
@@ -1178,10 +1162,7 @@ class Storage:
         """
         origins = copy.deepcopy(origins)
         for origin in origins:
-            if ENABLE_ORIGIN_IDS:
-                origin['id'] = self.origin_add_one(origin)
-            else:
-                self.origin_add_one(origin)
+            self.origin_add_one(origin)
         return origins
 
     def origin_add_one(self, origin):
@@ -1191,7 +1172,6 @@ class Storage:
             origin: dictionary representing the individual origin to add. This
                 dict has the following keys:
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
         Returns:
@@ -1200,55 +1180,27 @@ class Storage:
 
         """
         origin = Origin.from_dict(origin)
-        if origin.url in self._origins:
-            if ENABLE_ORIGIN_IDS:
-                (origin_id, _) = self._origins[origin.url]
-        else:
+        if origin.url not in self._origins:
             if self.journal_writer:
                 self.journal_writer.write_addition('origin', origin)
-            if ENABLE_ORIGIN_IDS:
-                # origin ids are in the range [1, +inf[
-                origin_id = len(self._origins) + 1
-                self._origins_by_id.append(origin.url)
-                assert len(self._origins_by_id) == origin_id
-            else:
-                origin_id = None
-            self._origins[origin.url] = (origin_id, origin)
+
+            # generate an origin_id because it is needed by origin_get_range.
+            # TODO: remove this when we remove origin_get_range
+            origin_id = len(self._origins) + 1
+            self._origins_by_id.append(origin.url)
+            assert len(self._origins_by_id) == origin_id
+
+            self._origins[origin.url] = origin
             self._origin_visits[origin.url] = []
             self._objects[origin.url].append(('origin', origin.url))
 
-        if ENABLE_ORIGIN_IDS:
-            return origin_id
-        else:
-            return origin.url
+        return origin.url
 
-    def fetch_history_start(self, origin_id):
-        """Add an entry for origin origin_id in fetch_history. Returns the id
-        of the added fetch_history entry
-        """
-        assert not ENABLE_ORIGIN_IDS, 'origin ids are disabled'
-        pass
-
-    def fetch_history_end(self, fetch_history_id, data):
-        """Close the fetch_history entry with id `fetch_history_id`, replacing
-           its data with `data`.
-        """
-        pass
-
-    def fetch_history_get(self, fetch_history_id):
-        """Get the fetch_history entry with id `fetch_history_id`.
-        """
-        raise NotImplementedError('fetch_history_get is deprecated, use '
-                                  'origin_visit_get instead.')
-
-    def origin_visit_add(self, origin, date, type=None):
+    def origin_visit_add(self, origin, date, type):
         """Add an origin_visit for the origin at date with status 'ongoing'.
 
-        For backward compatibility, `type` is optional and defaults to
-        the origin's type.
-
         Args:
-            origin (Union[int,str]): visited origin's identifier or URL
+            origin (str): visited origin's identifier or URL
             date (Union[str,datetime]): timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
@@ -1259,7 +1211,7 @@ class Storage:
             - visit: the visit's identifier for the new visit occurrence
 
         """
-        origin_url = self._get_origin_url(origin)
+        origin_url = origin
         if origin_url is None:
             raise ValueError('Unknown origin.')
 
@@ -1271,14 +1223,14 @@ class Storage:
 
         visit_ret = None
         if origin_url in self._origins:
-            (origin_id, origin) = self._origins[origin_url]
+            origin = self._origins[origin_url]
             # visit ids are in the range [1, +inf[
             visit_id = len(self._origin_visits[origin_url]) + 1
             status = 'ongoing'
             visit = OriginVisit(
-                origin=origin,
+                origin=origin.url,
                 date=date,
-                type=type or origin.type,
+                type=type,
                 status=status,
                 snapshot=None,
                 metadata=None,
@@ -1286,7 +1238,7 @@ class Storage:
             )
             self._origin_visits[origin_url].append(visit)
             visit_ret = {
-                'origin': origin_id if ENABLE_ORIGIN_IDS else origin.url,
+                'origin': origin.url,
                 'visit': visit_id,
             }
 
@@ -1303,7 +1255,7 @@ class Storage:
         """Update an origin_visit's status.
 
         Args:
-            origin (Union[int,str]): visited origin's identifier or URL
+            origin (str): visited origin's URL
             visit_id (int): visit's identifier
             status: visit's new status
             metadata: data associated to the visit
@@ -1314,6 +1266,8 @@ class Storage:
             None
 
         """
+        if not isinstance(origin, str):
+            raise TypeError('origin must be a string, not %r' % (origin,))
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
             raise ValueError('Unknown origin.')
@@ -1335,14 +1289,9 @@ class Storage:
         visit = attr.evolve(visit, **updates)
 
         if self.journal_writer:
-            (_, origin) = self._origins[origin_url]
             self.journal_writer.write_update('origin_visit', visit)
 
         self._origin_visits[origin_url][visit_id-1] = visit
-
-        if origin_url not in self._origin_visits or \
-                visit_id > len(self._origin_visits[origin_url]):
-            return
 
     def origin_visit_upsert(self, visits):
         """Add a origin_visits with a specific id and with all its data.
@@ -1352,7 +1301,7 @@ class Storage:
         Args:
             visits: iterable of dicts with keys:
 
-                origin: dict with keys either `id` or `url`
+                origin: origin url
                 visit: origin visit id
                 type: type of loader used for the visit
                 date: timestamp of such visit
@@ -1361,16 +1310,21 @@ class Storage:
                 snapshot (sha1_git): identifier of the snapshot to add to
                     the visit
         """
+        for visit in visits:
+            if not isinstance(visit['origin'], str):
+                raise TypeError("visit['origin'] must be a string, not %r"
+                                % (visit['origin'],))
         visits = [OriginVisit.from_dict(d) for d in visits]
 
         if self.journal_writer:
             for visit in visits:
-                (_, visit.origin) = self._origins[visit.origin.url]
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
             visit_id = visit.visit
-            origin_url = visit.origin.url
+            origin_url = visit.origin
+
+            visit = attr.evolve(visit, origin=origin_url)
 
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
@@ -1384,12 +1338,7 @@ class Storage:
         if visit is None:
             return
 
-        (origin_id, origin) = self._origins[visit.origin.url]
         visit = visit.to_dict()
-        if ENABLE_ORIGIN_IDS:
-            visit['origin'] = origin_id
-        else:
-            visit['origin'] = origin.url
 
         return visit
 
@@ -1486,10 +1435,9 @@ class Storage:
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        res = self._origins.get(origin)
-        if not res:
+        origin = self._origins.get(origin)
+        if not origin:
             return
-        (_, origin) = res
         visits = self._origin_visits[origin.url]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
@@ -1532,49 +1480,46 @@ class Storage:
         """Recomputes the statistics for `stat_counters`."""
         pass
 
-    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata,
+    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata,
                             db=None, cur=None):
         """ Add an origin_metadata for the origin at ts with provenance and
         metadata.
 
         Args:
-            origin_id (int): the origin's id for which the metadata is added
+            origin_url (str): the origin url for which the metadata is added
             ts (datetime): timestamp of the found metadata
             provider: id of the provider of metadata (ex:'hal')
             tool: id of the tool used to extract metadata
             metadata (jsonb): the metadata retrieved at the time and location
         """
-        if isinstance(origin_id, str):
-            origin = self.origin_get({'url': origin_id})
-            if not origin:
-                return
-            origin_id = origin['id']
+        if not isinstance(origin_url, str):
+            raise TypeError('origin_id must be str, not %r' % (origin_url,))
 
         if isinstance(ts, str):
             ts = dateutil.parser.parse(ts)
 
         origin_metadata = {
-                'origin_id': origin_id,
+                'origin_url': origin_url,
                 'discovery_date': ts,
                 'tool_id': tool,
                 'metadata': metadata,
                 'provider_id': provider,
                 }
-        self._origin_metadata[origin_id].append(origin_metadata)
+        self._origin_metadata[origin_url].append(origin_metadata)
         return None
 
-    def origin_metadata_get_by(self, origin_id, provider_type=None, db=None,
+    def origin_metadata_get_by(self, origin_url, provider_type=None, db=None,
                                cur=None):
-        """Retrieve list of all origin_metadata entries for the origin_id
+        """Retrieve list of all origin_metadata entries for the origin_url
 
         Args:
-            origin_id (int): the unique origin's identifier
+            origin_url (str): the origin's url
             provider_type (str): (optional) type of provider
 
         Returns:
             list of dicts: the origin_metadata dictionary with the keys:
 
-            - origin_id (int): origin's identifier
+            - origin_url (int): origin's URL
             - discovery_date (datetime): timestamp of discovery
             - tool_id (int): metadata's extracting tool
             - metadata (jsonb)
@@ -1584,14 +1529,10 @@ class Storage:
             - provider_url (str)
 
         """
-        if isinstance(origin_id, str):
-            origin = self.origin_get({'url': origin_id})
-            if not origin:
-                return
-            origin_id = origin['id']
-
+        if not isinstance(origin_url, str):
+            raise TypeError('origin_url must be str, not %r' % (origin_url,))
         metadata = []
-        for item in self._origin_metadata[origin_id]:
+        for item in self._origin_metadata[origin_url]:
             item = copy.deepcopy(item)
             provider = self.metadata_provider_get(item['provider_id'])
             for attr_name in ('name', 'type', 'url'):
@@ -1697,13 +1638,8 @@ class Storage:
     def _get_origin_url(self, origin):
         if isinstance(origin, str):
             return origin
-        elif isinstance(origin, int):
-            if origin <= len(self._origins_by_id):
-                return self._origins_by_id[origin-1]
-            else:
-                return None
         else:
-            raise TypeError('origin must be a string or an integer.')
+            raise TypeError('origin must be a string.')
 
     def _person_add(self, person):
         """Add a person in storage.

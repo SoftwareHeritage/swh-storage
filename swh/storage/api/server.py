@@ -126,6 +126,7 @@ storage server.<br />
 See its
 <a href="https://docs.softwareheritage.org/devel/swh-storage/">documentation
 and API</a> for more information</p>
+</body>
 </html>'''
 
 
@@ -439,26 +440,6 @@ def origin_visit_upsert():
         **decode_request(request)))
 
 
-@app.route('/fetch_history', methods=['GET'])
-@timed
-def fetch_history_get():
-    return encode_data(get_storage().fetch_history_get(request.args['id']))
-
-
-@app.route('/fetch_history/start', methods=['POST'])
-@timed
-def fetch_history_start():
-    return encode_data(
-        get_storage().fetch_history_start(**decode_request(request)))
-
-
-@app.route('/fetch_history/end', methods=['POST'])
-@timed
-def fetch_history_end():
-    return encode_data(
-        get_storage().fetch_history_end(**decode_request(request)))
-
-
 @app.route('/tool/data', methods=['POST'])
 @timed
 def tool_get():
@@ -522,6 +503,12 @@ def metadata_provider_get_by():
 @timed
 def stat_counters():
     return encode_data(get_storage().stat_counters())
+
+
+@app.route('/stat/refresh', methods=['GET'])
+@timed
+def refresh_stat_counters():
+    return encode_data(get_storage().refresh_stat_counters())
 
 
 @app.route('/algos/diff_directories', methods=['POST'])

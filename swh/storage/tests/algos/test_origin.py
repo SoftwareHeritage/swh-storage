@@ -16,9 +16,9 @@ def assert_list_eq(left, right, msg=None):
 def test_iter_origins():
     storage = Storage()
     origins = storage.origin_add([
-        {'type': 'foo', 'url': 'bar'},
-        {'type': 'baz', 'url': 'qux'},
-        {'type': 'quux', 'url': 'quuz'},
+        {'url': 'bar'},
+        {'url': 'qux'},
+        {'url': 'quuz'},
     ])
     assert_list_eq(iter_origins(storage), origins)
     assert_list_eq(iter_origins(storage, batch_size=1), origins)
