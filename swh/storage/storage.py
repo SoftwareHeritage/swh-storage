@@ -1211,12 +1211,9 @@ class Storage():
         return None
 
     @db_transaction()
-    def origin_visit_add(self, origin, date, type=None,
+    def origin_visit_add(self, origin, date, type,
                          db=None, cur=None):
         """Add an origin_visit for the origin at ts with status 'ongoing'.
-
-        For backward compatibility, `type` is optional and defaults to
-        the origin's type.
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
@@ -1240,9 +1237,6 @@ class Storage():
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
-
-        if type is None:
-            type = origin['type']
 
         visit_id = db.origin_visit_add(origin_id, date, type, cur)
 
@@ -1481,7 +1475,7 @@ class Storage():
 
         return ret
 
-    origin_keys = ['id', 'type', 'url']
+    origin_keys = ['id', 'url']
 
     @db_transaction(statement_timeout=500)
     def origin_get(self, origins, db=None, cur=None):
@@ -1494,9 +1488,8 @@ class Storage():
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the key url (and optionally type):
+                These dicts have either the key url:
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
                 or the id:
@@ -1507,11 +1500,10 @@ class Storage():
             dict: the origin dictionary with the keys:
 
             - id: origin's id
-            - type: origin's type
             - url: origin's url
 
         Raises:
-            ValueError: if the keys does not match (url and type) nor id.
+            ValueError: if the url or the id don't exist.
 
         """
         if isinstance(origins, dict):
@@ -1661,48 +1653,7 @@ class Storage():
         if self.journal_writer:
             self.journal_writer.write_addition('origin', origin)
 
-        return db.origin_add(origin['type'], origin['url'], cur)
-
-    @db_transaction()
-    def fetch_history_start(self, origin_id, db=None, cur=None):
-        """Add an entry for origin origin_id in fetch_history. Returns the id
-        of the added fetch_history entry
-        """
-        if isinstance(origin_id, str):
-            origin = \
-                self.origin_get([{'url': origin_id}], db=db, cur=cur)
-            if not origin:
-                return
-            origin_id = origin[0]['id']
-        fetch_history = {
-            'origin': origin_id,
-            'date': datetime.datetime.now(tz=datetime.timezone.utc),
-        }
-
-        return db.create_fetch_history(fetch_history, cur)
-
-    @db_transaction()
-    def fetch_history_end(self, fetch_history_id, data, db=None, cur=None):
-        """Close the fetch_history entry with id `fetch_history_id`, replacing
-           its data with `data`.
-        """
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        fetch_history = db.get_fetch_history(fetch_history_id, cur)
-
-        if not fetch_history:
-            raise ValueError('No fetch_history with id %d' % fetch_history_id)
-
-        fetch_history['duration'] = now - fetch_history['date']
-
-        fetch_history.update(data)
-
-        db.update_fetch_history(fetch_history, cur)
-
-    @db_transaction()
-    def fetch_history_get(self, fetch_history_id, db=None, cur=None):
-        """Get the fetch_history entry with id `fetch_history_id`.
-        """
-        return db.get_fetch_history(fetch_history_id, cur)
+        return db.origin_add(origin['url'], cur)
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

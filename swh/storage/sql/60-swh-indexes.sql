@@ -31,14 +31,6 @@ create unique index concurrently on skipped_content(object_id);
 alter table skipped_content add constraint skipped_content_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table skipped_content validate constraint skipped_content_origin_fkey;
 
--- fetch_history
-
-create unique index concurrently fetch_history_pkey on fetch_history(id);
-alter table fetch_history add primary key using index fetch_history_pkey;
-
-alter table fetch_history add constraint fetch_history_origin_fkey foreign key (origin) references origin(id) not valid;
-alter table fetch_history validate constraint fetch_history_origin_fkey;
-
 -- directory
 
 create unique index concurrently directory_pkey on directory(id);

@@ -195,7 +195,7 @@ class DistributionSnapshot(SQLBase):
             'arguments': {
                 'args': [],
                 'kwargs': {
-                    'origin': origin,
+                    'origin': origin['url'],
                     'date': self.date.isoformat(),
                     'packages': package_versions,
                 },

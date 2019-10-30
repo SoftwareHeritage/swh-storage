@@ -135,7 +135,9 @@ class Storage:
             count_content_added += 1
             if with_data:
                 content_data = self._contents[key].data
-                self._contents[key].data = None
+                self._contents[key] = attr.evolve(
+                    self._contents[key],
+                    data=None)
                 count_content_bytes_added += len(content_data)
                 self.objstorage.add(content_data, content.sha1)
 
@@ -191,10 +193,9 @@ class Storage:
                 skipped_content:add: New skipped contents (no data) added
 
         """
-        content = list(self._content_to_model(content))
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in content:
-            item.ctime = now
+        content = [attr.evolve(c, ctime=now)
+                   for c in self._content_to_model(content)]
         return self._content_add(content, with_data=True)
 
     def content_add_metadata(self, content):
@@ -609,8 +610,10 @@ class Storage:
         count = 0
         for revision in revisions:
             if revision.id not in self._revisions:
-                revision.committer = self._person_add(revision.committer)
-                revision.author = self._person_add(revision.author)
+                revision = attr.evolve(
+                    revision,
+                    committer=self._person_add(revision.committer),
+                    author=self._person_add(revision.author))
                 self._revisions[revision.id] = revision
                 self._objects[revision.id].append(
                     ('revision', revision.id))
@@ -1014,21 +1017,21 @@ class Storage:
         origin = origin.to_dict()
         if ENABLE_ORIGIN_IDS:
             origin['id'] = origin_id
+
+        if 'type' in origin:
+            del origin['type']
+
         return origin
 
     def origin_get(self, origins):
         """Return origins, either all identified by their ids or all
-        identified by tuples (type, url).
-
-        If the url is given and the type is omitted, one of the origins with
-        that url is returned.
+        identified by urls.
 
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
                 These dicts have either the key url (and optionally type):
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
                 or the id:
@@ -1039,7 +1042,6 @@ class Storage:
             dict: the origin dictionary with the keys:
 
             - id: origin's id
-            - type: origin's type
             - url: origin's url
 
         Raises:
@@ -1169,7 +1171,6 @@ class Storage:
             origins: list of dictionaries representing the individual origins,
                 with the following keys:
 
-                - type: the origin type ('git', 'svn', 'deb', ...)
                 - url (bytes): the url the origin points to
 
         Returns:
@@ -1191,7 +1192,6 @@ class Storage:
             origin: dictionary representing the individual origin to add. This
                 dict has the following keys:
 
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
                 - url (bytes): the url the origin points to
 
         Returns:
@@ -1200,6 +1200,7 @@ class Storage:
 
         """
         origin = Origin.from_dict(origin)
+
         if origin.url in self._origins:
             if ENABLE_ORIGIN_IDS:
                 (origin_id, _) = self._origins[origin.url]
@@ -1222,30 +1223,8 @@ class Storage:
         else:
             return origin.url
 
-    def fetch_history_start(self, origin_id):
-        """Add an entry for origin origin_id in fetch_history. Returns the id
-        of the added fetch_history entry
-        """
-        assert not ENABLE_ORIGIN_IDS, 'origin ids are disabled'
-        pass
-
-    def fetch_history_end(self, fetch_history_id, data):
-        """Close the fetch_history entry with id `fetch_history_id`, replacing
-           its data with `data`.
-        """
-        pass
-
-    def fetch_history_get(self, fetch_history_id):
-        """Get the fetch_history entry with id `fetch_history_id`.
-        """
-        raise NotImplementedError('fetch_history_get is deprecated, use '
-                                  'origin_visit_get instead.')
-
-    def origin_visit_add(self, origin, date, type=None):
+    def origin_visit_add(self, origin, date, type):
         """Add an origin_visit for the origin at date with status 'ongoing'.
-
-        For backward compatibility, `type` is optional and defaults to
-        the origin's type.
 
         Args:
             origin (Union[int,str]): visited origin's identifier or URL
@@ -1278,7 +1257,7 @@ class Storage:
             visit = OriginVisit(
                 origin=origin,
                 date=date,
-                type=type or origin.type,
+                type=type,
                 status=status,
                 snapshot=None,
                 metadata=None,
@@ -1365,7 +1344,9 @@ class Storage:
 
         if self.journal_writer:
             for visit in visits:
-                (_, visit.origin) = self._origins[visit.origin.url]
+                visit = attr.evolve(
+                    visit,
+                    origin=self._origins[visit.origin.url][1])
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:

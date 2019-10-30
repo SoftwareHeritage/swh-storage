@@ -6,17 +6,20 @@
 import glob
 import pytest
 
+from typing import Union
+
 from pytest_postgresql import factories
-from pytest_postgresql.janitor import DatabaseJanitor, psycopg2
+from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
 
 from os import path, environ
-from hypothesis import strategies
+from hypothesis import settings
 from typing import Dict
 
 import swh.storage
 
-from swh.model.hypothesis_strategies import origins, contents
 from swh.core.utils import numfile_sortkey as sortkey
+
+from swh.model.tests.generate_testdata import gen_contents, gen_origins
 
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), 'sql')
@@ -24,6 +27,11 @@ SQL_DIR = path.join(path.dirname(swh.storage.__file__), 'sql')
 environ['LC_ALL'] = 'C.UTF-8'
 
 DUMP_FILES = path.join(SQL_DIR, '*.sql')
+
+# define tests profile. Full documentation is at:
+# https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
+settings.register_profile("fast", max_examples=5, deadline=5000)
+settings.register_profile("slow", max_examples=20, deadline=5000)
 
 
 @pytest.fixture
@@ -49,30 +57,16 @@ def swh_storage(postgresql_proc, swh_storage_postgresql):
     return storage
 
 
-def gen_origins(n=20):
-    return strategies.lists(
-        origins().map(lambda x: x.to_dict()),
-        unique_by=lambda x: x['url'],
-        min_size=n, max_size=n).example()
-
-
-def gen_contents(n=20):
-    return strategies.lists(
-        contents().map(lambda x: x.to_dict()),
-        unique_by=lambda x: (x['sha1'], x['sha1_git']),
-        min_size=n, max_size=n).example()
-
-
 @pytest.fixture
 def swh_contents(swh_storage):
-    contents = gen_contents()
+    contents = gen_contents(n=20)
     swh_storage.content_add(contents)
     return contents
 
 
 @pytest.fixture
 def swh_origins(swh_storage):
-    origins = gen_origins()
+    origins = gen_origins(n=100)
     swh_storage.origin_add(origins)
     return origins
 
@@ -80,7 +74,7 @@ def swh_origins(swh_storage):
 # the postgres_fact factory fixture below is mostly a copy of the code
 # from pytest-postgresql. We need a custom version here to be able to
 # specify our version of the DBJanitor we use.
-def postgresql_fact(process_fixture_name, db_name=None):
+def postgresql_fact(process_fixture_name, db_name=None, dump_files=DUMP_FILES):
     @pytest.fixture
     def postgresql_factory(request):
         """
@@ -103,9 +97,9 @@ def postgresql_fact(process_fixture_name, db_name=None):
         pg_user = proc_fixture.user
         pg_options = proc_fixture.options
         pg_db = db_name or config['dbname']
-
         with SwhDatabaseJanitor(
-                pg_user, pg_host, pg_port, pg_db, proc_fixture.version
+                pg_user, pg_host, pg_port, pg_db, proc_fixture.version,
+                dump_files=dump_files
         ):
             connection = psycopg2.connect(
                 dbname=pg_db,
@@ -129,6 +123,19 @@ swh_storage_postgresql = postgresql_fact('postgresql_proc')
 # once, then it truncate the tables. This is needed to have acceptable test
 # performances.
 class SwhDatabaseJanitor(DatabaseJanitor):
+    def __init__(
+            self,
+            user: str,
+            host: str,
+            port: str,
+            db_name: str,
+            version: Union[str, float, Version],
+            dump_files: str = DUMP_FILES
+    ) -> None:
+        super().__init__(user, host, port, db_name, version)
+        self.dump_files = sorted(
+            glob.glob(dump_files), key=sortkey)
+
     def db_setup(self):
         with psycopg2.connect(
             dbname=self.db_name,
@@ -137,12 +144,11 @@ class SwhDatabaseJanitor(DatabaseJanitor):
             port=self.port,
         ) as cnx:
             with cnx.cursor() as cur:
-                all_dump_files = sorted(
-                    glob.glob(DUMP_FILES), key=sortkey)
-                for fname in all_dump_files:
+                for fname in self.dump_files:
                     with open(fname) as fobj:
-                        sql = fobj.read().replace('concurrently', '')
-                        cur.execute(sql)
+                        sql = fobj.read().replace('concurrently', '').strip()
+                        if sql:
+                            cur.execute(sql)
             cnx.commit()
 
     def db_reset(self):

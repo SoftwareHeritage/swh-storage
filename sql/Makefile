@@ -3,14 +3,7 @@
 DBNAME = softwareheritage-dev
 DOCDIR = autodoc
 
-SQL_INIT    = 10-swh-init.sql
-SQL_ENUMS   = 20-swh-enums.sql
-SQL_SCHEMA  = 30-swh-schema.sql
-SQL_FUNC    = 40-swh-func.sql
-SQL_INDEX   = 60-swh-indexes.sql
-SQL_TRIGGER = 70-swh-triggers.sql
-SQLS = $(SQL_INIT) $(SQL_ENUMS) $(SQL_SCHEMA) $(SQL_FUNC) $(SQL_INDEX) $(SQL_TRIGGER)
-SQL_FILES = $(abspath $(addprefix $(CURDIR)/../swh/storage/sql/,$(SQLS)))
+SQL_FILES = $(sort $(wildcard $(CURDIR)/../swh/storage/sql/*))
 
 PSQL_BIN = psql
 PSQL_FLAGS = --echo-errors -X -v ON_ERROR_STOP=1
