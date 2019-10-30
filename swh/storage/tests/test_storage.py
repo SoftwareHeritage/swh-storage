@@ -1071,9 +1071,8 @@ class TestStorage:
                 'snapshot': None,
             } in actual_origin_visits
 
-        expected_origin = data.origin2
         origin_visit = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1082,7 +1081,7 @@ class TestStorage:
             'snapshot': None,
         }
         objects = list(swh_storage.journal_writer.objects)
-        assert ('origin', expected_origin) in objects
+        assert ('origin', data.origin2) in objects
         assert ('origin_visit', origin_visit) in objects
 
     def test_origin_visit_get__unknown_origin(self, swh_storage):
@@ -1140,7 +1139,6 @@ class TestStorage:
         assert ('origin', data.origin2) in objects
 
         for visit in expected_visits:
-            visit['origin'] = data.origin2
             assert ('origin_visit', visit) in objects
 
     def test_origin_visit_add_validation(self, swh_storage):
@@ -1197,7 +1195,7 @@ class TestStorage:
         actual_origin_visits = list(swh_storage.origin_visit_get(
             origin_url))
         expected_visits = [{
-            'origin': origin_visit2['origin'],
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1205,7 +1203,7 @@ class TestStorage:
             'metadata': visit1_metadata,
             'snapshot': None,
         }, {
-            'origin': origin_visit2['origin'],
+            'origin': origin_url,
             'date': date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -1221,7 +1219,7 @@ class TestStorage:
             limit=1))
         assert actual_origin_visits_bis == [
             {
-                'origin': origin_visit2['origin'],
+                'origin': origin_url,
                 'date': date_visit,
                 'visit': origin_visit1['visit'],
                 'type': data.type_visit1,
@@ -1235,7 +1233,7 @@ class TestStorage:
             last_visit=origin_visit1['visit']))
         assert actual_origin_visits_ter == [
             {
-                'origin': origin_visit2['origin'],
+                'origin': origin_url,
                 'date': date_visit2,
                 'visit': origin_visit2['visit'],
                 'type': data.type_visit2,
@@ -1248,7 +1246,7 @@ class TestStorage:
             origin_url2))
         assert actual_origin_visits2 == [
             {
-                'origin': origin_visit3['origin'],
+                'origin': origin_url2,
                 'date': date_visit2,
                 'visit': origin_visit3['visit'],
                 'type': data.type_visit3,
@@ -1257,10 +1255,8 @@ class TestStorage:
                 'snapshot': None,
             }]
 
-        expected_origin = data.origin.copy()
-        expected_origin2 = data.origin2.copy()
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1269,7 +1265,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -1278,7 +1274,7 @@ class TestStorage:
             'snapshot': None,
         }
         data3 = {
-            'origin': expected_origin2,
+            'origin': origin_url2,
             'date': date_visit2,
             'visit': origin_visit3['visit'],
             'type': data.type_visit3,
@@ -1287,7 +1283,7 @@ class TestStorage:
             'snapshot': None,
         }
         data4 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1296,7 +1292,7 @@ class TestStorage:
             'snapshot': None,
         }
         data5 = {
-            'origin': expected_origin2,
+            'origin': origin_url2,
             'date': date_visit2,
             'visit': origin_visit3['visit'],
             'type': data.type_visit3,
@@ -1305,8 +1301,8 @@ class TestStorage:
             'snapshot': None,
         }
         objects = list(swh_storage.journal_writer.objects)
-        assert ('origin', expected_origin) in objects
-        assert ('origin', expected_origin2) in objects
+        assert ('origin', data.origin) in objects
+        assert ('origin', data.origin2) in objects
         assert ('origin_visit', data1) in objects
         assert ('origin_visit', data2) in objects
         assert ('origin_visit', data3) in objects
@@ -1465,7 +1461,7 @@ class TestStorage:
         # when
         swh_storage.origin_visit_upsert([
             {
-                 'origin': data.origin2,
+                 'origin': origin_url,
                  'date': data.date_visit2,
                  'visit': 123,
                  'type': data.type_visit2,
@@ -1474,7 +1470,7 @@ class TestStorage:
                  'snapshot': None,
              },
             {
-                 'origin': data.origin2,
+                 'origin': origin_url,
                  'date': '2018-01-01 23:00:00+00',
                  'visit': 1234,
                  'type': data.type_visit2,
@@ -1508,9 +1504,8 @@ class TestStorage:
             },
         ]
 
-        expected_origin = data.origin2
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': 123,
             'type': data.type_visit2,
@@ -1519,7 +1514,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit3,
             'visit': 1234,
             'type': data.type_visit2,
@@ -1528,7 +1523,7 @@ class TestStorage:
             'snapshot': None,
         }
         assert list(swh_storage.journal_writer.objects) == [
-            ('origin', expected_origin),
+            ('origin', data.origin2),
             ('origin_visit', data1),
             ('origin_visit', data2)]
 
@@ -1544,7 +1539,7 @@ class TestStorage:
             type=data.type_visit1,
         )
         swh_storage.origin_visit_upsert([{
-             'origin': data.origin2,
+             'origin': origin_url,
              'date': data.date_visit2,
              'visit': origin_visit1['visit'],
              'type': data.type_visit1,
@@ -1570,9 +1565,8 @@ class TestStorage:
                 'snapshot': None,
             }]
 
-        expected_origin = data.origin2
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1581,7 +1575,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1590,7 +1584,7 @@ class TestStorage:
             'snapshot': None,
         }
         assert list(swh_storage.journal_writer.objects) == [
-            ('origin', expected_origin),
+            ('origin', data.origin2),
             ('origin_visit', data1),
             ('origin_visit', data2)]
 
@@ -1748,9 +1742,8 @@ class TestStorage:
         by_ov = swh_storage.snapshot_get_by_origin_visit(origin_url, visit_id)
         assert by_ov == {**data.empty_snapshot, 'next_branch': None}
 
-        expected_origin = data.origin.copy()
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1759,7 +1752,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1768,7 +1761,7 @@ class TestStorage:
             'snapshot': data.empty_snapshot['id'],
         }
         assert list(swh_storage.journal_writer.objects) == \
-            [('origin', expected_origin),
+            [('origin', data.origin),
              ('origin_visit', data1),
              ('snapshot', data.empty_snapshot),
              ('origin_visit', data2)]
@@ -2108,9 +2101,8 @@ class TestStorage:
             origin_url, visit2_id)
         assert by_ov2 == {**data.snapshot, 'next_branch': None}
 
-        expected_origin = data.origin.copy()
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -2119,7 +2111,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -2128,7 +2120,7 @@ class TestStorage:
             'snapshot': data.snapshot['id'],
         }
         data3 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -2137,7 +2129,7 @@ class TestStorage:
             'snapshot': None,
         }
         data4 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -2146,7 +2138,7 @@ class TestStorage:
             'snapshot': data.snapshot['id'],
         }
         assert list(swh_storage.journal_writer.objects) \
-            == [('origin', expected_origin),
+            == [('origin', data.origin),
                 ('origin_visit', data1),
                 ('snapshot', data.snapshot),
                 ('origin_visit', data2),
@@ -3213,11 +3205,11 @@ class TestStorageGeneratedData:
             obj = obj.to_dict()
             if obj_type == 'origin_visit':
                 origin = obj.pop('origin')
-                swh_storage.origin_add_one(origin)
+                swh_storage.origin_add_one({'url': origin})
                 if 'visit' in obj:
                     del obj['visit']
                 swh_storage.origin_visit_add(
-                    origin['url'], obj['date'], obj['type'])
+                    origin, obj['date'], obj['type'])
             else:
                 method = getattr(swh_storage, obj_type + '_add')
                 try:

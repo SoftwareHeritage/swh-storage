@@ -1227,7 +1227,6 @@ class Storage():
 
         """
         origin_url = origin
-        origin = self.origin_get({'url': origin_url}, db=db, cur=cur)
 
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
@@ -1239,7 +1238,7 @@ class Storage():
             # We can write to the journal only after inserting to the
             # DB, because we want the id of the visit
             self.journal_writer.write_addition('origin_visit', {
-                'origin': origin, 'date': date, 'type': type,
+                'origin': origin_url, 'date': date, 'type': type,
                 'visit': visit_id,
                 'status': 'ongoing', 'metadata': None, 'snapshot': None})
 
@@ -1266,6 +1265,8 @@ class Storage():
             None
 
         """
+        if not isinstance(origin, str):
+            raise TypeError('origin must be a string, not %r' % (origin,))
         origin_url = origin
         visit = db.origin_visit_get(origin_url, visit_id, cur=cur)
 
@@ -1284,10 +1285,8 @@ class Storage():
 
         if updates:
             if self.journal_writer:
-                origin = self.origin_get(
-                    [{'url': origin_url}], db=db, cur=cur)[0]
                 self.journal_writer.write_update('origin_visit', {
-                    **visit, **updates, 'origin': origin})
+                    **visit, **updates})
 
             db.origin_visit_update(origin_url, visit_id, updates, cur)
 
@@ -1312,18 +1311,15 @@ class Storage():
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
-            visit['origin'] = \
-                self.origin_get([visit['origin']], db=db, cur=cur)[0]
+            if not isinstance(visit['origin'], str):
+                raise TypeError("visit['origin'] must be a string, not %r"
+                                % (visit['origin'],))
 
         if self.journal_writer:
             for visit in visits:
-                visit = copy.deepcopy(visit)
-                if visit.get('type') is None:
-                    visit['type'] = visit['origin']['type']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
-            visit['origin'] = visit['origin']['url']
             # TODO: upsert them all in a single query
             db.origin_visit_upsert(**visit, cur=cur)
 

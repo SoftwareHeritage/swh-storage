@@ -1246,7 +1246,6 @@ class Storage:
                 ('origin_visit', None))
 
             if self.journal_writer:
-                visit = attr.evolve(visit, origin=origin)
                 self.journal_writer.write_addition('origin_visit', visit)
 
         return visit_ret
@@ -1267,6 +1266,8 @@ class Storage:
             None
 
         """
+        if not isinstance(origin, str):
+            raise TypeError('origin must be a string, not %r' % (origin,))
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
             raise ValueError('Unknown origin.')
@@ -1288,15 +1289,9 @@ class Storage:
         visit = attr.evolve(visit, **updates)
 
         if self.journal_writer:
-            origin = self._origins[origin_url]
-            journal_visit = attr.evolve(visit, origin=origin)
-            self.journal_writer.write_update('origin_visit', journal_visit)
+            self.journal_writer.write_update('origin_visit', visit)
 
         self._origin_visits[origin_url][visit_id-1] = visit
-
-        if origin_url not in self._origin_visits or \
-                visit_id > len(self._origin_visits[origin_url]):
-            return
 
     def origin_visit_upsert(self, visits):
         """Add a origin_visits with a specific id and with all its data.
@@ -1306,7 +1301,7 @@ class Storage:
         Args:
             visits: iterable of dicts with keys:
 
-                origin: dict with keys either `id` or `url`
+                origin: origin url
                 visit: origin visit id
                 type: type of loader used for the visit
                 date: timestamp of such visit
@@ -1315,18 +1310,19 @@ class Storage:
                 snapshot (sha1_git): identifier of the snapshot to add to
                     the visit
         """
+        for visit in visits:
+            if not isinstance(visit['origin'], str):
+                raise TypeError("visit['origin'] must be a string, not %r"
+                                % (visit['origin'],))
         visits = [OriginVisit.from_dict(d) for d in visits]
 
         if self.journal_writer:
             for visit in visits:
-                visit = attr.evolve(
-                    visit,
-                    origin=self._origins[visit.origin.url])
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
             visit_id = visit.visit
-            origin_url = visit.origin.url
+            origin_url = visit.origin
 
             visit = attr.evolve(visit, origin=origin_url)
 
