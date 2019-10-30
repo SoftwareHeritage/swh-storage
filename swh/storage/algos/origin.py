@@ -13,7 +13,6 @@ def iter_origins(storage, origin_from=1, origin_to=None, batch_size=10000):
     Yields:
         dict: the origin dictionary with the keys:
 
-        - id: origin's id
         - type: origin's type
         - url: origin's url
     """
@@ -28,6 +27,8 @@ def iter_origins(storage, origin_from=1, origin_to=None, batch_size=10000):
         if not origins:
             break
         start = origins[-1]['id'] + 1
-        yield from origins
+        for origin in origins:
+            del origin['id']
+            yield origin
         if origin_to and start > origin_to:
             break

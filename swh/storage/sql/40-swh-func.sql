@@ -693,17 +693,22 @@ $$;
 -- add a new origin_visit for origin origin_id at date.
 --
 -- Returns the new visit id.
-create or replace function swh_origin_visit_add(origin_id bigint, date timestamptz, type text)
+create or replace function swh_origin_visit_add(origin_url text, date timestamptz, type text)
     returns bigint
     language sql
 as $$
-  with last_known_visit as (
+  with origin_id as (
+    select id
+    from origin
+    where url = origin_url
+  ), last_known_visit as (
     select coalesce(max(visit), 0) as visit
     from origin_visit
-    where origin = origin_id
+    where origin = (select id from origin_id)
   )
   insert into origin_visit (origin, date, type, visit, status)
-  values (origin_id, date, type, (select visit from last_known_visit) + 1, 'ongoing')
+  values ((select id from origin_id), date, type,
+          (select visit from last_known_visit) + 1, 'ongoing')
   returning visit;
 $$;
 
@@ -828,40 +833,34 @@ as $$
     select dir_id, name from path order by depth desc limit 1;
 $$;
 
--- Find the visit of origin id closest to date visit_date
+-- Find the visit of origin closest to date visit_date
 -- Breaks ties by selecting the largest visit id
-create or replace function swh_visit_find_by_date(origin bigint, visit_date timestamptz default NOW())
-    returns origin_visit
-    language sql
+create or replace function swh_visit_find_by_date(origin_url text, visit_date timestamptz default NOW())
+    returns setof origin_visit
+    language plpgsql
     stable
 as $$
+declare
+  origin_id bigint;
+begin
+  select id into origin_id from origin where url=origin_url;
+  return query
   with closest_two_visits as ((
     select ov, (date - visit_date), visit as interval
     from origin_visit ov
-    where ov.origin = origin
+    where ov.origin = origin_id
           and ov.date >= visit_date
     order by ov.date asc, ov.visit desc
     limit 1
   ) union (
     select ov, (visit_date - date), visit as interval
     from origin_visit ov
-    where ov.origin = origin
+    where ov.origin = origin_id
           and ov.date < visit_date
     order by ov.date desc, ov.visit desc
     limit 1
-  )) select (ov).* from closest_two_visits order by interval, visit limit 1
-$$;
-
--- Find the visit of origin id closest to date visit_date
-create or replace function swh_visit_get(origin bigint)
-    returns origin_visit
-    language sql
-    stable
-as $$
-    select *
-    from origin_visit
-    where origin=origin
-    order by date desc
+  )) select (ov).* from closest_two_visits order by interval, visit limit 1;
+end
 $$;
 
 -- Object listing by object_id
@@ -927,7 +926,7 @@ $$;
 -- origin_metadata functions
 create type origin_metadata_signature as (
     id bigint,
-    origin_id bigint,
+    origin_url text,
     discovery_date timestamptz,
     tool_id bigint,
     metadata jsonb,
@@ -937,32 +936,34 @@ create type origin_metadata_signature as (
     provider_url  text
 );
 create or replace function swh_origin_metadata_get_by_origin(
-       origin integer)
+       origin text)
     returns setof origin_metadata_signature
     language sql
     stable
 as $$
-    select om.id as id, origin_id, discovery_date, tool_id, om.metadata,
+    select om.id as id, o.url as origin_url, discovery_date, tool_id, om.metadata,
            mp.id as provider_id, provider_name, provider_type, provider_url
     from origin_metadata as om
     inner join metadata_provider mp on om.provider_id = mp.id
-    where om.origin_id = origin
+    inner join origin o on om.origin_id = o.id
+    where o.url = origin
     order by discovery_date desc;
 $$;
 
 create or replace function swh_origin_metadata_get_by_provider_type(
-       origin integer,
-       type text)
+       origin_url text,
+       provider_type text)
     returns setof origin_metadata_signature
     language sql
     stable
 as $$
-    select om.id as id, origin_id, discovery_date, tool_id, om.metadata,
+    select om.id as id, o.url as origin_url, discovery_date, tool_id, om.metadata,
            mp.id as provider_id, provider_name, provider_type, provider_url
     from origin_metadata as om
     inner join metadata_provider mp on om.provider_id = mp.id
-    where om.origin_id = origin
-    and mp.provider_type = type
+    inner join origin o on om.origin_id = o.id
+    where o.url = origin_url
+    and mp.provider_type = provider_type
     order by discovery_date desc;
 $$;
 -- end origin_metadata functions
