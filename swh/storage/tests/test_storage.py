@@ -78,7 +78,6 @@ class TestStorage:
     class twice.
     """
     maxDiff = None  # type: ClassVar[Optional[int]]
-    _test_origin_ids = True
 
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
@@ -872,8 +871,6 @@ class TestStorage:
         id = swh_storage.origin_add_one(data.origin)
 
         actual_origin = swh_storage.origin_get({'url': data.origin['url']})
-        if self._test_origin_ids:
-            assert actual_origin['id'] == id
         assert actual_origin['url'] == data.origin['url']
 
         id2 = swh_storage.origin_add_one(data.origin)
@@ -889,15 +886,11 @@ class TestStorage:
         actual_origin = swh_storage.origin_get([{
             'url': data.origin['url'],
         }])[0]
-        if self._test_origin_ids:
-            assert actual_origin['id'] == origin1['id']
         assert actual_origin['url'] == origin1['url']
 
         actual_origin2 = swh_storage.origin_get([{
             'url': data.origin2['url'],
         }])[0]
-        if self._test_origin_ids:
-            assert actual_origin2['id'] == origin2['id']
         assert actual_origin2['url'] == origin2['url']
 
         if 'id' in actual_origin:
@@ -927,48 +920,20 @@ class TestStorage:
 
     def test_origin_get_legacy(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
-        id = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add_one(data.origin)
 
-        # lookup per url (returns id)
         actual_origin0 = swh_storage.origin_get(
             {'url': data.origin['url']})
-        if self._test_origin_ids:
-            assert actual_origin0['id'] == id
         assert actual_origin0['url'] == data.origin['url']
-
-        # lookup per id (returns dict)
-        if self._test_origin_ids:
-            actual_origin1 = swh_storage.origin_get({'id': id})
-
-            assert actual_origin1 == {'id': id,
-                                      'url': data.origin['url']}
 
     def test_origin_get(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
-        origin_id = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add_one(data.origin)
 
-        # lookup per url (returns id)
         actual_origin0 = swh_storage.origin_get(
             [{'url': data.origin['url']}])
         assert len(actual_origin0) == 1
         assert actual_origin0[0]['url'] == data.origin['url']
-
-        if self._test_origin_ids:
-            # lookup per id (returns dict)
-            actual_origin1 = swh_storage.origin_get([{'id': origin_id}])
-
-            assert len(actual_origin1) == 1
-            assert actual_origin1[0] == {'id': origin_id,
-                                         'url': data.origin['url']}
-
-    def test_origin_get_consistency(self, swh_storage):
-        assert swh_storage.origin_get(data.origin) is None
-        id = swh_storage.origin_add_one(data.origin)
-
-        with pytest.raises(ValueError):
-            swh_storage.origin_get([
-                {'url': data.origin['url']},
-                {'id': id}])
 
     def test_origin_search_single_result(self, swh_storage):
         found_origins = list(swh_storage.origin_search(data.origin['url']))
@@ -1081,27 +1046,23 @@ class TestStorage:
         # check both origins were returned
         assert found_origins0 != found_origins1
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_add(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_add(self, swh_storage):
         # given
-        origin_id = swh_storage.origin_add_one(data.origin2)
-        assert origin_id is not None
+        swh_storage.origin_add_one(data.origin2)
 
-        origin_id_or_url = data.origin2['url'] if use_url else origin_id
+        origin_url = data.origin2['url']
 
         # when
         date_visit = datetime.datetime.now(datetime.timezone.utc)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin_id_or_url,
+            origin_url,
             type=data.type_visit1,
             date=date_visit)
 
         actual_origin_visits = list(swh_storage.origin_visit_get(
-            origin_id_or_url))
+            origin_url))
         assert {
-                'origin': origin_id,
+                'origin': origin_url,
                 'date': date_visit,
                 'visit': origin_visit1['visit'],
                 'type': data.type_visit1,
@@ -1110,9 +1071,8 @@ class TestStorage:
                 'snapshot': None,
             } in actual_origin_visits
 
-        expected_origin = data.origin2
         origin_visit = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1121,46 +1081,40 @@ class TestStorage:
             'snapshot': None,
         }
         objects = list(swh_storage.journal_writer.objects)
-        assert ('origin', expected_origin) in objects
+        assert ('origin', data.origin2) in objects
         assert ('origin_visit', origin_visit) in objects
 
     def test_origin_visit_get__unknown_origin(self, swh_storage):
         assert [] == list(swh_storage.origin_visit_get('foo'))
-        if self._test_origin_ids:
-            assert list(swh_storage.origin_visit_get(10)) == []
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_add_default_type(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_add_default_type(self, swh_storage):
         # given
-        origin_id = swh_storage.origin_add_one(data.origin2)
-        origin_id_or_url = data.origin2['url'] if use_url else origin_id
-        assert origin_id is not None
+        swh_storage.origin_add_one(data.origin2)
+        origin_url = data.origin2['url']
 
         # when
         date_visit = datetime.datetime.now(datetime.timezone.utc)
         date_visit2 = date_visit + datetime.timedelta(minutes=1)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin_id_or_url,
+            origin_url,
             date=date_visit,
             type=data.type_visit1,
         )
         origin_visit2 = swh_storage.origin_visit_add(
-            origin_id_or_url,
+            origin_url,
             date=date_visit2,
             type=data.type_visit2,
         )
 
         # then
-        assert origin_visit1['origin'] == origin_id
+        assert origin_visit1['origin'] == origin_url
         assert origin_visit1['visit'] is not None
 
         actual_origin_visits = list(swh_storage.origin_visit_get(
-            origin_id_or_url))
+            origin_url))
         expected_visits = [
                 {
-                    'origin': origin_id,
+                    'origin': origin_url,
                     'date': date_visit,
                     'visit': origin_visit1['visit'],
                     'type': data.type_visit1,
@@ -1169,7 +1123,7 @@ class TestStorage:
                     'snapshot': None,
                 },
                 {
-                    'origin': origin_id,
+                    'origin': origin_url,
                     'date': date_visit2,
                     'visit': origin_visit2['visit'],
                     'type': data.type_visit2,
@@ -1185,24 +1139,19 @@ class TestStorage:
         assert ('origin', data.origin2) in objects
 
         for visit in expected_visits:
-            visit['origin'] = data.origin2
             assert ('origin_visit', visit) in objects
 
     def test_origin_visit_add_validation(self, swh_storage):
-        origin_id_or_url = swh_storage.origin_add_one(data.origin2)
+        origin_url = swh_storage.origin_add_one(data.origin2)
 
         with pytest.raises((TypeError, psycopg2.ProgrammingError)) as cm:
-            swh_storage.origin_visit_add(origin_id_or_url, date=[b'foo'],
-                                         type=data.type_visit1)
+            swh_storage.origin_visit_add(origin_url, date=[b'foo'])
 
         if type(cm.value) == psycopg2.ProgrammingError:
             assert cm.value.pgcode \
                 == psycopg2.errorcodes.UNDEFINED_FUNCTION
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_update(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_update(self, swh_storage):
         # given
         swh_storage.origin_add_one(data.origin)
         origin_url = data.origin['url']
@@ -1246,7 +1195,7 @@ class TestStorage:
         actual_origin_visits = list(swh_storage.origin_visit_get(
             origin_url))
         expected_visits = [{
-            'origin': origin_visit2['origin'],
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1254,7 +1203,7 @@ class TestStorage:
             'metadata': visit1_metadata,
             'snapshot': None,
         }, {
-            'origin': origin_visit2['origin'],
+            'origin': origin_url,
             'date': date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -1270,7 +1219,7 @@ class TestStorage:
             limit=1))
         assert actual_origin_visits_bis == [
             {
-                'origin': origin_visit2['origin'],
+                'origin': origin_url,
                 'date': date_visit,
                 'visit': origin_visit1['visit'],
                 'type': data.type_visit1,
@@ -1284,7 +1233,7 @@ class TestStorage:
             last_visit=origin_visit1['visit']))
         assert actual_origin_visits_ter == [
             {
-                'origin': origin_visit2['origin'],
+                'origin': origin_url,
                 'date': date_visit2,
                 'visit': origin_visit2['visit'],
                 'type': data.type_visit2,
@@ -1297,7 +1246,7 @@ class TestStorage:
             origin_url2))
         assert actual_origin_visits2 == [
             {
-                'origin': origin_visit3['origin'],
+                'origin': origin_url2,
                 'date': date_visit2,
                 'visit': origin_visit3['visit'],
                 'type': data.type_visit3,
@@ -1306,10 +1255,8 @@ class TestStorage:
                 'snapshot': None,
             }]
 
-        expected_origin = data.origin.copy()
-        expected_origin2 = data.origin2.copy()
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1318,7 +1265,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -1327,7 +1274,7 @@ class TestStorage:
             'snapshot': None,
         }
         data3 = {
-            'origin': expected_origin2,
+            'origin': origin_url2,
             'date': date_visit2,
             'visit': origin_visit3['visit'],
             'type': data.type_visit3,
@@ -1336,7 +1283,7 @@ class TestStorage:
             'snapshot': None,
         }
         data4 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': date_visit,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1345,7 +1292,7 @@ class TestStorage:
             'snapshot': None,
         }
         data5 = {
-            'origin': expected_origin2,
+            'origin': origin_url2,
             'date': date_visit2,
             'visit': origin_visit3['visit'],
             'type': data.type_visit3,
@@ -1354,8 +1301,8 @@ class TestStorage:
             'snapshot': None,
         }
         objects = list(swh_storage.journal_writer.objects)
-        assert ('origin', expected_origin) in objects
-        assert ('origin', expected_origin2) in objects
+        assert ('origin', data.origin) in objects
+        assert ('origin', data.origin2) in objects
         assert ('origin_visit', data1) in objects
         assert ('origin_visit', data2) in objects
         assert ('origin_visit', data3) in objects
@@ -1363,9 +1310,10 @@ class TestStorage:
         assert ('origin_visit', data5) in objects
 
     def test_origin_visit_update_validation(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         visit = swh_storage.origin_visit_add(
-            origin_id,
+            origin_url,
             date=data.date_visit2,
             type=data.type_visit2,
         )
@@ -1373,7 +1321,7 @@ class TestStorage:
         with pytest.raises((ValueError, psycopg2.DataError),
                            match='status') as cm:
             swh_storage.origin_visit_update(
-                origin_id, visit['visit'], status='foobar')
+                origin_url, visit['visit'], status='foobar')
 
         if type(cm.value) == psycopg2.DataError:
             assert cm.value.pgcode == \
@@ -1414,29 +1362,26 @@ class TestStorage:
     def test_origin_visit_find_by_date__unknown_origin(self, swh_storage):
         swh_storage.origin_visit_find_by_date('foo', data.date_visit2)
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_update_missing_snapshot(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_update_missing_snapshot(self, swh_storage):
         # given
-        origin_id = swh_storage.origin_add_one(data.origin)
-        origin_id_or_url = data.origin['url'] if use_url else origin_id
+        swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
 
         origin_visit = swh_storage.origin_visit_add(
-            origin_id_or_url,
+            origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
 
         # when
         swh_storage.origin_visit_update(
-            origin_id_or_url,
+            origin_url,
             origin_visit['visit'],
             snapshot=data.snapshot['id'])
 
         # then
         actual_origin_visit = swh_storage.origin_visit_get_by(
-            origin_id_or_url,
+            origin_url,
             origin_visit['visit'])
         assert actual_origin_visit['snapshot'] == data.snapshot['id']
 
@@ -1444,36 +1389,33 @@ class TestStorage:
         swh_storage.snapshot_add([data.snapshot])
         assert actual_origin_visit['snapshot'] == data.snapshot['id']
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_get_by(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
-        origin_id = swh_storage.origin_add_one(data.origin)
-        origin_id2 = swh_storage.origin_add_one(data.origin2)
+    def test_origin_visit_get_by(self, swh_storage):
+        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add_one(data.origin2)
 
-        origin_id_or_url = data.origin['url'] if use_url else origin_id
-        origin2_id_or_url = data.origin2['url'] if use_url else origin_id2
+        origin_url = data.origin['url']
+        origin2_url = data.origin2['url']
 
         origin_visit1 = swh_storage.origin_visit_add(
-            origin_id_or_url,
+            origin_url,
             date=data.date_visit2,
             type=data.type_visit2,
         )
 
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_id_or_url,
+            origin_url,
             origin_visit1['visit'],
             snapshot=data.snapshot['id'])
 
         # Add some other {origin, visit} entries
         swh_storage.origin_visit_add(
-            origin_id_or_url,
+            origin_url,
             date=data.date_visit3,
             type=data.type_visit3,
         )
         swh_storage.origin_visit_add(
-            origin2_id_or_url,
+            origin2_url,
             date=data.date_visit3,
             type=data.type_visit3,
         )
@@ -1485,13 +1427,13 @@ class TestStorage:
         }
 
         swh_storage.origin_visit_update(
-            origin_id_or_url,
+            origin_url,
             origin_visit1['visit'], status='full',
             metadata=visit1_metadata)
 
         expected_origin_visit = origin_visit1.copy()
         expected_origin_visit.update({
-            'origin': origin_id,
+            'origin': origin_url,
             'visit': origin_visit1['visit'],
             'date': data.date_visit2,
             'type': data.type_visit2,
@@ -1502,30 +1444,24 @@ class TestStorage:
 
         # when
         actual_origin_visit1 = swh_storage.origin_visit_get_by(
-            origin_id_or_url,
+            origin_url,
             origin_visit1['visit'])
 
         # then
         assert actual_origin_visit1 == expected_origin_visit
 
     def test_origin_visit_get_by__unknown_origin(self, swh_storage):
-        if self._test_origin_ids:
-            assert swh_storage.origin_visit_get_by(2, 10) is None
         assert swh_storage.origin_visit_get_by('foo', 10) is None
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_upsert_new(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_upsert_new(self, swh_storage):
         # given
-        origin_id = swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add_one(data.origin2)
         origin_url = data.origin2['url']
-        assert origin_id is not None
 
         # when
         swh_storage.origin_visit_upsert([
             {
-                 'origin': data.origin2,
+                 'origin': origin_url,
                  'date': data.date_visit2,
                  'visit': 123,
                  'type': data.type_visit2,
@@ -1534,7 +1470,7 @@ class TestStorage:
                  'snapshot': None,
              },
             {
-                 'origin': data.origin2,
+                 'origin': origin_url,
                  'date': '2018-01-01 23:00:00+00',
                  'visit': 1234,
                  'type': data.type_visit2,
@@ -1549,7 +1485,7 @@ class TestStorage:
             origin_url))
         assert actual_origin_visits == [
             {
-                'origin': origin_id,
+                'origin': origin_url,
                 'date': data.date_visit2,
                 'visit': 123,
                 'type': data.type_visit2,
@@ -1558,7 +1494,7 @@ class TestStorage:
                 'snapshot': None,
             },
             {
-                'origin': origin_id,
+                'origin': origin_url,
                 'date': data.date_visit3,
                 'visit': 1234,
                 'type': data.type_visit2,
@@ -1568,9 +1504,8 @@ class TestStorage:
             },
         ]
 
-        expected_origin = data.origin2
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': 123,
             'type': data.type_visit2,
@@ -1579,7 +1514,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit3,
             'visit': 1234,
             'type': data.type_visit2,
@@ -1588,18 +1523,14 @@ class TestStorage:
             'snapshot': None,
         }
         assert list(swh_storage.journal_writer.objects) == [
-            ('origin', expected_origin),
+            ('origin', data.origin2),
             ('origin_visit', data1),
             ('origin_visit', data2)]
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_upsert_existing(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_upsert_existing(self, swh_storage):
         # given
-        origin_id = swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add_one(data.origin2)
         origin_url = data.origin2['url']
-        assert origin_id is not None
 
         # when
         origin_visit1 = swh_storage.origin_visit_add(
@@ -1608,7 +1539,7 @@ class TestStorage:
             type=data.type_visit1,
         )
         swh_storage.origin_visit_upsert([{
-             'origin': data.origin2,
+             'origin': origin_url,
              'date': data.date_visit2,
              'visit': origin_visit1['visit'],
              'type': data.type_visit1,
@@ -1618,14 +1549,14 @@ class TestStorage:
          }])
 
         # then
-        assert origin_visit1['origin'] == origin_id
+        assert origin_visit1['origin'] == origin_url
         assert origin_visit1['visit'] is not None
 
         actual_origin_visits = list(swh_storage.origin_visit_get(
             origin_url))
         assert actual_origin_visits == [
             {
-                'origin': origin_id,
+                'origin': origin_url,
                 'date': data.date_visit2,
                 'visit': origin_visit1['visit'],
                 'type': data.type_visit1,
@@ -1634,9 +1565,8 @@ class TestStorage:
                 'snapshot': None,
             }]
 
-        expected_origin = data.origin2
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1645,7 +1575,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1654,25 +1584,17 @@ class TestStorage:
             'snapshot': None,
         }
         assert list(swh_storage.journal_writer.objects) == [
-            ('origin', expected_origin),
+            ('origin', data.origin2),
             ('origin_visit', data1),
             ('origin_visit', data2)]
 
     def test_origin_visit_get_by_no_result(self, swh_storage):
-        if self._test_origin_ids:
-            actual_origin_visit = swh_storage.origin_visit_get_by(
-                10, 999)
-            assert actual_origin_visit is None
-
         swh_storage.origin_add([data.origin])
         actual_origin_visit = swh_storage.origin_visit_get_by(
             data.origin['url'], 999)
         assert actual_origin_visit is None
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_visit_get_latest(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_origin_visit_get_latest(self, swh_storage):
         swh_storage.origin_add_one(data.origin)
         origin_url = data.origin['url']
         origin_visit1 = swh_storage.origin_visit_add(
@@ -1799,9 +1721,10 @@ class TestStorage:
         assert revisions[0]['committer'] == revisions[1]['committer']
 
     def test_snapshot_add_get_empty(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
@@ -1811,17 +1734,16 @@ class TestStorage:
         assert actual_result == {'snapshot:add': 1}
 
         swh_storage.origin_visit_update(
-            origin_id, visit_id, snapshot=data.empty_snapshot['id'])
+            origin_url, visit_id, snapshot=data.empty_snapshot['id'])
 
         by_id = swh_storage.snapshot_get(data.empty_snapshot['id'])
         assert by_id == {**data.empty_snapshot, 'next_branch': None}
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_url, visit_id)
         assert by_ov == {**data.empty_snapshot, 'next_branch': None}
 
-        expected_origin = data.origin.copy()
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1830,7 +1752,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -1839,15 +1761,16 @@ class TestStorage:
             'snapshot': data.empty_snapshot['id'],
         }
         assert list(swh_storage.journal_writer.objects) == \
-            [('origin', expected_origin),
+            [('origin', data.origin),
              ('origin_visit', data1),
              ('snapshot', data.empty_snapshot),
              ('origin_visit', data2)]
 
     def test_snapshot_add_get_complete(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
@@ -1855,13 +1778,13 @@ class TestStorage:
 
         actual_result = swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit_id, snapshot=data.complete_snapshot['id'])
+            origin_url, visit_id, snapshot=data.complete_snapshot['id'])
         assert actual_result == {'snapshot:add': 1}
 
         by_id = swh_storage.snapshot_get(data.complete_snapshot['id'])
         assert by_id == {**data.complete_snapshot, 'next_branch': None}
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_url, visit_id)
         assert by_ov == {**data.complete_snapshot, 'next_branch': None}
 
     def test_snapshot_add_many(self, swh_storage):
@@ -1988,9 +1911,10 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get_filtered(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
@@ -1998,7 +1922,7 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit_id, snapshot=data.complete_snapshot['id'])
+            origin_url, visit_id, snapshot=data.complete_snapshot['id'])
 
         snp_id = data.complete_snapshot['id']
         branches = data.complete_snapshot['branches']
@@ -2106,9 +2030,10 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
@@ -2116,20 +2041,21 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit_id, snapshot=data.snapshot['id'])
+            origin_url, visit_id, snapshot=data.snapshot['id'])
 
         by_id = swh_storage.snapshot_get(data.snapshot['id'])
         assert by_id == {**data.snapshot, 'next_branch': None}
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_id, visit_id)
+        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_url, visit_id)
         assert by_ov == {**data.snapshot, 'next_branch': None}
 
         origin_visit_info = swh_storage.origin_visit_get_by(
-            origin_id, visit_id)
+            origin_url, visit_id)
         assert origin_visit_info['snapshot'] == data.snapshot['id']
 
     def test_snapshot_add_nonexistent_visit(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         visit_id = 54164461156
 
         swh_storage.journal_writer.objects[:] = []
@@ -2138,29 +2064,30 @@ class TestStorage:
 
         with pytest.raises(ValueError):
             swh_storage.origin_visit_update(
-                origin_id, visit_id, snapshot=data.snapshot['id'])
+                origin_url, visit_id, snapshot=data.snapshot['id'])
 
         assert list(swh_storage.journal_writer.objects) == [
             ('snapshot', data.snapshot)]
 
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage):
-        origin_id = swh_storage.origin_add_one(data.origin)
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         origin_visit1 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
         visit1_id = origin_visit1['visit']
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit1_id, snapshot=data.snapshot['id'])
+            origin_url, visit1_id, snapshot=data.snapshot['id'])
 
         by_ov1 = swh_storage.snapshot_get_by_origin_visit(
-            origin_id, visit1_id)
+            origin_url, visit1_id)
         assert by_ov1 == {**data.snapshot, 'next_branch': None}
 
         origin_visit2 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit2,
             type=data.type_visit2,
         )
@@ -2168,15 +2095,14 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit2_id, snapshot=data.snapshot['id'])
+            origin_url, visit2_id, snapshot=data.snapshot['id'])
 
         by_ov2 = swh_storage.snapshot_get_by_origin_visit(
-            origin_id, visit2_id)
+            origin_url, visit2_id)
         assert by_ov2 == {**data.snapshot, 'next_branch': None}
 
-        expected_origin = data.origin.copy()
         data1 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -2185,7 +2111,7 @@ class TestStorage:
             'snapshot': None,
         }
         data2 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit1,
             'visit': origin_visit1['visit'],
             'type': data.type_visit1,
@@ -2194,7 +2120,7 @@ class TestStorage:
             'snapshot': data.snapshot['id'],
         }
         data3 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -2203,7 +2129,7 @@ class TestStorage:
             'snapshot': None,
         }
         data4 = {
-            'origin': expected_origin,
+            'origin': origin_url,
             'date': data.date_visit2,
             'visit': origin_visit2['visit'],
             'type': data.type_visit2,
@@ -2212,27 +2138,25 @@ class TestStorage:
             'snapshot': data.snapshot['id'],
         }
         assert list(swh_storage.journal_writer.objects) \
-            == [('origin', expected_origin),
+            == [('origin', data.origin),
                 ('origin_visit', data1),
                 ('snapshot', data.snapshot),
                 ('origin_visit', data2),
                 ('origin_visit', data3),
                 ('origin_visit', data4)]
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_snapshot_get_latest(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
-        origin_id = swh_storage.origin_add_one(data.origin)
+    def test_snapshot_get_latest(self, swh_storage):
+        origin_url = data.origin['url']
+        swh_storage.origin_add_one(data.origin)
         origin_url = data.origin['url']
         origin_visit1 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit1,
             type=data.type_visit1,
         )
         visit1_id = origin_visit1['visit']
         origin_visit2 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit2,
             type=data.type_visit2,
         )
@@ -2240,7 +2164,7 @@ class TestStorage:
 
         # Add a visit with the same date as the previous one
         origin_visit3 = swh_storage.origin_visit_add(
-            origin=origin_id,
+            origin=origin_url,
             date=data.date_visit2,
             type=data.type_visit3,
         )
@@ -2252,7 +2176,7 @@ class TestStorage:
         # Add snapshot to visit1, latest snapshot = visit 1 snapshot
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit1_id, snapshot=data.complete_snapshot['id'])
+            origin_url, visit1_id, snapshot=data.complete_snapshot['id'])
         assert {**data.complete_snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(origin_url)
 
@@ -2263,7 +2187,7 @@ class TestStorage:
                 allowed_statuses=['full']) is None
 
         # Mark the first visit as completed and check status filter again
-        swh_storage.origin_visit_update(origin_id, visit1_id, status='full')
+        swh_storage.origin_visit_update(origin_url, visit1_id, status='full')
         assert {**data.complete_snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(
                 origin_url,
@@ -2272,9 +2196,9 @@ class TestStorage:
         # Add snapshot to visit2 and check that the new snapshot is returned
         swh_storage.snapshot_add([data.empty_snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit2_id, snapshot=data.empty_snapshot['id'])
+            origin_url, visit2_id, snapshot=data.empty_snapshot['id'])
         assert {**data.empty_snapshot, 'next_branch': None} \
-            == swh_storage.snapshot_get_latest(origin_id)
+            == swh_storage.snapshot_get_latest(origin_url)
 
         # Check that the status filter is still working
         assert {**data.complete_snapshot, 'next_branch': None} \
@@ -2286,14 +2210,11 @@ class TestStorage:
         # the new snapshot is returned
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
-            origin_id, visit3_id, snapshot=data.complete_snapshot['id'])
+            origin_url, visit3_id, snapshot=data.complete_snapshot['id'])
         assert {**data.complete_snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(origin_url)
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_snapshot_get_latest__missing_snapshot(self, swh_storage, use_url):
-        if not self._test_origin_ids and not use_url:
-            return
+    def test_snapshot_get_latest__missing_snapshot(self, swh_storage):
         # Origin does not exist
         origin_url = data.origin['url']
         assert swh_storage.snapshot_get_latest(origin_url) is None
@@ -2821,13 +2742,10 @@ class TestStorage:
         # then
         assert provider_id, actual_provider['id']
 
-    @pytest.mark.parametrize('use_url', [True, False])
-    def test_origin_metadata_add(self, swh_storage, use_url):
-        if not self._test_origin_ids:
-            pytest.skip('requires origin id')
-
+    def test_origin_metadata_add(self, swh_storage):
         # given
-        origin = swh_storage.origin_add([data.origin])[0]
+        origin = data.origin
+        swh_storage.origin_add([origin])[0]
 
         tools = swh_storage.tool_add([data.metadata_tool])
         tool = tools[0]
@@ -2843,32 +2761,30 @@ class TestStorage:
                       })
 
         # when adding for the same origin 2 metadatas
-        origin = origin['url' if use_url else 'id']
-
-        n_om = len(list(swh_storage.origin_metadata_get_by(origin)))
+        n_om = len(list(swh_storage.origin_metadata_get_by(origin['url'])))
         swh_storage.origin_metadata_add(
-                    origin,
+                    origin['url'],
                     data.origin_metadata['discovery_date'],
                     provider['id'],
                     tool['id'],
                     data.origin_metadata['metadata'])
         swh_storage.origin_metadata_add(
-                    origin,
+                    origin['url'],
                     '2015-01-01 23:00:00+00',
                     provider['id'],
                     tool['id'],
                     data.origin_metadata2['metadata'])
-        n_actual_om = len(list(swh_storage.origin_metadata_get_by(origin)))
+        n_actual_om = len(list(
+            swh_storage.origin_metadata_get_by(origin['url'])))
         # then
         assert n_actual_om == n_om + 2
 
     def test_origin_metadata_get(self, swh_storage):
-        if not self._test_origin_ids:
-            pytest.skip('requires origin id')
-
         # given
-        origin_id = swh_storage.origin_add([data.origin])[0]['id']
-        origin_id2 = swh_storage.origin_add([data.origin2])[0]['id']
+        origin_url = data.origin['url']
+        origin_url2 = data.origin2['url']
+        swh_storage.origin_add([data.origin])
+        swh_storage.origin_add([data.origin2])
 
         swh_storage.metadata_provider_add(data.provider['name'],
                                           data.provider['type'],
@@ -2881,29 +2797,29 @@ class TestStorage:
         tool = swh_storage.tool_add([data.metadata_tool])[0]
         # when adding for the same origin 2 metadatas
         swh_storage.origin_metadata_add(
-                    origin_id,
+                    origin_url,
                     data.origin_metadata['discovery_date'],
                     provider['id'],
                     tool['id'],
                     data.origin_metadata['metadata'])
         swh_storage.origin_metadata_add(
-                    origin_id2,
+                    origin_url2,
                     data.origin_metadata2['discovery_date'],
                     provider['id'],
                     tool['id'],
                     data.origin_metadata2['metadata'])
         swh_storage.origin_metadata_add(
-                    origin_id,
+                    origin_url,
                     data.origin_metadata2['discovery_date'],
                     provider['id'],
                     tool['id'],
                     data.origin_metadata2['metadata'])
         all_metadatas = list(sorted(swh_storage.origin_metadata_get_by(
-            origin_id), key=lambda x: x['discovery_date']))
+            origin_url), key=lambda x: x['discovery_date']))
         metadatas_for_origin2 = list(swh_storage.origin_metadata_get_by(
-            origin_id2))
+            origin_url2))
         expected_results = [{
-            'origin_id': origin_id,
+            'origin_url': origin_url,
             'discovery_date': datetime.datetime(
                                 2015, 1, 1, 23, 0,
                                 tzinfo=datetime.timezone.utc),
@@ -2917,7 +2833,7 @@ class TestStorage:
             'provider_url': 'http:///hal/inria',
             'tool_id': tool['id']
         }, {
-            'origin_id': origin_id,
+            'origin_url': origin_url,
             'discovery_date': datetime.datetime(
                                 2017, 1, 1, 23, 0,
                                 tzinfo=datetime.timezone.utc),
@@ -2956,11 +2872,10 @@ class TestStorage:
 
     def test_origin_metadata_get_by_provider_type(self, swh_storage):
         # given
-        if not self._test_origin_ids:
-            pytest.skip('reauires origin id')
-
-        origin_id = swh_storage.origin_add([data.origin])[0]['id']
-        origin_id2 = swh_storage.origin_add([data.origin2])[0]['id']
+        origin_url = data.origin['url']
+        origin_url2 = data.origin2['url']
+        swh_storage.origin_add([data.origin])
+        swh_storage.origin_add([data.origin2])
         provider1_id = swh_storage.metadata_provider_add(
                            data.provider['name'],
                            data.provider['type'],
@@ -2990,26 +2905,26 @@ class TestStorage:
 
         # when adding for the same origin 2 metadatas
         swh_storage.origin_metadata_add(
-            origin_id,
+            origin_url,
             data.origin_metadata['discovery_date'],
             provider1['id'],
             tool['id'],
             data.origin_metadata['metadata'])
         swh_storage.origin_metadata_add(
-            origin_id2,
+            origin_url2,
             data.origin_metadata2['discovery_date'],
             provider2['id'],
             tool['id'],
             data.origin_metadata2['metadata'])
         provider_type = 'registry'
         m_by_provider = list(swh_storage.origin_metadata_get_by(
-            origin_id2,
+            origin_url2,
             provider_type))
         for item in m_by_provider:
             if 'id' in item:
                 del item['id']
         expected_results = [{
-            'origin_id': origin_id2,
+            'origin_url': origin_url2,
             'discovery_date': datetime.datetime(
                                 2017, 1, 1, 23, 0,
                                 tzinfo=datetime.timezone.utc),
@@ -3030,8 +2945,6 @@ class TestStorage:
 
 
 class TestStorageGeneratedData:
-    _test_origin_ids = True
-
     def assert_contents_ok(self, expected_contents, actual_contents,
                            keys_to_check={'sha1', 'data'}):
         """Assert that a given list of contents matches on a given set of keys.
@@ -3180,28 +3093,7 @@ class TestStorageGeneratedData:
         self.assert_contents_ok(
             [contents_map[get_sha1s[-1]]], actual_contents2, ['sha1'])
 
-    def test_origin_get_invalid_id_legacy(self, swh_storage):
-        if self._test_origin_ids:
-            invalid_origin_id = 1
-            origin_info = swh_storage.origin_get({'id': invalid_origin_id})
-            assert origin_info is None
-
-            origin_visits = list(swh_storage.origin_visit_get(
-                invalid_origin_id))
-            assert origin_visits == []
-
-    def test_origin_get_invalid_id(self, swh_storage):
-        if self._test_origin_ids:
-            origin_info = swh_storage.origin_get([{'id': 1}, {'id': 2}])
-            assert origin_info == [None, None]
-
-            origin_visits = list(swh_storage.origin_visit_get(1))
-            assert origin_visits == []
-
     def test_origin_get_range(self, swh_storage, swh_origins):
-        if not self._test_origin_ids:
-            pytest.skip('requires origin id')
-
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=0,
                                          origin_count=0))
@@ -3212,33 +3104,41 @@ class TestStorageGeneratedData:
                                          origin_count=1))
         assert len(actual_origins) == 1
         assert actual_origins[0]['id'] == 1
+        assert actual_origins[0]['url'] == swh_origins[0]['url']
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=1,
                                          origin_count=1))
         assert len(actual_origins) == 1
         assert actual_origins[0]['id'] == 1
+        assert actual_origins[0]['url'] == swh_origins[0]['url']
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=1,
                                          origin_count=10))
         assert len(actual_origins) == 10
         assert actual_origins[0]['id'] == 1
+        assert actual_origins[0]['url'] == swh_origins[0]['url']
         assert actual_origins[-1]['id'] == 10
+        assert actual_origins[-1]['url'] == swh_origins[9]['url']
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=1,
                                          origin_count=20))
         assert len(actual_origins) == 20
         assert actual_origins[0]['id'] == 1
+        assert actual_origins[0]['url'] == swh_origins[0]['url']
         assert actual_origins[-1]['id'] == 20
+        assert actual_origins[-1]['url'] == swh_origins[19]['url']
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=1,
                                          origin_count=101))
         assert len(actual_origins) == 100
         assert actual_origins[0]['id'] == 1
+        assert actual_origins[0]['url'] == swh_origins[0]['url']
         assert actual_origins[-1]['id'] == 100
+        assert actual_origins[-1]['url'] == swh_origins[99]['url']
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=11,
@@ -3250,7 +3150,9 @@ class TestStorageGeneratedData:
                                          origin_count=10))
         assert len(actual_origins) == 10
         assert actual_origins[0]['id'] == 11
+        assert actual_origins[0]['url'] == swh_origins[10]['url']
         assert actual_origins[-1]['id'] == 20
+        assert actual_origins[-1]['url'] == swh_origins[19]['url']
 
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=91,
@@ -3258,6 +3160,10 @@ class TestStorageGeneratedData:
         assert len(actual_origins) == 10
         assert actual_origins[0]['id'] == 91
         assert actual_origins[-1]['id'] == 100
+        assert actual_origins[0]['id'] == 91
+        assert actual_origins[0]['url'] == swh_origins[90]['url']
+        assert actual_origins[-1]['id'] == 100
+        assert actual_origins[-1]['url'] == swh_origins[99]['url']
 
     def test_origin_count(self, swh_storage):
         new_origins = [
@@ -3298,11 +3204,12 @@ class TestStorageGeneratedData:
         for (obj_type, obj) in objects:
             obj = obj.to_dict()
             if obj_type == 'origin_visit':
-                origin_id = swh_storage.origin_add_one(obj.pop('origin'))
+                origin = obj.pop('origin')
+                swh_storage.origin_add_one({'url': origin})
                 if 'visit' in obj:
                     del obj['visit']
                 swh_storage.origin_visit_add(
-                    origin_id, obj['date'], obj['type'])
+                    origin, obj['date'], obj['type'])
             else:
                 method = getattr(swh_storage, obj_type + '_add')
                 try:
@@ -3314,8 +3221,6 @@ class TestStorageGeneratedData:
 @pytest.mark.db
 class TestLocalStorage:
     """Test the local storage"""
-    _test_origin_ids = True
-
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception
     def test_content_add_objstorage_exception(self, swh_storage):

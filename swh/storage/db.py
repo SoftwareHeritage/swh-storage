@@ -186,14 +186,15 @@ class Db(BaseDb):
 
         yield from cur
 
-    def snapshot_get_by_origin_visit(self, origin_id, visit_id, cur=None):
+    def snapshot_get_by_origin_visit(self, origin_url, visit_id, cur=None):
         cur = self._cursor(cur)
         query = """\
-           SELECT snapshot from origin_visit where
-           origin_visit.origin=%s and origin_visit.visit=%s;
+           SELECT snapshot FROM origin_visit
+           INNER JOIN origin ON origin.id = origin_visit.origin
+           WHERE origin.url=%s AND origin_visit.visit=%s;
         """
 
-        cur.execute(query, (origin_id, visit_id))
+        cur.execute(query, (origin_url, visit_id))
         ret = cur.fetchone()
         if ret:
             return ret[0]
@@ -323,9 +324,10 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         update_cols = []
         values = []
-        where = ['origin=%s AND visit=%s']
+        where = ['origin.id = origin_visit.origin',
+                 'origin.url=%s',
+                 'visit=%s']
         where_values = [origin_id, visit_id]
-        from_ = ''
         if 'status' in updates:
             update_cols.append('status=%s')
             values.append(updates.pop('status'))
@@ -337,17 +339,20 @@ class Db(BaseDb):
             values.append(updates.pop('snapshot'))
         assert not updates, 'Unknown fields: %r' % updates
         query = """UPDATE origin_visit
-                    SET {update_cols}
-                    {from}
-                    WHERE {where}""".format(**{
+                   SET {update_cols}
+                   FROM origin
+                   WHERE {where}""".format(**{
             'update_cols': ', '.join(update_cols),
-            'from': from_,
             'where': ' AND '.join(where)
         })
         cur.execute(query, (*values, *where_values))
 
     def origin_visit_upsert(self, origin, visit, date, type, status,
                             metadata, snapshot, cur=None):
+        # doing an extra query like this is way simpler than trying to join
+        # the origin id in the query below
+        origin_id = next(self.origin_id_get_by_url([origin]))
+
         cur = self._cursor(cur)
         query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
                    ON CONFLICT ON CONSTRAINT origin_visit_pkey DO
@@ -357,10 +362,14 @@ class Db(BaseDb):
                 updates=', '.join('{0}=excluded.{0}'.format(col)
                                   for col in self.origin_visit_get_cols))
         cur.execute(
-            query, (origin, visit, date, type, status, metadata, snapshot))
+            query, (origin_id, visit, date, type, status, metadata, snapshot))
 
-    origin_visit_get_cols = ['origin', 'visit', 'date', 'type', 'status',
-                             'metadata', 'snapshot']
+    origin_visit_get_cols = [
+        'origin', 'visit', 'date', 'type',
+        'status', 'metadata', 'snapshot']
+    origin_visit_select_cols = [
+        'origin.url AS origin', 'visit', 'date', 'origin_visit.type AS type',
+        'status', 'metadata', 'snapshot']
 
     def origin_visit_get_all(self, origin_id,
                              last_visit=None, limit=None, cur=None):
@@ -385,10 +394,11 @@ class Db(BaseDb):
         query = """\
         SELECT %s
         FROM origin_visit
-        WHERE origin=%%s %s
+        INNER JOIN origin ON origin.id = origin_visit.origin
+        WHERE origin.url=%%s %s
         order by visit asc
         limit %%s""" % (
-            ', '.join(self.origin_visit_get_cols), extra_condition
+            ', '.join(self.origin_visit_select_cols), extra_condition
         )
 
         cur.execute(query, args)
@@ -411,8 +421,9 @@ class Db(BaseDb):
         query = """\
             SELECT %s
             FROM origin_visit
-            WHERE origin = %%s AND visit = %%s
-            """ % (', '.join(self.origin_visit_get_cols))
+            INNER JOIN origin ON origin.id = origin_visit.origin
+            WHERE origin.url = %%s AND visit = %%s
+            """ % (', '.join(self.origin_visit_select_cols))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
@@ -457,10 +468,11 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query_parts = [
-            'SELECT %s' % ', '.join(self.origin_visit_get_cols),
-            'FROM origin_visit']
+            'SELECT %s' % ', '.join(self.origin_visit_select_cols),
+            'FROM origin_visit',
+            'INNER JOIN origin ON origin.id = origin_visit.origin']
 
-        query_parts.append('WHERE origin = %s')
+        query_parts.append('WHERE origin.url = %s')
 
         if require_snapshot:
             query_parts.append('AND snapshot is not null')
@@ -607,15 +619,15 @@ class Db(BaseDb):
     def origin_add(self, url, cur=None):
         """Insert a new origin and return the new identifier."""
         insert = """INSERT INTO origin (url) values (%s)
-                    RETURNING id"""
+                    RETURNING url"""
 
         cur.execute(insert, (url,))
         return cur.fetchone()[0]
 
-    origin_cols = ['id', 'url']
+    origin_cols = ['url']
 
     def origin_get_by_url(self, origins, cur=None):
-        """Retrieve origin `(id, type, url)` from urls if found."""
+        """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
 
         query = """SELECT %s FROM (VALUES %%s) as t(url)
@@ -625,18 +637,19 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur, query, ((url,) for url in origins))
 
-    def origin_get_by_id(self, ids, cur=None):
-        """Retrieve origin `(id, type, url)` from ids if found.
-
-        """
+    def origin_id_get_by_url(self, origins, cur=None):
+        """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s FROM (VALUES %%s) as t(id)
-                   LEFT JOIN origin ON t.id = origin.id
-                """ % ','.join('origin.' + col for col in self.origin_cols)
+        query = """SELECT id FROM (VALUES %s) as t(url)
+                   LEFT JOIN origin ON t.url = origin.url
+                """
 
-        yield from execute_values_generator(
-            cur, query, ((id,) for id in ids))
+        for row in execute_values_generator(
+                cur, query, ((url,) for url in origins)):
+            yield row[0]
+
+    origin_get_range_cols = ['id', 'url']
 
     def origin_get_range(self, origin_from=1, origin_count=100, cur=None):
         """Retrieve ``origin_count`` origins whose ids are greater
@@ -653,7 +666,7 @@ class Db(BaseDb):
         query = """SELECT %s
                    FROM origin WHERE id >= %%s
                    ORDER BY id LIMIT %%s
-                """ % ','.join(self.origin_cols)
+                """ % ','.join(self.origin_get_range_cols)
 
         cur.execute(query, (origin_from, origin_count))
         yield from cur
@@ -770,19 +783,17 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
         insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
-                    provider_id, tool_id, metadata) values (%s, %s, %s, %s, %s)
-                    RETURNING id"""
-        cur.execute(insert, (origin, ts, provider, tool, jsonize(metadata)))
+                    provider_id, tool_id, metadata)
+                    SELECT id, %s, %s, %s, %s FROM origin WHERE url = %s"""
+        cur.execute(insert, (ts, provider, tool, jsonize(metadata), origin))
 
-        return cur.fetchone()[0]
-
-    origin_metadata_get_cols = ['origin_id', 'discovery_date',
+    origin_metadata_get_cols = ['origin_url', 'discovery_date',
                                 'tool_id', 'metadata', 'provider_id',
                                 'provider_name', 'provider_type',
                                 'provider_url']
 
-    def origin_metadata_get_by(self, origin_id, provider_type=None, cur=None):
-        """Retrieve all origin_metadata entries for one origin_id
+    def origin_metadata_get_by(self, origin_url, provider_type=None, cur=None):
+        """Retrieve all origin_metadata entries for one origin_url
 
         """
         cur = self._cursor(cur)
@@ -792,7 +803,7 @@ class Db(BaseDb):
                             %%s)''' % (','.join(
                 self.origin_metadata_get_cols))
 
-            cur.execute(query, (origin_id, ))
+            cur.execute(query, (origin_url, ))
 
         else:
             query = '''SELECT %s
@@ -800,7 +811,7 @@ class Db(BaseDb):
                             %%s, %%s)''' % (','.join(
                 self.origin_metadata_get_cols))
 
-            cur.execute(query, (origin_id, provider_type))
+            cur.execute(query, (origin_url, provider_type))
 
         yield from cur
 

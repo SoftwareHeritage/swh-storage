@@ -212,13 +212,12 @@ class Storage():
         if content_without_data:
             content_without_data = \
                 [cont.copy() for cont in content_without_data]
-            origins = db.origin_get_by_url(
+            origin_ids = db.origin_id_get_by_url(
                 [cont.get('origin') for cont in content_without_data],
                 cur=cur)
-            for (cont, origin) in zip(content_without_data, origins):
-                origin = dict(zip(db.origin_cols, origin))
+            for (cont, origin_id) in zip(content_without_data, origin_ids):
                 if 'origin' in cont:
-                    cont['origin'] = origin['id']
+                    cont['origin'] = origin_id
             db.mktemp('skipped_content', cur)
             db.copy_to(content_without_data, 'tmp_skipped_content',
                        db.skipped_content_keys, cur)
@@ -1100,7 +1099,7 @@ class Storage():
             should be used instead.
 
         Args:
-            origin (Union[str,int]): the origin's URL or identifier
+            origin (str): the origin's URL
             allowed_statuses (list of str): list of visit statuses considered
                 to find the latest snapshot for the visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -1216,7 +1215,7 @@ class Storage():
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         Args:
-            origin (Union[int,str]): visited origin's identifier or URL
+            origin (str): visited origin's identifier or URL
             date (Union[str,datetime]): timestamp of such visit
             type (str): the type of loader used for the visit (hg, git, ...)
 
@@ -1227,30 +1226,24 @@ class Storage():
             - visit: the visit identifier for the new visit occurrence
 
         """
-        if isinstance(origin, str):
-            origin = self.origin_get({'url': origin}, db=db, cur=cur)
-            origin_id = origin['id']
-        else:
-            origin = self.origin_get({'id': origin}, db=db, cur=cur)
-            origin_id = origin['id']
+        origin_url = origin
 
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
 
-        visit_id = db.origin_visit_add(origin_id, date, type, cur)
+        visit_id = db.origin_visit_add(origin_url, date, type, cur)
 
         if self.journal_writer:
             # We can write to the journal only after inserting to the
             # DB, because we want the id of the visit
-            del origin['id']
             self.journal_writer.write_addition('origin_visit', {
-                'origin': origin, 'date': date, 'type': type,
+                'origin': origin_url, 'date': date, 'type': type,
                 'visit': visit_id,
                 'status': 'ongoing', 'metadata': None, 'snapshot': None})
 
         return {
-            'origin': origin_id,
+            'origin': origin_url,
             'visit': visit_id,
         }
 
@@ -1261,7 +1254,7 @@ class Storage():
         """Update an origin_visit's status.
 
         Args:
-            origin (Union[int,str]): visited origin's identifier or URL
+            origin (str): visited origin's URL
             visit_id: Visit's id
             status: Visit's new status
             metadata: Data associated to the visit
@@ -1272,12 +1265,10 @@ class Storage():
             None
 
         """
-        if isinstance(origin, str):
-            origin_id = self.origin_get({'url': origin}, db=db, cur=cur)['id']
-        else:
-            origin_id = origin
-
-        visit = db.origin_visit_get(origin_id, visit_id, cur=cur)
+        if not isinstance(origin, str):
+            raise TypeError('origin must be a string, not %r' % (origin,))
+        origin_url = origin
+        visit = db.origin_visit_get(origin_url, visit_id, cur=cur)
 
         if not visit:
             raise ValueError('Invalid visit_id for this origin.')
@@ -1294,13 +1285,10 @@ class Storage():
 
         if updates:
             if self.journal_writer:
-                origin = self.origin_get(
-                    [{'id': origin_id}], db=db, cur=cur)[0]
-                del origin['id']
                 self.journal_writer.write_update('origin_visit', {
-                    **visit, **updates, 'origin': origin})
+                    **visit, **updates})
 
-            db.origin_visit_update(origin_id, visit_id, updates, cur)
+            db.origin_visit_update(origin_url, visit_id, updates, cur)
 
     @db_transaction()
     def origin_visit_upsert(self, visits, db=None, cur=None):
@@ -1323,19 +1311,15 @@ class Storage():
         for visit in visits:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
-            visit['origin'] = \
-                self.origin_get([visit['origin']], db=db, cur=cur)[0]
+            if not isinstance(visit['origin'], str):
+                raise TypeError("visit['origin'] must be a string, not %r"
+                                % (visit['origin'],))
 
         if self.journal_writer:
             for visit in visits:
-                visit = copy.deepcopy(visit)
-                if visit.get('type') is None:
-                    visit['type'] = visit['origin']['type']
-                del visit['origin']['id']
                 self.journal_writer.write_addition('origin_visit', visit)
 
         for visit in visits:
-            visit['origin'] = visit['origin']['id']
             # TODO: upsert them all in a single query
             db.origin_visit_upsert(**visit, cur=cur)
 
@@ -1345,7 +1329,7 @@ class Storage():
         """Retrieve all the origin's visit's information.
 
         Args:
-            origin (Union[int,str]): The occurrence's origin (identifier/URL).
+            origin (str): The visited origin
             last_visit: Starting point from which listing the next visits
                 Default to None
             limit (int): Number of results to return from the last visit.
@@ -1355,11 +1339,6 @@ class Storage():
             List of visits.
 
         """
-        if isinstance(origin, str):
-            origin = self.origin_get([{'url': origin}], db=db, cur=cur)[0]
-            if not origin:
-                return
-            origin = origin['id']
         for line in db.origin_visit_get_all(
                 origin, last_visit=last_visit, limit=limit, cur=cur):
             data = dict(zip(db.origin_visit_get_cols, line))
@@ -1379,10 +1358,6 @@ class Storage():
             A visit.
 
         """
-        origin = self.origin_get([{'url': origin}], db=db, cur=cur)[0]
-        if not origin:
-            return
-        origin = origin['id']
         line = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
         if line:
             return dict(zip(db.origin_visit_get_cols, line))
@@ -1399,11 +1374,6 @@ class Storage():
             it does not exist
 
         """
-        if isinstance(origin, str):
-            origin = self.origin_get({'url': origin}, db=db, cur=cur)
-            if not origin:
-                return
-            origin = origin['id']
         ori_visit = db.origin_visit_get(origin, visit, cur)
         if not ori_visit:
             return None
@@ -1438,11 +1408,6 @@ class Storage():
                 snapshot (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
-        origin = self.origin_get({'url': origin}, db=db, cur=cur)
-        if not origin:
-            return
-        origin = origin['id']
-
         origin_visit = db.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses,
             require_snapshot=require_snapshot, cur=cur)
@@ -1475,8 +1440,6 @@ class Storage():
 
         return ret
 
-    origin_keys = ['id', 'url']
-
     @db_transaction(statement_timeout=500)
     def origin_get(self, origins, db=None, cur=None):
         """Return origins, either all identified by their ids or all
@@ -1488,13 +1451,9 @@ class Storage():
         Args:
             origin: a list of dictionaries representing the individual
                 origins to find.
-                These dicts have either the key url:
+                These dicts have the key url:
 
                 - url (bytes): the url the origin points to
-
-                or the id:
-
-                - id: the origin id
 
         Returns:
             dict: the origin dictionary with the keys:
@@ -1515,36 +1474,19 @@ class Storage():
         else:
             return_single = False
 
-        origin_ids = [origin.get('id') for origin in origins]
-        origin_urls = [origin.get('url') for origin in origins]
-        if any(origin_ids):
-            # Lookup per ID
-            if all(origin_ids):
-                results = db.origin_get_by_id(origin_ids, cur)
-            else:
-                raise ValueError(
-                    'Either all origins or none at all should have an "id".')
-        elif any(origin_urls):
-            # Lookup per type + URL
-            if all(origin_urls):
-                results = db.origin_get_by_url(origin_urls, cur)
-            else:
-                raise ValueError(
-                    'Either all origins or none at all should have '
-                    'an "url" key.')
-        else:  # unsupported lookup
-            raise ValueError('Origin must have either id or url.')
+        origin_urls = [origin['url'] for origin in origins]
+        results = db.origin_get_by_url(origin_urls, cur)
 
-        results = [dict(zip(self.origin_keys, result))
+        results = [dict(zip(db.origin_cols, result))
                    for result in results]
         if return_single:
             assert len(results) == 1
-            if results[0]['id'] is not None:
+            if results[0]['url'] is not None:
                 return results[0]
             else:
                 return None
         else:
-            return [None if res['id'] is None else res for res in results]
+            return [None if res['url'] is None else res for res in results]
 
     @db_transaction_generator()
     def origin_get_range(self, origin_from=1, origin_count=100,
@@ -1563,7 +1505,7 @@ class Storage():
             by :meth:`swh.storage.storage.Storage.origin_get`.
         """
         for origin in db.origin_get_range(origin_from, origin_count, cur):
-            yield dict(zip(self.origin_keys, origin))
+            yield dict(zip(db.origin_get_range_cols, origin))
 
     @db_transaction_generator()
     def origin_search(self, url_pattern, offset=0, limit=50,
@@ -1587,7 +1529,7 @@ class Storage():
         """
         for origin in db.origin_search(url_pattern, offset, limit,
                                        regexp, with_visit, cur):
-            yield dict(zip(self.origin_keys, origin))
+            yield dict(zip(db.origin_cols, origin))
 
     @db_transaction()
     def origin_count(self, url_pattern, regexp=False,
@@ -1625,7 +1567,7 @@ class Storage():
         """
         origins = copy.deepcopy(origins)
         for origin in origins:
-            origin['id'] = self.origin_add_one(origin, db=db, cur=cur)
+            self.origin_add_one(origin, db=db, cur=cur)
 
         return origins
 
@@ -1645,10 +1587,10 @@ class Storage():
             exists.
 
         """
-        origin_id = list(db.origin_get_by_url(
-            [origin['url']], cur))[0][0]
-        if origin_id:
-            return origin_id
+        origin_row = list(db.origin_get_by_url([origin['url']], cur))[0]
+        origin_url = dict(zip(db.origin_cols, origin_row))['url']
+        if origin_url:
+            return origin_url
 
         if self.journal_writer:
             self.journal_writer.write_addition('origin', origin)
@@ -1688,40 +1630,31 @@ class Storage():
             cur.execute('select * from swh_update_counter(%s)', (key,))
 
     @db_transaction()
-    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata,
+    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata,
                             db=None, cur=None):
         """ Add an origin_metadata for the origin at ts with provenance and
         metadata.
 
         Args:
-            origin_id (int): the origin's id for which the metadata is added
+            origin_url (str): the origin url for which the metadata is added
             ts (datetime): timestamp of the found metadata
             provider (int): the provider of metadata (ex:'hal')
             tool (int): tool used to extract metadata
             metadata (jsonb): the metadata retrieved at the time and location
-
-        Returns:
-            id (int): the origin_metadata unique id
         """
-        if isinstance(origin_id, str):
-            origin = self.origin_get({'url': origin_id}, db=db, cur=cur)
-            if not origin:
-                return
-            origin_id = origin['id']
-
         if isinstance(ts, str):
             ts = dateutil.parser.parse(ts)
 
-        return db.origin_metadata_add(origin_id, ts, provider, tool,
-                                      metadata, cur)
+        db.origin_metadata_add(origin_url, ts, provider, tool,
+                               metadata, cur)
 
     @db_transaction_generator(statement_timeout=500)
-    def origin_metadata_get_by(self, origin_id, provider_type=None, db=None,
+    def origin_metadata_get_by(self, origin_url, provider_type=None, db=None,
                                cur=None):
         """Retrieve list of all origin_metadata entries for the origin_id
 
         Args:
-            origin_id (int): the unique origin identifier
+            origin_url (str): the origin's URL
             provider_type (str): (optional) type of provider
 
         Returns:
@@ -1737,13 +1670,7 @@ class Storage():
             - provider_url (str)
 
         """
-        if isinstance(origin_id, str):
-            origin = self.origin_get({'url': origin_id}, db=db, cur=cur)
-            if not origin:
-                return
-            origin_id = origin['id']
-
-        for line in db.origin_metadata_get_by(origin_id, provider_type, cur):
+        for line in db.origin_metadata_get_by(origin_url, provider_type, cur):
             yield dict(zip(db.origin_metadata_get_cols, line))
 
     @db_transaction()
