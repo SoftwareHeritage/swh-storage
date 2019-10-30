@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+
 from . import storage
 
 Storage = storage.Storage
@@ -12,15 +13,17 @@ class HashCollision(Exception):
     pass
 
 
+STORAGE_IMPLEMENTATION = {'local', 'remote', 'memory', 'filter', 'buffer'}
+
+
 def get_storage(cls, args):
-    """
-    Get a storage object of class `storage_class` with arguments
+    """Get a storage object of class `storage_class` with arguments
     `storage_args`.
 
     Args:
         storage (dict): dictionary with keys:
-        - cls (str): storage's class, either 'local', 'remote',
-                     or 'memory'
+        - cls (str): storage's class, either local, remote, memory, filter,
+            buffer
         - args (dict): dictionary with keys
 
     Returns:
@@ -30,6 +33,9 @@ def get_storage(cls, args):
         ValueError if passed an unknown storage class.
 
     """
+    if cls not in STORAGE_IMPLEMENTATION:
+        raise ValueError('Unknown storage class `%s`. Supported: %s' % (
+            cls, ', '.join(STORAGE_IMPLEMENTATION)))
 
     if cls == 'remote':
         from .api.client import RemoteStorage as Storage
@@ -37,7 +43,9 @@ def get_storage(cls, args):
         from .storage import Storage
     elif cls == 'memory':
         from .in_memory import Storage
-    else:
-        raise ValueError('Unknown storage class `%s`' % cls)
+    elif cls == 'filter':
+        from .filter import FilteringProxyStorage as Storage
+    elif cls == 'buffer':
+        from .buffer import BufferingProxyStorage as Storage
 
     return Storage(**args)

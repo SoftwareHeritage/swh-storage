@@ -162,7 +162,7 @@ class RemoteStorage(RPCClient):
     def origin_add_one(self, origin):
         return self.post('origin/add', {'origin': origin})
 
-    def origin_visit_add(self, origin, date, type=None):
+    def origin_visit_add(self, origin, date, type):
         return self.post(
             'origin/visit/add',
             {'origin': origin, 'date': date, 'type': type})
@@ -197,19 +197,11 @@ class RemoteStorage(RPCClient):
             {'origin': origin, 'allowed_statuses': allowed_statuses,
              'require_snapshot': require_snapshot})
 
-    def fetch_history_start(self, origin_id):
-        return self.post('fetch_history/start', {'origin_id': origin_id})
-
-    def fetch_history_end(self, fetch_history_id, data):
-        return self.post('fetch_history/end',
-                         {'fetch_history_id': fetch_history_id,
-                          'data': data})
-
-    def fetch_history_get(self, fetch_history_id):
-        return self.get('fetch_history', {'id': fetch_history_id})
-
     def stat_counters(self):
         return self.get('stat/counters')
+
+    def refresh_stat_counters(self):
+        return self.get('stat/refresh')
 
     def directory_entry_get_by_path(self, directory, paths):
         return self.post('directory/path', dict(directory=directory,
@@ -221,16 +213,16 @@ class RemoteStorage(RPCClient):
     def tool_get(self, tool):
         return self.post('tool/data', {'tool': tool})
 
-    def origin_metadata_add(self, origin_id, ts, provider, tool, metadata):
-        return self.post('origin/metadata/add', {'origin_id': origin_id,
+    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata):
+        return self.post('origin/metadata/add', {'origin_url': origin_url,
                                                  'ts': ts,
                                                  'provider': provider,
                                                  'tool': tool,
                                                  'metadata': metadata})
 
-    def origin_metadata_get_by(self, origin_id, provider_type=None):
+    def origin_metadata_get_by(self, origin_url, provider_type=None):
         return self.post('origin/metadata/get', {
-            'origin_id': origin_id,
+            'origin_url': origin_url,
             'provider_type': provider_type
         })
 
