@@ -3238,7 +3238,6 @@ class TestLocalStorage:
 
 @pytest.mark.db
 class TestStorageRaceConditions:
-    @pytest.mark.xfail
     def test_content_add_race(self, swh_storage):
 
         results = queue.Queue()
@@ -3267,9 +3266,16 @@ class TestStorageRaceConditions:
 
         with pytest.raises(queue.Empty):
             results.get(block=False)
-        assert r1[0] != r2[0]
-        assert r1[1] == 'data', 'Got exception %r in Thread%s' % (r1[2], r1[0])
-        assert r2[1] == 'data', 'Got exception %r in Thread%s' % (r2[2], r2[0])
+        assert r1[0] != r2[0]  # Ident is unique
+        assert r1[1] != r2[1]  # Don't have same result
+        if r1[1] == 'data':
+            (r_data, r_error) = (r1, r2)
+        else:
+            (r_data, r_error) = (r2, r1)
+        assert r_data[1] == 'data'
+        assert r_error[1] == 'exc', 'Got no exception %r in Thread%s' % (
+            r_error[2], r_error[0])
+        assert isinstance(r_error[2], psycopg2.errors.SerializationFailure)
 
 
 @pytest.mark.db

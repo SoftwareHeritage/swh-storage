@@ -191,6 +191,14 @@ class Storage():
             db.copy_to(content_with_data, 'tmp_content',
                        db.content_add_keys, cur)
 
+            # Create a read/write dependency between transactions that would
+            # write the same content, so that we get a SerializationFailure
+            # (read/write conflict) instead of an IntegrityError (write/write
+            # conflict)
+            cur.execute('SELECT 1 FROM content WHERE sha1 IN %s',
+                        (tuple(cont['sha1'] for cont in content_with_data),))
+            list(cur)
+
             # move metadata in place
             try:
                 db.content_add_from_temp(cur)
@@ -264,6 +272,8 @@ class Storage():
                 content:add:bytes: Sum of the contents' length data
                 skipped_content:add: New skipped contents (no data) added
         """
+        cur.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+
         content = [dict(c.items()) for c in content]  # semi-shallow copy
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         for item in content:
@@ -379,6 +389,7 @@ class Storage():
                 content:add: New contents added
                 skipped_content:add: New skipped contents (no data) added
         """
+        cur.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
 
         content = [self._normalize_content(c) for c in content]
         for c in content:
