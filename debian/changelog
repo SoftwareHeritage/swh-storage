@@ -1,3 +1,13 @@
+swh-storage (0.0.157-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.157     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2019-11-13 13:22:39 +0100)
+  * Upstream changes:     - Release swh.storage 0.0.157     -
+    schemata.distribution: Fix bogus NotImplementedError on
+    Area.index_uris
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 13 Nov 2019 12:27:07 +0000
+
 swh-storage (0.0.156-1~swh2) unstable-swh; urgency=medium
 
   * Add version constraint on psycopg2
