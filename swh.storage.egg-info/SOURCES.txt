@@ -220,3 +220,6 @@ swh/storage/tests/algos/test_dir_iterator.py
 swh/storage/tests/algos/test_origin.py
 swh/storage/tests/algos/test_revisions_walker.py
 swh/storage/tests/algos/test_snapshot.py
+swh/storage/tests/schemata/__init__.py
+swh/storage/tests/schemata/conftest.py
+swh/storage/tests/schemata/test_distribution.py
