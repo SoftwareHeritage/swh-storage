@@ -88,10 +88,11 @@ class Area(SQLBase):
                 else:
                     yield (base_uri, None)
 
-        raise NotImplementedError(
-            'Do not know how to build index URI for Distribution type %s' %
-            self.distribution.type
-        )
+        else:
+            raise NotImplementedError(
+                'Do not know how to build index URI for Distribution type %s' %
+                self.distribution.type
+            )
 
     def __repr__(self):
         return 'Area(%s of %s)' % (
