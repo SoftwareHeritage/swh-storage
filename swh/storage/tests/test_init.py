@@ -31,13 +31,41 @@ def test_get_storage(mock_pool):
                 },
             }),
             ('filter', FilteringProxyStorage, {'storage': {
+                'cls': 'memory'}
+            }),
+            ('buffer', BufferingProxyStorage, {'storage': {
+                'cls': 'memory'}
+            }),
+    ]:
+        actual_storage = get_storage(cls, **dummy_args)
+        assert actual_storage is not None
+        assert isinstance(actual_storage, real_class)
+
+
+@patch('swh.storage.storage.psycopg2.pool')
+def test_get_storage_legacy_args(mock_pool):
+    """Instantiating an existing storage should be ok even with the legacy
+    explicit 'args' keys
+
+    """
+    mock_pool.ThreadedConnectionPool.return_value = None
+    for cls, real_class, dummy_args in [
+            ('remote', RemoteStorage, {'url': 'url'}),
+            ('memory', MemoryStorage, {}),
+            ('local', DbStorage, {
+                'db': 'postgresql://db', 'objstorage': {
+                    'cls': 'memory', 'args': {},
+                },
+            }),
+            ('filter', FilteringProxyStorage, {'storage': {
                 'cls': 'memory', 'args': {}}
             }),
             ('buffer', BufferingProxyStorage, {'storage': {
                 'cls': 'memory', 'args': {}}
             }),
     ]:
-        actual_storage = get_storage(cls, args=dummy_args)
+        with pytest.warns(DeprecationWarning):
+            actual_storage = get_storage(cls, args=dummy_args)
         assert actual_storage is not None
         assert isinstance(actual_storage, real_class)
 
@@ -48,3 +76,58 @@ def test_get_storage_failure():
     """
     with pytest.raises(ValueError, match='Unknown storage class `unknown`'):
         get_storage('unknown', args=[])
+
+
+def test_get_storage_pipeline():
+    config = {
+        'cls': 'pipeline',
+        'steps': [
+            {
+                'cls': 'filter',
+            },
+            {
+                'cls': 'buffer',
+                'min_batch_size': {
+                    'content': 10,
+                },
+            },
+            {
+                'cls': 'memory',
+            }
+        ]
+    }
+
+    storage = get_storage(**config)
+
+    assert isinstance(storage, FilteringProxyStorage)
+    assert isinstance(storage.storage, BufferingProxyStorage)
+    assert isinstance(storage.storage.storage, MemoryStorage)
+
+
+def test_get_storage_pipeline_legacy_args():
+    config = {
+        'cls': 'pipeline',
+        'steps': [
+            {
+                'cls': 'filter',
+            },
+            {
+                'cls': 'buffer',
+                'args': {
+                    'min_batch_size': {
+                        'content': 10,
+                    },
+                }
+            },
+            {
+                'cls': 'memory',
+            }
+        ]
+    }
+
+    with pytest.warns(DeprecationWarning):
+        storage = get_storage(**config)
+
+    assert isinstance(storage, FilteringProxyStorage)
+    assert isinstance(storage.storage, BufferingProxyStorage)
+    assert isinstance(storage.storage.storage, MemoryStorage)
