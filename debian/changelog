@@ -1,8 +1,12 @@
-swh-storage (0.0.157-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.158-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.158     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-11-14 13:33:00
+    +0100)
+  * Upstream changes:     - v0.0.158     - Drop schemata module
+    (migrated back to swh-lister)
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 13 Nov 2019 12:29:16 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 14 Nov 2019 12:37:18 +0000
 
 swh-storage (0.0.157-1~swh1) unstable-swh; urgency=medium
 

@@ -37,11 +37,3 @@ Breaks: python3-swh.archiver (<< 0.0.4~),
         python3-swh.indexer (<< 0.0.51~),
         python3-swh.vault (<< 0.0.19~)
 Description: Software Heritage storage utilities
-
-Package: python3-swh.storage.schemata
-Architecture: all
-Depends: python3-sqlalchemy (>= 1.0),
-         python3-swh.storage (= ${binary:Version}),
-         ${misc:Depends},
-         ${python3:Depends}
-Description: Ancillary schemata for Software Heritage
