@@ -194,8 +194,6 @@ swh/storage/algos/snapshot.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
 swh/storage/api/server.py
-swh/storage/schemata/__init__.py
-swh/storage/schemata/distribution.py
 swh/storage/sql/10-swh-init.sql
 swh/storage/sql/20-swh-enums.sql
 swh/storage/sql/30-swh-schema.sql
@@ -220,6 +218,3 @@ swh/storage/tests/algos/test_dir_iterator.py
 swh/storage/tests/algos/test_origin.py
 swh/storage/tests/algos/test_revisions_walker.py
 swh/storage/tests/algos/test_snapshot.py
-swh/storage/tests/schemata/__init__.py
-swh/storage/tests/schemata/conftest.py
-swh/storage/tests/schemata/test_distribution.py
