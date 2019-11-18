@@ -1122,8 +1122,13 @@ class Storage:
         else:
             origins = [orig for orig in origins if url_pattern in orig['url']]
         if with_visit:
-            origins = [orig for orig in origins
-                       if len(self._origin_visits[orig['url']]) > 0]
+            origins = [
+                orig for orig in origins
+                if len(self._origin_visits[orig['url']]) > 0 and
+                set(ov.snapshot
+                    for ov in self._origin_visits[orig['url']]
+                    if ov.snapshot) &
+                set(self._snapshots)]
 
         return origins[offset:offset+limit]
 
