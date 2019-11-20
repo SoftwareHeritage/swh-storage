@@ -10,7 +10,7 @@ comment on function hash_sha1(text) is 'Compute SHA1 hash as text';
 -- TBLNAME
 --
 -- Args:
---     tblname: name of the table to mimick
+--     tblname: name of the table to mimic
 create or replace function swh_mktemp(tblname regclass)
     returns void
     language plpgsql
@@ -33,7 +33,7 @@ $$;
 -- This is used to create the tmp_directory_entry_<foo> tables.
 --
 -- Args:
---     tblname: name of the table to mimick
+--     tblname: name of the table to mimic
 create or replace function swh_mktemp_dir_entry(tblname regclass)
     returns void
     language plpgsql

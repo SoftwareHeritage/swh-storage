@@ -118,7 +118,7 @@ swh_storage_postgresql = postgresql_fact('postgresql_proc')
 
 
 # This version of the DatabaseJanitor implement a different setup/teardown
-# behavior than than the stock one: instead of droping, creating and
+# behavior than than the stock one: instead of dropping, creating and
 # initializing the database for each test, it create and initialize the db only
 # once, then it truncate the tables. This is needed to have acceptable test
 # performances.
