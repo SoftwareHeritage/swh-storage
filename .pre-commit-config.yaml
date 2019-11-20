@@ -11,6 +11,8 @@ repos:
   rev: v1.16.0
   hooks:
   - id: codespell
+    exclude: TODO
+    args: [-L iff]
 
 - repo: local
   hooks:
