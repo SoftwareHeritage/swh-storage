@@ -3093,7 +3093,7 @@ class TestStorageGeneratedData:
         self.assert_contents_ok(
             [contents_map[get_sha1s[-1]]], actual_contents2, ['sha1'])
 
-    def test_origin_get_range(self, swh_storage, swh_origins):
+    def test_origin_get_range_from_zero(self, swh_storage, swh_origins):
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=0,
                                          origin_count=0))
@@ -3106,64 +3106,26 @@ class TestStorageGeneratedData:
         assert actual_origins[0]['id'] == 1
         assert actual_origins[0]['url'] == swh_origins[0]['url']
 
+    @pytest.mark.parametrize('origin_from,origin_count', [
+        (1, 1), (1, 10), (1, 20), (1, 101), (11, 0),
+        (11, 10), (91, 11)])
+    def test_origin_get_range(
+            self, swh_storage, swh_origins, origin_from, origin_count):
         actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=1))
-        assert len(actual_origins) == 1
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
+            swh_storage.origin_get_range(origin_from=origin_from,
+                                         origin_count=origin_count))
 
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=10))
-        assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
-        assert actual_origins[-1]['id'] == 10
-        assert actual_origins[-1]['url'] == swh_origins[9]['url']
+        origins_with_id = list(enumerate(swh_origins, start=1))
+        expected_origins = [
+            {
+                'url': origin['url'],
+                'id': origin_id,
+            }
+            for (origin_id, origin)
+            in origins_with_id[origin_from-1:origin_from+origin_count-1]
+        ]
 
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=20))
-        assert len(actual_origins) == 20
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
-        assert actual_origins[-1]['id'] == 20
-        assert actual_origins[-1]['url'] == swh_origins[19]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=101))
-        assert len(actual_origins) == 100
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
-        assert actual_origins[-1]['id'] == 100
-        assert actual_origins[-1]['url'] == swh_origins[99]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=11,
-                                         origin_count=0))
-        assert len(actual_origins) == 0
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=11,
-                                         origin_count=10))
-        assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 11
-        assert actual_origins[0]['url'] == swh_origins[10]['url']
-        assert actual_origins[-1]['id'] == 20
-        assert actual_origins[-1]['url'] == swh_origins[19]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=91,
-                                         origin_count=11))
-        assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 91
-        assert actual_origins[-1]['id'] == 100
-        assert actual_origins[0]['id'] == 91
-        assert actual_origins[0]['url'] == swh_origins[90]['url']
-        assert actual_origins[-1]['id'] == 100
-        assert actual_origins[-1]['url'] == swh_origins[99]['url']
+        assert actual_origins == expected_origins
 
     ORIGINS = [
         'https://github.com/user1/repo1',
