@@ -3242,6 +3242,32 @@ class TestStorageGeneratedData:
 
         assert actual_origins == expected_origins
 
+    @pytest.mark.parametrize('limit', [1, 7, 10, 100, 1000])
+    def test_origin_list(self, swh_storage, swh_origins, limit):
+        returned_origins = []
+
+        page_token = None
+        i = 0
+        while True:
+            result = swh_storage.origin_list(
+                page_token=page_token, limit=limit)
+            assert len(result['origins']) <= limit
+
+            returned_origins.extend(
+                origin['url'] for origin in result['origins'])
+
+            i += 1
+            page_token = result.get('next_page_token')
+
+            if page_token is None:
+                assert i*limit >= len(swh_origins)
+                break
+            else:
+                assert len(result['origins']) == limit
+
+        expected_origins = [origin['url'] for origin in swh_origins]
+        assert sorted(returned_origins) == sorted(expected_origins)
+
     ORIGINS = [
         'https://github.com/user1/repo1',
         'https://github.com/user2/repo1',

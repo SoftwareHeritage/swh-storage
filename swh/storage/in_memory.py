@@ -14,7 +14,7 @@ import random
 
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import attr
 
@@ -1156,6 +1156,38 @@ class Storage:
                 origin = self._convert_origin(
                     self._origins[self._origins_by_id[idx]])
                 yield {'id': idx+1, **origin}
+
+    def origin_list(self, page_token: Optional[str] = None, limit: int = 100
+                    ) -> dict:
+        """Returns the list of origins
+
+        Args:
+            page_token: opaque token used for pagination.
+            limit: the maximum number of results to return
+
+        Returns:
+            dict: dict with the following keys:
+              - **next_page_token** (str, optional): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+              - **origins** (List[dict]): list of origins, as returned by
+                `origin_get`.
+        """
+        origin_urls = sorted(self._origins)
+        if page_token:
+            from_ = bisect.bisect_left(origin_urls, page_token)
+        else:
+            from_ = 0
+
+        result = {
+            'origins': [{'url': origin_url}
+                        for origin_url in origin_urls[from_:from_+limit]]
+        }
+
+        if from_+limit < len(origin_urls):
+            result['next_page_token'] = origin_urls[from_+limit]
+
+        return result
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):

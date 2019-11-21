@@ -11,7 +11,7 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import dateutil.parser
 import psycopg2
@@ -1689,6 +1689,45 @@ class Storage():
         """
         for origin in db.origin_get_range(origin_from, origin_count, cur):
             yield dict(zip(db.origin_get_range_cols, origin))
+
+    @remote_api_endpoint('origin/list')
+    @timed
+    @db_transaction()
+    def origin_list(self, page_token: Optional[str] = None, limit: int = 100,
+                    *, db=None, cur=None) -> dict:
+        """Returns the list of origins
+
+        Args:
+            page_token: opaque token used for pagination.
+            limit: the maximum number of results to return
+
+        Returns:
+            dict: dict with the following keys:
+              - **next_page_token** (str, optional): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+              - **origins** (List[dict]): list of origins, as returned by
+                `origin_get`.
+        """
+        page_token = page_token or '0'
+        if not isinstance(page_token, str):
+            raise TypeError('page_token must be a string.')
+        origin_from = int(page_token)
+        result: Dict[str, Any] = {
+            'origins': [
+                dict(zip(db.origin_get_range_cols, origin))
+                for origin in db.origin_get_range(origin_from, limit, cur)
+            ],
+        }
+
+        assert len(result['origins']) <= limit
+        if len(result['origins']) == limit:
+            result['next_page_token'] = str(result['origins'][limit-1]['id']+1)
+
+        for origin in result['origins']:
+            del origin['id']
+
+        return result
 
     @remote_api_endpoint('origin/search')
     @timed
