@@ -89,7 +89,7 @@ comment on column person.email is 'Email';
 comment on column person.fullname is 'Full name (raw name)';
 
 -- comment for columns of revision
-comment on table revision is 'Revision represents the state of a source code tree at a 
+comment on table revision is 'Revision represents the state of a source code tree at a
  specific point in time';
 comment on column revision.id is 'Git id of sha1 checksum';
 comment on column revision.date is 'Timestamp when revision was authored';

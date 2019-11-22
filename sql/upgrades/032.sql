@@ -1,7 +1,7 @@
 -- SWH DB schema upgrade
 -- from_version: 30
 -- to_version: 32
--- description: Reading data improvment on directory and release data.
+-- description: Reading data improvement on directory and release data.
 
 insert into dbversion(version, release, description)
       values(32, now(), 'Work In Progress');
