@@ -10,7 +10,10 @@ from swh.model import from_disk
 
 class StorageData:
     def __getattr__(self, key):
-        v = globals()[key]
+        try:
+            v = globals()[key]
+        except KeyError as e:
+            raise AttributeError(e.args[0])
         if hasattr(v, 'copy'):
             return v.copy()
         return v

@@ -18,14 +18,16 @@ from typing import Any, Dict, Mapping, Optional
 
 import attr
 
-from swh.model.model import \
-    Content, Directory, Revision, Release, Snapshot, OriginVisit, Origin
-from swh.model.hashutil import DEFAULT_ALGORITHMS
+from swh.model.model import (
+    Content, Directory, Revision, Release, Snapshot, OriginVisit, Origin,
+    SHA1_SIZE)
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
 from .storage import get_journal_writer
 from .converters import origin_url_to_sha1
+from .utils import get_partition_bounds_bytes
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -305,6 +307,45 @@ class Storage:
             'contents': matched,
             'next': next_content,
         }
+
+    def content_get_partition(
+            self, partition_id: int, nb_partitions: int, limit: int = 1000,
+            page_token: str = None):
+        """Splits contents into nb_partitions, and returns one of these based on
+        partition_id (which must be in [0, nb_partitions-1])
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id (int): index of the partition to fetch
+            nb_partitions (int): total number of partitions to split into
+            limit (int): Limit result (default to 1000)
+            page_token (Optional[str]): opaque token used for pagination.
+
+        Returns:
+            a dict with keys:
+              - contents (List[dict]): iterable of contents in the partition.
+              - **next_page_token** (Optional[str]): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        (start, end) = get_partition_bounds_bytes(
+            partition_id, nb_partitions, SHA1_SIZE)
+        if page_token:
+            start = hash_to_bytes(page_token)
+        if end is None:
+            end = b'\xff'*SHA1_SIZE
+        result = self.content_get_range(start, end, limit)
+        result2 = {
+            'contents': result['contents'],
+            'next_page_token': None,
+        }
+        if result['next']:
+            result2['next_page_token'] = hash_to_hex(result['next'])
+        return result2
 
     def content_get_metadata(self, content):
         """Retrieve content metadata in bulk

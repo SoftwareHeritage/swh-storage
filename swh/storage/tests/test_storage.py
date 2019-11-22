@@ -7,6 +7,7 @@ import copy
 from contextlib import contextmanager
 import datetime
 import itertools
+import math
 import queue
 import random
 import threading
@@ -23,6 +24,7 @@ from hypothesis import given, strategies, settings, HealthCheck
 from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
+from swh.model.model import SHA1_SIZE
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
@@ -68,6 +70,17 @@ def cmpdir(directory):
 
 def short_revision(revision):
     return [revision['id'], revision['parents']]
+
+
+def assert_contents_ok(expected_contents, actual_contents,
+                       keys_to_check={'sha1', 'data'}):
+    """Assert that a given list of contents matches on a given set of keys.
+
+    """
+    for k in keys_to_check:
+        expected_list = set([c.get(k) for c in expected_contents])
+        actual_list = set([c.get(k) for c in actual_contents])
+        assert actual_list == expected_list, k
 
 
 class TestStorage:
@@ -356,6 +369,76 @@ class TestStorage:
                                                     missing_cont['sha1']])
         # then
         assert list(gen) == [missing_cont['sha1']]
+
+    def test_content_get_partition(self, swh_storage, swh_contents):
+        """content_get_partition paginates results if limit exceeded"""
+        expected_contents = [c for c in swh_contents
+                             if c['status'] != 'absent']
+
+        actual_contents = []
+        for i in range(16):
+            actual_result = swh_storage.content_get_partition(i, 16)
+            assert actual_result['next_page_token'] is None
+            actual_contents.extend(actual_result['contents'])
+
+        assert_contents_ok(
+            expected_contents, actual_contents, ['sha1'])
+
+    def test_content_get_partition_full(self, swh_storage, swh_contents):
+        """content_get_partition for a single partition returns all available
+        contents"""
+        expected_contents = [c for c in swh_contents
+                             if c['status'] != 'absent']
+
+        actual_result = swh_storage.content_get_partition(0, 1)
+        assert actual_result['next_page_token'] is None
+
+        actual_contents = actual_result['contents']
+        assert_contents_ok(
+            expected_contents, actual_contents, ['sha1'])
+
+    def test_content_get_partition_empty(self, swh_storage, swh_contents):
+        """content_get_partition for an empty partition returns nothing"""
+        first_sha1 = min(content['sha1'] for content in swh_contents)
+        first_sha1 = int.from_bytes(first_sha1, 'big')
+        # nb_partitions = smallest power of 2 such that first_sha1 is not in
+        # the first partition
+        nb_partitions = \
+            1 << (SHA1_SIZE*8 - math.floor(math.log2(first_sha1)) + 1)
+
+        actual_result = swh_storage.content_get_partition(0, nb_partitions)
+
+        assert actual_result['next_page_token'] is None
+        assert len(actual_result['contents']) == 0
+
+    def test_content_get_partition_limit_none(self, swh_storage):
+        """content_get_partition call with wrong limit input should fail"""
+        with pytest.raises(ValueError) as e:
+            swh_storage.content_get_partition(1, 16, limit=None)
+
+        assert e.value.args == ('Development error: limit should not be None',)
+
+    def test_generate_content_get_partition_pagination(
+            self, swh_storage, swh_contents):
+        """content_get_partition returns contents within range provided"""
+        expected_contents = [c for c in swh_contents
+                             if c['status'] != 'absent']
+
+        # retrieve contents
+        actual_contents = []
+        for i in range(4):
+            page_token = None
+            while True:
+                actual_result = swh_storage.content_get_partition(
+                    i, 4, limit=3, page_token=page_token)
+                actual_contents.extend(actual_result['contents'])
+                page_token = actual_result['next_page_token']
+
+                if page_token is None:
+                    break
+
+        assert_contents_ok(
+            expected_contents, actual_contents, ['sha1'])
 
     def test_content_get_metadata(self, swh_storage):
         cont1 = data.cont
@@ -3062,16 +3145,6 @@ class TestStorage:
 
 
 class TestStorageGeneratedData:
-    def assert_contents_ok(self, expected_contents, actual_contents,
-                           keys_to_check={'sha1', 'data'}):
-        """Assert that a given list of contents matches on a given set of keys.
-
-        """
-        for k in keys_to_check:
-            expected_list = set([c.get(k) for c in expected_contents])
-            actual_list = set([c.get(k) for c in actual_contents])
-            assert actual_list == expected_list, k
-
     def test_generate_content_get(self, swh_storage, swh_contents):
         contents_with_data = [c for c in swh_contents
                               if c['status'] != 'absent']
@@ -3081,7 +3154,7 @@ class TestStorageGeneratedData:
         # retrieve contents
         actual_contents = list(swh_storage.content_get(get_sha1s))
         assert None not in actual_contents
-        self.assert_contents_ok(contents_with_data, actual_contents)
+        assert_contents_ok(contents_with_data, actual_contents)
 
     def test_generate_content_get_metadata(self, swh_storage, swh_contents):
         # input the list of sha1s we want from storage
@@ -3096,8 +3169,8 @@ class TestStorageGeneratedData:
 
         keys_to_check = {'length', 'status',
                          'sha1', 'sha1_git', 'sha256', 'blake2s256'}
-        self.assert_contents_ok(expected_contents, actual_contents,
-                                keys_to_check=keys_to_check)
+        assert_contents_ok(expected_contents, actual_contents,
+                           keys_to_check=keys_to_check)
 
     def test_generate_content_get_range(self, swh_storage, swh_contents):
         """content_get_range returns complete range"""
@@ -3116,7 +3189,7 @@ class TestStorageGeneratedData:
         expected_contents = [c for c in present_contents
                              if start <= c['sha1'] <= end]
         if expected_contents:
-            self.assert_contents_ok(
+            assert_contents_ok(
                 expected_contents, actual_contents, ['sha1'])
         else:
             assert actual_contents == []
@@ -3135,7 +3208,7 @@ class TestStorageGeneratedData:
         expected_contents = [c for c in present_contents
                              if start <= c['sha1'] <= end]
         if expected_contents:
-            self.assert_contents_ok(
+            assert_contents_ok(
                 expected_contents, actual_contents, ['sha1'])
         else:
             assert actual_contents == []
@@ -3173,7 +3246,7 @@ class TestStorageGeneratedData:
 
         expected_contents = [c for c in swh_contents
                              if c['status'] != 'absent']
-        self.assert_contents_ok(
+        assert_contents_ok(
             expected_contents, actual_contents, ['sha1'])
 
     def test_generate_content_get_range_limit(self, swh_storage, swh_contents):
@@ -3196,7 +3269,7 @@ class TestStorageGeneratedData:
         assert len(actual_contents) == limited_results
 
         expected_contents = [contents_map[sha1] for sha1 in get_sha1s[:-1]]
-        self.assert_contents_ok(
+        assert_contents_ok(
             expected_contents, actual_contents, ['sha1'])
 
         # retrieve next part
@@ -3205,7 +3278,7 @@ class TestStorageGeneratedData:
         actual_contents2 = actual_results2['contents']
         assert len(actual_contents2) == 1
 
-        self.assert_contents_ok(
+        assert_contents_ok(
             [contents_map[get_sha1s[-1]]], actual_contents2, ['sha1'])
 
     def test_origin_get_range_from_zero(self, swh_storage, swh_origins):

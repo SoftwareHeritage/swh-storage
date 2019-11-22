@@ -18,7 +18,8 @@ import psycopg2
 import psycopg2.pool
 
 from swh.core.api import remote_api_endpoint
-from swh.model.hashutil import ALGORITHMS, hash_to_bytes
+from swh.model.model import SHA1_SIZE
+from swh.model.hashutil import ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 try:
@@ -33,6 +34,7 @@ from .db import Db
 from .exc import StorageDBError
 from .algos import diff
 from .metrics import timed, send_metric, process_metrics
+from .utils import get_partition_bounds_bytes
 
 
 # Max block size of contents to return
@@ -490,6 +492,48 @@ class Storage():
             'contents': contents,
             'next': next_content,
         }
+
+    @remote_api_endpoint('content/partition')
+    @timed
+    @db_transaction()
+    def content_get_partition(
+            self, partition_id: int, nb_partitions: int, limit: int = 1000,
+            page_token: str = None, db=None, cur=None):
+        """Splits contents into nb_partitions, and returns one of these based on
+        partition_id (which must be in [0, nb_partitions-1])
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id (int): index of the partition to fetch
+            nb_partitions (int): total number of partitions to split into
+            limit (int): Limit result (default to 1000)
+            page_token (Optional[str]): opaque token used for pagination.
+
+        Returns:
+            a dict with keys:
+              - contents (List[dict]): iterable of contents in the partition.
+              - **next_page_token** (Optional[str]): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        (start, end) = get_partition_bounds_bytes(
+            partition_id, nb_partitions, SHA1_SIZE)
+        if page_token:
+            start = hash_to_bytes(page_token)
+        if end is None:
+            end = b'\xff'*SHA1_SIZE
+        result = self.content_get_range(start, end, limit)
+        result2 = {
+            'contents': result['contents'],
+            'next_page_token': None,
+        }
+        if result['next']:
+            result2['next_page_token'] = hash_to_hex(result['next'])
+        return result2
 
     @remote_api_endpoint('content/metadata')
     @timed
