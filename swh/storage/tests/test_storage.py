@@ -2983,8 +2983,7 @@ class TestStorageGeneratedData:
                                 keys_to_check=keys_to_check)
 
     def test_generate_content_get_range(self, swh_storage, swh_contents):
-        """content_get_range paginates results if limit exceeded"""
-        # add contents to storage
+        """content_get_range returns complete range"""
         present_contents = [c for c in swh_contents
                             if c['status'] != 'absent']
 
@@ -3042,7 +3041,6 @@ class TestStorageGeneratedData:
     def test_generate_content_get_range_no_limit(
             self, swh_storage, swh_contents):
         """content_get_range returns contents within range provided"""
-        # add contents to storage
         # input the list of sha1s we want from storage
         get_sha1s = sorted([c['sha1'] for c in swh_contents
                             if c['status'] != 'absent'])
