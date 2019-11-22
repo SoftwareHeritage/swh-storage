@@ -9,7 +9,7 @@ from swh.storage.buffer import BufferingProxyStorage
 def test_buffering_proxy_storage_content_threshold_not_hit(sample_data):
     contents = sample_data['content']
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'content': 10,
         }
@@ -38,7 +38,7 @@ def test_buffering_proxy_storage_content_threshold_not_hit(sample_data):
 def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data):
     contents = sample_data['content']
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'content': 1,
         }
@@ -62,7 +62,7 @@ def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data):
     contents = sample_data['content']
     content_bytes_min_batch_size = 20
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'content': 10,
             'content_bytes': content_bytes_min_batch_size,
@@ -88,7 +88,7 @@ def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data):
 def test_buffering_proxy_storage_directory_threshold_not_hit(sample_data):
     directories = sample_data['directory']
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'directory': 10,
         }
@@ -114,7 +114,7 @@ def test_buffering_proxy_storage_directory_threshold_not_hit(sample_data):
 def test_buffering_proxy_storage_directory_threshold_hit(sample_data):
     directories = sample_data['directory']
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'directory': 1,
         }
@@ -135,7 +135,7 @@ def test_buffering_proxy_storage_directory_threshold_hit(sample_data):
 def test_buffering_proxy_storage_revision_threshold_not_hit(sample_data):
     revisions = sample_data['revision']
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'revision': 10,
         }
@@ -161,7 +161,7 @@ def test_buffering_proxy_storage_revision_threshold_not_hit(sample_data):
 def test_buffering_proxy_storage_revision_threshold_hit(sample_data):
     revisions = sample_data['revision']
     storage = BufferingProxyStorage(
-        storage={'cls': 'memory', 'args': {}},
+        storage={'cls': 'memory'},
         min_batch_size={
             'revision': 1,
         }

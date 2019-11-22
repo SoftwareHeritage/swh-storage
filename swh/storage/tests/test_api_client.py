@@ -20,10 +20,8 @@ from swh.storage.tests.test_storage import (  # noqa
 def app():
     storage_config = {
         'cls': 'memory',
-        'args': {
-            'journal_writer': {
-                'cls': 'memory',
-            },
+        'journal_writer': {
+            'cls': 'memory',
         },
     }
     server.storage = swh.storage.get_storage(**storage_config)

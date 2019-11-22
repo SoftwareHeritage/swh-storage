@@ -38,19 +38,17 @@ settings.register_profile("slow", max_examples=20, deadline=5000)
 def swh_storage(postgresql_proc, swh_storage_postgresql):
     storage_config = {
         'cls': 'local',
-        'args': {
-            'db': 'postgresql://{user}@{host}:{port}/{dbname}'.format(
-                host=postgresql_proc.host,
-                port=postgresql_proc.port,
-                user='postgres',
-                dbname='tests'),
-            'objstorage': {
-                'cls': 'memory',
-                'args': {}
-            },
-            'journal_writer': {
-                'cls': 'memory',
-            },
+        'db': 'postgresql://{user}@{host}:{port}/{dbname}'.format(
+            host=postgresql_proc.host,
+            port=postgresql_proc.port,
+            user='postgres',
+            dbname='tests'),
+        'objstorage': {
+            'cls': 'memory',
+            'args': {}
+        },
+        'journal_writer': {
+            'cls': 'memory',
         },
     }
     storage = swh.storage.get_storage(**storage_config)
