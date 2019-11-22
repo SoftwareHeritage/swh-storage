@@ -23,6 +23,7 @@ from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
+from swh.storage.converters import origin_url_to_sha1 as sha1
 
 from .storage_data import data
 
@@ -934,6 +935,24 @@ class TestStorage:
             [{'url': data.origin['url']}])
         assert len(actual_origin0) == 1
         assert actual_origin0[0]['url'] == data.origin['url']
+
+    def test_origin_get_by_sha1(self, swh_storage):
+        assert swh_storage.origin_get(data.origin) is None
+        swh_storage.origin_add_one(data.origin)
+
+        origins = list(swh_storage.origin_get_by_sha1([
+            sha1(data.origin['url'])
+        ]))
+        assert len(origins) == 1
+        assert origins[0]['url'] == data.origin['url']
+
+    def test_origin_get_by_sha1_not_found(self, swh_storage):
+        assert swh_storage.origin_get(data.origin) is None
+        origins = list(swh_storage.origin_get_by_sha1([
+            sha1(data.origin['url'])
+        ]))
+        assert len(origins) == 1
+        assert origins[0] is None
 
     def test_origin_search_single_result(self, swh_storage):
         found_origins = list(swh_storage.origin_search(data.origin['url']))

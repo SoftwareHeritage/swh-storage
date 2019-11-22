@@ -22,6 +22,7 @@ from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
 from .storage import get_journal_writer
+from .converters import origin_url_to_sha1
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -52,6 +53,7 @@ class Storage:
         self._snapshots = {}
         self._origins = {}
         self._origins_by_id = []
+        self._origins_by_sha1 = {}
         self._origin_visits = {}
         self._persons = []
         self._origin_metadata = defaultdict(list)
@@ -1071,6 +1073,22 @@ class Storage:
         else:
             return results
 
+    def origin_get_by_sha1(self, sha1s):
+        """Return origins, identified by the sha1 of their URLs.
+
+        Args:
+            sha1s (list[bytes]): a list of sha1s
+
+        Yields:
+            dicts containing origin information as returned
+            by :meth:`swh.storage.in_memory.Storage.origin_get`, or None if an
+            origin matching the sha1 is not found.
+        """
+        return [
+            self._convert_origin(self._origins_by_sha1.get(sha1))
+            for sha1 in sha1s
+        ]
+
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater
         or equal than ``origin_from``.
@@ -1196,6 +1214,7 @@ class Storage:
             assert len(self._origins_by_id) == origin_id
 
             self._origins[origin.url] = origin
+            self._origins_by_sha1[origin_url_to_sha1(origin.url)] = origin
             self._origin_visits[origin.url] = []
             self._objects[origin.url].append(('origin', origin.url))
 

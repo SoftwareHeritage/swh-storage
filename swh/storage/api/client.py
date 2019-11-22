@@ -139,6 +139,9 @@ class RemoteStorage(RPCClient):
                           DeprecationWarning)
         return self.post('origin/get', {'origins': origins})
 
+    def origin_get_by_sha1(self, sha1s):
+        return self.post('origin/get_sha1', {'sha1s': sha1s})
+
     def origin_search(self, url_pattern, offset=0, limit=50, regexp=False,
                       with_visit=False):
         return self.post('origin/search', {'url_pattern': url_pattern,

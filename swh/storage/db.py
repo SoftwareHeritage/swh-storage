@@ -637,6 +637,17 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur, query, ((url,) for url in origins))
 
+    def origin_get_by_sha1(self, sha1s, cur=None):
+        """Retrieve origin urls from sha1s if found."""
+        cur = self._cursor(cur)
+
+        query = """SELECT %s FROM (VALUES %%s) as t(sha1)
+                   LEFT JOIN origin ON t.sha1 = digest(origin.url, 'sha1')
+                """ % ','.join('origin.' + col for col in self.origin_cols)
+
+        yield from execute_values_generator(
+            cur, query, ((sha1,) for sha1 in sha1s))
+
     def origin_id_get_by_url(self, origins, cur=None):
         """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
