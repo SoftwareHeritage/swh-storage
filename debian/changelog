@@ -1,3 +1,16 @@
+swh-storage (0.0.159-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.159     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-11-22 11:05:41
+    +0100)
+  * Upstream changes:     - v0.0.159     - Add 'pipeline' storage
+    "class" for more readable configurations.     - tests: Improve tests
+    environments configuration     - Fix a few typos reported by
+    codespell     - Add a pre-commit-hooks.yaml config file     - Remove
+    utils/(dump|fix)_revisions scripts
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 22 Nov 2019 10:10:31 +0000
+
 swh-storage (0.0.158-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.158     - (tagged by Antoine R. Dumont
