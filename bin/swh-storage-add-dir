@@ -9,8 +9,8 @@ import logging
 import os
 import sys
 
-from swh import storage
-from swh.core.hashutil import _hash_fname
+from swh.storage.storage import Storage
+from swh.model.hashutil import MultiHash
 
 if __name__ == '__main__':
     try:
@@ -26,13 +26,13 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO)
 
-    storage = storage.Storage(db_connstring, obj_root)
+    storage = Storage(db_connstring, obj_root)
 
     def list_content():
         for root, _dirs, files in os.walk(dirname):
             for name in files:
                 path = os.path.join(root, name)
-                cont = _hash_fname(path)
+                cont = MultiHash.from_path(path).digest()
                 cont['data'] = open(path, 'rb').read()
                 yield cont
 

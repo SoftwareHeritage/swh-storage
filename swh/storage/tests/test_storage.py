@@ -3093,7 +3093,7 @@ class TestStorageGeneratedData:
         self.assert_contents_ok(
             [contents_map[get_sha1s[-1]]], actual_contents2, ['sha1'])
 
-    def test_origin_get_range(self, swh_storage, swh_origins):
+    def test_origin_get_range_from_zero(self, swh_storage, swh_origins):
         actual_origins = list(
             swh_storage.origin_get_range(origin_from=0,
                                          origin_count=0))
@@ -3106,90 +3106,38 @@ class TestStorageGeneratedData:
         assert actual_origins[0]['id'] == 1
         assert actual_origins[0]['url'] == swh_origins[0]['url']
 
+    @pytest.mark.parametrize('origin_from,origin_count', [
+        (1, 1), (1, 10), (1, 20), (1, 101), (11, 0),
+        (11, 10), (91, 11)])
+    def test_origin_get_range(
+            self, swh_storage, swh_origins, origin_from, origin_count):
         actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=1))
-        assert len(actual_origins) == 1
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
+            swh_storage.origin_get_range(origin_from=origin_from,
+                                         origin_count=origin_count))
 
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=10))
-        assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
-        assert actual_origins[-1]['id'] == 10
-        assert actual_origins[-1]['url'] == swh_origins[9]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=20))
-        assert len(actual_origins) == 20
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
-        assert actual_origins[-1]['id'] == 20
-        assert actual_origins[-1]['url'] == swh_origins[19]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=1,
-                                         origin_count=101))
-        assert len(actual_origins) == 100
-        assert actual_origins[0]['id'] == 1
-        assert actual_origins[0]['url'] == swh_origins[0]['url']
-        assert actual_origins[-1]['id'] == 100
-        assert actual_origins[-1]['url'] == swh_origins[99]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=11,
-                                         origin_count=0))
-        assert len(actual_origins) == 0
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=11,
-                                         origin_count=10))
-        assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 11
-        assert actual_origins[0]['url'] == swh_origins[10]['url']
-        assert actual_origins[-1]['id'] == 20
-        assert actual_origins[-1]['url'] == swh_origins[19]['url']
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=91,
-                                         origin_count=11))
-        assert len(actual_origins) == 10
-        assert actual_origins[0]['id'] == 91
-        assert actual_origins[-1]['id'] == 100
-        assert actual_origins[0]['id'] == 91
-        assert actual_origins[0]['url'] == swh_origins[90]['url']
-        assert actual_origins[-1]['id'] == 100
-        assert actual_origins[-1]['url'] == swh_origins[99]['url']
-
-    def test_origin_count(self, swh_storage):
-        new_origins = [
+        origins_with_id = list(enumerate(swh_origins, start=1))
+        expected_origins = [
             {
-                'type': 'git',
-                'url': 'https://github.com/user1/repo1'
-            },
-            {
-                'type': 'git',
-                'url': 'https://github.com/user2/repo1'
-            },
-            {
-                'type': 'git',
-                'url': 'https://github.com/user3/repo1'
-            },
-            {
-                'type': 'git',
-                'url': 'https://gitlab.com/user1/repo1'
-            },
-            {
-                'type': 'git',
-                'url': 'https://gitlab.com/user2/repo1'
+                'url': origin['url'],
+                'id': origin_id,
             }
+            for (origin_id, origin)
+            in origins_with_id[origin_from-1:origin_from+origin_count-1]
         ]
 
-        swh_storage.origin_add(new_origins)
+        assert actual_origins == expected_origins
+
+    ORIGINS = [
+        'https://github.com/user1/repo1',
+        'https://github.com/user2/repo1',
+        'https://github.com/user3/repo1',
+        'https://gitlab.com/user1/repo1',
+        'https://gitlab.com/user2/repo1',
+        'https://forge.softwareheritage.org/source/repo1',
+    ]
+
+    def test_origin_count(self, swh_storage):
+        swh_storage.origin_add([{'url': url} for url in self.ORIGINS])
 
         assert swh_storage.origin_count('github') == 3
         assert swh_storage.origin_count('gitlab') == 2
@@ -3197,6 +3145,67 @@ class TestStorageGeneratedData:
         assert swh_storage.origin_count('.*user.*', regexp=False) == 0
         assert swh_storage.origin_count('.*user1.*', regexp=True) == 2
         assert swh_storage.origin_count('.*user1.*', regexp=False) == 0
+
+    def test_origin_count_with_visit_no_visits(self, swh_storage):
+        swh_storage.origin_add([{'url': url} for url in self.ORIGINS])
+
+        # none of them have visits, so with_visit=True => 0
+        assert swh_storage.origin_count('github', with_visit=True) == 0
+        assert swh_storage.origin_count('gitlab', with_visit=True) == 0
+        assert swh_storage.origin_count('.*user.*', regexp=True,
+                                        with_visit=True) == 0
+        assert swh_storage.origin_count('.*user.*', regexp=False,
+                                        with_visit=True) == 0
+        assert swh_storage.origin_count('.*user1.*', regexp=True,
+                                        with_visit=True) == 0
+        assert swh_storage.origin_count('.*user1.*', regexp=False,
+                                        with_visit=True) == 0
+
+    def test_origin_count_with_visit_with_visits_no_snapshot(
+            self, swh_storage):
+        swh_storage.origin_add([{'url': url} for url in self.ORIGINS])
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        swh_storage.origin_visit_add(
+            origin='https://github.com/user1/repo1', date=now, type='git')
+
+        assert swh_storage.origin_count('github', with_visit=False) == 3
+        # it has a visit, but no snapshot, so with_visit=True => 0
+        assert swh_storage.origin_count('github', with_visit=True) == 0
+
+        assert swh_storage.origin_count('gitlab', with_visit=False) == 2
+        # these gitlab origins have no visit
+        assert swh_storage.origin_count('gitlab', with_visit=True) == 0
+
+        assert swh_storage.origin_count('github.*user1', regexp=True,
+                                        with_visit=False) == 1
+        assert swh_storage.origin_count('github.*user1', regexp=True,
+                                        with_visit=True) == 0
+        assert swh_storage.origin_count('github', regexp=True,
+                                        with_visit=True) == 0
+
+    def test_origin_count_with_visit_with_visits_and_snapshot(
+            self, swh_storage):
+        swh_storage.origin_add([{'url': url} for url in self.ORIGINS])
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        swh_storage.snapshot_add([data.snapshot])
+        visit = swh_storage.origin_visit_add(
+            origin='https://github.com/user1/repo1', date=now, type='git')
+        swh_storage.origin_visit_update(
+            origin='https://github.com/user1/repo1', visit_id=visit['visit'],
+            snapshot=data.snapshot['id'])
+
+        assert swh_storage.origin_count('github', with_visit=False) == 3
+        # github/user1 has a visit and a snapshot, so with_visit=True => 1
+        assert swh_storage.origin_count('github', with_visit=True) == 1
+
+        assert swh_storage.origin_count('github.*user1', regexp=True,
+                                        with_visit=False) == 1
+        assert swh_storage.origin_count('github.*user1', regexp=True,
+                                        with_visit=True) == 1
+        assert swh_storage.origin_count('github', regexp=True,
+                                        with_visit=True) == 1
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(strategies.lists(objects(), max_size=2))

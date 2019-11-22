@@ -83,7 +83,7 @@ create or replace function update_occurrence_for_origin(origin_id bigint) return
       and (select visit from origin_visit
            where origin = origin_id
            order by date desc
-           limit 1) = any(visits); 
+           limit 1) = any(visits);
 $$;
 
 create or replace function update_occurrence() returns void
