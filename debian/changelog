@@ -1,3 +1,9 @@
+swh-storage (0.0.159-1~swh2~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 26 Nov 2019 16:12:45 +0000
+
 swh-storage (0.0.159-1~swh2) unstable-swh; urgency=medium
 
   * Force fast hypothesis profile when running tests
