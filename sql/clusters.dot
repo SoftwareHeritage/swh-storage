@@ -3,7 +3,7 @@ subgraph "logical_grouping" {
 	style = rounded;
 	bgcolor = gray95;
 	color = gray;
-	
+
 	subgraph cluster_meta {
 		label = <<b>schema versioning</b><br /> version: @@VERSION@@>;
 		dbversion;

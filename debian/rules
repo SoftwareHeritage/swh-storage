@@ -1,7 +1,8 @@
 #!/usr/bin/make -f
 
 export PYBUILD_NAME=swh.storage
-export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not network"
+export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not network" \
+	--hypothesis-profile=fast ./swh/storage/tests
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild

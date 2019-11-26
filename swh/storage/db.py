@@ -688,7 +688,12 @@ class Db(BaseDb):
                    WHERE """
         if with_visit:
             query += """
-                   EXISTS (SELECT 1 from origin_visit WHERE origin=origin.id)
+                   EXISTS (
+                     SELECT 1
+                     FROM origin_visit
+                       INNER JOIN snapshot ON snapshot=snapshot.id
+                     WHERE origin=origin.id
+                     )
                    AND """
         query += 'url %s %%s '
         if not count:
