@@ -1488,6 +1488,25 @@ class Storage():
         else:
             return [None if res['url'] is None else res for res in results]
 
+    @db_transaction_generator(statement_timeout=500)
+    def origin_get_by_sha1(self, sha1s, db=None, cur=None):
+        """Return origins, identified by the sha1 of their URLs.
+
+        Args:
+            sha1s (list[bytes]): a list of sha1s
+
+        Yields:
+            dicts containing origin information as returned
+            by :meth:`swh.storage.storage.Storage.origin_get`, or None if an
+            origin matching the sha1 is not found.
+
+        """
+        for line in db.origin_get_by_sha1(sha1s, cur):
+            if line[0] is not None:
+                yield dict(zip(db.origin_cols, line))
+            else:
+                yield None
+
     @db_transaction_generator()
     def origin_get_range(self, origin_from=1, origin_count=100,
                          db=None, cur=None):
