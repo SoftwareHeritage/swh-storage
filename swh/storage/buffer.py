@@ -30,6 +30,7 @@ class BufferingProxyStorage:
               content_bytes: 100000000
               directory: 5000
               revision: 1000
+              release: 10000
 
     """
     def __init__(self, storage, min_batch_size=None):
@@ -44,8 +45,9 @@ class BufferingProxyStorage:
                                                 100*1024*1024),
             'directory': min_batch_size.get('directory', 25000),
             'revision': min_batch_size.get('revision', 100000),
+            'release': min_batch_size.get('release', 100000),
         }
-        self.object_types = ['content', 'directory', 'revision']
+        self.object_types = ['content', 'directory', 'revision', 'release']
         self._objects = {k: deque() for k in self.object_types}
 
     def __getattr__(self, key):

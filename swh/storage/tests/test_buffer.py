@@ -177,3 +177,55 @@ def test_buffering_proxy_storage_revision_threshold_hit(sample_data):
 
     s = storage.flush()
     assert s == {}
+
+
+def test_buffering_proxy_storage_release_threshold_not_hit(sample_data):
+    releases = sample_data['release']
+    threshold = 10
+
+    assert len(releases) < threshold
+    storage = BufferingProxyStorage(
+        storage={'cls': 'memory'},
+        min_batch_size={
+            'release': threshold,  # configuration set
+        }
+    )
+    s = storage.release_add(releases)
+    assert s == {}
+
+    release_ids = [r['id'] for r in releases]
+    missing_releases = storage.release_missing(release_ids)
+    assert list(missing_releases) == release_ids
+
+    s = storage.flush()
+    assert s == {
+        'release:add': len(releases),
+    }
+
+    missing_releases = storage.release_missing(release_ids)
+    assert list(missing_releases) == []
+
+
+def test_buffering_proxy_storage_release_threshold_hit(sample_data):
+    releases = sample_data['release']
+    threshold = 2
+    assert len(releases) > threshold
+
+    storage = BufferingProxyStorage(
+        storage={'cls': 'memory'},
+        min_batch_size={
+            'release': threshold,  # configuration set
+        }
+    )
+
+    s = storage.release_add(releases)
+    assert s == {
+        'release:add': len(releases),
+    }
+
+    release_ids = [r['id'] for r in releases]
+    missing_releases = storage.release_missing(release_ids)
+    assert list(missing_releases) == []
+
+    s = storage.flush()
+    assert s == {}
