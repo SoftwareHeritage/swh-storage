@@ -7,6 +7,7 @@ import datetime
 
 from swh.core.utils import decode_with_escape, encode_with_unescape
 from swh.model import identifiers
+from swh.model.hashutil import MultiHash
 
 
 DEFAULT_AUTHOR = {
@@ -310,3 +311,10 @@ def db_to_release(db_release):
         ret['object_id'] = db_release['object_id']
 
     return ret
+
+
+def origin_url_to_sha1(origin_url):
+    """Convert an origin URL to a sha1. Encodes URL to utf-8."""
+    return MultiHash.from_data(
+        origin_url.encode('utf-8'), {'sha1'}
+    ).digest()['sha1']
