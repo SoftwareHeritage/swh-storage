@@ -648,6 +648,30 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur, query, ((sha1,) for sha1 in sha1s))
 
+    def origin_get_random(self, cur=None):
+        """Randomly select one origin amongst dataset
+
+        """
+        cur = self._cursor(cur)
+
+        columns = ','.join('origin.' + col for col in self.origin_cols)
+        query = f"""with swh_count_origins as (
+                      select value
+                      from object_counts
+                      where object_type='origin'
+                    ),
+                    swh_random_id as (
+                      select floor(random() * (
+                        select * from swh_count_origins)
+                      )::int
+                    )
+                    select {columns}
+                    from origin
+                    where id=(select * from swh_random_id)
+        """
+        cur.execute(query)
+        return list(cur.fetchone())
+
     def origin_id_get_by_url(self, origins, cur=None):
         """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)

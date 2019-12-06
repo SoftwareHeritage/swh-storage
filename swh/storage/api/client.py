@@ -127,6 +127,9 @@ class RemoteStorage(RPCClient):
             'target_types': target_types
         })
 
+    def origin_get_random(self):
+        return self.get('origin/get_random')
+
     def origin_get(self, origins=None, *, origin=None):
         if origin is None:
             if origins is None:

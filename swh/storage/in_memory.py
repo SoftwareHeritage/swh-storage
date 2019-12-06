@@ -7,11 +7,13 @@ import re
 import bisect
 import dateutil
 import collections
-from collections import defaultdict
 import copy
 import datetime
 import itertools
 import random
+
+from collections import defaultdict
+from typing import Any, Mapping
 
 import attr
 
@@ -1088,6 +1090,16 @@ class Storage:
             self._convert_origin(self._origins_by_sha1.get(sha1))
             for sha1 in sha1s
         ]
+
+    def origin_get_random(self) -> Mapping[str, Any]:
+        """Randomly select one origin from the archive
+
+        Returns:
+            origin dict selected randomly on the dataset
+
+        """
+        key = random.choice(list(self._origins.keys()))
+        return self._convert_origin(self._origins[key])
 
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater

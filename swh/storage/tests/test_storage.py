@@ -936,6 +936,14 @@ class TestStorage:
         assert len(actual_origin0) == 1
         assert actual_origin0[0]['url'] == data.origin['url']
 
+    def test_origin_get_random(self, swh_storage):
+        swh_storage.origin_add(data.origins)
+        swh_storage.refresh_stat_counters()
+        random_origin = swh_storage.origin_get_random()
+        assert random_origin is not None
+        assert random_origin['url'] is not None
+        assert random_origin in data.origins
+
     def test_origin_get_by_sha1(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
         swh_storage.origin_add_one(data.origin)
