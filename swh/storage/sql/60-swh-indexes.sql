@@ -16,6 +16,7 @@ alter table origin add primary key using index origin_pkey;
 
 create index concurrently on origin using gin (url gin_trgm_ops);
 create index concurrently on origin using hash (url);
+create index concurrently on origin using btree(digest(url, 'sha1'));
 
 
 -- skipped_content

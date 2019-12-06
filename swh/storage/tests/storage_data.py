@@ -514,3 +514,9 @@ origin_metadata2 = {
             'version': '0.0.1'
         }
     }
+
+person = {
+    'name': b'John Doe',
+    'email': b'john.doe@institute.org',
+    'fullname': b'John Doe <john.doe@institute.org>'
+}

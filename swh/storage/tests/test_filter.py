@@ -9,7 +9,7 @@ from swh.storage.filter import FilteringProxyStorage
 
 def test_filtering_proxy_storage_content(sample_data):
     sample_content = sample_data['content'][0]
-    storage = FilteringProxyStorage(storage={'cls': 'memory', 'args': {}})
+    storage = FilteringProxyStorage(storage={'cls': 'memory'})
 
     content = next(storage.content_get([sample_content['sha1']]))
     assert not content
@@ -17,7 +17,7 @@ def test_filtering_proxy_storage_content(sample_data):
     s = storage.content_add([sample_content])
     assert s == {
         'content:add': 1,
-        'content:add:bytes': 48,
+        'content:add:bytes': sample_content['length'],
         'skipped_content:add': 0
     }
 
@@ -34,7 +34,7 @@ def test_filtering_proxy_storage_content(sample_data):
 
 def test_filtering_proxy_storage_revision(sample_data):
     sample_revision = sample_data['revision'][0]
-    storage = FilteringProxyStorage(storage={'cls': 'memory', 'args': {}})
+    storage = FilteringProxyStorage(storage={'cls': 'memory'})
 
     revision = next(storage.revision_get([sample_revision['id']]))
     assert not revision
@@ -55,7 +55,7 @@ def test_filtering_proxy_storage_revision(sample_data):
 
 def test_filtering_proxy_storage_directory(sample_data):
     sample_directory = sample_data['directory'][0]
-    storage = FilteringProxyStorage(storage={'cls': 'memory', 'args': {}})
+    storage = FilteringProxyStorage(storage={'cls': 'memory'})
 
     directory = next(storage.directory_missing([sample_directory['id']]))
     assert directory

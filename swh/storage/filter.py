@@ -19,10 +19,9 @@ class FilteringProxyStorage:
 
         storage:
           cls: filter
-          args:
-            storage:
-              cls: remote
-              args: http://storage.internal.staging.swh.network:5002/
+          storage:
+            cls: remote
+            url: http://storage.internal.staging.swh.network:5002/
 
     """
     def __init__(self, storage):

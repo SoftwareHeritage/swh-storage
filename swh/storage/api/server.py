@@ -351,6 +351,13 @@ def origin_get():
     return encode_data(get_storage().origin_get(**decode_request(request)))
 
 
+@app.route('/origin/get_sha1', methods=['POST'])
+@timed
+def origin_get_by_sha1():
+    return encode_data(get_storage().origin_get_by_sha1(
+        **decode_request(request)))
+
+
 @app.route('/origin/get_range', methods=['POST'])
 @timed
 def origin_get_range():
