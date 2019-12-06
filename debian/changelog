@@ -1,3 +1,14 @@
+swh-storage (0.0.160-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.160     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-12-06 11:15:48
+    +0100)
+  * Upstream changes:     - v0.0.160     - storage.buffer: Buffer
+    release objects as well     - storage.tests: Unify tests sample data
+    - Implement origin lookup by sha1
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 06 Dec 2019 10:23:44 +0000
+
 swh-storage (0.0.159-1~swh2) unstable-swh; urgency=medium
 
   * Force fast hypothesis profile when running tests
