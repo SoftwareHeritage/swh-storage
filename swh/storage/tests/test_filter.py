@@ -17,7 +17,7 @@ def test_filtering_proxy_storage_content(sample_data):
     s = storage.content_add([sample_content])
     assert s == {
         'content:add': 1,
-        'content:add:bytes': 48,
+        'content:add:bytes': sample_content['length'],
         'skipped_content:add': 0
     }
 

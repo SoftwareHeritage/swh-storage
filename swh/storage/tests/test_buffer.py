@@ -60,7 +60,7 @@ def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data):
 
 def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data):
     contents = sample_data['content']
-    content_bytes_min_batch_size = 20
+    content_bytes_min_batch_size = 2
     storage = BufferingProxyStorage(
         storage={'cls': 'memory'},
         min_batch_size={
