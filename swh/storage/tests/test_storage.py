@@ -8,8 +8,11 @@ from contextlib import contextmanager
 import datetime
 import itertools
 import queue
+import random
 import threading
+
 from collections import defaultdict
+from datetime import timedelta
 from unittest.mock import Mock
 
 import psycopg2
@@ -936,13 +939,66 @@ class TestStorage:
         assert len(actual_origin0) == 1
         assert actual_origin0[0]['url'] == data.origin['url']
 
-    def test_origin_get_random(self, swh_storage):
+    def _generate_random_visits(self, nb_visits=100, start=0, end=7):
+        """Generate random visits within the last 2 months (to avoid
+        computations)
+
+        """
+        visits = []
+        today = datetime.datetime.now(tz=datetime.timezone.utc)
+        for weeks in range(nb_visits, 0, -1):
+            hours = random.randint(0, 24)
+            minutes = random.randint(0, 60)
+            seconds = random.randint(0, 60)
+            days = random.randint(0, 28)
+            weeks = random.randint(start, end)
+            date_visit = today - timedelta(
+                weeks=weeks, hours=hours, minutes=minutes,
+                seconds=seconds, days=days)
+            visits.append(date_visit)
+        return visits
+
+    def test_origin_visit_get_random(self, swh_storage):
         swh_storage.origin_add(data.origins)
+        # Add some random visits within the selection range
+        visits = self._generate_random_visits()
+        visit_type = 'git'
+
+        # Add visits to those origins
+        for origin in data.origins:
+            for date_visit in visits:
+                visit = swh_storage.origin_visit_add(
+                    origin['url'], date=date_visit, type=visit_type)
+                swh_storage.origin_visit_update(
+                    origin['url'], visit_id=visit['visit'], status='full')
+
         swh_storage.refresh_stat_counters()
-        random_origin = swh_storage.origin_get_random()
-        assert random_origin is not None
-        assert random_origin['url'] is not None
-        assert random_origin in data.origins
+
+        stats = swh_storage.stat_counters()
+        assert stats['origin'] == len(data.origins)
+        assert stats['origin_visit'] == len(data.origins) * len(visits)
+
+        random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
+        assert random_origin_visit
+        assert random_origin_visit['origin'] is not None
+        original_urls = [o['url'] for o in data.origins]
+        assert random_origin_visit['origin'] in original_urls
+
+    def test_origin_visit_get_random_nothing_found(self, swh_storage):
+        swh_storage.origin_add(data.origins)
+        visit_type = 'hg'
+        # Add some visits outside of the random generation selection so nothing
+        # will be found by the random selection
+        visits = self._generate_random_visits(nb_visits=3, start=13, end=24)
+        for origin in data.origins:
+            for date_visit in visits:
+                visit = swh_storage.origin_visit_add(
+                    origin['url'], date=date_visit, type=visit_type)
+                swh_storage.origin_visit_update(
+                    origin['url'], visit_id=visit['visit'], status='full')
+
+        random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
+        assert random_origin_visit == {}
 
     def test_origin_get_by_sha1(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None

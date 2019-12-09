@@ -351,12 +351,6 @@ def origin_get():
     return encode_data(get_storage().origin_get(**decode_request(request)))
 
 
-@app.route('/origin/get_random', methods=['GET'])
-@timed
-def origin_get_random():
-    return encode_data(get_storage().origin_get_random())
-
-
 @app.route('/origin/get_sha1', methods=['POST'])
 @timed
 def origin_get_by_sha1():
@@ -405,6 +399,13 @@ def origin_add_one():
 @timed
 def origin_visit_get():
     return encode_data(get_storage().origin_visit_get(
+        **decode_request(request)))
+
+
+@app.route('/origin/visit/get_random', methods=['POST'])
+@timed
+def origin_visit_get_random():
+    return encode_data(get_storage().origin_visit_get_random(
         **decode_request(request)))
 
 

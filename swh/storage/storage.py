@@ -11,7 +11,7 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Mapping
+from typing import Any, Dict, Mapping
 
 import dateutil.parser
 import psycopg2
@@ -1508,16 +1508,20 @@ class Storage():
             else:
                 yield None
 
-    @db_transaction(statement_timeout=500)
-    def origin_get_random(self, db=None, cur=None) -> Mapping[str, Any]:
+    @db_transaction()
+    def origin_visit_get_random(
+            self, type, db=None, cur=None) -> Mapping[str, Any]:
         """Randomly select one origin from the archive
 
         Returns:
-            origin dict selected randomly on the dataset
+            origin dict selected randomly on the dataset if found
 
         """
-        result = db.origin_get_random(cur)
-        return dict(zip(db.origin_cols, result))
+        data: Dict[str, Any] = {}
+        result = db.origin_visit_get_random(type, cur)
+        if result:
+            data = dict(zip(db.origin_visit_get_cols, result))
+        return data
 
     @db_transaction_generator()
     def origin_get_range(self, origin_from=1, origin_count=100,

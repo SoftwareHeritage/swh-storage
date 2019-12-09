@@ -13,7 +13,8 @@ import itertools
 import random
 
 from collections import defaultdict
-from typing import Any, Mapping
+from datetime import timedelta
+from typing import Any, Dict, Mapping
 
 import attr
 
@@ -1091,15 +1092,35 @@ class Storage:
             for sha1 in sha1s
         ]
 
-    def origin_get_random(self) -> Mapping[str, Any]:
-        """Randomly select one origin from the archive
+    def _select_random_origin_by_type(self, type: str) -> str:
+        """Select randomly an origin visit """
+        while True:
+            url = random.choice(list(self._origin_visits.keys()))
+            random_origin_visits = self._origin_visits[url]
+            if random_origin_visits[0].type == type:
+                return url
+
+    def origin_visit_get_random(self, type: str) -> Mapping[str, Any]:
+        """Randomly select one origin with <type> whose visit was successful
+        in the last 3 months.
 
         Returns:
             origin dict selected randomly on the dataset
 
         """
-        key = random.choice(list(self._origins.keys()))
-        return self._convert_origin(self._origins[key])
+        random_visit: Dict[str, Any] = {}
+        if not self._origin_visits:  # empty dataset
+            return random_visit
+        url = self._select_random_origin_by_type(type)
+        random_origin_visits = copy.deepcopy(self._origin_visits[url])
+        random_origin_visits.reverse()
+        back_in_the_day = now() - timedelta(weeks=12)  # 3 months back
+        # This should be enough for tests
+        for visit in random_origin_visits:
+            if visit.date > back_in_the_day and visit.status == 'full':
+                random_visit = visit.to_dict()
+                break
+        return random_visit
 
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater
