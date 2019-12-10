@@ -655,13 +655,18 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
         columns = ','.join(self.origin_visit_select_cols)
-        query = f"""select {columns}
-                    from origin_visit tablesample bernoulli (1)
+        query = f"""with visits as (
+                      select *
+                      from origin_visit
+                      where origin_visit.status='full' and
+                            origin_visit.type=%s and
+                            origin_visit.date > now() - '3 months'::interval
+                    )
+                    select {columns}
+                    from visits as origin_visit
                     inner join origin
-                    on origin_visit.origin = origin.id
-                    where origin_visit.status='full' and
-                          origin_visit.type=%s and
-                          origin_visit.date > now() - '3 months'::interval
+                    on origin_visit.origin=origin.id
+                    where random() < 0.1
                     limit 1
                  """
         cur.execute(query, (type, ))
