@@ -185,6 +185,11 @@ class RemoteStorage(RPCClient):
         return self.post('origin/visit/get', {
             'origin': origin, 'last_visit': last_visit, 'limit': limit})
 
+    def origin_visit_get_random(self, type):
+        return self.post('origin/visit/get_random', {
+            'type': type,
+        })
+
     def origin_visit_find_by_date(self, origin, visit_date, limit=None):
         return self.post('origin/visit/find_by_date', {
             'origin': origin, 'visit_date': visit_date})
