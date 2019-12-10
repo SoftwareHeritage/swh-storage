@@ -1,3 +1,13 @@
+swh-storage (0.0.161-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.161     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2019-12-10 15:03:28
+    +0100)
+  * Upstream changes:     - v0.0.161     - storage: Add endpoint to
+    randomly pick an origin
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 10 Dec 2019 14:08:15 +0000
+
 swh-storage (0.0.160-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.160     - (tagged by Antoine R. Dumont
