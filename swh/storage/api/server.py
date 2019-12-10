@@ -402,6 +402,13 @@ def origin_visit_get():
         **decode_request(request)))
 
 
+@app.route('/origin/visit/get_random', methods=['POST'])
+@timed
+def origin_visit_get_random():
+    return encode_data(get_storage().origin_visit_get_random(
+        **decode_request(request)))
+
+
 @app.route('/origin/visit/find_by_date', methods=['POST'])
 @timed
 def origin_visit_find_by_date():
