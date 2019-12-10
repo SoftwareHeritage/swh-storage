@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(144, now(), 'Work In Progress');
+      values(145, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -466,4 +466,3 @@ comment on column object_counts_bucketed.bucket_start is 'Lower bound (inclusive
 comment on column object_counts_bucketed.bucket_end is 'Upper bound (exclusive) for the bucket';
 comment on column object_counts_bucketed.value is 'Count of objects in the bucket';
 comment on column object_counts_bucketed.last_update is 'Last update for the object count in this bucket';
-
