@@ -492,6 +492,30 @@ class Db(BaseDb):
             return None
         return r
 
+    def origin_visit_get_random(self, type, cur=None):
+        """Randomly select one origin visit that was full and in the last 3
+           months
+
+        """
+        cur = self._cursor(cur)
+        columns = ','.join(self.origin_visit_select_cols)
+        query = f"""with visits as (
+                      select *
+                      from origin_visit
+                      where origin_visit.status='full' and
+                            origin_visit.type=%s and
+                            origin_visit.date > now() - '3 months'::interval
+                    )
+                    select {columns}
+                    from visits as origin_visit
+                    inner join origin
+                    on origin_visit.origin=origin.id
+                    where random() < 0.1
+                    limit 1
+                 """
+        cur.execute(query, (type, ))
+        return cur.fetchone()
+
     @staticmethod
     def mangle_query_key(key, main_table):
         if key == 'id':
@@ -647,30 +671,6 @@ class Db(BaseDb):
 
         yield from execute_values_generator(
             cur, query, ((sha1,) for sha1 in sha1s))
-
-    def origin_visit_get_random(self, type, cur=None):
-        """Randomly select one origin whose last visit was full in the last 3
-           months
-
-        """
-        cur = self._cursor(cur)
-        columns = ','.join(self.origin_visit_select_cols)
-        query = f"""with visits as (
-                      select *
-                      from origin_visit
-                      where origin_visit.status='full' and
-                            origin_visit.type=%s and
-                            origin_visit.date > now() - '3 months'::interval
-                    )
-                    select {columns}
-                    from visits as origin_visit
-                    inner join origin
-                    on origin_visit.origin=origin.id
-                    where random() < 0.1
-                    limit 1
-                 """
-        cur.execute(query, (type, ))
-        return cur.fetchone()
 
     def origin_id_get_by_url(self, origins, cur=None):
         """Retrieve origin `(type, url)` from urls if found."""

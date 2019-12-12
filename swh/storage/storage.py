@@ -1496,6 +1496,25 @@ class Storage():
         if origin_visit:
             return dict(zip(db.origin_visit_get_cols, origin_visit))
 
+    @remote_api_endpoint('origin/visit/get_random')
+    @timed
+    @db_transaction()
+    def origin_visit_get_random(
+            self, type: str, db=None, cur=None) -> Mapping[str, Any]:
+        """Randomly select one successful origin visit with <type>
+        made in the last 3 months.
+
+        Returns:
+            dict representing an origin visit, in the same format as
+            :py:meth:`origin_visit_get`.
+
+        """
+        data: Dict[str, Any] = {}
+        result = db.origin_visit_get_random(type, cur)
+        if result:
+            data = dict(zip(db.origin_visit_get_cols, result))
+        return data
+
     @remote_api_endpoint('object/find_by_sha1_git')
     @timed
     @db_transaction(statement_timeout=2000)
@@ -1594,23 +1613,6 @@ class Storage():
                 yield dict(zip(db.origin_cols, line))
             else:
                 yield None
-
-    @remote_api_endpoint('origin/visit/get_random')
-    @timed
-    @db_transaction()
-    def origin_visit_get_random(
-            self, type, db=None, cur=None) -> Mapping[str, Any]:
-        """Randomly select one origin from the archive
-
-        Returns:
-            origin dict selected randomly on the dataset if found
-
-        """
-        data: Dict[str, Any] = {}
-        result = db.origin_visit_get_random(type, cur)
-        if result:
-            data = dict(zip(db.origin_visit_get_cols, result))
-        return data
 
     @remote_api_endpoint('origin/get_range')
     @timed
