@@ -17,12 +17,7 @@ import dateutil.parser
 import psycopg2
 import psycopg2.pool
 
-from . import converters
-from .common import db_transaction_generator, db_transaction
-from .db import Db
-from .exc import StorageDBError
-from .algos import diff
-
+from swh.core.api import remote_api_endpoint
 from swh.model.hashutil import ALGORITHMS, hash_to_bytes
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -31,6 +26,12 @@ try:
 except ImportError:
     get_journal_writer = None  # type: ignore
     # mypy limitation, see https://github.com/python/mypy/issues/1153
+
+from . import converters
+from .common import db_transaction_generator, db_transaction
+from .db import Db
+from .exc import StorageDBError
+from .algos import diff
 
 
 # Max block size of contents to return
@@ -95,8 +96,9 @@ class Storage():
             if db:
                 self.put_db(db)
 
+    @remote_api_endpoint('check_config')
     @db_transaction()
-    def check_config(self, *, check_write, db, cur):
+    def check_config(self, *, check_write, db=None, cur=None):
         """Check that the storage is configured and ready to go."""
 
         if not self.objstorage.check_config(check_write=check_write):
@@ -150,7 +152,7 @@ class Storage():
         if d['length'] < -1:
             raise ValueError('Content length must be positive or -1.')
 
-    def _filter_new_content(self, content, db, cur):
+    def _filter_new_content(self, content, db=None, cur=None):
         """Sort contents into buckets 'with data' and 'without data',
         and filter out those already in the database."""
         content_by_status = defaultdict(list)
@@ -226,8 +228,9 @@ class Storage():
             # move metadata in place
             db.skipped_content_add_from_temp(cur)
 
+    @remote_api_endpoint('content/add')
     @db_transaction()
-    def content_add(self, content, db, cur):
+    def content_add(self, content, db=None, cur=None):
         """Add content blobs to the storage
 
         Note: in case of DB errors, objects might have already been added to
@@ -320,6 +323,7 @@ class Storage():
         summary['content:add:bytes'] = content_bytes_added
         return summary
 
+    @remote_api_endpoint('content/update')
     @db_transaction()
     def content_update(self, content, keys=[], db=None, cur=None):
         """Update content blobs to the storage. Does nothing for unknown
@@ -354,8 +358,9 @@ class Storage():
         db.content_update_from_temp(keys_to_update=keys,
                                     cur=cur)
 
+    @remote_api_endpoint('content/add_metadata')
     @db_transaction()
-    def content_add_metadata(self, content, db, cur):
+    def content_add_metadata(self, content, db=None, cur=None):
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -399,6 +404,7 @@ class Storage():
 
         return summary
 
+    @remote_api_endpoint('content/data')
     def content_get(self, content):
         """Retrieve in bulk contents and their data.
 
@@ -436,6 +442,7 @@ class Storage():
 
             yield {'sha1': obj_id, 'data': data}
 
+    @remote_api_endpoint('content/range')
     @db_transaction()
     def content_get_range(self, start, end, limit=1000, db=None, cur=None):
         """Retrieve contents within range [start, end] bound by limit.
@@ -475,6 +482,7 @@ class Storage():
             'next': next_content,
         }
 
+    @remote_api_endpoint('content/metadata')
     @db_transaction_generator(statement_timeout=500)
     def content_get_metadata(self, content, db=None, cur=None):
         """Retrieve content metadata in bulk
@@ -488,6 +496,7 @@ class Storage():
         for metadata in db.content_get_metadata_from_sha1s(content, cur):
             yield dict(zip(db.content_get_metadata_keys, metadata))
 
+    @remote_api_endpoint('content/missing')
     @db_transaction_generator()
     def content_missing(self, content, key_hash='sha1', db=None, cur=None):
         """List content missing from storage
@@ -523,6 +532,7 @@ class Storage():
         for obj in db.content_missing_from_list(content, cur):
             yield obj[key_hash_idx]
 
+    @remote_api_endpoint('content/missing/sha1')
     @db_transaction_generator()
     def content_missing_per_sha1(self, contents, db=None, cur=None):
         """List content missing from storage based only on sha1.
@@ -540,6 +550,7 @@ class Storage():
         for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
 
+    @remote_api_endpoint('content/skipped/missing')
     @db_transaction_generator()
     def skipped_content_missing(self, contents, db=None, cur=None):
         """List skipped_content missing from storage
@@ -555,6 +566,7 @@ class Storage():
         for content in db.skipped_content_missing(contents, cur):
             yield dict(zip(db.content_hash_keys, content))
 
+    @remote_api_endpoint('content/present')
     @db_transaction()
     def content_find(self, content, db=None, cur=None):
         """Find a content hash in db.
@@ -585,8 +597,9 @@ class Storage():
         return [dict(zip(db.content_find_cols, content))
                 for content in contents]
 
+    @remote_api_endpoint('directory/add')
     @db_transaction()
-    def directory_add(self, directories, db, cur):
+    def directory_add(self, directories, db=None, cur=None):
         """Add directories to the storage
 
         Args:
@@ -670,6 +683,7 @@ class Storage():
 
         return summary
 
+    @remote_api_endpoint('directory/missing')
     @db_transaction_generator()
     def directory_missing(self, directories, db=None, cur=None):
         """List directories missing from storage
@@ -684,6 +698,7 @@ class Storage():
         for obj in db.directory_missing_from_list(directories, cur):
             yield obj[0]
 
+    @remote_api_endpoint('directory/ls')
     @db_transaction_generator(statement_timeout=20000)
     def directory_ls(self, directory, recursive=False, db=None, cur=None):
         """Get entries for one directory.
@@ -707,6 +722,7 @@ class Storage():
         for line in res_gen:
             yield dict(zip(db.directory_ls_cols, line))
 
+    @remote_api_endpoint('directory/path')
     @db_transaction(statement_timeout=2000)
     def directory_entry_get_by_path(self, directory, paths, db=None, cur=None):
         """Get the directory entry (either file or dir) from directory with path.
@@ -724,8 +740,9 @@ class Storage():
         if res:
             return dict(zip(db.directory_ls_cols, res))
 
+    @remote_api_endpoint('revision/add')
     @db_transaction()
-    def revision_add(self, revisions, db, cur):
+    def revision_add(self, revisions, db=None, cur=None):
         """Add revisions to the storage
 
         Args:
@@ -796,6 +813,7 @@ class Storage():
 
         return {'revision:add': len(revisions_missing)}
 
+    @remote_api_endpoint('revision/missing')
     @db_transaction_generator()
     def revision_missing(self, revisions, db=None, cur=None):
         """List revisions missing from storage
@@ -813,6 +831,7 @@ class Storage():
         for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]
 
+    @remote_api_endpoint('revision')
     @db_transaction_generator(statement_timeout=1000)
     def revision_get(self, revisions, db=None, cur=None):
         """Get all revisions from storage
@@ -834,6 +853,7 @@ class Storage():
                 continue
             yield data
 
+    @remote_api_endpoint('revision/log')
     @db_transaction_generator(statement_timeout=2000)
     def revision_log(self, revisions, limit=None, db=None, cur=None):
         """Fetch revision entry from the given root revisions.
@@ -855,6 +875,7 @@ class Storage():
                 continue
             yield data
 
+    @remote_api_endpoint('revision/shortlog')
     @db_transaction_generator(statement_timeout=2000)
     def revision_shortlog(self, revisions, limit=None, db=None, cur=None):
         """Fetch the shortlog for the given revisions
@@ -870,8 +891,9 @@ class Storage():
 
         yield from db.revision_shortlog(revisions, limit, cur)
 
+    @remote_api_endpoint('release/add')
     @db_transaction()
-    def release_add(self, releases, db, cur):
+    def release_add(self, releases, db=None, cur=None):
         """Add releases to the storage
 
         Args:
@@ -927,6 +949,7 @@ class Storage():
 
         return {'release:add': len(releases_missing)}
 
+    @remote_api_endpoint('release/missing')
     @db_transaction_generator()
     def release_missing(self, releases, db=None, cur=None):
         """List releases missing from storage
@@ -944,6 +967,7 @@ class Storage():
         for obj in db.release_missing_from_list(releases, cur):
             yield obj[0]
 
+    @remote_api_endpoint('release')
     @db_transaction_generator(statement_timeout=500)
     def release_get(self, releases, db=None, cur=None):
         """Given a list of sha1, return the releases's information
@@ -962,6 +986,7 @@ class Storage():
             )
             yield data if data['target_type'] else None
 
+    @remote_api_endpoint('snapshot/add')
     @db_transaction()
     def snapshot_add(self, snapshots, db=None, cur=None):
         """Add snapshots to the storage.
@@ -1025,6 +1050,7 @@ class Storage():
 
         return {'snapshot:add': count}
 
+    @remote_api_endpoint('snapshot')
     @db_transaction(statement_timeout=2000)
     def snapshot_get(self, snapshot_id, db=None, cur=None):
         """Get the content, possibly partial, of a snapshot with the given id
@@ -1051,6 +1077,7 @@ class Storage():
 
         return self.snapshot_get_branches(snapshot_id, db=db, cur=cur)
 
+    @remote_api_endpoint('snapshot/by_origin_visit')
     @db_transaction(statement_timeout=2000)
     def snapshot_get_by_origin_visit(self, origin, visit, db=None, cur=None):
         """Get the content, possibly partial, of a snapshot for the given origin visit
@@ -1084,6 +1111,7 @@ class Storage():
 
         return None
 
+    @remote_api_endpoint('snapshot/latest')
     @db_transaction(statement_timeout=4000)
     def snapshot_get_latest(self, origin, allowed_statuses=None, db=None,
                             cur=None):
@@ -1131,6 +1159,7 @@ class Storage():
                     'last origin visit references an unknown snapshot')
             return snapshot
 
+    @remote_api_endpoint('snapshot/count_branches')
     @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
         """Count the number of branches in the snapshot with the given id
@@ -1145,6 +1174,7 @@ class Storage():
         return dict([bc for bc in
                      db.snapshot_count_branches(snapshot_id, cur)])
 
+    @remote_api_endpoint('snapshot/get_branches')
     @db_transaction(statement_timeout=2000)
     def snapshot_get_branches(self, snapshot_id, branches_from=b'',
                               branches_count=1000, target_types=None,
@@ -1210,6 +1240,7 @@ class Storage():
 
         return None
 
+    @remote_api_endpoint('origin/visit/add')
     @db_transaction()
     def origin_visit_add(self, origin, date, type,
                          db=None, cur=None):
@@ -1248,6 +1279,7 @@ class Storage():
             'visit': visit_id,
         }
 
+    @remote_api_endpoint('origin/visit/update')
     @db_transaction()
     def origin_visit_update(self, origin, visit_id, status=None,
                             metadata=None, snapshot=None,
@@ -1291,6 +1323,7 @@ class Storage():
 
             db.origin_visit_update(origin_url, visit_id, updates, cur)
 
+    @remote_api_endpoint('origin/visit/upsert')
     @db_transaction()
     def origin_visit_upsert(self, visits, db=None, cur=None):
         """Add a origin_visits with a specific id and with all its data.
@@ -1324,6 +1357,7 @@ class Storage():
             # TODO: upsert them all in a single query
             db.origin_visit_upsert(**visit, cur=cur)
 
+    @remote_api_endpoint('origin/visit/get')
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(self, origin, last_visit=None, limit=None, db=None,
                          cur=None):
@@ -1345,6 +1379,7 @@ class Storage():
             data = dict(zip(db.origin_visit_get_cols, line))
             yield data
 
+    @remote_api_endpoint('origin/visit/find_by_date')
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(self, origin, visit_date, db=None, cur=None):
         """Retrieves the origin visit whose date is closest to the provided
@@ -1363,6 +1398,7 @@ class Storage():
         if line:
             return dict(zip(db.origin_visit_get_cols, line))
 
+    @remote_api_endpoint('origin/visit/getby')
     @db_transaction(statement_timeout=500)
     def origin_visit_get_by(self, origin, visit, db=None, cur=None):
         """Retrieve origin visit's information.
@@ -1381,6 +1417,7 @@ class Storage():
 
         return dict(zip(db.origin_visit_get_cols, ori_visit))
 
+    @remote_api_endpoint('origin/visit/get_latest')
     @db_transaction(statement_timeout=4000)
     def origin_visit_get_latest(
             self, origin, allowed_statuses=None, require_snapshot=False,
@@ -1415,6 +1452,7 @@ class Storage():
         if origin_visit:
             return dict(zip(db.origin_visit_get_cols, origin_visit))
 
+    @remote_api_endpoint('object/find_by_sha1_git')
     @db_transaction(statement_timeout=2000)
     def object_find_by_sha1_git(self, ids, db=None, cur=None):
         """Return the objects found with the given ids.
@@ -1441,6 +1479,7 @@ class Storage():
 
         return ret
 
+    @remote_api_endpoint('origin/get')
     @db_transaction(statement_timeout=500)
     def origin_get(self, origins, db=None, cur=None):
         """Return origins, either all identified by their ids or all
@@ -1489,6 +1528,7 @@ class Storage():
         else:
             return [None if res['url'] is None else res for res in results]
 
+    @remote_api_endpoint('origin/get_sha1')
     @db_transaction_generator(statement_timeout=500)
     def origin_get_by_sha1(self, sha1s, db=None, cur=None):
         """Return origins, identified by the sha1 of their URLs.
@@ -1508,6 +1548,7 @@ class Storage():
             else:
                 yield None
 
+    @remote_api_endpoint('origin/visit/get_random')
     @db_transaction()
     def origin_visit_get_random(
             self, type, db=None, cur=None) -> Mapping[str, Any]:
@@ -1523,6 +1564,7 @@ class Storage():
             data = dict(zip(db.origin_visit_get_cols, result))
         return data
 
+    @remote_api_endpoint('origin/get_range')
     @db_transaction_generator()
     def origin_get_range(self, origin_from=1, origin_count=100,
                          db=None, cur=None):
@@ -1542,6 +1584,7 @@ class Storage():
         for origin in db.origin_get_range(origin_from, origin_count, cur):
             yield dict(zip(db.origin_get_range_cols, origin))
 
+    @remote_api_endpoint('origin/search')
     @db_transaction_generator()
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):
@@ -1566,6 +1609,7 @@ class Storage():
                                        regexp, with_visit, cur):
             yield dict(zip(db.origin_cols, origin))
 
+    @remote_api_endpoint('origin/count')
     @db_transaction()
     def origin_count(self, url_pattern, regexp=False,
                      with_visit=False, db=None, cur=None):
@@ -1585,6 +1629,7 @@ class Storage():
         """
         return db.origin_count(url_pattern, regexp, with_visit, cur)
 
+    @remote_api_endpoint('origin/add_multi')
     @db_transaction()
     def origin_add(self, origins, db=None, cur=None):
         """Add origins to the storage
@@ -1606,6 +1651,7 @@ class Storage():
 
         return origins
 
+    @remote_api_endpoint('origin/add')
     @db_transaction()
     def origin_add_one(self, origin, db=None, cur=None):
         """Add origin to the storage
@@ -1664,6 +1710,7 @@ class Storage():
         for key in keys:
             cur.execute('select * from swh_update_counter(%s)', (key,))
 
+    @remote_api_endpoint('origin/metadata/add')
     @db_transaction()
     def origin_metadata_add(self, origin_url, ts, provider, tool, metadata,
                             db=None, cur=None):
@@ -1683,6 +1730,7 @@ class Storage():
         db.origin_metadata_add(origin_url, ts, provider, tool,
                                metadata, cur)
 
+    @remote_api_endpoint('origin/metadata/get')
     @db_transaction_generator(statement_timeout=500)
     def origin_metadata_get_by(self, origin_url, provider_type=None, db=None,
                                cur=None):
@@ -1708,6 +1756,7 @@ class Storage():
         for line in db.origin_metadata_get_by(origin_url, provider_type, cur):
             yield dict(zip(db.origin_metadata_get_cols, line))
 
+    @remote_api_endpoint('tool/add')
     @db_transaction()
     def tool_add(self, tools, db=None, cur=None):
         """Add new tools to the storage.
@@ -1735,6 +1784,7 @@ class Storage():
         tools = db.tool_add_from_temp(cur)
         return [dict(zip(db.tool_cols, line)) for line in tools]
 
+    @remote_api_endpoint('tool/data')
     @db_transaction(statement_timeout=500)
     def tool_get(self, tool, db=None, cur=None):
         """Retrieve tool information.
@@ -1759,6 +1809,7 @@ class Storage():
             return None
         return dict(zip(db.tool_cols, idx))
 
+    @remote_api_endpoint('provider/add')
     @db_transaction()
     def metadata_provider_add(self, provider_name, provider_type, provider_url,
                               metadata, db=None, cur=None):
@@ -1776,6 +1827,7 @@ class Storage():
         return db.metadata_provider_add(provider_name, provider_type,
                                         provider_url, metadata, cur)
 
+    @remote_api_endpoint('provider/get')
     @db_transaction()
     def metadata_provider_get(self, provider_id, db=None, cur=None):
         """Get a metadata provider
@@ -1792,6 +1844,7 @@ class Storage():
             return None
         return dict(zip(db.metadata_provider_cols, result))
 
+    @remote_api_endpoint('provider/getby')
     @db_transaction()
     def metadata_provider_get_by(self, provider, db=None, cur=None):
         """Get a metadata provider
@@ -1811,6 +1864,7 @@ class Storage():
             return None
         return dict(zip(db.metadata_provider_cols, result))
 
+    @remote_api_endpoint('algos/diff_directories')
     def diff_directories(self, from_dir, to_dir, track_renaming=False):
         """Compute the list of file changes introduced between two arbitrary
         directories (insertion / deletion / modification / renaming of files).
@@ -1827,6 +1881,7 @@ class Storage():
         """
         return diff.diff_directories(self, from_dir, to_dir, track_renaming)
 
+    @remote_api_endpoint('algos/diff_revisions')
     def diff_revisions(self, from_rev, to_rev, track_renaming=False):
         """Compute the list of file changes introduced between two arbitrary
         revisions (insertion / deletion / modification / renaming of files).
@@ -1843,6 +1898,7 @@ class Storage():
         """
         return diff.diff_revisions(self, from_rev, to_rev, track_renaming)
 
+    @remote_api_endpoint('algos/diff_revision')
     def diff_revision(self, revision, track_renaming=False):
         """Compute the list of file changes introduced by a specific revision
         (insertion / deletion / modification / renaming of files) by comparing
