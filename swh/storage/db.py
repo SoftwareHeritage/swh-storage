@@ -3,11 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import random
 import select
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
 from swh.core.db.db_utils import execute_values_generator
+from swh.model.model import SHA1_SIZE
 
 
 class Db(BaseDb):
@@ -199,6 +201,10 @@ class Db(BaseDb):
         if ret:
             return ret[0]
 
+    def snapshot_get_random(self, cur=None):
+        return self._get_random_row_from_table(
+            'snapshot', ['id'], 'id', cur)
+
     content_find_cols = ['sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
                          'ctime', 'status']
 
@@ -236,6 +242,10 @@ class Db(BaseDb):
                     args)
         content = cur.fetchall()
         return content
+
+    def content_get_random(self, cur=None):
+        return self._get_random_row_from_table(
+            'content', ['sha1_git'], 'sha1_git', cur)
 
     def directory_missing_from_list(self, directories, cur=None):
         cur = self._cursor(cur)
@@ -279,6 +289,10 @@ class Db(BaseDb):
         if set(data) == {None}:
             return None
         return data
+
+    def directory_get_random(self, cur=None):
+        return self._get_random_row_from_table(
+            'directory', ['id'], 'id', cur)
 
     def revision_missing_from_list(self, revisions, cur=None):
         cur = self._cursor(cur)
@@ -577,6 +591,10 @@ class Db(BaseDb):
         cur.execute(query, (root_revisions, limit))
         yield from cur
 
+    def revision_get_random(self, cur=None):
+        return self._get_random_row_from_table(
+            'revision', ['id'], 'id', cur)
+
     def release_missing_from_list(self, releases, cur=None):
         cur = self._cursor(cur)
         yield from execute_values_generator(
@@ -805,6 +823,10 @@ class Db(BaseDb):
             """ % query_keys,
             ((id,) for id in releases))
 
+    def release_get_random(self, cur=None):
+        return self._get_random_row_from_table(
+            'release', ['id'], 'id', cur)
+
     def origin_metadata_add(self, origin, ts, provider, tool,
                             metadata, cur=None):
         """ Add an origin_metadata for the origin at ts with provider, tool and
@@ -915,3 +937,19 @@ class Db(BaseDb):
             (provider_name, provider_url))
 
         return cur.fetchone()
+
+    def _get_random_row_from_table(self, table_name, cols, id_col, cur=None):
+        random_sha1 = bytes(random.randint(0, 255) for _ in range(SHA1_SIZE))
+        cur = self._cursor(cur)
+        query = '''
+            (SELECT {cols} FROM {table} WHERE {id_col} >= %s
+             ORDER BY {id_col} LIMIT 1)
+            UNION
+            (SELECT {cols} FROM {table} WHERE {id_col} < %s
+             ORDER BY {id_col} DESC LIMIT 1)
+            LIMIT 1
+            '''.format(cols=', '.join(cols), table=table_name, id_col=id_col)
+        cur.execute(query, (random_sha1, random_sha1))
+        row = cur.fetchone()
+        if row:
+            return row[0]

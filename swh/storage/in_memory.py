@@ -420,6 +420,14 @@ class Storage:
                     yield content
                     break
 
+    def content_get_random(self):
+        """Finds a random content id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._content_indexes['sha1_git']))
+
     def directory_add(self, directories):
         """Add directories to the storage
 
@@ -534,6 +542,14 @@ class Storage:
 
         """
         return self._directory_entry_get_by_path(directory, paths, b'')
+
+    def directory_get_random(self):
+        """Finds a random directory id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._directories))
 
     def _directory_entry_get_by_path(self, directory, paths, prefix):
         if not paths:
@@ -681,6 +697,14 @@ class Storage:
         yield from ((rev['id'], rev['parents'])
                     for rev in self.revision_log(revisions, limit))
 
+    def revision_get_random(self):
+        """Finds a random revision id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._revisions))
+
     def release_add(self, releases):
         """Add releases to the storage
 
@@ -755,6 +779,14 @@ class Storage:
                 yield self._releases[rel_id].to_dict()
             else:
                 yield None
+
+    def release_get_random(self):
+        """Finds a random release id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._releases))
 
     def snapshot_add(self, snapshots):
         """Add a snapshot to the storage
@@ -982,6 +1014,14 @@ class Storage:
                 'branches': branches,
                 'next_branch': next_branch,
                 }
+
+    def snapshot_get_random(self):
+        """Finds a random snapshot id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._snapshots))
 
     def object_find_by_sha1_git(self, ids, db=None, cur=None):
         """Return the objects found with the given ids.

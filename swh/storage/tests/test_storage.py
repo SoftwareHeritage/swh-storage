@@ -389,6 +389,13 @@ class TestStorage:
 
         assert list(gen) == [missing_cont]
 
+    def test_content_get_random(self, swh_storage):
+        swh_storage.content_add([data.cont, data.cont2, data.cont3])
+
+        assert swh_storage.content_get_random() in {
+            data.cont['sha1_git'], data.cont2['sha1_git'],
+            data.cont3['sha1_git']}
+
     def test_directory_add(self, swh_storage):
         init_missing = list(swh_storage.directory_missing([data.dir['id']]))
         assert [data.dir['id']] == init_missing
@@ -579,6 +586,12 @@ class TestStorage:
                 [entry['name']])
             assert actual_entry is None
 
+    def test_directory_get_random(self, swh_storage):
+        swh_storage.directory_add([data.dir, data.dir2, data.dir3])
+
+        assert swh_storage.directory_get_random() in \
+            {data.dir['id'], data.dir2['id'], data.dir3['id']}
+
     def test_revision_add(self, swh_storage):
         init_missing = swh_storage.revision_missing([data.revision['id']])
         assert list(init_missing) == [data.revision['id']]
@@ -758,6 +771,13 @@ class TestStorage:
         assert len(get) == 1
         assert get[0]['parents'] == []  # no parents on this one
 
+    def test_revision_get_random(self, swh_storage):
+        swh_storage.revision_add(
+            [data.revision, data.revision2, data.revision3])
+
+        assert swh_storage.revision_get_random() in \
+            {data.revision['id'], data.revision2['id'], data.revision3['id']}
+
     def test_release_add(self, swh_storage):
         init_missing = swh_storage.release_missing([data.release['id'],
                                                     data.release2['id']])
@@ -867,6 +887,12 @@ class TestStorage:
             list(swh_storage.release_get([data.release3['id']]))
 
         assert unknown_releases[0] is None
+
+    def test_release_get_random(self, swh_storage):
+        swh_storage.release_add([data.release, data.release2, data.release3])
+
+        assert swh_storage.release_get_random() in \
+            {data.release['id'], data.release2['id'], data.release3['id']}
 
     def test_origin_add_one(self, swh_storage):
         origin0 = swh_storage.origin_get(data.origin)
@@ -2361,6 +2387,14 @@ class TestStorage:
         swh_storage.snapshot_add([data.snapshot])
         assert{**data.snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(origin_url)
+
+    def test_snapshot_get_random(self, swh_storage):
+        swh_storage.snapshot_add(
+            [data.snapshot, data.empty_snapshot, data.complete_snapshot])
+
+        assert swh_storage.snapshot_get_random() in {
+            data.snapshot['id'], data.empty_snapshot['id'],
+            data.complete_snapshot['id']}
 
     def test_stat_counters(self, swh_storage):
         expected_keys = ['content', 'directory',

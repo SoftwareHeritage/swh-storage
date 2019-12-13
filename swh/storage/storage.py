@@ -611,6 +611,17 @@ class Storage():
         return [dict(zip(db.content_find_cols, content))
                 for content in contents]
 
+    @remote_api_endpoint('content/get_random')
+    @timed
+    @db_transaction()
+    def content_get_random(self, db=None, cur=None):
+        """Finds a random content id.
+
+        Returns:
+            a sha1_git
+        """
+        return db.content_get_random(cur)
+
     @remote_api_endpoint('directory/add')
     @timed
     @process_metrics
@@ -758,6 +769,17 @@ class Storage():
         res = db.directory_entry_get_by_path(directory, paths, cur)
         if res:
             return dict(zip(db.directory_ls_cols, res))
+
+    @remote_api_endpoint('directory/get_random')
+    @timed
+    @db_transaction()
+    def directory_get_random(self, db=None, cur=None):
+        """Finds a random directory id.
+
+        Returns:
+            a sha1_git
+        """
+        return db.directory_get_random(cur)
 
     @remote_api_endpoint('revision/add')
     @timed
@@ -916,6 +938,17 @@ class Storage():
 
         yield from db.revision_shortlog(revisions, limit, cur)
 
+    @remote_api_endpoint('revision/get_random')
+    @timed
+    @db_transaction()
+    def revision_get_random(self, db=None, cur=None):
+        """Finds a random revision id.
+
+        Returns:
+            a sha1_git
+        """
+        return db.revision_get_random(cur)
+
     @remote_api_endpoint('release/add')
     @timed
     @process_metrics
@@ -1014,6 +1047,17 @@ class Storage():
                 dict(zip(db.release_get_cols, release))
             )
             yield data if data['target_type'] else None
+
+    @remote_api_endpoint('release/get_random')
+    @timed
+    @db_transaction()
+    def release_get_random(self, db=None, cur=None):
+        """Finds a random release id.
+
+        Returns:
+            a sha1_git
+        """
+        return db.release_get_random(cur)
 
     @remote_api_endpoint('snapshot/add')
     @timed
@@ -1275,6 +1319,17 @@ class Storage():
             }
 
         return None
+
+    @remote_api_endpoint('snapshot/get_random')
+    @timed
+    @db_transaction()
+    def snapshot_get_random(self, db=None, cur=None):
+        """Finds a random snapshot id.
+
+        Returns:
+            a sha1_git
+        """
+        return db.snapshot_get_random(cur)
 
     @remote_api_endpoint('origin/visit/add')
     @timed
