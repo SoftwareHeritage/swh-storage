@@ -185,6 +185,7 @@ swh/storage/db.py
 swh/storage/exc.py
 swh/storage/filter.py
 swh/storage/in_memory.py
+swh/storage/metrics.py
 swh/storage/py.typed
 swh/storage/storage.py
 swh/storage/algos/__init__.py
@@ -212,6 +213,7 @@ swh/storage/tests/test_db.py
 swh/storage/tests/test_filter.py
 swh/storage/tests/test_in_memory.py
 swh/storage/tests/test_init.py
+swh/storage/tests/test_metrics.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py
