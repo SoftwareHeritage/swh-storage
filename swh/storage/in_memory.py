@@ -420,6 +420,14 @@ class Storage:
                     yield content
                     break
 
+    def content_get_random(self):
+        """Finds a random content id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._content_indexes['sha1_git']))
+
     def directory_add(self, directories):
         """Add directories to the storage
 
@@ -534,6 +542,14 @@ class Storage:
 
         """
         return self._directory_entry_get_by_path(directory, paths, b'')
+
+    def directory_get_random(self):
+        """Finds a random directory id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._directories))
 
     def _directory_entry_get_by_path(self, directory, paths, prefix):
         if not paths:
@@ -681,6 +697,14 @@ class Storage:
         yield from ((rev['id'], rev['parents'])
                     for rev in self.revision_log(revisions, limit))
 
+    def revision_get_random(self):
+        """Finds a random revision id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._revisions))
+
     def release_add(self, releases):
         """Add releases to the storage
 
@@ -755,6 +779,14 @@ class Storage:
                 yield self._releases[rel_id].to_dict()
             else:
                 yield None
+
+    def release_get_random(self):
+        """Finds a random release id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._releases))
 
     def snapshot_add(self, snapshots):
         """Add a snapshot to the storage
@@ -983,6 +1015,14 @@ class Storage:
                 'next_branch': next_branch,
                 }
 
+    def snapshot_get_random(self):
+        """Finds a random snapshot id.
+
+        Returns:
+            a sha1_git
+        """
+        return random.choice(list(self._snapshots))
+
     def object_find_by_sha1_git(self, ids, db=None, cur=None):
         """Return the objects found with the given ids.
 
@@ -1091,36 +1131,6 @@ class Storage:
             self._convert_origin(self._origins_by_sha1.get(sha1))
             for sha1 in sha1s
         ]
-
-    def _select_random_origin_by_type(self, type: str) -> str:
-        """Select randomly an origin visit """
-        while True:
-            url = random.choice(list(self._origin_visits.keys()))
-            random_origin_visits = self._origin_visits[url]
-            if random_origin_visits[0].type == type:
-                return url
-
-    def origin_visit_get_random(self, type: str) -> Mapping[str, Any]:
-        """Randomly select one origin with <type> whose visit was successful
-        in the last 3 months.
-
-        Returns:
-            origin dict selected randomly on the dataset
-
-        """
-        random_visit: Dict[str, Any] = {}
-        if not self._origin_visits:  # empty dataset
-            return random_visit
-        url = self._select_random_origin_by_type(type)
-        random_origin_visits = copy.deepcopy(self._origin_visits[url])
-        random_origin_visits.reverse()
-        back_in_the_day = now() - timedelta(weeks=12)  # 3 months back
-        # This should be enough for tests
-        for visit in random_origin_visits:
-            if visit.date > back_in_the_day and visit.status == 'full':
-                random_visit = visit.to_dict()
-                break
-        return random_visit
 
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater
@@ -1506,6 +1516,37 @@ class Storage:
         visit = max(
             visits, key=lambda v: (v.date, v.visit), default=None)
         return self._convert_visit(visit)
+
+    def _select_random_origin_visit_by_type(self, type: str) -> str:
+        """Select randomly an origin visit """
+        while True:
+            url = random.choice(list(self._origin_visits.keys()))
+            random_origin_visits = self._origin_visits[url]
+            if random_origin_visits[0].type == type:
+                return url
+
+    def origin_visit_get_random(self, type: str) -> Mapping[str, Any]:
+        """Randomly select one successful origin visit with <type>
+        made in the last 3 months.
+
+        Returns:
+            dict representing an origin visit, in the same format as
+            `origin_visit_get`.
+
+        """
+        random_visit: Dict[str, Any] = {}
+        if not self._origin_visits:  # empty dataset
+            return random_visit
+        url = self._select_random_origin_visit_by_type(type)
+        random_origin_visits = copy.deepcopy(self._origin_visits[url])
+        random_origin_visits.reverse()
+        back_in_the_day = now() - timedelta(weeks=12)  # 3 months back
+        # This should be enough for tests
+        for visit in random_origin_visits:
+            if visit.date > back_in_the_day and visit.status == 'full':
+                random_visit = visit.to_dict()
+                break
+        return random_visit
 
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
