@@ -68,3 +68,7 @@ class RetryingProxyStorage:
     def origin_visit_add(self, origin: Dict,
                          date: Union[datetime, str], type: str) -> Dict:
         return self.storage.origin_visit_add(origin, date, type)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def tool_add(self, tools: List[Dict]) -> List[Dict]:
+        return self.storage.tool_add(tools)

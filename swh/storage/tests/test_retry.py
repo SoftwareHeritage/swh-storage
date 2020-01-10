@@ -219,3 +219,66 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
 
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.origin_visit_add(origin_url, '2020-01-01', 'svn')
+
+
+def test_retrying_proxy_storage_tool_add(swh_storage, sample_data):
+    """Standard tool_add works as before
+
+    """
+    sample_tool = sample_data['tool'][0]
+
+    tool = swh_storage.tool_get(sample_tool)
+    assert not tool
+
+    tools = swh_storage.tool_add([sample_tool])
+    assert tools
+    tool = tools[0]
+    tool.pop('id')
+    assert tool == sample_tool
+
+    tool = swh_storage.tool_get(sample_tool)
+    tool.pop('id')
+    assert tool == sample_tool
+
+
+def test_retrying_proxy_storage_tool_add_with_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    sample_tool = sample_data['tool'][0]
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.tool_add')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('tool hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('tool already inserted'),
+        # ok then!
+        [sample_tool]
+    ]
+
+    tool = swh_storage.tool_get(sample_tool)
+    assert not tool
+
+    tools = swh_storage.tool_add([sample_tool])
+    assert tools == [sample_tool]
+
+
+def test_retrying_proxy_swh_storage_tool_add_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.tool_add')
+    mock_memory.side_effect = ValueError('Refuse to add tool always!')
+
+    sample_tool = sample_data['tool'][0]
+
+    tool = swh_storage.tool_get(sample_tool)
+    assert not tool
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.tool_add([sample_tool])
+
+    tool = swh_storage.tool_get(sample_tool)
+    assert not tool
