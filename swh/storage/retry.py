@@ -58,3 +58,7 @@ class RetryingProxyStorage:
     @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
     def content_add(self, content: List[Dict]) -> Dict:
         return self.storage.content_add(content)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def origin_add_one(self, origin: Dict) -> str:
+        return self.storage.origin_add_one(origin)

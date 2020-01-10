@@ -28,17 +28,21 @@ def test_should_retry_adding_no_retry():
         assert should_retry_adding(exc('fail!')) is False
 
 
-def test_retrying_proxy_storage_content(sample_data):
+@pytest.fixture
+def swh_storage():
+    return RetryingProxyStorage(storage={'cls': 'memory'})
+
+
+def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
     """Standard content_add works as before
 
     """
     sample_content = sample_data['content'][0]
-    storage = RetryingProxyStorage(storage={'cls': 'memory'})
 
-    content = next(storage.content_get([sample_content['sha1']]))
+    content = next(swh_storage.content_get([sample_content['sha1']]))
     assert not content
 
-    s = storage.content_add([sample_content])
+    s = swh_storage.content_add([sample_content])
     assert s == {
         'content:add': 1,
         'content:add:bytes': sample_content['length'],
@@ -46,7 +50,8 @@ def test_retrying_proxy_storage_content(sample_data):
     }
 
 
-def test_retrying_proxy_storage_with_retry(sample_data, mocker):
+def test_retrying_proxy_storage_content_add_with_retry(
+        swh_storage, sample_data, mocker):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -61,18 +66,18 @@ def test_retrying_proxy_storage_with_retry(sample_data, mocker):
     ]
 
     sample_content = sample_data['content'][0]
-    storage = RetryingProxyStorage(storage={'cls': 'memory'})
 
-    content = next(storage.content_get([sample_content['sha1']]))
+    content = next(swh_storage.content_get([sample_content['sha1']]))
     assert not content
 
-    s = storage.content_add([sample_content])
+    s = swh_storage.content_add([sample_content])
     assert s == {
         'content:add': 1,
     }
 
 
-def test_retrying_proxy_storage_failure_to_add(sample_data, mocker):
+def test_retrying_proxy_swh_storage_content_add_failure(
+        swh_storage, sample_data, mocker):
     """Other errors are raising as usual
 
     """
@@ -80,10 +85,71 @@ def test_retrying_proxy_storage_failure_to_add(sample_data, mocker):
     mock_memory.side_effect = ValueError('Refuse to add content always!')
 
     sample_content = sample_data['content'][0]
-    storage = RetryingProxyStorage(storage={'cls': 'memory'})
 
-    content = next(storage.content_get([sample_content['sha1']]))
+    content = next(swh_storage.content_get([sample_content['sha1']]))
     assert not content
 
     with pytest.raises(ValueError, match='Refuse to add'):
-        storage.content_add([sample_content])
+        swh_storage.content_add([sample_content])
+
+    content = next(swh_storage.content_get([sample_content['sha1']]))
+    assert not content
+
+
+def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
+    """Standard content_add works as before
+
+    """
+    sample_origin = sample_data['origin'][0]
+
+    origin = swh_storage.origin_get(sample_origin)
+    assert not origin
+
+    r = swh_storage.origin_add_one(sample_origin)
+    assert r == sample_origin['url']
+
+    origin = swh_storage.origin_get(sample_origin)
+    assert origin['url'] == sample_origin['url']
+
+
+def test_retrying_proxy_swh_storage_origin_add_one_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    sample_origin = sample_data['origin'][1]
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.origin_add_one')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('origin hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('origin already inserted'),
+        # ok then!
+        sample_origin['url']
+    ]
+
+    origin = swh_storage.origin_get(sample_origin)
+    assert not origin
+
+    r = swh_storage.origin_add_one(sample_origin)
+    assert r == sample_origin['url']
+
+
+def test_retrying_proxy_swh_storage_origin_add_one_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.origin_add_one')
+    mock_memory.side_effect = ValueError('Refuse to add origin always!')
+
+    sample_origin = sample_data['origin'][0]
+
+    origin = swh_storage.origin_get(sample_origin)
+    assert not origin
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.origin_add_one([sample_origin])
+
+    origin = swh_storage.origin_get(sample_origin)
+    assert not origin
