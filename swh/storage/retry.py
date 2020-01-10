@@ -72,3 +72,10 @@ class RetryingProxyStorage:
     @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
     def tool_add(self, tools: List[Dict]) -> List[Dict]:
         return self.storage.tool_add(tools)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def metadata_provider_add(
+            self, provider_name: str, provider_type: str, provider_url: str,
+            metadata: Dict) -> Union[str, int]:
+        return self.storage.metadata_provider_add(
+            provider_name, provider_type, provider_url, metadata)
