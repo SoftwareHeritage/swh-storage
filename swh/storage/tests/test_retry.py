@@ -153,3 +153,69 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
 
     origin = swh_storage.origin_get(sample_origin)
     assert not origin
+
+
+def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
+    """Standard content_add works as before
+
+    """
+    sample_origin = sample_data['origin'][0]
+    swh_storage.origin_add_one(sample_origin)
+    origin_url = sample_origin['url']
+
+    origin = list(swh_storage.origin_visit_get(origin_url))
+    assert not origin
+
+    origin_visit = swh_storage.origin_visit_add(
+        origin_url, '2020-01-01', 'hg')
+    assert origin_visit['origin'] == origin_url
+    assert isinstance(origin_visit['visit'], int)
+
+    origin_visit = next(swh_storage.origin_visit_get(origin_url))
+    assert origin_visit['origin'] == origin_url
+    assert isinstance(origin_visit['visit'], int)
+
+
+def test_retrying_proxy_swh_storage_origin_visit_add_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    sample_origin = sample_data['origin'][1]
+    swh_storage.origin_add_one(sample_origin)
+    origin_url = sample_origin['url']
+
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.Storage.origin_visit_add')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('origin hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('origin already inserted'),
+        # ok then!
+        {'origin': origin_url, 'visit': 1}
+    ]
+
+    origin = list(swh_storage.origin_visit_get(origin_url))
+    assert not origin
+
+    r = swh_storage.origin_visit_add(sample_origin, '2020-01-01', 'git')
+    assert r == {'origin': origin_url, 'visit': 1}
+
+
+def test_retrying_proxy_swh_storage_origin_visit_add_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.Storage.origin_visit_add')
+    mock_memory.side_effect = ValueError('Refuse to add origin always!')
+
+    origin_url = sample_data['origin'][0]['url']
+
+    origin = list(swh_storage.origin_visit_get(origin_url))
+    assert not origin
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.origin_visit_add(origin_url, '2020-01-01', 'svn')

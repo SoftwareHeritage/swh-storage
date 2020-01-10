@@ -7,7 +7,8 @@ import logging
 import psycopg2
 import traceback
 
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict, List, Union
 
 from retrying import retry
 
@@ -62,3 +63,8 @@ class RetryingProxyStorage:
     @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
     def origin_add_one(self, origin: Dict) -> str:
         return self.storage.origin_add_one(origin)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def origin_visit_add(self, origin: Dict,
+                         date: Union[datetime, str], type: str) -> Dict:
+        return self.storage.origin_visit_add(origin, date, type)
