@@ -737,3 +737,76 @@ def test_retrying_proxy_swh_storage_release_add_failure(
         call([sample_rel]),
         call([sample_rel]),
     ])
+
+
+def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data):
+    """Standard snapshot_add works as before
+
+    """
+    sample_snap = sample_data['snapshot'][0]
+
+    snapshot = swh_storage.snapshot_get(sample_snap['id'])
+    assert not snapshot
+
+    s = swh_storage.snapshot_add([sample_snap])
+    assert s == {
+        'snapshot:add': 1,
+    }
+
+    snapshot = swh_storage.snapshot_get(sample_snap['id'])
+    assert snapshot['id'] == sample_snap['id']
+
+
+def test_retrying_proxy_storage_snapshot_add_with_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.snapshot_add')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('snapshot hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('snapshot already inserted'),
+        # ok then!
+        {'snapshot:add': 1}
+    ]
+
+    sample_snap = sample_data['snapshot'][0]
+
+    snapshot = swh_storage.snapshot_get(sample_snap['id'])
+    assert not snapshot
+
+    s = swh_storage.snapshot_add([sample_snap])
+    assert s == {
+        'snapshot:add': 1,
+    }
+
+    assert mock_memory.has_calls([
+        call([sample_snap]),
+        call([sample_snap]),
+        call([sample_snap]),
+    ])
+
+
+def test_retrying_proxy_swh_storage_snapshot_add_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.snapshot_add')
+    mock_memory.side_effect = ValueError('Refuse to add snapshot always!')
+
+    sample_snap = sample_data['snapshot'][0]
+
+    snapshot = swh_storage.snapshot_get(sample_snap['id'])
+    assert not snapshot
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.snapshot_add([sample_snap])
+
+    assert mock_memory.has_calls([
+        call([sample_snap]),
+        call([sample_snap]),
+        call([sample_snap]),
+    ])

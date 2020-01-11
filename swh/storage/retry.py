@@ -107,3 +107,7 @@ class RetryingProxyStorage:
     @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
     def release_add(self, releases: List[Dict]) -> Dict:
         return self.storage.release_add(releases)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def snapshot_add(self, snapshot: List[Dict]) -> Dict:
+        return self.storage.snapshot_add(snapshot)

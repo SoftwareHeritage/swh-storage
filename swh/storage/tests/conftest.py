@@ -221,6 +221,7 @@ def sample_data() -> Dict:
         'directory': [data.dir2, data.dir],
         'revision': [data.revision],
         'release': [data.release, data.release2, data.release3],
+        'snapshot': [data.snapshot],
         'origin': [data.origin, data.origin2],
         'tool': [data.metadata_tool],
         'provider': [data.provider],
