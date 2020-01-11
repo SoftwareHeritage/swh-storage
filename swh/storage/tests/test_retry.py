@@ -664,3 +664,76 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
         call([sample_rev]),
         call([sample_rev]),
     ])
+
+
+def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
+    """Standard release_add works as before
+
+    """
+    sample_rel = sample_data['release'][0]
+
+    release = next(swh_storage.release_get([sample_rel['id']]))
+    assert not release
+
+    s = swh_storage.release_add([sample_rel])
+    assert s == {
+        'release:add': 1,
+    }
+
+    release = next(swh_storage.release_get([sample_rel['id']]))
+    assert release['id'] == sample_rel['id']
+
+
+def test_retrying_proxy_storage_release_add_with_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.release_add')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('release hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('release already inserted'),
+        # ok then!
+        {'release:add': 1}
+    ]
+
+    sample_rel = sample_data['release'][0]
+
+    release = next(swh_storage.release_get([sample_rel['id']]))
+    assert not release
+
+    s = swh_storage.release_add([sample_rel])
+    assert s == {
+        'release:add': 1,
+    }
+
+    assert mock_memory.has_calls([
+        call([sample_rel]),
+        call([sample_rel]),
+        call([sample_rel]),
+    ])
+
+
+def test_retrying_proxy_swh_storage_release_add_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.release_add')
+    mock_memory.side_effect = ValueError('Refuse to add release always!')
+
+    sample_rel = sample_data['release'][0]
+
+    release = next(swh_storage.release_get([sample_rel['id']]))
+    assert not release
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.release_add([sample_rel])
+
+    assert mock_memory.has_calls([
+        call([sample_rel]),
+        call([sample_rel]),
+        call([sample_rel]),
+    ])
