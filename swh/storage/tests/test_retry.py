@@ -591,3 +591,76 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
         call([sample_dir]),
         call([sample_dir]),
     ])
+
+
+def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
+    """Standard revision_add works as before
+
+    """
+    sample_rev = sample_data['revision'][0]
+
+    revision = next(swh_storage.revision_get([sample_rev['id']]))
+    assert not revision
+
+    s = swh_storage.revision_add([sample_rev])
+    assert s == {
+        'revision:add': 1,
+    }
+
+    revision = next(swh_storage.revision_get([sample_rev['id']]))
+    assert revision['id'] == sample_rev['id']
+
+
+def test_retrying_proxy_storage_revision_add_with_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.revision_add')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('revision hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('revision already inserted'),
+        # ok then!
+        {'revision:add': 1}
+    ]
+
+    sample_rev = sample_data['revision'][0]
+
+    revision = next(swh_storage.revision_get([sample_rev['id']]))
+    assert not revision
+
+    s = swh_storage.revision_add([sample_rev])
+    assert s == {
+        'revision:add': 1,
+    }
+
+    assert mock_memory.has_calls([
+        call([sample_rev]),
+        call([sample_rev]),
+        call([sample_rev]),
+    ])
+
+
+def test_retrying_proxy_swh_storage_revision_add_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.revision_add')
+    mock_memory.side_effect = ValueError('Refuse to add revision always!')
+
+    sample_rev = sample_data['revision'][0]
+
+    revision = next(swh_storage.revision_get([sample_rev['id']]))
+    assert not revision
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.revision_add([sample_rev])
+
+    assert mock_memory.has_calls([
+        call([sample_rev]),
+        call([sample_rev]),
+        call([sample_rev]),
+    ])

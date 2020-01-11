@@ -99,3 +99,7 @@ class RetryingProxyStorage:
     @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
     def directory_add(self, directories: List[Dict]) -> Dict:
         return self.storage.directory_add(directories)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def revision_add(self, revisions: List[Dict]) -> Dict:
+        return self.storage.revision_add(revisions)
