@@ -218,7 +218,7 @@ def sample_data() -> Dict:
     return {
         'content': [data.cont, data.cont2],
         'person': [data.person],
-        'directory': [data.dir2],
+        'directory': [data.dir2, data.dir],
         'revision': [data.revision],
         'release': [data.release, data.release2, data.release3],
         'origin': [data.origin, data.origin2],

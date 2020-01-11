@@ -518,3 +518,76 @@ def test_retrying_proxy_swh_storage_origin_visit_update_failure(
         call(origin_url, visit_id, 'partial'),
         call(origin_url, visit_id, 'partial'),
     ])
+
+
+def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
+    """Standard directory_add works as before
+
+    """
+    sample_dir = sample_data['directory'][0]
+
+    directory = swh_storage.directory_get_random()  # no directory
+    assert not directory
+
+    s = swh_storage.directory_add([sample_dir])
+    assert s == {
+        'directory:add': 1,
+    }
+
+    directory_id = swh_storage.directory_get_random()  # only 1
+    assert directory_id == sample_dir['id']
+
+
+def test_retrying_proxy_storage_directory_add_with_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.directory_add')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('directory hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('directory already inserted'),
+        # ok then!
+        {'directory:add': 1}
+    ]
+
+    sample_dir = sample_data['directory'][1]
+
+    directory_id = swh_storage.directory_get_random()  # no directory
+    assert not directory_id
+
+    s = swh_storage.directory_add([sample_dir])
+    assert s == {
+        'directory:add': 1,
+    }
+
+    assert mock_memory.has_calls([
+        call([sample_dir]),
+        call([sample_dir]),
+        call([sample_dir]),
+    ])
+
+
+def test_retrying_proxy_swh_storage_directory_add_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch('swh.storage.in_memory.Storage.directory_add')
+    mock_memory.side_effect = ValueError('Refuse to add directory always!')
+
+    sample_dir = sample_data['directory'][0]
+
+    directory_id = swh_storage.directory_get_random()  # no directory
+    assert not directory_id
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.directory_add([sample_dir])
+
+    assert mock_memory.has_calls([
+        call([sample_dir]),
+        call([sample_dir]),
+        call([sample_dir]),
+    ])
