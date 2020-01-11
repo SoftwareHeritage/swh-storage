@@ -53,6 +53,9 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
         'skipped_content:add': 0
     }
 
+    content = next(swh_storage.content_get([sample_content['sha1']]))
+    assert content['sha1'] == sample_content['sha1']
+
 
 def test_retrying_proxy_storage_content_add_with_retry(
         swh_storage, sample_data, mocker):
@@ -75,14 +78,18 @@ def test_retrying_proxy_storage_content_add_with_retry(
     assert not content
 
     s = swh_storage.content_add([sample_content])
-    assert s == {
-        'content:add': 1,
-    }
+    assert s == {'content:add': 1}
+
+    assert mock_memory.has_calls([
+        call([sample_content]),
+        call([sample_content]),
+        call([sample_content]),
+    ])
 
 
 def test_retrying_proxy_swh_storage_content_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.content_add')
@@ -96,8 +103,7 @@ def test_retrying_proxy_swh_storage_content_add_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.content_add([sample_content])
 
-    content = next(swh_storage.content_get([sample_content['sha1']]))
-    assert not content
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
@@ -138,10 +144,16 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
     r = swh_storage.origin_add_one(sample_origin)
     assert r == sample_origin['url']
 
+    assert mock_memory.has_calls([
+        call([sample_origin]),
+        call([sample_origin]),
+        call([sample_origin]),
+    ])
+
 
 def test_retrying_proxy_swh_storage_origin_add_one_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.origin_add_one')
@@ -155,8 +167,7 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.origin_add_one([sample_origin])
 
-    origin = swh_storage.origin_get(sample_origin)
-    assert not origin
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
@@ -206,10 +217,16 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     r = swh_storage.origin_visit_add(sample_origin, '2020-01-01', 'git')
     assert r == {'origin': origin_url, 'visit': 1}
 
+    assert mock_memory.has_calls([
+        call(sample_origin, '2020-01-01', 'git'),
+        call(sample_origin, '2020-01-01', 'git'),
+        call(sample_origin, '2020-01-01', 'git')
+    ])
+
 
 def test_retrying_proxy_swh_storage_origin_visit_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch(
@@ -222,7 +239,11 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     assert not origin
 
     with pytest.raises(ValueError, match='Refuse to add'):
-        swh_storage.origin_visit_add(origin_url, '2020-01-01', 'svn')
+        swh_storage.origin_visit_add(origin_url, '2020-01-31', 'svn')
+
+    assert mock_memory.has_calls([
+        call(origin_url, '2020-01-31', 'svn'),
+    ])
 
 
 def test_retrying_proxy_storage_tool_add(swh_storage, sample_data):
@@ -267,10 +288,16 @@ def test_retrying_proxy_storage_tool_add_with_retry(
     tools = swh_storage.tool_add([sample_tool])
     assert tools == [sample_tool]
 
+    assert mock_memory.has_calls([
+        call([sample_tool]),
+        call([sample_tool]),
+        call([sample_tool]),
+    ])
+
 
 def test_retrying_proxy_swh_storage_tool_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.tool_add')
@@ -284,8 +311,7 @@ def test_retrying_proxy_swh_storage_tool_add_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.tool_add([sample_tool])
 
-    tool = swh_storage.tool_get(sample_tool)
-    assert not tool
+    assert mock_memory.call_count == 1
 
 
 def to_provider(provider: Dict) -> Dict:
@@ -343,10 +369,16 @@ def test_retrying_proxy_storage_metadata_provider_add_with_retry(
     provider_id = swh_storage.metadata_provider_add(**provider_get)
     assert provider_id == 'provider_id'
 
+    assert mock_memory.has_calls([
+        call(**provider_get),
+        call(**provider_get),
+        call(**provider_get),
+    ])
+
 
 def test_retrying_proxy_swh_storage_metadata_provider_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch(
@@ -361,6 +393,8 @@ def test_retrying_proxy_swh_storage_metadata_provider_add_failure(
 
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.metadata_provider_add(**provider_get)
+
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_storage_origin_metadata_add(
@@ -425,7 +459,7 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
 
 def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch(
@@ -436,10 +470,17 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
     origin = ori_meta['origin']
     swh_storage.origin_add_one(origin)
 
+    url = origin['url']
+    ts = ori_meta['discovery_date']
+    provider_id = 'provider_id'
+    tool_id = ori_meta['tool']
+    metadata = ori_meta['metadata']
+
     with pytest.raises(ValueError, match='Refuse to add'):
-        swh_storage.origin_metadata_add(
-            origin['url'], ori_meta['discovery_date'],
-            'provider_id', ori_meta['tool'], ori_meta['metadata'])
+        swh_storage.origin_metadata_add(url, ts, provider_id, tool_id,
+                                        metadata)
+
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_swh_storage_origin_visit_update(
@@ -501,7 +542,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update_retry(
 
 def test_retrying_proxy_swh_storage_origin_visit_update_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch(
@@ -513,11 +554,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.origin_visit_update(origin_url, visit_id, 'partial')
 
-    assert mock_memory.has_calls([
-        call(origin_url, visit_id, 'partial'),
-        call(origin_url, visit_id, 'partial'),
-        call(origin_url, visit_id, 'partial'),
-    ])
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
@@ -572,7 +609,7 @@ def test_retrying_proxy_storage_directory_add_with_retry(
 
 def test_retrying_proxy_swh_storage_directory_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.directory_add')
@@ -586,11 +623,7 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.directory_add([sample_dir])
 
-    assert mock_memory.has_calls([
-        call([sample_dir]),
-        call([sample_dir]),
-        call([sample_dir]),
-    ])
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
@@ -645,7 +678,7 @@ def test_retrying_proxy_storage_revision_add_with_retry(
 
 def test_retrying_proxy_swh_storage_revision_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.revision_add')
@@ -659,11 +692,7 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.revision_add([sample_rev])
 
-    assert mock_memory.has_calls([
-        call([sample_rev]),
-        call([sample_rev]),
-        call([sample_rev]),
-    ])
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
@@ -718,7 +747,7 @@ def test_retrying_proxy_storage_release_add_with_retry(
 
 def test_retrying_proxy_swh_storage_release_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.release_add')
@@ -732,11 +761,7 @@ def test_retrying_proxy_swh_storage_release_add_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.release_add([sample_rel])
 
-    assert mock_memory.has_calls([
-        call([sample_rel]),
-        call([sample_rel]),
-        call([sample_rel]),
-    ])
+    assert mock_memory.call_count == 1
 
 
 def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data):
@@ -791,7 +816,7 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
 
 def test_retrying_proxy_swh_storage_snapshot_add_failure(
         swh_storage, sample_data, mocker):
-    """Other errors are raising as usual
+    """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch('swh.storage.in_memory.Storage.snapshot_add')
@@ -805,8 +830,4 @@ def test_retrying_proxy_swh_storage_snapshot_add_failure(
     with pytest.raises(ValueError, match='Refuse to add'):
         swh_storage.snapshot_add([sample_snap])
 
-    assert mock_memory.has_calls([
-        call([sample_snap]),
-        call([sample_snap]),
-        call([sample_snap]),
-    ])
+    assert mock_memory.call_count == 1
