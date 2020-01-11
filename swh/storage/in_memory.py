@@ -581,8 +581,11 @@ class Storage:
         """Finds a random directory id.
 
         Returns:
-            a sha1_git
+            a sha1_git if any
+
         """
+        if not self._directories:
+            return None
         return random.choice(list(self._directories))
 
     def _directory_entry_get_by_path(self, directory, paths, prefix):
