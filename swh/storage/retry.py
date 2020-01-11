@@ -79,3 +79,10 @@ class RetryingProxyStorage:
             metadata: Dict) -> Union[str, int]:
         return self.storage.metadata_provider_add(
             provider_name, provider_type, provider_url, metadata)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def origin_metadata_add(
+            self, origin_url: str, ts: Union[str, datetime],
+            provider_id: int, tool_id: int, metadata: Dict) -> None:
+        return self.storage.origin_metadata_add(
+            origin_url, ts, provider_id, tool_id, metadata)

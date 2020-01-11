@@ -224,4 +224,5 @@ def sample_data() -> Dict:
         'origin': [data.origin, data.origin2],
         'tool': [data.metadata_tool],
         'provider': [data.provider],
+        'origin_metadata': [data.origin_metadata, data.origin_metadata2],
     }
