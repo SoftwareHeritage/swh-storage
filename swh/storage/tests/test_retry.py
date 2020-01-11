@@ -101,7 +101,7 @@ def test_retrying_proxy_swh_storage_content_add_failure(
 
 
 def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
-    """Standard content_add works as before
+    """Standard origin_add_one works as before
 
     """
     sample_origin = sample_data['origin'][0]
@@ -160,7 +160,7 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
-    """Standard content_add works as before
+    """Standard origin_visit_add works as before
 
     """
     sample_origin = sample_data['origin'][0]
@@ -440,3 +440,81 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
         swh_storage.origin_metadata_add(
             origin['url'], ori_meta['discovery_date'],
             'provider_id', ori_meta['tool'], ori_meta['metadata'])
+
+
+def test_retrying_proxy_swh_storage_origin_visit_update(
+        swh_storage, sample_data):
+    """Standard origin_visit_update works as before
+
+    """
+    sample_origin = sample_data['origin'][0]
+    swh_storage.origin_add_one(sample_origin)
+    origin_url = sample_origin['url']
+    origin_visit = swh_storage.origin_visit_add(
+        origin_url, '2020-01-01', 'hg')
+
+    ov = next(swh_storage.origin_visit_get(origin_url))
+    assert ov['origin'] == origin_url
+    assert ov['visit'] == origin_visit['visit']
+    assert ov['status'] == 'ongoing'
+    assert ov['snapshot'] is None
+    assert ov['metadata'] is None
+
+    swh_storage.origin_visit_update(origin_url, ov['visit'], status='full')
+
+    ov = next(swh_storage.origin_visit_get(origin_url))
+    assert ov['origin'] == origin_url
+    assert ov['visit'] == origin_visit['visit']
+    assert ov['status'] == 'full'
+    assert ov['snapshot'] is None
+    assert ov['metadata'] is None
+
+
+def test_retrying_proxy_swh_storage_origin_visit_update_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    sample_origin = sample_data['origin'][1]
+    origin_url = sample_origin['url']
+
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.Storage.origin_visit_update')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('origin hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('origin already inserted'),
+        # ok then!
+        {'origin': origin_url, 'visit': 1}
+    ]
+
+    visit_id = 1
+    swh_storage.origin_visit_update(origin_url, visit_id, status='full')
+
+    assert mock_memory.has_calls([
+        call(origin_url, visit_id, status='full'),
+        call(origin_url, visit_id, status='full'),
+        call(origin_url, visit_id, status='full'),
+    ])
+
+
+def test_retrying_proxy_swh_storage_origin_visit_update_failure(
+        swh_storage, sample_data, mocker):
+    """Other errors are raising as usual
+
+    """
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.Storage.origin_visit_update')
+    mock_memory.side_effect = ValueError('Refuse to add origin always!')
+    origin_url = sample_data['origin'][0]['url']
+    visit_id = 9
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.origin_visit_update(origin_url, visit_id, 'partial')
+
+    assert mock_memory.has_calls([
+        call(origin_url, visit_id, 'partial'),
+        call(origin_url, visit_id, 'partial'),
+        call(origin_url, visit_id, 'partial'),
+    ])

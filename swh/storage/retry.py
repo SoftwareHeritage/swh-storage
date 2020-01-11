@@ -8,7 +8,7 @@ import psycopg2
 import traceback
 
 from datetime import datetime
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from retrying import retry
 
@@ -68,6 +68,15 @@ class RetryingProxyStorage:
     def origin_visit_add(self, origin: Dict,
                          date: Union[datetime, str], type: str) -> Dict:
         return self.storage.origin_visit_add(origin, date, type)
+
+    @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
+    def origin_visit_update(
+            self, origin: str, visit_id: int, status: Optional[str] = None,
+            metadata: Optional[Dict] = None,
+            snapshot: Optional[Dict] = None) -> Dict:
+        return self.storage.origin_visit_update(
+            origin, visit_id, status=status,
+            metadata=metadata, snapshot=snapshot)
 
     @retry(retry_on_exception=should_retry_adding, stop_max_attempt_number=3)
     def tool_add(self, tools: List[Dict]) -> List[Dict]:
