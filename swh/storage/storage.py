@@ -545,7 +545,9 @@ class Storage():
             content: iterable of content identifiers (sha1)
 
         Returns:
-            an iterable with content metadata corresponding to the given ids
+            an iterable with content metadata corresponding to the given
+            ids
+
         """
         for metadata in db.content_get_metadata_from_sha1s(content, cur):
             yield dict(zip(db.content_get_metadata_keys, metadata))

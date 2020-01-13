@@ -354,7 +354,9 @@ class Storage:
             content: iterable of content identifiers (sha1)
 
         Returns:
-            an iterable with content metadata corresponding to the given ids
+            an iterable with content metadata corresponding to the given
+            ids
+
         """
         # FIXME: the return value should be a mapping from search key to found
         # content*s*
@@ -369,15 +371,7 @@ class Storage:
                 del d['ctime']
                 yield d
             else:
-                # FIXME: should really be None
-                yield {
-                    'sha1': sha1,
-                    'sha1_git': None,
-                    'sha256': None,
-                    'blake2s256': None,
-                    'length': None,
-                    'status': None,
-                }
+                continue
 
     def content_find(self, content):
         if not set(content).intersection(DEFAULT_ALGORITHMS):

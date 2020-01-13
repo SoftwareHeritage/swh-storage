@@ -78,7 +78,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur, """
             select t.sha1, %s from (values %%s) as t (sha1)
-            left join content using (sha1)
+            inner join content using (sha1)
             """ % ', '.join(self.content_get_metadata_keys[1:]),
             ((sha1,) for sha1 in sha1s),
         )

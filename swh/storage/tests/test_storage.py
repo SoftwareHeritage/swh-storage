@@ -464,13 +464,7 @@ class TestStorage:
 
         gen = swh_storage.content_get_metadata([missing_cont['sha1']])
 
-        # All the metadata keys are None
-        missing_cont.pop('data')
-        for key in missing_cont:
-            if key != 'sha1':
-                missing_cont[key] = None
-
-        assert list(gen) == [missing_cont]
+        assert list(gen) == []
 
     def test_content_get_random(self, swh_storage):
         swh_storage.content_add([data.cont, data.cont2, data.cont3])
