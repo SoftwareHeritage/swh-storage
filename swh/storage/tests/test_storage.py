@@ -236,8 +236,9 @@ class TestStorage:
 
         expected_cont = cont.copy()
         del expected_cont['ctime']
-        assert list(swh_storage.content_get_metadata([cont['sha1']])) == \
-            [expected_cont]
+        assert swh_storage.content_get_metadata([cont['sha1']]) == {
+            cont['sha1']: [expected_cont]
+        }
 
         assert list(swh_storage.journal_writer.objects) == [('content', cont)]
 
@@ -446,14 +447,16 @@ class TestStorage:
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_md = list(swh_storage.content_get_metadata(
-            [cont1['sha1'], cont2['sha1']]))
+        actual_md = swh_storage.content_get_metadata(
+            [cont1['sha1'], cont2['sha1']])
 
         # we only retrieve the metadata
         cont1.pop('data')
         cont2.pop('data')
 
-        assert actual_md in ([cont1, cont2], [cont2, cont1])
+        assert actual_md[cont1['sha1']] == [cont1]
+        assert actual_md[cont2['sha1']] == [cont2]
+        assert len(actual_md.keys()) == 2
 
     def test_content_get_metadata_missing_sha1(self, swh_storage):
         cont1 = data.cont
@@ -462,9 +465,10 @@ class TestStorage:
 
         swh_storage.content_add([cont1, cont2])
 
-        gen = swh_storage.content_get_metadata([missing_cont['sha1']])
+        actual_contents = swh_storage.content_get_metadata(
+            [missing_cont['sha1']])
 
-        assert list(gen) == []
+        assert actual_contents == {missing_cont['sha1']: []}
 
     def test_content_get_random(self, swh_storage):
         swh_storage.content_add([data.cont, data.cont2, data.cont3])
@@ -3157,12 +3161,17 @@ class TestStorageGeneratedData:
         get_sha1s = [c['sha1'] for c in expected_contents]
 
         # retrieve contents
-        actual_contents = list(swh_storage.content_get_metadata(get_sha1s))
+        meta_contents = swh_storage.content_get_metadata(get_sha1s)
 
-        assert len(actual_contents) == len(get_sha1s)
+        assert len(list(meta_contents)) == len(get_sha1s)
+
+        actual_contents = []
+        for contents in meta_contents.values():
+            actual_contents.extend(contents)
 
         keys_to_check = {'length', 'status',
                          'sha1', 'sha1_git', 'sha256', 'blake2s256'}
+
         assert_contents_ok(expected_contents, actual_contents,
                            keys_to_check=keys_to_check)
 

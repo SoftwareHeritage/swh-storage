@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,7 +11,7 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import dateutil.parser
 import psycopg2
@@ -537,20 +537,26 @@ class Storage():
 
     @remote_api_endpoint('content/metadata')
     @timed
-    @db_transaction_generator(statement_timeout=500)
-    def content_get_metadata(self, content, db=None, cur=None):
+    @db_transaction(statement_timeout=500)
+    def content_get_metadata(
+            self, contents: List[bytes],
+            db=None, cur=None) -> Dict[bytes, List[Dict]]:
         """Retrieve content metadata in bulk
 
         Args:
             content: iterable of content identifiers (sha1)
 
         Returns:
-            an iterable with content metadata corresponding to the given
-            ids
+            a dict with keys the content's sha1 and the associated value
+            either the existing content's metadata or None if the content does
+            not exist.
 
         """
-        for metadata in db.content_get_metadata_from_sha1s(content, cur):
-            yield dict(zip(db.content_get_metadata_keys, metadata))
+        result: Dict[bytes, List[Dict]] = {sha1: [] for sha1 in contents}
+        for row in db.content_get_metadata_from_sha1s(contents, cur):
+            content_meta = dict(zip(db.content_get_metadata_keys, row))
+            result[content_meta['sha1']].append(content_meta)
+        return result
 
     @remote_api_endpoint('content/missing')
     @timed

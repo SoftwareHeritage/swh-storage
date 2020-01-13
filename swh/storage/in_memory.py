@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,7 +14,7 @@ import random
 
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import attr
 
@@ -347,31 +347,30 @@ class Storage:
             result2['next_page_token'] = hash_to_hex(result['next'])
         return result2
 
-    def content_get_metadata(self, content):
+    def content_get_metadata(
+            self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         """Retrieve content metadata in bulk
 
         Args:
             content: iterable of content identifiers (sha1)
 
         Returns:
-            an iterable with content metadata corresponding to the given
-            ids
+            a dict with keys the content's sha1 and the associated value
+            either the existing content's metadata or None if the content does
+            not exist.
 
         """
-        # FIXME: the return value should be a mapping from search key to found
-        # content*s*
-        for sha1 in content:
+        result: Dict = {sha1: [] for sha1 in contents}
+        for sha1 in contents:
             if sha1 in self._content_indexes['sha1']:
                 objs = self._content_indexes['sha1'][sha1]
-                # FIXME: rather than selecting one of the objects with that
-                # hash, we should return all of them. See:
-                # https://forge.softwareheritage.org/D645?id=1994#inline-3389
-                key = random.sample(objs, 1)[0]
-                d = self._contents[key].to_dict()
-                del d['ctime']
-                yield d
-            else:
-                continue
+                # only 1 element as content_add_metadata would have raised a
+                # hash collision otherwise
+                for key in objs:
+                    d = self._contents[key].to_dict()
+                    del d['ctime']
+                    result[sha1].append(d)
+        return result
 
     def content_find(self, content):
         if not set(content).intersection(DEFAULT_ALGORITHMS):
