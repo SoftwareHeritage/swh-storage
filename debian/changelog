@@ -1,3 +1,9 @@
+swh-storage (0.0.163-1~swh2~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Jan 2020 16:33:32 +0000
+
 swh-storage (0.0.163-1~swh2) unstable-swh; urgency=medium
 
   * Fix test dependency
