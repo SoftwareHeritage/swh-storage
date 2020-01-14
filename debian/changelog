@@ -1,3 +1,17 @@
+swh-storage (0.0.163-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.163     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-01-14 17:12:03
+    +0100)
+  * Upstream changes:     - v0.0.163     - retry: Improve proxy storage
+    for add endpoints     - in_memory: Make directory_get_random return
+    None when storage empty     - storage: Change content_get_metadata
+    api to return Dict[bytes, List[Dict]]     - storage: Add
+    content_get_partition endpoint to replace content_get_range     -
+    storage: Add endpoint origin_list to replace origin_get_range
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Jan 2020 16:17:45 +0000
+
 swh-storage (0.0.162-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.162     - (tagged by Valentin Lorentz
