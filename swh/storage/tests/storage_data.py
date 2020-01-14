@@ -62,6 +62,7 @@ cont3 = {
     'blake2s256': hash_to_bytes(
         '76d0346f44e5a27f6bafdd9c2befd304aff83780f93121d801ab6a1d4769db11'),
     'status': 'visible',
+    'ctime': '2019-12-01',
 }
 
 contents = (cont, cont2, cont3)

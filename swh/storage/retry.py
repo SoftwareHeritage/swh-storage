@@ -67,6 +67,10 @@ class RetryingProxyStorage:
         return self.storage.content_add(content)
 
     @swh_retry
+    def content_add_metadata(self, content: List[Dict]) -> Dict:
+        return self.storage.content_add_metadata(content)
+
+    @swh_retry
     def origin_add_one(self, origin: Dict) -> str:
         return self.storage.origin_add_one(origin)
 

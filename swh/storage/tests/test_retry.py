@@ -88,6 +88,76 @@ def test_retrying_proxy_swh_storage_content_add_failure(
     assert mock_memory.call_count == 1
 
 
+def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
+    """Standard content_add_metadata works as before
+
+    """
+    sample_content = sample_data['content_metadata'][0]
+
+    pk = sample_content['sha1']
+    content_metadata = swh_storage.content_get_metadata([pk])
+    assert not content_metadata[pk]
+
+    s = swh_storage.content_add_metadata([sample_content])
+    assert s == {
+        'content:add': 1,
+        'skipped_content:add': 0
+    }
+
+    content_metadata = swh_storage.content_get_metadata([pk])
+    assert len(content_metadata[pk]) == 1
+    assert content_metadata[pk][0]['sha1'] == pk
+
+
+def test_retrying_proxy_storage_content_add_metadata_with_retry(
+        swh_storage, sample_data, mocker):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.Storage.content_add_metadata')
+    mock_memory.side_effect = [
+        # first try goes ko
+        HashCollision('content_metadata hash collision'),
+        # second try goes ko
+        psycopg2.IntegrityError('content_metadata already inserted'),
+        # ok then!
+        {'content:add': 1}
+    ]
+
+    sample_content = sample_data['content_metadata'][0]
+
+    s = swh_storage.content_add_metadata([sample_content])
+    assert s == {'content:add': 1}
+
+    assert mock_memory.has_calls([
+        call([sample_content]),
+        call([sample_content]),
+        call([sample_content]),
+    ])
+
+
+def test_retrying_proxy_swh_storage_content_add_metadata_failure(
+        swh_storage, sample_data, mocker):
+    """Unfiltered errors are raising without retry
+
+    """
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.Storage.content_add_metadata')
+    mock_memory.side_effect = ValueError('Refuse to add content_metadata!')
+
+    sample_content = sample_data['content_metadata'][0]
+    pk = sample_content['sha1']
+
+    content_metadata = swh_storage.content_get_metadata([pk])
+    assert not content_metadata[pk]
+
+    with pytest.raises(ValueError, match='Refuse to add'):
+        swh_storage.content_add_metadata([sample_content])
+
+    assert mock_memory.call_count == 1
+
+
 def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
     """Standard origin_add_one works as before
 
