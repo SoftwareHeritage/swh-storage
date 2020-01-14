@@ -10,7 +10,10 @@ from swh.model import from_disk
 
 class StorageData:
     def __getattr__(self, key):
-        v = globals()[key]
+        try:
+            v = globals()[key]
+        except KeyError as e:
+            raise AttributeError(e.args[0])
         if hasattr(v, 'copy'):
             return v.copy()
         return v
@@ -59,6 +62,7 @@ cont3 = {
     'blake2s256': hash_to_bytes(
         '76d0346f44e5a27f6bafdd9c2befd304aff83780f93121d801ab6a1d4769db11'),
     'status': 'visible',
+    'ctime': '2019-12-01',
 }
 
 contents = (cont, cont2, cont3)

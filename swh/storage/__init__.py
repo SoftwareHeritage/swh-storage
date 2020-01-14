@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -15,7 +15,8 @@ class HashCollision(Exception):
 
 
 STORAGE_IMPLEMENTATION = {
-    'pipeline', 'local', 'remote', 'memory', 'filter', 'buffer'}
+    'pipeline', 'local', 'remote', 'memory', 'filter', 'buffer', 'retry',
+}
 
 
 def get_storage(cls, **kwargs):
@@ -58,6 +59,8 @@ def get_storage(cls, **kwargs):
         from .filter import FilteringProxyStorage as Storage
     elif cls == 'buffer':
         from .buffer import BufferingProxyStorage as Storage
+    elif cls == 'retry':
+        from .retry import RetryingProxyStorage as Storage
 
     return Storage(**kwargs)
 
