@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,18 +14,20 @@ import random
 
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, List, Mapping, Optional
 
 import attr
 
-from swh.model.model import \
-    Content, Directory, Revision, Release, Snapshot, OriginVisit, Origin
-from swh.model.hashutil import DEFAULT_ALGORITHMS
+from swh.model.model import (
+    Content, Directory, Revision, Release, Snapshot, OriginVisit, Origin,
+    SHA1_SIZE)
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
 from .storage import get_journal_writer
 from .converters import origin_url_to_sha1
+from .utils import get_partition_bounds_bytes
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -306,37 +308,69 @@ class Storage:
             'next': next_content,
         }
 
-    def content_get_metadata(self, content):
+    def content_get_partition(
+            self, partition_id: int, nb_partitions: int, limit: int = 1000,
+            page_token: str = None):
+        """Splits contents into nb_partitions, and returns one of these based on
+        partition_id (which must be in [0, nb_partitions-1])
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id (int): index of the partition to fetch
+            nb_partitions (int): total number of partitions to split into
+            limit (int): Limit result (default to 1000)
+            page_token (Optional[str]): opaque token used for pagination.
+
+        Returns:
+            a dict with keys:
+              - contents (List[dict]): iterable of contents in the partition.
+              - **next_page_token** (Optional[str]): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        (start, end) = get_partition_bounds_bytes(
+            partition_id, nb_partitions, SHA1_SIZE)
+        if page_token:
+            start = hash_to_bytes(page_token)
+        if end is None:
+            end = b'\xff'*SHA1_SIZE
+        result = self.content_get_range(start, end, limit)
+        result2 = {
+            'contents': result['contents'],
+            'next_page_token': None,
+        }
+        if result['next']:
+            result2['next_page_token'] = hash_to_hex(result['next'])
+        return result2
+
+    def content_get_metadata(
+            self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         """Retrieve content metadata in bulk
 
         Args:
             content: iterable of content identifiers (sha1)
 
         Returns:
-            an iterable with content metadata corresponding to the given ids
+            a dict with keys the content's sha1 and the associated value
+            either the existing content's metadata or None if the content does
+            not exist.
+
         """
-        # FIXME: the return value should be a mapping from search key to found
-        # content*s*
-        for sha1 in content:
+        result: Dict = {sha1: [] for sha1 in contents}
+        for sha1 in contents:
             if sha1 in self._content_indexes['sha1']:
                 objs = self._content_indexes['sha1'][sha1]
-                # FIXME: rather than selecting one of the objects with that
-                # hash, we should return all of them. See:
-                # https://forge.softwareheritage.org/D645?id=1994#inline-3389
-                key = random.sample(objs, 1)[0]
-                d = self._contents[key].to_dict()
-                del d['ctime']
-                yield d
-            else:
-                # FIXME: should really be None
-                yield {
-                    'sha1': sha1,
-                    'sha1_git': None,
-                    'sha256': None,
-                    'blake2s256': None,
-                    'length': None,
-                    'status': None,
-                }
+                # only 1 element as content_add_metadata would have raised a
+                # hash collision otherwise
+                for key in objs:
+                    d = self._contents[key].to_dict()
+                    del d['ctime']
+                    result[sha1].append(d)
+        return result
 
     def content_find(self, content):
         if not set(content).intersection(DEFAULT_ALGORITHMS):
@@ -547,8 +581,11 @@ class Storage:
         """Finds a random directory id.
 
         Returns:
-            a sha1_git
+            a sha1_git if any
+
         """
+        if not self._directories:
+            return None
         return random.choice(list(self._directories))
 
     def _directory_entry_get_by_path(self, directory, paths, prefix):
@@ -1156,6 +1193,38 @@ class Storage:
                 origin = self._convert_origin(
                     self._origins[self._origins_by_id[idx]])
                 yield {'id': idx+1, **origin}
+
+    def origin_list(self, page_token: Optional[str] = None, limit: int = 100
+                    ) -> dict:
+        """Returns the list of origins
+
+        Args:
+            page_token: opaque token used for pagination.
+            limit: the maximum number of results to return
+
+        Returns:
+            dict: dict with the following keys:
+              - **next_page_token** (str, optional): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+              - **origins** (List[dict]): list of origins, as returned by
+                `origin_get`.
+        """
+        origin_urls = sorted(self._origins)
+        if page_token:
+            from_ = bisect.bisect_left(origin_urls, page_token)
+        else:
+            from_ = 0
+
+        result = {
+            'origins': [{'url': origin_url}
+                        for origin_url in origin_urls[from_:from_+limit]]
+        }
+
+        if from_+limit < len(origin_urls):
+            result['next_page_token'] = origin_urls[from_+limit]
+
+        return result
 
     def origin_search(self, url_pattern, offset=0, limit=50,
                       regexp=False, with_visit=False, db=None, cur=None):

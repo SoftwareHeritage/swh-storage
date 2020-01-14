@@ -14,6 +14,7 @@ from swh.storage.storage import Storage as DbStorage
 from swh.storage.in_memory import Storage as MemoryStorage
 from swh.storage.buffer import BufferingProxyStorage
 from swh.storage.filter import FilteringProxyStorage
+from swh.storage.retry import RetryingProxyStorage
 
 
 @patch('swh.storage.storage.psycopg2.pool')
@@ -34,6 +35,9 @@ def test_get_storage(mock_pool):
                 'cls': 'memory'}
             }),
             ('buffer', BufferingProxyStorage, {'storage': {
+                'cls': 'memory'}
+            }),
+            ('retry', RetryingProxyStorage, {'storage': {
                 'cls': 'memory'}
             }),
     ]:

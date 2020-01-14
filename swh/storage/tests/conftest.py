@@ -209,15 +209,22 @@ def sample_data() -> Dict:
     """Pre-defined sample storage object data to manipulate
 
     Returns:
-        Dict of data (keys: content, directory, revision, release, person)
+        Dict of data (keys: content, directory, revision, release, person,
+        origin)
 
     """
     from .storage_data import data
 
     return {
         'content': [data.cont, data.cont2],
+        'content_metadata': [data.cont3],
         'person': [data.person],
-        'directory': [data.dir2],
+        'directory': [data.dir2, data.dir],
         'revision': [data.revision],
         'release': [data.release, data.release2, data.release3],
+        'snapshot': [data.snapshot],
+        'origin': [data.origin, data.origin2],
+        'tool': [data.metadata_tool],
+        'provider': [data.provider],
+        'origin_metadata': [data.origin_metadata, data.origin_metadata2],
     }
