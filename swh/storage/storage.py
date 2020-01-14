@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,14 +11,15 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, List, Mapping, Optional
 
 import dateutil.parser
 import psycopg2
 import psycopg2.pool
 
 from swh.core.api import remote_api_endpoint
-from swh.model.hashutil import ALGORITHMS, hash_to_bytes
+from swh.model.model import SHA1_SIZE
+from swh.model.hashutil import ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 try:
@@ -33,6 +34,7 @@ from .db import Db
 from .exc import StorageDBError
 from .algos import diff
 from .metrics import timed, send_metric, process_metrics
+from .utils import get_partition_bounds_bytes
 
 
 # Max block size of contents to return
@@ -491,20 +493,70 @@ class Storage():
             'next': next_content,
         }
 
+    @remote_api_endpoint('content/partition')
+    @timed
+    @db_transaction()
+    def content_get_partition(
+            self, partition_id: int, nb_partitions: int, limit: int = 1000,
+            page_token: str = None, db=None, cur=None):
+        """Splits contents into nb_partitions, and returns one of these based on
+        partition_id (which must be in [0, nb_partitions-1])
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id (int): index of the partition to fetch
+            nb_partitions (int): total number of partitions to split into
+            limit (int): Limit result (default to 1000)
+            page_token (Optional[str]): opaque token used for pagination.
+
+        Returns:
+            a dict with keys:
+              - contents (List[dict]): iterable of contents in the partition.
+              - **next_page_token** (Optional[str]): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+        """
+        if limit is None:
+            raise ValueError('Development error: limit should not be None')
+        (start, end) = get_partition_bounds_bytes(
+            partition_id, nb_partitions, SHA1_SIZE)
+        if page_token:
+            start = hash_to_bytes(page_token)
+        if end is None:
+            end = b'\xff'*SHA1_SIZE
+        result = self.content_get_range(start, end, limit)
+        result2 = {
+            'contents': result['contents'],
+            'next_page_token': None,
+        }
+        if result['next']:
+            result2['next_page_token'] = hash_to_hex(result['next'])
+        return result2
+
     @remote_api_endpoint('content/metadata')
     @timed
-    @db_transaction_generator(statement_timeout=500)
-    def content_get_metadata(self, content, db=None, cur=None):
+    @db_transaction(statement_timeout=500)
+    def content_get_metadata(
+            self, contents: List[bytes],
+            db=None, cur=None) -> Dict[bytes, List[Dict]]:
         """Retrieve content metadata in bulk
 
         Args:
             content: iterable of content identifiers (sha1)
 
         Returns:
-            an iterable with content metadata corresponding to the given ids
+            a dict with keys the content's sha1 and the associated value
+            either the existing content's metadata or None if the content does
+            not exist.
+
         """
-        for metadata in db.content_get_metadata_from_sha1s(content, cur):
-            yield dict(zip(db.content_get_metadata_keys, metadata))
+        result: Dict[bytes, List[Dict]] = {sha1: [] for sha1 in contents}
+        for row in db.content_get_metadata_from_sha1s(contents, cur):
+            content_meta = dict(zip(db.content_get_metadata_keys, row))
+            result[content_meta['sha1']].append(content_meta)
+        return result
 
     @remote_api_endpoint('content/missing')
     @timed
@@ -1689,6 +1741,45 @@ class Storage():
         """
         for origin in db.origin_get_range(origin_from, origin_count, cur):
             yield dict(zip(db.origin_get_range_cols, origin))
+
+    @remote_api_endpoint('origin/list')
+    @timed
+    @db_transaction()
+    def origin_list(self, page_token: Optional[str] = None, limit: int = 100,
+                    *, db=None, cur=None) -> dict:
+        """Returns the list of origins
+
+        Args:
+            page_token: opaque token used for pagination.
+            limit: the maximum number of results to return
+
+        Returns:
+            dict: dict with the following keys:
+              - **next_page_token** (str, optional): opaque token to be used as
+                `page_token` for retrieving the next page. if absent, there is
+                no more pages to gather.
+              - **origins** (List[dict]): list of origins, as returned by
+                `origin_get`.
+        """
+        page_token = page_token or '0'
+        if not isinstance(page_token, str):
+            raise TypeError('page_token must be a string.')
+        origin_from = int(page_token)
+        result: Dict[str, Any] = {
+            'origins': [
+                dict(zip(db.origin_get_range_cols, origin))
+                for origin in db.origin_get_range(origin_from, limit, cur)
+            ],
+        }
+
+        assert len(result['origins']) <= limit
+        if len(result['origins']) == limit:
+            result['next_page_token'] = str(result['origins'][limit-1]['id']+1)
+
+        for origin in result['origins']:
+            del origin['id']
+
+        return result
 
     @remote_api_endpoint('origin/search')
     @timed

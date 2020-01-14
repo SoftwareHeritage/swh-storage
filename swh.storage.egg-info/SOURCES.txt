@@ -187,7 +187,9 @@ swh/storage/filter.py
 swh/storage/in_memory.py
 swh/storage/metrics.py
 swh/storage/py.typed
+swh/storage/retry.py
 swh/storage/storage.py
+swh/storage/utils.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py
 swh/storage/algos/dir_iterators.py
@@ -214,6 +216,7 @@ swh/storage/tests/test_filter.py
 swh/storage/tests/test_in_memory.py
 swh/storage/tests/test_init.py
 swh/storage/tests/test_metrics.py
+swh/storage/tests/test_retry.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/algos/__init__.py

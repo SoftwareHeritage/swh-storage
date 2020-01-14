@@ -4,6 +4,7 @@ psycopg2
 python-dateutil
 vcversioner
 aiohttp
+tenacity
 swh.core[db,http]>=0.0.65
 swh.model>=0.0.51
 swh.objstorage>=0.0.17
@@ -17,6 +18,7 @@ SQLAlchemy
 [testing]
 hypothesis>=3.11.0
 pytest
+pytest-mock
 pytest-postgresql>=2.1.0
 sqlalchemy-stubs
 swh.model[testing]>=0.0.50
