@@ -4,4 +4,4 @@ psycopg2
 python-dateutil
 vcversioner
 aiohttp
-retrying
+tenacity

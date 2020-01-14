@@ -11,25 +11,7 @@ from typing import Dict
 from unittest.mock import call
 
 from swh.storage import HashCollision
-from swh.storage.retry import (
-    RetryingProxyStorage, should_retry_adding, RETRY_EXCEPTIONS
-)
-
-
-def test_should_retry_adding():
-    """Specific exceptions should be elected for retrial
-
-    """
-    for exc in RETRY_EXCEPTIONS:
-        assert should_retry_adding(exc('error')) is True
-
-
-def test_should_retry_adding_no_retry():
-    """Unspecific exceptions should raise as usual
-
-    """
-    for exc in [ValueError, Exception]:
-        assert should_retry_adding(exc('fail!')) is False
+from swh.storage.retry import RetryingProxyStorage
 
 
 @pytest.fixture
