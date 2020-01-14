@@ -1,3 +1,9 @@
+swh-storage (0.0.163-1~swh2) unstable-swh; urgency=medium
+
+  * Fix test dependency
+
+ -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Tue, 14 Jan 2020 17:26:08 +0100
+
 swh-storage (0.0.163-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.163     - (tagged by Antoine R. Dumont
