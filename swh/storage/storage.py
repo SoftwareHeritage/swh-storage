@@ -703,6 +703,7 @@ class Storage():
                 directory:add: Number of directories actually added
 
         """
+        directories = list(directories)
         summary = {'directory:add': 0}
 
         dirs = set()
@@ -874,6 +875,7 @@ class Storage():
                 revision:add: New objects actually stored in db
 
         """
+        revisions = list(revisions)
         summary = {'revision:add': 0}
 
         revisions_missing = set(self.revision_missing(
@@ -1031,6 +1033,7 @@ class Storage():
                 release:add: New objects contents actually stored in db
 
         """
+        releases = list(releases)
         summary = {'release:add': 0}
 
         release_ids = set(release['id'] for release in releases)
@@ -1845,7 +1848,7 @@ class Storage():
             list: given origins as dict updated with their id
 
         """
-        origins = copy.deepcopy(origins)
+        origins = copy.deepcopy(list(origins))
         for origin in origins:
             self.origin_add_one(origin, db=db, cur=cur)
 
