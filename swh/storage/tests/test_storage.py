@@ -1188,7 +1188,7 @@ class TestStorage:
                     origin['url'], visit_id=visit['visit'], status='full')
 
         random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
-        assert random_origin_visit == {}
+        assert random_origin_visit is None
 
     def test_origin_get_by_sha1(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None

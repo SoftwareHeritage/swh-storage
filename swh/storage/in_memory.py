@@ -14,7 +14,7 @@ import random
 
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Optional
 
 import attr
 
@@ -1597,7 +1597,7 @@ class Storage:
             if random_origin_visits[0].type == type:
                 return url
 
-    def origin_visit_get_random(self, type: str) -> Mapping[str, Any]:
+    def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
@@ -1606,9 +1606,6 @@ class Storage:
             `origin_visit_get`.
 
         """
-        random_visit: Dict[str, Any] = {}
-        if not self._origin_visits:  # empty dataset
-            return random_visit
         url = self._select_random_origin_visit_by_type(type)
         random_origin_visits = copy.deepcopy(self._origin_visits[url])
         random_origin_visits.reverse()
@@ -1616,9 +1613,9 @@ class Storage:
         # This should be enough for tests
         for visit in random_origin_visits:
             if visit.date > back_in_the_day and visit.status == 'full':
-                random_visit = visit.to_dict()
-                break
-        return random_visit
+                return visit.to_dict()
+        else:
+            return None
 
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables

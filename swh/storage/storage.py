@@ -11,7 +11,7 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Optional
 
 import dateutil.parser
 import psycopg2
@@ -1610,7 +1610,7 @@ class Storage():
     @timed
     @db_transaction()
     def origin_visit_get_random(
-            self, type: str, db=None, cur=None) -> Mapping[str, Any]:
+            self, type: str, db=None, cur=None) -> Optional[Dict[str, Any]]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
@@ -1619,11 +1619,11 @@ class Storage():
             :py:meth:`origin_visit_get`.
 
         """
-        data: Dict[str, Any] = {}
         result = db.origin_visit_get_random(type, cur)
         if result:
-            data = dict(zip(db.origin_visit_get_cols, result))
-        return data
+            return dict(zip(db.origin_visit_get_cols, result))
+        else:
+            return None
 
     @remote_api_endpoint('object/find_by_sha1_git')
     @timed
