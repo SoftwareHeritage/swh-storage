@@ -24,7 +24,6 @@ from hypothesis import given, strategies, settings, HealthCheck
 from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
-from swh.model.model import SHA1_SIZE
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
@@ -396,18 +395,27 @@ class TestStorage:
             expected_contents, actual_contents, ['sha1'])
 
     def test_content_get_partition_empty(self, swh_storage, swh_contents):
-        """content_get_partition for an empty partition returns nothing"""
-        first_sha1 = min(content['sha1'] for content in swh_contents)
-        first_sha1 = int.from_bytes(first_sha1, 'big')
-        # nb_partitions = smallest power of 2 such that first_sha1 is not in
-        # the first partition
-        nb_partitions = \
-            1 << (SHA1_SIZE*8 - math.floor(math.log2(first_sha1)) + 1)
+        """content_get_partition when at least one of the partitions is
+        empty"""
+        expected_contents = {cont['sha1'] for cont in swh_contents
+                             if cont['status'] != 'absent'}
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(swh_contents)) + 1)
 
-        actual_result = swh_storage.content_get_partition(0, nb_partitions)
+        seen_sha1s = []
 
-        assert actual_result['next_page_token'] is None
-        assert len(actual_result['contents']) == 0
+        for i in range(nb_partitions):
+            actual_result = swh_storage.content_get_partition(
+                i, nb_partitions, limit=len(swh_contents)+1)
+
+            for cont in actual_result['contents']:
+                seen_sha1s.append(cont['sha1'])
+
+            # Limit is higher than the max number of results
+            assert actual_result['next_page_token'] is None
+
+        assert set(seen_sha1s) == expected_contents
 
     def test_content_get_partition_limit_none(self, swh_storage):
         """content_get_partition call with wrong limit input should fail"""
