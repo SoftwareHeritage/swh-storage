@@ -186,16 +186,6 @@ class TestStorage:
             [data.cont2['sha1'], data.cont['sha1']]))
         assert results == [None, {'sha1': cont['sha1'], 'data': cont['data']}]
 
-    def test_content_add_same_input(self, swh_storage):
-        cont = data.cont
-
-        actual_result = swh_storage.content_add([cont, cont])
-        assert actual_result == {
-            'content:add': 1,
-            'content:add:bytes': cont['length'],
-            'skipped_content:add': 0
-            }
-
     def test_content_add_different_input(self, swh_storage):
         cont = data.cont
         cont2 = data.cont2
@@ -259,17 +249,6 @@ class TestStorage:
         }
 
         assert list(swh_storage.journal_writer.objects) == [('content', cont)]
-
-    def test_content_add_metadata_same_input(self, swh_storage):
-        cont = data.cont
-        del cont['data']
-        cont['ctime'] = datetime.datetime.now()
-
-        actual_result = swh_storage.content_add_metadata([cont, cont])
-        assert actual_result == {
-            'content:add': 1,
-            'skipped_content:add': 0
-            }
 
     def test_content_add_metadata_different_input(self, swh_storage):
         cont = data.cont
