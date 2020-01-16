@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -124,6 +124,24 @@ class TestStorage:
             assert obj['ctime'] <= insertion_end_time
             del obj['ctime']
         assert journal_objects == [('content', expected_cont)]
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['content'] == 1
+
+    def test_content_add_from_generator(self, swh_storage):
+        def _cnt_gen():
+            yield data.cont
+
+        actual_result = swh_storage.content_add(_cnt_gen())
+
+        assert actual_result == {
+            'content:add': 1,
+            'content:add:bytes': data.cont['length'],
+            'skipped_content:add': 0
+        }
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['content'] == 1
 
     def test_content_add_validation(self, swh_storage):
         cont = data.cont
@@ -496,6 +514,22 @@ class TestStorage:
         after_missing = list(swh_storage.directory_missing([data.dir['id']]))
         assert after_missing == []
 
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['directory'] == 1
+
+    def test_directory_add_from_generator(self, swh_storage):
+        def _dir_gen():
+            yield data.dir
+
+        actual_result = swh_storage.directory_add(directories=_dir_gen())
+        assert actual_result == {'directory:add': 1}
+
+        assert list(swh_storage.journal_writer.objects) == \
+            [('directory', data.dir)]
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['directory'] == 1
+
     def test_directory_add_validation(self, swh_storage):
         dir_ = copy.deepcopy(data.dir)
         dir_['entries'][0]['type'] = 'foobar'
@@ -690,6 +724,19 @@ class TestStorage:
         actual_result = swh_storage.revision_add([data.revision])
         assert actual_result == {'revision:add': 0}
 
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['revision'] == 1
+
+    def test_revision_add_from_generator(self, swh_storage):
+        def _rev_gen():
+            yield data.revision
+
+        actual_result = swh_storage.revision_add(_rev_gen())
+        assert actual_result == {'revision:add': 1}
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['revision'] == 1
+
     def test_revision_add_validation(self, swh_storage):
         rev = copy.deepcopy(data.revision)
         rev['date']['offset'] = 2**16
@@ -879,6 +926,24 @@ class TestStorage:
         actual_result = swh_storage.release_add([data.release, data.release2])
         assert actual_result == {'release:add': 0}
 
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['release'] == 2
+
+    def test_release_add_from_generator(self, swh_storage):
+        def _rel_gen():
+            yield data.release
+            yield data.release2
+
+        actual_result = swh_storage.release_add(_rel_gen())
+        assert actual_result == {'release:add': 2}
+
+        assert list(swh_storage.journal_writer.objects) == [
+            ('release', data.release),
+            ('release', data.release2)]
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['release'] == 2
+
     def test_release_add_no_author_date(self, swh_storage):
         release = data.release
 
@@ -1011,6 +1076,37 @@ class TestStorage:
         assert list(swh_storage.journal_writer.objects) \
             == [('origin', actual_origin),
                 ('origin', actual_origin2)]
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['origin'] == 2
+
+    def test_origin_add_from_generator(self, swh_storage):
+        def _ori_gen():
+            yield data.origin
+            yield data.origin2
+
+        origin1, origin2 = swh_storage.origin_add(_ori_gen())
+
+        actual_origin = swh_storage.origin_get([{
+            'url': data.origin['url'],
+        }])[0]
+        assert actual_origin['url'] == origin1['url']
+
+        actual_origin2 = swh_storage.origin_get([{
+            'url': data.origin2['url'],
+        }])[0]
+        assert actual_origin2['url'] == origin2['url']
+
+        if 'id' in actual_origin:
+            del actual_origin['id']
+            del actual_origin2['id']
+
+        assert list(swh_storage.journal_writer.objects) \
+            == [('origin', actual_origin),
+                ('origin', actual_origin2)]
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['origin'] == 2
 
     def test_origin_add_twice(self, swh_storage):
         add1 = swh_storage.origin_add([data.origin, data.origin2])
@@ -1987,6 +2083,20 @@ class TestStorage:
 
         assert {**data.snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get(data.snapshot['id'])
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['snapshot'] == 2
+
+    def test_snapshot_add_many_from_generator(self, swh_storage):
+        def _snp_gen():
+            yield data.snapshot
+            yield data.complete_snapshot
+
+        actual_result = swh_storage.snapshot_add(_snp_gen())
+        assert actual_result == {'snapshot:add': 2}
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['snapshot'] == 2
 
     def test_snapshot_add_many_incremental(self, swh_storage):
         actual_result = swh_storage.snapshot_add([data.complete_snapshot])

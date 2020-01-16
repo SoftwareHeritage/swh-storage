@@ -486,6 +486,7 @@ class Storage:
                 directory:add: Number of directories actually added
 
         """
+        directories = list(directories)
         if self.journal_writer:
             self.journal_writer.write_additions(
                 'directory',
@@ -652,6 +653,7 @@ class Storage:
                 revision_added: New objects actually stored in db
 
         """
+        revisions = list(revisions)
         if self.journal_writer:
             self.journal_writer.write_additions(
                 'revision',
@@ -768,6 +770,7 @@ class Storage:
                 release:add: New objects contents actually stored in db
 
         """
+        releases = list(releases)
         if self.journal_writer:
             self.journal_writer.write_additions(
                 'release',
@@ -1295,7 +1298,7 @@ class Storage:
             list: given origins as dict updated with their id
 
         """
-        origins = copy.deepcopy(origins)
+        origins = copy.deepcopy(list(origins))
         for origin in origins:
             self.origin_add_one(origin)
         return origins
