@@ -1,3 +1,11 @@
+swh-storage (0.0.164-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.164     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2020-01-16 17:54:40 +0100)
+  * Upstream changes:     - version 0.0.164
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Jan 2020 17:05:02 +0000
+
 swh-storage (0.0.163-1~swh2) unstable-swh; urgency=medium
 
   * Fix test dependency
