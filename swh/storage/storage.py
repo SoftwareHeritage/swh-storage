@@ -1640,8 +1640,6 @@ class Storage():
 
             - sha1_git: the input id
             - type: the type of object found
-            - id: the id of the object found
-            - object_id: the numeric id of the object found.
 
         """
         ret = {id: [] for id in ids}

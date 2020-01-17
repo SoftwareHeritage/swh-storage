@@ -2873,7 +2873,6 @@ class TestStorage:
         expected[data.cont['sha1_git']] = [{
             'sha1_git': data.cont['sha1_git'],
             'type': 'content',
-            'id': data.cont['sha1'],
         }]
 
         swh_storage.directory_add([data.dir])
@@ -2881,7 +2880,6 @@ class TestStorage:
         expected[data.dir['id']] = [{
             'sha1_git': data.dir['id'],
             'type': 'directory',
-            'id': data.dir['id'],
         }]
 
         swh_storage.revision_add([data.revision])
@@ -2889,7 +2887,6 @@ class TestStorage:
         expected[data.revision['id']] = [{
             'sha1_git': data.revision['id'],
             'type': 'revision',
-            'id': data.revision['id'],
         }]
 
         swh_storage.release_add([data.release])
@@ -2897,14 +2894,9 @@ class TestStorage:
         expected[data.release['id']] = [{
             'sha1_git': data.release['id'],
             'type': 'release',
-            'id': data.release['id'],
         }]
 
         ret = swh_storage.object_find_by_sha1_git(sha1_gits)
-        for val in ret.values():
-            for obj in val:
-                if 'object_id' in obj:
-                    del obj['object_id']
 
         assert expected == ret
 
