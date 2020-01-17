@@ -1,3 +1,13 @@
+swh-storage (0.0.165-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.165     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-01-17 14:04:53
+    +0100)
+  * Upstream changes:     - v0.0.165     - storage.retry: Fix objects
+    loading when using generator parameters
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 17 Jan 2020 13:09:39 +0000
+
 swh-storage (0.0.164-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.164     - (tagged by Antoine Lambert
