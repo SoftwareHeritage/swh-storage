@@ -63,11 +63,12 @@ class BufferingProxyStorage:
         """Enqueue contents to write to the storage.
 
         Following policies apply:
-        - First, check if the queue's threshold is hit. If it is flush content
-          to the storage.
 
-        - If not, check if the total size of enqueued contents's threshold is
-          hit. If it is flush content to the storage.
+            - First, check if the queue's threshold is hit.
+              If it is flush content to the storage.
+
+            - If not, check if the total size of enqueued contents's
+              threshold is hit. If it is flush content to the storage.
 
         """
         s = self.object_add(content, object_type='content')

@@ -1,3 +1,5 @@
+:orphan:
+
 .. _extrinsic-metadata-specification:
 
 Extrinsic metadata specification
@@ -29,14 +31,13 @@ Metadata authorities are entities that provide metadata about an
 
 An authority is uniquely defined by these properties:
 
-* its type, representing the kind of authority, which is one of these values:
+  * its type, representing the kind of authority, which is one of these values:
   * `deposit`, for metadata pushed to Software Heritage at the same time
     as a software artifact
   * `forge`, for metadata pulled from the same source as the one hosting
     the software artifacts (which includes package managers)
   * `registry`, for metadata pulled from a third-party
-
-* its URL, which unambiguously identifies an instance of the authority type.
+  * its URL, which unambiguously identifies an instance of the authority type.
 
 Examples:
 

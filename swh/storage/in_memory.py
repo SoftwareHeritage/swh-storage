@@ -1436,13 +1436,13 @@ class Storage:
         Args:
             visits: iterable of dicts with keys:
 
-                origin: origin url
-                visit: origin visit id
-                type: type of loader used for the visit
-                date: timestamp of such visit
-                status: Visit's new status
-                metadata: Data associated to the visit
-                snapshot (sha1_git): identifier of the snapshot to add to
+                - **origin**: origin url
+                - **visit**: origin visit id
+                - **type**: type of loader used for the visit
+                - **date**: timestamp of such visit
+                - **status**: Visit's new status
+                - **metadata**: Data associated to the visit
+                - **snapshot**: identifier of the snapshot to add to
                     the visit
         """
         for visit in visits:
@@ -1558,16 +1558,17 @@ class Storage:
                 have successfully run to completion.
             require_snapshot (bool): If True, only a visit with a snapshot
                 will be returned.
+
         Returns:
             dict: a dict with the following keys:
 
-                origin: the URL of the origin
-                visit: origin visit id
-                type: type of loader used for the visit
-                date: timestamp of such visit
-                status: Visit's new status
-                metadata: Data associated to the visit
-                snapshot (Optional[sha1_git]): identifier of the snapshot
+                - **origin**: the URL of the origin
+                - **visit**: origin visit id
+                - **type**: type of loader used for the visit
+                - **date**: timestamp of such visit
+                - **status**: Visit's new status
+                - **metadata**: Data associated to the visit
+                - **snapshot** (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
         origin = self._origins.get(origin)
