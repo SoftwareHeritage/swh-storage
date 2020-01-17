@@ -64,11 +64,13 @@ class RetryingProxyStorage:
 
     @swh_retry
     def content_add(self, content: List[Dict]) -> Dict:
-        return self.storage.content_add(content)
+        contents = list(content)
+        return self.storage.content_add(contents)
 
     @swh_retry
     def content_add_metadata(self, content: List[Dict]) -> Dict:
-        return self.storage.content_add_metadata(content)
+        contents = list(content)
+        return self.storage.content_add_metadata(contents)
 
     @swh_retry
     def origin_add_one(self, origin: Dict) -> str:
@@ -90,6 +92,7 @@ class RetryingProxyStorage:
 
     @swh_retry
     def tool_add(self, tools: List[Dict]) -> List[Dict]:
+        tools = list(tools)
         return self.storage.tool_add(tools)
 
     @swh_retry
@@ -108,16 +111,20 @@ class RetryingProxyStorage:
 
     @swh_retry
     def directory_add(self, directories: List[Dict]) -> Dict:
+        directories = list(directories)
         return self.storage.directory_add(directories)
 
     @swh_retry
     def revision_add(self, revisions: List[Dict]) -> Dict:
+        revisions = list(revisions)
         return self.storage.revision_add(revisions)
 
     @swh_retry
     def release_add(self, releases: List[Dict]) -> Dict:
+        releases = list(releases)
         return self.storage.release_add(releases)
 
     @swh_retry
     def snapshot_add(self, snapshot: List[Dict]) -> Dict:
-        return self.storage.snapshot_add(snapshot)
+        snapshots = list(snapshot)
+        return self.storage.snapshot_add(snapshots)
