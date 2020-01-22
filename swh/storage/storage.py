@@ -614,6 +614,21 @@ class Storage():
         for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
 
+    @remote_api_endpoint('content/missing/sha1_git')
+    @timed
+    @db_transaction_generator()
+    def content_missing_per_sha1_git(self, contents, db=None, cur=None):
+        """List content missing from storage based only on sha1_git.
+
+        Args:
+            contents (Iterable): An iterable of content id (sha1_git)
+
+        Yields:
+            missing contents sha1_git
+        """
+        for obj in db.content_missing_per_sha1_git(contents, cur):
+            yield obj[0]
+
     @remote_api_endpoint('content/skipped/missing')
     @timed
     @db_transaction_generator()
@@ -1179,6 +1194,22 @@ class Storage():
                 count += 1
 
         return {'snapshot:add': count}
+
+    @remote_api_endpoint('snapshot/missing')
+    @timed
+    @db_transaction_generator()
+    def snapshot_missing(self, snapshots, db=None, cur=None):
+        """List snapshots missing from storage
+
+        Args:
+            snapshots (iterable): an iterable of snapshot ids
+
+        Yields:
+            missing snapshot ids
+
+        """
+        for obj in db.snapshot_missing_from_list(snapshots, cur):
+            yield obj[0]
 
     @remote_api_endpoint('snapshot')
     @timed

@@ -126,6 +126,15 @@ class Db(BaseDb):
             SELECT 1 FROM content c WHERE c.sha1 = t.sha1
         )""", ((sha1,) for sha1 in sha1s))
 
+    def content_missing_per_sha1_git(self, contents, cur=None):
+        cur = self._cursor(cur)
+
+        yield from execute_values_generator(cur, """
+        SELECT t.sha1_git FROM (VALUES %s) AS t(sha1_git)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM content c WHERE c.sha1_git = t.sha1_git
+        )""", ((sha1,) for sha1 in contents))
+
     def skipped_content_missing(self, contents, cur=None):
         if not contents:
             return []
@@ -152,6 +161,16 @@ class Db(BaseDb):
         cur.execute("""SELECT 1 FROM snapshot where id=%s""", (snapshot_id,))
 
         return bool(cur.fetchone())
+
+    def snapshot_missing_from_list(self, snapshots, cur=None):
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur, """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM snapshot d WHERE d.id = t.id
+            )
+                """, ((id,) for id in snapshots))
 
     def snapshot_add(self, snapshot_id, cur=None):
         """Add a snapshot from the temporary table"""
