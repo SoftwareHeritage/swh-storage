@@ -434,6 +434,19 @@ class Storage:
             if content not in self._content_indexes['sha1']:
                 yield content
 
+    def content_missing_per_sha1_git(self, contents):
+        """List content missing from storage based only on sha1_git.
+
+        Args:
+            contents: An iterable of content id (sha1_git)
+
+        Yields:
+            missing contents sha1_git
+        """
+        for content in contents:
+            if content not in self._content_indexes['sha1_git']:
+                yield content
+
     def skipped_content_missing(self, contents):
         """List all skipped_content missing from storage
 
@@ -871,6 +884,19 @@ class Storage:
             count += 1
 
         return {'snapshot:add': count}
+
+    def snapshot_missing(self, snapshots):
+        """List snapshot missing from storage
+
+        Args:
+            snapshots (iterable): an iterable of snapshot ids
+
+        Yields:
+            missing snapshot ids
+        """
+        for id in snapshots:
+            if id not in self._snapshots:
+                yield id
 
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id
