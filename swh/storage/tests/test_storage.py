@@ -378,7 +378,7 @@ class TestStorage:
                     missing_cont['sha1_git']]
 
         missing_contents = swh_storage.content_missing_per_sha1_git(contents)
-        assert missing_cont['sha1_git'] in missing_contents
+        assert list(missing_contents) == [missing_cont['sha1_git']]
 
     def test_content_get_partition(self, swh_storage, swh_contents):
         """content_get_partition paginates results if limit exceeded"""
@@ -2595,7 +2595,7 @@ class TestStorage:
 
         missing_snapshots = swh_storage.snapshot_missing(snapshots)
 
-        assert missing_snap['id'] in missing_snapshots
+        assert list(missing_snapshots) == [missing_snap['id']]
 
     def test_stat_counters(self, swh_storage):
         expected_keys = ['content', 'directory',
