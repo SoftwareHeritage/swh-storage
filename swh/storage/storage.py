@@ -11,7 +11,7 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Optional
 
 import dateutil.parser
 import psycopg2
@@ -614,6 +614,21 @@ class Storage():
         for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
 
+    @remote_api_endpoint('content/missing/sha1_git')
+    @timed
+    @db_transaction_generator()
+    def content_missing_per_sha1_git(self, contents, db=None, cur=None):
+        """List content missing from storage based only on sha1_git.
+
+        Args:
+            contents (Iterable): An iterable of content id (sha1_git)
+
+        Yields:
+            missing contents sha1_git
+        """
+        for obj in db.content_missing_per_sha1_git(contents, cur):
+            yield obj[0]
+
     @remote_api_endpoint('content/skipped/missing')
     @timed
     @db_transaction_generator()
@@ -1180,6 +1195,22 @@ class Storage():
 
         return {'snapshot:add': count}
 
+    @remote_api_endpoint('snapshot/missing')
+    @timed
+    @db_transaction_generator()
+    def snapshot_missing(self, snapshots, db=None, cur=None):
+        """List snapshots missing from storage
+
+        Args:
+            snapshots (iterable): an iterable of snapshot ids
+
+        Yields:
+            missing snapshot ids
+
+        """
+        for obj in db.snapshot_missing_from_list(snapshots, cur):
+            yield obj[0]
+
     @remote_api_endpoint('snapshot')
     @timed
     @db_transaction(statement_timeout=2000)
@@ -1483,12 +1514,12 @@ class Storage():
         Args:
             visits: iterable of dicts with keys:
 
-                origin: dict with keys either `id` or `url`
-                visit: origin visit id
-                date: timestamp of such visit
-                status: Visit's new status
-                metadata: Data associated to the visit
-                snapshot (sha1_git): identifier of the snapshot to add to
+                - **origin**: dict with keys either `id` or `url`
+                - **visit**: origin visit id
+                - **date**: timestamp of such visit
+                - **status**: Visit's new status
+                - **metadata**: Data associated to the visit
+                - **snapshot**: identifier of the snapshot to add to
                     the visit
         """
         visits = copy.deepcopy(visits)
@@ -1588,16 +1619,17 @@ class Storage():
                 have successfully run to completion.
             require_snapshot (bool): If True, only a visit with a snapshot
                 will be returned.
+
         Returns:
             dict: a dict with the following keys:
 
-                origin: the URL of the origin
-                visit: origin visit id
-                type: type of loader used for the visit
-                date: timestamp of such visit
-                status: Visit's new status
-                metadata: Data associated to the visit
-                snapshot (Optional[sha1_git]): identifier of the snapshot
+                - **origin**: the URL of the origin
+                - **visit**: origin visit id
+                - **type**: type of loader used for the visit
+                - **date**: timestamp of such visit
+                - **status**: Visit's new status
+                - **metadata**: Data associated to the visit
+                - **snapshot** (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
         origin_visit = db.origin_visit_get_latest(
@@ -1610,7 +1642,7 @@ class Storage():
     @timed
     @db_transaction()
     def origin_visit_get_random(
-            self, type: str, db=None, cur=None) -> Mapping[str, Any]:
+            self, type: str, db=None, cur=None) -> Optional[Dict[str, Any]]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
@@ -1619,11 +1651,11 @@ class Storage():
             :py:meth:`origin_visit_get`.
 
         """
-        data: Dict[str, Any] = {}
         result = db.origin_visit_get_random(type, cur)
         if result:
-            data = dict(zip(db.origin_visit_get_cols, result))
-        return data
+            return dict(zip(db.origin_visit_get_cols, result))
+        else:
+            return None
 
     @remote_api_endpoint('object/find_by_sha1_git')
     @timed
@@ -1640,8 +1672,6 @@ class Storage():
 
             - sha1_git: the input id
             - type: the type of object found
-            - id: the id of the object found
-            - object_id: the numeric id of the object found.
 
         """
         ret = {id: [] for id in ids}

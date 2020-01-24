@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import copy
 import pytest
 import yaml
 
@@ -54,49 +53,6 @@ def test_load_and_check_config_wrong_configuration(tmpdir):
         load_and_check_config(config_path)
 
     assert e.value.args[0] == 'Missing \'%storage\' configuration'
-
-
-def test_load_and_check_config_remote_config_local_type_raise(tmpdir):
-    """'local' configuration without 'local' storage raises"""
-    config = {
-        'storage': {
-            'cls': 'remote',
-            'args': {}
-        }
-    }
-    config_path = prepare_config_file(tmpdir, config)
-    with pytest.raises(ValueError) as e:
-        load_and_check_config(config_path, type='local')
-
-    assert (
-        e.value.args[0] ==
-        "The storage backend can only be started with a 'local' configuration"
-    )
-
-
-def test_load_and_check_config_local_incomplete_configuration(tmpdir):
-    """Incomplete 'local' configuration should raise"""
-    config = {
-        'storage': {
-            'cls': 'local',
-            'args': {
-                'db': 'database',
-                'objstorage': 'object_storage'
-            }
-        }
-    }
-
-    for key in ('db', 'objstorage'):
-        c = copy.deepcopy(config)
-        c['storage']['args'].pop(key)
-        config_path = prepare_config_file(tmpdir, c)
-        with pytest.raises(ValueError) as e:
-            load_and_check_config(config_path)
-
-        assert (
-            e.value.args[0] ==
-            "Invalid configuration; missing '%s' config entry" % key
-        )
 
 
 def test_load_and_check_config_local_config_fine(tmpdir):

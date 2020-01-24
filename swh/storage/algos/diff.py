@@ -248,6 +248,7 @@ def _compare_paths(path1, path2):
     """
     Compare paths in lexicographic depth-first order.
     For instance, it returns:
+
         - "a" < "b"
         - "b/c/d" < "b"
         - "c/foo.txt" < "c.txt"

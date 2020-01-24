@@ -93,20 +93,6 @@ def load_and_check_config(config_file, type='local'):
     if 'storage' not in cfg:
         raise KeyError("Missing '%storage' configuration")
 
-    if type == 'local':
-        vcfg = cfg['storage']
-        cls = vcfg.get('cls')
-        if cls != 'local':
-            raise ValueError(
-                "The storage backend can only be started with a 'local' "
-                "configuration")
-
-        args = vcfg['args']
-        for key in ('db', 'objstorage'):
-            if not args.get(key):
-                raise ValueError(
-                    "Invalid configuration; missing '%s' config entry" % key)
-
     return cfg
 
 
