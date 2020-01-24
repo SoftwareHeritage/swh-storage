@@ -200,6 +200,48 @@ class Storage:
                    for c in self._content_to_model(content)]
         return self._content_add(content, with_data=True)
 
+    def content_update(self, content, keys=[]):
+        """Update content blobs to the storage. Does nothing for unknown
+        contents or skipped ones.
+
+        Args:
+            content (iterable): iterable of dictionaries representing
+                individual pieces of content to update. Each dictionary has the
+                following keys:
+
+                - data (bytes): the actual content
+                - length (int): content length (default: -1)
+                - one key for each checksum algorithm in
+                  :data:`swh.model.hashutil.ALGORITHMS`, mapped to the
+                  corresponding checksum
+                - status (str): one of visible, hidden, absent
+
+            keys (list): List of keys (str) whose values needs an update, e.g.,
+                new hash column
+        """
+        if self.journal_writer:
+            raise NotImplementedError(
+                'content_update is not yet supported with a journal_writer.')
+
+        for cont_update in content:
+            cont_update = cont_update.copy()
+            sha1 = cont_update.pop('sha1')
+            for old_key in self._content_indexes['sha1'][sha1]:
+                old_cont = self._contents.pop(old_key)
+
+                for algorithm in DEFAULT_ALGORITHMS:
+                    hash_ = old_cont.get_hash(algorithm)
+                    self._content_indexes[algorithm][hash_].remove(old_key)
+
+                new_cont = attr.evolve(old_cont, **cont_update)
+                new_key = self._content_key(new_cont)
+
+                self._contents[new_key] = new_cont
+
+                for algorithm in DEFAULT_ALGORITHMS:
+                    hash_ = new_cont.get_hash(algorithm)
+                    self._content_indexes[algorithm][hash_].add(new_key)
+
     def content_add_metadata(self, content):
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
@@ -369,6 +411,7 @@ class Storage:
                 for key in objs:
                     d = self._contents[key].to_dict()
                     del d['ctime']
+                    del d['data']
                     result[sha1].append(d)
         return result
 

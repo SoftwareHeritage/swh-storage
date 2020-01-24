@@ -230,6 +230,22 @@ class TestStorage:
 
         assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
 
+    def test_content_update(self, swh_storage):
+        swh_storage.journal_writer = None  # TODO, not supported
+
+        cont = copy.deepcopy(data.cont)
+
+        swh_storage.content_add([cont])
+        # alter the sha1_git for example
+        cont['sha1_git'] = hash_to_bytes(
+            '3a60a5275d0333bf13468e8b3dcab90f4046e654')
+
+        swh_storage.content_update([cont], keys=['sha1_git'])
+
+        results = swh_storage.content_get_metadata([cont['sha1']])
+        del cont['data']
+        assert results == {cont['sha1']: [cont]}
+
     def test_content_add_metadata(self, swh_storage):
         cont = data.cont
         del cont['data']
@@ -3618,26 +3634,6 @@ class TestPgStorage:
        Otherwise, the tests could be blocking when ran altogether.
 
     """
-    def test_content_update(self, swh_storage):
-        swh_storage.journal_writer = None  # TODO, not supported
-
-        cont = copy.deepcopy(data.cont)
-
-        swh_storage.content_add([cont])
-        # alter the sha1_git for example
-        cont['sha1_git'] = hash_to_bytes(
-            '3a60a5275d0333bf13468e8b3dcab90f4046e654')
-
-        swh_storage.content_update([cont], keys=['sha1_git'])
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
-                        ' FROM content WHERE sha1 = %s',
-                        (cont['sha1'],))
-            datum = cur.fetchone()
-
-        assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
-                         cont['length'], 'visible')
 
     def test_content_update_with_new_cols(self, swh_storage):
         swh_storage.journal_writer = None  # TODO, not supported
