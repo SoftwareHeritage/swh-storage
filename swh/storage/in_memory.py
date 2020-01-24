@@ -308,7 +308,7 @@ class Storage:
 
             yield {'sha1': obj_id, 'data': data}
 
-    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
+    def content_get_range(self, start, end, limit=1000):
         """Retrieve contents within range [start, end] bound by limit.
 
         Note that this function may return more than one blob per hash. The
@@ -1046,7 +1046,7 @@ class Storage:
                     'last origin visit references an unknown snapshot')
             return snapshot
 
-    def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
+    def snapshot_count_branches(self, snapshot_id):
         """Count the number of branches in the snapshot with the given id
 
         Args:
@@ -1132,7 +1132,7 @@ class Storage:
         """
         return random.choice(list(self._snapshots))
 
-    def object_find_by_sha1_git(self, ids, db=None, cur=None):
+    def object_find_by_sha1_git(self, ids):
         """Return the objects found with the given ids.
 
         Args:
@@ -1295,7 +1295,7 @@ class Storage:
         return result
 
     def origin_search(self, url_pattern, offset=0, limit=50,
-                      regexp=False, with_visit=False, db=None, cur=None):
+                      regexp=False, with_visit=False):
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
@@ -1330,8 +1330,7 @@ class Storage:
 
         return origins[offset:offset+limit]
 
-    def origin_count(self, url_pattern, regexp=False, with_visit=False,
-                     db=None, cur=None):
+    def origin_count(self, url_pattern, regexp=False, with_visit=False):
         """Count origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The pattern search in origin urls is performed in a case insensitive
@@ -1713,8 +1712,7 @@ class Storage:
         """Recomputes the statistics for `stat_counters`."""
         pass
 
-    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata,
-                            db=None, cur=None):
+    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata):
         """ Add an origin_metadata for the origin at ts with provenance and
         metadata.
 
@@ -1741,8 +1739,7 @@ class Storage:
         self._origin_metadata[origin_url].append(origin_metadata)
         return None
 
-    def origin_metadata_get_by(self, origin_url, provider_type=None, db=None,
-                               cur=None):
+    def origin_metadata_get_by(self, origin_url, provider_type=None):
         """Retrieve list of all origin_metadata entries for the origin_url
 
         Args:
@@ -1842,7 +1839,7 @@ class Storage:
         self._metadata_providers[key] = provider
         return key
 
-    def metadata_provider_get(self, provider_id, db=None, cur=None):
+    def metadata_provider_get(self, provider_id):
         """Get a metadata provider
 
         Args:
@@ -1854,7 +1851,7 @@ class Storage:
         """
         return self._metadata_providers.get(provider_id)
 
-    def metadata_provider_get_by(self, provider, db=None, cur=None):
+    def metadata_provider_get_by(self, provider):
         """Get a metadata provider
 
         Args:
