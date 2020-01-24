@@ -1,8 +1,16 @@
-swh-storage (0.0.165-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.166-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.166     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-01-24 09:51:52
+    +0100)
+  * Upstream changes:     - v0.0.166     - storage: Add endpoint to get
+    missing content (by sha1_git) and missing snapshot     - Remove
+    redundant config checks in load_and_check_config     - Remove 'id'
+    and 'object_id' from the output of object_find_by_sha1_git     -
+    Make origin_visit_get_random return None instead of {} if there are
+    no results     - docs: Fix sphinx warnings
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 17 Jan 2020 13:12:48 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 24 Jan 2020 09:00:12 +0000
 
 swh-storage (0.0.165-1~swh1) unstable-swh; urgency=medium
 

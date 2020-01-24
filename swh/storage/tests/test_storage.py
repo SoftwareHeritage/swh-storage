@@ -24,7 +24,6 @@ from hypothesis import given, strategies, settings, HealthCheck
 from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
-from swh.model.model import SHA1_SIZE
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
@@ -186,16 +185,6 @@ class TestStorage:
             [data.cont2['sha1'], data.cont['sha1']]))
         assert results == [None, {'sha1': cont['sha1'], 'data': cont['data']}]
 
-    def test_content_add_same_input(self, swh_storage):
-        cont = data.cont
-
-        actual_result = swh_storage.content_add([cont, cont])
-        assert actual_result == {
-            'content:add': 1,
-            'content:add:bytes': cont['length'],
-            'skipped_content:add': 0
-            }
-
     def test_content_add_different_input(self, swh_storage):
         cont = data.cont
         cont2 = data.cont2
@@ -259,17 +248,6 @@ class TestStorage:
         }
 
         assert list(swh_storage.journal_writer.objects) == [('content', cont)]
-
-    def test_content_add_metadata_same_input(self, swh_storage):
-        cont = data.cont
-        del cont['data']
-        cont['ctime'] = datetime.datetime.now()
-
-        actual_result = swh_storage.content_add_metadata([cont, cont])
-        assert actual_result == {
-            'content:add': 1,
-            'skipped_content:add': 0
-            }
 
     def test_content_add_metadata_different_input(self, swh_storage):
         cont = data.cont
@@ -389,6 +367,19 @@ class TestStorage:
         # then
         assert list(gen) == [missing_cont['sha1']]
 
+    def test_content_missing_per_sha1_git(self, swh_storage):
+        cont = data.cont
+        cont2 = data.cont2
+        missing_cont = data.missing_cont
+
+        swh_storage.content_add([cont, cont2])
+
+        contents = [cont['sha1_git'], cont2['sha1_git'],
+                    missing_cont['sha1_git']]
+
+        missing_contents = swh_storage.content_missing_per_sha1_git(contents)
+        assert list(missing_contents) == [missing_cont['sha1_git']]
+
     def test_content_get_partition(self, swh_storage, swh_contents):
         """content_get_partition paginates results if limit exceeded"""
         expected_contents = [c for c in swh_contents
@@ -417,18 +408,27 @@ class TestStorage:
             expected_contents, actual_contents, ['sha1'])
 
     def test_content_get_partition_empty(self, swh_storage, swh_contents):
-        """content_get_partition for an empty partition returns nothing"""
-        first_sha1 = min(content['sha1'] for content in swh_contents)
-        first_sha1 = int.from_bytes(first_sha1, 'big')
-        # nb_partitions = smallest power of 2 such that first_sha1 is not in
-        # the first partition
-        nb_partitions = \
-            1 << (SHA1_SIZE*8 - math.floor(math.log2(first_sha1)) + 1)
+        """content_get_partition when at least one of the partitions is
+        empty"""
+        expected_contents = {cont['sha1'] for cont in swh_contents
+                             if cont['status'] != 'absent'}
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(swh_contents)) + 1)
 
-        actual_result = swh_storage.content_get_partition(0, nb_partitions)
+        seen_sha1s = []
 
-        assert actual_result['next_page_token'] is None
-        assert len(actual_result['contents']) == 0
+        for i in range(nb_partitions):
+            actual_result = swh_storage.content_get_partition(
+                i, nb_partitions, limit=len(swh_contents)+1)
+
+            for cont in actual_result['contents']:
+                seen_sha1s.append(cont['sha1'])
+
+            # Limit is higher than the max number of results
+            assert actual_result['next_page_token'] is None
+
+        assert set(seen_sha1s) == expected_contents
 
     def test_content_get_partition_limit_none(self, swh_storage):
         """content_get_partition call with wrong limit input should fail"""
@@ -1201,7 +1201,7 @@ class TestStorage:
                     origin['url'], visit_id=visit['visit'], status='full')
 
         random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
-        assert random_origin_visit == {}
+        assert random_origin_visit is None
 
     def test_origin_get_by_sha1(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
@@ -2587,6 +2587,16 @@ class TestStorage:
             data.snapshot['id'], data.empty_snapshot['id'],
             data.complete_snapshot['id']}
 
+    def test_snapshot_missing(self, swh_storage):
+        snap = data.snapshot
+        missing_snap = data.empty_snapshot
+        snapshots = [snap['id'], missing_snap['id']]
+        swh_storage.snapshot_add([snap])
+
+        missing_snapshots = swh_storage.snapshot_missing(snapshots)
+
+        assert list(missing_snapshots) == [missing_snap['id']]
+
     def test_stat_counters(self, swh_storage):
         expected_keys = ['content', 'directory',
                          'origin', 'revision']
@@ -2886,7 +2896,6 @@ class TestStorage:
         expected[data.cont['sha1_git']] = [{
             'sha1_git': data.cont['sha1_git'],
             'type': 'content',
-            'id': data.cont['sha1'],
         }]
 
         swh_storage.directory_add([data.dir])
@@ -2894,7 +2903,6 @@ class TestStorage:
         expected[data.dir['id']] = [{
             'sha1_git': data.dir['id'],
             'type': 'directory',
-            'id': data.dir['id'],
         }]
 
         swh_storage.revision_add([data.revision])
@@ -2902,7 +2910,6 @@ class TestStorage:
         expected[data.revision['id']] = [{
             'sha1_git': data.revision['id'],
             'type': 'revision',
-            'id': data.revision['id'],
         }]
 
         swh_storage.release_add([data.release])
@@ -2910,14 +2917,9 @@ class TestStorage:
         expected[data.release['id']] = [{
             'sha1_git': data.release['id'],
             'type': 'release',
-            'id': data.release['id'],
         }]
 
         ret = swh_storage.object_find_by_sha1_git(sha1_gits)
-        for val in ret.values():
-            for obj in val:
-                if 'object_id' in obj:
-                    del obj['object_id']
 
         assert expected == ret
 

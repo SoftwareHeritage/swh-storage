@@ -126,6 +126,15 @@ class Db(BaseDb):
             SELECT 1 FROM content c WHERE c.sha1 = t.sha1
         )""", ((sha1,) for sha1 in sha1s))
 
+    def content_missing_per_sha1_git(self, contents, cur=None):
+        cur = self._cursor(cur)
+
+        yield from execute_values_generator(cur, """
+        SELECT t.sha1_git FROM (VALUES %s) AS t(sha1_git)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM content c WHERE c.sha1_git = t.sha1_git
+        )""", ((sha1,) for sha1 in contents))
+
     def skipped_content_missing(self, contents, cur=None):
         if not contents:
             return []
@@ -152,6 +161,16 @@ class Db(BaseDb):
         cur.execute("""SELECT 1 FROM snapshot where id=%s""", (snapshot_id,))
 
         return bool(cur.fetchone())
+
+    def snapshot_missing_from_list(self, snapshots, cur=None):
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur, """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM snapshot d WHERE d.id = t.id
+            )
+                """, ((id,) for id in snapshots))
 
     def snapshot_add(self, snapshot_id, cur=None):
         """Add a snapshot from the temporary table"""
@@ -604,50 +623,46 @@ class Db(BaseDb):
             )
             """, ((id,) for id in releases))
 
-    object_find_by_sha1_git_cols = ['sha1_git', 'type', 'id', 'object_id']
+    object_find_by_sha1_git_cols = ['sha1_git', 'type']
 
     def object_find_by_sha1_git(self, ids, cur=None):
         cur = self._cursor(cur)
 
         yield from execute_values_generator(
             cur, """
-            WITH t (id) AS (VALUES %s),
+            WITH t (sha1_git) AS (VALUES %s),
             known_objects as ((
                 select
                   id as sha1_git,
                   'release'::object_type as type,
-                  id,
                   object_id
                 from release r
-                where exists (select 1 from t where t.id = r.id)
+                where exists (select 1 from t where t.sha1_git = r.id)
             ) union all (
                 select
                   id as sha1_git,
                   'revision'::object_type as type,
-                  id,
                   object_id
                 from revision r
-                where exists (select 1 from t where t.id = r.id)
+                where exists (select 1 from t where t.sha1_git = r.id)
             ) union all (
                 select
                   id as sha1_git,
                   'directory'::object_type as type,
-                  id,
                   object_id
                 from directory d
-                where exists (select 1 from t where t.id = d.id)
+                where exists (select 1 from t where t.sha1_git = d.id)
             ) union all (
                 select
                   sha1_git as sha1_git,
                   'content'::object_type as type,
-                  sha1 as id,
                   object_id
                 from content c
-                where exists (select 1 from t where t.id = c.sha1_git)
+                where exists (select 1 from t where t.sha1_git = c.sha1_git)
             ))
-            select t.id as sha1_git, k.type, k.id, k.object_id
+            select t.sha1_git as sha1_git, k.type
             from t
-            left join known_objects k on t.id = k.sha1_git
+            left join known_objects k on t.sha1_git = k.sha1_git
             """,
             ((id,) for id in ids)
         )
