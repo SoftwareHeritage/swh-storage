@@ -17,9 +17,9 @@ create or replace function swh_mktemp(tblname regclass)
 as $$
 begin
     execute format('
-	create temporary table tmp_%1$I
+	create temporary table if not exists tmp_%1$I
 	    (like %1$I including defaults)
-	    on commit drop;
+	    on commit delete rows;
       alter table tmp_%1$I drop column if exists object_id;
 	', tblname);
     return;
@@ -40,15 +40,14 @@ create or replace function swh_mktemp_dir_entry(tblname regclass)
 as $$
 begin
     execute format('
-	create temporary table tmp_%1$I
+	create temporary table if not exists tmp_%1$I
 	    (like %1$I including defaults, dir_id sha1_git)
-	    on commit drop;
-        alter table tmp_%1$I drop column id;
+	    on commit delete rows;
+        alter table tmp_%1$I drop column if exists id;
 	', tblname);
     return;
 end
 $$;
-
 
 -- create a temporary table for revisions called tmp_revisions,
 -- mimicking existing table revision, replacing the foreign keys to
@@ -58,7 +57,7 @@ create or replace function swh_mktemp_revision()
     returns void
     language sql
 as $$
-    create temporary table tmp_revision (
+    create temporary table if not exists tmp_revision (
         like revision including defaults,
         author_fullname bytea,
         author_name bytea,
@@ -66,12 +65,11 @@ as $$
         committer_fullname bytea,
         committer_name bytea,
         committer_email bytea
-    ) on commit drop;
-    alter table tmp_revision drop column author;
-    alter table tmp_revision drop column committer;
-    alter table tmp_revision drop column object_id;
+    ) on commit delete rows;
+    alter table tmp_revision drop column if exists author;
+    alter table tmp_revision drop column if exists committer;
+    alter table tmp_revision drop column if exists object_id;
 $$;
-
 
 -- create a temporary table for releases called tmp_release,
 -- mimicking existing table release, replacing the foreign keys to
@@ -81,14 +79,14 @@ create or replace function swh_mktemp_release()
     returns void
     language sql
 as $$
-    create temporary table tmp_release (
+    create temporary table if not exists tmp_release (
         like release including defaults,
         author_fullname bytea,
         author_name bytea,
         author_email bytea
-    ) on commit drop;
-    alter table tmp_release drop column author;
-    alter table tmp_release drop column object_id;
+    ) on commit delete rows;
+    alter table tmp_release drop column if exists author;
+    alter table tmp_release drop column if exists object_id;
 $$;
 
 -- create a temporary table for the branches of a snapshot
@@ -96,23 +94,23 @@ create or replace function swh_mktemp_snapshot_branch()
     returns void
     language sql
 as $$
-  create temporary table tmp_snapshot_branch (
+  create temporary table if not exists tmp_snapshot_branch (
       name bytea not null,
       target bytea,
       target_type snapshot_target
-  ) on commit drop;
+  ) on commit delete rows;
 $$;
 
+-- create a temporary table for the tools
 create or replace function swh_mktemp_tool()
     returns void
     language sql
 as $$
-    create temporary table tmp_tool (
+    create temporary table if not exists tmp_tool (
       like tool including defaults
-    ) on commit drop;
-    alter table tmp_tool drop column id;
+    ) on commit delete rows;
+    alter table tmp_tool drop column if exists id;
 $$;
-
 
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
