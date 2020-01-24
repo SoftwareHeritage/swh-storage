@@ -37,7 +37,7 @@ def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-class Storage:
+class InMemoryStorage:
     def __init__(self, journal_writer=None):
         self._contents = {}
         self._content_indexes = defaultdict(lambda: defaultdict(set))

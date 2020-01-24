@@ -11,7 +11,7 @@ from swh.storage import get_storage
 
 from swh.storage.api.client import RemoteStorage
 from swh.storage.storage import Storage as DbStorage
-from swh.storage.in_memory import Storage as MemoryStorage
+from swh.storage.in_memory import InMemoryStorage
 from swh.storage.buffer import BufferingProxyStorage
 from swh.storage.filter import FilteringProxyStorage
 from swh.storage.retry import RetryingProxyStorage
@@ -25,7 +25,7 @@ def test_get_storage(mock_pool):
     mock_pool.ThreadedConnectionPool.return_value = None
     for cls, real_class, dummy_args in [
             ('remote', RemoteStorage, {'url': 'url'}),
-            ('memory', MemoryStorage, {}),
+            ('memory', InMemoryStorage, {}),
             ('local', DbStorage, {
                 'db': 'postgresql://db', 'objstorage': {
                     'cls': 'memory', 'args': {},
@@ -55,7 +55,7 @@ def test_get_storage_legacy_args(mock_pool):
     mock_pool.ThreadedConnectionPool.return_value = None
     for cls, real_class, dummy_args in [
             ('remote', RemoteStorage, {'url': 'url'}),
-            ('memory', MemoryStorage, {}),
+            ('memory', InMemoryStorage, {}),
             ('local', DbStorage, {
                 'db': 'postgresql://db', 'objstorage': {
                     'cls': 'memory', 'args': {},
@@ -105,7 +105,7 @@ def test_get_storage_pipeline():
 
     assert isinstance(storage, FilteringProxyStorage)
     assert isinstance(storage.storage, BufferingProxyStorage)
-    assert isinstance(storage.storage.storage, MemoryStorage)
+    assert isinstance(storage.storage.storage, InMemoryStorage)
 
 
 def test_get_storage_pipeline_legacy_args():
@@ -134,4 +134,4 @@ def test_get_storage_pipeline_legacy_args():
 
     assert isinstance(storage, FilteringProxyStorage)
     assert isinstance(storage.storage, BufferingProxyStorage)
-    assert isinstance(storage.storage.storage, MemoryStorage)
+    assert isinstance(storage.storage.storage, InMemoryStorage)
