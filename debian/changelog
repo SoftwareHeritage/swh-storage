@@ -1,8 +1,12 @@
-swh-storage (0.0.166-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.167-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.167     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-01-24 14:55:57
+    +0100)
+  * Upstream changes:     - v0.0.167     - pgstorage: Empty temp tables
+    instead of dropping them
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 24 Jan 2020 09:03:23 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 24 Jan 2020 14:01:57 +0000
 
 swh-storage (0.0.166-1~swh1) unstable-swh; urgency=medium
 
