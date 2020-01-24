@@ -6,13 +6,13 @@
 from swh.core.api import RPCClient
 
 from ..exc import StorageAPIError
-from ..storage import Storage
+from ..interface import StorageInterface
 
 
 class RemoteStorage(RPCClient):
     """Proxy to a remote storage API"""
     api_exception = StorageAPIError
-    backend_class = Storage
+    backend_class = StorageInterface
 
     def reset(self):
         return self.post('reset', {})

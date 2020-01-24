@@ -6,6 +6,7 @@
 import copy
 from contextlib import contextmanager
 import datetime
+import inspect
 import itertools
 import math
 import queue
@@ -28,6 +29,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
 from swh.storage.converters import origin_url_to_sha1 as sha1
+from swh.storage.interface import StorageInterface
 
 from .storage_data import data
 
@@ -94,6 +96,34 @@ class TestStorage:
     class twice.
     """
     maxDiff = None  # type: ClassVar[Optional[int]]
+
+    def test_types(self, swh_storage):
+        """Checks all methods of StorageInterface are implemented by this
+        backend, and that they have the same signature."""
+        # Create an instance of the protocol (which cannot be instantiated
+        # directly, so this creates a subclass, then instantiates it)
+        interface = type('_', (StorageInterface,), {})()
+
+        assert 'content_add' in dir(interface)
+
+        missing_methods = []
+
+        for meth_name in dir(interface):
+            if meth_name.startswith('_'):
+                continue
+            interface_meth = getattr(interface, meth_name)
+            try:
+                concrete_meth = getattr(swh_storage, meth_name)
+            except AttributeError:
+                missing_methods.append(meth_name)
+                continue
+
+            expected_signature = inspect.signature(interface_meth)
+            actual_signature = inspect.signature(concrete_meth)
+
+            assert expected_signature == actual_signature, meth_name
+
+        assert missing_methods == []
 
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
