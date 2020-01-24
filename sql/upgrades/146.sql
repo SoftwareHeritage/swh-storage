@@ -88,7 +88,6 @@ as $$
     ) on commit delete rows;
     alter table tmp_release drop column if exists author;
     alter table tmp_release drop column if exists object_id;
-  ) on commit delete rows;
 $$;
 
 -- create a temporary table for the branches of a snapshot
