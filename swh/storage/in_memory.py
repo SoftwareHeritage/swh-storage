@@ -14,7 +14,7 @@ import random
 
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Optional
 
 import attr
 
@@ -432,6 +432,19 @@ class Storage:
         """
         for content in contents:
             if content not in self._content_indexes['sha1']:
+                yield content
+
+    def content_missing_per_sha1_git(self, contents):
+        """List content missing from storage based only on sha1_git.
+
+        Args:
+            contents: An iterable of content id (sha1_git)
+
+        Yields:
+            missing contents sha1_git
+        """
+        for content in contents:
+            if content not in self._content_indexes['sha1_git']:
                 yield content
 
     def skipped_content_missing(self, contents):
@@ -872,6 +885,19 @@ class Storage:
 
         return {'snapshot:add': count}
 
+    def snapshot_missing(self, snapshots):
+        """List snapshot missing from storage
+
+        Args:
+            snapshots (iterable): an iterable of snapshot ids
+
+        Yields:
+            missing snapshot ids
+        """
+        for id in snapshots:
+            if id not in self._snapshots:
+                yield id
+
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id
 
@@ -1075,8 +1101,6 @@ class Storage:
 
             - sha1_git: the input id
             - type: the type of object found
-            - id: the id of the object found
-            - object_id: the numeric id of the object found.
 
         """
         ret = {}
@@ -1085,8 +1109,6 @@ class Storage:
             ret[id_] = [{
                     'sha1_git': id_,
                     'type': obj[0],
-                    'id': obj[1],
-                    'object_id': id_,
                     } for obj in objs]
         return ret
 
@@ -1440,13 +1462,13 @@ class Storage:
         Args:
             visits: iterable of dicts with keys:
 
-                origin: origin url
-                visit: origin visit id
-                type: type of loader used for the visit
-                date: timestamp of such visit
-                status: Visit's new status
-                metadata: Data associated to the visit
-                snapshot (sha1_git): identifier of the snapshot to add to
+                - **origin**: origin url
+                - **visit**: origin visit id
+                - **type**: type of loader used for the visit
+                - **date**: timestamp of such visit
+                - **status**: Visit's new status
+                - **metadata**: Data associated to the visit
+                - **snapshot**: identifier of the snapshot to add to
                     the visit
         """
         for visit in visits:
@@ -1562,16 +1584,17 @@ class Storage:
                 have successfully run to completion.
             require_snapshot (bool): If True, only a visit with a snapshot
                 will be returned.
+
         Returns:
             dict: a dict with the following keys:
 
-                origin: the URL of the origin
-                visit: origin visit id
-                type: type of loader used for the visit
-                date: timestamp of such visit
-                status: Visit's new status
-                metadata: Data associated to the visit
-                snapshot (Optional[sha1_git]): identifier of the snapshot
+                - **origin**: the URL of the origin
+                - **visit**: origin visit id
+                - **type**: type of loader used for the visit
+                - **date**: timestamp of such visit
+                - **status**: Visit's new status
+                - **metadata**: Data associated to the visit
+                - **snapshot** (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
         """
         origin = self._origins.get(origin)
@@ -1597,7 +1620,7 @@ class Storage:
             if random_origin_visits[0].type == type:
                 return url
 
-    def origin_visit_get_random(self, type: str) -> Mapping[str, Any]:
+    def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
@@ -1606,9 +1629,6 @@ class Storage:
             `origin_visit_get`.
 
         """
-        random_visit: Dict[str, Any] = {}
-        if not self._origin_visits:  # empty dataset
-            return random_visit
         url = self._select_random_origin_visit_by_type(type)
         random_origin_visits = copy.deepcopy(self._origin_visits[url])
         random_origin_visits.reverse()
@@ -1616,9 +1636,9 @@ class Storage:
         # This should be enough for tests
         for visit in random_origin_visits:
             if visit.date > back_in_the_day and visit.status == 'full':
-                random_visit = visit.to_dict()
-                break
-        return random_visit
+                return visit.to_dict()
+        else:
+            return None
 
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
