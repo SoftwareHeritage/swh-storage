@@ -411,7 +411,8 @@ class Storage:
                 for key in objs:
                     d = self._contents[key].to_dict()
                     del d['ctime']
-                    del d['data']
+                    if 'data' in d:
+                        del d['data']
                     result[sha1].append(d)
         return result
 
