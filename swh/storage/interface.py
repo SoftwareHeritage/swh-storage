@@ -8,6 +8,11 @@ from typing import Any, Dict, List, Optional
 from swh.core.api import remote_api_endpoint
 
 
+def deprecated(f):
+    f.deprecated_endpoint = True
+    return f
+
+
 class StorageInterface:
     @remote_api_endpoint('check_config')
     def check_config(self, *, check_write):
@@ -130,6 +135,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint('content/range')
     def content_get_range(self, start, end, limit=1000):
         """Retrieve contents within range [start, end] bound by limit.
@@ -928,6 +934,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint('origin/get_range')
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater
@@ -986,6 +993,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint('origin/count')
     def origin_count(self, url_pattern, regexp=False,
                      with_visit=False):
@@ -1171,6 +1179,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint('algos/diff_directories')
     def diff_directories(self, from_dir, to_dir, track_renaming=False):
         """Compute the list of file changes introduced between two arbitrary
@@ -1188,6 +1197,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint('algos/diff_revisions')
     def diff_revisions(self, from_rev, to_rev, track_renaming=False):
         """Compute the list of file changes introduced between two arbitrary
@@ -1205,6 +1215,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint('algos/diff_revision')
     def diff_revision(self, revision, track_renaming=False):
         """Compute the list of file changes introduced by a specific revision

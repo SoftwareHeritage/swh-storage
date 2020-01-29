@@ -115,7 +115,9 @@ class TestStorage:
             try:
                 concrete_meth = getattr(swh_storage, meth_name)
             except AttributeError:
-                missing_methods.append(meth_name)
+                if not getattr(interface_meth, 'deprecated_endpoint', False):
+                    # The backend is missing a (non-deprecated) endpoint
+                    missing_methods.append(meth_name)
                 continue
 
             expected_signature = inspect.signature(interface_meth)
