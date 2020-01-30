@@ -1,3 +1,16 @@
+swh-storage (0.0.168-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.168     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-01-30 11:19:31 +0100)
+  * Upstream changes:     - v0.0.168     - * Implement content_update
+    for the in-mem storage.     - * Remove cur/db arguments from the in-
+    mem storage.     - * Move Storage documentation and endpoint paths
+    to a new StorageInterface class     - * Rename in_memory.Storage to
+    in_memory.InMemoryStorage.     - * CONTRIBUTORS: add Daniele
+    Serafini
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 30 Jan 2020 10:25:30 +0000
+
 swh-storage (0.0.167-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.167     - (tagged by Antoine R. Dumont
