@@ -8,7 +8,7 @@ import psycopg2
 import traceback
 
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 from requests.exceptions import ConnectionError
 from tenacity import (
@@ -128,3 +128,12 @@ class RetryingProxyStorage:
     def snapshot_add(self, snapshot: List[Dict]) -> Dict:
         snapshots = list(snapshot)
         return self.storage.snapshot_add(snapshots)
+
+    @swh_retry
+    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+        """Specific case for buffer proxy storage failing to flush data
+
+        """
+        if hasattr(self.storage, 'flush'):
+            return self.storage.flush(object_types)
+        return {}
