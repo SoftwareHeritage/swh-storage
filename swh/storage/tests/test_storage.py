@@ -6,6 +6,7 @@
 import copy
 from contextlib import contextmanager
 import datetime
+import inspect
 import itertools
 import math
 import queue
@@ -28,6 +29,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
 from swh.storage.converters import origin_url_to_sha1 as sha1
+from swh.storage.interface import StorageInterface
 
 from .storage_data import data
 
@@ -94,6 +96,36 @@ class TestStorage:
     class twice.
     """
     maxDiff = None  # type: ClassVar[Optional[int]]
+
+    def test_types(self, swh_storage):
+        """Checks all methods of StorageInterface are implemented by this
+        backend, and that they have the same signature."""
+        # Create an instance of the protocol (which cannot be instantiated
+        # directly, so this creates a subclass, then instantiates it)
+        interface = type('_', (StorageInterface,), {})()
+
+        assert 'content_add' in dir(interface)
+
+        missing_methods = []
+
+        for meth_name in dir(interface):
+            if meth_name.startswith('_'):
+                continue
+            interface_meth = getattr(interface, meth_name)
+            try:
+                concrete_meth = getattr(swh_storage, meth_name)
+            except AttributeError:
+                if not getattr(interface_meth, 'deprecated_endpoint', False):
+                    # The backend is missing a (non-deprecated) endpoint
+                    missing_methods.append(meth_name)
+                continue
+
+            expected_signature = inspect.signature(interface_meth)
+            actual_signature = inspect.signature(concrete_meth)
+
+            assert expected_signature == actual_signature, meth_name
+
+        assert missing_methods == []
 
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
@@ -229,6 +261,22 @@ class TestStorage:
             swh_storage.content_add([cont1, cont1b])
 
         assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
+
+    def test_content_update(self, swh_storage):
+        swh_storage.journal_writer = None  # TODO, not supported
+
+        cont = copy.deepcopy(data.cont)
+
+        swh_storage.content_add([cont])
+        # alter the sha1_git for example
+        cont['sha1_git'] = hash_to_bytes(
+            '3a60a5275d0333bf13468e8b3dcab90f4046e654')
+
+        swh_storage.content_update([cont], keys=['sha1_git'])
+
+        results = swh_storage.content_get_metadata([cont['sha1']])
+        del cont['data']
+        assert results == {cont['sha1']: [cont]}
 
     def test_content_add_metadata(self, swh_storage):
         cont = data.cont
@@ -3618,26 +3666,6 @@ class TestPgStorage:
        Otherwise, the tests could be blocking when ran altogether.
 
     """
-    def test_content_update(self, swh_storage):
-        swh_storage.journal_writer = None  # TODO, not supported
-
-        cont = copy.deepcopy(data.cont)
-
-        swh_storage.content_add([cont])
-        # alter the sha1_git for example
-        cont['sha1_git'] = hash_to_bytes(
-            '3a60a5275d0333bf13468e8b3dcab90f4046e654')
-
-        swh_storage.content_update([cont], keys=['sha1_git'])
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute('SELECT sha1, sha1_git, sha256, length, status'
-                        ' FROM content WHERE sha1 = %s',
-                        (cont['sha1'],))
-            datum = cur.fetchone()
-
-        assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
-                         cont['length'], 'visible')
 
     def test_content_update_with_new_cols(self, swh_storage):
         swh_storage.journal_writer = None  # TODO, not supported

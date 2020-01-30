@@ -54,7 +54,7 @@ def get_storage(cls, **kwargs):
     elif cls == 'local':
         from .storage import Storage
     elif cls == 'memory':
-        from .in_memory import Storage
+        from .in_memory import InMemoryStorage as Storage
     elif cls == 'filter':
         from .filter import FilteringProxyStorage as Storage
     elif cls == 'buffer':

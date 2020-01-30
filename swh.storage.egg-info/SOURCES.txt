@@ -186,6 +186,7 @@ swh/storage/db.py
 swh/storage/exc.py
 swh/storage/filter.py
 swh/storage/in_memory.py
+swh/storage/interface.py
 swh/storage/metrics.py
 swh/storage/py.typed
 swh/storage/retry.py
