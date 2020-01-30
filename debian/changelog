@@ -1,3 +1,13 @@
+swh-storage (0.0.169-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.169     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-01-30 13:40:00
+    +0100)
+  * Upstream changes:     - v0.0.169     - retry: Add retry behavior on
+    pipeline storage with flushing failure
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 30 Jan 2020 13:26:23 +0000
+
 swh-storage (0.0.168-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.168     - (tagged by Valentin Lorentz
