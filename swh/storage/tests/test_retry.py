@@ -44,7 +44,8 @@ def test_retrying_proxy_storage_content_add_with_retry(
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.content_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.content_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('content hash collision'),
@@ -74,7 +75,8 @@ def test_retrying_proxy_swh_storage_content_add_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.content_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.content_add')
     mock_memory.side_effect = ValueError('Refuse to add content always!')
 
     sample_content = sample_data['content'][0]
@@ -115,7 +117,7 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
 
     """
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.content_add_metadata')
+        'swh.storage.in_memory.InMemoryStorage.content_add_metadata')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('content_metadata hash collision'),
@@ -143,7 +145,7 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
 
     """
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.content_add_metadata')
+        'swh.storage.in_memory.InMemoryStorage.content_add_metadata')
     mock_memory.side_effect = ValueError('Refuse to add content_metadata!')
 
     sample_content = sample_data['content_metadata'][0]
@@ -180,7 +182,8 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
 
     """
     sample_origin = sample_data['origin'][1]
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.origin_add_one')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.origin_add_one')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('origin hash collision'),
@@ -208,7 +211,8 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.origin_add_one')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.origin_add_one')
     mock_memory.side_effect = ValueError('Refuse to add origin always!')
 
     sample_origin = sample_data['origin'][0]
@@ -253,7 +257,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     origin_url = sample_origin['url']
 
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.origin_visit_add')
+        'swh.storage.in_memory.InMemoryStorage.origin_visit_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('origin hash collision'),
@@ -282,7 +286,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
 
     """
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.origin_visit_add')
+        'swh.storage.in_memory.InMemoryStorage.origin_visit_add')
     mock_memory.side_effect = ValueError('Refuse to add origin always!')
 
     origin_url = sample_data['origin'][0]['url']
@@ -324,7 +328,8 @@ def test_retrying_proxy_storage_tool_add_with_retry(
 
     """
     sample_tool = sample_data['tool'][0]
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.tool_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.tool_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('tool hash collision'),
@@ -352,7 +357,8 @@ def test_retrying_proxy_swh_storage_tool_add_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.tool_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.tool_add')
     mock_memory.side_effect = ValueError('Refuse to add tool always!')
 
     sample_tool = sample_data['tool'][0]
@@ -405,7 +411,7 @@ def test_retrying_proxy_storage_metadata_provider_add_with_retry(
     provider_get = to_provider(provider)
 
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.metadata_provider_add')
+        'swh.storage.in_memory.InMemoryStorage.metadata_provider_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('provider_id hash collision'),
@@ -434,7 +440,7 @@ def test_retrying_proxy_swh_storage_metadata_provider_add_failure(
 
     """
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.metadata_provider_add')
+        'swh.storage.in_memory.InMemoryStorage.metadata_provider_add')
     mock_memory.side_effect = ValueError('Refuse to add provider_id always!')
 
     provider = sample_data['provider'][0]
@@ -483,7 +489,7 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
     provider_get = to_provider(ori_meta['provider'])
     provider_id = swh_storage.metadata_provider_add(**provider_get)
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.origin_metadata_add')
+        'swh.storage.in_memory.InMemoryStorage.origin_metadata_add')
 
     mock_memory.side_effect = [
         # first try goes ko
@@ -515,7 +521,7 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
 
     """
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.origin_metadata_add')
+        'swh.storage.in_memory.InMemoryStorage.origin_metadata_add')
     mock_memory.side_effect = ValueError('Refuse to add always!')
 
     ori_meta = sample_data['origin_metadata'][0]
@@ -572,7 +578,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update_retry(
     origin_url = sample_origin['url']
 
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.origin_visit_update')
+        'swh.storage.in_memory.InMemoryStorage.origin_visit_update')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('origin hash collision'),
@@ -598,7 +604,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update_failure(
 
     """
     mock_memory = mocker.patch(
-        'swh.storage.in_memory.Storage.origin_visit_update')
+        'swh.storage.in_memory.InMemoryStorage.origin_visit_update')
     mock_memory.side_effect = ValueError('Refuse to add origin always!')
     origin_url = sample_data['origin'][0]['url']
     visit_id = 9
@@ -632,7 +638,8 @@ def test_retrying_proxy_storage_directory_add_with_retry(
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.directory_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.directory_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('directory hash collision'),
@@ -664,7 +671,8 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.directory_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.directory_add')
     mock_memory.side_effect = ValueError('Refuse to add directory always!')
 
     sample_dir = sample_data['directory'][0]
@@ -701,7 +709,8 @@ def test_retrying_proxy_storage_revision_add_with_retry(
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.revision_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.revision_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('revision hash collision'),
@@ -733,7 +742,8 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.revision_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.revision_add')
     mock_memory.side_effect = ValueError('Refuse to add revision always!')
 
     sample_rev = sample_data['revision'][0]
@@ -770,7 +780,8 @@ def test_retrying_proxy_storage_release_add_with_retry(
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.release_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.release_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('release hash collision'),
@@ -802,7 +813,8 @@ def test_retrying_proxy_swh_storage_release_add_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.release_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.release_add')
     mock_memory.side_effect = ValueError('Refuse to add release always!')
 
     sample_rel = sample_data['release'][0]
@@ -839,7 +851,8 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.snapshot_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.snapshot_add')
     mock_memory.side_effect = [
         # first try goes ko
         HashCollision('snapshot hash collision'),
@@ -871,7 +884,8 @@ def test_retrying_proxy_swh_storage_snapshot_add_failure(
     """Unfiltered errors are raising without retry
 
     """
-    mock_memory = mocker.patch('swh.storage.in_memory.Storage.snapshot_add')
+    mock_memory = mocker.patch(
+        'swh.storage.in_memory.InMemoryStorage.snapshot_add')
     mock_memory.side_effect = ValueError('Refuse to add snapshot always!')
 
     sample_snap = sample_data['snapshot'][0]

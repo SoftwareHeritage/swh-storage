@@ -12,7 +12,7 @@ from swh.core.api import (RPCServerApp,
                           error_handler,
                           encode_data_server as encode_data)
 
-from ..storage import Storage
+from ..interface import StorageInterface
 from ..metrics import timed
 
 
@@ -25,7 +25,7 @@ def get_storage():
 
 
 app = RPCServerApp(__name__,
-                   backend_class=Storage,
+                   backend_class=StorageInterface,
                    backend_factory=get_storage)
 storage = None
 
