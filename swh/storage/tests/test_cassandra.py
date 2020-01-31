@@ -42,6 +42,12 @@ start_native_transport: true
 listen_address: 127.0.0.1
 
 enable_user_defined_functions: true
+
+# speed-up by disabling period saving to disk
+key_cache_save_period: 0
+row_cache_save_period: 0
+trickle_fsync: false
+commitlog_sync_period_in_ms: 100000
 '''
 
 

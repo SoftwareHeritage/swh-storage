@@ -38,16 +38,20 @@ _execution_profiles = {
 #   datacenter as the client (DCAwareRoundRobinPolicy)
 
 
-def create_keyspace(hosts: List[str], keyspace: str, port: int = 9042):
+def create_keyspace(hosts: List[str], keyspace: str, port: int = 9042,
+                    *, durable_writes=True):
     cluster = Cluster(
         hosts, port=port, execution_profiles=_execution_profiles)
     session = cluster.connect()
+    extra_params = ''
+    if not durable_writes:
+        extra_params = 'AND durable_writes = false'
     session.execute('''CREATE KEYSPACE IF NOT EXISTS "%s"
                        WITH REPLICATION = {
                            'class' : 'SimpleStrategy',
                            'replication_factor' : 1
-                       };
-                    ''' % keyspace)
+                       } %s;
+                    ''' % (keyspace, extra_params))
     session.execute('USE "%s"' % keyspace)
     for query in CREATE_TABLES_QUERIES:
         session.execute(query)
