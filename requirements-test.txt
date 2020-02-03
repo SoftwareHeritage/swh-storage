@@ -8,3 +8,4 @@ sqlalchemy-stubs
 # adding the [testing] extra.
 swh.model[testing] >= 0.0.50
 pytz
+pytest-xdist

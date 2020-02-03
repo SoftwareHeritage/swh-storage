@@ -1385,9 +1385,14 @@ class TestStorage:
         swh_storage.origin_add_one(data.origin2)
 
         origin_url = data.origin2['url']
+        date_visit = datetime.datetime.now(datetime.timezone.utc)
+
+        # Round to milliseconds before insertion, so equality doesn't fail
+        # after a round-trip through a DB (eg. Cassandra)
+        date_visit = date_visit.replace(
+            microsecond=round(date_visit.microsecond, -3))
 
         # when
-        date_visit = datetime.datetime.now(datetime.timezone.utc)
         origin_visit1 = swh_storage.origin_visit_add(
             origin_url,
             type=data.type_visit1,
@@ -1429,6 +1434,14 @@ class TestStorage:
         # when
         date_visit = datetime.datetime.now(datetime.timezone.utc)
         date_visit2 = date_visit + datetime.timedelta(minutes=1)
+
+        # Round to milliseconds before insertion, so equality doesn't fail
+        # after a round-trip through a DB (eg. Cassandra)
+        date_visit = date_visit.replace(
+            microsecond=round(date_visit.microsecond, -3))
+        date_visit2 = date_visit2.replace(
+            microsecond=round(date_visit2.microsecond, -3))
+
         origin_visit1 = swh_storage.origin_visit_add(
             origin_url,
             date=date_visit,
@@ -1491,13 +1504,21 @@ class TestStorage:
         origin_url = data.origin['url']
 
         date_visit = datetime.datetime.now(datetime.timezone.utc)
+        date_visit2 = date_visit + datetime.timedelta(minutes=1)
+
+        # Round to milliseconds before insertion, so equality doesn't fail
+        # after a round-trip through a DB (eg. Cassandra)
+        date_visit = date_visit.replace(
+            microsecond=round(date_visit.microsecond, -3))
+        date_visit2 = date_visit2.replace(
+            microsecond=round(date_visit2.microsecond, -3))
+
         origin_visit1 = swh_storage.origin_visit_add(
             origin_url,
             date=date_visit,
             type=data.type_visit1,
         )
 
-        date_visit2 = date_visit + datetime.timedelta(minutes=1)
         origin_visit2 = swh_storage.origin_visit_add(
             origin_url,
             date=date_visit2,

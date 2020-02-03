@@ -201,6 +201,12 @@ swh/storage/algos/snapshot.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
 swh/storage/api/server.py
+swh/storage/cassandra/__init__.py
+swh/storage/cassandra/common.py
+swh/storage/cassandra/converters.py
+swh/storage/cassandra/cql.py
+swh/storage/cassandra/schema.py
+swh/storage/cassandra/storage.py
 swh/storage/sql/10-swh-init.sql
 swh/storage/sql/20-swh-enums.sql
 swh/storage/sql/30-swh-schema.sql
@@ -212,6 +218,7 @@ swh/storage/tests/generate_data_test.py
 swh/storage/tests/storage_data.py
 swh/storage/tests/test_api_client.py
 swh/storage/tests/test_buffer.py
+swh/storage/tests/test_cassandra.py
 swh/storage/tests/test_converters.py
 swh/storage/tests/test_db.py
 swh/storage/tests/test_filter.py

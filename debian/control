@@ -4,8 +4,11 @@ Section: python
 Priority: optional
 Build-Depends: debhelper (>= 9),
                dh-python (>= 2),
+               cassandra,
+               openjdk-11-jre,
                python3-aiohttp,
                python3-all,
+               python3-cassandra,
                python3-click,
                python3-dateutil,
                python3-flask,
