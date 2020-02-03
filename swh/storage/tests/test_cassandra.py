@@ -13,6 +13,7 @@ import pytest
 
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
+from swh.storage.cassandra.schema import TABLES
 
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
 from swh.storage.tests.test_storage import TestStorageGeneratedData \
@@ -127,16 +128,23 @@ class RequestHandler:
             print(rf.message.query)
 
 
+@pytest.fixture(scope='session')
+def keyspace(cassandra_cluster):
+    (hosts, port) = cassandra_cluster
+    keyspace = os.urandom(10).hex()
+
+    create_keyspace(hosts, keyspace, port)
+
+    return keyspace
+
+
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture
 # below
 
 @pytest.fixture
-def swh_storage(cassandra_cluster):
+def swh_storage(cassandra_cluster, keyspace):
     (hosts, port) = cassandra_cluster
-    keyspace = os.urandom(10).hex()
-
-    create_keyspace(hosts, keyspace, port)
 
     storage = get_storage(
         'cassandra',
@@ -153,8 +161,8 @@ def swh_storage(cassandra_cluster):
 
     yield storage
 
-    storage._cql_runner._session.execute(
-        'DROP KEYSPACE "%s"' % keyspace)
+    for table in TABLES:
+        storage._cql_runner._session.execute('TRUNCATE TABLE "%s"' % table)
 
 
 @pytest.mark.cassandra

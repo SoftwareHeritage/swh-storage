@@ -186,6 +186,10 @@ CREATE TABLE IF NOT EXISTS content_by_{main_algo} (
     PRIMARY KEY (({main_algo}), {other_algos})
 );'''
 
+TABLES = ('content revision revision_parent release directory '
+          'directory_entry snapshot snapshot_branch origin_visit '
+          'origin tool_by_uuid tool object_count').split()
+
 HASH_ALGORITHMS = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
 for main_algo in HASH_ALGORITHMS:
@@ -194,3 +198,5 @@ for main_algo in HASH_ALGORITHMS:
         other_algos=', '.join(
             [algo for algo in HASH_ALGORITHMS if algo != main_algo])
     ))
+
+    TABLES.append('content_by_%s' % main_algo)
