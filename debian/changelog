@@ -1,3 +1,13 @@
+swh-storage (0.0.170-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.170     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-02-03 14:11:53
+    +0100)
+  * Upstream changes:     - v0.0.170     - swh.storage.cassandra: Add
+    Cassandra backend implementation
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 03 Feb 2020 13:23:48 +0000
+
 swh-storage (0.0.169-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.169     - (tagged by Antoine R. Dumont
