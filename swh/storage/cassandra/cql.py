@@ -122,7 +122,7 @@ class CqlRunner:
     @retry(wait=wait_random_exponential(multiplier=1, max=10),
            stop=stop_after_attempt(MAX_RETRIES))
     def _execute_with_retries(self, statement, args) -> ResultSet:
-        return self._session.execute(statement, args, timeout=100.)
+        return self._session.execute(statement, args, timeout=1000.)
 
     @_prepared_statement('UPDATE object_count SET count = count + ? '
                          'WHERE partition_key = 0 AND object_type = ?')
