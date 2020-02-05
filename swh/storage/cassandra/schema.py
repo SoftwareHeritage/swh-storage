@@ -65,6 +65,20 @@ CREATE TABLE IF NOT EXISTS content (
     PRIMARY KEY ((sha1, sha1_git, sha256, blake2s256))
 );
 
+CREATE TABLE IF NOT EXISTS skipped_content (
+    sha1          blob,
+    sha1_git      blob,
+    sha256        blob,
+    blake2s256    blob,
+    length        bigint,
+    ctime         timestamp,
+        -- creation time, i.e. time of (first) injection into the storage
+    status        ascii,
+    reason        text,
+    origin        text,
+    PRIMARY KEY ((sha1, sha1_git, sha256, blake2s256))
+);
+
 CREATE TABLE IF NOT EXISTS revision (
     id                              blob PRIMARY KEY,
     date                            microtimestamp_with_timezone,
@@ -184,19 +198,29 @@ CREATE TABLE IF NOT EXISTS content_by_{main_algo} (
     sha256        blob,
     blake2s256    blob,
     PRIMARY KEY (({main_algo}), {other_algos})
-);'''
+);
 
-TABLES = ('content revision revision_parent release directory '
-          'directory_entry snapshot snapshot_branch origin_visit '
-          'origin tool_by_uuid tool object_count').split()
+CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
+    sha1          blob,
+    sha1_git      blob,
+    sha256        blob,
+    blake2s256    blob,
+    PRIMARY KEY (({main_algo}), {other_algos})
+);
+'''
+
+TABLES = ('skipped_content content revision revision_parent release '
+          'directory directory_entry snapshot snapshot_branch '
+          'origin_visit origin tool_by_uuid tool object_count').split()
 
 HASH_ALGORITHMS = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
 
 for main_algo in HASH_ALGORITHMS:
-    CREATE_TABLES_QUERIES.append(CONTENT_INDEX_TEMPLATE.format(
+    CREATE_TABLES_QUERIES.extend(CONTENT_INDEX_TEMPLATE.format(
         main_algo=main_algo,
         other_algos=', '.join(
             [algo for algo in HASH_ALGORITHMS if algo != main_algo])
-    ))
+    ).split('\n\n'))
 
     TABLES.append('content_by_%s' % main_algo)
+    TABLES.append('skipped_content_by_%s' % main_algo)

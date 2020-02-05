@@ -32,7 +32,6 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
     assert s == {
         'content:add': 1,
         'content:add:bytes': sample_content['length'],
-        'skipped_content:add': 0
     }
 
     content = next(swh_storage.content_get([sample_content['sha1']]))
@@ -103,7 +102,6 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
     s = swh_storage.content_add_metadata([sample_content])
     assert s == {
         'content:add': 1,
-        'skipped_content:add': 0
     }
 
     content_metadata = swh_storage.content_get_metadata([pk])

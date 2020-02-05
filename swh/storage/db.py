@@ -143,9 +143,9 @@ class Db(BaseDb):
         query = """SELECT * FROM (VALUES %s) AS t (%s)
                    WHERE not exists
                    (SELECT 1 FROM skipped_content s WHERE
-                       s.sha1 is not distinct from t.sha1 and
-                       s.sha1_git is not distinct from t.sha1_git and
-                       s.sha256 is not distinct from t.sha256);""" % \
+                       s.sha1 is not distinct from t.sha1::sha1 and
+                       s.sha1_git is not distinct from t.sha1_git::sha1 and
+                       s.sha256 is not distinct from t.sha256::bytea);""" % \
                 ((', '.join('%s' for _ in contents)),
                  ', '.join(self.content_hash_keys))
         cur.execute(query,

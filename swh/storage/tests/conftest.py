@@ -58,7 +58,10 @@ def swh_storage(postgresql_proc, swh_storage_postgresql):
 @pytest.fixture
 def swh_contents(swh_storage):
     contents = gen_contents(n=20)
-    swh_storage.content_add(contents)
+    swh_storage.content_add(
+        [c for c in contents if c['status'] != 'absent'])
+    swh_storage.skipped_content_add(
+        [c for c in contents if c['status'] == 'absent'])
     return contents
 
 
@@ -218,6 +221,7 @@ def sample_data() -> Dict:
     return {
         'content': [data.cont, data.cont2],
         'content_metadata': [data.cont3],
+        'skipped_content': [data.skipped_cont, data.skipped_cont2],
         'person': [data.person],
         'directory': [data.dir2, data.dir],
         'revision': [data.revision],

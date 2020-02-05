@@ -63,14 +63,19 @@ class RetryingProxyStorage:
         return getattr(self.storage, key)
 
     @swh_retry
-    def content_add(self, content: List[Dict]) -> Dict:
+    def content_add(self, content: Iterable[Dict]) -> Dict:
         contents = list(content)
         return self.storage.content_add(contents)
 
     @swh_retry
-    def content_add_metadata(self, content: List[Dict]) -> Dict:
+    def content_add_metadata(self, content: Iterable[Dict]) -> Dict:
         contents = list(content)
         return self.storage.content_add_metadata(contents)
+
+    @swh_retry
+    def skipped_content_add(self, content: Iterable[Dict]) -> Dict:
+        contents = list(content)
+        return self.storage.skipped_content_add(contents)
 
     @swh_retry
     def origin_add_one(self, origin: Dict) -> str:
@@ -91,7 +96,7 @@ class RetryingProxyStorage:
             metadata=metadata, snapshot=snapshot)
 
     @swh_retry
-    def tool_add(self, tools: List[Dict]) -> List[Dict]:
+    def tool_add(self, tools: Iterable[Dict]) -> List[Dict]:
         tools = list(tools)
         return self.storage.tool_add(tools)
 
@@ -110,22 +115,22 @@ class RetryingProxyStorage:
             origin_url, ts, provider_id, tool_id, metadata)
 
     @swh_retry
-    def directory_add(self, directories: List[Dict]) -> Dict:
+    def directory_add(self, directories: Iterable[Dict]) -> Dict:
         directories = list(directories)
         return self.storage.directory_add(directories)
 
     @swh_retry
-    def revision_add(self, revisions: List[Dict]) -> Dict:
+    def revision_add(self, revisions: Iterable[Dict]) -> Dict:
         revisions = list(revisions)
         return self.storage.revision_add(revisions)
 
     @swh_retry
-    def release_add(self, releases: List[Dict]) -> Dict:
+    def release_add(self, releases: Iterable[Dict]) -> Dict:
         releases = list(releases)
         return self.storage.release_add(releases)
 
     @swh_retry
-    def snapshot_add(self, snapshot: List[Dict]) -> Dict:
+    def snapshot_add(self, snapshot: Iterable[Dict]) -> Dict:
         snapshots = list(snapshot)
         return self.storage.snapshot_add(snapshots)
 
