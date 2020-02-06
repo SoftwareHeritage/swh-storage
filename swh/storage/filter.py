@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 
-from typing import Dict, Generator, Sequence, Set
+from typing import Dict, Generator, Iterable, Set
 
 from swh.storage import get_storage
 
@@ -27,22 +27,30 @@ class FilteringProxyStorage:
     def __init__(self, storage):
         self.storage = get_storage(**storage)
         self.objects_seen = {
-            'content': set(),    # set of content hashes (sha256) seen
-            'directory': set(),
-            'revision': set(),
+            'content': set(),  # sha256
+            'skipped_content': set(),  # sha1_git
+            'directory': set(),  # sha1_git
+            'revision': set(),  # sha1_git
         }
 
     def __getattr__(self, key):
         return getattr(self.storage, key)
 
-    def content_add(self, content: Sequence[Dict]) -> Dict:
+    def content_add(self, content: Iterable[Dict]) -> Dict:
         contents = list(content)
         contents_to_add = self._filter_missing_contents(contents)
         return self.storage.content_add(
             x for x in contents if x['sha256'] in contents_to_add
         )
 
-    def directory_add(self, directories: Sequence[Dict]) -> Dict:
+    def skipped_content_add(self, content: Iterable[Dict]) -> Dict:
+        contents = list(content)
+        contents_to_add = self._filter_missing_skipped_contents(contents)
+        return self.storage.skipped_content_add(
+            x for x in contents if x['sha1_git'] in contents_to_add
+        )
+
+    def directory_add(self, directories: Iterable[Dict]) -> Dict:
         directories = list(directories)
         missing_ids = self._filter_missing_ids(
             'directory',
@@ -63,7 +71,7 @@ class FilteringProxyStorage:
         )
 
     def _filter_missing_contents(
-            self, content_hashes: Sequence[Dict]) -> Set[bytes]:
+            self, content_hashes: Iterable[Dict]) -> Set[bytes]:
         """Return only the content keys missing from swh
 
         Args:
@@ -84,6 +92,26 @@ class FilteringProxyStorage:
             key_hash='sha256',
         ))
 
+    def _filter_missing_skipped_contents(
+            self, content_hashes: Iterable[Dict]) -> Set[bytes]:
+        """Return only the content keys missing from swh
+
+        Args:
+            content_hashes: List of sha1_git to check for existence in swh
+                storage
+
+        """
+        objects_seen = self.objects_seen['skipped_content']
+        missing_hashes = []
+        for hashes in content_hashes:
+            if hashes['sha1_git'] in objects_seen:
+                continue
+            objects_seen.add(hashes['sha1_git'])
+            missing_hashes.append(hashes)
+
+        return {c['sha1_git']
+                for c in self.storage.skipped_content_missing(missing_hashes)}
+
     def _filter_missing_ids(
             self,
             object_type: str,
@@ -92,7 +120,7 @@ class FilteringProxyStorage:
 
         Args:
             object_type: object type to use {revision, directory}
-            ids: Sequence of object_type ids
+            ids: Iterable of object_type ids
 
         Returns:
             Missing ids from the storage for object_type

@@ -128,106 +128,54 @@ class Storage():
         return tuple([hash[k] for k in keys])
 
     @staticmethod
-    def _normalize_content(d):
+    def _content_normalize(d):
         d = d.copy()
 
         if 'status' not in d:
             d['status'] = 'visible'
 
-        if 'length' not in d:
-            d['length'] = -1
-
         return d
 
     @staticmethod
-    def _validate_content(d):
+    def _content_validate(d):
         """Sanity checks on status / reason / length, that postgresql
         doesn't enforce."""
-        if d['status'] not in ('visible', 'absent', 'hidden'):
+        if d['status'] not in ('visible', 'hidden'):
             raise ValueError('Invalid content status: {}'.format(d['status']))
 
-        if d['status'] != 'absent' and d.get('reason') is not None:
+        if d.get('reason') is not None:
             raise ValueError(
-                'Must not provide a reason if content is not absent.')
+                'Must not provide a reason if content is present.')
 
-        if d['length'] < -1:
-            raise ValueError('Content length must be positive or -1.')
+        if d['length'] is None or d['length'] < 0:
+            raise ValueError('Content length must be positive.')
 
-    def _filter_new_content(self, content, db=None, cur=None):
-        """Sort contents into buckets 'with data' and 'without data',
-        and filter out those already in the database."""
-        content_by_status = defaultdict(list)
-        for d in content:
-            content_by_status[d['status']].append(d)
-
-        content_with_data = content_by_status['visible'] \
-            + content_by_status['hidden']
-        content_without_data = content_by_status['absent']
-
-        missing_content = set(self.content_missing(content_with_data,
-                                                   db=db, cur=cur))
-        missing_skipped = set(self._content_unique_key(hashes, db)
-                              for hashes in self.skipped_content_missing(
-                                  content_without_data, db=db, cur=cur))
-
-        content_with_data = [
-            cont for cont in content_with_data
-            if cont['sha1'] in missing_content]
-        content_without_data = [
-            cont for cont in content_without_data
-            if self._content_unique_key(cont, db) in missing_skipped]
-
-        summary = {
-            'content:add': len(missing_content),
-            'skipped_content:add': len(missing_skipped),
-        }
-
-        return (content_with_data, content_without_data, summary)
-
-    def _content_add_metadata(self, db, cur,
-                              content_with_data, content_without_data):
+    def _content_add_metadata(self, db, cur, content):
         """Add content to the postgresql database but not the object storage.
         """
-        if content_with_data:
-            # create temporary table for metadata injection
-            db.mktemp('content', cur)
+        # create temporary table for metadata injection
+        db.mktemp('content', cur)
 
-            db.copy_to(content_with_data, 'tmp_content',
-                       db.content_add_keys, cur)
+        db.copy_to(content, 'tmp_content',
+                   db.content_add_keys, cur)
 
-            # move metadata in place
-            try:
-                db.content_add_from_temp(cur)
-            except psycopg2.IntegrityError as e:
-                from . import HashCollision
-                if e.diag.sqlstate == '23505' and \
-                        e.diag.table_name == 'content':
-                    constraint_to_hash_name = {
-                        'content_pkey': 'sha1',
-                        'content_sha1_git_idx': 'sha1_git',
-                        'content_sha256_idx': 'sha256',
-                        }
-                    colliding_hash_name = constraint_to_hash_name \
-                        .get(e.diag.constraint_name)
-                    raise HashCollision(colliding_hash_name) from None
-                else:
-                    raise
-
-        if content_without_data:
-            content_without_data = \
-                [cont.copy() for cont in content_without_data]
-            origin_ids = db.origin_id_get_by_url(
-                [cont.get('origin') for cont in content_without_data],
-                cur=cur)
-            for (cont, origin_id) in zip(content_without_data, origin_ids):
-                if 'origin' in cont:
-                    cont['origin'] = origin_id
-            db.mktemp('skipped_content', cur)
-            db.copy_to(content_without_data, 'tmp_skipped_content',
-                       db.skipped_content_keys, cur)
-
-            # move metadata in place
-            db.skipped_content_add_from_temp(cur)
+        # move metadata in place
+        try:
+            db.content_add_from_temp(cur)
+        except psycopg2.IntegrityError as e:
+            from . import HashCollision
+            if e.diag.sqlstate == '23505' and \
+                    e.diag.table_name == 'content':
+                constraint_to_hash_name = {
+                    'content_pkey': 'sha1',
+                    'content_sha1_git_idx': 'sha1_git',
+                    'content_sha256_idx': 'sha256',
+                    }
+                colliding_hash_name = constraint_to_hash_name \
+                    .get(e.diag.constraint_name)
+                raise HashCollision(colliding_hash_name) from None
+            else:
+                raise
 
     @timed
     @process_metrics
@@ -238,20 +186,18 @@ class Storage():
         for item in content:
             item['ctime'] = now
 
-        content = [self._normalize_content(c) for c in content]
+        content = [self._content_normalize(c) for c in content]
         for c in content:
-            self._validate_content(c)
+            self._content_validate(c)
 
-        (content_with_data, content_without_data, summary) = \
-            self._filter_new_content(content, db, cur)
+        missing = list(self.content_missing(content, key_hash='sha1_git'))
+        content = [c for c in content if c['sha1_git'] in missing]
 
         if self.journal_writer:
-            for item in content_with_data:
+            for item in content:
                 if 'data' in item:
                     item = item.copy()
                     del item['data']
-                self.journal_writer.write_addition('content', item)
-            for item in content_without_data:
                 self.journal_writer.write_addition('content', item)
 
         def add_to_objstorage():
@@ -264,7 +210,7 @@ class Storage():
             """
             content_bytes_added = 0
             data = {}
-            for cont in content_with_data:
+            for cont in content:
                 if cont['sha1'] not in data:
                     data[cont['sha1']] = cont['data']
                     content_bytes_added += max(0, cont['length'])
@@ -278,15 +224,16 @@ class Storage():
         with ThreadPoolExecutor(max_workers=1) as executor:
             added_to_objstorage = executor.submit(add_to_objstorage)
 
-            self._content_add_metadata(
-                db, cur, content_with_data, content_without_data)
+            self._content_add_metadata(db, cur, content)
 
             # Wait for objstorage addition before returning from the
             # transaction, bubbling up any exception
             content_bytes_added = added_to_objstorage.result()
 
-        summary['content:add:bytes'] = content_bytes_added
-        return summary
+        return {
+            'content:add': len(content),
+            'content:add:bytes': content_bytes_added,
+        }
 
     @timed
     @db_transaction()
@@ -308,23 +255,23 @@ class Storage():
     @process_metrics
     @db_transaction()
     def content_add_metadata(self, content, db=None, cur=None):
-        content = [self._normalize_content(c) for c in content]
+        content = [self._content_normalize(c) for c in content]
         for c in content:
-            self._validate_content(c)
+            self._content_validate(c)
 
-        (content_with_data, content_without_data, summary) = \
-            self._filter_new_content(content, db, cur)
+        missing = self.content_missing(content, key_hash='sha1_git')
+        content = [c for c in content if c['sha1_git'] in missing]
 
         if self.journal_writer:
-            for item in itertools.chain(content_with_data,
-                                        content_without_data):
+            for item in itertools.chain(content):
                 assert 'data' not in content
                 self.journal_writer.write_addition('content', item)
 
-        self._content_add_metadata(
-            db, cur, content_with_data, content_without_data)
+        self._content_add_metadata(db, cur, content)
 
-        return summary
+        return {
+            'content:add': len(content),
+        }
 
     @timed
     def content_get(self, content):
@@ -424,12 +371,6 @@ class Storage():
             yield obj[0]
 
     @timed
-    @db_transaction_generator()
-    def skipped_content_missing(self, contents, db=None, cur=None):
-        for content in db.skipped_content_missing(contents, cur):
-            yield dict(zip(db.content_hash_keys, content))
-
-    @timed
     @db_transaction()
     def content_find(self, content, db=None, cur=None):
         if not set(content).intersection(ALGORITHMS):
@@ -448,6 +389,83 @@ class Storage():
     @db_transaction()
     def content_get_random(self, db=None, cur=None):
         return db.content_get_random(cur)
+
+    @staticmethod
+    def _skipped_content_normalize(d):
+        d = d.copy()
+
+        if d.get('status') is None:
+            d['status'] = 'absent'
+
+        if d.get('length') is None:
+            d['length'] = -1
+
+        return d
+
+    @staticmethod
+    def _skipped_content_validate(d):
+        """Sanity checks on status / reason / length, that postgresql
+        doesn't enforce."""
+        if d['status'] != 'absent':
+            raise ValueError('Invalid content status: {}'.format(d['status']))
+
+        if d.get('reason') is None:
+            raise ValueError(
+                'Must provide a reason if content is absent.')
+
+        if d['length'] < -1:
+            raise ValueError('Content length must be positive or -1.')
+
+    def _skipped_content_add_metadata(self, db, cur, content):
+        content = \
+            [cont.copy() for cont in content]
+        origin_ids = db.origin_id_get_by_url(
+            [cont.get('origin') for cont in content],
+            cur=cur)
+        for (cont, origin_id) in zip(content, origin_ids):
+            if 'origin' in cont:
+                cont['origin'] = origin_id
+        db.mktemp('skipped_content', cur)
+        db.copy_to(content, 'tmp_skipped_content',
+                   db.skipped_content_keys, cur)
+
+        # move metadata in place
+        db.skipped_content_add_from_temp(cur)
+
+    @timed
+    @process_metrics
+    @db_transaction()
+    def skipped_content_add(self, content, db=None, cur=None):
+        content = [dict(c.items()) for c in content]  # semi-shallow copy
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        for item in content:
+            item['ctime'] = now
+
+        content = [self._skipped_content_normalize(c) for c in content]
+        for c in content:
+            self._skipped_content_validate(c)
+
+        missing_contents = self.skipped_content_missing(content)
+        content = [c for c in content
+                   if any(all(c.get(algo) == missing_content.get(algo)
+                              for algo in ALGORITHMS)
+                          for missing_content in missing_contents)]
+
+        if self.journal_writer:
+            for item in content:
+                self.journal_writer.write_addition('content', item)
+
+        self._skipped_content_add_metadata(db, cur, content)
+
+        return {
+            'skipped_content:add': len(content),
+        }
+
+    @timed
+    @db_transaction_generator()
+    def skipped_content_missing(self, contents, db=None, cur=None):
+        for content in db.skipped_content_missing(contents, cur):
+            yield dict(zip(db.content_hash_keys, content))
 
     @timed
     @process_metrics

@@ -18,7 +18,6 @@ def test_filtering_proxy_storage_content(sample_data):
     assert s == {
         'content:add': 1,
         'content:add:bytes': sample_content['length'],
-        'skipped_content:add': 0
     }
 
     content = next(storage.content_get([sample_content['sha1']]))
@@ -28,7 +27,27 @@ def test_filtering_proxy_storage_content(sample_data):
     assert s == {
         'content:add': 0,
         'content:add:bytes': 0,
-        'skipped_content:add': 0
+    }
+
+
+def test_filtering_proxy_storage_skipped_content(sample_data):
+    sample_content = sample_data['skipped_content'][0]
+    storage = FilteringProxyStorage(storage={'cls': 'memory'})
+
+    content = next(storage.skipped_content_missing([sample_content]))
+    assert content['sha1'] == sample_content['sha1']
+
+    s = storage.skipped_content_add([sample_content])
+    assert s == {
+        'skipped_content:add': 1,
+    }
+
+    content = list(storage.skipped_content_missing([sample_content]))
+    assert content == []
+
+    s = storage.skipped_content_add([sample_content])
+    assert s == {
+        'skipped_content:add': 0,
     }
 
 
