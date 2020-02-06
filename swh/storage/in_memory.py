@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional
 import attr
 
 from swh.model.model import (
-    Content, Directory, Revision, Release, Snapshot, OriginVisit, Origin,
-    SHA1_SIZE)
+    BaseContent, Content, SkippedContent, Directory, Revision, Release,
+    Snapshot, OriginVisit, Origin, SHA1_SIZE)
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -75,47 +75,26 @@ class InMemoryStorage:
         return True
 
     def _content_add(self, contents, with_data):
-        content_with_data = []
-        content_without_data = []
         for content in contents:
             if content.status is None:
                 content.status = 'visible'
+            if content.status == 'absent':
+                raise ValueError('content with status=absent')
             if content.length is None:
-                content.length = -1
-            if content.status != 'absent':
-                if self._content_key(content) not in self._contents:
-                    content_with_data.append(content)
-            else:
-                if self._content_key(content) not in self._skipped_contents:
-                    content_without_data.append(content)
+                raise ValueError('content with length=None')
 
         if self.journal_writer:
-            for content in content_with_data:
+            for content in contents:
                 content = attr.evolve(content, data=None)
                 self.journal_writer.write_addition('content', content)
-            for content in content_without_data:
-                self.journal_writer.write_addition('content', content)
-
-        count_content_added, count_content_bytes_added = \
-            self._content_add_present(content_with_data, with_data)
-
-        count_skipped_content_added = self._content_add_absent(
-            content_without_data
-        )
 
         summary = {
-            'content:add': count_content_added,
-            'skipped_content:add': count_skipped_content_added,
+            'content:add': 0,
         }
 
         if with_data:
-            summary['content:add:bytes'] = count_content_bytes_added
+            summary['content:add:bytes'] = 0
 
-        return summary
-
-    def _content_add_present(self, contents, with_data):
-        count_content_added = 0
-        count_content_bytes_added = 0
         for content in contents:
             key = self._content_key(content)
             if key in self._contents:
@@ -133,40 +112,21 @@ class InMemoryStorage:
                 ('content', content.sha1))
             self._contents[key] = content
             bisect.insort(self._sorted_sha1s, content.sha1)
-            count_content_added += 1
+            summary['content:add'] += 1
             if with_data:
                 content_data = self._contents[key].data
                 self._contents[key] = attr.evolve(
                     self._contents[key],
                     data=None)
-                count_content_bytes_added += len(content_data)
+                summary['content:add:bytes'] += len(content_data)
                 self.objstorage.add(content_data, content.sha1)
 
-        return (count_content_added, count_content_bytes_added)
-
-    def _content_add_absent(self, contents):
-        count = 0
-        skipped_content_missing = self.skipped_content_missing(contents)
-        for content in skipped_content_missing:
-            key = self._content_key(content)
-            for algo in DEFAULT_ALGORITHMS:
-                self._skipped_content_indexes[algo][content.get_hash(algo)] \
-                    .add(key)
-            self._skipped_contents[key] = content
-            count += 1
-
-        return count
-
-    def _content_to_model(self, contents):
-        for content in contents:
-            content = content.copy()
-            content.pop('origin', None)
-            yield Content.from_dict(content)
+        return summary
 
     def content_add(self, content):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        content = [attr.evolve(c, ctime=now)
-                   for c in self._content_to_model(content)]
+        content = [attr.evolve(Content.from_dict(c), ctime=now)
+                   for c in content]
         return self._content_add(content, with_data=True)
 
     def content_update(self, content, keys=[]):
@@ -194,7 +154,7 @@ class InMemoryStorage:
                     self._content_indexes[algorithm][hash_].add(new_key)
 
     def content_add_metadata(self, content):
-        content = list(self._content_to_model(content))
+        content = [Content.from_dict(c) for c in content]
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -308,6 +268,39 @@ class InMemoryStorage:
             if content not in self._content_indexes['sha1_git']:
                 yield content
 
+    def content_get_random(self):
+        return random.choice(list(self._content_indexes['sha1_git']))
+
+    def _skipped_content_add(self, contents):
+        for content in contents:
+            if content.status is None:
+                content = attr.evolve(content, status='absent')
+            if content.length is None:
+                content = attr.evolve(content, length=-1)
+            if content.status != 'absent':
+                raise ValueError(f'Content with status={content.status}')
+
+        if self.journal_writer:
+            for content in contents:
+                self.journal_writer.write_addition('content', content)
+
+        summary = {
+            'skipped_content:add': 0
+        }
+
+        skipped_content_missing = self.skipped_content_missing(
+            [c.to_dict() for c in contents])
+        for content in skipped_content_missing:
+            key = self._content_key(content, allow_missing=True)
+            for algo in DEFAULT_ALGORITHMS:
+                if algo in content:
+                    self._skipped_content_indexes[algo][content[algo]] \
+                        .add(key)
+            self._skipped_contents[key] = content
+            summary['skipped_content:add'] += 1
+
+        return summary
+
     def skipped_content_missing(self, contents):
         for content in contents:
             for (key, algorithm) in self._content_key_algorithm(content):
@@ -316,11 +309,17 @@ class InMemoryStorage:
                 if key not in self._skipped_content_indexes[algorithm]:
                     # index must contain hashes of algos except blake2s256
                     # else the content is considered skipped
-                    yield content
+                    yield {algo: content[algo]
+                           for algo in DEFAULT_ALGORITHMS
+                           if content[algo] is not None}
                     break
 
-    def content_get_random(self):
-        return random.choice(list(self._content_indexes['sha1_git']))
+    def skipped_content_add(self, content):
+        content = list(content)
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        content = [attr.evolve(SkippedContent.from_dict(c), ctime=now)
+                   for c in content]
+        return self._skipped_content_add(content)
 
     def directory_add(self, directories):
         directories = list(directories)
@@ -1021,15 +1020,15 @@ class InMemoryStorage:
         return person
 
     @staticmethod
-    def _content_key(content):
+    def _content_key(content, allow_missing=False):
         """A stable key for a content"""
-        return tuple(getattr(content, key)
+        return tuple(getattr(content, key, None)
                      for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
     def _content_key_algorithm(content):
         """ A stable key and the algorithm for a content"""
-        if isinstance(content, Content):
+        if isinstance(content, BaseContent):
             content = content.to_dict()
         return tuple((content.get(key), key)
                      for key in sorted(DEFAULT_ALGORITHMS))

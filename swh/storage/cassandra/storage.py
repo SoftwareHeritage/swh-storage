@@ -14,7 +14,8 @@ import attr
 import dateutil
 
 from swh.model.model import (
-    Revision, Release, Directory, DirectoryEntry, Content, OriginVisit,
+    Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
+    OriginVisit,
 )
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -116,7 +117,6 @@ class CassandraStorage:
 
         summary = {
             'content:add': count_content_added,
-            'skipped_content:add': count_contents - count_content_added,
         }
 
         if with_data:
@@ -208,10 +208,6 @@ class CassandraStorage:
                     result[content_metadata['sha1']].append(content_metadata)
         return result
 
-    def skipped_content_missing(self, contents):
-        # TODO
-        raise NotImplementedError('not yet supported for Cassandra')
-
     def content_find(self, content):
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
@@ -262,6 +258,46 @@ class CassandraStorage:
 
     def content_get_random(self):
         return self._cql_runner.content_get_random().sha1_git
+
+    def _skipped_content_add(self, contents):
+        contents = [SkippedContent.from_dict(c) for c in contents]
+
+        # Filter-out content already in the database.
+        contents = [
+            c for c in contents
+            if not self._cql_runner.skipped_content_get_from_pk(c.to_dict())]
+
+        if self.journal_writer:
+            for content in contents:
+                content = content.to_dict()
+                if 'data' in content:
+                    del content['data']
+                self.journal_writer.write_addition('content', content)
+
+        for content in contents:
+            # Add to index tables
+            for algo in HASH_ALGORITHMS:
+                if content.get_hash(algo) is not None:
+                    self._cql_runner.skipped_content_index_add_one(
+                        algo, content)
+
+            # Then to the main table
+            self._cql_runner.skipped_content_add_one(content)
+
+        return {
+            'skipped_content:add': len(contents)
+        }
+
+    def skipped_content_add(self, content):
+        content = [c.copy() for c in content]  # semi-shallow copy
+        for item in content:
+            item['ctime'] = now()
+        return self._skipped_content_add(content)
+
+    def skipped_content_missing(self, contents):
+        for content in contents:
+            if not self._cql_runner.skipped_content_get_from_pk(content):
+                yield content
 
     def directory_add(self, directories):
         directories = list(directories)

@@ -29,14 +29,11 @@ class StorageInterface:
                 following keys:
 
                 - data (bytes): the actual content
-                - length (int): content length (default: -1)
+                - length (int): content length
                 - one key for each checksum algorithm in
                   :data:`swh.model.hashutil.ALGORITHMS`, mapped to the
                   corresponding checksum
-                - status (str): one of visible, hidden, absent
-                - reason (str): if status = absent, the reason why
-                - origin (int): if status = absent, the origin we saw the
-                  content in
+                - status (str): one of visible, hidden
 
         Raises:
 
@@ -50,11 +47,10 @@ class StorageInterface:
             Since additions to both idempotent, that should not be a problem.
 
         Returns:
-            Summary dict with the following key and associated values:
+            Summary dict with the following keys and associated values:
 
                 content:add: New contents added
                 content:add:bytes: Sum of the contents' length data
-                skipped_content:add: New skipped contents (no data) added
         """
         ...
 
@@ -253,20 +249,6 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/skipped/missing')
-    def skipped_content_missing(self, contents):
-        """List skipped_content missing from storage
-
-        Args:
-            content: iterable of dictionaries containing the data for each
-                checksum algorithm.
-
-        Returns:
-            iterable: missing signatures
-
-        """
-        ...
-
     @remote_api_endpoint('content/present')
     def content_find(self, content):
         """Find a content hash in db.
@@ -293,6 +275,57 @@ class StorageInterface:
 
         Returns:
             a sha1_git
+        """
+        ...
+
+    @remote_api_endpoint('content/skipped/add')
+    def skipped_content_add(self, content):
+        """Add contents to the skipped_content list, which contains
+        (partial) information about content missing from the archive.
+
+        Args:
+            contents (iterable): iterable of dictionaries representing
+                individual pieces of content to add. Each dictionary has the
+                following keys:
+
+                - length (Optional[int]): content length (default: -1)
+                - one key for each checksum algorithm in
+                  :data:`swh.model.hashutil.ALGORITHMS`, mapped to the
+                  corresponding checksum; each is optional
+                - status (str): must be "absent"
+                - reason (str): the reason why the content is absent
+                - origin (int): if status = absent, the origin we saw the
+                  content in
+
+        Raises:
+
+            The following exceptions can occur:
+
+            - HashCollision in case of collision
+            - Any other exceptions raise by the backend
+
+            In case of errors, some content may have been stored in
+            the DB and in the objstorage.
+            Since additions to both idempotent, that should not be a problem.
+
+        Returns:
+            Summary dict with the following key and associated values:
+
+                skipped_content:add: New skipped contents (no data) added
+        """
+        ...
+
+    @remote_api_endpoint('content/skipped/missing')
+    def skipped_content_missing(self, contents):
+        """List skipped_content missing from storage
+
+        Args:
+            content: iterable of dictionaries containing the data for each
+                checksum algorithm.
+
+        Returns:
+            iterable: missing signatures
+
         """
         ...
 

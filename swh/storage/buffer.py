@@ -28,6 +28,7 @@ class BufferingProxyStorage:
             min_batch_size:
               content: 10000
               content_bytes: 100000000
+              skipped_content: 10000
               directory: 5000
               revision: 1000
               release: 10000
@@ -43,16 +44,18 @@ class BufferingProxyStorage:
             'content': min_batch_size.get('content', 10000),
             'content_bytes': min_batch_size.get('content_bytes',
                                                 100*1024*1024),
+            'skipped_content': min_batch_size.get('skipped_content', 10000),
             'directory': min_batch_size.get('directory', 25000),
             'revision': min_batch_size.get('revision', 100000),
             'release': min_batch_size.get('release', 100000),
         }
-        self.object_types = ['content', 'directory', 'revision', 'release']
+        self.object_types = [
+            'content', 'skipped_content', 'directory', 'revision', 'release']
         self._objects = {k: deque() for k in self.object_types}
 
     def __getattr__(self, key):
         if key.endswith('_add'):
-            object_type = key.split('_')[0]
+            object_type = key.rsplit('_', 1)[0]
             if object_type in self.object_types:
                 return partial(
                     self.object_add, object_type=object_type

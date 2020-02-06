@@ -141,7 +141,6 @@ class TestStorage:
         assert actual_result == {
             'content:add': 1,
             'content:add:bytes': cont['length'],
-            'skipped_content:add': 0
         }
 
         assert list(swh_storage.content_get([cont['sha1']])) == \
@@ -168,7 +167,6 @@ class TestStorage:
         assert actual_result == {
             'content:add': 1,
             'content:add:bytes': data.cont['length'],
-            'skipped_content:add': 0
         }
 
         swh_storage.refresh_stat_counters()
@@ -178,23 +176,33 @@ class TestStorage:
         cont = data.cont
 
         with pytest.raises(ValueError, match='status'):
+            swh_storage.content_add([{**cont, 'status': 'absent'}])
+
+        with pytest.raises(ValueError, match='status'):
             swh_storage.content_add([{**cont, 'status': 'foobar'}])
 
         with pytest.raises(ValueError, match="(?i)length"):
             swh_storage.content_add([{**cont, 'length': -2}])
 
+        with pytest.raises(
+                (ValueError, TypeError),
+                match="reason"):
+            swh_storage.content_add([{**cont, 'reason': 'foobar'}])
+
+    def test_skipped_content_add_validation(self, swh_storage):
+        cont = data.cont.copy()
+        del cont['data']
+
+        with pytest.raises(ValueError, match='status'):
+            swh_storage.skipped_content_add([{**cont, 'status': 'visible'}])
+
         with pytest.raises((ValueError, psycopg2.IntegrityError),
                            match='reason') as cm:
-            swh_storage.content_add([{**cont, 'status': 'absent'}])
+            swh_storage.skipped_content_add([{**cont, 'status': 'absent'}])
 
         if type(cm.value) == psycopg2.IntegrityError:
             assert cm.exception.pgcode == \
                 psycopg2.errorcodes.NOT_NULL_VIOLATION
-
-        with pytest.raises(
-                ValueError,
-                match="^Must not provide a reason if content is not absent.$"):
-            swh_storage.content_add([{**cont, 'reason': 'foobar'}])
 
     def test_content_get_missing(self, swh_storage):
         cont = data.cont
@@ -225,7 +233,6 @@ class TestStorage:
         assert actual_result == {
             'content:add': 2,
             'content:add:bytes': cont['length'] + cont2['length'],
-            'skipped_content:add': 0
             }
 
     def test_content_add_twice(self, swh_storage):
@@ -233,7 +240,6 @@ class TestStorage:
         assert actual_result == {
             'content:add': 1,
             'content:add:bytes': data.cont['length'],
-            'skipped_content:add': 0
             }
         assert len(swh_storage.journal_writer.objects) == 1
 
@@ -241,9 +247,8 @@ class TestStorage:
         assert actual_result == {
             'content:add': 1,
             'content:add:bytes': data.cont2['length'],
-            'skipped_content:add': 0
             }
-        assert len(swh_storage.journal_writer.objects) == 2
+        assert 2 <= len(swh_storage.journal_writer.objects) <= 3
 
         assert len(swh_storage.content_find(data.cont)) == 1
         assert len(swh_storage.content_find(data.cont2)) == 1
@@ -286,7 +291,6 @@ class TestStorage:
         actual_result = swh_storage.content_add_metadata([cont])
         assert actual_result == {
             'content:add': 1,
-            'skipped_content:add': 0
             }
 
         expected_cont = cont.copy()
@@ -308,7 +312,6 @@ class TestStorage:
         actual_result = swh_storage.content_add_metadata([cont, cont2])
         assert actual_result == {
             'content:add': 2,
-            'skipped_content:add': 0
             }
 
     def test_content_add_metadata_collision(self, swh_storage):
@@ -336,13 +339,10 @@ class TestStorage:
 
         assert len(missing) == 2
 
-        actual_result = swh_storage.content_add([cont, cont, cont2])
+        actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
 
-        assert actual_result == {
-            'content:add': 0,
-            'content:add:bytes': 0,
-            'skipped_content:add': 2,
-            }
+        assert 2 <= actual_result.pop('skipped_content:add') <= 3
+        assert actual_result == {}
 
         missing = list(swh_storage.skipped_content_missing([cont, cont2]))
 
@@ -3618,6 +3618,8 @@ class TestStorageGeneratedData:
                 swh_storage.origin_visit_add(
                     origin, obj['date'], obj['type'])
             else:
+                if obj_type == 'content' and obj['status'] == 'absent':
+                    obj_type = 'skipped_content'
                 method = getattr(swh_storage, obj_type + '_add')
                 try:
                     method([obj])
@@ -3727,7 +3729,6 @@ class TestPgStorage:
         assert actual_result == {
             'content:add': 1,
             'content:add:bytes': cont['length'],
-            'skipped_content:add': 0
             }
 
         if hasattr(swh_storage, 'objstorage'):
@@ -3758,7 +3759,6 @@ class TestPgStorage:
 
         assert actual_result == {
             'content:add': 1,
-            'skipped_content:add': 0
             }
 
         if hasattr(swh_storage, 'objstorage'):
@@ -3778,13 +3778,10 @@ class TestPgStorage:
         cont2 = data.skipped_cont2
         cont2['blake2s256'] = None
 
-        actual_result = swh_storage.content_add([cont, cont, cont2])
+        actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
 
-        assert actual_result == {
-            'content:add': 0,
-            'content:add:bytes': 0,
-            'skipped_content:add': 2,
-            }
+        assert 2 <= actual_result.pop('skipped_content:add') <= 3
+        assert actual_result == {}
 
         with db_transaction(swh_storage) as (_, cur):
             cur.execute('SELECT sha1, sha1_git, sha256, blake2s256, '
