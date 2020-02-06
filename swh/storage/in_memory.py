@@ -25,6 +25,8 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
+from . import HashCollision
+from .exc import StorageArgumentException
 from .storage import get_journal_writer
 from .converters import origin_url_to_sha1
 from .utils import get_partition_bounds_bytes
@@ -79,13 +81,16 @@ class InMemoryStorage:
             if content.status is None:
                 content.status = 'visible'
             if content.status == 'absent':
-                raise ValueError('content with status=absent')
+                raise StorageArgumentException('content with status=absent')
             if content.length is None:
-                raise ValueError('content with length=None')
+                raise StorageArgumentException('content with length=None')
 
         if self.journal_writer:
             for content in contents:
-                content = attr.evolve(content, data=None)
+                try:
+                    content = attr.evolve(content, data=None)
+                except (KeyError, TypeError, ValueError) as e:
+                    raise StorageArgumentException(*e.args)
                 self.journal_writer.write_addition('content', content)
 
         summary = {
@@ -103,7 +108,6 @@ class InMemoryStorage:
                 hash_ = content.get_hash(algorithm)
                 if hash_ in self._content_indexes[algorithm]\
                    and (algorithm not in {'blake2s256', 'sha256'}):
-                    from . import HashCollision
                     raise HashCollision(algorithm, hash_, key)
             for algorithm in DEFAULT_ALGORITHMS:
                 hash_ = content.get_hash(algorithm)
@@ -115,9 +119,12 @@ class InMemoryStorage:
             summary['content:add'] += 1
             if with_data:
                 content_data = self._contents[key].data
-                self._contents[key] = attr.evolve(
-                    self._contents[key],
-                    data=None)
+                try:
+                    self._contents[key] = attr.evolve(
+                        self._contents[key],
+                        data=None)
+                except (KeyError, TypeError, ValueError) as e:
+                    raise StorageArgumentException(*e.args)
                 summary['content:add:bytes'] += len(content_data)
                 self.objstorage.add(content_data, content.sha1)
 
@@ -125,8 +132,11 @@ class InMemoryStorage:
 
     def content_add(self, content):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        content = [attr.evolve(Content.from_dict(c), ctime=now)
-                   for c in content]
+        try:
+            content = [attr.evolve(Content.from_dict(c), ctime=now)
+                       for c in content]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
         return self._content_add(content, with_data=True)
 
     def content_update(self, content, keys=[]):
@@ -144,7 +154,10 @@ class InMemoryStorage:
                     hash_ = old_cont.get_hash(algorithm)
                     self._content_indexes[algorithm][hash_].remove(old_key)
 
-                new_cont = attr.evolve(old_cont, **cont_update)
+                try:
+                    new_cont = attr.evolve(old_cont, **cont_update)
+                except (KeyError, TypeError, ValueError) as e:
+                    raise StorageArgumentException(*e.args)
                 new_key = self._content_key(new_cont)
 
                 self._contents[new_key] = new_cont
@@ -160,7 +173,7 @@ class InMemoryStorage:
     def content_get(self, content):
         # FIXME: Make this method support slicing the `data`.
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise ValueError(
+            raise StorageArgumentException(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
         for obj_id in content:
             try:
@@ -173,7 +186,7 @@ class InMemoryStorage:
 
     def content_get_range(self, start, end, limit=1000):
         if limit is None:
-            raise ValueError('Development error: limit should not be None')
+            raise StorageArgumentException('limit should not be None')
         from_index = bisect.bisect_left(self._sorted_sha1s, start)
         sha1s = itertools.islice(self._sorted_sha1s, from_index, None)
         sha1s = ((sha1, content_key)
@@ -197,7 +210,7 @@ class InMemoryStorage:
             self, partition_id: int, nb_partitions: int, limit: int = 1000,
             page_token: str = None):
         if limit is None:
-            raise ValueError('Development error: limit should not be None')
+            raise StorageArgumentException('limit should not be None')
         (start, end) = get_partition_bounds_bytes(
             partition_id, nb_partitions, SHA1_SIZE)
         if page_token:
@@ -231,8 +244,9 @@ class InMemoryStorage:
 
     def content_find(self, content):
         if not set(content).intersection(DEFAULT_ALGORITHMS):
-            raise ValueError('content keys must contain at least one of: '
-                             '%s' % ', '.join(sorted(DEFAULT_ALGORITHMS)))
+            raise StorageArgumentException(
+                'content keys must contain at least one of: %s'
+                % ', '.join(sorted(DEFAULT_ALGORITHMS)))
         found = []
         for algo in DEFAULT_ALGORITHMS:
             hash = content.get(algo)
@@ -278,7 +292,8 @@ class InMemoryStorage:
             if content.length is None:
                 content = attr.evolve(content, length=-1)
             if content.status != 'absent':
-                raise ValueError(f'Content with status={content.status}')
+                raise StorageArgumentException(
+                    f'Content with status={content.status}')
 
         if self.journal_writer:
             for content in contents:
@@ -317,8 +332,11 @@ class InMemoryStorage:
     def skipped_content_add(self, content):
         content = list(content)
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        content = [attr.evolve(SkippedContent.from_dict(c), ctime=now)
-                   for c in content]
+        try:
+            content = [attr.evolve(SkippedContent.from_dict(c), ctime=now)
+                       for c in content]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
         return self._skipped_content_add(content)
 
     def directory_add(self, directories):
@@ -329,7 +347,10 @@ class InMemoryStorage:
                 (dir_ for dir_ in directories
                  if dir_['id'] not in self._directories))
 
-        directories = [Directory.from_dict(d) for d in directories]
+        try:
+            directories = [Directory.from_dict(d) for d in directories]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         count = 0
         for directory in directories:
@@ -422,7 +443,10 @@ class InMemoryStorage:
                 (rev for rev in revisions
                  if rev['id'] not in self._revisions))
 
-        revisions = [Revision.from_dict(rev) for rev in revisions]
+        try:
+            revisions = [Revision.from_dict(rev) for rev in revisions]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         count = 0
         for revision in revisions:
@@ -480,7 +504,10 @@ class InMemoryStorage:
                 (rel for rel in releases
                  if rel['id'] not in self._releases))
 
-        releases = [Release.from_dict(rel) for rel in releases]
+        try:
+            releases = [Release.from_dict(rel) for rel in releases]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         count = 0
         for rel in releases:
@@ -509,7 +536,10 @@ class InMemoryStorage:
 
     def snapshot_add(self, snapshots):
         count = 0
-        snapshots = (Snapshot.from_dict(d) for d in snapshots)
+        try:
+            snapshots = [Snapshot.from_dict(d) for d in snapshots]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
         snapshots = (snap for snap in snapshots
                      if snap.id not in self._snapshots)
         for snapshot in snapshots:
@@ -557,7 +587,7 @@ class InMemoryStorage:
         if visit and visit['snapshot']:
             snapshot = self.snapshot_get(visit['snapshot'])
             if not snapshot:
-                raise ValueError(
+                raise StorageArgumentException(
                     'last origin visit references an unknown snapshot')
             return snapshot
 
@@ -635,11 +665,11 @@ class InMemoryStorage:
         # Sanity check to be error-compatible with the pgsql backend
         if any('id' in origin for origin in origins) \
                 and not all('id' in origin for origin in origins):
-            raise ValueError(
+            raise StorageArgumentException(
                 'Either all origins or none at all should have an "id".')
         if any('url' in origin for origin in origins) \
                 and not all('url' in origin for origin in origins):
-            raise ValueError(
+            raise StorageArgumentException(
                 'Either all origins or none at all should have '
                 'an "url" key.')
 
@@ -650,7 +680,7 @@ class InMemoryStorage:
                 if origin['url'] in self._origins:
                     result = self._origins[origin['url']]
             else:
-                raise ValueError(
+                raise StorageArgumentException(
                     'Origin must have an url.')
             results.append(self._convert_origin(result))
 
@@ -726,7 +756,10 @@ class InMemoryStorage:
         return origins
 
     def origin_add_one(self, origin):
-        origin = Origin.from_dict(origin)
+        try:
+            origin = Origin.from_dict(origin)
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
         if origin.url not in self._origins:
             if self.journal_writer:
                 self.journal_writer.write_addition('origin', origin)
@@ -747,13 +780,14 @@ class InMemoryStorage:
     def origin_visit_add(self, origin, date, type):
         origin_url = origin
         if origin_url is None:
-            raise ValueError('Unknown origin.')
+            raise StorageArgumentException('Unknown origin.')
 
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
         elif not isinstance(date, datetime.datetime):
-            raise TypeError('date must be a datetime or a string.')
+            raise StorageArgumentException(
+                'date must be a datetime or a string.')
 
         visit_ret = None
         if origin_url in self._origins:
@@ -790,13 +824,13 @@ class InMemoryStorage:
             raise TypeError('origin must be a string, not %r' % (origin,))
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
-            raise ValueError('Unknown origin.')
+            raise StorageArgumentException('Unknown origin.')
 
         try:
             visit = self._origin_visits[origin_url][visit_id-1]
         except IndexError:
-            raise ValueError('Unknown visit_id for this origin') \
-                from None
+            raise StorageArgumentException(
+                'Unknown visit_id for this origin') from None
 
         updates = {}
         if status:
@@ -806,7 +840,10 @@ class InMemoryStorage:
         if snapshot:
             updates['snapshot'] = snapshot
 
-        visit = attr.evolve(visit, **updates)
+        try:
+            visit = attr.evolve(visit, **updates)
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         if self.journal_writer:
             self.journal_writer.write_update('origin_visit', visit)
@@ -818,7 +855,10 @@ class InMemoryStorage:
             if not isinstance(visit['origin'], str):
                 raise TypeError("visit['origin'] must be a string, not %r"
                                 % (visit['origin'],))
-        visits = [OriginVisit.from_dict(d) for d in visits]
+        try:
+            visits = [OriginVisit.from_dict(d) for d in visits]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         if self.journal_writer:
             for visit in visits:
@@ -828,7 +868,10 @@ class InMemoryStorage:
             visit_id = visit.visit
             origin_url = visit.origin
 
-            visit = attr.evolve(visit, origin=origin_url)
+            try:
+                visit = attr.evolve(visit, origin=origin_url)
+            except (KeyError, TypeError, ValueError) as e:
+                raise StorageArgumentException(*e.args)
 
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))

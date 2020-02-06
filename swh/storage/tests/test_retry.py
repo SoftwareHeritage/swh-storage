@@ -11,6 +11,7 @@ from typing import Dict
 from unittest.mock import call
 
 from swh.storage import HashCollision
+from swh.storage.exc import StorageArgumentException
 from swh.storage.retry import RetryingProxyStorage
 
 
@@ -76,14 +77,15 @@ def test_retrying_proxy_swh_storage_content_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.content_add')
-    mock_memory.side_effect = ValueError('Refuse to add content always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add content always!')
 
     sample_content = sample_data['content'][0]
 
     content = next(swh_storage.content_get([sample_content['sha1']]))
     assert not content
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.content_add([sample_content])
 
     assert mock_memory.call_count == 1
@@ -144,7 +146,8 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.content_add_metadata')
-    mock_memory.side_effect = ValueError('Refuse to add content_metadata!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add content_metadata!')
 
     sample_content = sample_data['content_metadata'][0]
     pk = sample_content['sha1']
@@ -152,7 +155,7 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
     content_metadata = swh_storage.content_get_metadata([pk])
     assert not content_metadata[pk]
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.content_add_metadata([sample_content])
 
     assert mock_memory.call_count == 1
@@ -211,14 +214,15 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.origin_add_one')
-    mock_memory.side_effect = ValueError('Refuse to add origin always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add origin always!')
 
     sample_origin = sample_data['origin'][0]
 
     origin = swh_storage.origin_get(sample_origin)
     assert not origin
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.origin_add_one([sample_origin])
 
     assert mock_memory.call_count == 1
@@ -285,14 +289,15 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.origin_visit_add')
-    mock_memory.side_effect = ValueError('Refuse to add origin always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add origin always!')
 
     origin_url = sample_data['origin'][0]['url']
 
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.origin_visit_add(origin_url, '2020-01-31', 'svn')
 
     assert mock_memory.has_calls([
@@ -357,14 +362,15 @@ def test_retrying_proxy_swh_storage_tool_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.tool_add')
-    mock_memory.side_effect = ValueError('Refuse to add tool always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add tool always!')
 
     sample_tool = sample_data['tool'][0]
 
     tool = swh_storage.tool_get(sample_tool)
     assert not tool
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.tool_add([sample_tool])
 
     assert mock_memory.call_count == 1
@@ -439,7 +445,8 @@ def test_retrying_proxy_swh_storage_metadata_provider_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.metadata_provider_add')
-    mock_memory.side_effect = ValueError('Refuse to add provider_id always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add provider_id always!')
 
     provider = sample_data['provider'][0]
     provider_get = to_provider(provider)
@@ -447,7 +454,7 @@ def test_retrying_proxy_swh_storage_metadata_provider_add_failure(
     provider_id = swh_storage.metadata_provider_get_by(provider_get)
     assert not provider_id
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.metadata_provider_add(**provider_get)
 
     assert mock_memory.call_count == 1
@@ -520,7 +527,8 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.origin_metadata_add')
-    mock_memory.side_effect = ValueError('Refuse to add always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add always!')
 
     ori_meta = sample_data['origin_metadata'][0]
     origin = ori_meta['origin']
@@ -532,7 +540,7 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
     tool_id = ori_meta['tool']
     metadata = ori_meta['metadata']
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.origin_metadata_add(url, ts, provider_id, tool_id,
                                         metadata)
 
@@ -603,11 +611,12 @@ def test_retrying_proxy_swh_storage_origin_visit_update_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.origin_visit_update')
-    mock_memory.side_effect = ValueError('Refuse to add origin always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add origin always!')
     origin_url = sample_data['origin'][0]['url']
     visit_id = 9
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.origin_visit_update(origin_url, visit_id, 'partial')
 
     assert mock_memory.call_count == 1
@@ -671,14 +680,15 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.directory_add')
-    mock_memory.side_effect = ValueError('Refuse to add directory always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add directory always!')
 
     sample_dir = sample_data['directory'][0]
 
     directory_id = swh_storage.directory_get_random()  # no directory
     assert not directory_id
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.directory_add([sample_dir])
 
     assert mock_memory.call_count == 1
@@ -742,14 +752,15 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.revision_add')
-    mock_memory.side_effect = ValueError('Refuse to add revision always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add revision always!')
 
     sample_rev = sample_data['revision'][0]
 
     revision = next(swh_storage.revision_get([sample_rev['id']]))
     assert not revision
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.revision_add([sample_rev])
 
     assert mock_memory.call_count == 1
@@ -813,14 +824,15 @@ def test_retrying_proxy_swh_storage_release_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.release_add')
-    mock_memory.side_effect = ValueError('Refuse to add release always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add release always!')
 
     sample_rel = sample_data['release'][0]
 
     release = next(swh_storage.release_get([sample_rel['id']]))
     assert not release
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.release_add([sample_rel])
 
     assert mock_memory.call_count == 1
@@ -884,14 +896,15 @@ def test_retrying_proxy_swh_storage_snapshot_add_failure(
     """
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.snapshot_add')
-    mock_memory.side_effect = ValueError('Refuse to add snapshot always!')
+    mock_memory.side_effect = StorageArgumentException(
+        'Refuse to add snapshot always!')
 
     sample_snap = sample_data['snapshot'][0]
 
     snapshot = swh_storage.snapshot_get(sample_snap['id'])
     assert not snapshot
 
-    with pytest.raises(ValueError, match='Refuse to add'):
+    with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.snapshot_add([sample_snap])
 
     assert mock_memory.call_count == 1

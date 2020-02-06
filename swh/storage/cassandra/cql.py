@@ -11,15 +11,19 @@ from typing import (
     Any, Callable, Dict, Generator, Iterable, List, Optional, TypeVar
 )
 
+from cassandra import CoordinationFailure
 from cassandra.cluster import (
     Cluster, EXEC_PROFILE_DEFAULT, ExecutionProfile, ResultSet)
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import PreparedStatement
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+from tenacity import (
+    retry, stop_after_attempt, wait_random_exponential,
+    retry_if_exception_type,
+)
 
 from swh.model.model import (
     Sha1Git, TimestampWithTimezone, Timestamp, Person, Content,
-    SkippedContent,
+    SkippedContent, OriginVisit,
 )
 
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
@@ -121,7 +125,8 @@ class CqlRunner:
     MAX_RETRIES = 3
 
     @retry(wait=wait_random_exponential(multiplier=1, max=10),
-           stop=stop_after_attempt(MAX_RETRIES))
+           stop=stop_after_attempt(MAX_RETRIES),
+           retry=retry_if_exception_type(CoordinationFailure))
     def _execute_with_retries(self, statement, args) -> ResultSet:
         return self._session.execute(statement, args, timeout=1000.)
 
@@ -556,10 +561,9 @@ class CqlRunner:
 
     @_prepared_insert_statement('origin_visit', _origin_visit_keys)
     def origin_visit_add_one(
-            self, visit: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(
-            statement, [visit[key] for key in self._origin_visit_keys])
-        self._increment_counter('origin_visit', 1)
+            self, visit: OriginVisit, *, statement) -> None:
+        self._add_one(statement, 'origin_visit', visit,
+                      self._origin_visit_keys)
 
     @_prepared_statement(
         'UPDATE origin_visit SET ' +

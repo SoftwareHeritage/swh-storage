@@ -29,6 +29,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision
 from swh.storage.converters import origin_url_to_sha1 as sha1
+from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
 
 from .storage_data import data
@@ -175,29 +176,26 @@ class TestStorage:
     def test_content_add_validation(self, swh_storage):
         cont = data.cont
 
-        with pytest.raises(ValueError, match='status'):
+        with pytest.raises(StorageArgumentException, match='status'):
             swh_storage.content_add([{**cont, 'status': 'absent'}])
 
-        with pytest.raises(ValueError, match='status'):
+        with pytest.raises(StorageArgumentException, match='status'):
             swh_storage.content_add([{**cont, 'status': 'foobar'}])
 
-        with pytest.raises(ValueError, match="(?i)length"):
+        with pytest.raises(StorageArgumentException, match="(?i)length"):
             swh_storage.content_add([{**cont, 'length': -2}])
 
-        with pytest.raises(
-                (ValueError, TypeError),
-                match="reason"):
+        with pytest.raises(StorageArgumentException, match="reason"):
             swh_storage.content_add([{**cont, 'reason': 'foobar'}])
 
     def test_skipped_content_add_validation(self, swh_storage):
         cont = data.cont.copy()
         del cont['data']
 
-        with pytest.raises(ValueError, match='status'):
+        with pytest.raises(StorageArgumentException, match='status'):
             swh_storage.skipped_content_add([{**cont, 'status': 'visible'}])
 
-        with pytest.raises((ValueError, psycopg2.IntegrityError),
-                           match='reason') as cm:
+        with pytest.raises(StorageArgumentException, match='reason') as cm:
             swh_storage.skipped_content_add([{**cont, 'status': 'absent'}])
 
         if type(cm.value) == psycopg2.IntegrityError:
@@ -480,10 +478,10 @@ class TestStorage:
 
     def test_content_get_partition_limit_none(self, swh_storage):
         """content_get_partition call with wrong limit input should fail"""
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(StorageArgumentException) as e:
             swh_storage.content_get_partition(1, 16, limit=None)
 
-        assert e.value.args == ('Development error: limit should not be None',)
+        assert e.value.args == ('limit should not be None',)
 
     def test_generate_content_get_partition_pagination(
             self, swh_storage, swh_contents):
@@ -582,14 +580,13 @@ class TestStorage:
         dir_ = copy.deepcopy(data.dir)
         dir_['entries'][0]['type'] = 'foobar'
 
-        with pytest.raises(ValueError, match='type.*foobar'):
+        with pytest.raises(StorageArgumentException, match='type.*foobar'):
             swh_storage.directory_add([dir_])
 
         dir_ = copy.deepcopy(data.dir)
         del dir_['entries'][0]['target']
 
-        with pytest.raises((TypeError, psycopg2.IntegrityError),
-                           match='target') as cm:
+        with pytest.raises(StorageArgumentException, match='target') as cm:
             swh_storage.directory_add([dir_])
 
         if type(cm.value) == psycopg2.IntegrityError:
@@ -789,8 +786,7 @@ class TestStorage:
         rev = copy.deepcopy(data.revision)
         rev['date']['offset'] = 2**16
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='offset') as cm:
+        with pytest.raises(StorageArgumentException, match='offset') as cm:
             swh_storage.revision_add([rev])
 
         if type(cm.value) == psycopg2.DataError:
@@ -800,8 +796,7 @@ class TestStorage:
         rev = copy.deepcopy(data.revision)
         rev['committer_date']['offset'] = 2**16
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='offset') as cm:
+        with pytest.raises(StorageArgumentException, match='offset') as cm:
             swh_storage.revision_add([rev])
 
         if type(cm.value) == psycopg2.DataError:
@@ -811,8 +806,7 @@ class TestStorage:
         rev = copy.deepcopy(data.revision)
         rev['type'] = 'foobar'
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='(?i)type') as cm:
+        with pytest.raises(StorageArgumentException, match='(?i)type') as cm:
             swh_storage.revision_add([rev])
 
         if type(cm.value) == psycopg2.DataError:
@@ -1011,8 +1005,7 @@ class TestStorage:
         rel = copy.deepcopy(data.release)
         rel['date']['offset'] = 2**16
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='offset') as cm:
+        with pytest.raises(StorageArgumentException, match='offset') as cm:
             swh_storage.release_add([rel])
 
         if type(cm.value) == psycopg2.DataError:
@@ -1022,8 +1015,7 @@ class TestStorage:
         rel = copy.deepcopy(data.release)
         rel['author'] = None
 
-        with pytest.raises((ValueError, psycopg2.IntegrityError),
-                           match='date') as cm:
+        with pytest.raises(StorageArgumentException, match='date') as cm:
             swh_storage.release_add([rel])
 
         if type(cm.value) == psycopg2.IntegrityError:
@@ -1170,7 +1162,7 @@ class TestStorage:
         assert add1 == add2
 
     def test_origin_add_validation(self, swh_storage):
-        with pytest.raises((TypeError, KeyError), match='url'):
+        with pytest.raises(StorageArgumentException, match='url'):
             swh_storage.origin_add([{'type': 'git'}])
 
     def test_origin_get_legacy(self, swh_storage):
@@ -1491,8 +1483,8 @@ class TestStorage:
     def test_origin_visit_add_validation(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin2)
 
-        with pytest.raises((TypeError, psycopg2.ProgrammingError)) as cm:
-            swh_storage.origin_visit_add(origin_url, date=[b'foo'])
+        with pytest.raises(StorageArgumentException) as cm:
+            swh_storage.origin_visit_add(origin_url, date=[b'foo'], type='git')
 
         if type(cm.value) == psycopg2.ProgrammingError:
             assert cm.value.pgcode \
@@ -1673,8 +1665,7 @@ class TestStorage:
             type=data.type_visit2,
         )
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='status') as cm:
+        with pytest.raises(StorageArgumentException, match='status') as cm:
             swh_storage.origin_visit_update(
                 origin_url, visit['visit'], status='foobar')
 
@@ -2199,13 +2190,13 @@ class TestStorage:
         snap = copy.deepcopy(data.snapshot)
         snap['branches'][b'foo'] = {'target_type': 'revision'}
 
-        with pytest.raises(KeyError, match='target'):
+        with pytest.raises(StorageArgumentException, match='target'):
             swh_storage.snapshot_add([snap])
 
         snap = copy.deepcopy(data.snapshot)
         snap['branches'][b'foo'] = {'target': b'\x42'*20}
 
-        with pytest.raises(KeyError, match='target_type'):
+        with pytest.raises(StorageArgumentException, match='target_type'):
             swh_storage.snapshot_add([snap])
 
     def test_snapshot_add_count_branches(self, swh_storage):
@@ -2431,7 +2422,7 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.snapshot])
 
-        with pytest.raises(ValueError):
+        with pytest.raises(StorageArgumentException):
             swh_storage.origin_visit_update(
                 origin_url, visit_id, snapshot=data.snapshot['id'])
 
@@ -2610,9 +2601,9 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             visit1_id, snapshot=data.complete_snapshot['id'])
-        with pytest.raises(ValueError):
-            swh_storage.snapshot_get_latest(
-                origin_url)
+        with pytest.raises(Exception):
+            # XXX: should the exception be more specific than this?
+            swh_storage.snapshot_get_latest(origin_url)
 
         # Status filter: both visits are status=ongoing, so no snapshot
         # returned
@@ -2624,7 +2615,8 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             visit1_id, status='full')
-        with pytest.raises(ValueError):
+        with pytest.raises(Exception):
+            # XXX: should the exception be more specific than this?
             swh_storage.snapshot_get_latest(
                 origin_url,
                 allowed_statuses=['full']),
@@ -2639,7 +2631,8 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             visit2_id, snapshot=data.snapshot['id'])
-        with pytest.raises(ValueError):
+        with pytest.raises(Exception):
+            # XXX: should the exception be more specific than this?
             swh_storage.snapshot_get_latest(
                 origin_url)
 
@@ -2946,11 +2939,11 @@ class TestStorage:
 
     def test_content_find_bad_input(self, swh_storage):
         # 1. with bad input
-        with pytest.raises(ValueError):
+        with pytest.raises(StorageArgumentException):
             swh_storage.content_find({})  # empty is bad
 
         # 2. with bad input
-        with pytest.raises(ValueError):
+        with pytest.raises(StorageArgumentException):
             swh_storage.content_find(
                 {'unknown-sha1': 'something'})  # not the right key
 
@@ -3407,10 +3400,10 @@ class TestStorageGeneratedData:
 
     def test_generate_content_get_range_limit_none(self, swh_storage):
         """content_get_range call with wrong limit input should fail"""
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(StorageArgumentException) as e:
             swh_storage.content_get_range(start=None, end=None, limit=None)
 
-        assert e.value.args == ('Development error: limit should not be None',)
+        assert e.value.args == ('limit should not be None',)
 
     def test_generate_content_get_range_no_limit(
             self, swh_storage, swh_contents):

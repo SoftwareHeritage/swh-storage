@@ -15,7 +15,7 @@ import dateutil
 
 from swh.model.model import (
     Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
-    OriginVisit,
+    OriginVisit, Snapshot
 )
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -26,6 +26,8 @@ except ImportError:
     # mypy limitation, see https://github.com/python/mypy/issues/1153
 
 
+from .. import HashCollision
+from ..exc import StorageArgumentException
 from .common import TOKEN_BEGIN, TOKEN_END
 from .converters import (
     revision_to_db, revision_from_db, release_to_db, release_from_db,
@@ -60,7 +62,10 @@ class CassandraStorage:
         return True
 
     def _content_add(self, contents, with_data):
-        contents = [Content.from_dict(c) for c in contents]
+        try:
+            contents = [Content.from_dict(c) for c in contents]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         # Filter-out content already in the database.
         contents = [c for c in contents
@@ -112,7 +117,6 @@ class CassandraStorage:
                     algo, content.get_hash(algo))
                 if len(pks) > 1:
                     # There are more than the one we just inserted.
-                    from .. import HashCollision
                     raise HashCollision(algo, content.get_hash(algo), pks)
 
         summary = {
@@ -139,7 +143,7 @@ class CassandraStorage:
 
     def content_get(self, content):
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise ValueError(
+            raise StorageArgumentException(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
         for obj_id in content:
             try:
@@ -154,7 +158,7 @@ class CassandraStorage:
             self, partition_id: int, nb_partitions: int, limit: int = 1000,
             page_token: str = None):
         if limit is None:
-            raise ValueError('Development error: limit should not be None')
+            raise StorageArgumentException('limit should not be None')
 
         # Compute start and end of the range of tokens covered by the
         # requested partition
@@ -165,7 +169,7 @@ class CassandraStorage:
         # offset the range start according to the `page_token`.
         if page_token is not None:
             if not (range_start <= int(page_token) <= range_end):
-                raise ValueError('Invalid page_token.')
+                raise StorageArgumentException('Invalid page_token.')
             range_start = int(page_token)
 
         # Get the first rows of the range
@@ -213,8 +217,9 @@ class CassandraStorage:
         # It will be used to do an initial filtering efficiently.
         filter_algos = list(set(content).intersection(HASH_ALGORITHMS))
         if not filter_algos:
-            raise ValueError('content keys must contain at least one of: '
-                             '%s' % ', '.join(sorted(HASH_ALGORITHMS)))
+            raise StorageArgumentException(
+                'content keys must contain at least one of: '
+                '%s' % ', '.join(sorted(HASH_ALGORITHMS)))
         common_algo = filter_algos[0]
 
         # Find all contents whose common_algo matches at least one
@@ -260,7 +265,10 @@ class CassandraStorage:
         return self._cql_runner.content_get_random().sha1_git
 
     def _skipped_content_add(self, contents):
-        contents = [SkippedContent.from_dict(c) for c in contents]
+        try:
+            contents = [SkippedContent.from_dict(c) for c in contents]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         # Filter-out content already in the database.
         contents = [
@@ -310,7 +318,10 @@ class CassandraStorage:
             self.journal_writer.write_additions('directory', directories)
 
         for directory in directories:
-            directory = Directory.from_dict(directory)
+            try:
+                directory = Directory.from_dict(directory)
+            except (KeyError, TypeError, ValueError) as e:
+                raise StorageArgumentException(*e.args)
 
             # Add directory entries to the 'directory_entry' table
             for entry in directory.entries:
@@ -416,7 +427,10 @@ class CassandraStorage:
             self.journal_writer.write_additions('revision', revisions)
 
         for revision in revisions:
-            revision = revision_to_db(revision)
+            try:
+                revision = revision_to_db(revision)
+            except (KeyError, TypeError, ValueError) as e:
+                raise StorageArgumentException(*e.args)
 
             if revision:
                 # Add parents first
@@ -511,7 +525,10 @@ class CassandraStorage:
             self.journal_writer.write_additions('release', releases)
 
         for release in releases:
-            release = release_to_db(release)
+            try:
+                release = release_to_db(release)
+            except (KeyError, TypeError, ValueError) as e:
+                raise StorageArgumentException(*e.args)
 
             if release:
                 self._cql_runner.release_add_one(release)
@@ -536,30 +553,38 @@ class CassandraStorage:
         return self._cql_runner.release_get_random().id
 
     def snapshot_add(self, snapshots):
-        snapshots = list(snapshots)
+        try:
+            snapshots = [Snapshot.from_dict(snap) for snap in snapshots]
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
         missing = self._cql_runner.snapshot_missing(
-            [snp['id'] for snp in snapshots])
-        snapshots = [snp for snp in snapshots if snp['id'] in missing]
+            [snp.id for snp in snapshots])
+        snapshots = [snp for snp in snapshots if snp.id in missing]
 
         for snapshot in snapshots:
             if self.journal_writer:
                 self.journal_writer.write_addition('snapshot', snapshot)
 
             # Add branches
-            for (branch_name, branch) in snapshot['branches'].items():
+            for (branch_name, branch) in snapshot.branches.items():
                 if branch is None:
-                    branch = {'target_type': None, 'target': None}
-                self._cql_runner.snapshot_branch_add_one({
-                    'snapshot_id': snapshot['id'],
+                    target_type = None
+                    target = None
+                else:
+                    target_type = branch.target_type.value
+                    target = branch.target
+                branch = {
+                    'snapshot_id': snapshot.id,
                     'name': branch_name,
-                    'target_type': branch['target_type'],
-                    'target': branch['target'],
-                })
+                    'target_type': target_type,
+                    'target': target,
+                }
+                self._cql_runner.snapshot_branch_add_one(branch)
 
             # Add the snapshot *after* adding all the branches, so someone
             # calling snapshot_get_branch in the meantime won't end up
             # with half the branches.
-            self._cql_runner.snapshot_add_one(snapshot['id'])
+            self._cql_runner.snapshot_add_one(snapshot.id)
 
         return {'snapshot:add': len(snapshots)}
 
@@ -586,7 +611,8 @@ class CassandraStorage:
         if visit:
             assert visit['snapshot']
             if self._cql_runner.snapshot_missing([visit['snapshot']]):
-                raise ValueError('Visit references unknown snapshot')
+                raise StorageArgumentException(
+                    'Visit references unknown snapshot')
             return self.snapshot_get_branches(visit['snapshot'])
 
     def snapshot_count_branches(self, snapshot_id):
@@ -692,7 +718,7 @@ class CassandraStorage:
             return_single = False
 
         if any('id' in origin for origin in origins):
-            raise ValueError('Origin ids are not supported.')
+            raise StorageArgumentException('Origin ids are not supported.')
 
         results = [self.origin_get_one(origin) for origin in origins]
 
@@ -704,7 +730,9 @@ class CassandraStorage:
 
     def origin_get_one(self, origin):
         if 'id' in origin:
-            raise ValueError('Origin ids are not supported.')
+            raise StorageArgumentException('Origin ids are not supported.')
+        if 'url' not in origin:
+            raise StorageArgumentException('Missing origin url')
         rows = self._cql_runner.origin_get_by_url(origin['url'])
 
         rows = list(rows)
@@ -734,7 +762,7 @@ class CassandraStorage:
         if page_token:
             start_token = int(page_token)
             if not (TOKEN_BEGIN <= start_token <= TOKEN_END):
-                raise ValueError('Invalid page_token.')
+                raise StorageArgumentException('Invalid page_token.')
 
         rows = self._cql_runner.origin_list(start_token, limit)
         rows = list(rows)
@@ -772,7 +800,8 @@ class CassandraStorage:
     def origin_add(self, origins):
         origins = list(origins)
         if any('id' in origin for origin in origins):
-            raise ValueError('Origins must not already have an id.')
+            raise StorageArgumentException(
+                'Origins must not already have an id.')
         results = []
         for origin in origins:
             self.origin_add_one(origin)
@@ -819,6 +848,11 @@ class CassandraStorage:
         if self.journal_writer:
             self.journal_writer.write_addition('origin_visit', visit)
 
+        try:
+            visit = OriginVisit.from_dict(visit)
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
+
         self._cql_runner.origin_visit_add_one(visit)
 
         return {
@@ -833,8 +867,11 @@ class CassandraStorage:
         # Get the existing data of the visit
         row = self._cql_runner.origin_visit_get_one(origin_url, visit_id)
         if not row:
-            raise ValueError('This origin visit does not exist.')
-        visit = OriginVisit.from_dict(self._format_origin_visit_row(row))
+            raise StorageArgumentException('This origin visit does not exist.')
+        try:
+            visit = OriginVisit.from_dict(self._format_origin_visit_row(row))
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         updates = {}
         if status:
@@ -844,7 +881,10 @@ class CassandraStorage:
         if snapshot:
             updates['snapshot'] = snapshot
 
-        visit = attr.evolve(visit, **updates)
+        try:
+            visit = attr.evolve(visit, **updates)
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         if self.journal_writer:
             self.journal_writer.write_update('origin_visit', visit)

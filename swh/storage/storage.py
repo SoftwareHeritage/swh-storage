@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import contextlib
 import copy
 import datetime
 import itertools
@@ -16,6 +17,7 @@ from typing import Any, Dict, List, Optional
 import dateutil.parser
 import psycopg2
 import psycopg2.pool
+import psycopg2.errors
 
 from swh.model.model import SHA1_SIZE
 from swh.model.hashutil import ALGORITHMS, hash_to_bytes, hash_to_hex
@@ -27,10 +29,10 @@ except ImportError:
     get_journal_writer = None  # type: ignore
     # mypy limitation, see https://github.com/python/mypy/issues/1153
 
-from . import converters
+from . import converters, HashCollision
 from .common import db_transaction_generator, db_transaction
 from .db import Db
-from .exc import StorageDBError
+from .exc import StorageArgumentException, StorageDBError
 from .algos import diff
 from .metrics import timed, send_metric, process_metrics
 from .utils import get_partition_bounds_bytes
@@ -41,6 +43,28 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 EMPTY_SNAPSHOT_ID = hash_to_bytes('1a8893e6a86f444e8be8e7bda6cb34fb1735a00e')
 """Identifier for the empty snapshot"""
+
+
+VALIDATION_EXCEPTIONS = (
+    psycopg2.errors.CheckViolation,
+    psycopg2.errors.IntegrityError,
+    psycopg2.errors.InvalidTextRepresentation,
+    psycopg2.errors.NotNullViolation,
+    psycopg2.errors.NumericValueOutOfRange,
+    psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
+)
+"""Exceptions raised by postgresql when validation of the arguments
+failed."""
+
+
+@contextlib.contextmanager
+def convert_validation_exceptions():
+    """Catches postgresql errors related to invalid arguments, and
+    re-raises a StorageArgumentException."""
+    try:
+        yield
+    except VALIDATION_EXCEPTIONS as e:
+        raise StorageArgumentException(*e.args)
 
 
 class Storage():
@@ -141,14 +165,15 @@ class Storage():
         """Sanity checks on status / reason / length, that postgresql
         doesn't enforce."""
         if d['status'] not in ('visible', 'hidden'):
-            raise ValueError('Invalid content status: {}'.format(d['status']))
+            raise StorageArgumentException(
+                'Invalid content status: {}'.format(d['status']))
 
         if d.get('reason') is not None:
-            raise ValueError(
+            raise StorageArgumentException(
                 'Must not provide a reason if content is present.')
 
         if d['length'] is None or d['length'] < 0:
-            raise ValueError('Content length must be positive.')
+            raise StorageArgumentException('Content length must be positive.')
 
     def _content_add_metadata(self, db, cur, content):
         """Add content to the postgresql database but not the object storage.
@@ -156,26 +181,26 @@ class Storage():
         # create temporary table for metadata injection
         db.mktemp('content', cur)
 
-        db.copy_to(content, 'tmp_content',
-                   db.content_add_keys, cur)
+        with convert_validation_exceptions():
+            db.copy_to(content, 'tmp_content',
+                       db.content_add_keys, cur)
 
-        # move metadata in place
-        try:
-            db.content_add_from_temp(cur)
-        except psycopg2.IntegrityError as e:
-            from . import HashCollision
-            if e.diag.sqlstate == '23505' and \
-                    e.diag.table_name == 'content':
-                constraint_to_hash_name = {
-                    'content_pkey': 'sha1',
-                    'content_sha1_git_idx': 'sha1_git',
-                    'content_sha256_idx': 'sha256',
-                    }
-                colliding_hash_name = constraint_to_hash_name \
-                    .get(e.diag.constraint_name)
-                raise HashCollision(colliding_hash_name) from None
-            else:
-                raise
+            # move metadata in place
+            try:
+                db.content_add_from_temp(cur)
+            except psycopg2.IntegrityError as e:
+                if e.diag.sqlstate == '23505' and \
+                        e.diag.table_name == 'content':
+                    constraint_to_hash_name = {
+                        'content_pkey': 'sha1',
+                        'content_sha1_git_idx': 'sha1_git',
+                        'content_sha256_idx': 'sha256',
+                        }
+                    colliding_hash_name = constraint_to_hash_name \
+                        .get(e.diag.constraint_name)
+                    raise HashCollision(colliding_hash_name) from None
+                else:
+                    raise
 
     @timed
     @process_metrics
@@ -247,9 +272,10 @@ class Storage():
 
         db.mktemp('content', cur)
         select_keys = list(set(db.content_get_metadata_keys).union(set(keys)))
-        db.copy_to(content, 'tmp_content', select_keys, cur)
-        db.content_update_from_temp(keys_to_update=keys,
-                                    cur=cur)
+        with convert_validation_exceptions():
+            db.copy_to(content, 'tmp_content', select_keys, cur)
+            db.content_update_from_temp(keys_to_update=keys,
+                                        cur=cur)
 
     @timed
     @process_metrics
@@ -277,7 +303,7 @@ class Storage():
     def content_get(self, content):
         # FIXME: Make this method support slicing the `data`.
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise ValueError(
+            raise StorageArgumentException(
                 "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
 
         for obj_id in content:
@@ -293,7 +319,7 @@ class Storage():
     @db_transaction()
     def content_get_range(self, start, end, limit=1000, db=None, cur=None):
         if limit is None:
-            raise ValueError('Development error: limit should not be None')
+            raise StorageArgumentException('limit should not be None')
         contents = []
         next_content = None
         for counter, content_row in enumerate(
@@ -315,7 +341,7 @@ class Storage():
             self, partition_id: int, nb_partitions: int, limit: int = 1000,
             page_token: str = None, db=None, cur=None):
         if limit is None:
-            raise ValueError('Development error: limit should not be None')
+            raise StorageArgumentException('limit should not be None')
         (start, end) = get_partition_bounds_bytes(
             partition_id, nb_partitions, SHA1_SIZE)
         if page_token:
@@ -348,7 +374,8 @@ class Storage():
         keys = db.content_hash_keys
 
         if key_hash not in keys:
-            raise ValueError("key_hash should be one of %s" % keys)
+            raise StorageArgumentException(
+                "key_hash should be one of %s" % keys)
 
         key_hash_idx = keys.index(key_hash)
 
@@ -374,8 +401,9 @@ class Storage():
     @db_transaction()
     def content_find(self, content, db=None, cur=None):
         if not set(content).intersection(ALGORITHMS):
-            raise ValueError('content keys must contain at least one of: '
-                             'sha1, sha1_git, sha256, blake2s256')
+            raise StorageArgumentException(
+                'content keys must contain at least one of: '
+                'sha1, sha1_git, sha256, blake2s256')
 
         contents = db.content_find(sha1=content.get('sha1'),
                                    sha1_git=content.get('sha1_git'),
@@ -407,14 +435,16 @@ class Storage():
         """Sanity checks on status / reason / length, that postgresql
         doesn't enforce."""
         if d['status'] != 'absent':
-            raise ValueError('Invalid content status: {}'.format(d['status']))
+            raise StorageArgumentException(
+                'Invalid content status: {}'.format(d['status']))
 
         if d.get('reason') is None:
-            raise ValueError(
+            raise StorageArgumentException(
                 'Must provide a reason if content is absent.')
 
         if d['length'] < -1:
-            raise ValueError('Content length must be positive or -1.')
+            raise StorageArgumentException(
+                'Content length must be positive or -1.')
 
     def _skipped_content_add_metadata(self, db, cur, content):
         content = \
@@ -426,11 +456,12 @@ class Storage():
             if 'origin' in cont:
                 cont['origin'] = origin_id
         db.mktemp('skipped_content', cur)
-        db.copy_to(content, 'tmp_skipped_content',
-                   db.skipped_content_keys, cur)
+        with convert_validation_exceptions():
+            db.copy_to(content, 'tmp_skipped_content',
+                       db.skipped_content_keys, cur)
 
-        # move metadata in place
-        db.skipped_content_add_from_temp(cur)
+            # move metadata in place
+            db.skipped_content_add_from_temp(cur)
 
     @timed
     @process_metrics
@@ -488,7 +519,7 @@ class Storage():
                 entry = src_entry.copy()
                 entry['dir_id'] = dir_id
                 if entry['type'] not in ('file', 'dir', 'rev'):
-                    raise ValueError(
+                    raise StorageArgumentException(
                         'Entry type must be file, dir, or rev; not %s'
                         % entry['type'])
                 dir_entries[entry['type']][dir_id].append(entry)
@@ -506,27 +537,28 @@ class Storage():
         # Copy directory ids
         dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
         db.mktemp('directory', cur)
-        db.copy_to(dirs_missing_dict, 'tmp_directory', ['id'], cur)
+        with convert_validation_exceptions():
+            db.copy_to(dirs_missing_dict, 'tmp_directory', ['id'], cur)
 
-        # Copy entries
-        for entry_type, entry_list in dir_entries.items():
-            entries = itertools.chain.from_iterable(
-                entries_for_dir
-                for dir_id, entries_for_dir
-                in entry_list.items()
-                if dir_id in dirs_missing)
+            # Copy entries
+            for entry_type, entry_list in dir_entries.items():
+                entries = itertools.chain.from_iterable(
+                    entries_for_dir
+                    for dir_id, entries_for_dir
+                    in entry_list.items()
+                    if dir_id in dirs_missing)
 
-            db.mktemp_dir_entry(entry_type)
+                db.mktemp_dir_entry(entry_type)
 
-            db.copy_to(
-                entries,
-                'tmp_directory_entry_%s' % entry_type,
-                ['target', 'name', 'perms', 'dir_id'],
-                cur,
-            )
+                db.copy_to(
+                    entries,
+                    'tmp_directory_entry_%s' % entry_type,
+                    ['target', 'name', 'perms', 'dir_id'],
+                    cur,
+                )
 
-        # Do the final copy
-        db.directory_add_from_temp(cur)
+            # Do the final copy
+            db.directory_add_from_temp(cur)
         summary['directory:add'] = len(dirs_missing)
 
         return summary
@@ -587,15 +619,16 @@ class Storage():
 
         parents_filtered = []
 
-        db.copy_to(
-            revisions_filtered, 'tmp_revision', db.revision_add_cols,
-            cur,
-            lambda rev: parents_filtered.extend(rev['parents']))
+        with convert_validation_exceptions():
+            db.copy_to(
+                revisions_filtered, 'tmp_revision', db.revision_add_cols,
+                cur,
+                lambda rev: parents_filtered.extend(rev['parents']))
 
-        db.revision_add_from_temp(cur)
+            db.revision_add_from_temp(cur)
 
-        db.copy_to(parents_filtered, 'revision_history',
-                   ['id', 'parent_id', 'parent_rank'], cur)
+            db.copy_to(parents_filtered, 'revision_history',
+                       ['id', 'parent_id', 'parent_rank'], cur)
 
         return {'revision:add': len(revisions_missing)}
 
@@ -671,10 +704,11 @@ class Storage():
 
         releases_filtered = map(converters.release_to_db, releases_filtered)
 
-        db.copy_to(releases_filtered, 'tmp_release', db.release_add_cols,
-                   cur)
+        with convert_validation_exceptions():
+            db.copy_to(releases_filtered, 'tmp_release', db.release_add_cols,
+                       cur)
 
-        db.release_add_from_temp(cur)
+            db.release_add_from_temp(cur)
 
         return {'release:add': len(releases_missing)}
 
@@ -714,20 +748,23 @@ class Storage():
                     db.mktemp_snapshot_branch(cur)
                     created_temp_table = True
 
-                db.copy_to(
-                    (
-                        {
-                            'name': name,
-                            'target': info['target'] if info else None,
-                            'target_type': (info['target_type']
-                                            if info else None),
-                        }
-                        for name, info in snapshot['branches'].items()
-                    ),
-                    'tmp_snapshot_branch',
-                    ['name', 'target', 'target_type'],
-                    cur,
-                )
+                try:
+                    db.copy_to(
+                        (
+                            {
+                                'name': name,
+                                'target': info['target'] if info else None,
+                                'target_type': (info['target_type']
+                                                if info else None),
+                            }
+                            for name, info in snapshot['branches'].items()
+                        ),
+                        'tmp_snapshot_branch',
+                        ['name', 'target', 'target_type'],
+                        cur,
+                    )
+                except VALIDATION_EXCEPTIONS + (KeyError,) as e:
+                    raise StorageArgumentException(*e.args)
 
                 if self.journal_writer:
                     self.journal_writer.write_addition('snapshot', snapshot)
@@ -776,7 +813,7 @@ class Storage():
             snapshot = self.snapshot_get(
                     origin_visit['snapshot'], db=db, cur=cur)
             if not snapshot:
-                raise ValueError(
+                raise StorageArgumentException(
                     'last origin visit references an unknown snapshot')
             return snapshot
 
@@ -842,7 +879,8 @@ class Storage():
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
 
-        visit_id = db.origin_visit_add(origin_url, date, type, cur)
+        with convert_validation_exceptions():
+            visit_id = db.origin_visit_add(origin_url, date, type, cur)
 
         if self.journal_writer:
             # We can write to the journal only after inserting to the
@@ -864,12 +902,13 @@ class Storage():
                             metadata=None, snapshot=None,
                             db=None, cur=None):
         if not isinstance(origin, str):
-            raise TypeError('origin must be a string, not %r' % (origin,))
+            raise StorageArgumentException(
+                'origin must be a string, not %r' % (origin,))
         origin_url = origin
         visit = db.origin_visit_get(origin_url, visit_id, cur=cur)
 
         if not visit:
-            raise ValueError('Invalid visit_id for this origin.')
+            raise StorageArgumentException('Invalid visit_id for this origin.')
 
         visit = dict(zip(db.origin_visit_get_cols, visit))
 
@@ -886,7 +925,8 @@ class Storage():
                 self.journal_writer.write_update('origin_visit', {
                     **visit, **updates})
 
-            db.origin_visit_update(origin_url, visit_id, updates, cur)
+            with convert_validation_exceptions():
+                db.origin_visit_update(origin_url, visit_id, updates, cur)
 
     @timed
     @db_transaction()
@@ -896,8 +936,9 @@ class Storage():
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
             if not isinstance(visit['origin'], str):
-                raise TypeError("visit['origin'] must be a string, not %r"
-                                % (visit['origin'],))
+                raise StorageArgumentException(
+                    "visit['origin'] must be a string, not %r"
+                    % (visit['origin'],))
 
         if self.journal_writer:
             for visit in visits:
@@ -1013,7 +1054,7 @@ class Storage():
                     *, db=None, cur=None) -> dict:
         page_token = page_token or '0'
         if not isinstance(page_token, str):
-            raise TypeError('page_token must be a string.')
+            raise StorageArgumentException('page_token must be a string.')
         origin_from = int(page_token)
         result: Dict[str, Any] = {
             'origins': [
@@ -1058,6 +1099,8 @@ class Storage():
     @timed
     @db_transaction()
     def origin_add_one(self, origin, db=None, cur=None):
+        if 'url' not in origin:
+            raise StorageArgumentException('Missing origin url')
         origin_row = list(db.origin_get_by_url([origin['url']], cur))[0]
         origin_url = dict(zip(db.origin_cols, origin_row))['url']
         if origin_url:
@@ -1117,11 +1160,12 @@ class Storage():
     @db_transaction()
     def tool_add(self, tools, db=None, cur=None):
         db.mktemp_tool(cur)
-        db.copy_to(tools, 'tmp_tool',
-                   ['name', 'version', 'configuration'],
-                   cur)
+        with convert_validation_exceptions():
+            db.copy_to(tools, 'tmp_tool',
+                       ['name', 'version', 'configuration'],
+                       cur)
+            tools = db.tool_add_from_temp(cur)
 
-        tools = db.tool_add_from_temp(cur)
         results = [dict(zip(db.tool_cols, line)) for line in tools]
         send_metric('tool:add', count=len(results), method_name='tool_add')
         return results

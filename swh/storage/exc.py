@@ -21,3 +21,8 @@ class StorageAPIError(Exception):
     def __str__(self):
         args = self.args
         return 'An unexpected error occurred in the api backend: %s' % args
+
+
+class StorageArgumentException(Exception):
+    """Argument passed to a Storage endpoint is invalid."""
+    pass
