@@ -178,11 +178,6 @@ class TestCassandraStorage(_TestStorage):
         pass
 
     @pytest.mark.skip(
-        'not implemented, see https://forge.softwareheritage.org/T1633')
-    def test_skipped_content_add(self):
-        pass
-
-    @pytest.mark.skip(
         'The "person" table of the pgsql is a legacy thing, and not '
         'supported by the cassandra backend.')
     def test_person_fullname_unicity(self):

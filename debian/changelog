@@ -1,8 +1,12 @@
-swh-storage (0.0.170-1~swh3~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.171-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.171     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-02-06 14:46:05 +0100)
+  * Upstream changes:     - v0.0.171     - * Split 'content_add' method
+    into 'content_add' and 'skipped_content_add'.     - * Increase
+    Cassandra requests timeout to 1 second.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 03 Feb 2020 16:39:49 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 06 Feb 2020 14:07:37 +0000
 
 swh-storage (0.0.170-1~swh3) unstable-swh; urgency=medium
 

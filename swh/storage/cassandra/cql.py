@@ -19,6 +19,7 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from swh.model.model import (
     Sha1Git, TimestampWithTimezone, Timestamp, Person, Content,
+    SkippedContent,
 )
 
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
@@ -122,7 +123,7 @@ class CqlRunner:
     @retry(wait=wait_random_exponential(multiplier=1, max=10),
            stop=stop_after_attempt(MAX_RETRIES))
     def _execute_with_retries(self, statement, args) -> ResultSet:
-        return self._session.execute(statement, args, timeout=100.)
+        return self._session.execute(statement, args, timeout=1000.)
 
     @_prepared_statement('UPDATE object_count SET count = count + ? '
                          'WHERE partition_key = 0 AND object_type = ?')
@@ -167,6 +168,10 @@ class CqlRunner:
         'sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
         'ctime', 'status']
 
+    @_prepared_insert_statement('content', _content_keys)
+    def content_add_one(self, content, *, statement) -> None:
+        self._add_one(statement, 'content', content, self._content_keys)
+
     @_prepared_statement('SELECT * FROM content WHERE ' +
                          ' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS)))
     def content_get_from_pk(
@@ -203,10 +208,6 @@ class CqlRunner:
             self, ids: List[bytes], *, statement) -> List[bytes]:
         return self._missing(statement, ids)
 
-    @_prepared_insert_statement('content', _content_keys)
-    def content_add_one(self, content, *, statement) -> None:
-        self._add_one(statement, 'content', content, self._content_keys)
-
     def content_index_add_one(self, main_algo: str, content: Content) -> None:
         query = 'INSERT INTO content_by_{algo} ({cols}) VALUES ({values})' \
             .format(algo=main_algo, cols=', '.join(self._content_pk),
@@ -220,6 +221,60 @@ class CqlRunner:
         query = 'SELECT * FROM content_by_{algo} WHERE {algo} = %s'.format(
             algo=algo)
         return list(self._execute_with_retries(query, [hash_]))
+
+    ##########################
+    # 'skipped_content' table
+    ##########################
+
+    _skipped_content_pk = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
+    _skipped_content_keys = [
+        'sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
+        'ctime', 'status', 'reason', 'origin']
+    _magic_null_pk = b''
+    """
+    NULLs are not allowed in primary keys; instead use an empty
+    value
+    """
+
+    @_prepared_insert_statement('skipped_content', _skipped_content_keys)
+    def skipped_content_add_one(self, content, *, statement) -> None:
+        content = content.to_dict()
+        for key in self._skipped_content_pk:
+            if content[key] is None:
+                content[key] = self._magic_null_pk
+        content = SkippedContent.from_dict(content)
+        self._add_one(statement, 'skipped_content', content,
+                      self._skipped_content_keys)
+
+    @_prepared_statement('SELECT * FROM skipped_content WHERE ' +
+                         ' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS)))
+    def skipped_content_get_from_pk(
+            self, content_hashes: Dict[str, bytes], *, statement
+            ) -> Optional[Row]:
+        rows = list(self._execute_with_retries(
+            statement, [content_hashes[algo] or self._magic_null_pk
+                        for algo in HASH_ALGORITHMS]))
+        assert len(rows) <= 1
+        if rows:
+            # TODO: convert _magic_null_pk back to None?
+            return rows[0]
+        else:
+            return None
+
+    ##########################
+    # 'skipped_content_by_*' tables
+    ##########################
+
+    def skipped_content_index_add_one(
+            self, main_algo: str, content: Content) -> None:
+        assert content.get_hash(main_algo) is not None
+        query = ('INSERT INTO skipped_content_by_{algo} ({cols}) '
+                 'VALUES ({values})').format(
+                algo=main_algo, cols=', '.join(self._content_pk),
+                values=', '.join('%s' for _ in self._content_pk))
+        self._execute_with_retries(
+            query, [content.get_hash(algo) or self._magic_null_pk
+                    for algo in self._content_pk])
 
     ##########################
     # 'revision' table

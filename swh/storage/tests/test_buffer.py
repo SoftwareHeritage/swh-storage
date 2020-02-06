@@ -27,7 +27,6 @@ def test_buffering_proxy_storage_content_threshold_not_hit(sample_data):
     assert s == {
         'content:add': 1 + 1,
         'content:add:bytes': contents[0]['length'] + contents[1]['length'],
-        'skipped_content:add': 0
     }
 
     missing_contents = storage.content_missing(
@@ -48,7 +47,6 @@ def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data):
     assert s == {
         'content:add': 1,
         'content:add:bytes': contents[0]['length'],
-        'skipped_content:add': 0
     }
 
     missing_contents = storage.content_missing([contents[0]])
@@ -75,10 +73,58 @@ def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data):
     assert s == {
         'content:add': 1,
         'content:add:bytes': contents[0]['length'],
-        'skipped_content:add': 0
     }
 
     missing_contents = storage.content_missing([contents[0]])
+    assert list(missing_contents) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_skipped_content_threshold_not_hit(
+        sample_data):
+    contents = sample_data['skipped_content']
+    storage = BufferingProxyStorage(
+        storage={'cls': 'memory'},
+        min_batch_size={
+            'skipped_content': 10,
+        }
+    )
+    s = storage.skipped_content_add([contents[0], contents[1]])
+    assert s == {}
+
+    # contents have not been written to storage
+    missing_contents = storage.skipped_content_missing(
+        [contents[0], contents[1]])
+    assert {c['sha1'] for c in missing_contents} \
+        == {c['sha1'] for c in contents}
+
+    s = storage.flush()
+    assert s == {
+        'skipped_content:add': 1 + 1
+    }
+
+    missing_contents = storage.skipped_content_missing(
+        [contents[0], contents[1]])
+    assert list(missing_contents) == []
+
+
+def test_buffering_proxy_storage_skipped_content_threshold_nb_hit(sample_data):
+    contents = sample_data['skipped_content']
+    storage = BufferingProxyStorage(
+        storage={'cls': 'memory'},
+        min_batch_size={
+            'skipped_content': 1,
+        }
+    )
+
+    s = storage.skipped_content_add([contents[0]])
+    assert s == {
+        'skipped_content:add': 1
+    }
+
+    missing_contents = storage.skipped_content_missing([contents[0]])
     assert list(missing_contents) == []
 
     s = storage.flush()
