@@ -14,6 +14,7 @@ from swh.core.api import (RPCServerApp,
 
 from ..interface import StorageInterface
 from ..metrics import timed
+from ..exc import StorageArgumentException
 
 
 def get_storage():
@@ -28,6 +29,11 @@ app = RPCServerApp(__name__,
                    backend_class=StorageInterface,
                    backend_factory=get_storage)
 storage = None
+
+
+@app.errorhandler(StorageArgumentException)
+def argument_error_handler(exception):
+    return error_handler(exception, encode_data, status_code=400)
 
 
 @app.errorhandler(Exception)

@@ -1,11 +1,12 @@
-# Copyright (C) 2015-2017  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.core.api import RPCClient
+from swh.core.api import RPCClient, RemoteException
 
-from ..exc import StorageAPIError
+from .. import HashCollision
+from ..exc import StorageAPIError, StorageArgumentException
 from ..interface import StorageInterface
 
 
@@ -13,6 +14,22 @@ class RemoteStorage(RPCClient):
     """Proxy to a remote storage API"""
     api_exception = StorageAPIError
     backend_class = StorageInterface
+    reraise_exceptions = [
+        StorageArgumentException,
+    ]
+
+    def raise_for_status(self, response) -> None:
+        try:
+            super().raise_for_status(response)
+        except RemoteException as e:
+            if e.response is not None and e.response.status_code == 500 \
+                    and e.args and e.args[0].get('type') == 'HashCollision':
+                # XXX: workaround until we fix these HashCollisions happening
+                # when they shouldn't
+                raise HashCollision(
+                    *e.args[0]['args'])
+            else:
+                raise
 
     def reset(self):
         return self.post('reset', {})
