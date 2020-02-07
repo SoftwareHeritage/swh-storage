@@ -17,13 +17,8 @@ from swh.model.model import (
     Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
     OriginVisit, Snapshot, Origin
 )
-try:
-    from swh.journal.writer import get_journal_writer
-except ImportError:
-    get_journal_writer = None  # type: ignore
-    # mypy limitation, see https://github.com/python/mypy/issues/1153
-
 from swh.storage.objstorage import ObjStorage
+from swh.storage.writer import JournalWriter
 
 from .. import HashCollision
 from ..exc import StorageArgumentException
@@ -47,11 +42,7 @@ class CassandraStorage:
     def __init__(self, hosts, keyspace, objstorage,
                  port=9042, journal_writer=None):
         self._cql_runner = CqlRunner(hosts, keyspace, port)
-
-        if journal_writer:
-            self.journal_writer = get_journal_writer(**journal_writer)
-        else:
-            self.journal_writer = None
+        self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(objstorage)
 
     def check_config(self, *, check_write):
@@ -64,12 +55,7 @@ class CassandraStorage:
         contents = [c for c in contents
                     if not self._cql_runner.content_get_from_pk(c.to_dict())]
 
-        if self.journal_writer:
-            for content in contents:
-                cont = content.to_dict()
-                if 'data' in cont:
-                    del cont['data']
-                self.journal_writer.write_addition('content', cont)
+        self.journal_writer.content_add(contents)
 
         if with_data:
             # First insert to the objstorage, if the endpoint is
@@ -249,12 +235,7 @@ class CassandraStorage:
             c for c in contents
             if not self._cql_runner.skipped_content_get_from_pk(c.to_dict())]
 
-        if self.journal_writer:
-            for content in contents:
-                cont = content.to_dict()
-                if 'data' in cont:
-                    del cont['data']
-                self.journal_writer.write_addition('content', cont)
+        self.journal_writer.skipped_content_add(contents)
 
         for content in contents:
             # Add to index tables
@@ -285,8 +266,7 @@ class CassandraStorage:
         missing = self.directory_missing([dir_.id for dir_ in directories])
         directories = [dir_ for dir_ in directories if dir_.id in missing]
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('directory', directories)
+        self.journal_writer.directory_add(directories)
 
         for directory in directories:
             # Add directory entries to the 'directory_entry' table
@@ -390,8 +370,7 @@ class CassandraStorage:
         missing = self.revision_missing([rev.id for rev in revisions])
         revisions = [rev for rev in revisions if rev.id in missing]
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('revision', revisions)
+        self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
             revision = revision_to_db(revision)
@@ -483,8 +462,7 @@ class CassandraStorage:
         missing = self.release_missing([rel.id for rel in releases])
         releases = [rel for rel in releases if rel.id in missing]
 
-        if self.journal_writer:
-            self.journal_writer.write_additions('release', releases)
+        self.journal_writer.release_add(releases)
 
         for release in releases:
             if release:
@@ -516,8 +494,7 @@ class CassandraStorage:
         snapshots = [snp for snp in snapshots if snp.id in missing]
 
         for snapshot in snapshots:
-            if self.journal_writer:
-                self.journal_writer.write_addition('snapshot', snapshot)
+            self.journal_writer.snapshot_add(snapshot)
 
             # Add branches
             for (branch_name, branch) in snapshot.branches.items():
@@ -763,8 +740,7 @@ class CassandraStorage:
         if known_origin:
             origin_url = known_origin['url']
         else:
-            if self.journal_writer:
-                self.journal_writer.write_addition('origin', origin)
+            self.journal_writer.origin_add_one(origin)
 
             self._cql_runner.origin_add_one(origin)
             origin_url = origin.url
@@ -797,9 +773,7 @@ class CassandraStorage:
             })
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
-
-        if self.journal_writer:
-            self.journal_writer.write_addition('origin_visit', visit)
+        self.journal_writer.origin_visit_add(visit)
 
         self._cql_runner.origin_visit_add_one(visit)
 
@@ -835,8 +809,7 @@ class CassandraStorage:
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
 
-        if self.journal_writer:
-            self.journal_writer.write_update('origin_visit', visit)
+        self.journal_writer.origin_visit_update(visit)
 
         self._cql_runner.origin_visit_update(origin_url, visit_id, updates)
 
@@ -846,9 +819,7 @@ class CassandraStorage:
             if isinstance(visit['date'], str):
                 visit['date'] = dateutil.parser.parse(visit['date'])
 
-        if self.journal_writer:
-            for visit in visits:
-                self.journal_writer.write_addition('origin_visit', visit)
+        self.journal_writer.origin_visit_upsert(visits)
 
         for visit in visits:
             visit = visit.copy()

@@ -26,9 +26,10 @@ from swh.storage.objstorage import ObjStorage
 
 from . import HashCollision
 from .exc import StorageArgumentException
-from .storage import get_journal_writer
+
 from .converters import origin_url_to_sha1
 from .utils import get_partition_bounds_bytes
+from .writer import JournalWriter
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
@@ -46,11 +47,7 @@ class InMemoryStorage:
         self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
 
         self.reset()
-
-        if journal_writer:
-            self.journal_writer = get_journal_writer(**journal_writer)
-        else:
-            self.journal_writer = None
+        self.journal_writer = JournalWriter(journal_writer)
 
     def reset(self):
         self._directories = {}
@@ -77,10 +74,7 @@ class InMemoryStorage:
 
     def _content_add(
             self, contents: Iterable[Content], with_data: bool) -> Dict:
-        if self.journal_writer:
-            for content in contents:
-                content = attr.evolve(content, data=None)
-                self.journal_writer.write_addition('content', content)
+        self.journal_writer.content_add(contents)
 
         content_add = 0
         content_add_bytes = 0
@@ -125,9 +119,7 @@ class InMemoryStorage:
         return self._content_add(content, with_data=True)
 
     def content_update(self, content, keys=[]):
-        if self.journal_writer:
-            raise NotImplementedError(
-                'content_update is not yet supported with a journal_writer.')
+        self.journal_writer.content_update(content)
 
         for cont_update in content:
             cont_update = cont_update.copy()
@@ -260,9 +252,7 @@ class InMemoryStorage:
         return random.choice(list(self._content_indexes['sha1_git']))
 
     def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
-        if self.journal_writer:
-            for cont in contents:
-                self.journal_writer.write_addition('content', cont)
+        self.journal_writer.skipped_content_add(contents)
 
         summary = {
             'skipped_content:add': 0
@@ -301,20 +291,16 @@ class InMemoryStorage:
         return self._skipped_content_add(content)
 
     def directory_add(self, directories: Iterable[Directory]) -> Dict:
-        directories = list(directories)
-        if self.journal_writer:
-            self.journal_writer.write_additions(
-                'directory',
-                (dir_ for dir_ in directories
-                 if dir_.id not in self._directories))
+        directories = [dir_ for dir_ in directories
+                       if dir_.id not in self._directories]
+        self.journal_writer.directory_add(directories)
 
         count = 0
         for directory in directories:
-            if directory.id not in self._directories:
-                count += 1
-                self._directories[directory.id] = directory
-                self._objects[directory.id].append(
-                    ('directory', directory.id))
+            count += 1
+            self._directories[directory.id] = directory
+            self._objects[directory.id].append(
+                ('directory', directory.id))
 
         return {'directory:add': count}
 
@@ -392,24 +378,20 @@ class InMemoryStorage:
                 first_item['target'], paths[1:], prefix + paths[0] + b'/')
 
     def revision_add(self, revisions: Iterable[Revision]) -> Dict:
-        revisions = list(revisions)
-        if self.journal_writer:
-            self.journal_writer.write_additions(
-                'revision',
-                (rev for rev in revisions
-                 if rev.id not in self._revisions))
+        revisions = [rev for rev in revisions
+                     if rev.id not in self._revisions]
+        self.journal_writer.revision_add(revisions)
 
         count = 0
         for revision in revisions:
-            if revision.id not in self._revisions:
-                revision = attr.evolve(
-                    revision,
-                    committer=self._person_add(revision.committer),
-                    author=self._person_add(revision.author))
-                self._revisions[revision.id] = revision
-                self._objects[revision.id].append(
-                    ('revision', revision.id))
-                count += 1
+            revision = attr.evolve(
+                revision,
+                committer=self._person_add(revision.committer),
+                author=self._person_add(revision.author))
+            self._revisions[revision.id] = revision
+            self._objects[revision.id].append(
+                ('revision', revision.id))
+            count += 1
 
         return {'revision:add': count}
 
@@ -448,22 +430,18 @@ class InMemoryStorage:
         return random.choice(list(self._revisions))
 
     def release_add(self, releases: Iterable[Release]) -> Dict:
-        releases = list(releases)
-        if self.journal_writer:
-            self.journal_writer.write_additions(
-                'release',
-                (rel for rel in releases
-                 if rel.id not in self._releases))
+        releases = [rel for rel in releases
+                    if rel.id not in self._releases]
+        self.journal_writer.release_add(releases)
 
         count = 0
         for rel in releases:
-            if rel.id not in self._releases:
-                if rel.author:
-                    self._person_add(rel.author)
-                self._objects[rel.id].append(
-                    ('release', rel.id))
-                self._releases[rel.id] = rel
-                count += 1
+            if rel.author:
+                self._person_add(rel.author)
+            self._objects[rel.id].append(
+                ('release', rel.id))
+            self._releases[rel.id] = rel
+            count += 1
 
         return {'release:add': count}
 
@@ -485,9 +463,7 @@ class InMemoryStorage:
         snapshots = (snap for snap in snapshots
                      if snap.id not in self._snapshots)
         for snapshot in snapshots:
-            if self.journal_writer:
-                self.journal_writer.write_addition('snapshot', snapshot)
-
+            self.journal_writer.snapshot_add(snapshot)
             sorted_branch_names = sorted(snapshot.branches)
             self._snapshots[snapshot.id] = (snapshot, sorted_branch_names)
             self._objects[snapshot.id].append(('snapshot', snapshot.id))
@@ -699,9 +675,7 @@ class InMemoryStorage:
 
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
-            if self.journal_writer:
-                self.journal_writer.write_addition('origin', origin)
-
+            self.journal_writer.origin_add_one(origin)
             # generate an origin_id because it is needed by origin_get_range.
             # TODO: remove this when we remove origin_get_range
             origin_id = len(self._origins) + 1
@@ -752,8 +726,7 @@ class InMemoryStorage:
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
 
-            if self.journal_writer:
-                self.journal_writer.write_addition('origin_visit', visit)
+            self.journal_writer.origin_visit_add(visit)
 
         return visit_ret
 
@@ -783,8 +756,7 @@ class InMemoryStorage:
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
 
-        if self.journal_writer:
-            self.journal_writer.write_update('origin_visit', visit)
+        self.journal_writer.origin_visit_update(visit)
 
         self._origin_visits[origin_url][visit_id-1] = visit
 
@@ -798,9 +770,7 @@ class InMemoryStorage:
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
 
-        if self.journal_writer:
-            for visit in visits:
-                self.journal_writer.write_addition('origin_visit', visit)
+        self.journal_writer.origin_visit_upsert(visits)
 
         for visit in visits:
             visit_id = visit.visit
