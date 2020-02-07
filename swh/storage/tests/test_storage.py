@@ -26,8 +26,9 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
+from swh.model.model import Release, Revision
 from swh.model.hypothesis_strategies import objects
-from swh.storage import HashCollision
+from swh.storage import HashCollision, get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
@@ -98,12 +99,13 @@ class TestStorage:
     """
     maxDiff = None  # type: ClassVar[Optional[int]]
 
-    def test_types(self, swh_storage):
+    def test_types(self, swh_storage_backend_config):
         """Checks all methods of StorageInterface are implemented by this
         backend, and that they have the same signature."""
         # Create an instance of the protocol (which cannot be instantiated
         # directly, so this creates a subclass, then instantiates it)
         interface = type('_', (StorageInterface,), {})()
+        storage = get_storage(**swh_storage_backend_config)
 
         assert 'content_add' in dir(interface)
 
@@ -114,7 +116,7 @@ class TestStorage:
                 continue
             interface_meth = getattr(interface, meth_name)
             try:
-                concrete_meth = getattr(swh_storage, meth_name)
+                concrete_meth = getattr(storage, meth_name)
             except AttributeError:
                 if not getattr(interface_meth, 'deprecated_endpoint', False):
                     # The backend is missing a (non-deprecated) endpoint
@@ -266,7 +268,8 @@ class TestStorage:
         assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
 
     def test_content_update(self, swh_storage):
-        swh_storage.journal_writer = None  # TODO, not supported
+        if hasattr(swh_storage, 'storage'):
+            swh_storage.storage.journal_writer = None  # TODO, not supported
 
         cont = copy.deepcopy(data.cont)
 
@@ -535,6 +538,7 @@ class TestStorage:
         assert actual_contents == {missing_cont['sha1']: []}
 
     def test_content_get_random(self, swh_storage):
+        print(data.cont, data.cont2, data.cont3)
         swh_storage.content_add([data.cont, data.cont2, data.cont3])
 
         assert swh_storage.content_get_random() in {
@@ -762,8 +766,10 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([data.revision['id']])
         assert list(end_missing) == []
 
+        normalized_revision = Revision.from_dict(data.revision).to_dict()
+
         assert list(swh_storage.journal_writer.objects) \
-            == [('revision', data.revision)]
+            == [('revision', normalized_revision)]
 
         # already there so nothing added
         actual_result = swh_storage.revision_add([data.revision])
@@ -817,16 +823,19 @@ class TestStorage:
         actual_result = swh_storage.revision_add([data.revision])
         assert actual_result == {'revision:add': 1}
 
+        normalized_revision = Revision.from_dict(data.revision).to_dict()
+        normalized_revision2 = Revision.from_dict(data.revision2).to_dict()
+
         assert list(swh_storage.journal_writer.objects) \
-            == [('revision', data.revision)]
+            == [('revision', normalized_revision)]
 
         actual_result = swh_storage.revision_add(
             [data.revision, data.revision2])
         assert actual_result == {'revision:add': 1}
 
         assert list(swh_storage.journal_writer.objects) \
-            == [('revision', data.revision),
-                ('revision', data.revision2)]
+            == [('revision', normalized_revision),
+                ('revision', normalized_revision2)]
 
     def test_revision_add_name_clash(self, swh_storage):
         revision1 = data.revision
@@ -866,9 +875,12 @@ class TestStorage:
         assert actual_results[0] == normalize_entity(data.revision4)
         assert actual_results[1] == normalize_entity(data.revision3)
 
+        normalized_revision3 = Revision.from_dict(data.revision3).to_dict()
+        normalized_revision4 = Revision.from_dict(data.revision4).to_dict()
+
         assert list(swh_storage.journal_writer.objects) == [
-            ('revision', data.revision3),
-            ('revision', data.revision4)]
+            ('revision', normalized_revision3),
+            ('revision', normalized_revision4)]
 
     def test_revision_log_with_limit(self, swh_storage):
         # given
@@ -949,6 +961,9 @@ class TestStorage:
             {data.revision['id'], data.revision2['id'], data.revision3['id']}
 
     def test_release_add(self, swh_storage):
+        normalized_release = Release.from_dict(data.release).to_dict()
+        normalized_release2 = Release.from_dict(data.release2).to_dict()
+
         init_missing = swh_storage.release_missing([data.release['id'],
                                                     data.release2['id']])
         assert [data.release['id'], data.release2['id']] == list(init_missing)
@@ -961,8 +976,8 @@ class TestStorage:
         assert list(end_missing) == []
 
         assert list(swh_storage.journal_writer.objects) == [
-            ('release', data.release),
-            ('release', data.release2)]
+            ('release', normalized_release),
+            ('release', normalized_release2)]
 
         # already present so nothing added
         actual_result = swh_storage.release_add([data.release, data.release2])
@@ -976,12 +991,15 @@ class TestStorage:
             yield data.release
             yield data.release2
 
+        normalized_release = Release.from_dict(data.release).to_dict()
+        normalized_release2 = Release.from_dict(data.release2).to_dict()
+
         actual_result = swh_storage.release_add(_rel_gen())
         assert actual_result == {'release:add': 2}
 
         assert list(swh_storage.journal_writer.objects) == [
-            ('release', data.release),
-            ('release', data.release2)]
+            ('release', normalized_release),
+            ('release', normalized_release2)]
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()['release'] == 2
@@ -1025,15 +1043,18 @@ class TestStorage:
         actual_result = swh_storage.release_add([data.release])
         assert actual_result == {'release:add': 1}
 
+        normalized_release = Release.from_dict(data.release).to_dict()
+        normalized_release2 = Release.from_dict(data.release2).to_dict()
+
         assert list(swh_storage.journal_writer.objects) \
-            == [('release', data.release)]
+            == [('release', normalized_release)]
 
         actual_result = swh_storage.release_add([data.release, data.release2])
         assert actual_result == {'release:add': 1}
 
         assert list(swh_storage.journal_writer.objects) \
-            == [('release', data.release),
-                ('release', data.release2)]
+            == [('release', normalized_release),
+                ('release', normalized_release2)]
 
     def test_release_add_name_clash(self, swh_storage):
         release1 = data.release.copy()
@@ -3684,7 +3705,7 @@ class TestPgStorage:
     """
 
     def test_content_update_with_new_cols(self, swh_storage):
-        swh_storage.journal_writer = None  # TODO, not supported
+        swh_storage.storage.journal_writer = None  # TODO, not supported
 
         with db_transaction(swh_storage) as (_, cur):
             cur.execute("""alter table content

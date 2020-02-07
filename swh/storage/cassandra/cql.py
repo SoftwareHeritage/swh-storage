@@ -23,7 +23,7 @@ from tenacity import (
 
 from swh.model.model import (
     Sha1Git, TimestampWithTimezone, Timestamp, Person, Content,
-    SkippedContent, OriginVisit,
+    SkippedContent, OriginVisit, Origin
 )
 
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
@@ -454,9 +454,9 @@ class CqlRunner:
 
     @_prepared_statement('INSERT INTO origin (sha1, url, next_visit_id) '
                          'VALUES (?, ?, 1) IF NOT EXISTS')
-    def origin_add_one(self, origin: Dict[str, Any], *, statement) -> None:
+    def origin_add_one(self, origin: Origin, *, statement) -> None:
         self._execute_with_retries(
-            statement, [hash_url(origin['url']), origin['url']])
+            statement, [hash_url(origin.url), origin.url])
         self._increment_counter('origin', 1)
 
     @_prepared_statement('SELECT * FROM origin WHERE sha1 = ?')

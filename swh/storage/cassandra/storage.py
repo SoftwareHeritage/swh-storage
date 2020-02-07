@@ -7,7 +7,7 @@ import datetime
 import json
 import random
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Iterable, Optional, Union
 import uuid
 
 import attr
@@ -15,7 +15,7 @@ import dateutil
 
 from swh.model.model import (
     Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
-    OriginVisit, Snapshot
+    OriginVisit, Snapshot, Origin
 )
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -61,22 +61,17 @@ class CassandraStorage:
 
         return True
 
-    def _content_add(self, contents, with_data):
-        try:
-            contents = [Content.from_dict(c) for c in contents]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
-
+    def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
         # Filter-out content already in the database.
         contents = [c for c in contents
                     if not self._cql_runner.content_get_from_pk(c.to_dict())]
 
         if self.journal_writer:
             for content in contents:
-                content = content.to_dict()
-                if 'data' in content:
-                    del content['data']
-                self.journal_writer.write_addition('content', content)
+                cont = content.to_dict()
+                if 'data' in cont:
+                    del cont['data']
+                self.journal_writer.write_addition('content', cont)
 
         count_contents = 0
         count_content_added = 0
@@ -94,6 +89,8 @@ class CassandraStorage:
                 count_content_added += 1
                 if with_data:
                     content_data = content.data
+                    if content_data is None:
+                        raise StorageArgumentException('Missing data')
                     count_content_bytes_added += len(content_data)
                     self.objstorage.add(content_data, content.sha1)
 
@@ -128,18 +125,15 @@ class CassandraStorage:
 
         return summary
 
-    def content_add(self, content):
-        content = [c.copy() for c in content]  # semi-shallow copy
-        for item in content:
-            item['ctime'] = now()
-        return self._content_add(content, with_data=True)
+    def content_add(self, content: Iterable[Content]) -> Dict:
+        return self._content_add(list(content), with_data=True)
 
     def content_update(self, content, keys=[]):
         raise NotImplementedError(
             'content_update is not supported by the Cassandra backend')
 
-    def content_add_metadata(self, content):
-        return self._content_add(content, with_data=False)
+    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
+        return self._content_add(list(content), with_data=False)
 
     def content_get(self, content):
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
@@ -264,12 +258,7 @@ class CassandraStorage:
     def content_get_random(self):
         return self._cql_runner.content_get_random().sha1_git
 
-    def _skipped_content_add(self, contents):
-        try:
-            contents = [SkippedContent.from_dict(c) for c in contents]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
-
+    def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
         # Filter-out content already in the database.
         contents = [
             c for c in contents
@@ -277,10 +266,10 @@ class CassandraStorage:
 
         if self.journal_writer:
             for content in contents:
-                content = content.to_dict()
-                if 'data' in content:
-                    del content['data']
-                self.journal_writer.write_addition('content', content)
+                cont = content.to_dict()
+                if 'data' in cont:
+                    del cont['data']
+                self.journal_writer.write_addition('content', cont)
 
         for content in contents:
             # Add to index tables
@@ -296,10 +285,7 @@ class CassandraStorage:
             'skipped_content:add': len(contents)
         }
 
-    def skipped_content_add(self, content):
-        content = [c.copy() for c in content]  # semi-shallow copy
-        for item in content:
-            item['ctime'] = now()
+    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
         return self._skipped_content_add(content)
 
     def skipped_content_missing(self, contents):
@@ -307,27 +293,23 @@ class CassandraStorage:
             if not self._cql_runner.skipped_content_get_from_pk(content):
                 yield content
 
-    def directory_add(self, directories):
+    def directory_add(self, directories: Iterable[Directory]) -> Dict:
         directories = list(directories)
 
         # Filter out directories that are already inserted.
-        missing = self.directory_missing([dir_['id'] for dir_ in directories])
-        directories = [dir_ for dir_ in directories if dir_['id'] in missing]
+        missing = self.directory_missing([dir_.id for dir_ in directories])
+        directories = [dir_ for dir_ in directories if dir_.id in missing]
 
         if self.journal_writer:
             self.journal_writer.write_additions('directory', directories)
 
         for directory in directories:
-            try:
-                directory = Directory.from_dict(directory)
-            except (KeyError, TypeError, ValueError) as e:
-                raise StorageArgumentException(*e.args)
-
             # Add directory entries to the 'directory_entry' table
             for entry in directory.entries:
-                entry = entry.to_dict()
-                entry['directory_id'] = directory.id
-                self._cql_runner.directory_entry_add_one(entry)
+                self._cql_runner.directory_entry_add_one({
+                    **entry.to_dict(),
+                    'directory_id': directory.id
+                })
 
             # Add the directory *after* adding all the entries, so someone
             # calling snapshot_get_branch in the meantime won't end up
@@ -416,22 +398,18 @@ class CassandraStorage:
     def directory_get_random(self):
         return self._cql_runner.directory_get_random().id
 
-    def revision_add(self, revisions):
+    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
         revisions = list(revisions)
 
         # Filter-out revisions already in the database
-        missing = self.revision_missing([rev['id'] for rev in revisions])
-        revisions = [rev for rev in revisions if rev['id'] in missing]
+        missing = self.revision_missing([rev.id for rev in revisions])
+        revisions = [rev for rev in revisions if rev.id in missing]
 
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions)
 
         for revision in revisions:
-            try:
-                revision = revision_to_db(revision)
-            except (KeyError, TypeError, ValueError) as e:
-                raise StorageArgumentException(*e.args)
-
+            revision = revision_to_db(revision)
             if revision:
                 # Add parents first
                 for (rank, parent) in enumerate(revision.parents):
@@ -516,21 +494,16 @@ class CassandraStorage:
     def revision_get_random(self):
         return self._cql_runner.revision_get_random().id
 
-    def release_add(self, releases):
-        releases = list(releases)
-        missing = self.release_missing([rel['id'] for rel in releases])
-        releases = [rel for rel in releases if rel['id'] in missing]
+    def release_add(self, releases: Iterable[Release]) -> Dict:
+        missing = self.release_missing([rel.id for rel in releases])
+        releases = [rel for rel in releases if rel.id in missing]
 
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases)
 
         for release in releases:
-            try:
-                release = release_to_db(release)
-            except (KeyError, TypeError, ValueError) as e:
-                raise StorageArgumentException(*e.args)
-
             if release:
+                release = release_to_db(release)
                 self._cql_runner.release_add_one(release)
 
         return {'release:add': len(missing)}
@@ -552,11 +525,7 @@ class CassandraStorage:
     def release_get_random(self):
         return self._cql_runner.release_get_random().id
 
-    def snapshot_add(self, snapshots):
-        try:
-            snapshots = [Snapshot.from_dict(snap) for snap in snapshots]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
         missing = self._cql_runner.snapshot_missing(
             [snp.id for snp in snapshots])
         snapshots = [snp for snp in snapshots if snp.id in missing]
@@ -573,13 +542,12 @@ class CassandraStorage:
                 else:
                     target_type = branch.target_type.value
                     target = branch.target
-                branch = {
+                self._cql_runner.snapshot_branch_add_one({
                     'snapshot_id': snapshot.id,
                     'name': branch_name,
                     'target_type': target_type,
                     'target': target,
-                }
-                self._cql_runner.snapshot_branch_add_one(branch)
+                })
 
             # Add the snapshot *after* adding all the branches, so someone
             # calling snapshot_get_branch in the meantime won't end up
@@ -797,19 +765,15 @@ class CassandraStorage:
             }
             for orig in origins[offset:offset+limit]]
 
-    def origin_add(self, origins):
-        origins = list(origins)
-        if any('id' in origin for origin in origins):
-            raise StorageArgumentException(
-                'Origins must not already have an id.')
+    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
         results = []
         for origin in origins:
             self.origin_add_one(origin)
-            results.append(origin)
+            results.append(origin.to_dict())
         return results
 
-    def origin_add_one(self, origin):
-        known_origin = self.origin_get_one(origin)
+    def origin_add_one(self, origin: Origin) -> str:
+        known_origin = self.origin_get_one(origin.to_dict())
 
         if known_origin:
             origin_url = known_origin['url']
@@ -818,11 +782,12 @@ class CassandraStorage:
                 self.journal_writer.write_addition('origin', origin)
 
             self._cql_runner.origin_add_one(origin)
-            origin_url = origin['url']
+            origin_url = origin.url
 
         return origin_url
 
-    def origin_visit_add(self, origin, date, type):
+    def origin_visit_add(
+            self, origin, date, type) -> Optional[Dict[str, Union[str, int]]]:
         origin_url = origin  # TODO: rename the argument
 
         if isinstance(date, str):
@@ -835,23 +800,21 @@ class CassandraStorage:
 
         visit_id = self._cql_runner.origin_generate_unique_visit_id(origin_url)
 
-        visit = {
-            'origin': origin_url,
-            'date': date,
-            'type': type,
-            'status': 'ongoing',
-            'snapshot': None,
-            'metadata': None,
-            'visit': visit_id
-        }
+        try:
+            visit = OriginVisit.from_dict({
+                'origin': origin_url,
+                'date': date,
+                'type': type,
+                'status': 'ongoing',
+                'snapshot': None,
+                'metadata': None,
+                'visit': visit_id
+            })
+        except (KeyError, TypeError, ValueError) as e:
+            raise StorageArgumentException(*e.args)
 
         if self.journal_writer:
             self.journal_writer.write_addition('origin_visit', visit)
-
-        try:
-            visit = OriginVisit.from_dict(visit)
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
 
         self._cql_runner.origin_visit_add_one(visit)
 
@@ -860,8 +823,9 @@ class CassandraStorage:
                 'visit': visit_id,
             }
 
-    def origin_visit_update(self, origin, visit_id, status=None,
-                            metadata=None, snapshot=None):
+    def origin_visit_update(
+            self, origin: str, visit_id: int, status: Optional[str] = None,
+            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
         origin_url = origin  # TODO: rename the argument
 
         # Get the existing data of the visit
@@ -873,7 +837,7 @@ class CassandraStorage:
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
 
-        updates = {}
+        updates: Dict[str, Any] = {}
         if status:
             updates['status'] = status
         if metadata:

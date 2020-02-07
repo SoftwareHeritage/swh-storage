@@ -17,7 +17,12 @@ from swh.storage.retry import RetryingProxyStorage
 
 @pytest.fixture
 def swh_storage():
-    return RetryingProxyStorage(storage={'cls': 'memory'})
+    return RetryingProxyStorage(storage={
+        'cls': 'validate',
+        'storage': {
+            'cls': 'memory'
+        }
+    })
 
 
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
@@ -223,7 +228,7 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
     assert not origin
 
     with pytest.raises(StorageArgumentException, match='Refuse to add'):
-        swh_storage.origin_add_one([sample_origin])
+        swh_storage.origin_add_one(sample_origin)
 
     assert mock_memory.call_count == 1
 

@@ -12,15 +12,19 @@ import json
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
+import attr
 import dateutil.parser
 import psycopg2
 import psycopg2.pool
 import psycopg2.errors
 
-from swh.model.model import SHA1_SIZE
-from swh.model.hashutil import ALGORITHMS, hash_to_bytes, hash_to_hex
+from swh.model.model import (
+    SkippedContent, Content, Directory, Revision, Release,
+    Snapshot, Origin, SHA1_SIZE
+)
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 try:
@@ -151,78 +155,48 @@ class Storage():
             return hash
         return tuple([hash[k] for k in keys])
 
-    @staticmethod
-    def _content_normalize(d):
-        d = d.copy()
-
-        if 'status' not in d:
-            d['status'] = 'visible'
-
-        return d
-
-    @staticmethod
-    def _content_validate(d):
-        """Sanity checks on status / reason / length, that postgresql
-        doesn't enforce."""
-        if d['status'] not in ('visible', 'hidden'):
-            raise StorageArgumentException(
-                'Invalid content status: {}'.format(d['status']))
-
-        if d.get('reason') is not None:
-            raise StorageArgumentException(
-                'Must not provide a reason if content is present.')
-
-        if d['length'] is None or d['length'] < 0:
-            raise StorageArgumentException('Content length must be positive.')
-
     def _content_add_metadata(self, db, cur, content):
         """Add content to the postgresql database but not the object storage.
         """
         # create temporary table for metadata injection
         db.mktemp('content', cur)
 
-        with convert_validation_exceptions():
-            db.copy_to(content, 'tmp_content',
-                       db.content_add_keys, cur)
+        db.copy_to((c.to_dict() for c in content), 'tmp_content',
+                   db.content_add_keys, cur)
 
-            # move metadata in place
-            try:
-                db.content_add_from_temp(cur)
-            except psycopg2.IntegrityError as e:
-                if e.diag.sqlstate == '23505' and \
-                        e.diag.table_name == 'content':
-                    constraint_to_hash_name = {
-                        'content_pkey': 'sha1',
-                        'content_sha1_git_idx': 'sha1_git',
-                        'content_sha256_idx': 'sha256',
-                        }
-                    colliding_hash_name = constraint_to_hash_name \
-                        .get(e.diag.constraint_name)
-                    raise HashCollision(colliding_hash_name) from None
-                else:
-                    raise
+        # move metadata in place
+        try:
+            db.content_add_from_temp(cur)
+        except psycopg2.IntegrityError as e:
+            if e.diag.sqlstate == '23505' and \
+                    e.diag.table_name == 'content':
+                constraint_to_hash_name = {
+                    'content_pkey': 'sha1',
+                    'content_sha1_git_idx': 'sha1_git',
+                    'content_sha256_idx': 'sha256',
+                    }
+                colliding_hash_name = constraint_to_hash_name \
+                    .get(e.diag.constraint_name)
+                raise HashCollision(colliding_hash_name) from None
+            else:
+                raise
 
     @timed
     @process_metrics
     @db_transaction()
-    def content_add(self, content, db=None, cur=None):
-        content = [dict(c.items()) for c in content]  # semi-shallow copy
+    def content_add(
+            self, content: Iterable[Content], db=None, cur=None) -> Dict:
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in content:
-            item['ctime'] = now
+        content = [attr.evolve(c, ctime=now) for c in content]
 
-        content = [self._content_normalize(c) for c in content]
-        for c in content:
-            self._content_validate(c)
-
-        missing = list(self.content_missing(content, key_hash='sha1_git'))
-        content = [c for c in content if c['sha1_git'] in missing]
+        missing = list(self.content_missing(
+            map(Content.to_dict, content), key_hash='sha1_git'))
+        content = [c for c in content if c.sha1_git in missing]
 
         if self.journal_writer:
             for item in content:
-                if 'data' in item:
-                    item = item.copy()
-                    del item['data']
+                if item.data:
+                    item = attr.evolve(item, data=None)
                 self.journal_writer.write_addition('content', item)
 
         def add_to_objstorage():
@@ -236,9 +210,9 @@ class Storage():
             content_bytes_added = 0
             data = {}
             for cont in content:
-                if cont['sha1'] not in data:
-                    data[cont['sha1']] = cont['data']
-                    content_bytes_added += max(0, cont['length'])
+                if cont.sha1 not in data:
+                    data[cont.sha1] = cont.data
+                    content_bytes_added += max(0, cont.length)
 
             # FIXME: Since we do the filtering anyway now, we might as
             # well make the objstorage's add_batch call return what we
@@ -280,17 +254,16 @@ class Storage():
     @timed
     @process_metrics
     @db_transaction()
-    def content_add_metadata(self, content, db=None, cur=None):
-        content = [self._content_normalize(c) for c in content]
-        for c in content:
-            self._content_validate(c)
-
-        missing = self.content_missing(content, key_hash='sha1_git')
-        content = [c for c in content if c['sha1_git'] in missing]
+    def content_add_metadata(self, content: Iterable[Content],
+                             db=None, cur=None) -> Dict:
+        content = list(content)
+        missing = self.content_missing(
+            (c.to_dict() for c in content), key_hash='sha1_git')
+        content = [c for c in content if c.sha1_git in missing]
 
         if self.journal_writer:
             for item in itertools.chain(content):
-                assert 'data' not in content
+                assert item.data is None
                 self.journal_writer.write_addition('content', item)
 
         self._content_add_metadata(db, cur, content)
@@ -400,7 +373,7 @@ class Storage():
     @timed
     @db_transaction()
     def content_find(self, content, db=None, cur=None):
-        if not set(content).intersection(ALGORITHMS):
+        if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
                 'content keys must contain at least one of: '
                 'sha1, sha1_git, sha256, blake2s256')
@@ -446,40 +419,33 @@ class Storage():
             raise StorageArgumentException(
                 'Content length must be positive or -1.')
 
-    def _skipped_content_add_metadata(self, db, cur, content):
-        content = \
-            [cont.copy() for cont in content]
+    def _skipped_content_add_metadata(
+            self, db, cur, content: Iterable[SkippedContent]):
         origin_ids = db.origin_id_get_by_url(
-            [cont.get('origin') for cont in content],
+            [cont.origin for cont in content],
             cur=cur)
-        for (cont, origin_id) in zip(content, origin_ids):
-            if 'origin' in cont:
-                cont['origin'] = origin_id
+        content = [attr.evolve(c, origin=origin_id)
+                   for (c, origin_id) in zip(content, origin_ids)]
         db.mktemp('skipped_content', cur)
-        with convert_validation_exceptions():
-            db.copy_to(content, 'tmp_skipped_content',
-                       db.skipped_content_keys, cur)
+        db.copy_to([c.to_dict() for c in content], 'tmp_skipped_content',
+                   db.skipped_content_keys, cur)
 
-            # move metadata in place
-            db.skipped_content_add_from_temp(cur)
+        # move metadata in place
+        db.skipped_content_add_from_temp(cur)
 
     @timed
     @process_metrics
     @db_transaction()
-    def skipped_content_add(self, content, db=None, cur=None):
-        content = [dict(c.items()) for c in content]  # semi-shallow copy
+    def skipped_content_add(self, content: Iterable[SkippedContent],
+                            db=None, cur=None) -> Dict:
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        for item in content:
-            item['ctime'] = now
+        content = [attr.evolve(c, ctime=now) for c in content]
 
-        content = [self._skipped_content_normalize(c) for c in content]
-        for c in content:
-            self._skipped_content_validate(c)
-
-        missing_contents = self.skipped_content_missing(content)
+        missing_contents = self.skipped_content_missing(
+            c.to_dict() for c in content)
         content = [c for c in content
-                   if any(all(c.get(algo) == missing_content.get(algo)
-                              for algo in ALGORITHMS)
+                   if any(all(c.get_hash(algo) == missing_content.get(algo)
+                              for algo in DEFAULT_ALGORITHMS)
                           for missing_content in missing_contents)]
 
         if self.journal_writer:
@@ -495,33 +461,31 @@ class Storage():
     @timed
     @db_transaction_generator()
     def skipped_content_missing(self, contents, db=None, cur=None):
+        contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
             yield dict(zip(db.content_hash_keys, content))
 
     @timed
     @process_metrics
     @db_transaction()
-    def directory_add(self, directories, db=None, cur=None):
+    def directory_add(self, directories: Iterable[Directory],
+                      db=None, cur=None) -> Dict:
         directories = list(directories)
         summary = {'directory:add': 0}
 
         dirs = set()
-        dir_entries = {
+        dir_entries: Dict[str, defaultdict] = {
             'file': defaultdict(list),
             'dir': defaultdict(list),
             'rev': defaultdict(list),
         }
 
         for cur_dir in directories:
-            dir_id = cur_dir['id']
+            dir_id = cur_dir.id
             dirs.add(dir_id)
-            for src_entry in cur_dir['entries']:
-                entry = src_entry.copy()
+            for src_entry in cur_dir.entries:
+                entry = src_entry.to_dict()
                 entry['dir_id'] = dir_id
-                if entry['type'] not in ('file', 'dir', 'rev'):
-                    raise StorageArgumentException(
-                        'Entry type must be file, dir, or rev; not %s'
-                        % entry['type'])
                 dir_entries[entry['type']][dir_id].append(entry)
 
         dirs_missing = set(self.directory_missing(dirs, db=db, cur=cur))
@@ -532,33 +496,32 @@ class Storage():
             self.journal_writer.write_additions(
                 'directory',
                 (dir_ for dir_ in directories
-                 if dir_['id'] in dirs_missing))
+                 if dir_.id in dirs_missing))
 
         # Copy directory ids
         dirs_missing_dict = ({'id': dir} for dir in dirs_missing)
         db.mktemp('directory', cur)
-        with convert_validation_exceptions():
-            db.copy_to(dirs_missing_dict, 'tmp_directory', ['id'], cur)
+        db.copy_to(dirs_missing_dict, 'tmp_directory', ['id'], cur)
 
-            # Copy entries
-            for entry_type, entry_list in dir_entries.items():
-                entries = itertools.chain.from_iterable(
-                    entries_for_dir
-                    for dir_id, entries_for_dir
-                    in entry_list.items()
-                    if dir_id in dirs_missing)
+        # Copy entries
+        for entry_type, entry_list in dir_entries.items():
+            entries = itertools.chain.from_iterable(
+                entries_for_dir
+                for dir_id, entries_for_dir
+                in entry_list.items()
+                if dir_id in dirs_missing)
 
-                db.mktemp_dir_entry(entry_type)
+            db.mktemp_dir_entry(entry_type)
 
-                db.copy_to(
-                    entries,
-                    'tmp_directory_entry_%s' % entry_type,
-                    ['target', 'name', 'perms', 'dir_id'],
-                    cur,
-                )
+            db.copy_to(
+                entries,
+                'tmp_directory_entry_%s' % entry_type,
+                ['target', 'name', 'perms', 'dir_id'],
+                cur,
+            )
 
-            # Do the final copy
-            db.directory_add_from_temp(cur)
+        # Do the final copy
+        db.directory_add_from_temp(cur)
         summary['directory:add'] = len(dirs_missing)
 
         return summary
@@ -595,12 +558,13 @@ class Storage():
     @timed
     @process_metrics
     @db_transaction()
-    def revision_add(self, revisions, db=None, cur=None):
+    def revision_add(self, revisions: Iterable[Revision],
+                     db=None, cur=None) -> Dict:
         revisions = list(revisions)
         summary = {'revision:add': 0}
 
         revisions_missing = set(self.revision_missing(
-            set(revision['id'] for revision in revisions),
+            set(revision.id for revision in revisions),
             db=db, cur=cur))
 
         if not revisions_missing:
@@ -610,14 +574,15 @@ class Storage():
 
         revisions_filtered = [
             revision for revision in revisions
-            if revision['id'] in revisions_missing]
+            if revision.id in revisions_missing]
 
         if self.journal_writer:
             self.journal_writer.write_additions('revision', revisions_filtered)
 
-        revisions_filtered = map(converters.revision_to_db, revisions_filtered)
+        revisions_filtered = \
+            list(map(converters.revision_to_db, revisions_filtered))
 
-        parents_filtered = []
+        parents_filtered: List[bytes] = []
 
         with convert_validation_exceptions():
             db.copy_to(
@@ -679,11 +644,12 @@ class Storage():
     @timed
     @process_metrics
     @db_transaction()
-    def release_add(self, releases, db=None, cur=None):
+    def release_add(
+            self, releases: Iterable[Release], db=None, cur=None) -> Dict:
         releases = list(releases)
         summary = {'release:add': 0}
 
-        release_ids = set(release['id'] for release in releases)
+        release_ids = set(release.id for release in releases)
         releases_missing = set(self.release_missing(release_ids,
                                                     db=db, cur=cur))
 
@@ -692,17 +658,16 @@ class Storage():
 
         db.mktemp_release(cur)
 
-        releases_missing = list(releases_missing)
-
         releases_filtered = [
             release for release in releases
-            if release['id'] in releases_missing
+            if release.id in releases_missing
         ]
 
         if self.journal_writer:
             self.journal_writer.write_additions('release', releases_filtered)
 
-        releases_filtered = map(converters.release_to_db, releases_filtered)
+        releases_filtered = \
+            list(map(converters.release_to_db, releases_filtered))
 
         with convert_validation_exceptions():
             db.copy_to(releases_filtered, 'tmp_release', db.release_add_cols,
@@ -738,12 +703,13 @@ class Storage():
     @timed
     @process_metrics
     @db_transaction()
-    def snapshot_add(self, snapshots, db=None, cur=None):
+    def snapshot_add(
+            self, snapshots: Iterable[Snapshot], db=None, cur=None) -> Dict:
         created_temp_table = False
 
         count = 0
         for snapshot in snapshots:
-            if not db.snapshot_exists(snapshot['id'], cur):
+            if not db.snapshot_exists(snapshot.id, cur):
                 if not created_temp_table:
                     db.mktemp_snapshot_branch(cur)
                     created_temp_table = True
@@ -753,11 +719,11 @@ class Storage():
                         (
                             {
                                 'name': name,
-                                'target': info['target'] if info else None,
-                                'target_type': (info['target_type']
+                                'target': info.target if info else None,
+                                'target_type': (info.target_type.value
                                                 if info else None),
                             }
-                            for name, info in snapshot['branches'].items()
+                            for name, info in snapshot.branches.items()
                         ),
                         'tmp_snapshot_branch',
                         ['name', 'target', 'target_type'],
@@ -769,7 +735,7 @@ class Storage():
                 if self.journal_writer:
                     self.journal_writer.write_addition('snapshot', snapshot)
 
-                db.snapshot_add(snapshot['id'], cur)
+                db.snapshot_add(snapshot.id, cur)
                 count += 1
 
         return {'snapshot:add': count}
@@ -871,8 +837,9 @@ class Storage():
 
     @timed
     @db_transaction()
-    def origin_visit_add(self, origin, date, type,
-                         db=None, cur=None):
+    def origin_visit_add(
+            self, origin, date, type, db=None, cur=None
+            ) -> Optional[Dict[str, Union[str, int]]]:
         origin_url = origin
 
         if isinstance(date, str):
@@ -898,8 +865,10 @@ class Storage():
 
     @timed
     @db_transaction()
-    def origin_visit_update(self, origin, visit_id, status=None,
-                            metadata=None, snapshot=None,
+    def origin_visit_update(self, origin: str, visit_id: int,
+                            status: Optional[str] = None,
+                            metadata: Optional[Dict] = None,
+                            snapshot: Optional[bytes] = None,
                             db=None, cur=None):
         if not isinstance(origin, str):
             raise StorageArgumentException(
@@ -912,7 +881,7 @@ class Storage():
 
         visit = dict(zip(db.origin_visit_get_cols, visit))
 
-        updates = {}
+        updates: Dict[str, Any] = {}
         if status and status != visit['status']:
             updates['status'] = status
         if metadata and metadata != visit['metadata']:
@@ -1088,20 +1057,19 @@ class Storage():
 
     @timed
     @db_transaction()
-    def origin_add(self, origins, db=None, cur=None):
-        origins = copy.deepcopy(list(origins))
+    def origin_add(
+            self, origins: Iterable[Origin], db=None, cur=None) -> List[Dict]:
+        origins = list(origins)
         for origin in origins:
             self.origin_add_one(origin, db=db, cur=cur)
 
         send_metric('origin:add', count=len(origins), method_name='origin_add')
-        return origins
+        return [o.to_dict() for o in origins]
 
     @timed
     @db_transaction()
-    def origin_add_one(self, origin, db=None, cur=None):
-        if 'url' not in origin:
-            raise StorageArgumentException('Missing origin url')
-        origin_row = list(db.origin_get_by_url([origin['url']], cur))[0]
+    def origin_add_one(self, origin: Origin, db=None, cur=None) -> str:
+        origin_row = list(db.origin_get_by_url([origin.url], cur))[0]
         origin_url = dict(zip(db.origin_cols, origin_row))['url']
         if origin_url:
             return origin_url
@@ -1109,7 +1077,7 @@ class Storage():
         if self.journal_writer:
             self.journal_writer.write_addition('origin', origin)
 
-        origins = db.origin_add(origin['url'], cur)
+        origins = db.origin_add(origin.url, cur)
         send_metric('origin:add', count=len(origins), method_name='origin_add')
         return origins
 

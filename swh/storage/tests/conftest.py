@@ -35,8 +35,8 @@ settings.register_profile("slow", max_examples=20, deadline=5000)
 
 
 @pytest.fixture
-def swh_storage(postgresql_proc, swh_storage_postgresql):
-    storage_config = {
+def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
+    yield {
         'cls': 'local',
         'db': 'postgresql://{user}@{host}:{port}/{dbname}'.format(
             host=postgresql_proc.host,
@@ -51,6 +51,15 @@ def swh_storage(postgresql_proc, swh_storage_postgresql):
             'cls': 'memory',
         },
     }
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend_config):
+    storage_config = {
+        'cls': 'validate',
+        'storage': swh_storage_backend_config
+    }
+
     storage = swh.storage.get_storage(**storage_config)
     return storage
 

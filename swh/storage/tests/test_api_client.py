@@ -21,10 +21,13 @@ from swh.storage.tests.test_storage import TestStorage as _TestStorage
 @pytest.fixture
 def app_server():
     storage_config = {
-        'cls': 'memory',
-        'journal_writer': {
+        'cls': 'validate',
+        'storage': {
             'cls': 'memory',
-        },
+            'journal_writer': {
+                'cls': 'memory',
+            },
+        }
     }
     server.storage = swh.storage.get_storage(**storage_config)
     yield server
@@ -61,5 +64,5 @@ def swh_storage(swh_rpc_client, app_server):
 class TestStorage(_TestStorage):
     def test_content_update(self, swh_storage, app_server):
         swh_storage.journal_writer = None  # TODO, journal_writer not supported
-        with patch.object(server.storage, 'journal_writer', None):
+        with patch.object(server.storage.storage, 'journal_writer', None):
             super().test_content_update(swh_storage)

@@ -14,7 +14,7 @@ import random
 
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import attr
 
@@ -76,21 +76,11 @@ class InMemoryStorage:
     def check_config(self, *, check_write):
         return True
 
-    def _content_add(self, contents, with_data):
-        for content in contents:
-            if content.status is None:
-                content.status = 'visible'
-            if content.status == 'absent':
-                raise StorageArgumentException('content with status=absent')
-            if content.length is None:
-                raise StorageArgumentException('content with length=None')
-
+    def _content_add(
+            self, contents: Iterable[Content], with_data: bool) -> Dict:
         if self.journal_writer:
             for content in contents:
-                try:
-                    content = attr.evolve(content, data=None)
-                except (KeyError, TypeError, ValueError) as e:
-                    raise StorageArgumentException(*e.args)
+                content = attr.evolve(content, data=None)
                 self.journal_writer.write_addition('content', content)
 
         summary = {
@@ -119,24 +109,17 @@ class InMemoryStorage:
             summary['content:add'] += 1
             if with_data:
                 content_data = self._contents[key].data
-                try:
-                    self._contents[key] = attr.evolve(
-                        self._contents[key],
-                        data=None)
-                except (KeyError, TypeError, ValueError) as e:
-                    raise StorageArgumentException(*e.args)
+                self._contents[key] = attr.evolve(
+                    self._contents[key],
+                    data=None)
                 summary['content:add:bytes'] += len(content_data)
                 self.objstorage.add(content_data, content.sha1)
 
         return summary
 
-    def content_add(self, content):
+    def content_add(self, content: Iterable[Content]) -> Dict:
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        try:
-            content = [attr.evolve(Content.from_dict(c), ctime=now)
-                       for c in content]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+        content = [attr.evolve(c, ctime=now) for c in content]
         return self._content_add(content, with_data=True)
 
     def content_update(self, content, keys=[]):
@@ -154,10 +137,7 @@ class InMemoryStorage:
                     hash_ = old_cont.get_hash(algorithm)
                     self._content_indexes[algorithm][hash_].remove(old_key)
 
-                try:
-                    new_cont = attr.evolve(old_cont, **cont_update)
-                except (KeyError, TypeError, ValueError) as e:
-                    raise StorageArgumentException(*e.args)
+                new_cont = attr.evolve(old_cont, **cont_update)
                 new_key = self._content_key(new_cont)
 
                 self._contents[new_key] = new_cont
@@ -166,8 +146,7 @@ class InMemoryStorage:
                     hash_ = new_cont.get_hash(algorithm)
                     self._content_indexes[algorithm][hash_].add(new_key)
 
-    def content_add_metadata(self, content):
-        content = [Content.from_dict(c) for c in content]
+    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -285,19 +264,10 @@ class InMemoryStorage:
     def content_get_random(self):
         return random.choice(list(self._content_indexes['sha1_git']))
 
-    def _skipped_content_add(self, contents):
-        for content in contents:
-            if content.status is None:
-                content = attr.evolve(content, status='absent')
-            if content.length is None:
-                content = attr.evolve(content, length=-1)
-            if content.status != 'absent':
-                raise StorageArgumentException(
-                    f'Content with status={content.status}')
-
+    def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
         if self.journal_writer:
-            for content in contents:
-                self.journal_writer.write_addition('content', content)
+            for cont in contents:
+                self.journal_writer.write_addition('content', cont)
 
         summary = {
             'skipped_content:add': 0
@@ -308,9 +278,9 @@ class InMemoryStorage:
         for content in skipped_content_missing:
             key = self._content_key(content, allow_missing=True)
             for algo in DEFAULT_ALGORITHMS:
-                if algo in content:
-                    self._skipped_content_indexes[algo][content[algo]] \
-                        .add(key)
+                if content.get(algo):
+                    self._skipped_content_indexes[algo][
+                        content.get(algo)].add(key)
             self._skipped_contents[key] = content
             summary['skipped_content:add'] += 1
 
@@ -329,28 +299,19 @@ class InMemoryStorage:
                            if content[algo] is not None}
                     break
 
-    def skipped_content_add(self, content):
+    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
         content = list(content)
         now = datetime.datetime.now(tz=datetime.timezone.utc)
-        try:
-            content = [attr.evolve(SkippedContent.from_dict(c), ctime=now)
-                       for c in content]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+        content = [attr.evolve(c, ctime=now) for c in content]
         return self._skipped_content_add(content)
 
-    def directory_add(self, directories):
+    def directory_add(self, directories: Iterable[Directory]) -> Dict:
         directories = list(directories)
         if self.journal_writer:
             self.journal_writer.write_additions(
                 'directory',
                 (dir_ for dir_ in directories
-                 if dir_['id'] not in self._directories))
-
-        try:
-            directories = [Directory.from_dict(d) for d in directories]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+                 if dir_.id not in self._directories))
 
         count = 0
         for directory in directories:
@@ -435,18 +396,13 @@ class InMemoryStorage:
         return self._directory_entry_get_by_path(
                 first_item['target'], paths[1:], prefix + paths[0] + b'/')
 
-    def revision_add(self, revisions):
+    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
         revisions = list(revisions)
         if self.journal_writer:
             self.journal_writer.write_additions(
                 'revision',
                 (rev for rev in revisions
-                 if rev['id'] not in self._revisions))
-
-        try:
-            revisions = [Revision.from_dict(rev) for rev in revisions]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+                 if rev.id not in self._revisions))
 
         count = 0
         for revision in revisions:
@@ -496,18 +452,13 @@ class InMemoryStorage:
     def revision_get_random(self):
         return random.choice(list(self._revisions))
 
-    def release_add(self, releases):
+    def release_add(self, releases: Iterable[Release]) -> Dict:
         releases = list(releases)
         if self.journal_writer:
             self.journal_writer.write_additions(
                 'release',
                 (rel for rel in releases
-                 if rel['id'] not in self._releases))
-
-        try:
-            releases = [Release.from_dict(rel) for rel in releases]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+                 if rel.id not in self._releases))
 
         count = 0
         for rel in releases:
@@ -534,12 +485,8 @@ class InMemoryStorage:
     def release_get_random(self):
         return random.choice(list(self._releases))
 
-    def snapshot_add(self, snapshots):
+    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
         count = 0
-        try:
-            snapshots = [Snapshot.from_dict(d) for d in snapshots]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
         snapshots = (snap for snap in snapshots
                      if snap.id not in self._snapshots)
         for snapshot in snapshots:
@@ -749,17 +696,13 @@ class InMemoryStorage:
                                       with_visit=with_visit,
                                       limit=len(self._origins)))
 
-    def origin_add(self, origins):
+    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
         origins = copy.deepcopy(list(origins))
         for origin in origins:
             self.origin_add_one(origin)
-        return origins
+        return [origin.to_dict() for origin in origins]
 
-    def origin_add_one(self, origin):
-        try:
-            origin = Origin.from_dict(origin)
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+    def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
             if self.journal_writer:
                 self.journal_writer.write_addition('origin', origin)
@@ -777,7 +720,8 @@ class InMemoryStorage:
 
         return origin.url
 
-    def origin_visit_add(self, origin, date, type):
+    def origin_visit_add(
+            self, origin, date, type) -> Optional[Dict[str, Union[str, int]]]:
         origin_url = origin
         if origin_url is None:
             raise StorageArgumentException('Unknown origin.')
@@ -818,10 +762,9 @@ class InMemoryStorage:
 
         return visit_ret
 
-    def origin_visit_update(self, origin, visit_id, status=None,
-                            metadata=None, snapshot=None):
-        if not isinstance(origin, str):
-            raise TypeError('origin must be a string, not %r' % (origin,))
+    def origin_visit_update(
+            self, origin: str, visit_id: int, status: Optional[str] = None,
+            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
             raise StorageArgumentException('Unknown origin.')
@@ -832,7 +775,7 @@ class InMemoryStorage:
             raise StorageArgumentException(
                 'Unknown visit_id for this origin') from None
 
-        updates = {}
+        updates: Dict[str, Any] = {}
         if status:
             updates['status'] = status
         if metadata:
