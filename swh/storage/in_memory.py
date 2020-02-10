@@ -22,8 +22,7 @@ from swh.model.model import (
     BaseContent, Content, SkippedContent, Directory, Revision, Release,
     Snapshot, OriginVisit, Origin, SHA1_SIZE)
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.objstorage import get_objstorage
-from swh.objstorage.exc import ObjNotFoundError
+from swh.storage.objstorage import ObjStorage
 
 from . import HashCollision
 from .exc import StorageArgumentException
@@ -71,7 +70,7 @@ class InMemoryStorage:
         # ideally we would want a skip list for both fast inserts and searches
         self._sorted_sha1s = []
 
-        self.objstorage = get_objstorage('memory', {})
+        self.objstorage = ObjStorage({'cls': 'memory', 'args': {}})
 
     def check_config(self, *, check_write):
         return True
@@ -83,12 +82,13 @@ class InMemoryStorage:
                 content = attr.evolve(content, data=None)
                 self.journal_writer.write_addition('content', content)
 
-        summary = {
-            'content:add': 0,
-        }
-
+        content_add = 0
+        content_add_bytes = 0
         if with_data:
-            summary['content:add:bytes'] = 0
+            summary = self.objstorage.content_add(
+                c for c in contents
+                if c.status != 'absent')
+            content_add_bytes = summary['content:add:bytes']
 
         for content in contents:
             key = self._content_key(content)
@@ -106,14 +106,16 @@ class InMemoryStorage:
                 ('content', content.sha1))
             self._contents[key] = content
             bisect.insort(self._sorted_sha1s, content.sha1)
-            summary['content:add'] += 1
-            if with_data:
-                content_data = self._contents[key].data
-                self._contents[key] = attr.evolve(
-                    self._contents[key],
-                    data=None)
-                summary['content:add:bytes'] += len(content_data)
-                self.objstorage.add(content_data, content.sha1)
+            self._contents[key] = attr.evolve(
+                self._contents[key],
+                data=None)
+            content_add += 1
+
+        summary = {
+            'content:add': content_add,
+        }
+        if with_data:
+            summary['content:add:bytes'] = content_add_bytes
 
         return summary
 
@@ -154,14 +156,7 @@ class InMemoryStorage:
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise StorageArgumentException(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
-        for obj_id in content:
-            try:
-                data = self.objstorage.get(obj_id)
-            except ObjNotFoundError:
-                yield None
-                continue
-
-            yield {'sha1': obj_id, 'data': data}
+        yield from self.objstorage.content_get(content)
 
     def content_get_range(self, start, end, limit=1000):
         if limit is None:

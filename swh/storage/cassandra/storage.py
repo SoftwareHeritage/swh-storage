@@ -17,14 +17,13 @@ from swh.model.model import (
     Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
     OriginVisit, Snapshot, Origin
 )
-from swh.objstorage import get_objstorage
-from swh.objstorage.exc import ObjNotFoundError
 try:
     from swh.journal.writer import get_journal_writer
 except ImportError:
     get_journal_writer = None  # type: ignore
     # mypy limitation, see https://github.com/python/mypy/issues/1153
 
+from swh.storage.objstorage import ObjStorage
 
 from .. import HashCollision
 from ..exc import StorageArgumentException
@@ -49,12 +48,11 @@ class CassandraStorage:
                  port=9042, journal_writer=None):
         self._cql_runner = CqlRunner(hosts, keyspace, port)
 
-        self.objstorage = get_objstorage(**objstorage)
-
         if journal_writer:
             self.journal_writer = get_journal_writer(**journal_writer)
         else:
             self.journal_writer = None
+        self.objstorage = ObjStorage(objstorage)
 
     def check_config(self, *, check_write):
         self._cql_runner.check_read()
@@ -73,26 +71,20 @@ class CassandraStorage:
                     del cont['data']
                 self.journal_writer.write_addition('content', cont)
 
-        count_contents = 0
-        count_content_added = 0
-        count_content_bytes_added = 0
-
-        for content in contents:
+        if with_data:
             # First insert to the objstorage, if the endpoint is
             # `content_add` (as opposed to `content_add_metadata`).
             # TODO: this should probably be done in concurrently to inserting
             # in index tables (but still before the main table; so an entry is
             # only added to the main table after everything else was
             # successfully inserted.
-            count_contents += 1
-            if content.status != 'absent':
-                count_content_added += 1
-                if with_data:
-                    content_data = content.data
-                    if content_data is None:
-                        raise StorageArgumentException('Missing data')
-                    count_content_bytes_added += len(content_data)
-                    self.objstorage.add(content_data, content.sha1)
+            summary = self.objstorage.content_add(
+                c for c in contents if c.status != 'absent')
+            content_add_bytes = summary['content:add:bytes']
+
+        content_add = 0
+        for content in contents:
+            content_add += 1
 
             # Then add to index tables
             for algo in HASH_ALGORITHMS:
@@ -117,11 +109,11 @@ class CassandraStorage:
                     raise HashCollision(algo, content.get_hash(algo), pks)
 
         summary = {
-            'content:add': count_content_added,
+            'content:add': content_add,
         }
 
         if with_data:
-            summary['content:add:bytes'] = count_content_bytes_added
+            summary['content:add:bytes'] = content_add_bytes
 
         return summary
 
@@ -139,14 +131,7 @@ class CassandraStorage:
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise StorageArgumentException(
                 "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
-        for obj_id in content:
-            try:
-                data = self.objstorage.get(obj_id)
-            except ObjNotFoundError:
-                yield None
-                continue
-
-            yield {'sha1': obj_id, 'data': data}
+        yield from self.objstorage.content_get(content)
 
     def content_get_partition(
             self, partition_id: int, nb_partitions: int, limit: int = 1000,

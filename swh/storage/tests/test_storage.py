@@ -3647,7 +3647,7 @@ class TestLocalStorage:
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception
     def test_content_add_objstorage_exception(self, swh_storage):
-        swh_storage.objstorage.add = Mock(
+        swh_storage.objstorage.content_add = Mock(
             side_effect=Exception('mocked broken objstorage')
         )
 
@@ -3746,7 +3746,7 @@ class TestPgStorage:
             }
 
         if hasattr(swh_storage, 'objstorage'):
-            assert cont['sha1'] in swh_storage.objstorage
+            assert cont['sha1'] in swh_storage.objstorage.objstorage
 
         with db_transaction(swh_storage) as (_, cur):
             cur.execute('SELECT sha1, sha1_git, sha256, length, status'
@@ -3776,7 +3776,7 @@ class TestPgStorage:
             }
 
         if hasattr(swh_storage, 'objstorage'):
-            assert cont['sha1'] not in swh_storage.objstorage
+            assert cont['sha1'] not in swh_storage.objstorage.objstorage
         with db_transaction(swh_storage) as (_, cur):
             cur.execute('SELECT sha1, sha1_git, sha256, length, status'
                         ' FROM content WHERE sha1 = %s',

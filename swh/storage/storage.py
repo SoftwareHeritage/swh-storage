@@ -25,13 +25,12 @@ from swh.model.model import (
     Snapshot, Origin, SHA1_SIZE
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.objstorage import get_objstorage
-from swh.objstorage.exc import ObjNotFoundError
 try:
     from swh.journal.writer import get_journal_writer
 except ImportError:
     get_journal_writer = None  # type: ignore
     # mypy limitation, see https://github.com/python/mypy/issues/1153
+from swh.storage.objstorage import ObjStorage
 
 from . import converters, HashCollision
 from .common import db_transaction_generator, db_transaction
@@ -96,7 +95,6 @@ class Storage():
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
 
-        self.objstorage = get_objstorage(**objstorage)
         if journal_writer:
             if get_journal_writer is None:
                 raise EnvironmentError(
@@ -105,6 +103,7 @@ class Storage():
             self.journal_writer = get_journal_writer(**journal_writer)
         else:
             self.journal_writer = None
+        self.objstorage = ObjStorage(objstorage)
 
     def get_db(self):
         if self._db:
@@ -207,18 +206,8 @@ class Storage():
                 objstorage. Content present twice is only sent once.
 
             """
-            content_bytes_added = 0
-            data = {}
-            for cont in content:
-                if cont.sha1 not in data:
-                    data[cont.sha1] = cont.data
-                    content_bytes_added += max(0, cont.length)
-
-            # FIXME: Since we do the filtering anyway now, we might as
-            # well make the objstorage's add_batch call return what we
-            # want here (real bytes added)... that'd simplify this...
-            self.objstorage.add_batch(data)
-            return content_bytes_added
+            summary = self.objstorage.content_add(content)
+            return summary['content:add:bytes']
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             added_to_objstorage = executor.submit(add_to_objstorage)
@@ -278,15 +267,7 @@ class Storage():
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise StorageArgumentException(
                 "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX)
-
-        for obj_id in content:
-            try:
-                data = self.objstorage.get(obj_id)
-            except ObjNotFoundError:
-                yield None
-                continue
-
-            yield {'sha1': obj_id, 'data': data}
+        yield from self.objstorage.content_get(content)
 
     @timed
     @db_transaction()
