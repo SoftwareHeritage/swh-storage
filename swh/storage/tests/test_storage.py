@@ -538,7 +538,6 @@ class TestStorage:
         assert actual_contents == {missing_cont['sha1']: []}
 
     def test_content_get_random(self, swh_storage):
-        print(data.cont, data.cont2, data.cont3)
         swh_storage.content_add([data.cont, data.cont2, data.cont3])
 
         assert swh_storage.content_get_random() in {
