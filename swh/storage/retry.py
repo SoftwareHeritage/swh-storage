@@ -61,6 +61,8 @@ class RetryingProxyStorage:
         self.storage = get_storage(**storage)
 
     def __getattr__(self, key):
+        if key == 'storage':
+            raise AttributeError(key)
         return getattr(self.storage, key)
 
     @swh_retry

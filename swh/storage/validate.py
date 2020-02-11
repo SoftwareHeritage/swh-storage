@@ -46,6 +46,8 @@ class ValidatingProxyStorage:
         self.storage = get_storage(**storage)
 
     def __getattr__(self, key):
+        if key == 'storage':
+            raise AttributeError(key)
         return getattr(self.storage, key)
 
     def content_add(self, content: Iterable[Dict]) -> Dict:

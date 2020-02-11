@@ -21,6 +21,8 @@ class ObjStorage:
         self.objstorage = get_objstorage(**objstorage_config)
 
     def __getattr__(self, key):
+        if key == 'objstorage':
+            raise AttributeError(key)
         return getattr(self.objstorage, key)
 
     def content_get(self, contents: Iterable[bytes]) -> Generator:
