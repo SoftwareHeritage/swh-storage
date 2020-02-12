@@ -41,15 +41,15 @@ def now():
 
 class InMemoryStorage:
     def __init__(self, journal_writer=None):
-        self._contents = {}
-        self._content_indexes = defaultdict(lambda: defaultdict(set))
-        self._skipped_contents = {}
-        self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
 
         self.reset()
         self.journal_writer = JournalWriter(journal_writer)
 
     def reset(self):
+        self._contents = {}
+        self._content_indexes = defaultdict(lambda: defaultdict(set))
+        self._skipped_contents = {}
+        self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
         self._directories = {}
         self._revisions = {}
         self._releases = {}
@@ -251,44 +251,48 @@ class InMemoryStorage:
     def content_get_random(self):
         return random.choice(list(self._content_indexes['sha1_git']))
 
-    def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
+    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
         self.journal_writer.skipped_content_add(contents)
 
         summary = {
             'skipped_content:add': 0
         }
 
-        skipped_content_missing = self.skipped_content_missing(
+        missing_contents = self.skipped_content_missing(
             [c.to_dict() for c in contents])
-        for content in skipped_content_missing:
-            key = self._content_key(content, allow_missing=True)
+        missing = {self._content_key(c) for c in missing_contents}
+        contents = [c for c in contents
+                    if self._content_key(c) in missing]
+        for content in contents:
+            key = self._content_key(content)
             for algo in DEFAULT_ALGORITHMS:
-                if content.get(algo):
+                if content.get_hash(algo):
                     self._skipped_content_indexes[algo][
-                        content.get(algo)].add(key)
+                        content.get_hash(algo)].add(key)
             self._skipped_contents[key] = content
             summary['skipped_content:add'] += 1
 
         return summary
 
-    def skipped_content_missing(self, contents):
-        for content in contents:
-            for (key, algorithm) in self._content_key_algorithm(content):
-                if algorithm == 'blake2s256':
-                    continue
-                if key not in self._skipped_content_indexes[algorithm]:
-                    # index must contain hashes of algos except blake2s256
-                    # else the content is considered skipped
-                    yield {algo: content[algo]
-                           for algo in DEFAULT_ALGORITHMS
-                           if content[algo] is not None}
-                    break
-
     def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
-        content = list(content)
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         content = [attr.evolve(c, ctime=now) for c in content]
         return self._skipped_content_add(content)
+
+    def skipped_content_missing(self, contents):
+        for content in contents:
+            matches = list(self._skipped_contents.values())
+            for (algorithm, key) in self._content_key(content):
+                if algorithm == 'blake2s256':
+                    continue
+                # Filter out skipped contents with the same hash
+                matches = [
+                    match for match in matches
+                    if match.get_hash(algorithm) == key]
+            # if none of the contents match
+            if not matches:
+                yield {algo: content[algo]
+                       for algo in DEFAULT_ALGORITHMS}
 
     def directory_add(self, directories: Iterable[Directory]) -> Dict:
         directories = [dir_ for dir_ in directories
@@ -971,17 +975,11 @@ class InMemoryStorage:
         return person
 
     @staticmethod
-    def _content_key(content, allow_missing=False):
-        """A stable key for a content"""
-        return tuple(getattr(content, key, None)
-                     for key in sorted(DEFAULT_ALGORITHMS))
-
-    @staticmethod
-    def _content_key_algorithm(content):
+    def _content_key(content):
         """ A stable key and the algorithm for a content"""
         if isinstance(content, BaseContent):
             content = content.to_dict()
-        return tuple((content.get(key), key)
+        return tuple((key, content.get(key))
                      for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod

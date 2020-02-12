@@ -339,6 +339,37 @@ class TestStorage:
 
         missing = list(swh_storage.skipped_content_missing([cont, cont2]))
 
+        assert missing == [
+            {
+                'sha1': cont['sha1'],
+                'sha1_git': cont['sha1_git'],
+                'blake2s256': cont['blake2s256'],
+                'sha256': cont['sha256']
+            },
+            {
+                'sha1': cont2['sha1'],
+                'sha1_git': cont2['sha1_git'],
+                'blake2s256': cont2['blake2s256'],
+                'sha256': cont2['sha256']
+            },
+        ]
+
+        actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
+
+        assert 2 <= actual_result.pop('skipped_content:add') <= 3
+        assert actual_result == {}
+
+        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
+
+        assert missing == []
+
+    def test_skipped_content_add_missing_hashes(self, swh_storage):
+        cont = data.skipped_cont
+        cont2 = data.skipped_cont2
+        cont['sha1_git'] = cont2['sha1_git'] = None
+
+        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
+
         assert len(missing) == 2
 
         actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
@@ -349,6 +380,29 @@ class TestStorage:
         missing = list(swh_storage.skipped_content_missing([cont, cont2]))
 
         assert missing == []
+
+    def test_skipped_content_missing_partial_hash(self, swh_storage):
+        cont = data.skipped_cont
+        cont2 = cont.copy()
+        cont2['sha1_git'] = None
+
+        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
+
+        assert len(missing) == 2
+
+        actual_result = swh_storage.skipped_content_add([cont])
+
+        assert actual_result.pop('skipped_content:add') == 1
+        assert actual_result == {}
+
+        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
+
+        assert missing == [{
+            'sha1': cont2['sha1'],
+            'sha1_git': cont2['sha1_git'],
+            'blake2s256': cont2['blake2s256'],
+            'sha256': cont2['sha256']
+        }]
 
     @pytest.mark.property_based
     @settings(deadline=None)  # this test is very slow
