@@ -49,7 +49,8 @@ class FilteringProxyStorage:
         contents = list(content)
         contents_to_add = self._filter_missing_skipped_contents(contents)
         return self.storage.skipped_content_add(
-            x for x in contents if x['sha1_git'] in contents_to_add
+            x for x in contents
+            if x.get('sha1_git') is None or x['sha1_git'] in contents_to_add
         )
 
     def directory_add(self, directories: Iterable[Dict]) -> Dict:
@@ -106,7 +107,8 @@ class FilteringProxyStorage:
         objects_seen = self.objects_seen['skipped_content']
         missing_hashes = []
         for hashes in content_hashes:
-            if hashes['sha1_git'] in objects_seen:
+            if hashes.get('sha1_git') is None \
+                    or hashes['sha1_git'] in objects_seen:
                 continue
             objects_seen.add(hashes['sha1_git'])
             missing_hashes.append(hashes)

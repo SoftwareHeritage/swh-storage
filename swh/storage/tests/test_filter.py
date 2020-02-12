@@ -59,6 +59,32 @@ def test_filtering_proxy_storage_skipped_content(sample_data):
     }
 
 
+def test_filtering_proxy_storage_skipped_content_missing_sha1_git(sample_data):
+    sample_content = sample_data['skipped_content'][0]
+    sample_content2 = sample_data['skipped_content'][1]
+    storage = FilteringProxyStorage(storage=storage_config)
+
+    sample_content['sha1_git'] = sample_content2['sha1_git'] = None
+    content = next(storage.skipped_content_missing([sample_content]))
+    assert content['sha1'] == sample_content['sha1']
+
+    s = storage.skipped_content_add([sample_content])
+    assert s == {
+        'skipped_content:add': 1,
+    }
+
+    content = list(storage.skipped_content_missing([sample_content]))
+    assert content == []
+
+    s = storage.skipped_content_add([sample_content2])
+    assert s == {
+        'skipped_content:add': 1,
+    }
+
+    content = list(storage.skipped_content_missing([sample_content2]))
+    assert content == []
+
+
 def test_filtering_proxy_storage_revision(sample_data):
     sample_revision = sample_data['revision'][0]
     storage = FilteringProxyStorage(storage=storage_config)
