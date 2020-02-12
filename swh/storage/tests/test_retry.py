@@ -10,19 +10,21 @@ from typing import Dict
 
 from unittest.mock import call
 
-from swh.storage import HashCollision
+from swh.storage import HashCollision, get_storage
 from swh.storage.exc import StorageArgumentException
-from swh.storage.retry import RetryingProxyStorage
 
 
 @pytest.fixture
 def swh_storage():
-    return RetryingProxyStorage(storage={
-        'cls': 'validate',
-        'storage': {
-            'cls': 'memory'
-        }
-    })
+    storage_config = {
+        'cls': 'pipeline',
+        'steps': [
+            {'cls': 'validate'},
+            {'cls': 'retry'},
+            {'cls': 'memory'},
+        ]
+    }
+    return get_storage(**storage_config)
 
 
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
