@@ -1,3 +1,18 @@
+swh-storage (0.0.172-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.172     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-02-12 14:00:04 +0100)
+  * Upstream changes:     - v0.0.172     - * Unify exception raised by
+    invalid input to API endpoints.     - * Add a validation proxy for
+    _add() methods. This proxy is *required*     - in front of all
+    backends whose _add() methods may be called or they'll     - crash
+    at runtime.     - * Fix RecursionError when storage proxies are
+    deepcopied or unpickled.     - * storages: Refactor objstorage
+    operations with a dedicated collaborator     - * storages: Refactor
+    journal operations with a dedicated writer collab
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 12 Feb 2020 13:13:47 +0000
+
 swh-storage (0.0.171-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.171     - (tagged by Valentin Lorentz
