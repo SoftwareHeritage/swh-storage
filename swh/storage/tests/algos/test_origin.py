@@ -5,7 +5,7 @@
 
 from unittest.mock import patch
 
-from swh.storage.in_memory import InMemoryStorage
+from swh.storage import get_storage
 from swh.storage.algos.origin import iter_origins
 
 
@@ -13,8 +13,16 @@ def assert_list_eq(left, right, msg=None):
     assert list(left) == list(right), msg
 
 
+storage_config = {
+    'cls': 'validate',
+    'storage': {
+        'cls': 'memory',
+    }
+}
+
+
 def test_iter_origins():
-    storage = InMemoryStorage()
+    storage = get_storage(**storage_config)
     origins = storage.origin_add([
         {'url': 'bar'},
         {'url': 'qux'},
@@ -62,7 +70,7 @@ def test_iter_origins():
 
 @patch('swh.storage.in_memory.InMemoryStorage.origin_get_range')
 def test_iter_origins_batch_size(mock_origin_get_range):
-    storage = InMemoryStorage()
+    storage = get_storage(**storage_config)
     mock_origin_get_range.return_value = []
 
     list(iter_origins(storage))

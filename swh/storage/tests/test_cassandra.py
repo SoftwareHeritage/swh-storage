@@ -149,12 +149,13 @@ def keyspace(cassandra_cluster):
 # below
 
 @pytest.fixture
-def swh_storage(cassandra_cluster, keyspace):
+def swh_storage_backend_config(cassandra_cluster, keyspace):
     (hosts, port) = cassandra_cluster
 
-    storage = get_storage(
-        'cassandra',
-        hosts=hosts, port=port,
+    storage_config = dict(
+        cls='cassandra',
+        hosts=hosts,
+        port=port,
         keyspace=keyspace,
         journal_writer={
             'cls': 'memory',
@@ -165,7 +166,9 @@ def swh_storage(cassandra_cluster, keyspace):
         },
     )
 
-    yield storage
+    yield storage_config
+
+    storage = get_storage(**storage_config)
 
     for table in TABLES:
         storage._cql_runner._session.execute('TRUNCATE TABLE "%s"' % table)

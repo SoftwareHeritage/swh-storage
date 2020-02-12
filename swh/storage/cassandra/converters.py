@@ -3,9 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-
+import copy
 import json
-from typing import Any, Dict
 
 import attr
 
@@ -17,27 +16,20 @@ from swh.model.model import (
 from ..converters import git_headers_to_db, db_to_git_headers
 
 
-def revision_to_db(revision: Dict[str, Any]) -> Revision:
-    metadata = revision.get('metadata')
+def revision_to_db(revision: Revision) -> Revision:
+    metadata = revision.metadata
     if metadata and 'extra_headers' in metadata:
-        extra_headers = git_headers_to_db(
+        metadata = copy.deepcopy(metadata)
+        metadata['extra_headers'] = git_headers_to_db(
             metadata['extra_headers'])
-        revision = {
-            **revision,
-            'metadata': {
-                **metadata,
-                'extra_headers': extra_headers
-            }
-        }
 
-    rev = Revision.from_dict(revision)
-    rev = attr.evolve(
-        rev,
-        type=rev.type.value,
-        metadata=json.dumps(rev.metadata),
+    revision = attr.evolve(
+        revision,
+        type=revision.type.value,
+        metadata=json.dumps(metadata),
     )
 
-    return rev
+    return revision
 
 
 def revision_from_db(revision) -> Revision:
@@ -55,13 +47,12 @@ def revision_from_db(revision) -> Revision:
     return rev
 
 
-def release_to_db(release: Dict[str, Any]) -> Release:
-    rel = Release.from_dict(release)
-    rel = attr.evolve(
-        rel,
-        target_type=rel.target_type.value,
+def release_to_db(release: Release) -> Release:
+    release = attr.evolve(
+        release,
+        target_type=release.target_type.value,
     )
-    return rel
+    return release
 
 
 def release_from_db(release: Release) -> Release:

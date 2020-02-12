@@ -10,7 +10,7 @@ from swh.model.hypothesis_strategies import \
     snapshots, branch_names, branch_targets
 
 from swh.storage.algos.snapshot import snapshot_get_all_branches
-from swh.storage.tests.test_in_memory import swh_storage  # noqa
+from swh.storage.tests.test_in_memory import swh_storage_backend_config  # noqa
 
 
 @given(snapshot=snapshots(min_size=0, max_size=10, only_objects=False))
