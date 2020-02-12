@@ -8,7 +8,7 @@ tenacity
 cassandra-driver<3.21.0,>=3.19.0
 swh.core[db,http]>=0.0.65
 swh.model>=0.0.51
-swh.objstorage>=0.0.17
+swh.objstorage>=0.0.40
 
 [journal]
 swh.journal>=0.0.17

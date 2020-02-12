@@ -154,10 +154,11 @@ def date_to_db(date_offset):
     }
 
 
-def revision_to_db(revision):
+def revision_to_db(rev):
     """Convert a swh-model revision to its database representation.
     """
 
+    revision = rev.to_dict()
     author = author_to_db(revision['author'])
     date = date_to_db(revision['date'])
     committer = author_to_db(revision['committer'])
@@ -257,9 +258,11 @@ def db_to_revision(db_revision):
     return ret
 
 
-def release_to_db(release):
+def release_to_db(rel):
     """Convert a swh-model release to its database representation.
     """
+
+    release = rel.to_dict()
 
     author = author_to_db(release['author'])
     date = date_to_db(release['date'])
