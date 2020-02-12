@@ -26,9 +26,11 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
+from swh.model.model import Release, Revision
 from swh.model.hypothesis_strategies import objects
-from swh.storage import HashCollision
+from swh.storage import HashCollision, get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
+from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
 
 from .storage_data import data
@@ -97,12 +99,13 @@ class TestStorage:
     """
     maxDiff = None  # type: ClassVar[Optional[int]]
 
-    def test_types(self, swh_storage):
+    def test_types(self, swh_storage_backend_config):
         """Checks all methods of StorageInterface are implemented by this
         backend, and that they have the same signature."""
         # Create an instance of the protocol (which cannot be instantiated
         # directly, so this creates a subclass, then instantiates it)
         interface = type('_', (StorageInterface,), {})()
+        storage = get_storage(**swh_storage_backend_config)
 
         assert 'content_add' in dir(interface)
 
@@ -113,7 +116,7 @@ class TestStorage:
                 continue
             interface_meth = getattr(interface, meth_name)
             try:
-                concrete_meth = getattr(swh_storage, meth_name)
+                concrete_meth = getattr(storage, meth_name)
             except AttributeError:
                 if not getattr(interface_meth, 'deprecated_endpoint', False):
                     # The backend is missing a (non-deprecated) endpoint
@@ -148,7 +151,7 @@ class TestStorage:
 
         expected_cont = data.cont
         del expected_cont['data']
-        journal_objects = list(swh_storage.journal_writer.objects)
+        journal_objects = list(swh_storage.journal_writer.journal.objects)
         for (obj_type, obj) in journal_objects:
             assert insertion_start_time <= obj['ctime']
             assert obj['ctime'] <= insertion_end_time
@@ -175,29 +178,26 @@ class TestStorage:
     def test_content_add_validation(self, swh_storage):
         cont = data.cont
 
-        with pytest.raises(ValueError, match='status'):
+        with pytest.raises(StorageArgumentException, match='status'):
             swh_storage.content_add([{**cont, 'status': 'absent'}])
 
-        with pytest.raises(ValueError, match='status'):
+        with pytest.raises(StorageArgumentException, match='status'):
             swh_storage.content_add([{**cont, 'status': 'foobar'}])
 
-        with pytest.raises(ValueError, match="(?i)length"):
+        with pytest.raises(StorageArgumentException, match="(?i)length"):
             swh_storage.content_add([{**cont, 'length': -2}])
 
-        with pytest.raises(
-                (ValueError, TypeError),
-                match="reason"):
+        with pytest.raises(StorageArgumentException, match="reason"):
             swh_storage.content_add([{**cont, 'reason': 'foobar'}])
 
     def test_skipped_content_add_validation(self, swh_storage):
         cont = data.cont.copy()
         del cont['data']
 
-        with pytest.raises(ValueError, match='status'):
+        with pytest.raises(StorageArgumentException, match='status'):
             swh_storage.skipped_content_add([{**cont, 'status': 'visible'}])
 
-        with pytest.raises((ValueError, psycopg2.IntegrityError),
-                           match='reason') as cm:
+        with pytest.raises(StorageArgumentException, match='reason') as cm:
             swh_storage.skipped_content_add([{**cont, 'status': 'absent'}])
 
         if type(cm.value) == psycopg2.IntegrityError:
@@ -241,14 +241,14 @@ class TestStorage:
             'content:add': 1,
             'content:add:bytes': data.cont['length'],
             }
-        assert len(swh_storage.journal_writer.objects) == 1
+        assert len(swh_storage.journal_writer.journal.objects) == 1
 
         actual_result = swh_storage.content_add([data.cont, data.cont2])
         assert actual_result == {
             'content:add': 1,
             'content:add:bytes': data.cont2['length'],
             }
-        assert 2 <= len(swh_storage.journal_writer.objects) <= 3
+        assert 2 <= len(swh_storage.journal_writer.journal.objects) <= 3
 
         assert len(swh_storage.content_find(data.cont)) == 1
         assert len(swh_storage.content_find(data.cont2)) == 1
@@ -268,7 +268,8 @@ class TestStorage:
         assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
 
     def test_content_update(self, swh_storage):
-        swh_storage.journal_writer = None  # TODO, not supported
+        if hasattr(swh_storage, 'storage'):
+            swh_storage.journal_writer.journal = None  # TODO, not supported
 
         cont = copy.deepcopy(data.cont)
 
@@ -299,7 +300,8 @@ class TestStorage:
             cont['sha1']: [expected_cont]
         }
 
-        assert list(swh_storage.journal_writer.objects) == [('content', cont)]
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ('content', cont)]
 
     def test_content_add_metadata_different_input(self, swh_storage):
         cont = data.cont
@@ -480,10 +482,10 @@ class TestStorage:
 
     def test_content_get_partition_limit_none(self, swh_storage):
         """content_get_partition call with wrong limit input should fail"""
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(StorageArgumentException) as e:
             swh_storage.content_get_partition(1, 16, limit=None)
 
-        assert e.value.args == ('Development error: limit should not be None',)
+        assert e.value.args == ('limit should not be None',)
 
     def test_generate_content_get_partition_pagination(
             self, swh_storage, swh_contents):
@@ -550,7 +552,7 @@ class TestStorage:
         actual_result = swh_storage.directory_add([data.dir])
         assert actual_result == {'directory:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) == \
+        assert list(swh_storage.journal_writer.journal.objects) == \
             [('directory', data.dir)]
 
         actual_data = list(swh_storage.directory_ls(data.dir['id']))
@@ -572,7 +574,7 @@ class TestStorage:
         actual_result = swh_storage.directory_add(directories=_dir_gen())
         assert actual_result == {'directory:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) == \
+        assert list(swh_storage.journal_writer.journal.objects) == \
             [('directory', data.dir)]
 
         swh_storage.refresh_stat_counters()
@@ -582,14 +584,13 @@ class TestStorage:
         dir_ = copy.deepcopy(data.dir)
         dir_['entries'][0]['type'] = 'foobar'
 
-        with pytest.raises(ValueError, match='type.*foobar'):
+        with pytest.raises(StorageArgumentException, match='type.*foobar'):
             swh_storage.directory_add([dir_])
 
         dir_ = copy.deepcopy(data.dir)
         del dir_['entries'][0]['target']
 
-        with pytest.raises((TypeError, psycopg2.IntegrityError),
-                           match='target') as cm:
+        with pytest.raises(StorageArgumentException, match='target') as cm:
             swh_storage.directory_add([dir_])
 
         if type(cm.value) == psycopg2.IntegrityError:
@@ -599,13 +600,13 @@ class TestStorage:
         actual_result = swh_storage.directory_add([data.dir])
         assert actual_result == {'directory:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('directory', data.dir)]
 
         actual_result = swh_storage.directory_add([data.dir])
         assert actual_result == {'directory:add': 0}
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('directory', data.dir)]
 
     def test_directory_get_recursive(self, swh_storage):
@@ -616,7 +617,7 @@ class TestStorage:
             [data.dir, data.dir2, data.dir3])
         assert actual_result == {'directory:add': 3}
 
-        assert list(swh_storage.journal_writer.objects) == [
+        assert list(swh_storage.journal_writer.journal.objects) == [
             ('directory', data.dir),
             ('directory', data.dir2),
             ('directory', data.dir3)]
@@ -653,7 +654,7 @@ class TestStorage:
             [data.dir, data.dir2, data.dir3])
         assert actual_result == {'directory:add': 3}
 
-        assert list(swh_storage.journal_writer.objects) == [
+        assert list(swh_storage.journal_writer.journal.objects) == [
             ('directory', data.dir),
             ('directory', data.dir2),
             ('directory', data.dir3)]
@@ -765,8 +766,10 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([data.revision['id']])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.objects) \
-            == [('revision', data.revision)]
+        normalized_revision = Revision.from_dict(data.revision).to_dict()
+
+        assert list(swh_storage.journal_writer.journal.objects) \
+            == [('revision', normalized_revision)]
 
         # already there so nothing added
         actual_result = swh_storage.revision_add([data.revision])
@@ -789,8 +792,7 @@ class TestStorage:
         rev = copy.deepcopy(data.revision)
         rev['date']['offset'] = 2**16
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='offset') as cm:
+        with pytest.raises(StorageArgumentException, match='offset') as cm:
             swh_storage.revision_add([rev])
 
         if type(cm.value) == psycopg2.DataError:
@@ -800,8 +802,7 @@ class TestStorage:
         rev = copy.deepcopy(data.revision)
         rev['committer_date']['offset'] = 2**16
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='offset') as cm:
+        with pytest.raises(StorageArgumentException, match='offset') as cm:
             swh_storage.revision_add([rev])
 
         if type(cm.value) == psycopg2.DataError:
@@ -811,8 +812,7 @@ class TestStorage:
         rev = copy.deepcopy(data.revision)
         rev['type'] = 'foobar'
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='(?i)type') as cm:
+        with pytest.raises(StorageArgumentException, match='(?i)type') as cm:
             swh_storage.revision_add([rev])
 
         if type(cm.value) == psycopg2.DataError:
@@ -823,16 +823,19 @@ class TestStorage:
         actual_result = swh_storage.revision_add([data.revision])
         assert actual_result == {'revision:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
-            == [('revision', data.revision)]
+        normalized_revision = Revision.from_dict(data.revision).to_dict()
+        normalized_revision2 = Revision.from_dict(data.revision2).to_dict()
+
+        assert list(swh_storage.journal_writer.journal.objects) \
+            == [('revision', normalized_revision)]
 
         actual_result = swh_storage.revision_add(
             [data.revision, data.revision2])
         assert actual_result == {'revision:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
-            == [('revision', data.revision),
-                ('revision', data.revision2)]
+        assert list(swh_storage.journal_writer.journal.objects) \
+            == [('revision', normalized_revision),
+                ('revision', normalized_revision2)]
 
     def test_revision_add_name_clash(self, swh_storage):
         revision1 = data.revision
@@ -872,9 +875,12 @@ class TestStorage:
         assert actual_results[0] == normalize_entity(data.revision4)
         assert actual_results[1] == normalize_entity(data.revision3)
 
-        assert list(swh_storage.journal_writer.objects) == [
-            ('revision', data.revision3),
-            ('revision', data.revision4)]
+        normalized_revision3 = Revision.from_dict(data.revision3).to_dict()
+        normalized_revision4 = Revision.from_dict(data.revision4).to_dict()
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ('revision', normalized_revision3),
+            ('revision', normalized_revision4)]
 
     def test_revision_log_with_limit(self, swh_storage):
         # given
@@ -955,6 +961,9 @@ class TestStorage:
             {data.revision['id'], data.revision2['id'], data.revision3['id']}
 
     def test_release_add(self, swh_storage):
+        normalized_release = Release.from_dict(data.release).to_dict()
+        normalized_release2 = Release.from_dict(data.release2).to_dict()
+
         init_missing = swh_storage.release_missing([data.release['id'],
                                                     data.release2['id']])
         assert [data.release['id'], data.release2['id']] == list(init_missing)
@@ -966,9 +975,9 @@ class TestStorage:
                                                    data.release2['id']])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.objects) == [
-            ('release', data.release),
-            ('release', data.release2)]
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ('release', normalized_release),
+            ('release', normalized_release2)]
 
         # already present so nothing added
         actual_result = swh_storage.release_add([data.release, data.release2])
@@ -982,12 +991,15 @@ class TestStorage:
             yield data.release
             yield data.release2
 
+        normalized_release = Release.from_dict(data.release).to_dict()
+        normalized_release2 = Release.from_dict(data.release2).to_dict()
+
         actual_result = swh_storage.release_add(_rel_gen())
         assert actual_result == {'release:add': 2}
 
-        assert list(swh_storage.journal_writer.objects) == [
-            ('release', data.release),
-            ('release', data.release2)]
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ('release', normalized_release),
+            ('release', normalized_release2)]
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()['release'] == 2
@@ -1004,15 +1016,14 @@ class TestStorage:
         end_missing = swh_storage.release_missing([data.release['id']])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('release', release)]
 
     def test_release_add_validation(self, swh_storage):
         rel = copy.deepcopy(data.release)
         rel['date']['offset'] = 2**16
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='offset') as cm:
+        with pytest.raises(StorageArgumentException, match='offset') as cm:
             swh_storage.release_add([rel])
 
         if type(cm.value) == psycopg2.DataError:
@@ -1022,8 +1033,7 @@ class TestStorage:
         rel = copy.deepcopy(data.release)
         rel['author'] = None
 
-        with pytest.raises((ValueError, psycopg2.IntegrityError),
-                           match='date') as cm:
+        with pytest.raises(StorageArgumentException, match='date') as cm:
             swh_storage.release_add([rel])
 
         if type(cm.value) == psycopg2.IntegrityError:
@@ -1033,15 +1043,18 @@ class TestStorage:
         actual_result = swh_storage.release_add([data.release])
         assert actual_result == {'release:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
-            == [('release', data.release)]
+        normalized_release = Release.from_dict(data.release).to_dict()
+        normalized_release2 = Release.from_dict(data.release2).to_dict()
+
+        assert list(swh_storage.journal_writer.journal.objects) \
+            == [('release', normalized_release)]
 
         actual_result = swh_storage.release_add([data.release, data.release2])
         assert actual_result == {'release:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
-            == [('release', data.release),
-                ('release', data.release2)]
+        assert list(swh_storage.journal_writer.journal.objects) \
+            == [('release', normalized_release),
+                ('release', normalized_release2)]
 
     def test_release_add_name_clash(self, swh_storage):
         release1 = data.release.copy()
@@ -1121,7 +1134,7 @@ class TestStorage:
             del actual_origin['id']
             del actual_origin2['id']
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('origin', actual_origin),
                 ('origin', actual_origin2)]
 
@@ -1149,7 +1162,7 @@ class TestStorage:
             del actual_origin['id']
             del actual_origin2['id']
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('origin', actual_origin),
                 ('origin', actual_origin2)]
 
@@ -1158,19 +1171,19 @@ class TestStorage:
 
     def test_origin_add_twice(self, swh_storage):
         add1 = swh_storage.origin_add([data.origin, data.origin2])
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('origin', data.origin),
                 ('origin', data.origin2)]
 
         add2 = swh_storage.origin_add([data.origin, data.origin2])
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('origin', data.origin),
                 ('origin', data.origin2)]
 
         assert add1 == add2
 
     def test_origin_add_validation(self, swh_storage):
-        with pytest.raises((TypeError, KeyError), match='url'):
+        with pytest.raises(StorageArgumentException, match='url'):
             swh_storage.origin_add([{'type': 'git'}])
 
     def test_origin_get_legacy(self, swh_storage):
@@ -1419,7 +1432,7 @@ class TestStorage:
             'metadata': None,
             'snapshot': None,
         }
-        objects = list(swh_storage.journal_writer.objects)
+        objects = list(swh_storage.journal_writer.journal.objects)
         assert ('origin', data.origin2) in objects
         assert ('origin_visit', origin_visit) in objects
 
@@ -1482,7 +1495,7 @@ class TestStorage:
         for visit in expected_visits:
             assert visit in actual_origin_visits
 
-        objects = list(swh_storage.journal_writer.objects)
+        objects = list(swh_storage.journal_writer.journal.objects)
         assert ('origin', data.origin2) in objects
 
         for visit in expected_visits:
@@ -1491,8 +1504,8 @@ class TestStorage:
     def test_origin_visit_add_validation(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin2)
 
-        with pytest.raises((TypeError, psycopg2.ProgrammingError)) as cm:
-            swh_storage.origin_visit_add(origin_url, date=[b'foo'])
+        with pytest.raises(StorageArgumentException) as cm:
+            swh_storage.origin_visit_add(origin_url, date=[b'foo'], type='git')
 
         if type(cm.value) == psycopg2.ProgrammingError:
             assert cm.value.pgcode \
@@ -1655,7 +1668,7 @@ class TestStorage:
             'metadata': None,
             'snapshot': None,
         }
-        objects = list(swh_storage.journal_writer.objects)
+        objects = list(swh_storage.journal_writer.journal.objects)
         assert ('origin', data.origin) in objects
         assert ('origin', data.origin2) in objects
         assert ('origin_visit', data1) in objects
@@ -1673,8 +1686,7 @@ class TestStorage:
             type=data.type_visit2,
         )
 
-        with pytest.raises((ValueError, psycopg2.DataError),
-                           match='status') as cm:
+        with pytest.raises(StorageArgumentException, match='status') as cm:
             swh_storage.origin_visit_update(
                 origin_url, visit['visit'], status='foobar')
 
@@ -1877,7 +1889,7 @@ class TestStorage:
             'metadata': None,
             'snapshot': None,
         }
-        assert list(swh_storage.journal_writer.objects) == [
+        assert list(swh_storage.journal_writer.journal.objects) == [
             ('origin', data.origin2),
             ('origin_visit', data1),
             ('origin_visit', data2)]
@@ -1938,7 +1950,7 @@ class TestStorage:
             'metadata': None,
             'snapshot': None,
         }
-        assert list(swh_storage.journal_writer.objects) == [
+        assert list(swh_storage.journal_writer.journal.objects) == [
             ('origin', data.origin2),
             ('origin_visit', data1),
             ('origin_visit', data2)]
@@ -2115,7 +2127,7 @@ class TestStorage:
             'metadata': None,
             'snapshot': data.empty_snapshot['id'],
         }
-        assert list(swh_storage.journal_writer.objects) == \
+        assert list(swh_storage.journal_writer.journal.objects) == \
             [('origin', data.origin),
              ('origin_visit', data1),
              ('snapshot', data.empty_snapshot),
@@ -2185,13 +2197,13 @@ class TestStorage:
         actual_result = swh_storage.snapshot_add([data.empty_snapshot])
         assert actual_result == {'snapshot:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('snapshot', data.empty_snapshot)]
 
         actual_result = swh_storage.snapshot_add([data.snapshot])
         assert actual_result == {'snapshot:add': 1}
 
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('snapshot', data.empty_snapshot),
                 ('snapshot', data.snapshot)]
 
@@ -2199,13 +2211,13 @@ class TestStorage:
         snap = copy.deepcopy(data.snapshot)
         snap['branches'][b'foo'] = {'target_type': 'revision'}
 
-        with pytest.raises(KeyError, match='target'):
+        with pytest.raises(StorageArgumentException, match='target'):
             swh_storage.snapshot_add([snap])
 
         snap = copy.deepcopy(data.snapshot)
         snap['branches'][b'foo'] = {'target': b'\x42'*20}
 
-        with pytest.raises(KeyError, match='target_type'):
+        with pytest.raises(StorageArgumentException, match='target_type'):
             swh_storage.snapshot_add([snap])
 
     def test_snapshot_add_count_branches(self, swh_storage):
@@ -2427,15 +2439,15 @@ class TestStorage:
         swh_storage.origin_add_one(data.origin)
         visit_id = 54164461156
 
-        swh_storage.journal_writer.objects[:] = []
+        swh_storage.journal_writer.journal.objects[:] = []
 
         swh_storage.snapshot_add([data.snapshot])
 
-        with pytest.raises(ValueError):
+        with pytest.raises(StorageArgumentException):
             swh_storage.origin_visit_update(
                 origin_url, visit_id, snapshot=data.snapshot['id'])
 
-        assert list(swh_storage.journal_writer.objects) == [
+        assert list(swh_storage.journal_writer.journal.objects) == [
             ('snapshot', data.snapshot)]
 
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage):
@@ -2506,7 +2518,7 @@ class TestStorage:
             'metadata': None,
             'snapshot': data.snapshot['id'],
         }
-        assert list(swh_storage.journal_writer.objects) \
+        assert list(swh_storage.journal_writer.journal.objects) \
             == [('origin', data.origin),
                 ('origin_visit', data1),
                 ('snapshot', data.snapshot),
@@ -2610,9 +2622,9 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             visit1_id, snapshot=data.complete_snapshot['id'])
-        with pytest.raises(ValueError):
-            swh_storage.snapshot_get_latest(
-                origin_url)
+        with pytest.raises(Exception):
+            # XXX: should the exception be more specific than this?
+            swh_storage.snapshot_get_latest(origin_url)
 
         # Status filter: both visits are status=ongoing, so no snapshot
         # returned
@@ -2624,7 +2636,8 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             visit1_id, status='full')
-        with pytest.raises(ValueError):
+        with pytest.raises(Exception):
+            # XXX: should the exception be more specific than this?
             swh_storage.snapshot_get_latest(
                 origin_url,
                 allowed_statuses=['full']),
@@ -2639,7 +2652,8 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             visit2_id, snapshot=data.snapshot['id'])
-        with pytest.raises(ValueError):
+        with pytest.raises(Exception):
+            # XXX: should the exception be more specific than this?
             swh_storage.snapshot_get_latest(
                 origin_url)
 
@@ -2946,11 +2960,11 @@ class TestStorage:
 
     def test_content_find_bad_input(self, swh_storage):
         # 1. with bad input
-        with pytest.raises(ValueError):
+        with pytest.raises(StorageArgumentException):
             swh_storage.content_find({})  # empty is bad
 
         # 2. with bad input
-        with pytest.raises(ValueError):
+        with pytest.raises(StorageArgumentException):
             swh_storage.content_find(
                 {'unknown-sha1': 'something'})  # not the right key
 
@@ -3407,10 +3421,10 @@ class TestStorageGeneratedData:
 
     def test_generate_content_get_range_limit_none(self, swh_storage):
         """content_get_range call with wrong limit input should fail"""
-        with pytest.raises(ValueError) as e:
+        with pytest.raises(StorageArgumentException) as e:
             swh_storage.content_get_range(start=None, end=None, limit=None)
 
-        assert e.value.args == ('Development error: limit should not be None',)
+        assert e.value.args == ('limit should not be None',)
 
     def test_generate_content_get_range_no_limit(
             self, swh_storage, swh_contents):
@@ -3633,7 +3647,7 @@ class TestLocalStorage:
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception
     def test_content_add_objstorage_exception(self, swh_storage):
-        swh_storage.objstorage.add = Mock(
+        swh_storage.objstorage.content_add = Mock(
             side_effect=Exception('mocked broken objstorage')
         )
 
@@ -3691,7 +3705,7 @@ class TestPgStorage:
     """
 
     def test_content_update_with_new_cols(self, swh_storage):
-        swh_storage.journal_writer = None  # TODO, not supported
+        swh_storage.journal_writer.journal = None  # TODO, not supported
 
         with db_transaction(swh_storage) as (_, cur):
             cur.execute("""alter table content
@@ -3732,7 +3746,7 @@ class TestPgStorage:
             }
 
         if hasattr(swh_storage, 'objstorage'):
-            assert cont['sha1'] in swh_storage.objstorage
+            assert cont['sha1'] in swh_storage.objstorage.objstorage
 
         with db_transaction(swh_storage) as (_, cur):
             cur.execute('SELECT sha1, sha1_git, sha256, length, status'
@@ -3745,7 +3759,7 @@ class TestPgStorage:
 
         expected_cont = cont.copy()
         del expected_cont['data']
-        journal_objects = list(swh_storage.journal_writer.objects)
+        journal_objects = list(swh_storage.journal_writer.journal.objects)
         for (obj_type, obj) in journal_objects:
             del obj['ctime']
         assert journal_objects == [('content', expected_cont)]
@@ -3762,7 +3776,7 @@ class TestPgStorage:
             }
 
         if hasattr(swh_storage, 'objstorage'):
-            assert cont['sha1'] not in swh_storage.objstorage
+            assert cont['sha1'] not in swh_storage.objstorage.objstorage
         with db_transaction(swh_storage) as (_, cur):
             cur.execute('SELECT sha1, sha1_git, sha256, length, status'
                         ' FROM content WHERE sha1 = %s',
@@ -3771,7 +3785,8 @@ class TestPgStorage:
         assert datum == (cont['sha1'], cont['sha1_git'], cont['sha256'],
                          cont['length'], 'visible')
 
-        assert list(swh_storage.journal_writer.objects) == [('content', cont)]
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ('content', cont)]
 
     def test_skipped_content_add_db(self, swh_storage):
         cont = data.skipped_cont

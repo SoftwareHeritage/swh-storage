@@ -3,9 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from swh.core.api import remote_api_endpoint
+from swh.model.model import (
+    SkippedContent, Content, Directory, Revision, Release,
+    Snapshot, Origin
+)
 
 
 def deprecated(f):
@@ -20,7 +24,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('content/add')
-    def content_add(self, content):
+    def content_add(self, content: Iterable[Content]) -> Dict:
         """Add content blobs to the storage
 
         Args:
@@ -78,7 +82,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('content/add_metadata')
-    def content_add_metadata(self, content):
+    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -279,7 +283,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('content/skipped/add')
-    def skipped_content_add(self, content):
+    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
         """Add contents to the skipped_content list, which contains
         (partial) information about content missing from the archive.
 
@@ -330,7 +334,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('directory/add')
-    def directory_add(self, directories):
+    def directory_add(self, directories: Iterable[Directory]) -> Dict:
         """Add directories to the storage
 
         Args:
@@ -412,7 +416,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('revision/add')
-    def revision_add(self, revisions):
+    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
         """Add revisions to the storage
 
         Args:
@@ -516,7 +520,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('release/add')
-    def release_add(self, releases):
+    def release_add(self, releases: Iterable[Release]) -> Dict:
         """Add releases to the storage
 
         Args:
@@ -581,7 +585,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('snapshot/add')
-    def snapshot_add(self, snapshots):
+    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
         """Add snapshots to the storage.
 
         Args:
@@ -763,7 +767,8 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/add')
-    def origin_visit_add(self, origin, date, type):
+    def origin_visit_add(
+            self, origin, date, type) -> Optional[Dict[str, Union[str, int]]]:
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         Args:
@@ -781,8 +786,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/update')
-    def origin_visit_update(self, origin, visit_id, status=None,
-                            metadata=None, snapshot=None):
+    def origin_visit_update(
+            self, origin: str, visit_id: int, status: Optional[str] = None,
+            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
         """Update an origin_visit's status.
 
         Args:
@@ -1047,7 +1053,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/add_multi')
-    def origin_add(self, origins):
+    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
         """Add origins to the storage
 
         Args:
@@ -1064,7 +1070,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/add')
-    def origin_add_one(self, origin):
+    def origin_add_one(self, origin: Origin) -> str:
         """Add origin to the storage
 
         Args:

@@ -60,6 +60,8 @@ class BufferingProxyStorage:
                 return partial(
                     self.object_add, object_type=object_type
                 )
+        if key == 'storage':
+            raise AttributeError(key)
         return getattr(self.storage, key)
 
     def content_add(self, content: Iterable[Dict]) -> Dict:

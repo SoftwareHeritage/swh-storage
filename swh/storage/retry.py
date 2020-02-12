@@ -4,46 +4,47 @@
 # See top-level LICENSE file for more information
 
 import logging
-import psycopg2
 import traceback
 
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Union
 
-from requests.exceptions import ConnectionError
 from tenacity import (
-    retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+    retry, stop_after_attempt, wait_random_exponential,
 )
 
-from swh.storage import get_storage, HashCollision
+from swh.storage import get_storage
+from swh.storage.exc import StorageArgumentException
 
 
 logger = logging.getLogger(__name__)
 
 
-RETRY_EXCEPTIONS = [
-    # raised when two parallel insertions insert the same data
-    psycopg2.IntegrityError,
-    HashCollision,
-    # when the server is restarting
-    ConnectionError,
-]
-
-
-def should_retry_adding(error: Exception) -> bool:
-    """Retry if the error/exception if one of the RETRY_EXCEPTIONS type.
+def should_retry_adding(retry_state) -> bool:
+    """Retry if the error/exception is (probably) not about a caller error
 
     """
-    for exc in RETRY_EXCEPTIONS:
-        if retry_if_exception_type(exc)(error):
-            error_name = error.__module__ + '.' + error.__class__.__name__
+    if retry_state.outcome.failed:
+        error = retry_state.outcome.exception()
+        if isinstance(error, StorageArgumentException):
+            # Exception is due to an invalid argument
+            return False
+        else:
+            # Other exception
+            module = getattr(error, '__module__', None)
+            if module:
+                error_name = error.__module__ + '.' + error.__class__.__name__
+            else:
+                error_name = error.__class__.__name__
             logger.warning('Retry adding a batch', exc_info=False, extra={
                 'swh_type': 'storage_retry',
                 'swh_exception_type': error_name,
                 'swh_exception': traceback.format_exc(),
             })
             return True
-    return False
+    else:
+        # No exception
+        return False
 
 
 swh_retry = retry(retry=should_retry_adding,
@@ -60,6 +61,8 @@ class RetryingProxyStorage:
         self.storage = get_storage(**storage)
 
     def __getattr__(self, key):
+        if key == 'storage':
+            raise AttributeError(key)
         return getattr(self.storage, key)
 
     @swh_retry

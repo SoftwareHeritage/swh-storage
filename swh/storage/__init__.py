@@ -12,7 +12,7 @@ class HashCollision(Exception):
 
 STORAGE_IMPLEMENTATION = {
     'pipeline', 'local', 'remote', 'memory', 'filter', 'buffer', 'retry',
-    'cassandra',
+    'validate', 'cassandra',
 }
 
 
@@ -60,6 +60,8 @@ def get_storage(cls, **kwargs):
         from .buffer import BufferingProxyStorage as Storage
     elif cls == 'retry':
         from .retry import RetryingProxyStorage as Storage
+    elif cls == 'validate':
+        from .validate import ValidatingProxyStorage as Storage
 
     return Storage(**kwargs)
 
