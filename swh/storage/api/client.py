@@ -9,6 +9,8 @@ from .. import HashCollision
 from ..exc import StorageAPIError, StorageArgumentException
 from ..interface import StorageInterface
 
+from .serializers import ENCODERS, DECODERS
+
 
 class RemoteStorage(RPCClient):
     """Proxy to a remote storage API"""
@@ -17,6 +19,8 @@ class RemoteStorage(RPCClient):
     reraise_exceptions = [
         StorageArgumentException,
     ]
+    extra_type_decoders = DECODERS
+    extra_type_encoders = ENCODERS
 
     def raise_for_status(self, response) -> None:
         try:
