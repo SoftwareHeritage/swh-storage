@@ -1,3 +1,15 @@
+swh-storage (0.0.174-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.174     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-02-19 14:18:59 +0100)
+  * Upstream changes:     - v0.0.174     - * Fix inconsistent behavior
+    of skipped_content_missing across backends.     - * Fix
+    FilteringProxy to not drop skipped-contents with a missing sha1_git.
+    - * Make storage proxies use swh-model objects instead of dicts.
+    - * Add support for (de)serializing swh-model in RPC calls.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 19 Feb 2020 15:00:32 +0000
+
 swh-storage (0.0.172-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.172     - (tagged by Valentin Lorentz
