@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
+from swh.storage.api.client import RemoteStorage
 import swh.storage.api.server as server
 import swh.storage.storage
-from swh.storage import get_storage
 from swh.storage.tests.test_storage import TestStorageGeneratedData # noqa
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
 
@@ -21,10 +21,13 @@ from swh.storage.tests.test_storage import TestStorage as _TestStorage
 @pytest.fixture
 def app_server():
     storage_config = {
-        'cls': 'memory',
-        'journal_writer': {
+        'cls': 'validate',
+        'storage': {
             'cls': 'memory',
-        },
+            'journal_writer': {
+                'cls': 'memory',
+            },
+        }
     }
     server.storage = swh.storage.get_storage(**storage_config)
     yield server
@@ -37,17 +40,7 @@ def app(app_server):
 
 @pytest.fixture
 def swh_rpc_client_class():
-    def storage_factory(**kwargs):
-        storage_config = {
-            'cls': 'validate',
-            'storage': {
-                'cls': 'remote',
-                **kwargs,
-            }
-        }
-        return get_storage(**storage_config)
-
-    return storage_factory
+    return RemoteStorage
 
 
 @pytest.fixture
@@ -62,7 +55,6 @@ def swh_storage(swh_rpc_client, app_server):
     # in-memory backend storage is attached to the RemoteStorage as its
     # journal_writer attribute.
     storage = swh_rpc_client
-
     journal_writer = getattr(storage, 'journal_writer', None)
     storage.journal_writer = app_server.storage.journal_writer
     yield storage

@@ -4,20 +4,22 @@
 # See top-level LICENSE file for more information
 
 
-from swh.storage.filter import FilteringProxyStorage
+from swh.storage import get_storage
 
 
 storage_config = {
-    'cls': 'validate',
-    'storage': {
-        'cls': 'memory'
-    }
+    'cls': 'pipeline',
+    'steps': [
+        {'cls': 'validate'},
+        {'cls': 'filter'},
+        {'cls': 'memory'},
+    ]
 }
 
 
 def test_filtering_proxy_storage_content(sample_data):
     sample_content = sample_data['content'][0]
-    storage = FilteringProxyStorage(storage=storage_config)
+    storage = get_storage(**storage_config)
 
     content = next(storage.content_get([sample_content['sha1']]))
     assert not content
@@ -40,7 +42,7 @@ def test_filtering_proxy_storage_content(sample_data):
 
 def test_filtering_proxy_storage_skipped_content(sample_data):
     sample_content = sample_data['skipped_content'][0]
-    storage = FilteringProxyStorage(storage=storage_config)
+    storage = get_storage(**storage_config)
 
     content = next(storage.skipped_content_missing([sample_content]))
     assert content['sha1'] == sample_content['sha1']
@@ -59,9 +61,35 @@ def test_filtering_proxy_storage_skipped_content(sample_data):
     }
 
 
+def test_filtering_proxy_storage_skipped_content_missing_sha1_git(sample_data):
+    sample_content = sample_data['skipped_content'][0]
+    sample_content2 = sample_data['skipped_content'][1]
+    storage = get_storage(**storage_config)
+
+    sample_content['sha1_git'] = sample_content2['sha1_git'] = None
+    content = next(storage.skipped_content_missing([sample_content]))
+    assert content['sha1'] == sample_content['sha1']
+
+    s = storage.skipped_content_add([sample_content])
+    assert s == {
+        'skipped_content:add': 1,
+    }
+
+    content = list(storage.skipped_content_missing([sample_content]))
+    assert content == []
+
+    s = storage.skipped_content_add([sample_content2])
+    assert s == {
+        'skipped_content:add': 1,
+    }
+
+    content = list(storage.skipped_content_missing([sample_content2]))
+    assert content == []
+
+
 def test_filtering_proxy_storage_revision(sample_data):
     sample_revision = sample_data['revision'][0]
-    storage = FilteringProxyStorage(storage=storage_config)
+    storage = get_storage(**storage_config)
 
     revision = next(storage.revision_get([sample_revision['id']]))
     assert not revision
@@ -82,7 +110,7 @@ def test_filtering_proxy_storage_revision(sample_data):
 
 def test_filtering_proxy_storage_directory(sample_data):
     sample_directory = sample_data['directory'][0]
-    storage = FilteringProxyStorage(storage=storage_config)
+    storage = get_storage(**storage_config)
 
     directory = next(storage.directory_missing([sample_directory['id']]))
     assert directory
