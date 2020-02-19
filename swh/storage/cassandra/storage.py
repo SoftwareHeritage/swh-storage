@@ -17,6 +17,7 @@ from swh.model.model import (
     Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
     OriginVisit, Snapshot, Origin
 )
+from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 
@@ -257,7 +258,7 @@ class CassandraStorage:
     def skipped_content_missing(self, contents):
         for content in contents:
             if not self._cql_runner.skipped_content_get_from_pk(content):
-                yield content
+                yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
     def directory_add(self, directories: Iterable[Directory]) -> Dict:
         directories = list(directories)
