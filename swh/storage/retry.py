@@ -13,6 +13,11 @@ from tenacity import (
     retry, stop_after_attempt, wait_random_exponential,
 )
 
+from swh.model.model import (
+    Content, SkippedContent, Directory, Revision, Release, Snapshot,
+    Origin,
+)
+
 from swh.storage import get_storage
 from swh.storage.exc import StorageArgumentException
 
@@ -66,22 +71,19 @@ class RetryingProxyStorage:
         return getattr(self.storage, key)
 
     @swh_retry
-    def content_add(self, content: Iterable[Dict]) -> Dict:
-        contents = list(content)
-        return self.storage.content_add(contents)
+    def content_add(self, content: Iterable[Content]) -> Dict:
+        return self.storage.content_add(content)
 
     @swh_retry
-    def content_add_metadata(self, content: Iterable[Dict]) -> Dict:
-        contents = list(content)
-        return self.storage.content_add_metadata(contents)
+    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
+        return self.storage.content_add_metadata(content)
 
     @swh_retry
-    def skipped_content_add(self, content: Iterable[Dict]) -> Dict:
-        contents = list(content)
-        return self.storage.skipped_content_add(contents)
+    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
+        return self.storage.skipped_content_add(content)
 
     @swh_retry
-    def origin_add_one(self, origin: Dict) -> str:
+    def origin_add_one(self, origin: Origin) -> str:
         return self.storage.origin_add_one(origin)
 
     @swh_retry
@@ -118,23 +120,19 @@ class RetryingProxyStorage:
             origin_url, ts, provider_id, tool_id, metadata)
 
     @swh_retry
-    def directory_add(self, directories: Iterable[Dict]) -> Dict:
-        directories = list(directories)
+    def directory_add(self, directories: Iterable[Directory]) -> Dict:
         return self.storage.directory_add(directories)
 
     @swh_retry
-    def revision_add(self, revisions: Iterable[Dict]) -> Dict:
-        revisions = list(revisions)
+    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
         return self.storage.revision_add(revisions)
 
     @swh_retry
-    def release_add(self, releases: Iterable[Dict]) -> Dict:
-        releases = list(releases)
+    def release_add(self, releases: Iterable[Release]) -> Dict:
         return self.storage.release_add(releases)
 
     @swh_retry
-    def snapshot_add(self, snapshot: Iterable[Dict]) -> Dict:
-        snapshots = list(snapshot)
+    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
         return self.storage.snapshot_add(snapshots)
 
     @swh_retry

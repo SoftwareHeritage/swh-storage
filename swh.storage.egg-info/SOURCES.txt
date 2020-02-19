@@ -203,6 +203,7 @@ swh/storage/algos/revisions_walker.py
 swh/storage/algos/snapshot.py
 swh/storage/api/__init__.py
 swh/storage/api/client.py
+swh/storage/api/serializers.py
 swh/storage/api/server.py
 swh/storage/cassandra/__init__.py
 swh/storage/cassandra/common.py
@@ -220,6 +221,7 @@ swh/storage/tests/conftest.py
 swh/storage/tests/generate_data_test.py
 swh/storage/tests/storage_data.py
 swh/storage/tests/test_api_client.py
+swh/storage/tests/test_api_client_dicts.py
 swh/storage/tests/test_buffer.py
 swh/storage/tests/test_cassandra.py
 swh/storage/tests/test_converters.py

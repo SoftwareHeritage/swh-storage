@@ -8,6 +8,7 @@ from functools import partial
 from typing import Optional, Iterable, Dict
 
 from swh.core.utils import grouper
+from swh.model.model import Content, BaseModel
 from swh.storage import get_storage
 
 
@@ -64,7 +65,7 @@ class BufferingProxyStorage:
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, content: Iterable[Dict]) -> Dict:
+    def content_add(self, content: Iterable[Content]) -> Dict:
         """Enqueue contents to write to the storage.
 
         Following policies apply:
@@ -76,10 +77,11 @@ class BufferingProxyStorage:
               threshold is hit. If it is flush content to the storage.
 
         """
+        content = list(content)
         s = self.object_add(content, object_type='content')
         if not s:
             q = self._objects['content']
-            total_size = sum(c['length'] for c in q)
+            total_size = sum(c.length for c in q)
             if total_size >= self.min_batch_size['content_bytes']:
                 return self.flush(['content'])
 
@@ -100,7 +102,8 @@ class BufferingProxyStorage:
 
         return summary
 
-    def object_add(self, objects: Iterable[Dict], *, object_type: str) -> Dict:
+    def object_add(
+            self, objects: Iterable[BaseModel], *, object_type: str) -> Dict:
         """Enqueue objects to write to the storage. This checks if the queue's
            threshold is hit. If it is actually write those to the storage.
 
