@@ -29,8 +29,14 @@ def should_retry_adding(retry_state) -> bool:
     """Retry if the error/exception is (probably) not about a caller error
 
     """
-    if retry_state.outcome.failed:
-        error = retry_state.outcome.exception()
+    try:
+        attempt = retry_state.outcome
+    except AttributeError:
+        # tenacity < 5.0
+        attempt = retry_state
+
+    if attempt.failed:
+        error = attempt.exception()
         if isinstance(error, StorageArgumentException):
             # Exception is due to an invalid argument
             return False
