@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import contextlib
-import datetime
 from typing import Dict, Iterable, List, Union
 
 from swh.model.model import (
@@ -33,10 +32,6 @@ def convert_validation_exceptions():
         raise StorageArgumentException(*e.args)
 
 
-def now():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
-
-
 class ValidatingProxyStorage:
     """Storage implementation converts dictionaries to swh-model objects
     before calling its backend, and back to dicts before returning results
@@ -52,8 +47,7 @@ class ValidatingProxyStorage:
 
     def content_add(self, content: Iterable[Dict]) -> Dict:
         with convert_validation_exceptions():
-            contents = [Content.from_dict({**c, 'ctime': now()})
-                        for c in content]
+            contents = [Content.from_dict(c) for c in content]
         return self.storage.content_add(contents)
 
     def content_add_metadata(self, content: Iterable[Dict]) -> Dict:
@@ -64,8 +58,7 @@ class ValidatingProxyStorage:
 
     def skipped_content_add(self, content: Iterable[Dict]) -> Dict:
         with convert_validation_exceptions():
-            contents = [SkippedContent.from_dict({**c, 'ctime': now()})
-                        for c in content]
+            contents = [SkippedContent.from_dict(c) for c in content]
         return self.storage.skipped_content_add(contents)
 
     def directory_add(self, directories: Iterable[Dict]) -> Dict:
