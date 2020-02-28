@@ -92,7 +92,7 @@ class FilteringProxyStorage:
             if content.sha256 in objects_seen:
                 continue
             objects_seen.add(content.sha256)
-            missing_contents.append(content.to_dict())
+            missing_contents.append(content.hashes())
 
         return set(self.storage.content_missing(
             missing_contents,
@@ -114,7 +114,7 @@ class FilteringProxyStorage:
             if content.sha1_git is None or content.sha1_git in objects_seen:
                 continue
             objects_seen.add(content.sha1_git)
-            missing_contents.append(content.to_dict())
+            missing_contents.append(content.hashes())
 
         return {
             c.get('sha1_git')

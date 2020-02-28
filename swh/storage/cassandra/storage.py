@@ -105,7 +105,9 @@ class CassandraStorage:
         return summary
 
     def content_add(self, content: Iterable[Content]) -> Dict:
-        return self._content_add(list(content), with_data=True)
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        contents = [attr.evolve(c, ctime=now) for c in content]
+        return self._content_add(list(contents), with_data=True)
 
     def content_update(self, content, keys=[]):
         raise NotImplementedError(
@@ -253,7 +255,9 @@ class CassandraStorage:
         }
 
     def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
-        return self._skipped_content_add(content)
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        contents = [attr.evolve(c, ctime=now) for c in content]
+        return self._skipped_content_add(contents)
 
     def skipped_content_missing(self, contents):
         for content in contents:
