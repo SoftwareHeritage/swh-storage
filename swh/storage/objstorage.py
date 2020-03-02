@@ -5,7 +5,7 @@
 
 from typing import Dict, Generator, Iterable
 
-from swh.model.model import Content
+from swh.model.model import Content, MissingData
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
@@ -52,9 +52,10 @@ class ObjStorage:
             objstorage.
 
         """
-        contents = list(contents)
-        if any(cont.data is None for cont in contents):
-            raise StorageArgumentException('Missing data')
+        try:
+            contents = [c.with_data() for c in contents]
+        except MissingData:
+            raise StorageArgumentException('Missing data') from None
         summary = self.objstorage.add_batch({
             cont.sha1: cont.data
             for cont in contents

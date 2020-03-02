@@ -67,3 +67,7 @@ class TestStorage(_TestStorage):
         swh_storage.journal_writer.journal = None
         with patch.object(server.storage.journal_writer, 'journal', None):
             super().test_content_update(swh_storage)
+
+    @pytest.mark.skip('non-applicable test')
+    def test_content_add_from_lazy_content(self):
+        pass

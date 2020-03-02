@@ -259,7 +259,7 @@ class InMemoryStorage:
         }
 
         missing_contents = self.skipped_content_missing(
-            [c.to_dict() for c in contents])
+            [c.hashes() for c in contents])
         missing = {self._content_key(c) for c in missing_contents}
         contents = [c for c in contents
                     if self._content_key(c) in missing]

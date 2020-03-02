@@ -26,7 +26,7 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.model.model import Release, Revision
+from swh.model.model import Content, Release, Revision
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision, get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
@@ -171,6 +171,53 @@ class TestStorage:
             'content:add': 1,
             'content:add:bytes': data.cont['length'],
         }
+
+        swh_storage.refresh_stat_counters()
+        assert swh_storage.stat_counters()['content'] == 1
+
+    def test_content_add_from_lazy_content(self, swh_storage):
+        called = False
+        cont = data.cont
+
+        class LazyContent(Content):
+            def with_data(self):
+                nonlocal called
+                called = True
+                return Content.from_dict({
+                    **self.to_dict(),
+                    'data': cont['data']
+                })
+
+        lazy_content = LazyContent.from_dict({
+            **cont,
+            'data': b'nope',
+        })
+
+        insertion_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        # bypass the validation proxy for now, to directly put a dict
+        actual_result = swh_storage.storage.content_add([lazy_content])
+
+        insertion_end_time = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        assert actual_result == {
+            'content:add': 1,
+            'content:add:bytes': cont['length'],
+        }
+
+        assert called
+
+        assert list(swh_storage.content_get([cont['sha1']])) == \
+            [{'sha1': cont['sha1'], 'data': cont['data']}]
+
+        expected_cont = data.cont
+        del expected_cont['data']
+        journal_objects = list(swh_storage.journal_writer.journal.objects)
+        for (obj_type, obj) in journal_objects:
+            assert insertion_start_time <= obj['ctime']
+            assert obj['ctime'] <= insertion_end_time
+            del obj['ctime']
+        assert journal_objects == [('content', expected_cont)]
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()['content'] == 1
