@@ -955,6 +955,27 @@ class TestStorage:
         actual_result = swh_storage.revision_add([revision1, revision2])
         assert actual_result == {'revision:add': 2}
 
+    def test_revision_get_order(self, swh_storage):
+        normalized_rev1 = Revision.from_dict(data.revision).to_dict()
+        normalized_rev2 = Revision.from_dict(data.revision2).to_dict()
+
+        add_result = swh_storage.revision_add(
+            [normalized_rev1, normalized_rev2]
+        )
+        assert add_result == {'revision:add': 2}
+
+        # order 1
+        res1 = swh_storage.revision_get(
+            [normalized_rev1['id'], normalized_rev2['id']]
+        )
+        assert list(res1) == [normalized_rev1, normalized_rev2]
+
+        # order 2
+        res2 = swh_storage.revision_get(
+            [normalized_rev2['id'], normalized_rev1['id']]
+        )
+        assert list(res2) == [normalized_rev2, normalized_rev1]
+
     def test_revision_log(self, swh_storage):
         # given
         # data.revision4 -is-child-of-> data.revision3
@@ -1195,6 +1216,27 @@ class TestStorage:
             list(swh_storage.release_get([data.release3['id']]))
 
         assert unknown_releases[0] is None
+
+    def test_release_get_order(self, swh_storage):
+        normalized_rel1 = Release.from_dict(data.release).to_dict()
+        normalized_rel2 = Release.from_dict(data.release2).to_dict()
+
+        add_result = swh_storage.release_add(
+            [normalized_rel1, normalized_rel2]
+        )
+        assert add_result == {'release:add': 2}
+
+        # order 1
+        res1 = swh_storage.release_get(
+            [normalized_rel1['id'], normalized_rel2['id']]
+        )
+        assert list(res1) == [normalized_rel1, normalized_rel2]
+
+        # order 2
+        res2 = swh_storage.release_get(
+            [normalized_rel2['id'], normalized_rel1['id']]
+        )
+        assert list(res2) == [normalized_rel2, normalized_rel1]
 
     def test_release_get_random(self, swh_storage):
         swh_storage.release_add([data.release, data.release2, data.release3])
