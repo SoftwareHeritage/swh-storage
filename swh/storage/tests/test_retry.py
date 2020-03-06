@@ -3,12 +3,15 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Dict
+from unittest.mock import call
+
 import psycopg2
 import pytest
 
-from typing import Dict
-
-from unittest.mock import call
+from swh.model.model import (
+    Content, Directory, Release, Revision, Snapshot, Origin
+)
 
 from swh.storage import HashCollision, get_storage
 from swh.storage.exc import StorageArgumentException
@@ -70,10 +73,10 @@ def test_retrying_proxy_storage_content_add_with_retry(
     s = swh_storage.content_add([sample_content])
     assert s == {'content:add': 1}
 
-    assert mock_memory.has_calls([
-        call([sample_content]),
-        call([sample_content]),
-        call([sample_content]),
+    mock_memory.assert_has_calls([
+        call([Content.from_dict(sample_content)]),
+        call([Content.from_dict(sample_content)]),
+        call([Content.from_dict(sample_content)]),
     ])
 
 
@@ -139,10 +142,10 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
     s = swh_storage.content_add_metadata([sample_content])
     assert s == {'content:add': 1}
 
-    assert mock_memory.has_calls([
-        call([sample_content]),
-        call([sample_content]),
-        call([sample_content]),
+    mock_memory.assert_has_calls([
+        call([Content.from_dict(sample_content)]),
+        call([Content.from_dict(sample_content)]),
+        call([Content.from_dict(sample_content)]),
     ])
 
 
@@ -207,10 +210,10 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
     r = swh_storage.origin_add_one(sample_origin)
     assert r == sample_origin['url']
 
-    assert mock_memory.has_calls([
-        call([sample_origin]),
-        call([sample_origin]),
-        call([sample_origin]),
+    mock_memory.assert_has_calls([
+        call(Origin.from_dict(sample_origin)),
+        call(Origin.from_dict(sample_origin)),
+        call(Origin.from_dict(sample_origin)),
     ])
 
 
@@ -282,7 +285,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     r = swh_storage.origin_visit_add(sample_origin, '2020-01-01', 'git')
     assert r == {'origin': origin_url, 'visit': 1}
 
-    assert mock_memory.has_calls([
+    mock_memory.assert_has_calls([
         call(sample_origin, '2020-01-01', 'git'),
         call(sample_origin, '2020-01-01', 'git'),
         call(sample_origin, '2020-01-01', 'git')
@@ -307,7 +310,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     with pytest.raises(StorageArgumentException, match='Refuse to add'):
         swh_storage.origin_visit_add(origin_url, '2020-01-31', 'svn')
 
-    assert mock_memory.has_calls([
+    mock_memory.assert_has_calls([
         call(origin_url, '2020-01-31', 'svn'),
     ])
 
@@ -355,7 +358,7 @@ def test_retrying_proxy_storage_tool_add_with_retry(
     tools = swh_storage.tool_add([sample_tool])
     assert tools == [sample_tool]
 
-    assert mock_memory.has_calls([
+    mock_memory.assert_has_calls([
         call([sample_tool]),
         call([sample_tool]),
         call([sample_tool]),
@@ -438,10 +441,13 @@ def test_retrying_proxy_storage_metadata_provider_add_with_retry(
     provider_id = swh_storage.metadata_provider_add(**provider_get)
     assert provider_id == 'provider_id'
 
-    assert mock_memory.has_calls([
-        call(**provider_get),
-        call(**provider_get),
-        call(**provider_get),
+    provider_arg_names = (
+        'provider_name', 'provider_type', 'provider_url', 'metadata')
+    provider_args = [provider_get[key] for key in provider_arg_names]
+    mock_memory.assert_has_calls([
+        call(*provider_args),
+        call(*provider_args),
+        call(*provider_args),
     ])
 
 
@@ -604,10 +610,13 @@ def test_retrying_proxy_swh_storage_origin_visit_update_retry(
     visit_id = 1
     swh_storage.origin_visit_update(origin_url, visit_id, status='full')
 
-    assert mock_memory.has_calls([
-        call(origin_url, visit_id, status='full'),
-        call(origin_url, visit_id, status='full'),
-        call(origin_url, visit_id, status='full'),
+    mock_memory.assert_has_calls([
+        call(origin_url, visit_id, metadata=None,
+             snapshot=None, status='full'),
+        call(origin_url, visit_id, metadata=None,
+             snapshot=None, status='full'),
+        call(origin_url, visit_id, metadata=None,
+             snapshot=None, status='full'),
     ])
 
 
@@ -673,10 +682,10 @@ def test_retrying_proxy_storage_directory_add_with_retry(
         'directory:add': 1,
     }
 
-    assert mock_memory.has_calls([
-        call([sample_dir]),
-        call([sample_dir]),
-        call([sample_dir]),
+    mock_memory.assert_has_calls([
+        call([Directory.from_dict(sample_dir)]),
+        call([Directory.from_dict(sample_dir)]),
+        call([Directory.from_dict(sample_dir)]),
     ])
 
 
@@ -745,10 +754,10 @@ def test_retrying_proxy_storage_revision_add_with_retry(
         'revision:add': 1,
     }
 
-    assert mock_memory.has_calls([
-        call([sample_rev]),
-        call([sample_rev]),
-        call([sample_rev]),
+    mock_memory.assert_has_calls([
+        call([Revision.from_dict(sample_rev)]),
+        call([Revision.from_dict(sample_rev)]),
+        call([Revision.from_dict(sample_rev)]),
     ])
 
 
@@ -817,10 +826,10 @@ def test_retrying_proxy_storage_release_add_with_retry(
         'release:add': 1,
     }
 
-    assert mock_memory.has_calls([
-        call([sample_rel]),
-        call([sample_rel]),
-        call([sample_rel]),
+    mock_memory.assert_has_calls([
+        call([Release.from_dict(sample_rel)]),
+        call([Release.from_dict(sample_rel)]),
+        call([Release.from_dict(sample_rel)]),
     ])
 
 
@@ -889,10 +898,10 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
         'snapshot:add': 1,
     }
 
-    assert mock_memory.has_calls([
-        call([sample_snap]),
-        call([sample_snap]),
-        call([sample_snap]),
+    mock_memory.assert_has_calls([
+        call([Snapshot.from_dict(sample_snap)]),
+        call([Snapshot.from_dict(sample_snap)]),
+        call([Snapshot.from_dict(sample_snap)]),
     ])
 
 
