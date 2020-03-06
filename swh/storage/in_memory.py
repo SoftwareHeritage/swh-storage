@@ -92,7 +92,16 @@ class InMemoryStorage:
                 hash_ = content.get_hash(algorithm)
                 if hash_ in self._content_indexes[algorithm]\
                    and (algorithm not in {'blake2s256', 'sha256'}):
-                    raise HashCollision(algorithm, hash_, key)
+                    colliding_content_hashes = []
+                    # Add the already stored contents
+                    for content_hashes_set in self._content_indexes[
+                            algorithm][hash_]:
+                        hashes = dict(content_hashes_set)
+                        colliding_content_hashes.append(hashes)
+                    # Add the new colliding content
+                    colliding_content_hashes.append(content.hashes())
+                    raise HashCollision(
+                        algorithm, hash_, colliding_content_hashes)
             for algorithm in DEFAULT_ALGORITHMS:
                 hash_ = content.get_hash(algorithm)
                 self._content_indexes[algorithm][hash_].add(key)

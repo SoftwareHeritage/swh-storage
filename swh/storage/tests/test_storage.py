@@ -312,7 +312,15 @@ class TestStorage:
         with pytest.raises(HashCollision) as cm:
             swh_storage.content_add([cont1, cont1b])
 
-        assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
+        actual_algo = cm.value.args[0]
+        assert actual_algo in ['sha1', 'sha1_git', 'blake2s256']
+        actual_id = cm.value.args[1]
+        assert actual_id == cont1[actual_algo]
+        assert len(cm.value.args[2]) == 2
+        assert cm.value.args[2] == [
+            Content.from_dict(cont1).hashes(),
+            Content.from_dict(cont1b).hashes()
+        ]
 
     def test_content_update(self, swh_storage):
         if hasattr(swh_storage, 'storage'):
@@ -370,14 +378,22 @@ class TestStorage:
 
         # create (corrupted) content with same sha1{,_git} but != sha256
         cont1b = cont1.copy()
-        sha256_array = bytearray(cont1b['sha256'])
-        sha256_array[0] += 1
-        cont1b['sha256'] = bytes(sha256_array)
+        sha1_git_array = bytearray(cont1b['sha256'])
+        sha1_git_array[0] += 1
+        cont1b['sha256'] = bytes(sha1_git_array)
 
         with pytest.raises(HashCollision) as cm:
             swh_storage.content_add_metadata([cont1, cont1b])
 
-        assert cm.value.args[0] in ['sha1', 'sha1_git', 'blake2s256']
+        actual_algo = cm.value.args[0]
+        assert actual_algo in ['sha1', 'sha1_git', 'blake2s256']
+        actual_id = cm.value.args[1]
+        assert actual_id == cont1[actual_algo]
+        assert len(cm.value.args[2]) == 2
+        assert cm.value.args[2] == [
+            Content.from_dict(cont1).hashes(),
+            Content.from_dict(cont1b).hashes()
+        ]
 
     def test_skipped_content_add(self, swh_storage):
         cont = data.skipped_cont

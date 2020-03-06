@@ -8,12 +8,15 @@ import json
 
 import attr
 
+from typing import Dict
+
 from swh.model.model import (
     RevisionType, ObjectType, Revision, Release,
 )
-
+from swh.model.hashutil import DEFAULT_ALGORITHMS
 
 from ..converters import git_headers_to_db, db_to_git_headers
+from .common import Row
 
 
 def revision_to_db(revision: Revision) -> Revision:
@@ -61,3 +64,13 @@ def release_from_db(release: Release) -> Release:
         target_type=ObjectType(release.target_type),
     )
     return release
+
+
+def row_to_content_hashes(row: Row) -> Dict[str, bytes]:
+    """Convert cassandra row to a content hashes
+
+    """
+    hashes = {}
+    for algo in DEFAULT_ALGORITHMS:
+        hashes[algo] = getattr(row, algo)
+    return hashes

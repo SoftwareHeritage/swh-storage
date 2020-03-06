@@ -26,6 +26,7 @@ from ..exc import StorageArgumentException
 from .common import TOKEN_BEGIN, TOKEN_END
 from .converters import (
     revision_to_db, revision_from_db, release_to_db, release_from_db,
+    row_to_content_hashes,
 )
 from .cql import CqlRunner
 from .schema import HASH_ALGORITHMS
@@ -93,7 +94,11 @@ class CassandraStorage:
                     algo, content.get_hash(algo))
                 if len(pks) > 1:
                     # There are more than the one we just inserted.
-                    raise HashCollision(algo, content.get_hash(algo), pks)
+                    colliding_content_hashes = [
+                        row_to_content_hashes(pk) for pk in pks
+                    ]
+                    raise HashCollision(
+                        algo, content.get_hash(algo), colliding_content_hashes)
 
         summary = {
             'content:add': content_add,

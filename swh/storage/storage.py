@@ -33,7 +33,9 @@ from .db import Db
 from .exc import StorageArgumentException, StorageDBError
 from .algos import diff
 from .metrics import timed, send_metric, process_metrics
-from .utils import get_partition_bounds_bytes
+from .utils import (
+    get_partition_bounds_bytes, extract_collision_hash
+)
 from .writer import JournalWriter
 
 
@@ -158,14 +160,27 @@ class Storage():
         except psycopg2.IntegrityError as e:
             if e.diag.sqlstate == '23505' and \
                     e.diag.table_name == 'content':
-                constraint_to_hash_name = {
-                    'content_pkey': 'sha1',
-                    'content_sha1_git_idx': 'sha1_git',
-                    'content_sha256_idx': 'sha256',
+                message_detail = e.diag.message_detail
+                if message_detail:
+                    hash_name, hash_id = extract_collision_hash(message_detail)
+                    collision_contents_hashes = [
+                        c.hashes() for c in content
+                        if c.get_hash(hash_name) == hash_id
+                    ]
+                else:
+                    constraint_to_hash_name = {
+                        'content_pkey': 'sha1',
+                        'content_sha1_git_idx': 'sha1_git',
+                        'content_sha256_idx': 'sha256',
                     }
-                colliding_hash_name = constraint_to_hash_name \
-                    .get(e.diag.constraint_name)
-                raise HashCollision(colliding_hash_name) from None
+                    hash_name = constraint_to_hash_name \
+                        .get(e.diag.constraint_name)
+                    hash_id = None
+                    collision_contents_hashes = None
+
+                raise HashCollision(
+                    hash_name, hash_id, collision_contents_hashes
+                ) from None
             else:
                 raise
 
