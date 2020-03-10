@@ -26,7 +26,6 @@ from ..exc import StorageArgumentException
 from .common import TOKEN_BEGIN, TOKEN_END
 from .converters import (
     revision_to_db, revision_from_db, release_to_db, release_from_db,
-    row_to_content_hashes,
 )
 from .cql import CqlRunner
 from .schema import HASH_ALGORITHMS
@@ -52,6 +51,24 @@ class CassandraStorage:
 
         return True
 
+    def _content_get_from_hash(self, algo, hash_) -> Iterable:
+        """From the name of a hash algorithm and a value of that hash,
+        looks up the "hash -> token" secondary table (content_by_{algo})
+        to get tokens.
+        Then, looks up the main table (content) to get all contents with
+        that token, and filters out contents whose hash doesn't match."""
+        found_tokens = self._cql_runner.content_get_tokens_from_single_hash(
+            algo, hash_)
+
+        for token in found_tokens:
+            # Query the main table ('content').
+            res = self._cql_runner.content_get_from_token(token)
+
+            for row in res:
+                # re-check the the hash (in case of murmur3 collision)
+                if getattr(row, algo) == hash_:
+                    yield row
+
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
         # Filter-out content already in the database.
         contents = [c for c in contents
@@ -74,31 +91,46 @@ class CassandraStorage:
         for content in contents:
             content_add += 1
 
-            # Then add to index tables
-            for algo in HASH_ALGORITHMS:
-                self._cql_runner.content_index_add_one(algo, content)
-
-            # Then to the main table
-            self._cql_runner.content_add_one(content)
-
-            # Note that we check for collisions *after* inserting. This
-            # differs significantly from the pgsql storage, but checking
-            # before insertion does not provide any guarantee in case
-            # another thread inserts the colliding hash at the same time.
+            # Check for sha1 or sha1_git collisions. This test is not atomic
+            # with the insertion, so it won't detect a collision if both
+            # contents are inserted at the same time, but it's good enough.
             #
             # The proper way to do it would probably be a BATCH, but this
             # would be inefficient because of the number of partitions we
             # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
             for algo in {'sha1', 'sha1_git'}:
-                pks = self._cql_runner.content_get_pks_from_single_hash(
+                collisions = []
+                # Get tokens of 'content' rows with the same value for
+                # sha1/sha1_git
+                rows = self._content_get_from_hash(
                     algo, content.get_hash(algo))
-                if len(pks) > 1:
-                    # There are more than the one we just inserted.
-                    colliding_content_hashes = [
-                        row_to_content_hashes(pk) for pk in pks
-                    ]
+                for row in rows:
+                    if getattr(row, algo) != content.get_hash(algo):
+                        # collision of token(partition key), ignore this
+                        # row
+                        continue
+
+                    for algo in HASH_ALGORITHMS:
+                        if getattr(row, algo) != content.get_hash(algo):
+                            # This hash didn't match; discard the row.
+                            collisions.append({
+                                algo: getattr(row, algo)
+                                for algo in HASH_ALGORITHMS})
+
+                if collisions:
+                    collisions.append(content.hashes())
                     raise HashCollision(
-                        algo, content.get_hash(algo), colliding_content_hashes)
+                        algo, content.get_hash(algo), collisions)
+
+            (token, insertion_finalizer) = \
+                self._cql_runner.content_add_prepare(content)
+
+            # Then add to index tables
+            for algo in HASH_ALGORITHMS:
+                self._cql_runner.content_index_add_one(algo, content, token)
+
+            # Then to the main table
+            insertion_finalizer()
 
         summary = {
             'content:add': content_add,
@@ -167,22 +199,10 @@ class CassandraStorage:
         for sha1 in contents:
             # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1
             # matches the argument, from the index table ('content_by_sha1')
-            pks = self._cql_runner.content_get_pks_from_single_hash(
-                'sha1', sha1)
-
-            if pks:
-                # TODO: what to do if there are more than one?
-                pk = pks[0]
-
-                # Query the main table ('content')
-                res = self._cql_runner.content_get_from_pk(pk._asdict())
-
-                # Rows in 'content' are inserted after corresponding
-                # rows in 'content_by_*', so we might be missing it
-                if res:
-                    content_metadata = res._asdict()
-                    content_metadata.pop('ctime')
-                    result[content_metadata['sha1']].append(content_metadata)
+            for row in self._content_get_from_hash('sha1', sha1):
+                content_metadata = row._asdict()
+                content_metadata.pop('ctime')
+                result[content_metadata['sha1']].append(content_metadata)
         return result
 
     def content_find(self, content):
@@ -195,27 +215,21 @@ class CassandraStorage:
                 '%s' % ', '.join(sorted(HASH_ALGORITHMS)))
         common_algo = filter_algos[0]
 
-        # Find all contents whose common_algo matches at least one
-        # of the requests.
-        found_pks = self._cql_runner.content_get_pks_from_single_hash(
-            common_algo, content[common_algo])
-        found_pks = [pk._asdict() for pk in found_pks]
-
-        # Filter with the other hash algorithms.
-        for algo in filter_algos[1:]:
-            found_pks = [pk for pk in found_pks if pk[algo] == content[algo]]
-
         results = []
-        for pk in found_pks:
-            # Query the main table ('content').
-            res = self._cql_runner.content_get_from_pk(pk)
-
-            # Rows in 'content' are inserted after corresponding
-            # rows in 'content_by_*', so we might be missing it
-            if res:
+        rows = self._content_get_from_hash(
+            common_algo, content[common_algo])
+        for row in rows:
+            # Re-check all the hashes, in case of collisions (either of the
+            # hash of the partition key, or the hashes in it)
+            for algo in HASH_ALGORITHMS:
+                if content.get(algo) and getattr(row, algo) != content[algo]:
+                    # This hash didn't match; discard the row.
+                    break
+            else:
+                # All hashes match, keep this row.
                 results.append({
-                    **res._asdict(),
-                    'ctime': res.ctime.replace(tzinfo=datetime.timezone.utc)
+                    **row._asdict(),
+                    'ctime': row.ctime.replace(tzinfo=datetime.timezone.utc)
                 })
         return results
 

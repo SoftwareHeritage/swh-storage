@@ -8,14 +8,14 @@ import json
 import logging
 import random
 from typing import (
-    Any, Callable, Dict, Generator, Iterable, List, Optional, TypeVar
+    Any, Callable, Dict, Generator, Iterable, List, Optional, Tuple, TypeVar
 )
 
 from cassandra import CoordinationFailure
 from cassandra.cluster import (
     Cluster, EXEC_PROFILE_DEFAULT, ExecutionProfile, ResultSet)
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
-from cassandra.query import PreparedStatement
+from cassandra.query import PreparedStatement, BoundStatement
 from tenacity import (
     retry, stop_after_attempt, wait_random_exponential,
     retry_if_exception_type,
@@ -173,9 +173,37 @@ class CqlRunner:
         'sha1', 'sha1_git', 'sha256', 'blake2s256', 'length',
         'ctime', 'status']
 
+    def _content_add_finalize(self, statement: BoundStatement) -> None:
+        """Returned currified by content_add_prepare, to be called when the
+        content row should be added to the primary table."""
+        self._execute_with_retries(statement, None)
+        self._increment_counter('content', 1)
+
     @_prepared_insert_statement('content', _content_keys)
-    def content_add_one(self, content, *, statement) -> None:
-        self._add_one(statement, 'content', content, self._content_keys)
+    def content_add_prepare(
+            self, content, *, statement) -> Tuple[int, Callable[[], None]]:
+        """Prepares insertion of a Content to the main 'content' table.
+        Returns a token (to be used in secondary tables), and a function to be
+        called to perform the insertion in the main table."""
+        statement = statement.bind([
+            getattr(content, key) for key in self._content_keys])
+
+        # Type used for hashing keys (usually, it will be
+        # cassandra.metadata.Murmur3Token)
+        token_class = self._cluster.metadata.token_map.token_class
+
+        # Token of the row when it will be inserted. This is equivalent to
+        # "SELECT token({', '.join(self._content_pk)}) FROM content WHERE ..."
+        # after the row is inserted; but we need the token to insert in the
+        # index tables *before* inserting to the main 'content' table
+        token = token_class.from_key(statement.routing_key).value
+        assert TOKEN_BEGIN <= token <= TOKEN_END
+
+        # Function to be called after the indexes contain their respective
+        # row
+        finalizer = functools.partial(self._content_add_finalize, statement)
+
+        return (token, finalizer)
 
     @_prepared_statement('SELECT * FROM content WHERE ' +
                          ' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS)))
@@ -189,6 +217,12 @@ class CqlRunner:
             return rows[0]
         else:
             return None
+
+    @_prepared_statement('SELECT * FROM content WHERE token('
+                         + ', '.join(_content_pk)
+                         + ') = ?')
+    def content_get_from_token(self, token, *, statement) -> Iterable[Row]:
+        return self._execute_with_retries(statement, [token])
 
     @_prepared_statement('SELECT * FROM content WHERE token(%s) > ? LIMIT 1'
                          % ', '.join(_content_pk))
@@ -213,19 +247,21 @@ class CqlRunner:
             self, ids: List[bytes], *, statement) -> List[bytes]:
         return self._missing(statement, ids)
 
-    def content_index_add_one(self, main_algo: str, content: Content) -> None:
-        query = 'INSERT INTO content_by_{algo} ({cols}) VALUES ({values})' \
-            .format(algo=main_algo, cols=', '.join(self._content_pk),
-                    values=', '.join('%s' for _ in self._content_pk))
+    def content_index_add_one(
+            self, algo: str, content: Content, token: int) -> None:
+        """Adds a row mapping content[algo] to the token of the Content in
+        the main 'content' table."""
+        query = (
+            f'INSERT INTO content_by_{algo} ({algo}, target_token) '
+            f'VALUES (%s, %s)')
         self._execute_with_retries(
-            query, [content.get_hash(algo) for algo in self._content_pk])
+            query, [content.get_hash(algo), token])
 
-    def content_get_pks_from_single_hash(
-            self, algo: str, hash_: bytes) -> List[Row]:
+    def content_get_tokens_from_single_hash(
+            self, algo: str, hash_: bytes) -> Iterable[int]:
         assert algo in HASH_ALGORITHMS
-        query = 'SELECT * FROM content_by_{algo} WHERE {algo} = %s'.format(
-            algo=algo)
-        return list(self._execute_with_retries(query, [hash_]))
+        query = f'SELECT target_token FROM content_by_{algo} WHERE {algo} = %s'
+        return (tok for (tok,) in self._execute_with_retries(query, [hash_]))
 
     ##########################
     # 'skipped_content' table

@@ -192,12 +192,11 @@ CREATE TABLE IF NOT EXISTS object_count (
 '''.split('\n\n')
 
 CONTENT_INDEX_TEMPLATE = '''
+-- Secondary table, used for looking up "content" from a single hash
 CREATE TABLE IF NOT EXISTS content_by_{main_algo} (
-    sha1          blob,
-    sha1_git      blob,
-    sha256        blob,
-    blake2s256    blob,
-    PRIMARY KEY (({main_algo}), {other_algos})
+    {main_algo}   blob,
+    target_token  bigint, -- value of token(pk) on the "primary" table
+    PRIMARY KEY (({main_algo}), target_token)
 );
 
 CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
