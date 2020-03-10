@@ -224,6 +224,7 @@ swh/storage/tests/test_api_client.py
 swh/storage/tests/test_api_client_dicts.py
 swh/storage/tests/test_buffer.py
 swh/storage/tests/test_cassandra.py
+swh/storage/tests/test_cassandra_converters.py
 swh/storage/tests/test_converters.py
 swh/storage/tests/test_db.py
 swh/storage/tests/test_filter.py
@@ -233,6 +234,7 @@ swh/storage/tests/test_metrics.py
 swh/storage/tests/test_retry.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
+swh/storage/tests/test_utils.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py
 swh/storage/tests/algos/test_dir_iterator.py

@@ -580,12 +580,13 @@ class Db(BaseDb):
 
         yield from execute_values_generator(
             cur, """
-            SELECT %s FROM (VALUES %%s) as t(id)
+            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
             LEFT JOIN revision ON t.id = revision.id
             LEFT JOIN person author ON revision.author = author.id
             LEFT JOIN person committer ON revision.committer = committer.id
+            ORDER BY sortkey
             """ % query_keys,
-            ((id,) for id in revisions))
+            ((sortkey, id) for sortkey, id in enumerate(revisions)))
 
     def revision_log(self, root_revisions, limit=None, cur=None):
         cur = self._cursor(cur)
@@ -831,11 +832,12 @@ class Db(BaseDb):
 
         yield from execute_values_generator(
             cur, """
-            SELECT %s FROM (VALUES %%s) as t(id)
+            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
             LEFT JOIN release ON t.id = release.id
             LEFT JOIN person author ON release.author = author.id
+            ORDER BY sortkey
             """ % query_keys,
-            ((id,) for id in releases))
+            ((sortkey, id) for sortkey, id in enumerate(releases)))
 
     def release_get_random(self, cur=None):
         return self._get_random_row_from_table(

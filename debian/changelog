@@ -1,8 +1,16 @@
-swh-storage (0.0.176-1~swh2~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.177-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.177     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-03-10 11:37:33
+    +0100)
+  * Upstream changes:     - v0.0.177     - storage: Identify and provide
+    the collision hashes in exception     - Guarantee the order of
+    results for revision_get and release_get     - tests: Improve test
+    speed     - sql: do not attempt to create the plpgsql lang if
+    already exists     - Update requirement on swh.core for RPCClient
+    method overrides
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 02 Mar 2020 13:56:07 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 10 Mar 2020 10:48:11 +0000
 
 swh-storage (0.0.176-1~swh2) unstable-swh; urgency=medium
 
