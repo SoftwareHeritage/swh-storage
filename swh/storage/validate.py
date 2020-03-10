@@ -52,8 +52,7 @@ class ValidatingProxyStorage:
 
     def content_add_metadata(self, content: Iterable[Dict]) -> Dict:
         with convert_validation_exceptions():
-            contents = [Content.from_dict(c)
-                        for c in content]
+            contents = [Content.from_dict(c) for c in content]
         return self.storage.content_add_metadata(contents)
 
     def skipped_content_add(self, content: Iterable[Dict]) -> Dict:
