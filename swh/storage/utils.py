@@ -1,9 +1,13 @@
-# Copyright (C) 2019  The Software Heritage developers
+# Copyright (C) 2019-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import re
+
 from typing import Optional, Tuple
+
+from swh.model.hashutil import hash_to_bytes
 
 
 def _is_power_of_two(n: int) -> bool:
@@ -40,3 +44,25 @@ def get_partition_bounds_bytes(
     end = None if i == n-1 \
         else (partition_size*(i+1)).to_bytes(nb_bytes, 'big')
     return (start, end)
+
+
+def extract_collision_hash(error_message: str) -> Optional[Tuple[str, bytes]]:
+    """Utilities to extract the hash information from a hash collision error.
+
+    Hash collision error message are of the form:
+    'Key (<hash-type>)=(<double-escaped-hash) already exists.'
+
+    for example:
+    'Key (sha1)=(\\x34973274ccef6ab4dfaaf86599792fa9c3fe4689) already exists.'
+
+    Return:
+        A formatted string
+
+    """
+    pattern = r'\w* \((?P<type>[^)]+)\)=\(\\x(?P<id>[a-f0-9]+)\) \w*'
+    result = re.match(pattern, error_message)
+    if result:
+        hash_type = result.group('type')
+        hash_id = result.group('id')
+        return hash_type, hash_to_bytes(hash_id)
+    return None
