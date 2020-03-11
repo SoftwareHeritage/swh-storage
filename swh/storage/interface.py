@@ -7,8 +7,8 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 
 from swh.core.api import remote_api_endpoint
 from swh.model.model import (
-    SkippedContent, Content, Directory, Revision, Release,
-    Snapshot, Origin
+    Content, Directory, Origin, OriginVisit, Revision, Release,
+    Snapshot, SkippedContent
 )
 
 
@@ -806,7 +806,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/upsert')
-    def origin_visit_upsert(self, visits):
+    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         """Add a origin_visits with a specific id and with all its data.
         If there is already an origin_visit with the same
         `(origin_id, visit_id)`, overwrites it.

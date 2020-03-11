@@ -823,18 +823,9 @@ class CassandraStorage:
 
         self._cql_runner.origin_visit_update(origin_url, visit_id, updates)
 
-    def origin_visit_upsert(self, visits):
-        visits = [visit.copy() for visit in visits]
-        for visit in visits:
-            if isinstance(visit['date'], str):
-                visit['date'] = dateutil.parser.parse(visit['date'])
-
+    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         self.journal_writer.origin_visit_upsert(visits)
-
         for visit in visits:
-            visit = visit.copy()
-            if visit.get('metadata'):
-                visit['metadata'] = json.dumps(visit['metadata'])
             self._cql_runner.origin_visit_upsert(visit)
 
     @staticmethod

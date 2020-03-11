@@ -773,16 +773,7 @@ class InMemoryStorage:
 
         self._origin_visits[origin_url][visit_id-1] = visit
 
-    def origin_visit_upsert(self, visits):
-        for visit in visits:
-            if not isinstance(visit['origin'], str):
-                raise TypeError("visit['origin'] must be a string, not %r"
-                                % (visit['origin'],))
-        try:
-            visits = [OriginVisit.from_dict(d) for d in visits]
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
-
+    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         self.journal_writer.origin_visit_upsert(visits)
 
         for visit in visits:
@@ -797,10 +788,11 @@ class InMemoryStorage:
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))
 
-            while len(self._origin_visits[origin_url]) <= visit_id:
-                self._origin_visits[origin_url].append(None)
+            if visit_id:
+                while len(self._origin_visits[origin_url]) <= visit_id:
+                    self._origin_visits[origin_url].append(None)
 
-            self._origin_visits[origin_url][visit_id-1] = visit
+                self._origin_visits[origin_url][visit_id-1] = visit
 
     def _convert_visit(self, visit):
         if visit is None:

@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import contextlib
-import copy
 import datetime
 import itertools
 import json
@@ -21,8 +20,8 @@ import psycopg2.pool
 import psycopg2.errors
 
 from swh.model.model import (
-    SkippedContent, Content, Directory, Revision, Release,
-    Snapshot, Origin, SHA1_SIZE
+    Content, Directory, Origin, OriginVisit,
+    Revision, Release, SkippedContent, Snapshot, SHA1_SIZE
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
@@ -870,21 +869,13 @@ class Storage():
 
     @timed
     @db_transaction()
-    def origin_visit_upsert(self, visits, db=None, cur=None):
-        visits = copy.deepcopy(visits)
-        for visit in visits:
-            if isinstance(visit['date'], str):
-                visit['date'] = dateutil.parser.parse(visit['date'])
-            if not isinstance(visit['origin'], str):
-                raise StorageArgumentException(
-                    "visit['origin'] must be a string, not %r"
-                    % (visit['origin'],))
-
+    def origin_visit_upsert(self, visits: Iterable[OriginVisit],
+                            db=None, cur=None) -> None:
         self.journal_writer.origin_visit_upsert(visits)
 
         for visit in visits:
             # TODO: upsert them all in a single query
-            db.origin_visit_upsert(**visit, cur=cur)
+            db.origin_visit_upsert(visit, cur=cur)
 
     @timed
     @db_transaction_generator(statement_timeout=500)

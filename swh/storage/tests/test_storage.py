@@ -26,7 +26,7 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.model.model import Content, Release, Revision
+from swh.model.model import Content, OriginVisit, Release, Revision
 from swh.model.hypothesis_strategies import objects
 from swh.storage import HashCollision, get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
@@ -1986,24 +1986,24 @@ class TestStorage:
 
         # when
         swh_storage.origin_visit_upsert([
-            {
-                 'origin': origin_url,
-                 'date': data.date_visit2,
-                 'visit': 123,
-                 'type': data.type_visit2,
-                 'status': 'full',
-                 'metadata': None,
-                 'snapshot': None,
-             },
-            {
-                 'origin': origin_url,
-                 'date': '2018-01-01 23:00:00+00',
-                 'visit': 1234,
-                 'type': data.type_visit2,
-                 'status': 'full',
-                 'metadata': None,
-                 'snapshot': None,
-             },
+            OriginVisit.from_dict({
+                'origin': origin_url,
+                'date': data.date_visit2,
+                'visit': 123,
+                'type': data.type_visit2,
+                'status': 'full',
+                'metadata': None,
+                'snapshot': None,
+            }),
+            OriginVisit.from_dict({
+                'origin': origin_url,
+                'date': '2018-01-01 23:00:00+00',
+                'visit': 1234,
+                'type': data.type_visit2,
+                'status': 'full',
+                'metadata': None,
+                'snapshot': None,
+            }),
         ])
 
         # then
@@ -2064,15 +2064,15 @@ class TestStorage:
             date=data.date_visit2,
             type=data.type_visit1,
         )
-        swh_storage.origin_visit_upsert([{
-             'origin': origin_url,
-             'date': data.date_visit2,
-             'visit': origin_visit1['visit'],
-             'type': data.type_visit1,
-             'status': 'full',
-             'metadata': None,
-             'snapshot': None,
-         }])
+        swh_storage.origin_visit_upsert([OriginVisit.from_dict({
+            'origin': origin_url,
+            'date': data.date_visit2,
+            'visit': origin_visit1['visit'],
+            'type': data.type_visit1,
+            'status': 'full',
+            'metadata': None,
+            'snapshot': None,
+        })])
 
         # then
         assert origin_visit1['origin'] == origin_url
