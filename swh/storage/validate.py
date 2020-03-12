@@ -3,11 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import contextlib
 from typing import Dict, Iterable, List, Union
 
 from swh.model.model import (
-    SkippedContent, Content, Directory, Revision, Release, Snapshot,
+    BaseModel, SkippedContent, Content, Directory, Revision, Release, Snapshot,
     OriginVisit, Origin
 )
 
@@ -81,9 +82,10 @@ class ValidatingProxyStorage:
         return self.storage.snapshot_add(snapshots)
 
     def origin_visit_add(
-            self, origin, date, type) -> Dict[str, Union[str, int]]:
+            self, origin_url: str,
+            date: Union[datetime.datetime], type: str) -> Dict[str, BaseModel]:
         with convert_validation_exceptions():
-            visit = OriginVisit(origin=origin, date=date, type=type,
+            visit = OriginVisit(origin=origin_url, date=date, type=type,
                                 status='ongoing', snapshot=None)
         return self.storage.origin_visit_add(
             visit.origin, visit.date, visit.type)

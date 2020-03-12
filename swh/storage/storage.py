@@ -804,20 +804,26 @@ class Storage():
     @timed
     @db_transaction()
     def origin_visit_add(
-            self, origin, date, type, db=None, cur=None
-            ) -> Optional[Dict[str, Union[str, int]]]:
-        origin_url = origin
-
+            self, origin_url: str, date: Union[str, datetime.datetime],
+            type: str, db=None, cur=None) -> OriginVisit:
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
+        elif not isinstance(date, datetime.datetime):
+            raise StorageArgumentException(
+                'Date must be a datetime or a string')
+
+        origin = self.origin_get({'url': origin_url})
+        if not origin:  # Cannot add a visit without an origin
+            raise StorageArgumentException(
+                'Unknown origin %s', origin_url)
 
         with convert_validation_exceptions():
-            visit_id = db.origin_visit_add(origin_url, date, type, cur)
+            visit_id = db.origin_visit_add(origin_url, date, type, cur=cur)
 
         # We can write to the journal only after inserting to the
         # DB, because we want the id of the visit
-        visit = {
+        visit = OriginVisit.from_dict({
             'origin': origin_url,
             'date': date,
             'type': type,
@@ -825,14 +831,11 @@ class Storage():
             'status': 'ongoing',
             'metadata': None,
             'snapshot': None
-        }
+        })
         self.journal_writer.origin_visit_add(visit)
 
         send_metric('origin_visit:add', count=1, method_name='origin_visit')
-        return {
-            'origin': origin_url,
-            'visit': visit_id,
-        }
+        return visit
 
     @timed
     @db_transaction()

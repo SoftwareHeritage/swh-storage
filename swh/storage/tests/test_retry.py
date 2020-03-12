@@ -255,16 +255,14 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
 
     """
     sample_origin = sample_data['origin'][0]
-    swh_storage.origin_add_one(sample_origin)
-    origin_url = sample_origin['url']
+    origin_url = swh_storage.origin_add_one(sample_origin)
 
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    origin_visit = swh_storage.origin_visit_add(
-        origin_url, '2020-01-01', 'hg')
-    assert origin_visit['origin'] == origin_url
-    assert isinstance(origin_visit['visit'], int)
+    origin_visit = swh_storage.origin_visit_add(origin_url, '2020-01-01', 'hg')
+    assert origin_visit.origin == origin_url
+    assert isinstance(origin_visit.visit, int)
 
     origin_visit = next(swh_storage.origin_visit_get(origin_url))
     assert origin_visit['origin'] == origin_url
@@ -277,8 +275,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
 
     """
     sample_origin = sample_data['origin'][1]
-    swh_storage.origin_add_one(sample_origin)
-    origin_url = sample_origin['url']
+    origin_url = swh_storage.origin_add_one(sample_origin)
 
     mock_memory = mocker.patch(
         'swh.storage.in_memory.InMemoryStorage.origin_visit_add')
@@ -297,13 +294,13 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    r = swh_storage.origin_visit_add(sample_origin, '2020-01-01', 'git')
+    r = swh_storage.origin_visit_add(origin_url, '2020-01-01', 'git')
     assert r == {'origin': origin_url, 'visit': 1}
 
     mock_memory.assert_has_calls([
-        call(sample_origin, '2020-01-01', 'git'),
-        call(sample_origin, '2020-01-01', 'git'),
-        call(sample_origin, '2020-01-01', 'git')
+        call(origin_url, '2020-01-01', 'git'),
+        call(origin_url, '2020-01-01', 'git'),
+        call(origin_url, '2020-01-01', 'git')
     ])
     assert mock_sleep.call_count == 2
 
@@ -595,23 +592,22 @@ def test_retrying_proxy_swh_storage_origin_visit_update(
 
     """
     sample_origin = sample_data['origin'][0]
-    swh_storage.origin_add_one(sample_origin)
-    origin_url = sample_origin['url']
-    origin_visit = swh_storage.origin_visit_add(
-        origin_url, '2020-01-01', 'hg')
+    origin_url = swh_storage.origin_add_one(sample_origin)
+    origin_visit = swh_storage.origin_visit_add(origin_url, '2020-01-01', 'hg')
 
     ov = next(swh_storage.origin_visit_get(origin_url))
     assert ov['origin'] == origin_url
-    assert ov['visit'] == origin_visit['visit']
+    assert ov['visit'] == origin_visit.visit
     assert ov['status'] == 'ongoing'
     assert ov['snapshot'] is None
     assert ov['metadata'] is None
 
-    swh_storage.origin_visit_update(origin_url, ov['visit'], status='full')
+    swh_storage.origin_visit_update(
+        origin_url, origin_visit.visit, status='full')
 
     ov = next(swh_storage.origin_visit_get(origin_url))
     assert ov['origin'] == origin_url
-    assert ov['visit'] == origin_visit['visit']
+    assert ov['visit'] == origin_visit.visit
     assert ov['status'] == 'full'
     assert ov['snapshot'] is None
     assert ov['metadata'] is None

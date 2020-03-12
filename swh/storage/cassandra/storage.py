@@ -14,8 +14,8 @@ import attr
 import dateutil
 
 from swh.model.model import (
-    Revision, Release, Directory, DirectoryEntry, Content, SkippedContent,
-    OriginVisit, Snapshot, Origin
+    Revision, Release, Directory, DirectoryEntry, Content,
+    SkippedContent, OriginVisit, Snapshot, Origin
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.storage.objstorage import ObjStorage
@@ -668,7 +668,8 @@ class CassandraStorage:
         else:
             return results
 
-    def origin_get_one(self, origin):
+    def origin_get_one(self, origin: Dict[str, Any]) -> Optional[
+            Dict[str, Any]]:
         if 'id' in origin:
             raise StorageArgumentException('Origin ids are not supported.')
         if 'url' not in origin:
@@ -757,17 +758,19 @@ class CassandraStorage:
 
         return origin_url
 
-    def origin_visit_add(
-            self, origin, date, type) -> Optional[Dict[str, Union[str, int]]]:
-        origin_url = origin  # TODO: rename the argument
-
+    def origin_visit_add(self, origin_url: str,
+                         date: Union[str, datetime.datetime],
+                         type: str) -> OriginVisit:
         if isinstance(date, str):
+            # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
+        elif not isinstance(date, datetime.datetime):
+            raise StorageArgumentException(
+                'Date must be a datetime or a string')
 
-        origin = self.origin_get_one({'url': origin_url})
-
-        if not origin:
-            return None
+        if not self.origin_get_one({'url': origin_url}):
+            raise StorageArgumentException(
+                'Unknown origin %s', origin_url)
 
         visit_id = self._cql_runner.origin_generate_unique_visit_id(origin_url)
 
@@ -784,13 +787,8 @@ class CassandraStorage:
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
         self.journal_writer.origin_visit_add(visit)
-
         self._cql_runner.origin_visit_add_one(visit)
-
-        return {
-                'origin': origin_url,
-                'visit': visit_id,
-            }
+        return visit
 
     def origin_visit_update(
             self, origin: str, visit_id: int, status: Optional[str] = None,

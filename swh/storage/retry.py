@@ -15,7 +15,7 @@ from tenacity import (
 
 from swh.model.model import (
     Content, SkippedContent, Directory, Revision, Release, Snapshot,
-    Origin,
+    Origin, OriginVisit
 )
 
 from swh.storage import get_storage
@@ -93,9 +93,9 @@ class RetryingProxyStorage:
         return self.storage.origin_add_one(origin)
 
     @swh_retry
-    def origin_visit_add(self, origin: Dict,
-                         date: Union[datetime, str], type: str) -> Dict:
-        return self.storage.origin_visit_add(origin, date, type)
+    def origin_visit_add(self, origin_url: str,
+                         date: Union[datetime, str], type: str) -> OriginVisit:
+        return self.storage.origin_visit_add(origin_url, date, type)
 
     @swh_retry
     def origin_visit_update(

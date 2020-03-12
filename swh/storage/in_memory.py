@@ -19,8 +19,9 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 import attr
 
 from swh.model.model import (
-    BaseContent, Content, SkippedContent, Directory, Revision, Release,
-    Snapshot, OriginVisit, Origin, SHA1_SIZE)
+    BaseContent, Content, SkippedContent, Directory, Revision,
+    Release, Snapshot, OriginVisit, Origin, SHA1_SIZE
+)
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
 
@@ -702,27 +703,28 @@ class InMemoryStorage:
 
         return origin.url
 
-    def origin_visit_add(
-            self, origin, date, type) -> Optional[Dict[str, Union[str, int]]]:
-        origin_url = origin
-        if origin_url is None:
-            raise StorageArgumentException('Unknown origin.')
-
+    def origin_visit_add(self, origin_url: str,
+                         date: Union[str, datetime.datetime],
+                         type: str) -> OriginVisit:
         if isinstance(date, str):
             # FIXME: Converge on iso8601 at some point
             date = dateutil.parser.parse(date)
         elif not isinstance(date, datetime.datetime):
             raise StorageArgumentException(
-                'date must be a datetime or a string.')
+                'Date must be a datetime or a string')
 
-        visit_ret = None
+        origin = self.origin_get({'url': origin_url})
+        if not origin:  # Cannot add a visit without an origin
+            raise StorageArgumentException(
+                'Unknown origin %s', origin_url)
+
         if origin_url in self._origins:
             origin = self._origins[origin_url]
             # visit ids are in the range [1, +inf[
             visit_id = len(self._origin_visits[origin_url]) + 1
             status = 'ongoing'
             visit = OriginVisit(
-                origin=origin.url,
+                origin=origin_url,
                 date=date,
                 type=type,
                 status=status,
@@ -731,17 +733,15 @@ class InMemoryStorage:
                 visit=visit_id,
             )
             self._origin_visits[origin_url].append(visit)
-            visit_ret = {
-                'origin': origin.url,
-                'visit': visit_id,
-            }
+            visit = visit
 
-            self._objects[(origin_url, visit_id)].append(
+            self._objects[(origin_url, visit.visit)].append(
                 ('origin_visit', None))
 
             self.journal_writer.origin_visit_add(visit)
 
-        return visit_ret
+        # return last visit
+        return visit
 
     def origin_visit_update(
             self, origin: str, visit_id: int, status: Optional[str] = None,
