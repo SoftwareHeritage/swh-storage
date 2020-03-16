@@ -4,6 +4,9 @@
 # See top-level LICENSE file for more information
 
 from typing import Iterable, Union
+
+from attr import evolve
+
 from swh.model.model import (
     Origin, OriginVisit, Snapshot, Directory, Revision, Release, Content
 )
@@ -36,11 +39,8 @@ class JournalWriter:
         """
         if not self.journal:
             return
-        for item in contents:
-            content = item.to_dict()
-            if 'data' in content:
-                del content['data']
-            self.journal.write_addition('content', content)
+        contents = [evolve(item, data=None) for item in contents]
+        self.journal.write_additions('content', contents)
 
     def content_update(self, contents: Iterable[Content]) -> None:
         if not self.journal:
@@ -54,7 +54,9 @@ class JournalWriter:
 
     def skipped_content_add(
             self, contents: Iterable[Content]) -> None:
-        return self.content_add(contents)
+        if not self.journal:
+            return
+        self.journal.write_additions('content', contents)
 
     def directory_add(self, directories: Iterable[Directory]) -> None:
         if not self.journal:
