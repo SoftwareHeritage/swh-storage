@@ -3,12 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
+
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 from swh.core.api import remote_api_endpoint
 from swh.model.model import (
-    SkippedContent, Content, Directory, Revision, Release,
-    Snapshot, Origin
+    Content, Directory, Origin, OriginVisit, Revision, Release,
+    Snapshot, SkippedContent
 )
 
 
@@ -768,19 +770,24 @@ class StorageInterface:
 
     @remote_api_endpoint('origin/visit/add')
     def origin_visit_add(
-            self, origin, date, type) -> Optional[Dict[str, Union[str, int]]]:
+            self, origin_url: str,
+            date: Union[str, datetime.datetime],
+            type: str) -> OriginVisit:
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         Args:
-            origin (str): visited origin's identifier or URL
-            date (Union[str,datetime]): timestamp of such visit
-            type (str): the type of loader used for the visit (hg, git, ...)
+            origin_url: visited origin identifier (its URL)
+            date: timestamp of such visit
+            type: the type of loader used for the visit (hg, git, ...)
+
+        Raises:
+            StorageArgumentException if the date is mistyped, or the origin
+            is unknown.
 
         Returns:
             dict: dictionary with keys origin and visit where:
-
-            - origin: origin identifier
-            - visit: the visit identifier for the new visit occurrence
+            - origin: origin object
+            - visit: the visit object for the new visit occurrence
 
         """
         ...
@@ -806,7 +813,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/upsert')
-    def origin_visit_upsert(self, visits):
+    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         """Add a origin_visits with a specific id and with all its data.
         If there is already an origin_visit with the same
         `(origin_id, visit_id)`, overwrites it.

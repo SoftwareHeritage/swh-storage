@@ -9,7 +9,7 @@ import select
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
 from swh.core.db.db_utils import execute_values_generator
-from swh.model.model import SHA1_SIZE
+from swh.model.model import OriginVisit, SHA1_SIZE
 
 
 class Db(BaseDb):
@@ -379,11 +379,11 @@ class Db(BaseDb):
         })
         cur.execute(query, (*values, *where_values))
 
-    def origin_visit_upsert(self, origin, visit, date, type, status,
-                            metadata, snapshot, cur=None):
+    def origin_visit_upsert(self, origin_visit: OriginVisit, cur=None) -> None:
         # doing an extra query like this is way simpler than trying to join
         # the origin id in the query below
-        origin_id = next(self.origin_id_get_by_url([origin]))
+        ov = origin_visit
+        origin_id = next(self.origin_id_get_by_url([ov.origin]))
 
         cur = self._cursor(cur)
         query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
@@ -394,7 +394,8 @@ class Db(BaseDb):
                 updates=', '.join('{0}=excluded.{0}'.format(col)
                                   for col in self.origin_visit_get_cols))
         cur.execute(
-            query, (origin_id, visit, date, type, status, metadata, snapshot))
+            query, (origin_id, ov.visit, ov.date, ov.type, ov.status,
+                    ov.metadata, ov.snapshot))
 
     origin_visit_get_cols = [
         'origin', 'visit', 'date', 'type',
