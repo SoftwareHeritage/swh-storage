@@ -1,3 +1,15 @@
+swh-storage (0.0.178-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.178     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-03-16 12:51:28
+    +0100)
+  * Upstream changes:     - v0.0.178     - origin_visit_add: Adapt
+    endpoint signature to return OriginVisit     - origin_visit_upsert:
+    Use OriginVisit object as input     - storage/writer: refactor
+    JournalWriter.content_add to send model objects
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 16 Mar 2020 11:59:18 +0000
+
 swh-storage (0.0.177-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.177     - (tagged by Antoine R. Dumont
