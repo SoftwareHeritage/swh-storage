@@ -570,11 +570,16 @@ class CqlRunner:
         ', '.join('%s = ?' % key for key in _origin_visit_update_keys) +
         ' WHERE origin = ? AND visit = ?')
     def origin_visit_upsert(
-            self, visit: Dict[str, Any], *, statement) -> None:
+            self, visit: OriginVisit, *, statement) -> None:
+        args: List[Any] = []
+        for column in self._origin_visit_update_keys:
+            if column == 'metadata':
+                args.append(json.dumps(visit.metadata))
+            else:
+                args.append(getattr(visit, column))
+
         self._execute_with_retries(
-            statement,
-            [visit.get(key) for key in self._origin_visit_update_keys]
-            + [visit['origin'], visit['visit']])
+            statement, args + [visit.origin, visit.visit])
         # TODO:  check if there is already one
         self._increment_counter('origin_visit', 1)
 
