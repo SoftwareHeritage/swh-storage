@@ -6,7 +6,7 @@ vcversioner
 aiohttp
 tenacity
 cassandra-driver!=3.21.0,>=3.19.0
-swh.core[db,http]==0.0.94
+swh.core[db,http]>=0.0.94
 swh.model>=0.0.51
 swh.objstorage>=0.0.40
 
