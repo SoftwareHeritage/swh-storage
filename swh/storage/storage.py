@@ -1014,7 +1014,6 @@ class Storage():
         for origin in origins:
             self.origin_add_one(origin, db=db, cur=cur)
 
-        send_metric('origin:add', count=len(origins), method_name='origin_add')
         return [o.to_dict() for o in origins]
 
     @timed
@@ -1027,9 +1026,9 @@ class Storage():
 
         self.journal_writer.origin_add_one(origin)
 
-        origins = db.origin_add(origin.url, cur)
-        send_metric('origin:add', count=len(origins), method_name='origin_add')
-        return origins
+        url = db.origin_add(origin.url, cur)
+        send_metric('origin:add', count=1, method_name='origin_add_one')
+        return url
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):
