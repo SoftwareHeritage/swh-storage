@@ -1,8 +1,12 @@
-swh-storage (0.0.178-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.179-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.179     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-03-18 16:05:13 +0100)
+  * Upstream changes:     - Release swh.storage v0.0.179.     - fix
+    requirements-swh.txt to use proper version restriction     - reduce
+    the transaction load for content writes and reads
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 16 Mar 2020 12:05:52 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 18 Mar 2020 15:50:50 +0000
 
 swh-storage (0.0.178-1~swh1) unstable-swh; urgency=medium
 
