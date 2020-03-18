@@ -192,7 +192,9 @@ class Storage():
         contents = [attr.evolve(c, ctime=now) for c in content]
 
         missing = list(self.content_missing(
-            map(Content.to_dict, contents), key_hash='sha1_git'))
+            map(Content.to_dict, contents), key_hash='sha1_git',
+            db=db, cur=cur,
+        ))
         contents = [c for c in contents if c.sha1_git in missing]
 
         self.journal_writer.content_add(contents)
@@ -243,7 +245,9 @@ class Storage():
                              db=None, cur=None) -> Dict:
         contents = list(content)
         missing = self.content_missing(
-            (c.to_dict() for c in contents), key_hash='sha1_git')
+            (c.to_dict() for c in contents), key_hash='sha1_git',
+            db=db, cur=cur,
+        )
         contents = [c for c in contents if c.sha1_git in missing]
 
         self.journal_writer.content_add_metadata(contents)
@@ -414,7 +418,9 @@ class Storage():
         content = [attr.evolve(c, ctime=now) for c in content]
 
         missing_contents = self.skipped_content_missing(
-            c.to_dict() for c in content)
+            (c.to_dict() for c in content),
+            db=db, cur=cur,
+        )
         content = [c for c in content
                    if any(all(c.get_hash(algo) == missing_content.get(algo)
                               for algo in DEFAULT_ALGORITHMS)
