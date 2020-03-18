@@ -282,10 +282,9 @@ class Storage():
         }
 
     @timed
-    @db_transaction()
     def content_get_partition(
             self, partition_id: int, nb_partitions: int, limit: int = 1000,
-            page_token: str = None, db=None, cur=None):
+            page_token: str = None):
         if limit is None:
             raise StorageArgumentException('limit should not be None')
         (start, end) = get_partition_bounds_bytes(
