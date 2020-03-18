@@ -1014,7 +1014,6 @@ class Storage():
         for origin in origins:
             self.origin_add_one(origin, db=db, cur=cur)
 
-        send_metric('origin:add', count=len(origins), method_name='origin_add')
         return [o.to_dict() for o in origins]
 
     @timed
