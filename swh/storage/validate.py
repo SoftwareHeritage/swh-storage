@@ -30,7 +30,7 @@ def convert_validation_exceptions():
     try:
         yield
     except VALIDATION_EXCEPTIONS as e:
-        raise StorageArgumentException(*e.args)
+        raise StorageArgumentException(str(e))
 
 
 class ValidatingProxyStorage:
