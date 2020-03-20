@@ -5,7 +5,7 @@
 
 import datetime
 import contextlib
-from typing import Dict, Iterable, List, Union
+from typing import Dict, Iterable, List
 
 from swh.model.model import (
     BaseModel, SkippedContent, Content, Directory, Revision, Release, Snapshot,
@@ -83,7 +83,8 @@ class ValidatingProxyStorage:
 
     def origin_visit_add(
             self, origin_url: str,
-            date: Union[datetime.datetime], type: str) -> Dict[str, BaseModel]:
+            date: datetime.datetime,
+            type: str) -> Dict[str, BaseModel]:
         with convert_validation_exceptions():
             visit = OriginVisit(origin=origin_url, date=date, type=type,
                                 status='ongoing', snapshot=None)
