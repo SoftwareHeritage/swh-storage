@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from datetime import datetime
 from typing import Dict
 from unittest.mock import call
 
@@ -266,7 +267,10 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    origin_visit = swh_storage.origin_visit_add(origin_url, '2020-01-01', 'hg')
+    origin_visit = swh_storage.origin_visit_add(
+        origin_url,
+        datetime(2020, 1, 1),
+        'hg')
     assert origin_visit.origin == origin_url
     assert isinstance(origin_visit.visit, int)
 
@@ -300,13 +304,16 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    r = swh_storage.origin_visit_add(origin_url, '2020-01-01', 'git')
+    r = swh_storage.origin_visit_add(
+        origin_url,
+        datetime(2020, 1, 1),
+        'git')
     assert r == {'origin': origin_url, 'visit': 1}
 
     mock_memory.assert_has_calls([
-        call(origin_url, '2020-01-01', 'git'),
-        call(origin_url, '2020-01-01', 'git'),
-        call(origin_url, '2020-01-01', 'git')
+        call(origin_url, datetime(2020, 1, 1), 'git'),
+        call(origin_url, datetime(2020, 1, 1), 'git'),
+        call(origin_url, datetime(2020, 1, 1), 'git')
     ])
     assert mock_sleep.call_count == 2
 
@@ -327,10 +334,15 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     assert not origin
 
     with pytest.raises(StorageArgumentException, match='Refuse to add'):
-        swh_storage.origin_visit_add(origin_url, '2020-01-31', 'svn')
+        swh_storage.origin_visit_add(
+            origin_url,
+            datetime(2020, 1, 31),
+            'svn')
 
     mock_memory.assert_has_calls([
-        call(origin_url, '2020-01-31', 'svn'),
+        call(origin_url,
+             datetime(2020, 1, 31),
+             'svn'),
     ])
 
 
@@ -599,7 +611,10 @@ def test_retrying_proxy_swh_storage_origin_visit_update(
     """
     sample_origin = sample_data['origin'][0]
     origin_url = swh_storage.origin_add_one(sample_origin)
-    origin_visit = swh_storage.origin_visit_add(origin_url, '2020-01-01', 'hg')
+    origin_visit = swh_storage.origin_visit_add(
+        origin_url,
+        datetime(2020, 1, 1),
+        'hg')
 
     ov = next(swh_storage.origin_visit_get(origin_url))
     assert ov['origin'] == origin_url

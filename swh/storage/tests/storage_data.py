@@ -201,7 +201,7 @@ revision = {
     'date': {
         'timestamp': 1234567890,
         'offset': 120,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'committer': {
         'name': b'St\xc3fano Zacchiroli',
@@ -245,7 +245,7 @@ revision2 = {
             'microseconds': 220000,
         },
         'offset': -720,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'committer': {
         'name': b'tony',
@@ -279,7 +279,7 @@ revision3 = {
             'microseconds': 220000,
         },
         'offset': -720,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'committer': {
         'name': b'tony',
@@ -313,7 +313,7 @@ revision4 = {
             'microseconds': 220000,
         },
         'offset': -720,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'committer': {
         'name': b'committer-dude',
@@ -326,7 +326,7 @@ revision4 = {
             'microseconds': 220000,
         },
         'offset': -720,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'parents': [hash_to_bytes(  # revision3
         '7026b7c1a2af56521e951c01ed20f255fa054238')],
@@ -391,7 +391,7 @@ release = {
     'date': {
         'timestamp': 1234567890,
         'offset': 42,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'target': b'43210987654321098765',
     'target_type': 'revision',
@@ -410,7 +410,7 @@ release2 = {
     'date': {
         'timestamp': 1634366813,
         'offset': -120,
-        'negative_utc': None,
+        'negative_utc': False,
     },
     'target': b'432109\xa9765432\xc309\x00765',
     'target_type': 'revision',
