@@ -8,7 +8,8 @@ from typing import Iterable, Union
 from attr import evolve
 
 from swh.model.model import (
-    Origin, OriginVisit, Snapshot, Directory, Revision, Release, Content
+    Origin, OriginVisit, Snapshot, Directory, Revision, Release,
+    Content, SkippedContent,
 )
 
 try:
@@ -53,7 +54,7 @@ class JournalWriter:
         return self.content_add(contents)
 
     def skipped_content_add(
-            self, contents: Iterable[Content]) -> None:
+            self, contents: Iterable[SkippedContent]) -> None:
         if not self.journal:
             return
         self.journal.write_additions('content', contents)
