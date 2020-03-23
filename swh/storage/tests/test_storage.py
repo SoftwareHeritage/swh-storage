@@ -1193,6 +1193,13 @@ class TestStorage:
         if type(cm.value) == psycopg2.IntegrityError:
             assert cm.value.pgcode == psycopg2.errorcodes.CHECK_VIOLATION
 
+    def test_release_add_validation_type(self, swh_storage):
+        rel = copy.deepcopy(data.release)
+
+        rel['date']['offset'] = 'toto'
+        with pytest.raises(StorageArgumentException):
+            swh_storage.release_add([rel])
+
     def test_release_add_twice(self, swh_storage):
         actual_result = swh_storage.release_add([data.release])
         assert actual_result == {'release:add': 1}
