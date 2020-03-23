@@ -251,6 +251,25 @@ class CassandraStorage:
     def content_get_random(self):
         return self._cql_runner.content_get_random().sha1_git
 
+    def _skipped_content_get_from_hash(self, algo, hash_) -> Iterable:
+        """From the name of a hash algorithm and a value of that hash,
+        looks up the "hash -> token" secondary table
+        (skipped_content_by_{algo}) to get tokens.
+        Then, looks up the main table (content) to get all contents with
+        that token, and filters out contents whose hash doesn't match."""
+        found_tokens = \
+            self._cql_runner.skipped_content_get_tokens_from_single_hash(
+                algo, hash_)
+
+        for token in found_tokens:
+            # Query the main table ('content').
+            res = self._cql_runner.skipped_content_get_from_token(token)
+
+            for row in res:
+                # re-check the the hash (in case of murmur3 collision)
+                if getattr(row, algo) == hash_:
+                    yield row
+
     def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
         # Filter-out content already in the database.
         contents = [
@@ -260,14 +279,17 @@ class CassandraStorage:
         self.journal_writer.skipped_content_add(contents)
 
         for content in contents:
-            # Add to index tables
+            # Compute token of the row in the main table
+            (token, insertion_finalizer) = \
+                self._cql_runner.skipped_content_add_prepare(content)
+
+            # Then add to index tables
             for algo in HASH_ALGORITHMS:
-                if content.get_hash(algo) is not None:
-                    self._cql_runner.skipped_content_index_add_one(
-                        algo, content)
+                self._cql_runner.skipped_content_index_add_one(
+                    algo, content, token)
 
             # Then to the main table
-            self._cql_runner.skipped_content_add_one(content)
+            insertion_finalizer()
 
         return {
             'skipped_content:add': len(contents)
