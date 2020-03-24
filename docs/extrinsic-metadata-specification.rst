@@ -128,6 +128,7 @@ The storage API offers three endpoints to manipulate origin metadata:
 
   which adds a new `metadata` byte string obtained from a given authority
   and associated to the origin.
+  `discovery_date` is an ISO 8601 datetime string.
   `authority` must be a dict containing keys `type` and `url`, and
   `fetcher` a dict containing keys `name` and `version`.
   The authority and fetcher must be known to the storage before using this
@@ -146,7 +147,7 @@ The storage API offers three endpoints to manipulate origin metadata:
       {
         'authority': {'type': ..., 'url': ...},
         'fetcher': {'name': ..., 'version': ...},
-        'discovery_date': ...,
+        'discovery_date': '...',
         'format': '...',
         'metadata': b'...'
       }
@@ -168,7 +169,7 @@ The storage API offers three endpoints to manipulate origin metadata:
       {
         'authority': {'type': ..., 'url': ...},
         'fetcher': {'name': ..., 'version': ...},
-        'discovery_date': ...,
+        'discovery_date': '...',
         'format': '...',
         'metadata': b'...'
       }
