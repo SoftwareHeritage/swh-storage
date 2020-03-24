@@ -25,8 +25,7 @@ from swh.model.model import (
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
 
-from . import HashCollision
-from .exc import StorageArgumentException
+from .exc import StorageArgumentException, HashCollision
 
 from .converters import origin_url_to_sha1
 from .utils import get_partition_bounds_bytes

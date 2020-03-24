@@ -21,8 +21,7 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 
-from .. import HashCollision
-from ..exc import StorageArgumentException
+from ..exc import StorageArgumentException, HashCollision
 from .common import TOKEN_BEGIN, TOKEN_END
 from .converters import (
     revision_to_db, revision_from_db, release_to_db, release_from_db,

@@ -8,8 +8,7 @@ from typing import Any, Dict, Iterable, Union
 from swh.core.api import RPCClient, RemoteException
 from swh.model.model import Content
 
-from .. import HashCollision
-from ..exc import StorageAPIError, StorageArgumentException
+from ..exc import StorageAPIError, StorageArgumentException, HashCollision
 from ..interface import StorageInterface
 
 from .serializers import ENCODERS, DECODERS
