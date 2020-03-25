@@ -13,8 +13,14 @@ from swh.model.model import (
     Content, Directory, Release, Revision, Snapshot, Origin
 )
 
-from swh.storage import HashCollision, get_storage
-from swh.storage.exc import StorageArgumentException
+from swh.storage import get_storage
+from swh.storage.exc import HashCollision, StorageArgumentException
+
+
+@pytest.fixture
+def fake_hash_collision(sample_data):
+    return HashCollision(
+        'sha1', "38762cf7f55934b34d179ae6a4c80cadccbb7f0a", [])
 
 
 @pytest.fixture
@@ -50,7 +56,7 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -58,7 +64,7 @@ def test_retrying_proxy_storage_content_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.content_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('content hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('content already inserted'),
         # ok then!
@@ -126,7 +132,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -134,7 +140,7 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         'swh.storage.in_memory.InMemoryStorage.content_add_metadata')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('content_metadata hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('content_metadata already inserted'),
         # ok then!
@@ -196,7 +202,7 @@ def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
 
 
 def test_retrying_proxy_swh_storage_origin_add_one_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -205,7 +211,7 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
         'swh.storage.in_memory.InMemoryStorage.origin_add_one')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('origin hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('origin already inserted'),
         # ok then!
@@ -270,7 +276,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -281,7 +287,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
         'swh.storage.in_memory.InMemoryStorage.origin_visit_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('origin hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('origin already inserted'),
         # ok then!
@@ -349,7 +355,7 @@ def test_retrying_proxy_storage_tool_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_tool_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -358,7 +364,7 @@ def test_retrying_proxy_storage_tool_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.tool_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('tool hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('tool already inserted'),
         # ok then!
@@ -434,7 +440,7 @@ def test_retrying_proxy_storage_metadata_provider_add(
 
 
 def test_retrying_proxy_storage_metadata_provider_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -445,7 +451,7 @@ def test_retrying_proxy_storage_metadata_provider_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.metadata_provider_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('provider_id hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('provider_id already inserted'),
         # ok then!
@@ -518,7 +524,7 @@ def test_retrying_proxy_storage_origin_metadata_add(
 
 
 def test_retrying_proxy_storage_origin_metadata_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -532,7 +538,7 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
 
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('provider_id hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('provider_id already inserted'),
         # ok then!
@@ -614,7 +620,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update(
 
 
 def test_retrying_proxy_swh_storage_origin_visit_update_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -625,7 +631,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update_retry(
         'swh.storage.in_memory.InMemoryStorage.origin_visit_update')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('origin hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('origin already inserted'),
         # ok then!
@@ -687,7 +693,7 @@ def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_directory_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -695,7 +701,7 @@ def test_retrying_proxy_storage_directory_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.directory_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('directory hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('directory already inserted'),
         # ok then!
@@ -763,7 +769,7 @@ def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_revision_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -771,7 +777,7 @@ def test_retrying_proxy_storage_revision_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.revision_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('revision hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('revision already inserted'),
         # ok then!
@@ -840,7 +846,7 @@ def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_release_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -848,7 +854,7 @@ def test_retrying_proxy_storage_release_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.release_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('release hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('release already inserted'),
         # ok then!
@@ -917,7 +923,7 @@ def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_snapshot_add_with_retry(
-        swh_storage, sample_data, mocker):
+        swh_storage, sample_data, mocker, fake_hash_collision):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
@@ -925,7 +931,7 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
         'swh.storage.in_memory.InMemoryStorage.snapshot_add')
     mock_memory.side_effect = [
         # first try goes ko
-        HashCollision('snapshot hash collision'),
+        fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError('snapshot already inserted'),
         # ok then!

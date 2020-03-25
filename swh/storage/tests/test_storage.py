@@ -30,10 +30,12 @@ from swh.model.model import (
     Content, OriginVisit, Release, Revision
 )
 from swh.model.hypothesis_strategies import objects
-from swh.storage import HashCollision, get_storage
+from swh.model.hashutil import hash_to_hex
+from swh.storage import get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
-from swh.storage.exc import StorageArgumentException
+from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
+from swh.storage.utils import content_hex_hashes
 
 from .storage_data import data
 
@@ -314,12 +316,18 @@ class TestStorage:
         with pytest.raises(HashCollision) as cm:
             swh_storage.content_add([cont1, cont1b])
 
-        actual_algo = cm.value.args[0]
+        exc = cm.value
+        actual_algo = exc.algo
         assert actual_algo in ['sha1', 'sha1_git', 'blake2s256']
-        actual_id = cm.value.args[1]
-        assert actual_id == cont1[actual_algo]
-        assert len(cm.value.args[2]) == 2
-        assert cm.value.args[2] == [
+        actual_id = exc.hash_id
+        assert actual_id == hash_to_hex(cont1[actual_algo])
+        collisions = exc.args[2]
+        assert len(collisions) == 2
+        assert collisions == [
+            content_hex_hashes(Content.from_dict(cont1).hashes()),
+            content_hex_hashes(Content.from_dict(cont1b).hashes())
+        ]
+        assert exc.colliding_content_hashes() == [
             Content.from_dict(cont1).hashes(),
             Content.from_dict(cont1b).hashes()
         ]
@@ -387,12 +395,18 @@ class TestStorage:
         with pytest.raises(HashCollision) as cm:
             swh_storage.content_add_metadata([cont1, cont1b])
 
-        actual_algo = cm.value.args[0]
+        exc = cm.value
+        actual_algo = exc.algo
         assert actual_algo in ['sha1', 'sha1_git', 'blake2s256']
-        actual_id = cm.value.args[1]
-        assert actual_id == cont1[actual_algo]
-        assert len(cm.value.args[2]) == 2
-        assert cm.value.args[2] == [
+        actual_id = exc.hash_id
+        assert actual_id == hash_to_hex(cont1[actual_algo])
+        collisions = exc.args[2]
+        assert len(collisions) == 2
+        assert collisions == [
+            content_hex_hashes(Content.from_dict(cont1).hashes()),
+            content_hex_hashes(Content.from_dict(cont1b).hashes())
+        ]
+        assert exc.colliding_content_hashes() == [
             Content.from_dict(cont1).hashes(),
             Content.from_dict(cont1b).hashes()
         ]

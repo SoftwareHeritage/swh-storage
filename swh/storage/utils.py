@@ -5,9 +5,11 @@
 
 import re
 
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import (
+    hash_to_bytes, hash_to_hex, DEFAULT_ALGORITHMS
+)
 
 
 def _is_power_of_two(n: int) -> bool:
@@ -66,3 +68,21 @@ def extract_collision_hash(error_message: str) -> Optional[Tuple[str, bytes]]:
         hash_id = result.group('id')
         return hash_type, hash_to_bytes(hash_id)
     return None
+
+
+def content_hex_hashes(content: Dict[str, bytes]) -> Dict[str, str]:
+    """Convert bytes hashes into hex hashes.
+
+    """
+    return {
+        algo: hash_to_hex(content[algo]) for algo in DEFAULT_ALGORITHMS
+    }
+
+
+def content_bytes_hashes(content: Dict[str, str]) -> Dict[str, bytes]:
+    """Convert bytes hashes into hex hashes.
+
+    """
+    return {
+        algo: hash_to_bytes(content[algo]) for algo in DEFAULT_ALGORITHMS
+    }

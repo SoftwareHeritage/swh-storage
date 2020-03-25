@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import namedtuple
+import datetime
 import os
 import signal
 import socket
@@ -13,11 +15,13 @@ import pytest
 
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
-from swh.storage.cassandra.schema import TABLES
+from swh.storage.cassandra.schema import TABLES, HASH_ALGORITHMS
 
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
 from swh.storage.tests.test_storage import TestStorageGeneratedData \
     as _TestStorageGeneratedData
+
+from .storage_data import data
 
 
 CONFIG_TEMPLATE = '''
@@ -176,6 +180,135 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
 
 @pytest.mark.cassandra
 class TestCassandraStorage(_TestStorage):
+    def test_content_add_murmur3_collision(self, swh_storage, mocker):
+        """The Murmur3 token is used as link from index tables to the main
+        table; and non-matching contents with colliding murmur3-hash
+        are filtered-out when reading the main table.
+        This test checks the content methods do filter out these collision.
+        """
+        called = 0
+
+        # always return a token
+        def mock_cgtfsh(algo, hash_):
+            nonlocal called
+            called += 1
+            assert algo in ('sha1', 'sha1_git')
+            return [123456]
+        mocker.patch.object(
+            swh_storage.storage._cql_runner,
+            'content_get_tokens_from_single_hash',
+            mock_cgtfsh)
+
+        # For all tokens, always return data.cont
+        Row = namedtuple('Row', HASH_ALGORITHMS)
+
+        def mock_cgft(token):
+            nonlocal called
+            called += 1
+            return [Row(**{algo: data.cont[algo] for algo in HASH_ALGORITHMS})]
+        mocker.patch.object(
+            swh_storage.storage._cql_runner,
+            'content_get_from_token',
+            mock_cgft)
+
+        actual_result = swh_storage.content_add([data.cont2])
+
+        assert called == 4
+        assert actual_result == {
+            'content:add': 1,
+            'content:add:bytes': data.cont2['length'],
+            }
+
+    def test_content_get_metadata_murmur3_collision(self, swh_storage, mocker):
+        """The Murmur3 token is used as link from index tables to the main
+        table; and non-matching contents with colliding murmur3-hash
+        are filtered-out when reading the main table.
+        This test checks the content methods do filter out these collision.
+        """
+        called = 0
+
+        # always return a token
+        def mock_cgtfsh(algo, hash_):
+            nonlocal called
+            called += 1
+            assert algo in ('sha1', 'sha1_git')
+            return [123456]
+        mocker.patch.object(
+            swh_storage.storage._cql_runner,
+            'content_get_tokens_from_single_hash',
+            mock_cgtfsh)
+
+        # For all tokens, always return data.cont and data.cont2
+        cols = list(set(data.cont) - {'data'})
+        Row = namedtuple('Row', cols + ['ctime'])
+
+        def mock_cgft(token):
+            nonlocal called
+            called += 1
+            return [Row(ctime=42, **{col: cont[col] for col in cols})
+                    for cont in [data.cont, data.cont2]]
+        mocker.patch.object(
+            swh_storage.storage._cql_runner,
+            'content_get_from_token',
+            mock_cgft)
+
+        expected_cont = data.cont.copy()
+        del expected_cont['data']
+
+        actual_result = swh_storage.content_get_metadata([data.cont['sha1']])
+
+        assert called == 2
+
+        # but data.cont2 should be filtered out
+        assert actual_result == {
+            data.cont['sha1']: [expected_cont]
+        }
+
+    def test_content_find_murmur3_collision(self, swh_storage, mocker):
+        """The Murmur3 token is used as link from index tables to the main
+        table; and non-matching contents with colliding murmur3-hash
+        are filtered-out when reading the main table.
+        This test checks the content methods do filter out these collision.
+        """
+        called = 0
+
+        # always return a token
+        def mock_cgtfsh(algo, hash_):
+            nonlocal called
+            called += 1
+            assert algo in ('sha1', 'sha1_git')
+            return [123456]
+        mocker.patch.object(
+            swh_storage.storage._cql_runner,
+            'content_get_tokens_from_single_hash',
+            mock_cgtfsh)
+
+        # For all tokens, always return data.cont and data.cont2
+        cols = list(set(data.cont) - {'data'})
+        Row = namedtuple('Row', cols + ['ctime'])
+
+        def mock_cgft(token):
+            nonlocal called
+            called += 1
+            return [Row(ctime=datetime.datetime.now(),
+                    **{col: cont[col] for col in cols})
+                    for cont in [data.cont, data.cont2]]
+        mocker.patch.object(
+            swh_storage.storage._cql_runner,
+            'content_get_from_token',
+            mock_cgft)
+
+        expected_cont = data.cont.copy()
+        del expected_cont['data']
+
+        actual_result = swh_storage.content_find({'sha1': data.cont['sha1']})
+
+        assert called == 2
+
+        # but data.cont2 should be filtered out
+        del actual_result[0]['ctime']
+        assert actual_result == [expected_cont]
+
     @pytest.mark.skip('content_update is not yet implemented for Cassandra')
     def test_content_update(self):
         pass
