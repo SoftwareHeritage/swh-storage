@@ -1,8 +1,16 @@
-swh-storage (0.0.180-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.181-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.181     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-03-25 09:50:49
+    +0100)
+  * Upstream changes:     - v0.0.181     - storage*: Hex encode content
+    hashes in HashCollision exception     - Add format of discovery_date
+    in the metadata specification.     - Store the value of
+    token(partition_key) in skipped_content_by_* table, instead of three
+    hashes.     - Store the value of token(partition_key) in
+    content_by_* table, instead of three hashes.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 18 Mar 2020 17:52:17 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 25 Mar 2020 09:03:43 +0000
 
 swh-storage (0.0.180-1~swh1) unstable-swh; urgency=medium
 

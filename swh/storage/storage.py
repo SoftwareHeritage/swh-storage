@@ -25,10 +25,10 @@ from swh.model.model import (
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
 
-from . import converters, HashCollision
+from . import converters
 from .common import db_transaction_generator, db_transaction
 from .db import Db
-from .exc import StorageArgumentException, StorageDBError
+from .exc import StorageArgumentException, StorageDBError, HashCollision
 from .algos import diff
 from .metrics import timed, send_metric, process_metrics
 from .utils import (
