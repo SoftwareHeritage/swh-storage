@@ -12,6 +12,51 @@ class TestConverters(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
 
+    def test_date_to_db(self):
+        date_to_db = converters.date_to_db
+        assert date_to_db(None) == {
+            "timestamp": None, "offset": 0, "neg_utc_offset": None}
+
+        assert date_to_db({
+            "timestamp": 1234567890,
+            "offset": 120,
+            "negative_utc": False,
+        }) == {
+            "timestamp": "2009-02-13T23:31:30+00:00",
+            "offset": 120,
+            "neg_utc_offset": False,
+        }
+
+        assert date_to_db({
+            "timestamp": 1123456789,
+            "offset": 0,
+            "negative_utc": True,
+        }) == {
+            "timestamp": "2005-08-07T23:19:49+00:00",
+            "offset": 0,
+            "neg_utc_offset": True,
+        }
+
+        assert date_to_db({
+            "timestamp": 1234567890,
+            "offset": 42,
+            "negative_utc": False,
+        }) == {
+            "timestamp": "2009-02-13T23:31:30+00:00",
+            "offset": 42,
+            "neg_utc_offset": False,
+        }
+
+        assert date_to_db({
+            "timestamp": 1634366813,
+            "offset": -120,
+            "negative_utc": False,
+        }) == {
+            "timestamp": "2021-10-16T06:46:53+00:00",
+            "offset": -120,
+            "neg_utc_offset": False,
+        }
+
     def test_db_to_author(self):
         # when
         actual_author = converters.db_to_author(

@@ -199,7 +199,9 @@ revision = {
         'fullname': b'Nicolas Dandrimont <nicolas@example.com> ',
     },
     'date': {
-        'timestamp': 1234567890,
+        'timestamp': {
+            'seconds': 1234567890,
+            'microseconds': 0},
         'offset': 120,
         'negative_utc': False,
     },
@@ -209,7 +211,9 @@ revision = {
         'fullname': b'St\xc3fano Zacchiroli <stefano@example.com>'
     },
     'committer_date': {
-        'timestamp': 1123456789,
+        'timestamp': {
+            'seconds': 1123456789,
+            'microseconds': 0},
         'offset': 0,
         'negative_utc': True,
     },
@@ -253,7 +257,9 @@ revision2 = {
         'fullname': b'tony <ar@dumont.fr>',
     },
     'committer_date': {
-        'timestamp': 1123456789,
+        'timestamp': {
+            'seconds': 1123456789,
+            'microseconds': 0},
         'offset': 0,
         'negative_utc': False,
     },
@@ -287,7 +293,9 @@ revision3 = {
         'fullname': b'tony <ar@dumont.fr>',
     },
     'committer_date': {
-        'timestamp': 1127351742,
+        'timestamp': {
+            'seconds': 1127351742,
+            'microseconds': 0},
         'offset': 0,
         'negative_utc': False,
     },
@@ -389,7 +397,9 @@ release = {
         'fullname': b'olasd <nic@olasd.fr>',
     },
     'date': {
-        'timestamp': 1234567890,
+        'timestamp': {
+            'seconds': 1234567890,
+            'microseconds': 0},
         'offset': 42,
         'negative_utc': False,
     },
@@ -408,7 +418,9 @@ release2 = {
         'fullname': b'tony <ar@dumont.fr>',
     },
     'date': {
-        'timestamp': 1634366813,
+        'timestamp': {
+            'seconds': 1634366813,
+            'microseconds': 0},
         'offset': -120,
         'negative_utc': False,
     },
@@ -427,7 +439,9 @@ release3 = {
         'fullname': b'tony <tony@ardumont.fr>',
     },
     'date': {
-        'timestamp': 1634336813,
+        'timestamp': {
+            'seconds': 1634336813,
+            'microseconds': 0},
         'offset': 0,
         'negative_utc': False,
     },
