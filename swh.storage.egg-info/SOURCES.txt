@@ -227,6 +227,7 @@ swh/storage/tests/test_cassandra.py
 swh/storage/tests/test_cassandra_converters.py
 swh/storage/tests/test_converters.py
 swh/storage/tests/test_db.py
+swh/storage/tests/test_exception.py
 swh/storage/tests/test_filter.py
 swh/storage/tests/test_in_memory.py
 swh/storage/tests/test_init.py

@@ -6,10 +6,6 @@
 import warnings
 
 
-class HashCollision(Exception):
-    pass
-
-
 STORAGE_IMPLEMENTATION = {
     'pipeline', 'local', 'remote', 'memory', 'filter', 'buffer', 'retry',
     'validate', 'cassandra',

@@ -1,7 +1,13 @@
-# Copyright (C) 2015-2016  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+
+from typing import Dict, List
+
+from swh.model.hashutil import hash_to_hex
+
+from swh.storage.utils import content_hex_hashes, content_bytes_hashes
 
 
 class StorageDBError(Exception):
@@ -26,3 +32,18 @@ class StorageAPIError(Exception):
 class StorageArgumentException(Exception):
     """Argument passed to a Storage endpoint is invalid."""
     pass
+
+
+class HashCollision(Exception):
+    """Exception raised when a content collides in a storage backend
+
+    """
+    def __init__(self, algo, hash_id, colliding_contents):
+        self.algo = algo
+        self.hash_id = hash_to_hex(hash_id)
+        self.colliding_contents = [content_hex_hashes(c)
+                                   for c in colliding_contents]
+        super().__init__(self.algo, self.hash_id, self.colliding_contents)
+
+    def colliding_content_hashes(self) -> List[Dict[str, bytes]]:
+        return [content_bytes_hashes(c) for c in self.colliding_contents]
