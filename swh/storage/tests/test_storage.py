@@ -26,9 +26,7 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.model.model import (
-    Content, OriginVisit, Release, Revision
-)
+from swh.model.model import Content, OriginVisit
 from swh.model.hypothesis_strategies import objects
 from swh.model.hashutil import hash_to_hex
 from swh.storage import get_storage
@@ -899,10 +897,8 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([data.revision['id']])
         assert list(end_missing) == []
 
-        normalized_revision = Revision.from_dict(data.revision).to_dict()
-
         assert list(swh_storage.journal_writer.journal.objects) \
-            == [('revision', normalized_revision)]
+            == [('revision', data.revision)]
 
         # already there so nothing added
         actual_result = swh_storage.revision_add([data.revision])
@@ -956,19 +952,16 @@ class TestStorage:
         actual_result = swh_storage.revision_add([data.revision])
         assert actual_result == {'revision:add': 1}
 
-        normalized_revision = Revision.from_dict(data.revision).to_dict()
-        normalized_revision2 = Revision.from_dict(data.revision2).to_dict()
-
         assert list(swh_storage.journal_writer.journal.objects) \
-            == [('revision', normalized_revision)]
+            == [('revision', data.revision)]
 
         actual_result = swh_storage.revision_add(
             [data.revision, data.revision2])
         assert actual_result == {'revision:add': 1}
 
         assert list(swh_storage.journal_writer.journal.objects) \
-            == [('revision', normalized_revision),
-                ('revision', normalized_revision2)]
+            == [('revision', data.revision),
+                ('revision', data.revision2)]
 
     def test_revision_add_name_clash(self, swh_storage):
         revision1 = data.revision
@@ -988,25 +981,22 @@ class TestStorage:
         assert actual_result == {'revision:add': 2}
 
     def test_revision_get_order(self, swh_storage):
-        normalized_rev1 = Revision.from_dict(data.revision).to_dict()
-        normalized_rev2 = Revision.from_dict(data.revision2).to_dict()
-
         add_result = swh_storage.revision_add(
-            [normalized_rev1, normalized_rev2]
+            [data.revision, data.revision2]
         )
         assert add_result == {'revision:add': 2}
 
         # order 1
         res1 = swh_storage.revision_get(
-            [normalized_rev1['id'], normalized_rev2['id']]
+            [data.revision['id'], data.revision2['id']]
         )
-        assert list(res1) == [normalized_rev1, normalized_rev2]
+        assert list(res1) == [data.revision, data.revision2]
 
         # order 2
         res2 = swh_storage.revision_get(
-            [normalized_rev2['id'], normalized_rev1['id']]
+            [data.revision2['id'], data.revision['id']]
         )
-        assert list(res2) == [normalized_rev2, normalized_rev1]
+        assert list(res2) == [data.revision2, data.revision]
 
     def test_revision_log(self, swh_storage):
         # given
@@ -1029,12 +1019,9 @@ class TestStorage:
         assert actual_results[0] == normalize_entity(data.revision4)
         assert actual_results[1] == normalize_entity(data.revision3)
 
-        normalized_revision3 = Revision.from_dict(data.revision3).to_dict()
-        normalized_revision4 = Revision.from_dict(data.revision4).to_dict()
-
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ('revision', normalized_revision3),
-            ('revision', normalized_revision4)]
+            ('revision', data.revision3),
+            ('revision', data.revision4)]
 
     def test_revision_log_with_limit(self, swh_storage):
         # given
@@ -1115,9 +1102,6 @@ class TestStorage:
             {data.revision['id'], data.revision2['id'], data.revision3['id']}
 
     def test_release_add(self, swh_storage):
-        normalized_release = Release.from_dict(data.release).to_dict()
-        normalized_release2 = Release.from_dict(data.release2).to_dict()
-
         init_missing = swh_storage.release_missing([data.release['id'],
                                                     data.release2['id']])
         assert [data.release['id'], data.release2['id']] == list(init_missing)
@@ -1130,8 +1114,8 @@ class TestStorage:
         assert list(end_missing) == []
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ('release', normalized_release),
-            ('release', normalized_release2)]
+            ('release', data.release),
+            ('release', data.release2)]
 
         # already present so nothing added
         actual_result = swh_storage.release_add([data.release, data.release2])
@@ -1145,15 +1129,12 @@ class TestStorage:
             yield data.release
             yield data.release2
 
-        normalized_release = Release.from_dict(data.release).to_dict()
-        normalized_release2 = Release.from_dict(data.release2).to_dict()
-
         actual_result = swh_storage.release_add(_rel_gen())
         assert actual_result == {'release:add': 2}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ('release', normalized_release),
-            ('release', normalized_release2)]
+            ('release', data.release),
+            ('release', data.release2)]
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()['release'] == 2
@@ -1204,18 +1185,15 @@ class TestStorage:
         actual_result = swh_storage.release_add([data.release])
         assert actual_result == {'release:add': 1}
 
-        normalized_release = Release.from_dict(data.release).to_dict()
-        normalized_release2 = Release.from_dict(data.release2).to_dict()
-
         assert list(swh_storage.journal_writer.journal.objects) \
-            == [('release', normalized_release)]
+            == [('release', data.release)]
 
         actual_result = swh_storage.release_add([data.release, data.release2])
         assert actual_result == {'release:add': 1}
 
         assert list(swh_storage.journal_writer.journal.objects) \
-            == [('release', normalized_release),
-                ('release', normalized_release2)]
+            == [('release', data.release),
+                ('release', data.release2)]
 
     def test_release_add_name_clash(self, swh_storage):
         release1 = data.release.copy()
@@ -1257,25 +1235,22 @@ class TestStorage:
         assert unknown_releases[0] is None
 
     def test_release_get_order(self, swh_storage):
-        normalized_rel1 = Release.from_dict(data.release).to_dict()
-        normalized_rel2 = Release.from_dict(data.release2).to_dict()
-
         add_result = swh_storage.release_add(
-            [normalized_rel1, normalized_rel2]
+            [data.release, data.release2]
         )
         assert add_result == {'release:add': 2}
 
         # order 1
         res1 = swh_storage.release_get(
-            [normalized_rel1['id'], normalized_rel2['id']]
+            [data.release['id'], data.release2['id']]
         )
-        assert list(res1) == [normalized_rel1, normalized_rel2]
+        assert list(res1) == [data.release, data.release2]
 
         # order 2
         res2 = swh_storage.release_get(
-            [normalized_rel2['id'], normalized_rel1['id']]
+            [data.release2['id'], data.release['id']]
         )
-        assert list(res2) == [normalized_rel2, normalized_rel1]
+        assert list(res2) == [data.release2, data.release]
 
     def test_release_get_random(self, swh_storage):
         swh_storage.release_add([data.release, data.release2, data.release3])
