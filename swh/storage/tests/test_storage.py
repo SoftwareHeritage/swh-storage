@@ -1358,8 +1358,14 @@ class TestStorage:
         assert add1 == add2
 
     def test_origin_add_validation(self, swh_storage):
+        """Incorrect formatted origin should fail the validation
+
+        """
         with pytest.raises(StorageArgumentException, match='url'):
-            swh_storage.origin_add([{'type': 'git'}])
+            swh_storage.origin_add([{}])
+        with pytest.raises(StorageArgumentException,
+                           match='unexpected keyword argument'):
+            swh_storage.origin_add([{'ul': 'mistyped url key'}])
 
     def test_origin_get_legacy(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
