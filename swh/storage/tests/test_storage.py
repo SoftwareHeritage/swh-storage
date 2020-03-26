@@ -1870,7 +1870,8 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit.visit,
-            snapshot=data.snapshot['id'])
+            status='ongoing',
+            snapshot=data.snapshot['id'])  # snapshot does not exist yet
 
         # then
         actual_origin_visit = swh_storage.origin_visit_get_by(
@@ -1891,6 +1892,7 @@ class TestStorage:
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit1.visit,
+            status='ongoing',
             snapshot=data.snapshot['id'])
 
         # Add some other {origin, visit} entries
@@ -2093,7 +2095,9 @@ class TestStorage:
         # visit1 and require_snapshot=False still returns visit2
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
-            origin_url, ov1.visit, snapshot=data.complete_snapshot['id'])
+            origin_url, ov1.visit,
+            status='ongoing',
+            snapshot=data.complete_snapshot['id'])
         assert {**origin_visit1,
                 'snapshot': data.complete_snapshot['id']} \
             == swh_storage.origin_visit_get_latest(
@@ -2120,7 +2124,9 @@ class TestStorage:
         # Add snapshot to visit2 and check that the new snapshot is returned
         swh_storage.snapshot_add([data.empty_snapshot])
         swh_storage.origin_visit_update(
-            origin_url, ov2.visit, snapshot=data.empty_snapshot['id'])
+            origin_url, ov2.visit,
+            status='ongoing',
+            snapshot=data.empty_snapshot['id'])
         assert {**origin_visit2, 'snapshot': data.empty_snapshot['id']} == \
             swh_storage.origin_visit_get_latest(
                 origin_url, require_snapshot=True)
@@ -2137,7 +2143,9 @@ class TestStorage:
         # Add snapshot to visit3 (same date as visit2)
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
-            origin_url, ov3.visit, snapshot=data.complete_snapshot['id'])
+            origin_url, ov3.visit,
+            status='ongoing',
+            snapshot=data.complete_snapshot['id'])
         assert {
             **origin_visit1,
             'snapshot': data.complete_snapshot['id'],
@@ -2191,6 +2199,7 @@ class TestStorage:
 
         swh_storage.origin_visit_update(
             origin_url, origin_visit1.visit,
+            status='ongoing',
             snapshot=data.empty_snapshot['id'])
 
         by_id = swh_storage.snapshot_get(data.empty_snapshot['id'])
@@ -2233,6 +2242,7 @@ class TestStorage:
         actual_result = swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
             origin_url, origin_visit1.visit,
+            status='ongoing',
             snapshot=data.complete_snapshot['id'])
         assert actual_result == {'snapshot:add': 1}
 
@@ -2387,6 +2397,7 @@ class TestStorage:
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
             origin_url, origin_visit1.visit,
+            status='ongoing',
             snapshot=data.complete_snapshot['id'])
 
         snp_id = data.complete_snapshot['id']
@@ -2502,7 +2513,9 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_url, origin_visit1.visit, snapshot=data.snapshot['id'])
+            origin_url, origin_visit1.visit,
+            status='ongoing',
+            snapshot=data.snapshot['id'])
 
         by_id = swh_storage.snapshot_get(data.snapshot['id'])
         assert by_id == {**data.snapshot, 'next_branch': None}
@@ -2524,7 +2537,9 @@ class TestStorage:
 
         with pytest.raises(StorageArgumentException):
             swh_storage.origin_visit_update(
-                origin_url, visit_id, snapshot=data.snapshot['id'])
+                origin_url, visit_id,
+                status='ongoing',
+                snapshot=data.snapshot['id'])
 
         assert list(swh_storage.journal_writer.journal.objects) == [
             ('snapshot', data.snapshot)]
@@ -2536,7 +2551,9 @@ class TestStorage:
         visit1_id = origin_visit1.visit
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_url, origin_visit1.visit, snapshot=data.snapshot['id'])
+            origin_url, origin_visit1.visit,
+            status='ongoing',
+            snapshot=data.snapshot['id'])
 
         by_ov1 = swh_storage.snapshot_get_by_origin_visit(
             origin_url, visit1_id)
@@ -2548,7 +2565,9 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_url, origin_visit2.visit, snapshot=data.snapshot['id'])
+            origin_url, origin_visit2.visit,
+            status='ongoing',
+            snapshot=data.snapshot['id'])
 
         by_ov2 = swh_storage.snapshot_get_by_origin_visit(
             origin_url, visit2_id)
@@ -2614,6 +2633,7 @@ class TestStorage:
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
             origin_url, origin_visit1.visit,
+            status='ongoing',
             snapshot=data.complete_snapshot['id'])
         assert {**data.complete_snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(origin_url)
@@ -2636,6 +2656,7 @@ class TestStorage:
         swh_storage.snapshot_add([data.empty_snapshot])
         swh_storage.origin_visit_update(
             origin_url, origin_visit2.visit,
+            status='ongoing',
             snapshot=data.empty_snapshot['id'])
         assert {**data.empty_snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(origin_url)
@@ -2651,6 +2672,7 @@ class TestStorage:
         swh_storage.snapshot_add([data.complete_snapshot])
         swh_storage.origin_visit_update(
             origin_url, origin_visit3.visit,
+            status='ongoing',
             snapshot=data.complete_snapshot['id'])
         assert {**data.complete_snapshot, 'next_branch': None} \
             == swh_storage.snapshot_get_latest(origin_url)
@@ -2670,6 +2692,7 @@ class TestStorage:
         # detected
         swh_storage.origin_visit_update(
             origin_url, origin_visit1.visit,
+            status='ongoing',
             snapshot=data.complete_snapshot['id'])
         with pytest.raises(Exception):
             # XXX: should the exception be more specific than this?
@@ -2697,7 +2720,9 @@ class TestStorage:
         # Add unknown snapshot to visit2 and check that the inconsistency
         # is detected
         swh_storage.origin_visit_update(
-            origin_url, origin_visit2.visit, snapshot=data.snapshot['id'])
+            origin_url, origin_visit2.visit,
+            status='ongoing',
+            snapshot=data.snapshot['id'])
         with pytest.raises(Exception):
             # XXX: should the exception be more specific than this?
             swh_storage.snapshot_get_latest(
@@ -2759,7 +2784,9 @@ class TestStorage:
 
         swh_storage.snapshot_add([data.snapshot])
         swh_storage.origin_visit_update(
-            origin_url, origin_visit1.visit, snapshot=data.snapshot['id'])
+            origin_url, origin_visit1.visit,
+            status='ongoing',
+            snapshot=data.snapshot['id'])
         swh_storage.directory_add([data.dir])
         swh_storage.revision_add([data.revision])
         swh_storage.release_add([data.release])
@@ -3650,7 +3677,9 @@ class TestStorageGeneratedData:
         visit = swh_storage.origin_visit_add(
             origin_url, date=now, type='git')
         swh_storage.origin_visit_update(
-            origin_url, visit.visit, snapshot=data.snapshot['id'])
+            origin_url, visit.visit,
+            status='ongoing',
+            snapshot=data.snapshot['id'])
 
         assert swh_storage.origin_count('github', with_visit=False) == 3
         # github/user1 has a visit and a snapshot, so with_visit=True => 1

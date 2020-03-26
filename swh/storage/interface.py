@@ -794,7 +794,7 @@ class StorageInterface:
 
     @remote_api_endpoint('origin/visit/update')
     def origin_visit_update(
-            self, origin: str, visit_id: int, status: Optional[str] = None,
+            self, origin: str, visit_id: int, status: str,
             metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
         """Update an origin_visit's status.
 
