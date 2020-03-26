@@ -410,22 +410,21 @@ class CassandraStorage:
         # Filter-out revisions already in the database
         missing = self.revision_missing([rev.id for rev in revisions])
         revisions = [rev for rev in revisions if rev.id in missing]
-
         self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
-            revision = revision_to_db(revision)
-            if revision:
+            revobject = revision_to_db(revision)
+            if revobject:
                 # Add parents first
-                for (rank, parent) in enumerate(revision.parents):
+                for (rank, parent) in enumerate(revobject['parents']):
                     self._cql_runner.revision_parent_add_one(
-                        revision.id, rank, parent)
+                        revobject['id'], rank, parent)
 
                 # Then write the main revision row.
                 # Writing this after all parents were written ensures that
                 # read endpoints don't return a partial view while writing
                 # the parents
-                self._cql_runner.revision_add_one(revision)
+                self._cql_runner.revision_add_one(revobject)
 
         return {'revision:add': len(revisions)}
 
@@ -444,10 +443,7 @@ class CassandraStorage:
             # parent_rank is the clustering key, so results are already
             # sorted by rank.
             parents = [row.parent_id for row in parent_rows]
-
-            rev = Revision(**row._asdict(), parents=parents)
-
-            rev = revision_from_db(rev)
+            rev = revision_from_db(**row._asdict(), parents=parents)
             revs[rev.id] = rev.to_dict()
 
         for rev_id in revisions:
@@ -483,8 +479,8 @@ class CassandraStorage:
             if short:
                 yield (row.id, parents)
             else:
-                rev = revision_from_db(Revision(
-                    **row._asdict(), parents=parents))
+                rev = revision_from_db(
+                    **row._asdict(), parents=parents)
                 yield rev.to_dict()
             yield from self._get_parent_revs(parents, seen, limit, short)
 
@@ -507,8 +503,7 @@ class CassandraStorage:
 
         for release in releases:
             if release:
-                release = release_to_db(release)
-                self._cql_runner.release_add_one(release)
+                self._cql_runner.release_add_one(release_to_db(release))
 
         return {'release:add': len(missing)}
 
@@ -519,8 +514,7 @@ class CassandraStorage:
         rows = self._cql_runner.release_get(releases)
         rels = {}
         for row in rows:
-            release = Release(**row._asdict())
-            release = release_from_db(release)
+            release = release_from_db(**row._asdict())
             rels[row.id] = release.to_dict()
 
         for rel_id in releases:
