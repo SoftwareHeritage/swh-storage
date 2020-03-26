@@ -6,10 +6,12 @@
 import random
 import select
 
+from typing import Any, Dict, Optional, Tuple
+
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
 from swh.core.db.db_utils import execute_values_generator
-from swh.model.model import OriginVisit, SHA1_SIZE
+from swh.model.model import OriginVisit, OriginVisitStatus, SHA1_SIZE
 
 
 class Db(BaseDb):
@@ -258,9 +260,13 @@ class Db(BaseDb):
     def snapshot_get_by_origin_visit(self, origin_url, visit_id, cur=None):
         cur = self._cursor(cur)
         query = """\
-           SELECT snapshot FROM origin_visit
-           INNER JOIN origin ON origin.id = origin_visit.origin
-           WHERE origin.url=%s AND origin_visit.visit=%s;
+           SELECT ovs.snapshot
+           FROM origin_visit ov
+           INNER JOIN origin o ON o.id = ov.origin
+           INNER JOIN origin_visit_status ovs
+             ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+           WHERE o.url=%s AND ov.visit=%s
+           ORDER BY ovs.date DESC LIMIT 1
         """
 
         cur.execute(query, (origin_url, visit_id))
@@ -440,30 +446,33 @@ class Db(BaseDb):
         )
         return cur.fetchone()[0]
 
-    def origin_visit_update(self, origin_id, visit_id, updates, cur=None):
-        """Update origin_visit's status."""
+    origin_visit_status_cols = [
+        "origin",
+        "visit",
+        "date",
+        "status",
+        "snapshot",
+        "metadata",
+    ]
+
+    def origin_visit_status_add(
+        self, visit_status: OriginVisitStatus, cur=None
+    ) -> None:
+        assert self.origin_visit_status_cols[0] == "origin"
+        assert self.origin_visit_status_cols[-1] == "metadata"
+        cols = self.origin_visit_status_cols[1:-1]
         cur = self._cursor(cur)
-        update_cols = []
-        values = []
-        where = ["origin.id = origin_visit.origin", "origin.url=%s", "visit=%s"]
-        where_values = [origin_id, visit_id]
-        if "status" in updates:
-            update_cols.append("status=%s")
-            values.append(updates.pop("status"))
-        if "metadata" in updates:
-            update_cols.append("metadata=%s")
-            values.append(jsonize(updates.pop("metadata")))
-        if "snapshot" in updates:
-            update_cols.append("snapshot=%s")
-            values.append(updates.pop("snapshot"))
-        assert not updates, "Unknown fields: %r" % updates
-        query = """UPDATE origin_visit
-                   SET {update_cols}
-                   FROM origin
-                   WHERE {where}""".format(
-            **{"update_cols": ", ".join(update_cols), "where": " AND ".join(where)}
+        cur.execute(
+            f"WITH origin_id as (select id from origin where url=%s) "
+            f"INSERT INTO origin_visit_status "
+            f"(origin, {', '.join(cols)}, metadata) "
+            f"VALUES ((select id from origin_id), "
+            f"{', '.join(['%s']*len(cols))}, %s) "
+            f"ON CONFLICT (origin, visit, date) do nothing",
+            [visit_status.origin]
+            + [getattr(visit_status, key) for key in cols]
+            + [jsonize(visit_status.metadata)],
         )
-        cur.execute(query, (*values, *where_values))
 
     def origin_visit_upsert(self, origin_visit: OriginVisit, cur=None) -> None:
         # doing an extra query like this is way simpler than trying to join
@@ -504,14 +513,41 @@ class Db(BaseDb):
         "snapshot",
     ]
     origin_visit_select_cols = [
-        "origin.url AS origin",
-        "visit",
-        "date",
-        "origin_visit.type AS type",
-        "status",
-        "metadata",
-        "snapshot",
+        "o.url AS origin",
+        "ov.visit",
+        "ov.date",
+        "ov.type AS type",
+        "ovs.status",
+        "ovs.metadata",
+        "ovs.snapshot",
     ]
+
+    def _make_origin_visit_status(self, row: Tuple[Any]) -> Optional[Dict[str, Any]]:
+        """Make an origin_visit_status dict out of a row
+
+        """
+        if not row:
+            return None
+        return dict(zip(self.origin_visit_status_cols, row))
+
+    def origin_visit_status_get_latest(
+        self, origin: str, visit: int, cur=None
+    ) -> Optional[Dict[str, Any]]:
+        """Given an origin visit id, return its latest origin_visit_status
+
+        """
+        cols = self.origin_visit_status_cols
+        cur = self._cursor(cur)
+        cur.execute(
+            f"SELECT {', '.join(cols)} "
+            f"FROM origin_visit_status ovs "
+            f"INNER JOIN origin o on o.id=ovs.origin "
+            f"WHERE o.url=%s AND ovs.visit=%s"
+            f"ORDER BY ovs.date DESC LIMIT 1",
+            (origin, visit),
+        )
+        row = cur.fetchone()
+        return self._make_origin_visit_status(row)
 
     def origin_visit_get_all(self, origin_id, last_visit=None, limit=None, cur=None):
         """Retrieve all visits for origin with id origin_id.
@@ -520,25 +556,27 @@ class Db(BaseDb):
             origin_id: The occurrence's origin
 
         Yields:
-            The occurrence's history visits
+            The visits for that origin
 
         """
         cur = self._cursor(cur)
 
         if last_visit:
-            extra_condition = "and visit > %s"
+            extra_condition = "and ov.visit > %s"
             args = (origin_id, last_visit, limit)
         else:
             extra_condition = ""
             args = (origin_id, limit)
 
         query = """\
-        SELECT %s
-        FROM origin_visit
-        INNER JOIN origin ON origin.id = origin_visit.origin
-        WHERE origin.url=%%s %s
-        order by visit asc
-        limit %%s""" % (
+        SELECT DISTINCT ON (ov.visit) %s
+        FROM origin_visit ov
+        INNER JOIN origin o ON o.id = ov.origin
+        INNER JOIN origin_visit_status ovs
+          ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+        WHERE o.url=%%s %s
+        ORDER BY ov.visit ASC, ovs.date DESC
+        LIMIT %%s""" % (
             ", ".join(self.origin_visit_select_cols),
             extra_condition,
         )
@@ -562,9 +600,13 @@ class Db(BaseDb):
 
         query = """\
             SELECT %s
-            FROM origin_visit
-            INNER JOIN origin ON origin.id = origin_visit.origin
-            WHERE origin.url = %%s AND visit = %%s
+            FROM origin_visit ov
+            INNER JOIN origin o ON o.id = ov.origin
+            INNER JOIN origin_visit_status ovs
+            ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+            WHERE o.url = %%s AND ov.visit = %%s
+            ORDER BY ovs.date DESC
+            LIMIT 1
             """ % (
             ", ".join(self.origin_visit_select_cols)
         )
@@ -580,9 +622,11 @@ class Db(BaseDb):
         cur.execute(
             "SELECT * FROM swh_visit_find_by_date(%s, %s)", (origin, visit_date)
         )
-        r = cur.fetchall()
-        if r:
-            return r[0]
+        rows = cur.fetchall()
+        if rows:
+            visit = dict(zip(self.origin_visit_get_cols, rows[0]))
+            visit["origin"] = origin
+            return visit
 
     def origin_visit_exists(self, origin_id, visit_id, cur=None):
         """Check whether an origin visit with the given ids exists"""
@@ -613,21 +657,25 @@ class Db(BaseDb):
 
         query_parts = [
             "SELECT %s" % ", ".join(self.origin_visit_select_cols),
-            "FROM origin_visit",
-            "INNER JOIN origin ON origin.id = origin_visit.origin",
+            "FROM origin_visit ov ",
+            "INNER JOIN origin o ON o.id = ov.origin",
+            "INNER JOIN origin_visit_status ovs ",
+            "ON o.id = ovs.origin AND ov.visit = ovs.visit ",
         ]
 
-        query_parts.append("WHERE origin.url = %s")
+        query_parts.append("WHERE o.url = %s")
 
         if require_snapshot:
-            query_parts.append("AND snapshot is not null")
+            query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
             query_parts.append(
-                cur.mogrify("AND status IN %s", (tuple(allowed_statuses),)).decode()
+                cur.mogrify("AND ovs.status IN %s", (tuple(allowed_statuses),)).decode()
             )
 
-        query_parts.append("ORDER BY date DESC, visit DESC LIMIT 1")
+        query_parts.append(
+            "ORDER BY ov.date DESC, ov.visit DESC, ovs.date DESC LIMIT 1"
+        )
 
         query = "\n".join(query_parts)
 
@@ -644,18 +692,15 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
         columns = ",".join(self.origin_visit_select_cols)
-        query = f"""with visits as (
-                      select *
-                      from origin_visit
-                      where origin_visit.status='full' and
-                            origin_visit.type=%s and
-                            origin_visit.date > now() - '3 months'::interval
-                    )
-                    select {columns}
-                    from visits as origin_visit
-                    inner join origin
-                    on origin_visit.origin=origin.id
-                    where random() < 0.1
+        query = f"""select {columns}
+                    from origin_visit ov
+                    inner join origin o on ov.origin=o.id
+                    inner join origin_visit_status ovs
+                      on ov.origin = ovs.origin and ov.visit = ovs.visit
+                    where ovs.status='full'
+                      and ov.type=%s
+                      and ov.date > now() - '3 months'::interval
+                      and random() < 0.1
                     limit 1
                  """
         cur.execute(query, (type,))
@@ -889,15 +934,17 @@ class Db(BaseDb):
             origin_cols = ",".join(self.origin_cols)
 
         query = """SELECT %s
-                   FROM origin
+                   FROM origin o
                    WHERE """
         if with_visit:
             query += """
                    EXISTS (
                      SELECT 1
-                     FROM origin_visit
-                       INNER JOIN snapshot ON snapshot=snapshot.id
-                     WHERE origin=origin.id
+                     FROM origin_visit ov
+                     INNER JOIN origin_visit_status ovs
+                       ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+                     INNER JOIN snapshot ON ovs.snapshot=snapshot.id
+                     WHERE ov.origin=o.id
                      )
                    AND """
         query += "url %s %%s "

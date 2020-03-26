@@ -23,6 +23,7 @@ from swh.model.model import (
     Directory,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Revision,
     Release,
     SkippedContent,
@@ -843,6 +844,7 @@ class Storage:
         with convert_validation_exceptions():
             visit_id = db.origin_visit_add(origin_url, date, type, cur=cur)
 
+        status = "ongoing"
         # We can write to the journal only after inserting to the
         # DB, because we want the id of the visit
         visit = OriginVisit.from_dict(
@@ -851,15 +853,38 @@ class Storage:
                 "date": date,
                 "type": type,
                 "visit": visit_id,
-                "status": "ongoing",
+                # TODO: Remove when we remove those fields from the model
+                "status": status,
                 "metadata": None,
                 "snapshot": None,
             }
         )
+
+        with convert_validation_exceptions():
+            visit_status = OriginVisitStatus(
+                origin=origin_url,
+                visit=visit_id,
+                date=date,
+                status=status,
+                snapshot=None,
+                metadata=None,
+            )
+        self._origin_visit_status_add(visit_status, db=db, cur=cur)
+
         self.journal_writer.origin_visit_add(visit)
 
         send_metric("origin_visit:add", count=1, method_name="origin_visit")
         return visit
+
+    def _origin_visit_status_add(
+        self, origin_visit_status: OriginVisitStatus, db, cur
+    ) -> None:
+        """Add an origin visit status"""
+        db.origin_visit_status_add(origin_visit_status, cur=cur)
+        # TODO: write to the journal the origin visit status
+        send_metric(
+            "origin_visit_status:add", count=1, method_name="origin_visit_status"
+        )
 
     @timed
     @db_transaction()
@@ -899,8 +924,66 @@ class Storage:
                 updated_visit = OriginVisit.from_dict({**visit, **updates})
             self.journal_writer.origin_visit_update(updated_visit)
 
+            last_visit_status = self._origin_visit_get_updated(
+                origin, visit_id, db=db, cur=cur
+            )
+            assert last_visit_status is not None
+
             with convert_validation_exceptions():
-                db.origin_visit_update(origin_url, visit_id, updates, cur)
+                visit_status = OriginVisitStatus(
+                    origin=origin_url,
+                    visit=visit_id,
+                    date=date or now(),
+                    status=status,
+                    snapshot=snapshot or last_visit_status["snapshot"],
+                    metadata=metadata or last_visit_status["metadata"],
+                )
+            self._origin_visit_status_add(visit_status, db=db, cur=cur)
+
+    def _origin_visit_get_updated(
+        self, origin: str, visit_id: int, db, cur
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieve origin visit and latest origin visit status and merge them
+        into an origin visit.
+
+        """
+        row_visit = db.origin_visit_get(origin, visit_id)
+        if row_visit is None:
+            return None
+        visit = dict(zip(db.origin_visit_get_cols, row_visit))
+        return self._origin_visit_apply_update(visit, db=db, cur=cur)
+
+    def _origin_visit_apply_update(
+        self, visit: Dict[str, Any], db, cur=None
+    ) -> Dict[str, Any]:
+        """Retrieve the latest visit status information for the origin visit.
+        Then merge it with the visit and return it.
+
+        """
+        visit_status = db.origin_visit_status_get_latest(
+            visit["origin"], visit["visit"]
+        )
+        return self._origin_visit_merge(visit, visit_status)
+
+    def _origin_visit_merge(
+        self, visit: Dict[str, Any], visit_status: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Merge origin_visit and origin_visit_status together.
+
+        """
+        return OriginVisit.from_dict(
+            {
+                # default to the values in visit
+                **visit,
+                # override with the last update
+                **visit_status,
+                # visit['origin'] is the URL (via a join), while
+                # visit_status['origin'] is only an id.
+                "origin": visit["origin"],
+                # but keep the date of the creation of the origin visit
+                "date": visit["date"],
+            }
+        ).to_dict()
 
     @timed
     @db_transaction()
@@ -915,7 +998,18 @@ class Storage:
 
         for visit in visits:
             # TODO: upsert them all in a single query
+            assert visit.visit is not None
             db.origin_visit_upsert(visit, cur=cur)
+            with convert_validation_exceptions():
+                visit_status = OriginVisitStatus(
+                    origin=visit.origin,
+                    visit=visit.visit,
+                    date=now(),
+                    status=visit.status,
+                    snapshot=visit.snapshot,
+                    metadata=visit.metadata,
+                )
+            db.origin_visit_status_add(visit_status, cur=cur)
 
     @timed
     @db_transaction_generator(statement_timeout=500)
@@ -927,20 +1021,21 @@ class Storage:
         db=None,
         cur=None,
     ) -> Iterable[Dict[str, Any]]:
-        for line in db.origin_visit_get_all(
+        lines = db.origin_visit_get_all(
             origin, last_visit=last_visit, limit=limit, cur=cur
-        ):
-            data = dict(zip(db.origin_visit_get_cols, line))
-            yield data
+        )
+        for line in lines:
+            visit = dict(zip(db.origin_visit_get_cols, line))
+            yield self._origin_visit_apply_update(visit, db)
 
     @timed
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
-        line = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
-        if line:
-            return dict(zip(db.origin_visit_get_cols, line))
+        visit = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        if visit:
+            return self._origin_visit_apply_update(visit, db)
         return None
 
     @timed
@@ -948,11 +1043,11 @@ class Storage:
     def origin_visit_get_by(
         self, origin: str, visit: int, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
-        ori_visit = db.origin_visit_get(origin, visit, cur)
-        if not ori_visit:
-            return None
-
-        return dict(zip(db.origin_visit_get_cols, ori_visit))
+        row = db.origin_visit_get(origin, visit, cur)
+        if row:
+            visit_dict = dict(zip(db.origin_visit_get_cols, row))
+            return self._origin_visit_apply_update(visit_dict, db)
+        return None
 
     @timed
     @db_transaction(statement_timeout=4000)
@@ -964,14 +1059,15 @@ class Storage:
         db=None,
         cur=None,
     ) -> Optional[Dict[str, Any]]:
-        origin_visit = db.origin_visit_get_latest(
+        row = db.origin_visit_get_latest(
             origin,
             allowed_statuses=allowed_statuses,
             require_snapshot=require_snapshot,
             cur=cur,
         )
-        if origin_visit:
-            return dict(zip(db.origin_visit_get_cols, origin_visit))
+        if row:
+            visit = dict(zip(db.origin_visit_get_cols, row))
+            return self._origin_visit_apply_update(visit, db)
         return None
 
     @timed
@@ -979,11 +1075,11 @@ class Storage:
     def origin_visit_get_random(
         self, type: str, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
-        result = db.origin_visit_get_random(type, cur)
-        if result:
-            return dict(zip(db.origin_visit_get_cols, result))
-        else:
-            return None
+        row = db.origin_visit_get_random(type, cur)
+        if row:
+            visit = dict(zip(db.origin_visit_get_cols, row))
+            return self._origin_visit_apply_update(visit, db)
+        return None
 
     @timed
     @db_transaction(statement_timeout=2000)
