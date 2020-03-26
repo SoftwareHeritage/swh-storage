@@ -801,7 +801,7 @@ class Storage():
             raise StorageArgumentException(
                 'Date must be a datetime or a string')
 
-        origin = self.origin_get({'url': origin_url})
+        origin = self.origin_get({'url': origin_url}, db=db, cur=cur)
         if not origin:  # Cannot add a visit without an origin
             raise StorageArgumentException(
                 'Unknown origin %s', origin_url)
