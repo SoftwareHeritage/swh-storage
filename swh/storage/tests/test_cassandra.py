@@ -177,6 +177,8 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
     for table in TABLES:
         storage._cql_runner._session.execute('TRUNCATE TABLE "%s"' % table)
 
+    storage._cql_runner._cluster.shutdown()
+
 
 @pytest.mark.cassandra
 class TestCassandraStorage(_TestStorage):
