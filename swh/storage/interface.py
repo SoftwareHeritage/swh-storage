@@ -795,7 +795,8 @@ class StorageInterface:
     @remote_api_endpoint('origin/visit/update')
     def origin_visit_update(
             self, origin: str, visit_id: int, status: str,
-            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
+            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None,
+            date: Optional[datetime.datetime] = None):
         """Update an origin_visit's status.
 
         Args:
@@ -805,6 +806,7 @@ class StorageInterface:
             metadata: Data associated to the visit
             snapshot (sha1_git): identifier of the snapshot to add to
                 the visit
+            date: Update date
 
         Returns:
             None

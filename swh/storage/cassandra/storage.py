@@ -827,7 +827,8 @@ class CassandraStorage:
 
     def origin_visit_update(
             self, origin: str, visit_id: int, status: str,
-            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
+            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None,
+            date: Optional[datetime.datetime] = None):
         origin_url = origin  # TODO: rename the argument
 
         # Get the existing data of the visit

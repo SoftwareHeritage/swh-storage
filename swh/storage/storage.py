@@ -833,6 +833,7 @@ class Storage():
                             status: str,
                             metadata: Optional[Dict] = None,
                             snapshot: Optional[bytes] = None,
+                            date: Optional[datetime.datetime] = None,
                             db=None, cur=None):
         if not isinstance(origin, str):
             raise StorageArgumentException(

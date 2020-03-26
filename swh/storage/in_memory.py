@@ -744,7 +744,8 @@ class InMemoryStorage:
 
     def origin_visit_update(
             self, origin: str, visit_id: int, status: str,
-            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
+            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None,
+            date: Optional[datetime.datetime] = None):
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
             raise StorageArgumentException('Unknown origin.')
