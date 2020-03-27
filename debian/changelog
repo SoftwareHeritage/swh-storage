@@ -1,8 +1,16 @@
-swh-storage (0.0.181-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.182-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.182     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-03-27 07:02:13
+    +0100)
+  * Upstream changes:     - v0.0.182     - storage*: Update
+    origin_visit_update to make status parameter mandatory     - test:
+    Adapt origin validation test according to latest model changes     -
+    Respec discovery_date as a Python datetime instead of an ISO string.
+    - origin_visit_add: Add missing db/cur argument to call to
+    origin_get.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 25 Mar 2020 09:13:53 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 27 Mar 2020 06:13:17 +0000
 
 swh-storage (0.0.181-1~swh1) unstable-swh; urgency=medium
 

@@ -743,7 +743,7 @@ class InMemoryStorage:
         return visit
 
     def origin_visit_update(
-            self, origin: str, visit_id: int, status: Optional[str] = None,
+            self, origin: str, visit_id: int, status: str,
             metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
         origin_url = self._get_origin_url(origin)
         if origin_url is None:
@@ -755,9 +755,9 @@ class InMemoryStorage:
             raise StorageArgumentException(
                 'Unknown visit_id for this origin') from None
 
-        updates: Dict[str, Any] = {}
-        if status:
-            updates['status'] = status
+        updates: Dict[str, Any] = {
+            'status': status
+        }
         if metadata:
             updates['metadata'] = metadata
         if snapshot:
