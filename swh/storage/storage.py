@@ -37,6 +37,10 @@ from .utils import (
 from .writer import JournalWriter
 
 
+def now():
+    return datetime.datetime.now(tz=datetime.timezone.utc)
+
+
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
@@ -186,8 +190,7 @@ class Storage():
     @process_metrics
     def content_add(
             self, content: Iterable[Content]) -> Dict:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        contents = [attr.evolve(c, ctime=now) for c in content]
+        contents = [attr.evolve(c, ctime=now()) for c in content]
 
         objstorage_summary = self.objstorage.content_add(contents)
 
@@ -397,8 +400,7 @@ class Storage():
     @db_transaction()
     def skipped_content_add(self, content: Iterable[SkippedContent],
                             db=None, cur=None) -> Dict:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        content = [attr.evolve(c, ctime=now) for c in content]
+        content = [attr.evolve(c, ctime=now()) for c in content]
 
         missing_contents = self.skipped_content_missing(
             (c.to_dict() for c in content),
