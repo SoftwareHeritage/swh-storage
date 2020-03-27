@@ -834,8 +834,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/get')
-    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
-                         limit: Optional[int] = None):
+    def origin_visit_get(
+            self, origin: str, last_visit: Optional[int] = None,
+            limit: Optional[int] = None) -> Iterable[Dict[str, Any]]:
         """Retrieve all the origin's visit's information.
 
         Args:
@@ -852,27 +853,31 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/find_by_date')
-    def origin_visit_find_by_date(self, origin, visit_date):
+    def origin_visit_find_by_date(
+            self, origin: str,
+            visit_date: datetime.datetime) -> Optional[Dict[str, Any]]:
         """Retrieves the origin visit whose date is closest to the provided
         timestamp.
         In case of a tie, the visit with largest id is selected.
 
         Args:
-            origin (str): The occurrence's origin (URL).
-            target (datetime): target timestamp
+            origin: origin (URL)
+            visit_date: expected visit date
 
         Returns:
-            A visit.
+            A visit
 
         """
         ...
 
     @remote_api_endpoint('origin/visit/getby')
-    def origin_visit_get_by(self, origin, visit):
+    def origin_visit_get_by(
+            self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
         """Retrieve origin visit's information.
 
         Args:
-            origin: The occurrence's origin (identifier).
+            origin: origin (URL)
+            visit: visit id
 
         Returns:
             The information on that particular (origin, visit) or None if
@@ -883,18 +888,19 @@ class StorageInterface:
 
     @remote_api_endpoint('origin/visit/get_latest')
     def origin_visit_get_latest(
-            self, origin, allowed_statuses=None, require_snapshot=False):
+            self, origin: str, allowed_statuses: Optional[List[str]] = None,
+            require_snapshot: bool = False) -> Optional[Dict[str, Any]]:
         """Get the latest origin visit for the given origin, optionally
         looking only for those with one of the given allowed_statuses
         or for those with a known snapshot.
 
         Args:
-            origin (str): the origin's URL
-            allowed_statuses (list of str): list of visit statuses considered
+            origin: origin URL
+            allowed_statuses: list of visit statuses considered
                 to find the latest visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
                 have successfully run to completion.
-            require_snapshot (bool): If True, only a visit with a snapshot
+            require_snapshot: If True, only a visit with a snapshot
                 will be returned.
 
         Returns:

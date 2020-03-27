@@ -874,8 +874,10 @@ class Storage():
 
     @timed
     @db_transaction_generator(statement_timeout=500)
-    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
-                         limit: Optional[int] = None, db=None, cur=None):
+    def origin_visit_get(
+            self, origin: str, last_visit: Optional[int] = None,
+            limit: Optional[int] = None,
+            db=None, cur=None) -> Iterable[Dict[str, Any]]:
         for line in db.origin_visit_get_all(
                 origin, last_visit=last_visit, limit=limit, cur=cur):
             data = dict(zip(db.origin_visit_get_cols, line))
@@ -883,14 +885,19 @@ class Storage():
 
     @timed
     @db_transaction(statement_timeout=500)
-    def origin_visit_find_by_date(self, origin, visit_date, db=None, cur=None):
+    def origin_visit_find_by_date(
+            self, origin: str, visit_date: datetime.datetime,
+            db=None, cur=None) -> Optional[Dict[str, Any]]:
         line = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
         if line:
             return dict(zip(db.origin_visit_get_cols, line))
+        return None
 
     @timed
     @db_transaction(statement_timeout=500)
-    def origin_visit_get_by(self, origin, visit, db=None, cur=None):
+    def origin_visit_get_by(
+            self, origin: str,
+            visit: int, db=None, cur=None) -> Optional[Dict[str, Any]]:
         ori_visit = db.origin_visit_get(origin, visit, cur)
         if not ori_visit:
             return None
@@ -900,13 +907,15 @@ class Storage():
     @timed
     @db_transaction(statement_timeout=4000)
     def origin_visit_get_latest(
-            self, origin, allowed_statuses=None, require_snapshot=False,
-            db=None, cur=None):
+            self, origin: str, allowed_statuses: Optional[List[str]] = None,
+            require_snapshot: bool = False,
+            db=None, cur=None) -> Optional[Dict[str, Any]]:
         origin_visit = db.origin_visit_get_latest(
             origin, allowed_statuses=allowed_statuses,
             require_snapshot=require_snapshot, cur=cur)
         if origin_visit:
             return dict(zip(db.origin_visit_get_cols, origin_visit))
+        return None
 
     @timed
     @db_transaction()

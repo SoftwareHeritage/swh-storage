@@ -799,8 +799,9 @@ class InMemoryStorage:
 
         return visit
 
-    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
-                         limit: Optional[int] = None):
+    def origin_visit_get(
+            self, origin: str, last_visit: Optional[int] = None,
+            limit: Optional[int] = None) -> Iterable[Dict[str, Any]]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
@@ -816,7 +817,9 @@ class InMemoryStorage:
                 yield self._convert_visit(
                     self._origin_visits[origin_url][visit_id-1])
 
-    def origin_visit_find_by_date(self, origin, visit_date):
+    def origin_visit_find_by_date(
+            self, origin: str,
+            visit_date: datetime.datetime) -> Optional[Dict[str, Any]]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
@@ -824,20 +827,24 @@ class InMemoryStorage:
                 visits,
                 key=lambda v: (abs(v.date - visit_date), -v.visit))
             return self._convert_visit(visit)
+        return None
 
-    def origin_visit_get_by(self, origin, visit):
+    def origin_visit_get_by(
+            self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits and \
            visit <= len(self._origin_visits[origin_url]):
             return self._convert_visit(
                 self._origin_visits[origin_url][visit-1])
+        return None
 
     def origin_visit_get_latest(
-            self, origin, allowed_statuses=None, require_snapshot=False):
-        origin = self._origins.get(origin)
-        if not origin:
-            return
-        visits = self._origin_visits[origin.url]
+            self, origin: str, allowed_statuses: Optional[List[str]] = None,
+            require_snapshot: bool = False) -> Optional[Dict[str, Any]]:
+        ori = self._origins.get(origin)
+        if not ori:
+            return None
+        visits = self._origin_visits[ori.url]
         if allowed_statuses is not None:
             visits = [visit for visit in visits
                       if visit.status in allowed_statuses]
