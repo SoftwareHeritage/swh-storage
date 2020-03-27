@@ -801,7 +801,7 @@ class Storage():
             raise StorageArgumentException(
                 'Date must be a datetime or a string')
 
-        origin = self.origin_get({'url': origin_url})
+        origin = self.origin_get({'url': origin_url}, db=db, cur=cur)
         if not origin:  # Cannot add a visit without an origin
             raise StorageArgumentException(
                 'Unknown origin %s', origin_url)
@@ -828,7 +828,7 @@ class Storage():
     @timed
     @db_transaction()
     def origin_visit_update(self, origin: str, visit_id: int,
-                            status: Optional[str] = None,
+                            status: str,
                             metadata: Optional[Dict] = None,
                             snapshot: Optional[bytes] = None,
                             db=None, cur=None):
@@ -843,9 +843,9 @@ class Storage():
 
         visit = dict(zip(db.origin_visit_get_cols, visit))
 
-        updates: Dict[str, Any] = {}
-        if status and status != visit['status']:
-            updates['status'] = status
+        updates: Dict[str, Any] = {
+            'status': status,
+        }
         if metadata and metadata != visit['metadata']:
             updates['metadata'] = metadata
         if snapshot and snapshot != visit['snapshot']:
