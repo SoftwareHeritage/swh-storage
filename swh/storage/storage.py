@@ -873,8 +873,8 @@ class Storage():
 
     @timed
     @db_transaction_generator(statement_timeout=500)
-    def origin_visit_get(self, origin, last_visit=None, limit=None, db=None,
-                         cur=None):
+    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
+                         limit: Optional[int] = None, db=None, cur=None):
         for line in db.origin_visit_get_all(
                 origin, last_visit=last_visit, limit=limit, cur=cur):
             data = dict(zip(db.origin_visit_get_cols, line))

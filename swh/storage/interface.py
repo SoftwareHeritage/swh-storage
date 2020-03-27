@@ -834,14 +834,15 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint('origin/visit/get')
-    def origin_visit_get(self, origin, last_visit=None, limit=None):
+    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
+                         limit: Optional[int] = None):
         """Retrieve all the origin's visit's information.
 
         Args:
-            origin (str): The visited origin
+            origin: The visited origin
             last_visit: Starting point from which listing the next visits
                 Default to None
-            limit (int): Number of results to return from the last visit.
+            limit: Number of results to return from the last visit.
                 Default to None
 
         Yields:

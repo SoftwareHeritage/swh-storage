@@ -872,7 +872,8 @@ class CassandraStorage:
                          if visit.metadata else None),
         }
 
-    def origin_visit_get(self, origin, last_visit=None, limit=None):
+    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
+                         limit: Optional[int] = None):
         rows = self._cql_runner.origin_visit_get(origin, last_visit, limit)
 
         yield from map(self._format_origin_visit_row, rows)

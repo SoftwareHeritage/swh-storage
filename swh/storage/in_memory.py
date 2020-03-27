@@ -802,7 +802,8 @@ class InMemoryStorage:
 
         return visit
 
-    def origin_visit_get(self, origin, last_visit=None, limit=None):
+    def origin_visit_get(self, origin: str, last_visit: Optional[int] = None,
+                         limit: Optional[int] = None):
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
