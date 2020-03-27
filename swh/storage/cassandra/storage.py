@@ -826,7 +826,7 @@ class CassandraStorage:
         return visit
 
     def origin_visit_update(
-            self, origin: str, visit_id: int, status: Optional[str] = None,
+            self, origin: str, visit_id: int, status: str,
             metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None):
         origin_url = origin  # TODO: rename the argument
 
@@ -839,9 +839,9 @@ class CassandraStorage:
         except (KeyError, TypeError, ValueError) as e:
             raise StorageArgumentException(*e.args)
 
-        updates: Dict[str, Any] = {}
-        if status:
-            updates['status'] = status
+        updates: Dict[str, Any] = {
+            'status': status
+        }
         if metadata:
             updates['metadata'] = metadata
         if snapshot:
