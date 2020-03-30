@@ -8,7 +8,8 @@ import json
 import logging
 import random
 from typing import (
-    Any, Callable, Dict, Generator, Iterable, List, Optional, Tuple, TypeVar
+    Any, Callable, Dict, Iterable, Iterator, List, Optional,
+    Tuple, TypeVar
 )
 
 from cassandra import CoordinationFailure
@@ -666,8 +667,7 @@ class CqlRunner:
     @_prepared_statement('SELECT * FROM origin_visit '
                          'WHERE origin = ?')
     def origin_visit_get_all(self, origin_url: str, *, statement) -> ResultSet:
-        return self._execute_with_retries(
-            statement, [origin_url])
+        return self._execute_with_retries(statement, [origin_url])
 
     @_prepared_statement('SELECT * FROM origin_visit WHERE origin = ?')
     def origin_visit_get_latest(
@@ -693,16 +693,15 @@ class CqlRunner:
 
     @_prepared_statement('SELECT * FROM origin_visit WHERE token(origin) >= ?')
     def _origin_visit_iter_from(
-            self, min_token: int, *, statement) -> Generator[Row, None, None]:
+            self, min_token: int, *, statement) -> Iterator[Row]:
         yield from self._execute_with_retries(statement, [min_token])
 
     @_prepared_statement('SELECT * FROM origin_visit WHERE token(origin) < ?')
     def _origin_visit_iter_to(
-            self, max_token: int, *, statement) -> Generator[Row, None, None]:
+            self, max_token: int, *, statement) -> Iterator[Row]:
         yield from self._execute_with_retries(statement, [max_token])
 
-    def origin_visit_iter(
-            self, start_token: int) -> Generator[Row, None, None]:
+    def origin_visit_iter(self, start_token: int) -> Iterator[Row]:
         """Returns all origin visits in order from this token,
         and wraps around the token space."""
         yield from self._origin_visit_iter_from(start_token)
