@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import functools
 import json
 import logging
@@ -38,6 +39,7 @@ from swh.model.model import (
     Content,
     SkippedContent,
     OriginVisit,
+    OriginVisitStatus,
     Origin,
 )
 
@@ -687,31 +689,63 @@ class CqlRunner:
         else:
             return self._origin_visit_get_limit(origin_url, last_visit, limit)
 
-    def origin_visit_update(
-        self, origin_url: str, visit_id: int, updates: Dict[str, Any]
-    ) -> None:
-        set_parts = []
-        args: List[Any] = []
-        for (column, value) in updates.items():
-            set_parts.append(f"{column} = %s")
-            if column == "metadata":
-                args.append(json.dumps(value))
-            else:
-                args.append(value)
-
-        if not set_parts:
-            return
-
-        query = (
-            "UPDATE origin_visit SET "
-            + ", ".join(set_parts)
-            + " WHERE origin = %s AND visit = %s"
-        )
-        self._execute_with_retries(query, args + [origin_url, visit_id])
-
     @_prepared_insert_statement("origin_visit", _origin_visit_keys)
     def origin_visit_add_one(self, visit: OriginVisit, *, statement) -> None:
         self._add_one(statement, "origin_visit", visit, self._origin_visit_keys)
+
+    _origin_visit_status_keys = [
+        "origin",
+        "visit",
+        "date",
+        "status",
+        "snapshot",
+        "metadata",
+    ]
+
+    @_prepared_insert_statement("origin_visit_status", _origin_visit_status_keys)
+    def origin_visit_status_add_one(
+        self, visit_update: OriginVisitStatus, *, statement
+    ) -> None:
+        assert self._origin_visit_status_keys[-1] == "metadata"
+        keys = self._origin_visit_status_keys
+
+        metadata = json.dumps(visit_update.metadata)
+        self._execute_with_retries(
+            statement, [getattr(visit_update, key) for key in keys[:-1]] + [metadata]
+        )
+
+    def _format_origin_visit_status_row(
+        self, visit_status: ResultSet
+    ) -> Dict[str, Any]:
+        """Format a row visit_status into an origin_visit_status dict
+
+        """
+        return {
+            **visit_status._asdict(),
+            "origin": visit_status.origin,
+            "date": visit_status.date.replace(tzinfo=datetime.timezone.utc),
+            "metadata": (
+                json.loads(visit_status.metadata) if visit_status.metadata else None
+            ),
+        }
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit_status "
+        "WHERE origin = ? AND visit = ? "
+        "ORDER BY date DESC "
+        "LIMIT 1"
+    )
+    def origin_visit_status_get_latest(
+        self, origin: str, visit: int, *, statement
+    ) -> Optional[Dict[str, Any]]:
+        """Given an origin visit id, return its latest origin_visit_status
+
+        """
+        rows = list(self._execute_with_retries(statement, [origin, visit]))
+        if rows:
+            return self._format_origin_visit_status_row(rows[0])
+        else:
+            return None
 
     @_prepared_statement(
         "UPDATE origin_visit SET "
@@ -744,31 +778,6 @@ class CqlRunner:
     @_prepared_statement("SELECT * FROM origin_visit " "WHERE origin = ?")
     def origin_visit_get_all(self, origin_url: str, *, statement) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url])
-
-    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ?")
-    def origin_visit_get_latest(
-        self,
-        origin: str,
-        allowed_statuses: Optional[Iterable[str]],
-        require_snapshot: bool,
-        *,
-        statement,
-    ) -> Optional[Row]:
-        # TODO: do the ordering and filtering in Cassandra
-        rows = list(self._execute_with_retries(statement, [origin]))
-
-        rows.sort(key=lambda row: (row.date, row.visit), reverse=True)
-
-        for row in rows:
-            if require_snapshot and row.snapshot is None:
-                continue
-            if allowed_statuses is not None and row.status not in allowed_statuses:
-                continue
-            if row.snapshot is not None and self.snapshot_missing([row.snapshot]):
-                raise ValueError("visit references unknown snapshot")
-            return row
-        else:
-            return None
 
     @_prepared_statement("SELECT * FROM origin_visit WHERE token(origin) >= ?")
     def _origin_visit_iter_from(self, min_token: int, *, statement) -> Iterator[Row]:
