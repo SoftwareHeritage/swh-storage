@@ -24,6 +24,7 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
+from swh.storage.utils import now
 
 from .exc import StorageArgumentException, HashCollision
 
@@ -33,10 +34,6 @@ from .writer import JournalWriter
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
-
-
-def now():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class InMemoryStorage:
@@ -123,8 +120,7 @@ class InMemoryStorage:
         return summary
 
     def content_add(self, content: Iterable[Content]) -> Dict:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        content = [attr.evolve(c, ctime=now) for c in content]
+        content = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(content, with_data=True)
 
     def content_update(self, content, keys=[]):
@@ -284,8 +280,7 @@ class InMemoryStorage:
         return summary
 
     def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        content = [attr.evolve(c, ctime=now) for c in content]
+        content = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(content)
 
     def skipped_content_missing(self, contents):

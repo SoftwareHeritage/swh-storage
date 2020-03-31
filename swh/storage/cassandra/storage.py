@@ -20,6 +20,7 @@ from swh.model.model import (
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
+from swh.storage.utils import now
 
 from ..exc import StorageArgumentException, HashCollision
 from .common import TOKEN_BEGIN, TOKEN_END
@@ -32,10 +33,6 @@ from .schema import HASH_ALGORITHMS
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
-
-
-def now():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class CassandraStorage:
@@ -141,8 +138,7 @@ class CassandraStorage:
         return summary
 
     def content_add(self, content: Iterable[Content]) -> Dict:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        contents = [attr.evolve(c, ctime=now) for c in content]
+        contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(list(contents), with_data=True)
 
     def content_update(self, content, keys=[]):
@@ -295,8 +291,7 @@ class CassandraStorage:
         }
 
     def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        contents = [attr.evolve(c, ctime=now) for c in content]
+        contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
     def skipped_content_missing(self, contents):

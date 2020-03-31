@@ -5,11 +5,16 @@
 
 import re
 
+from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
 from swh.model.hashutil import (
     hash_to_bytes, hash_to_hex, DEFAULT_ALGORITHMS
 )
+
+
+def now() -> datetime:
+    return datetime.now(tz=timezone.utc)
 
 
 def _is_power_of_two(n: int) -> bool:

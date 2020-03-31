@@ -24,6 +24,7 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
+from swh.storage.utils import now
 
 from . import converters
 from .common import db_transaction_generator, db_transaction
@@ -35,10 +36,6 @@ from .utils import (
     get_partition_bounds_bytes, extract_collision_hash
 )
 from .writer import JournalWriter
-
-
-def now():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 # Max block size of contents to return
