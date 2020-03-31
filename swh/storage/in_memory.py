@@ -768,6 +768,11 @@ class InMemoryStorage:
         self._origin_visits[origin_url][visit_id-1] = visit
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
+        for visit in visits:
+            if visit.visit is None:
+                raise StorageArgumentException(
+                    f'Missing visit id for visit {visit}')
+
         self.journal_writer.origin_visit_upsert(visits)
 
         for visit in visits:

@@ -849,6 +849,11 @@ class CassandraStorage:
         self._cql_runner.origin_visit_update(origin_url, visit_id, updates)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
+        for visit in visits:
+            if visit.visit is None:
+                raise StorageArgumentException(
+                    f'Missing visit id for visit {visit}')
+
         self.journal_writer.origin_visit_upsert(visits)
         for visit in visits:
             self._cql_runner.origin_visit_upsert(visit)

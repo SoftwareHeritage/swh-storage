@@ -2071,6 +2071,26 @@ class TestStorage:
             ('origin_visit', data1),
             ('origin_visit', data2)]
 
+    def test_origin_visit_upsert_missing_visit_id(self, swh_storage):
+        # given
+        origin_url = swh_storage.origin_add_one(data.origin2)
+
+        # then
+        with pytest.raises(StorageArgumentException, match='Missing visit id'):
+            swh_storage.origin_visit_upsert([OriginVisit.from_dict({
+                'origin': origin_url,
+                'date': data.date_visit2,
+                'visit': None,  # <- make the test raise
+                'type': data.type_visit1,
+                'status': 'full',
+                'metadata': None,
+                'snapshot': None,
+            })])
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ('origin', data.origin2)
+        ]
+
     def test_origin_visit_get_by_no_result(self, swh_storage):
         swh_storage.origin_add([data.origin])
         actual_origin_visit = swh_storage.origin_visit_get_by(
