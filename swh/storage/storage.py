@@ -24,6 +24,7 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
+from swh.storage.validate import VALIDATION_EXCEPTIONS
 from swh.storage.utils import now
 
 from . import converters
@@ -45,14 +46,14 @@ EMPTY_SNAPSHOT_ID = hash_to_bytes('1a8893e6a86f444e8be8e7bda6cb34fb1735a00e')
 """Identifier for the empty snapshot"""
 
 
-VALIDATION_EXCEPTIONS = (
+VALIDATION_EXCEPTIONS = VALIDATION_EXCEPTIONS + [
     psycopg2.errors.CheckViolation,
     psycopg2.errors.IntegrityError,
     psycopg2.errors.InvalidTextRepresentation,
     psycopg2.errors.NotNullViolation,
     psycopg2.errors.NumericValueOutOfRange,
     psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
-)
+]
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
 
@@ -63,8 +64,8 @@ def convert_validation_exceptions():
     re-raises a StorageArgumentException."""
     try:
         yield
-    except VALIDATION_EXCEPTIONS as e:
-        raise StorageArgumentException(*e.args)
+    except tuple(VALIDATION_EXCEPTIONS) as e:
+        raise StorageArgumentException(str(e))
 
 
 class Storage():
@@ -668,7 +669,7 @@ class Storage():
                     db.mktemp_snapshot_branch(cur)
                     created_temp_table = True
 
-                try:
+                with convert_validation_exceptions():
                     db.copy_to(
                         (
                             {
@@ -683,8 +684,6 @@ class Storage():
                         ['name', 'target', 'target_type'],
                         cur,
                     )
-                except VALIDATION_EXCEPTIONS + (KeyError,) as e:
-                    raise StorageArgumentException(*e.args)
 
                 self.journal_writer.snapshot_add(snapshot)
 

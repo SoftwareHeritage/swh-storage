@@ -24,6 +24,7 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
+from swh.storage.validate import convert_validation_exceptions
 from swh.storage.utils import now
 
 from .exc import StorageArgumentException, HashCollision
@@ -759,10 +760,8 @@ class InMemoryStorage:
         if snapshot:
             updates['snapshot'] = snapshot
 
-        try:
+        with convert_validation_exceptions():
             visit = attr.evolve(visit, **updates)
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
 
         self.journal_writer.origin_visit_update(visit)
 
@@ -775,10 +774,8 @@ class InMemoryStorage:
             visit_id = visit.visit
             origin_url = visit.origin
 
-            try:
+            with convert_validation_exceptions():
                 visit = attr.evolve(visit, origin=origin_url)
-            except (KeyError, TypeError, ValueError) as e:
-                raise StorageArgumentException(*e.args)
 
             self._objects[(origin_url, visit_id)].append(
                 ('origin_visit', None))

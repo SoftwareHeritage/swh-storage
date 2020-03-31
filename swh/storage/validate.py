@@ -16,11 +16,11 @@ from . import get_storage
 from .exc import StorageArgumentException
 
 
-VALIDATION_EXCEPTIONS = (
+VALIDATION_EXCEPTIONS = [
     KeyError,
     TypeError,
     ValueError,
-)
+]
 
 
 @contextlib.contextmanager
@@ -29,7 +29,7 @@ def convert_validation_exceptions():
     StorageArgumentException."""
     try:
         yield
-    except VALIDATION_EXCEPTIONS as e:
+    except tuple(VALIDATION_EXCEPTIONS) as e:
         raise StorageArgumentException(str(e))
 
 

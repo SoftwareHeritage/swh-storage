@@ -20,6 +20,7 @@ from swh.model.model import (
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
+from swh.storage.validate import convert_validation_exceptions
 from swh.storage.utils import now
 
 from ..exc import StorageArgumentException, HashCollision
@@ -804,7 +805,7 @@ class CassandraStorage:
 
         visit_id = self._cql_runner.origin_generate_unique_visit_id(origin_url)
 
-        try:
+        with convert_validation_exceptions():
             visit = OriginVisit.from_dict({
                 'origin': origin_url,
                 'date': date,
@@ -814,8 +815,7 @@ class CassandraStorage:
                 'metadata': None,
                 'visit': visit_id
             })
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
+
         self.journal_writer.origin_visit_add(visit)
         self._cql_runner.origin_visit_add_one(visit)
         return visit
@@ -830,10 +830,8 @@ class CassandraStorage:
         row = self._cql_runner.origin_visit_get_one(origin_url, visit_id)
         if not row:
             raise StorageArgumentException('This origin visit does not exist.')
-        try:
+        with convert_validation_exceptions():
             visit = OriginVisit.from_dict(self._format_origin_visit_row(row))
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
 
         updates: Dict[str, Any] = {
             'status': status
@@ -843,10 +841,8 @@ class CassandraStorage:
         if snapshot:
             updates['snapshot'] = snapshot
 
-        try:
+        with convert_validation_exceptions():
             visit = attr.evolve(visit, **updates)
-        except (KeyError, TypeError, ValueError) as e:
-            raise StorageArgumentException(*e.args)
 
         self.journal_writer.origin_visit_update(visit)
 
