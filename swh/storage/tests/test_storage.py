@@ -1665,6 +1665,7 @@ class TestStorage:
                 'snapshot': None,
             },
         ]
+        assert len(expected_visits) == len(actual_origin_visits)
         for visit in expected_visits:
             assert visit in actual_origin_visits
 
@@ -1687,8 +1688,9 @@ class TestStorage:
         # given
         origin_url = swh_storage.origin_add_one(data.origin)
         origin_url2 = swh_storage.origin_add_one(data.origin2)
-        date_visit = datetime.datetime.now(datetime.timezone.utc)
-        date_visit2 = date_visit + datetime.timedelta(minutes=1)
+        # date_visit < date_visit2
+        date_visit = data.date_visit1
+        date_visit2 = data.date_visit2
 
         # Round to milliseconds before insertion, so equality doesn't fail
         # after a round-trip through a DB (eg. Cassandra)
