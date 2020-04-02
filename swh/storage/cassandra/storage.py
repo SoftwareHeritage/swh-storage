@@ -443,7 +443,7 @@ class CassandraStorage:
             # parent_rank is the clustering key, so results are already
             # sorted by rank.
             parents = [row.parent_id for row in parent_rows]
-            rev = revision_from_db(**row._asdict(), parents=parents)
+            rev = revision_from_db(row, parents=parents)
             revs[rev.id] = rev.to_dict()
 
         for rev_id in revisions:
@@ -479,8 +479,7 @@ class CassandraStorage:
             if short:
                 yield (row.id, parents)
             else:
-                rev = revision_from_db(
-                    **row._asdict(), parents=parents)
+                rev = revision_from_db(row, parents=parents)
                 yield rev.to_dict()
             yield from self._get_parent_revs(parents, seen, limit, short)
 
@@ -514,7 +513,7 @@ class CassandraStorage:
         rows = self._cql_runner.release_get(releases)
         rels = {}
         for row in rows:
-            release = release_from_db(**row._asdict())
+            release = release_from_db(row)
             rels[row.id] = release.to_dict()
 
         for rel_id in releases:

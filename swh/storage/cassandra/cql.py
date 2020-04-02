@@ -364,7 +364,9 @@ class CqlRunner:
 
     @_prepared_insert_statement('revision', _revision_keys)
     def revision_add_one(self, revision: Dict[str, Any], *, statement) -> None:
-        self._add_one(statement, 'revision', revision, self._revision_keys)
+        self._execute_with_retries(
+            statement, [revision[key] for key in self._revision_keys])
+        self._increment_counter('revision', 1)
 
     @_prepared_statement('SELECT id FROM revision WHERE id IN ?')
     def revision_get_ids(self, revision_ids, *, statement) -> ResultSet:
@@ -413,7 +415,9 @@ class CqlRunner:
 
     @_prepared_insert_statement('release', _release_keys)
     def release_add_one(self, release: Dict[str, Any], *, statement) -> None:
-        self._add_one(statement, 'release', release, self._release_keys)
+        self._execute_with_retries(
+            statement, [release[key] for key in self._release_keys])
+        self._increment_counter('release', 1)
 
     @_prepared_statement('SELECT * FROM release WHERE id in ?')
     def release_get(self, release_ids: List[str], *, statement) -> None:
