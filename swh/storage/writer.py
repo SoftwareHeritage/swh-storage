@@ -61,7 +61,7 @@ class JournalWriter:
         self.content_add(contents)
 
     def skipped_content_add(self, contents: Iterable[SkippedContent]) -> None:
-        self.write_additions("content", contents)
+        self.write_additions("skipped_content", contents)
 
     def directory_add(self, directories: Iterable[Directory]) -> None:
         self.write_additions("directory", directories)
