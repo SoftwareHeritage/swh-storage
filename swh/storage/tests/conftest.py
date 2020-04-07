@@ -7,6 +7,7 @@ import glob
 import pytest
 
 from typing import Union
+from unittest.mock import patch
 
 from pytest_postgresql import factories
 from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
@@ -20,6 +21,29 @@ import swh.storage
 from swh.core.utils import numfile_sortkey as sortkey
 
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
+from swh.model.model import (
+    Content,
+    Directory,
+    Origin,
+    OriginVisit,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
+)
+from swh.journal.writer.inmemory import InMemoryJournalWriter
+
+
+OBJECT_FACTORY = {
+    "content": Content.from_dict,
+    "directory": Directory.from_dict,
+    "origin": Origin.from_dict,
+    "origin_visit": OriginVisit.from_dict,
+    "release": Release.from_dict,
+    "revision": Revision.from_dict,
+    "skipped_content": SkippedContent.from_dict,
+    "snapshot": Snapshot.from_dict,
+}
 
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), "sql")
@@ -49,11 +73,28 @@ def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
     }
 
 
+class BWCompatInMemoryJournalWriter(InMemoryJournalWriter):
+    """InMemoryJournalWriter that enforces conversion of objects to model entities
+
+    This is required until swh.journal 0.0.30 is available
+    """
+
+    def write_addition(self, object_type, object_):
+        if isinstance(object_, dict):
+            object_ = OBJECT_FACTORY[object_type](object_)
+        self.objects.append((object_type, object_))
+
+    write_update = write_addition
+
+
 @pytest.fixture
 def swh_storage(swh_storage_backend_config):
     storage_config = {"cls": "validate", "storage": swh_storage_backend_config}
-
-    storage = swh.storage.get_storage(**storage_config)
+    with patch(
+        "swh.journal.writer.inmemory.InMemoryJournalWriter",
+        return_value=BWCompatInMemoryJournalWriter(),
+    ):
+        storage = swh.storage.get_storage(**storage_config)
     return storage
 
 
