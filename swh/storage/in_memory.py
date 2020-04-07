@@ -1016,3 +1016,9 @@ class InMemoryStorage:
 
     def diff_revision(self, revision, track_renaming=False):
         raise NotImplementedError("InMemoryStorage.diff_revision")
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        """Do nothing
+
+        """
+        return None

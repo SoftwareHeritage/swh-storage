@@ -176,3 +176,6 @@ class RetryingProxyStorage:
         if hasattr(self.storage, "flush"):
             return self.storage.flush(object_types)
         return {}
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        return self.storage.clear_buffers(object_types)

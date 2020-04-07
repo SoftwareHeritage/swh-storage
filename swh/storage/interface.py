@@ -1303,3 +1303,12 @@ class StorageInterface:
             for more details).
         """
         ...
+
+    @remote_api_endpoint("clear/buffer")
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        """For backend storages (pg, storage, in-memory), this is a noop operation. For proxy
+        storages (especially filter, buffer), this is an operation which cleans internal
+        state.
+
+        """
+        ...

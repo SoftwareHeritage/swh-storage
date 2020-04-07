@@ -1002,3 +1002,9 @@ class CassandraStorage:
     def metadata_provider_get_by(self, provider):
         # TODO
         raise NotImplementedError("not yet supported for Cassandra")
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        """Do nothing
+
+        """
+        return None

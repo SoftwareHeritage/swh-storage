@@ -3990,3 +3990,9 @@ class TestPgStorage:
             "absent",
             "Content too long",
         )
+
+    def test_clear_buffers(self, swh_storage):
+        """Calling clear buffers on real storage does nothing
+
+        """
+        assert swh_storage.clear_buffers() is None

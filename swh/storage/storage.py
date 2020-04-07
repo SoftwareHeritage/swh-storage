@@ -1215,3 +1215,9 @@ class Storage:
     @timed
     def diff_revision(self, revision, track_renaming=False):
         return diff.diff_revision(self, revision, track_renaming)
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        """Do nothing
+
+        """
+        return None

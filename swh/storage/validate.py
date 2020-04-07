@@ -5,7 +5,7 @@
 
 import datetime
 import contextlib
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from swh.model.model import (
     BaseModel,
@@ -107,3 +107,6 @@ class ValidatingProxyStorage:
         with convert_validation_exceptions():
             origin = Origin.from_dict(origin)
         return self.storage.origin_add_one(origin)
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        return self.storage.clear_buffers(object_types)

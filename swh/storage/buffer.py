@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Software Heritage developers
+# Copyright (C) 2019-2020 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -131,3 +131,22 @@ class BufferingProxyStorage:
             return self.flush()
 
         return {}
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        """Clear objects from current buffer.
+
+        WARNING:
+
+            data that has not been flushed to storage will be lost when this
+            method is called. This should only be called when `flush` fails and
+            you want to continue your processing.
+
+        """
+        if object_types is None:
+            object_types = self.object_types
+
+        for object_type in object_types:
+            q = self._objects[object_type]
+            q.clear()
+
+        return self.storage.clear_buffers(object_types)

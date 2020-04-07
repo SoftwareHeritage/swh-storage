@@ -123,3 +123,64 @@ def test_filtering_proxy_storage_directory(sample_data):
     assert s == {
         "directory:add": 0,
     }
+
+
+def test_filtering_proxy_storage_clear(sample_data):
+    """Clear operation on filter proxy
+
+    """
+    threshold = 10
+    contents = sample_data['content']
+    assert 0 < len(contents) < threshold
+    skipped_contents = sample_data['skipped_content']
+    assert 0 < len(skipped_contents) < threshold
+    directories = sample_data['directory']
+    assert 0 < len(directories) < threshold
+    revisions = sample_data['revision']
+    assert 0 < len(revisions) < threshold
+    releases = sample_data['release']
+    assert 0 < len(releases) < threshold
+
+    storage = get_storage(**storage_config)
+
+    s = storage.content_add(contents)
+    assert s['content:add'] == len(contents)
+    s = storage.skipped_content_add(skipped_contents)
+    assert s == {
+        'skipped_content:add': len(directories),
+    }
+    s = storage.directory_add(directories)
+    assert s == {
+        'directory:add': len(directories),
+    }
+    s = storage.revision_add(revisions)
+    assert s == {
+        'revision:add': len(revisions),
+    }
+
+    assert len(storage.objects_seen['content']) == len(contents)
+    assert len(storage.objects_seen['skipped_content']) == len(
+        skipped_contents)
+    assert len(storage.objects_seen['directory']) == len(directories)
+    assert len(storage.objects_seen['revision']) == len(revisions)
+
+    # clear only content from the buffer
+    s = storage.clear_buffers(['content'])
+    assert s is None
+
+    # specific clear operation on specific object type content only touched
+    # them
+    assert len(storage.objects_seen['content']) == 0
+    assert len(storage.objects_seen['skipped_content']) == len(
+        skipped_contents)
+    assert len(storage.objects_seen['directory']) == len(directories)
+    assert len(storage.objects_seen['revision']) == len(revisions)
+
+    # clear current buffer from all object types
+    s = storage.clear_buffers()
+    assert s is None
+
+    assert len(storage.objects_seen['content']) == 0
+    assert len(storage.objects_seen['skipped_content']) == 0
+    assert len(storage.objects_seen['directory']) == 0
+    assert len(storage.objects_seen['revision']) == 0

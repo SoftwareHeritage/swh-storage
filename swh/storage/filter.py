@@ -1,10 +1,10 @@
-# Copyright (C) 2019 The Software Heritage developers
+# Copyright (C) 2019-2020 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 
-from typing import Dict, Iterable, Set
+from typing import Dict, Iterable, Optional, Set
 
 from swh.model.model import (
     Content,
@@ -32,14 +32,13 @@ class FilteringProxyStorage:
 
     """
 
+    object_types = ["content", "skipped_content", "directory", "revision"]
+    objects_seen: Dict[str, Set[bytes]] = {}
+
     def __init__(self, storage):
         self.storage = get_storage(**storage)
-        self.objects_seen = {
-            "content": set(),  # sha256
-            "skipped_content": set(),  # sha1_git
-            "directory": set(),  # sha1_git
-            "revision": set(),  # sha1_git
-        }
+        for object_type in self.object_types:
+            self.objects_seen[object_type] = set()
 
     def __getattr__(self, key):
         if key == "storage":
@@ -137,3 +136,15 @@ class FilteringProxyStorage:
 
         fn = fn_by_object_type[object_type]
         return set(fn(missing_ids))
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        """Clear objects from current buffer
+
+        """
+        if object_types is None:
+            object_types = self.object_types
+
+        for object_type in object_types:
+            self.objects_seen[object_type] = set()
+
+        return self.storage.clear_buffers(object_types)

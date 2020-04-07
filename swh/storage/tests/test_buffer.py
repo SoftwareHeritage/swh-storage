@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Software Heritage developers
+# Copyright (C) 2019-2020 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -336,3 +336,69 @@ def test_buffering_proxy_storage_release_deduplicate(sample_data):
 
     s = storage.flush()
     assert s == {}
+
+
+def test_buffering_proxy_storage_clear(sample_data):
+    """Clear operation on buffer
+
+    """
+    threshold = 10
+    contents = sample_data["content"]
+    assert 0 < len(contents) < threshold
+    skipped_contents = sample_data["skipped_content"]
+    assert 0 < len(skipped_contents) < threshold
+    directories = sample_data["directory"]
+    assert 0 < len(directories) < threshold
+    revisions = sample_data["revision"]
+    assert 0 < len(revisions) < threshold
+    releases = sample_data["release"]
+    assert 0 < len(releases) < threshold
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "content": threshold,
+            "skipped_content": threshold,
+            "directory": threshold,
+            "revision": threshold,
+            "release": threshold,
+        }
+    )
+
+    s = storage.content_add(contents)
+    assert s == {}
+    s = storage.skipped_content_add(skipped_contents)
+    assert s == {}
+    s = storage.directory_add(directories)
+    assert s == {}
+    s = storage.revision_add(revisions)
+    assert s == {}
+    s = storage.release_add(releases)
+    assert s == {}
+
+    assert len(storage._objects["content"]) == len(contents)
+    assert len(storage._objects["skipped_content"]) == len(skipped_contents)
+    assert len(storage._objects["directory"]) == len(directories)
+    assert len(storage._objects["revision"]) == len(revisions)
+    assert len(storage._objects["release"]) == len(releases)
+
+    # clear only content from the buffer
+    s = storage.clear_buffers(["content"])
+    assert s is None
+
+    # specific clear operation on specific object type content only touched
+    # them
+    assert len(storage._objects["content"]) == 0
+    assert len(storage._objects["skipped_content"]) == len(skipped_contents)
+    assert len(storage._objects["directory"]) == len(directories)
+    assert len(storage._objects["revision"]) == len(revisions)
+    assert len(storage._objects["release"]) == len(releases)
+
+    # clear current buffer from all object types
+    s = storage.clear_buffers()
+    assert s is None
+
+    assert len(storage._objects["content"]) == 0
+    assert len(storage._objects["skipped_content"]) == 0
+    assert len(storage._objects["directory"]) == 0
+    assert len(storage._objects["revision"]) == 0
+    assert len(storage._objects["release"]) == 0
