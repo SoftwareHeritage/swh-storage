@@ -853,7 +853,7 @@ class Storage():
             updates['snapshot'] = snapshot
 
         if updates:
-            updated_visit = {**visit, **updates}
+            updated_visit = OriginVisit.from_dict({**visit, **updates})
             self.journal_writer.origin_visit_update(updated_visit)
 
             with convert_validation_exceptions():
