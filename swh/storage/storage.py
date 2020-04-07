@@ -258,7 +258,7 @@ class Storage():
         contents = []
         next_content = None
         for counter, content_row in enumerate(
-                db.content_get_range(start, end, limit+1, cur)):
+                db.content_get_range(start, end, limit + 1, cur)):
             content = dict(zip(db.content_get_metadata_keys, content_row))
             if counter >= limit:
                 # take the last commit for the next page starting from this
@@ -281,7 +281,7 @@ class Storage():
         if page_token:
             start = hash_to_bytes(page_token)
         if end is None:
-            end = b'\xff'*SHA1_SIZE
+            end = b'\xff' * SHA1_SIZE
         result = self.content_get_range(start, end, limit)
         result2 = {
             'contents': result['contents'],
@@ -731,7 +731,7 @@ class Storage():
             db=db, cur=cur)
         if origin_visit and origin_visit['snapshot']:
             snapshot = self.snapshot_get(
-                    origin_visit['snapshot'], db=db, cur=cur)
+                origin_visit['snapshot'], db=db, cur=cur)
             if not snapshot:
                 raise StorageArgumentException(
                     'last origin visit references an unknown snapshot')
@@ -760,7 +760,7 @@ class Storage():
 
         fetched_branches = list(db.snapshot_get_by_id(
             snapshot_id, branches_from=branches_from,
-            branches_count=branches_count+1, target_types=target_types,
+            branches_count=branches_count + 1, target_types=target_types,
             cur=cur,
         ))
         for branch in fetched_branches[:branches_count]:
@@ -1000,7 +1000,7 @@ class Storage():
 
         assert len(result['origins']) <= limit
         if len(result['origins']) == limit:
-            result['next_page_token'] = str(result['origins'][limit-1]['id']+1)
+            result['next_page_token'] = str(result['origins'][limit - 1]['id'] + 1)
 
         for origin in result['origins']:
             del origin['id']
