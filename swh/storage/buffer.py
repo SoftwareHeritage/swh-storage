@@ -101,9 +101,9 @@ class BufferingProxyStorage:
         )
 
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+        summary: Dict[str, int] = self.storage.flush(object_types)
         if object_types is None:
             object_types = self.object_types
-        summary = {}  # type: Dict[str, Dict]
         for object_type in object_types:
             buffer_ = self._objects[object_type]
             batches = grouper(buffer_.values(), n=self.min_batch_size[object_type])

@@ -189,6 +189,7 @@ class Storage:
     @process_metrics
     def content_add(self, content: Iterable[Content]) -> Dict:
         ctime = now()
+
         contents = [attr.evolve(c, ctime=ctime) for c in content]
 
         objstorage_summary = self.objstorage.content_add(contents)
@@ -1221,3 +1222,6 @@ class Storage:
 
         """
         return None
+
+    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+        return {}

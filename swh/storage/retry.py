@@ -168,14 +168,11 @@ class RetryingProxyStorage:
     def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
         return self.storage.snapshot_add(snapshots)
 
-    @swh_retry
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        return self.storage.clear_buffers(object_types)
+
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
         """Specific case for buffer proxy storage failing to flush data
 
         """
-        if hasattr(self.storage, "flush"):
-            return self.storage.flush(object_types)
-        return {}
-
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
-        return self.storage.clear_buffers(object_types)
+        return self.storage.flush(object_types)

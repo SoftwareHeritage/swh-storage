@@ -3996,3 +3996,9 @@ class TestPgStorage:
 
         """
         assert swh_storage.clear_buffers() is None
+
+    def test_flush(self, swh_storage):
+        """Calling clear buffers on real storage does nothing
+
+        """
+        assert swh_storage.flush() == {}
