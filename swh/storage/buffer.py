@@ -3,9 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from collections import deque
 from functools import partial
-from typing import Optional, Iterable, Dict
+from typing import Dict, Iterable, List, Optional
 
 from swh.core.utils import grouper
 from swh.model.model import Content, BaseModel
@@ -52,14 +51,15 @@ class BufferingProxyStorage:
         }
         self.object_types = [
             'content', 'skipped_content', 'directory', 'revision', 'release']
-        self._objects = {k: deque() for k in self.object_types}
+        self._objects = {k: {} for k in self.object_types}
 
     def __getattr__(self, key):
         if key.endswith('_add'):
             object_type = key.rsplit('_', 1)[0]
             if object_type in self.object_types:
                 return partial(
-                    self.object_add, object_type=object_type
+                    self.object_add, object_type=object_type,
+                    keys=['id'],
                 )
         if key == 'storage':
             raise AttributeError(key)
@@ -78,40 +78,52 @@ class BufferingProxyStorage:
 
         """
         content = list(content)
-        s = self.object_add(content, object_type='content')
+        s = self.object_add(
+            content, object_type='content',
+            keys=['sha1', 'sha1_git', 'sha256', 'blake2s256'])
         if not s:
-            q = self._objects['content']
-            total_size = sum(c.length for c in q)
+            buffer_ = self._objects['content'].values()
+            total_size = sum(c.length for c in buffer_)
             if total_size >= self.min_batch_size['content_bytes']:
                 return self.flush(['content'])
 
         return s
+
+    def skipped_content_add(self, content: Iterable[Content]) -> Dict:
+        return self.object_add(
+            content, object_type='skipped_content',
+            keys=['sha1', 'sha1_git', 'sha256', 'blake2s256'])
 
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
         if object_types is None:
             object_types = self.object_types
         summary = {}  # type: Dict[str, Dict]
         for object_type in object_types:
-            q = self._objects[object_type]
-            for objs in grouper(q, n=self.min_batch_size[object_type]):
+            buffer_ = self._objects[object_type]
+            batches = grouper(
+                buffer_.values(), n=self.min_batch_size[object_type])
+            for batch in batches:
                 add_fn = getattr(self.storage, '%s_add' % object_type)
-                s = add_fn(objs)
+                s = add_fn(batch)
                 summary = {k: v + summary.get(k, 0)
                            for k, v in s.items()}
-            q.clear()
+            buffer_.clear()
 
         return summary
 
     def object_add(
-            self, objects: Iterable[BaseModel], *, object_type: str) -> Dict:
+            self, objects: Iterable[BaseModel], *,
+            object_type: str, keys: List[str]) -> Dict:
         """Enqueue objects to write to the storage. This checks if the queue's
            threshold is hit. If it is actually write those to the storage.
 
         """
-        q = self._objects[object_type]
+        buffer_ = self._objects[object_type]
         threshold = self.min_batch_size[object_type]
-        q.extend(objects)
-        if len(q) >= threshold:
+        for obj in objects:
+            obj_key = tuple(getattr(obj, key) for key in keys)
+            buffer_[obj_key] = obj
+        if len(buffer_) >= threshold:
             return self.flush()
 
         return {}

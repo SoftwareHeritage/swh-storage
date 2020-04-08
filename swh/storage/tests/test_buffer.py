@@ -67,6 +67,34 @@ def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data):
     assert s == {}
 
 
+def test_buffering_proxy_storage_content_deduplicate(sample_data):
+    contents = sample_data['content']
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            'content': 2,
+        }
+    )
+
+    s = storage.content_add([contents[0], contents[0]])
+    assert s == {}
+
+    s = storage.content_add([contents[0]])
+    assert s == {}
+
+    s = storage.content_add([contents[1]])
+    assert s == {
+        'content:add': 1 + 1,
+        'content:add:bytes': contents[0]['length'] + contents[1]['length'],
+    }
+
+    missing_contents = storage.content_missing(
+        [contents[0], contents[1]])
+    assert list(missing_contents) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
 def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data):
     contents = sample_data['content']
     content_bytes_min_batch_size = 2
@@ -139,6 +167,33 @@ def test_buffering_proxy_storage_skipped_content_threshold_nb_hit(sample_data):
     assert s == {}
 
 
+def test_buffering_proxy_storage_skipped_content_deduplicate(sample_data):
+    contents = sample_data['skipped_content']
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            'skipped_content': 2,
+        }
+    )
+
+    s = storage.skipped_content_add([contents[0], contents[0]])
+    assert s == {}
+
+    s = storage.skipped_content_add([contents[0]])
+    assert s == {}
+
+    s = storage.skipped_content_add([contents[1]])
+    assert s == {
+        'skipped_content:add': 1 + 1,
+    }
+
+    missing_contents = storage.skipped_content_missing(
+        [contents[0], contents[1]])
+    assert list(missing_contents) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
 def test_buffering_proxy_storage_directory_threshold_not_hit(sample_data):
     directories = sample_data['directory']
     storage = get_storage_with_buffer_config(
@@ -178,6 +233,33 @@ def test_buffering_proxy_storage_directory_threshold_hit(sample_data):
 
     missing_directories = storage.directory_missing(
         [directories[0]['id']])
+    assert list(missing_directories) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_directory_deduplicate(sample_data):
+    directories = sample_data['directory']
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            'directory': 2,
+        }
+    )
+
+    s = storage.directory_add([directories[0], directories[0]])
+    assert s == {}
+
+    s = storage.directory_add([directories[0]])
+    assert s == {}
+
+    s = storage.directory_add([directories[1]])
+    assert s == {
+        'directory:add': 1 + 1,
+    }
+
+    missing_directories = storage.directory_missing(
+        [directories[0]['id'], directories[1]['id']])
     assert list(missing_directories) == []
 
     s = storage.flush()
@@ -229,6 +311,33 @@ def test_buffering_proxy_storage_revision_threshold_hit(sample_data):
     assert s == {}
 
 
+def test_buffering_proxy_storage_revision_deduplicate(sample_data):
+    revisions = sample_data['revision']
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            'revision': 2,
+        }
+    )
+
+    s = storage.revision_add([revisions[0], revisions[0]])
+    assert s == {}
+
+    s = storage.revision_add([revisions[0]])
+    assert s == {}
+
+    s = storage.revision_add([revisions[1]])
+    assert s == {
+        'revision:add': 1 + 1,
+    }
+
+    missing_revisions = storage.revision_missing(
+        [revisions[0]['id'], revisions[1]['id']])
+    assert list(missing_revisions) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
 def test_buffering_proxy_storage_release_threshold_not_hit(sample_data):
     releases = sample_data['release']
     threshold = 10
@@ -273,6 +382,33 @@ def test_buffering_proxy_storage_release_threshold_hit(sample_data):
 
     release_ids = [r['id'] for r in releases]
     missing_releases = storage.release_missing(release_ids)
+    assert list(missing_releases) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_release_deduplicate(sample_data):
+    releases = sample_data['release']
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            'release': 2,
+        }
+    )
+
+    s = storage.release_add([releases[0], releases[0]])
+    assert s == {}
+
+    s = storage.release_add([releases[0]])
+    assert s == {}
+
+    s = storage.release_add([releases[1]])
+    assert s == {
+        'release:add': 1 + 1,
+    }
+
+    missing_releases = storage.release_missing(
+        [releases[0]['id'], releases[1]['id']])
     assert list(missing_releases) == []
 
     s = storage.flush()

@@ -233,7 +233,7 @@ def sample_data() -> Dict:
         'skipped_content': [data.skipped_cont, data.skipped_cont2],
         'person': [data.person],
         'directory': [data.dir2, data.dir],
-        'revision': [data.revision],
+        'revision': [data.revision, data.revision2, data.revision3],
         'release': [data.release, data.release2, data.release3],
         'snapshot': [data.snapshot],
         'origin': [data.origin, data.origin2],
