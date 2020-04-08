@@ -330,6 +330,12 @@ class TestStorage:
             Content.from_dict(cont1b).hashes()
         ]
 
+    def test_content_add_duplicate(self, swh_storage):
+        swh_storage.content_add([data.cont, data.cont])
+
+        assert list(swh_storage.content_get([data.cont['sha1']])) == \
+            [{'sha1': data.cont['sha1'], 'data': data.cont['data']}]
+
     def test_content_update(self, swh_storage):
         if hasattr(swh_storage, 'storage'):
             swh_storage.journal_writer.journal = None  # TODO, not supported

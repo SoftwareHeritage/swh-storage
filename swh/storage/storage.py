@@ -188,7 +188,8 @@ class Storage():
     @process_metrics
     def content_add(
             self, content: Iterable[Content]) -> Dict:
-        contents = [attr.evolve(c, ctime=now()) for c in content]
+        ctime = now()
+        contents = [attr.evolve(c, ctime=ctime) for c in content]
 
         objstorage_summary = self.objstorage.content_add(contents)
 
@@ -398,7 +399,8 @@ class Storage():
     @db_transaction()
     def skipped_content_add(self, content: Iterable[SkippedContent],
                             db=None, cur=None) -> Dict:
-        content = [attr.evolve(c, ctime=now()) for c in content]
+        ctime = now()
+        content = [attr.evolve(c, ctime=ctime) for c in content]
 
         missing_contents = self.skipped_content_missing(
             (c.to_dict() for c in content),
