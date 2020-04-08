@@ -34,6 +34,7 @@ class BufferingProxyStorage:
               release: 10000
 
     """
+
     def __init__(self, storage, min_batch_size=None):
         self.storage = get_storage(**storage)
 
@@ -41,27 +42,28 @@ class BufferingProxyStorage:
             min_batch_size = {}
 
         self.min_batch_size = {
-            'content': min_batch_size.get('content', 10000),
-            'content_bytes': min_batch_size.get('content_bytes',
-                                                100*1024*1024),
-            'skipped_content': min_batch_size.get('skipped_content', 10000),
-            'directory': min_batch_size.get('directory', 25000),
-            'revision': min_batch_size.get('revision', 100000),
-            'release': min_batch_size.get('release', 100000),
+            "content": min_batch_size.get("content", 10000),
+            "content_bytes": min_batch_size.get("content_bytes", 100 * 1024 * 1024),
+            "skipped_content": min_batch_size.get("skipped_content", 10000),
+            "directory": min_batch_size.get("directory", 25000),
+            "revision": min_batch_size.get("revision", 100000),
+            "release": min_batch_size.get("release", 100000),
         }
         self.object_types = [
-            'content', 'skipped_content', 'directory', 'revision', 'release']
+            "content",
+            "skipped_content",
+            "directory",
+            "revision",
+            "release",
+        ]
         self._objects = {k: {} for k in self.object_types}
 
     def __getattr__(self, key):
-        if key.endswith('_add'):
-            object_type = key.rsplit('_', 1)[0]
+        if key.endswith("_add"):
+            object_type = key.rsplit("_", 1)[0]
             if object_type in self.object_types:
-                return partial(
-                    self.object_add, object_type=object_type,
-                    keys=['id'],
-                )
-        if key == 'storage':
+                return partial(self.object_add, object_type=object_type, keys=["id"],)
+        if key == "storage":
             raise AttributeError(key)
         return getattr(self.storage, key)
 
@@ -79,20 +81,24 @@ class BufferingProxyStorage:
         """
         content = list(content)
         s = self.object_add(
-            content, object_type='content',
-            keys=['sha1', 'sha1_git', 'sha256', 'blake2s256'])
+            content,
+            object_type="content",
+            keys=["sha1", "sha1_git", "sha256", "blake2s256"],
+        )
         if not s:
-            buffer_ = self._objects['content'].values()
+            buffer_ = self._objects["content"].values()
             total_size = sum(c.length for c in buffer_)
-            if total_size >= self.min_batch_size['content_bytes']:
-                return self.flush(['content'])
+            if total_size >= self.min_batch_size["content_bytes"]:
+                return self.flush(["content"])
 
         return s
 
     def skipped_content_add(self, content: Iterable[Content]) -> Dict:
         return self.object_add(
-            content, object_type='skipped_content',
-            keys=['sha1', 'sha1_git', 'sha256', 'blake2s256'])
+            content,
+            object_type="skipped_content",
+            keys=["sha1", "sha1_git", "sha256", "blake2s256"],
+        )
 
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
         if object_types is None:
@@ -100,20 +106,18 @@ class BufferingProxyStorage:
         summary = {}  # type: Dict[str, Dict]
         for object_type in object_types:
             buffer_ = self._objects[object_type]
-            batches = grouper(
-                buffer_.values(), n=self.min_batch_size[object_type])
+            batches = grouper(buffer_.values(), n=self.min_batch_size[object_type])
             for batch in batches:
-                add_fn = getattr(self.storage, '%s_add' % object_type)
+                add_fn = getattr(self.storage, "%s_add" % object_type)
                 s = add_fn(batch)
-                summary = {k: v + summary.get(k, 0)
-                           for k, v in s.items()}
+                summary = {k: v + summary.get(k, 0) for k, v in s.items()}
             buffer_.clear()
 
         return summary
 
     def object_add(
-            self, objects: Iterable[BaseModel], *,
-            object_type: str, keys: List[str]) -> Dict:
+        self, objects: Iterable[BaseModel], *, object_type: str, keys: List[str]
+    ) -> Dict:
         """Enqueue objects to write to the storage. This checks if the queue's
            threshold is hit. If it is actually write those to the storage.
 

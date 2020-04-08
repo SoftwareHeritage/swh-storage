@@ -16,6 +16,7 @@ from .serializers import ENCODERS, DECODERS
 
 class RemoteStorage(RPCClient):
     """Proxy to a remote storage API"""
+
     api_exception = StorageAPIError
     backend_class = StorageInterface
     reraise_exceptions = [
@@ -28,25 +29,27 @@ class RemoteStorage(RPCClient):
         try:
             super().raise_for_status(response)
         except RemoteException as e:
-            if e.response is not None and e.response.status_code == 500 \
-                    and e.args and e.args[0].get('type') == 'HashCollision':
+            if (
+                e.response is not None
+                and e.response.status_code == 500
+                and e.args
+                and e.args[0].get("type") == "HashCollision"
+            ):
                 # XXX: workaround until we fix these HashCollisions happening
                 # when they shouldn't
-                raise HashCollision(
-                    *e.args[0]['args'])
+                raise HashCollision(*e.args[0]["args"])
             else:
                 raise
 
     def content_add(self, content: Iterable[Union[Content, Dict[str, Any]]]):
-        content = [c.with_data() if isinstance(c, Content) else c
-                   for c in content]
-        return self.post('content/add', {'content': content})
+        content = [c.with_data() if isinstance(c, Content) else c for c in content]
+        return self.post("content/add", {"content": content})
 
     def reset(self):
-        return self.post('reset', {})
+        return self.post("reset", {})
 
     def stat_counters(self):
-        return self.get('stat/counters')
+        return self.get("stat/counters")
 
     def refresh_stat_counters(self):
-        return self.get('stat/refresh')
+        return self.get("stat/refresh")

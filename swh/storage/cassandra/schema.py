@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 
-CREATE_TABLES_QUERIES = '''
+CREATE_TABLES_QUERIES = """
 CREATE OR REPLACE FUNCTION ascii_bins_count_sfunc (
     state tuple<int, map<ascii, int>>, -- (nb_none, map<target_type, nb>)
     bin_name ascii
@@ -189,9 +189,11 @@ CREATE TABLE IF NOT EXISTS object_count (
     count           counter,
     PRIMARY KEY ((partition_key), object_type)
 );
-'''.split('\n\n')
+""".split(
+    "\n\n"
+)
 
-CONTENT_INDEX_TEMPLATE = '''
+CONTENT_INDEX_TEMPLATE = """
 -- Secondary table, used for looking up "content" from a single hash
 CREATE TABLE IF NOT EXISTS content_by_{main_algo} (
     {main_algo}   blob,
@@ -204,20 +206,25 @@ CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
     target_token  bigint, -- value of token(pk) on the "primary" table
     PRIMARY KEY (({main_algo}), target_token)
 );
-'''
+"""
 
-TABLES = ('skipped_content content revision revision_parent release '
-          'directory directory_entry snapshot snapshot_branch '
-          'origin_visit origin tool_by_uuid tool object_count').split()
+TABLES = (
+    "skipped_content content revision revision_parent release "
+    "directory directory_entry snapshot snapshot_branch "
+    "origin_visit origin tool_by_uuid tool object_count"
+).split()
 
-HASH_ALGORITHMS = ['sha1', 'sha1_git', 'sha256', 'blake2s256']
+HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]
 
 for main_algo in HASH_ALGORITHMS:
-    CREATE_TABLES_QUERIES.extend(CONTENT_INDEX_TEMPLATE.format(
-        main_algo=main_algo,
-        other_algos=', '.join(
-            [algo for algo in HASH_ALGORITHMS if algo != main_algo])
-    ).split('\n\n'))
+    CREATE_TABLES_QUERIES.extend(
+        CONTENT_INDEX_TEMPLATE.format(
+            main_algo=main_algo,
+            other_algos=", ".join(
+                [algo for algo in HASH_ALGORITHMS if algo != main_algo]
+            ),
+        ).split("\n\n")
+    )
 
-    TABLES.append('content_by_%s' % main_algo)
-    TABLES.append('skipped_content_by_%s' % main_algo)
+    TABLES.append("content_by_%s" % main_algo)
+    TABLES.append("skipped_content_by_%s" % main_algo)

@@ -8,9 +8,7 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 
-from swh.model.hashutil import (
-    hash_to_bytes, hash_to_hex, DEFAULT_ALGORITHMS
-)
+from swh.model.hashutil import hash_to_bytes, hash_to_hex, DEFAULT_ALGORITHMS
 
 
 def now() -> datetime:
@@ -18,11 +16,12 @@ def now() -> datetime:
 
 
 def _is_power_of_two(n: int) -> bool:
-    return n > 0 and n & (n-1) == 0
+    return n > 0 and n & (n - 1) == 0
 
 
 def get_partition_bounds_bytes(
-        i: int, n: int, nb_bytes: int) -> Tuple[bytes, Optional[bytes]]:
+    i: int, n: int, nb_bytes: int
+) -> Tuple[bytes, Optional[bytes]]:
     r"""Splits the range [0; 2^(nb_bytes*8)) into n same-length intervals,
     and returns the boundaries of this interval (both inclusive); or None
     as upper bound, if this is the last partition
@@ -39,17 +38,17 @@ def get_partition_bounds_bytes(
     True
     """
     if not _is_power_of_two(n):
-        raise ValueError('number of partitions must be a power of two')
+        raise ValueError("number of partitions must be a power of two")
     if not 0 <= i < n:
         raise ValueError(
-            'partition index must be between 0 and the number of partitions.')
+            "partition index must be between 0 and the number of partitions."
+        )
 
-    space_size = 1 << (nb_bytes*8)
-    partition_size = space_size//n
+    space_size = 1 << (nb_bytes * 8)
+    partition_size = space_size // n
 
-    start = (partition_size*i).to_bytes(nb_bytes, 'big')
-    end = None if i == n-1 \
-        else (partition_size*(i+1)).to_bytes(nb_bytes, 'big')
+    start = (partition_size * i).to_bytes(nb_bytes, "big")
+    end = None if i == n - 1 else (partition_size * (i + 1)).to_bytes(nb_bytes, "big")
     return (start, end)
 
 
@@ -66,11 +65,11 @@ def extract_collision_hash(error_message: str) -> Optional[Tuple[str, bytes]]:
         A formatted string
 
     """
-    pattern = r'\w* \((?P<type>[^)]+)\)=\(\\x(?P<id>[a-f0-9]+)\) \w*'
+    pattern = r"\w* \((?P<type>[^)]+)\)=\(\\x(?P<id>[a-f0-9]+)\) \w*"
     result = re.match(pattern, error_message)
     if result:
-        hash_type = result.group('type')
-        hash_id = result.group('id')
+        hash_type = result.group("type")
+        hash_id = result.group("id")
         return hash_type, hash_to_bytes(hash_id)
     return None
 
@@ -79,15 +78,11 @@ def content_hex_hashes(content: Dict[str, bytes]) -> Dict[str, str]:
     """Convert bytes hashes into hex hashes.
 
     """
-    return {
-        algo: hash_to_hex(content[algo]) for algo in DEFAULT_ALGORITHMS
-    }
+    return {algo: hash_to_hex(content[algo]) for algo in DEFAULT_ALGORITHMS}
 
 
 def content_bytes_hashes(content: Dict[str, str]) -> Dict[str, bytes]:
     """Convert bytes hashes into hex hashes.
 
     """
-    return {
-        algo: hash_to_bytes(content[algo]) for algo in DEFAULT_ALGORITHMS
-    }
+    return {algo: hash_to_bytes(content[algo]) for algo in DEFAULT_ALGORITHMS}

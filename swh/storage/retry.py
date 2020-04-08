@@ -10,12 +10,20 @@ from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Union
 
 from tenacity import (
-    retry, stop_after_attempt, wait_random_exponential,
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
 )
 
 from swh.model.model import (
-    Content, SkippedContent, Directory, Revision, Release, Snapshot,
-    Origin, OriginVisit
+    Content,
+    SkippedContent,
+    Directory,
+    Revision,
+    Release,
+    Snapshot,
+    Origin,
+    OriginVisit,
 )
 
 from swh.storage import get_storage
@@ -42,25 +50,31 @@ def should_retry_adding(retry_state) -> bool:
             return False
         else:
             # Other exception
-            module = getattr(error, '__module__', None)
+            module = getattr(error, "__module__", None)
             if module:
-                error_name = error.__module__ + '.' + error.__class__.__name__
+                error_name = error.__module__ + "." + error.__class__.__name__
             else:
                 error_name = error.__class__.__name__
-            logger.warning('Retry adding a batch', exc_info=False, extra={
-                'swh_type': 'storage_retry',
-                'swh_exception_type': error_name,
-                'swh_exception': traceback.format_exc(),
-            })
+            logger.warning(
+                "Retry adding a batch",
+                exc_info=False,
+                extra={
+                    "swh_type": "storage_retry",
+                    "swh_exception_type": error_name,
+                    "swh_exception": traceback.format_exc(),
+                },
+            )
             return True
     else:
         # No exception
         return False
 
 
-swh_retry = retry(retry=should_retry_adding,
-                  wait=wait_random_exponential(multiplier=1, max=10),
-                  stop=stop_after_attempt(3))
+swh_retry = retry(
+    retry=should_retry_adding,
+    wait=wait_random_exponential(multiplier=1, max=10),
+    stop=stop_after_attempt(3),
+)
 
 
 class RetryingProxyStorage:
@@ -68,11 +82,12 @@ class RetryingProxyStorage:
        fails (hash collision, integrity error).
 
     """
+
     def __init__(self, storage):
         self.storage = get_storage(**storage)
 
     def __getattr__(self, key):
-        if key == 'storage':
+        if key == "storage":
             raise AttributeError(key)
         return getattr(self.storage, key)
 
@@ -93,18 +108,23 @@ class RetryingProxyStorage:
         return self.storage.origin_add_one(origin)
 
     @swh_retry
-    def origin_visit_add(self, origin_url: str,
-                         date: Union[datetime, str], type: str) -> OriginVisit:
+    def origin_visit_add(
+        self, origin_url: str, date: Union[datetime, str], type: str
+    ) -> OriginVisit:
         return self.storage.origin_visit_add(origin_url, date, type)
 
     @swh_retry
     def origin_visit_update(
-            self, origin: str, visit_id: int, status: Optional[str] = None,
-            metadata: Optional[Dict] = None,
-            snapshot: Optional[Dict] = None) -> Dict:
+        self,
+        origin: str,
+        visit_id: int,
+        status: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+        snapshot: Optional[Dict] = None,
+    ) -> Dict:
         return self.storage.origin_visit_update(
-            origin, visit_id, status=status,
-            metadata=metadata, snapshot=snapshot)
+            origin, visit_id, status=status, metadata=metadata, snapshot=snapshot
+        )
 
     @swh_retry
     def tool_add(self, tools: Iterable[Dict]) -> List[Dict]:
@@ -113,17 +133,24 @@ class RetryingProxyStorage:
 
     @swh_retry
     def metadata_provider_add(
-            self, provider_name: str, provider_type: str, provider_url: str,
-            metadata: Dict) -> Union[str, int]:
+        self, provider_name: str, provider_type: str, provider_url: str, metadata: Dict
+    ) -> Union[str, int]:
         return self.storage.metadata_provider_add(
-            provider_name, provider_type, provider_url, metadata)
+            provider_name, provider_type, provider_url, metadata
+        )
 
     @swh_retry
     def origin_metadata_add(
-            self, origin_url: str, ts: Union[str, datetime],
-            provider_id: int, tool_id: int, metadata: Dict) -> None:
+        self,
+        origin_url: str,
+        ts: Union[str, datetime],
+        provider_id: int,
+        tool_id: int,
+        metadata: Dict,
+    ) -> None:
         return self.storage.origin_metadata_add(
-            origin_url, ts, provider_id, tool_id, metadata)
+            origin_url, ts, provider_id, tool_id, metadata
+        )
 
     @swh_retry
     def directory_add(self, directories: Iterable[Directory]) -> Dict:
@@ -146,6 +173,6 @@ class RetryingProxyStorage:
         """Specific case for buffer proxy storage failing to flush data
 
         """
-        if hasattr(self.storage, 'flush'):
+        if hasattr(self.storage, "flush"):
             return self.storage.flush(object_types)
         return {}

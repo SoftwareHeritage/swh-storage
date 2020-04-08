@@ -8,48 +8,44 @@ from swh.storage import get_storage
 
 
 storage_config = {
-    'cls': 'pipeline',
-    'steps': [
-        {'cls': 'validate'},
-        {'cls': 'filter'},
-        {'cls': 'memory'},
-    ]
+    "cls": "pipeline",
+    "steps": [{"cls": "validate"}, {"cls": "filter"}, {"cls": "memory"},],
 }
 
 
 def test_filtering_proxy_storage_content(sample_data):
-    sample_content = sample_data['content'][0]
+    sample_content = sample_data["content"][0]
     storage = get_storage(**storage_config)
 
-    content = next(storage.content_get([sample_content['sha1']]))
+    content = next(storage.content_get([sample_content["sha1"]]))
     assert not content
 
     s = storage.content_add([sample_content])
     assert s == {
-        'content:add': 1,
-        'content:add:bytes': sample_content['length'],
+        "content:add": 1,
+        "content:add:bytes": sample_content["length"],
     }
 
-    content = next(storage.content_get([sample_content['sha1']]))
+    content = next(storage.content_get([sample_content["sha1"]]))
     assert content is not None
 
     s = storage.content_add([sample_content])
     assert s == {
-        'content:add': 0,
-        'content:add:bytes': 0,
+        "content:add": 0,
+        "content:add:bytes": 0,
     }
 
 
 def test_filtering_proxy_storage_skipped_content(sample_data):
-    sample_content = sample_data['skipped_content'][0]
+    sample_content = sample_data["skipped_content"][0]
     storage = get_storage(**storage_config)
 
     content = next(storage.skipped_content_missing([sample_content]))
-    assert content['sha1'] == sample_content['sha1']
+    assert content["sha1"] == sample_content["sha1"]
 
     s = storage.skipped_content_add([sample_content])
     assert s == {
-        'skipped_content:add': 1,
+        "skipped_content:add": 1,
     }
 
     content = list(storage.skipped_content_missing([sample_content]))
@@ -57,22 +53,22 @@ def test_filtering_proxy_storage_skipped_content(sample_data):
 
     s = storage.skipped_content_add([sample_content])
     assert s == {
-        'skipped_content:add': 0,
+        "skipped_content:add": 0,
     }
 
 
 def test_filtering_proxy_storage_skipped_content_missing_sha1_git(sample_data):
-    sample_content = sample_data['skipped_content'][0]
-    sample_content2 = sample_data['skipped_content'][1]
+    sample_content = sample_data["skipped_content"][0]
+    sample_content2 = sample_data["skipped_content"][1]
     storage = get_storage(**storage_config)
 
-    sample_content['sha1_git'] = sample_content2['sha1_git'] = None
+    sample_content["sha1_git"] = sample_content2["sha1_git"] = None
     content = next(storage.skipped_content_missing([sample_content]))
-    assert content['sha1'] == sample_content['sha1']
+    assert content["sha1"] == sample_content["sha1"]
 
     s = storage.skipped_content_add([sample_content])
     assert s == {
-        'skipped_content:add': 1,
+        "skipped_content:add": 1,
     }
 
     content = list(storage.skipped_content_missing([sample_content]))
@@ -80,7 +76,7 @@ def test_filtering_proxy_storage_skipped_content_missing_sha1_git(sample_data):
 
     s = storage.skipped_content_add([sample_content2])
     assert s == {
-        'skipped_content:add': 1,
+        "skipped_content:add": 1,
     }
 
     content = list(storage.skipped_content_missing([sample_content2]))
@@ -88,42 +84,42 @@ def test_filtering_proxy_storage_skipped_content_missing_sha1_git(sample_data):
 
 
 def test_filtering_proxy_storage_revision(sample_data):
-    sample_revision = sample_data['revision'][0]
+    sample_revision = sample_data["revision"][0]
     storage = get_storage(**storage_config)
 
-    revision = next(storage.revision_get([sample_revision['id']]))
+    revision = next(storage.revision_get([sample_revision["id"]]))
     assert not revision
 
     s = storage.revision_add([sample_revision])
     assert s == {
-        'revision:add': 1,
+        "revision:add": 1,
     }
 
-    revision = next(storage.revision_get([sample_revision['id']]))
+    revision = next(storage.revision_get([sample_revision["id"]]))
     assert revision is not None
 
     s = storage.revision_add([sample_revision])
     assert s == {
-        'revision:add': 0,
+        "revision:add": 0,
     }
 
 
 def test_filtering_proxy_storage_directory(sample_data):
-    sample_directory = sample_data['directory'][0]
+    sample_directory = sample_data["directory"][0]
     storage = get_storage(**storage_config)
 
-    directory = next(storage.directory_missing([sample_directory['id']]))
+    directory = next(storage.directory_missing([sample_directory["id"]]))
     assert directory
 
     s = storage.directory_add([sample_directory])
     assert s == {
-        'directory:add': 1,
+        "directory:add": 1,
     }
 
-    directory = list(storage.directory_missing([sample_directory['id']]))
+    directory = list(storage.directory_missing([sample_directory["id"]]))
     assert not directory
 
     s = storage.directory_add([sample_directory])
     assert s == {
-        'directory:add': 0,
+        "directory:add": 0,
     }

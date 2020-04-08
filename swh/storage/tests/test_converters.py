@@ -8,44 +8,35 @@ from swh.storage import converters
 
 def test_date_to_db():
     date_to_db = converters.date_to_db
-    assert date_to_db(None) == {
-        "timestamp": None, "offset": 0, "neg_utc_offset": None}
+    assert date_to_db(None) == {"timestamp": None, "offset": 0, "neg_utc_offset": None}
 
-    assert date_to_db({
-        "timestamp": 1234567890,
-        "offset": 120,
-        "negative_utc": False,
-    }) == {
+    assert date_to_db(
+        {"timestamp": 1234567890, "offset": 120, "negative_utc": False,}
+    ) == {
         "timestamp": "2009-02-13T23:31:30+00:00",
         "offset": 120,
         "neg_utc_offset": False,
     }
 
-    assert date_to_db({
-        "timestamp": 1123456789,
-        "offset": 0,
-        "negative_utc": True,
-    }) == {
+    assert date_to_db(
+        {"timestamp": 1123456789, "offset": 0, "negative_utc": True,}
+    ) == {
         "timestamp": "2005-08-07T23:19:49+00:00",
         "offset": 0,
         "neg_utc_offset": True,
     }
 
-    assert date_to_db({
-        "timestamp": 1234567890,
-        "offset": 42,
-        "negative_utc": False,
-    }) == {
+    assert date_to_db(
+        {"timestamp": 1234567890, "offset": 42, "negative_utc": False,}
+    ) == {
         "timestamp": "2009-02-13T23:31:30+00:00",
         "offset": 42,
         "neg_utc_offset": False,
     }
 
-    assert date_to_db({
-        "timestamp": 1634366813,
-        "offset": -120,
-        "negative_utc": False,
-    }) == {
+    assert date_to_db(
+        {"timestamp": 1634366813, "offset": -120, "negative_utc": False,}
+    ) == {
         "timestamp": "2021-10-16T06:46:53+00:00",
         "offset": -120,
         "neg_utc_offset": False,
@@ -54,103 +45,106 @@ def test_date_to_db():
 
 def test_db_to_author():
     # when
-    actual_author = converters.db_to_author(
-        b'fullname', b'name', b'email')
+    actual_author = converters.db_to_author(b"fullname", b"name", b"email")
 
     # then
     assert actual_author == {
-        'fullname': b'fullname',
-        'name': b'name',
-        'email': b'email',
+        "fullname": b"fullname",
+        "name": b"name",
+        "email": b"email",
     }
 
 
 def test_db_to_revision():
     # when
-    actual_revision = converters.db_to_revision({
-        'id': 'revision-id',
-        'date': None,
-        'date_offset': None,
-        'date_neg_utc_offset': None,
-        'committer_date': None,
-        'committer_date_offset': None,
-        'committer_date_neg_utc_offset': None,
-        'type': 'rev',
-        'directory': b'dir-sha1',
-        'message': b'commit message',
-        'author_fullname': b'auth-fullname',
-        'author_name': b'auth-name',
-        'author_email': b'auth-email',
-        'committer_fullname': b'comm-fullname',
-        'committer_name': b'comm-name',
-        'committer_email': b'comm-email',
-        'metadata': {},
-        'synthetic': False,
-        'parents': [123, 456]
-    })
+    actual_revision = converters.db_to_revision(
+        {
+            "id": "revision-id",
+            "date": None,
+            "date_offset": None,
+            "date_neg_utc_offset": None,
+            "committer_date": None,
+            "committer_date_offset": None,
+            "committer_date_neg_utc_offset": None,
+            "type": "rev",
+            "directory": b"dir-sha1",
+            "message": b"commit message",
+            "author_fullname": b"auth-fullname",
+            "author_name": b"auth-name",
+            "author_email": b"auth-email",
+            "committer_fullname": b"comm-fullname",
+            "committer_name": b"comm-name",
+            "committer_email": b"comm-email",
+            "metadata": {},
+            "synthetic": False,
+            "parents": [123, 456],
+        }
+    )
 
     # then
     assert actual_revision == {
-        'id': 'revision-id',
-        'author': {
-            'fullname': b'auth-fullname',
-            'name': b'auth-name',
-            'email': b'auth-email',
+        "id": "revision-id",
+        "author": {
+            "fullname": b"auth-fullname",
+            "name": b"auth-name",
+            "email": b"auth-email",
         },
-        'date': None,
-        'committer': {
-            'fullname': b'comm-fullname',
-            'name': b'comm-name',
-            'email': b'comm-email',
+        "date": None,
+        "committer": {
+            "fullname": b"comm-fullname",
+            "name": b"comm-name",
+            "email": b"comm-email",
         },
-        'committer_date': None,
-        'type': 'rev',
-        'directory': b'dir-sha1',
-        'message': b'commit message',
-        'metadata': {},
-        'synthetic': False,
-        'parents': [123, 456],
+        "committer_date": None,
+        "type": "rev",
+        "directory": b"dir-sha1",
+        "message": b"commit message",
+        "metadata": {},
+        "synthetic": False,
+        "parents": [123, 456],
     }
 
 
 def test_db_to_release():
     # when
-    actual_release = converters.db_to_release({
-        'id': b'release-id',
-        'target': b'revision-id',
-        'target_type': 'revision',
-        'date': None,
-        'date_offset': None,
-        'date_neg_utc_offset': None,
-        'name': b'release-name',
-        'comment': b'release comment',
-        'synthetic': True,
-        'author_fullname': b'auth-fullname',
-        'author_name': b'auth-name',
-        'author_email': b'auth-email',
-    })
+    actual_release = converters.db_to_release(
+        {
+            "id": b"release-id",
+            "target": b"revision-id",
+            "target_type": "revision",
+            "date": None,
+            "date_offset": None,
+            "date_neg_utc_offset": None,
+            "name": b"release-name",
+            "comment": b"release comment",
+            "synthetic": True,
+            "author_fullname": b"auth-fullname",
+            "author_name": b"auth-name",
+            "author_email": b"auth-email",
+        }
+    )
 
     # then
     assert actual_release == {
-        'author': {
-            'fullname': b'auth-fullname',
-            'name': b'auth-name',
-            'email': b'auth-email',
+        "author": {
+            "fullname": b"auth-fullname",
+            "name": b"auth-name",
+            "email": b"auth-email",
         },
-        'date': None,
-        'id': b'release-id',
-        'name': b'release-name',
-        'message': b'release comment',
-        'synthetic': True,
-        'target': b'revision-id',
-        'target_type': 'revision'
+        "date": None,
+        "id": b"release-id",
+        "name": b"release-name",
+        "message": b"release comment",
+        "synthetic": True,
+        "target": b"revision-id",
+        "target_type": "revision",
     }
 
 
 def test_db_to_git_headers():
     raw_data = [
-        ['gpgsig', b'garbage\x89a\x43b\x14'],
-        ['extra', [b'fo\\\\\\o', b'bar\\', b'inval\\\\\x99id']],
+        ["gpgsig", b"garbage\x89a\x43b\x14"],
+        ["extra", [b"foo\\\\\\o", b"bar\\", b"inval\\\\\x99id"]],
     ]
 
     db_data = converters.git_headers_to_db(raw_data)

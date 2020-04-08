@@ -17,7 +17,7 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier
 
 # get the hash identifier for an empty directory
-_empty_dir_hash = hash_to_bytes(directory_identifier({'entries': []}))
+_empty_dir_hash = hash_to_bytes(directory_identifier({"entries": []}))
 
 
 def _get_dir(storage, dir_id):
@@ -38,7 +38,7 @@ class DirectoryIterator(object):
       go deeper if two directories have the same hash)
     """
 
-    def __init__(self, storage, dir_id, base_path=b''):
+    def __init__(self, storage, dir_id, base_path=b""):
         """
             Args:
                 storage (swh.storage.storage.Storage): instance of swh storage
@@ -76,7 +76,7 @@ class DirectoryIterator(object):
         # sort them in lexicographical order and reverse the ordering
         # in order to unstack the "smallest" entry each time the
         # iterator advances
-        dir_data = sorted(dir_data, key=lambda e: e['name'], reverse=True)
+        dir_data = sorted(dir_data, key=lambda e: e["name"], reverse=True)
         # push the directory frame to the main stack
         self.frames.append(dir_data)
 
@@ -106,7 +106,7 @@ class DirectoryIterator(object):
             bytes: The hash value of the currently visited directory
             entry
         """
-        return self.current()['target']
+        return self.current()["target"]
 
     def current_perms(self):
         """
@@ -114,7 +114,7 @@ class DirectoryIterator(object):
             int: The permissions value of the currently visited directory
             entry
         """
-        return self.current()['perms']
+        return self.current()["perms"]
 
     def current_path(self):
         """
@@ -127,8 +127,8 @@ class DirectoryIterator(object):
             return None
         path = []
         for frame in self.frames:
-            path.append(frame[-1]['name'])
-        return self.base_path + b'/'.join(path)
+            path.append(frame[-1]["name"])
+        return self.base_path + b"/".join(path)
 
     def current_is_dir(self):
         """
@@ -136,7 +136,7 @@ class DirectoryIterator(object):
             bool: If the currently visited directory entry is
             a directory
         """
-        return self.current()['type'] == 'dir'
+        return self.current()["type"] == "dir"
 
     def _advance(self, descend):
         """
@@ -154,9 +154,8 @@ class DirectoryIterator(object):
             self.has_started = True
             return current
 
-        if descend and self.current_is_dir() \
-                and current['target'] != _empty_dir_hash:
-            self._push_dir_frame(current['target'])
+        if descend and self.current_is_dir() and current["target"] != _empty_dir_hash:
+            self._push_dir_frame(current["target"])
         else:
             self.drop()
 
@@ -203,12 +202,11 @@ class DirectoryIterator(object):
         entry = self.step()
         if not entry:
             raise StopIteration
-        entry['path'] = self.current_path()
+        entry["path"] = self.current_path()
         return entry
 
     def __iter__(self):
-        return DirectoryIterator(self.storage, self.root_dir_id,
-                                 self.base_path)
+        return DirectoryIterator(self.storage, self.root_dir_id, self.base_path)
 
 
 def dir_iterator(storage, dir_id):
@@ -235,6 +233,7 @@ class Remaining(Enum):
     Enum to represent the current state when iterating
     on both directory trees at the same time.
     """
+
     NoMoreFiles = 0
     OnlyToFilesRemain = 1
     OnlyFromFilesRemain = 2
@@ -356,20 +355,21 @@ class DoubleDirectoryIterator(object):
         to_is_dir = self.it_to.current_is_dir()
         status = {}
         # compare hash
-        status['same_hash'] = from_current_hash == to_current_hash
+        status["same_hash"] = from_current_hash == to_current_hash
         # compare permissions
-        status['same_perms'] = from_current_perms == to_current_perms
+        status["same_perms"] = from_current_perms == to_current_perms
         # check if both elements are directories
-        status['both_are_dirs'] = from_is_dir and to_is_dir
+        status["both_are_dirs"] = from_is_dir and to_is_dir
         # check if both elements are regular files
-        status['both_are_files'] = not from_is_dir and not to_is_dir
+        status["both_are_files"] = not from_is_dir and not to_is_dir
         # check if one element is a directory, the other a regular file
-        status['file_and_dir'] = (not status['both_are_dirs'] and
-                                  not status['both_are_files'])
+        status["file_and_dir"] = (
+            not status["both_are_dirs"] and not status["both_are_files"]
+        )
         # check if the from element is the empty directory
-        status['from_is_empty_dir'] = (from_is_dir and
-                                       from_current_hash == _empty_dir_hash)
+        status["from_is_empty_dir"] = (
+            from_is_dir and from_current_hash == _empty_dir_hash
+        )
         # check if the to element is the empty directory
-        status['to_is_empty_dir'] = (to_is_dir and
-                                     to_current_hash == _empty_dir_hash)
+        status["to_is_empty_dir"] = to_is_dir and to_current_hash == _empty_dir_hash
         return status

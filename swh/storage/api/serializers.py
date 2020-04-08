@@ -12,15 +12,15 @@ import swh.model.model as model
 
 def _encode_model_object(obj):
     d = obj.to_dict()
-    d['__type__'] = type(obj).__name__
+    d["__type__"] = type(obj).__name__
     return d
 
 
 ENCODERS: List[Tuple[type, str, Callable]] = [
-    (model.BaseModel, 'model', _encode_model_object),
+    (model.BaseModel, "model", _encode_model_object),
 ]
 
 
 DECODERS: Dict[str, Callable] = {
-    'model': lambda d: getattr(model, d.pop('__type__')).from_dict(d)
+    "model": lambda d: getattr(model, d.pop("__type__")).from_dict(d)
 }

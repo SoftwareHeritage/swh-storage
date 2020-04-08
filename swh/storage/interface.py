@@ -9,8 +9,14 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 
 from swh.core.api import remote_api_endpoint
 from swh.model.model import (
-    Content, Directory, Origin, OriginVisit, Revision, Release,
-    Snapshot, SkippedContent
+    Content,
+    Directory,
+    Origin,
+    OriginVisit,
+    Revision,
+    Release,
+    Snapshot,
+    SkippedContent,
 )
 
 
@@ -20,12 +26,12 @@ def deprecated(f):
 
 
 class StorageInterface:
-    @remote_api_endpoint('check_config')
+    @remote_api_endpoint("check_config")
     def check_config(self, *, check_write):
         """Check that the storage is configured and ready to go."""
         ...
 
-    @remote_api_endpoint('content/add')
+    @remote_api_endpoint("content/add")
     def content_add(self, content: Iterable[Content]) -> Dict:
         """Add content blobs to the storage
 
@@ -60,7 +66,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/update')
+    @remote_api_endpoint("content/update")
     def content_update(self, content, keys=[]):
         """Update content blobs to the storage. Does nothing for unknown
         contents or skipped ones.
@@ -83,7 +89,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/add_metadata')
+    @remote_api_endpoint("content/add_metadata")
     def content_add_metadata(self, content: Iterable[Content]) -> Dict:
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
@@ -111,7 +117,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/data')
+    @remote_api_endpoint("content/data")
     def content_get(self, content):
         """Retrieve in bulk contents and their data.
 
@@ -138,7 +144,7 @@ class StorageInterface:
         ...
 
     @deprecated
-    @remote_api_endpoint('content/range')
+    @remote_api_endpoint("content/range")
     def content_get_range(self, start, end, limit=1000):
         """Retrieve contents within range [start, end] bound by limit.
 
@@ -162,10 +168,14 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/partition')
+    @remote_api_endpoint("content/partition")
     def content_get_partition(
-            self, partition_id: int, nb_partitions: int, limit: int = 1000,
-            page_token: str = None):
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        limit: int = 1000,
+        page_token: str = None,
+    ):
         """Splits contents into nb_partitions, and returns one of these based on
         partition_id (which must be in [0, nb_partitions-1])
 
@@ -187,9 +197,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/metadata')
-    def content_get_metadata(
-            self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
+    @remote_api_endpoint("content/metadata")
+    def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         """Retrieve content metadata in bulk
 
         Args:
@@ -203,8 +212,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/missing')
-    def content_missing(self, content, key_hash='sha1'):
+    @remote_api_endpoint("content/missing")
+    def content_missing(self, content, key_hash="sha1"):
         """List content missing from storage
 
         Args:
@@ -227,7 +236,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/missing/sha1')
+    @remote_api_endpoint("content/missing/sha1")
     def content_missing_per_sha1(self, contents):
         """List content missing from storage based only on sha1.
 
@@ -243,7 +252,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/missing/sha1_git')
+    @remote_api_endpoint("content/missing/sha1_git")
     def content_missing_per_sha1_git(self, contents):
         """List content missing from storage based only on sha1_git.
 
@@ -255,7 +264,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/present')
+    @remote_api_endpoint("content/present")
     def content_find(self, content):
         """Find a content hash in db.
 
@@ -275,7 +284,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/get_random')
+    @remote_api_endpoint("content/get_random")
     def content_get_random(self):
         """Finds a random content id.
 
@@ -284,7 +293,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/skipped/add')
+    @remote_api_endpoint("content/skipped/add")
     def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
         """Add contents to the skipped_content list, which contains
         (partial) information about content missing from the archive.
@@ -321,7 +330,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('content/skipped/missing')
+    @remote_api_endpoint("content/skipped/missing")
     def skipped_content_missing(self, contents):
         """List skipped_content missing from storage
 
@@ -335,7 +344,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('directory/add')
+    @remote_api_endpoint("directory/add")
     def directory_add(self, directories: Iterable[Directory]) -> Dict:
         """Add directories to the storage
 
@@ -363,7 +372,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('directory/missing')
+    @remote_api_endpoint("directory/missing")
     def directory_missing(self, directories):
         """List directories missing from storage
 
@@ -376,7 +385,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('directory/ls')
+    @remote_api_endpoint("directory/ls")
     def directory_ls(self, directory, recursive=False):
         """Get entries for one directory.
 
@@ -393,7 +402,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('directory/path')
+    @remote_api_endpoint("directory/path")
     def directory_entry_get_by_path(self, directory, paths):
         """Get the directory entry (either file or dir) from directory with path.
 
@@ -408,7 +417,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('directory/get_random')
+    @remote_api_endpoint("directory/get_random")
     def directory_get_random(self):
         """Finds a random directory id.
 
@@ -417,7 +426,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('revision/add')
+    @remote_api_endpoint("revision/add")
     def revision_add(self, revisions: Iterable[Revision]) -> Dict:
         """Add revisions to the storage
 
@@ -457,7 +466,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('revision/missing')
+    @remote_api_endpoint("revision/missing")
     def revision_missing(self, revisions):
         """List revisions missing from storage
 
@@ -470,7 +479,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('revision')
+    @remote_api_endpoint("revision")
     def revision_get(self, revisions):
         """Get all revisions from storage
 
@@ -484,7 +493,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('revision/log')
+    @remote_api_endpoint("revision/log")
     def revision_log(self, revisions, limit=None):
         """Fetch revision entry from the given root revisions.
 
@@ -498,7 +507,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('revision/shortlog')
+    @remote_api_endpoint("revision/shortlog")
     def revision_shortlog(self, revisions, limit=None):
         """Fetch the shortlog for the given revisions
 
@@ -512,7 +521,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('revision/get_random')
+    @remote_api_endpoint("revision/get_random")
     def revision_get_random(self):
         """Finds a random revision id.
 
@@ -521,7 +530,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('release/add')
+    @remote_api_endpoint("release/add")
     def release_add(self, releases: Iterable[Release]) -> Dict:
         """Add releases to the storage
 
@@ -550,7 +559,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('release/missing')
+    @remote_api_endpoint("release/missing")
     def release_missing(self, releases):
         """List releases missing from storage
 
@@ -563,7 +572,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('release')
+    @remote_api_endpoint("release")
     def release_get(self, releases):
         """Given a list of sha1, return the releases's information
 
@@ -577,7 +586,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('release/get_random')
+    @remote_api_endpoint("release/get_random")
     def release_get_random(self):
         """Finds a random release id.
 
@@ -586,7 +595,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/add')
+    @remote_api_endpoint("snapshot/add")
     def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
         """Add snapshots to the storage.
 
@@ -619,7 +628,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/missing')
+    @remote_api_endpoint("snapshot/missing")
     def snapshot_missing(self, snapshots):
         """List snapshots missing from storage
 
@@ -632,7 +641,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot')
+    @remote_api_endpoint("snapshot")
     def snapshot_get(self, snapshot_id):
         """Get the content, possibly partial, of a snapshot with the given id
 
@@ -657,7 +666,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/by_origin_visit')
+    @remote_api_endpoint("snapshot/by_origin_visit")
     def snapshot_get_by_origin_visit(self, origin, visit):
         """Get the content, possibly partial, of a snapshot for the given origin visit
 
@@ -685,7 +694,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/latest')
+    @remote_api_endpoint("snapshot/latest")
     def snapshot_get_latest(self, origin, allowed_statuses=None):
         """Get the content, possibly partial, of the latest snapshot for the
         given origin, optionally only from visits that have one of the given
@@ -716,7 +725,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/count_branches')
+    @remote_api_endpoint("snapshot/count_branches")
     def snapshot_count_branches(self, snapshot_id):
         """Count the number of branches in the snapshot with the given id
 
@@ -729,9 +738,10 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/get_branches')
-    def snapshot_get_branches(self, snapshot_id, branches_from=b'',
-                              branches_count=1000, target_types=None):
+    @remote_api_endpoint("snapshot/get_branches")
+    def snapshot_get_branches(
+        self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
+    ):
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical
@@ -759,7 +769,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('snapshot/get_random')
+    @remote_api_endpoint("snapshot/get_random")
     def snapshot_get_random(self):
         """Finds a random snapshot id.
 
@@ -768,11 +778,10 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/add')
+    @remote_api_endpoint("origin/visit/add")
     def origin_visit_add(
-            self, origin_url: str,
-            date: Union[str, datetime.datetime],
-            type: str) -> OriginVisit:
+        self, origin_url: str, date: Union[str, datetime.datetime], type: str
+    ) -> OriginVisit:
         """Add an origin_visit for the origin at ts with status 'ongoing'.
 
         Args:
@@ -792,11 +801,16 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/update')
+    @remote_api_endpoint("origin/visit/update")
     def origin_visit_update(
-            self, origin: str, visit_id: int, status: str,
-            metadata: Optional[Dict] = None, snapshot: Optional[bytes] = None,
-            date: Optional[datetime.datetime] = None):
+        self,
+        origin: str,
+        visit_id: int,
+        status: str,
+        metadata: Optional[Dict] = None,
+        snapshot: Optional[bytes] = None,
+        date: Optional[datetime.datetime] = None,
+    ):
         """Update an origin_visit's status.
 
         Args:
@@ -814,7 +828,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/upsert')
+    @remote_api_endpoint("origin/visit/upsert")
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         """Add a origin_visits with a specific id and with all its data.
         If there is already an origin_visit with the same
@@ -833,10 +847,10 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/get')
+    @remote_api_endpoint("origin/visit/get")
     def origin_visit_get(
-            self, origin: str, last_visit: Optional[int] = None,
-            limit: Optional[int] = None) -> Iterable[Dict[str, Any]]:
+        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+    ) -> Iterable[Dict[str, Any]]:
         """Retrieve all the origin's visit's information.
 
         Args:
@@ -852,10 +866,10 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/find_by_date')
+    @remote_api_endpoint("origin/visit/find_by_date")
     def origin_visit_find_by_date(
-            self, origin: str,
-            visit_date: datetime.datetime) -> Optional[Dict[str, Any]]:
+        self, origin: str, visit_date: datetime.datetime
+    ) -> Optional[Dict[str, Any]]:
         """Retrieves the origin visit whose date is closest to the provided
         timestamp.
         In case of a tie, the visit with largest id is selected.
@@ -870,9 +884,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/getby')
-    def origin_visit_get_by(
-            self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    @remote_api_endpoint("origin/visit/getby")
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
         """Retrieve origin visit's information.
 
         Args:
@@ -886,10 +899,13 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/get_latest')
+    @remote_api_endpoint("origin/visit/get_latest")
     def origin_visit_get_latest(
-            self, origin: str, allowed_statuses: Optional[List[str]] = None,
-            require_snapshot: bool = False) -> Optional[Dict[str, Any]]:
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         """Get the latest origin visit for the given origin, optionally
         looking only for those with one of the given allowed_statuses
         or for those with a known snapshot.
@@ -917,9 +933,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/visit/get_random')
-    def origin_visit_get_random(
-            self, type: str) -> Optional[Dict[str, Any]]:
+    @remote_api_endpoint("origin/visit/get_random")
+    def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
@@ -930,7 +945,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('object/find_by_sha1_git')
+    @remote_api_endpoint("object/find_by_sha1_git")
     def object_find_by_sha1_git(self, ids):
         """Return the objects found with the given ids.
 
@@ -947,7 +962,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/get')
+    @remote_api_endpoint("origin/get")
     def origin_get(self, origins):
         """Return origins, either all identified by their ids or all
         identified by tuples (type, url).
@@ -974,7 +989,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/get_sha1')
+    @remote_api_endpoint("origin/get_sha1")
     def origin_get_by_sha1(self, sha1s):
         """Return origins, identified by the sha1 of their URLs.
 
@@ -990,7 +1005,7 @@ class StorageInterface:
         ...
 
     @deprecated
-    @remote_api_endpoint('origin/get_range')
+    @remote_api_endpoint("origin/get_range")
     def origin_get_range(self, origin_from=1, origin_count=100):
         """Retrieve ``origin_count`` origins whose ids are greater
         or equal than ``origin_from``.
@@ -1007,9 +1022,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/list')
-    def origin_list(
-            self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    @remote_api_endpoint("origin/list")
+    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
         """Returns the list of origins
 
         Args:
@@ -1026,9 +1040,10 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/search')
-    def origin_search(self, url_pattern, offset=0, limit=50,
-                      regexp=False, with_visit=False):
+    @remote_api_endpoint("origin/search")
+    def origin_search(
+        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
+    ):
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
@@ -1049,9 +1064,8 @@ class StorageInterface:
         ...
 
     @deprecated
-    @remote_api_endpoint('origin/count')
-    def origin_count(self, url_pattern, regexp=False,
-                     with_visit=False):
+    @remote_api_endpoint("origin/count")
+    def origin_count(self, url_pattern, regexp=False, with_visit=False):
         """Count origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The pattern search in origin urls is performed in a case insensitive
@@ -1068,7 +1082,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/add_multi')
+    @remote_api_endpoint("origin/add_multi")
     def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
         """Add origins to the storage
 
@@ -1085,7 +1099,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/add')
+    @remote_api_endpoint("origin/add")
     def origin_add_one(self, origin: Origin) -> str:
         """Add origin to the storage
 
@@ -1117,7 +1131,7 @@ class StorageInterface:
         """Recomputes the statistics for `stat_counters`."""
         ...
 
-    @remote_api_endpoint('origin/metadata/add')
+    @remote_api_endpoint("origin/metadata/add")
     def origin_metadata_add(self, origin_url, ts, provider, tool, metadata):
         """ Add an origin_metadata for the origin at ts with provenance and
         metadata.
@@ -1131,7 +1145,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('origin/metadata/get')
+    @remote_api_endpoint("origin/metadata/get")
     def origin_metadata_get_by(self, origin_url, provider_type=None):
         """Retrieve list of all origin_metadata entries for the origin_id
 
@@ -1154,7 +1168,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('tool/add')
+    @remote_api_endpoint("tool/add")
     def tool_add(self, tools):
         """Add new tools to the storage.
 
@@ -1175,7 +1189,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('tool/data')
+    @remote_api_endpoint("tool/data")
     def tool_get(self, tool):
         """Retrieve tool information.
 
@@ -1190,9 +1204,10 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('provider/add')
-    def metadata_provider_add(self, provider_name, provider_type, provider_url,
-                              metadata):
+    @remote_api_endpoint("provider/add")
+    def metadata_provider_add(
+        self, provider_name, provider_type, provider_url, metadata
+    ):
         """Add a metadata provider.
 
         Args:
@@ -1206,7 +1221,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('provider/get')
+    @remote_api_endpoint("provider/get")
     def metadata_provider_get(self, provider_id):
         """Get a metadata provider
 
@@ -1219,7 +1234,7 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint('provider/getby')
+    @remote_api_endpoint("provider/getby")
     def metadata_provider_get_by(self, provider):
         """Get a metadata provider
 
@@ -1235,7 +1250,7 @@ class StorageInterface:
         ...
 
     @deprecated
-    @remote_api_endpoint('algos/diff_directories')
+    @remote_api_endpoint("algos/diff_directories")
     def diff_directories(self, from_dir, to_dir, track_renaming=False):
         """Compute the list of file changes introduced between two arbitrary
         directories (insertion / deletion / modification / renaming of files).
@@ -1253,7 +1268,7 @@ class StorageInterface:
         ...
 
     @deprecated
-    @remote_api_endpoint('algos/diff_revisions')
+    @remote_api_endpoint("algos/diff_revisions")
     def diff_revisions(self, from_rev, to_rev, track_renaming=False):
         """Compute the list of file changes introduced between two arbitrary
         revisions (insertion / deletion / modification / renaming of files).
@@ -1271,7 +1286,7 @@ class StorageInterface:
         ...
 
     @deprecated
-    @remote_api_endpoint('algos/diff_revision')
+    @remote_api_endpoint("algos/diff_revision")
     def diff_revision(self, revision, track_renaming=False):
         """Compute the list of file changes introduced by a specific revision
         (insertion / deletion / modification / renaming of files) by comparing

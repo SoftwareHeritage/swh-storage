@@ -10,7 +10,11 @@ from typing import Any, Dict, List
 import attr
 
 from swh.model.model import (
-    RevisionType, ObjectType, Revision, Release, Sha1Git,
+    RevisionType,
+    ObjectType,
+    Revision,
+    Release,
+    Sha1Git,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 
@@ -25,24 +29,24 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
     # non-recursively convert it as a dict but make a deep copy.
     db_revision = deepcopy(attr.asdict(revision, recurse=False))
     metadata = revision.metadata
-    if metadata and 'extra_headers' in metadata:
-        db_revision['metadata']['extra_headers'] = git_headers_to_db(
-            metadata['extra_headers'])
-    db_revision['metadata'] = json.dumps(db_revision['metadata'])
-    db_revision['type'] = db_revision['type'].value
+    if metadata and "extra_headers" in metadata:
+        db_revision["metadata"]["extra_headers"] = git_headers_to_db(
+            metadata["extra_headers"]
+        )
+    db_revision["metadata"] = json.dumps(db_revision["metadata"])
+    db_revision["type"] = db_revision["type"].value
     return db_revision
 
 
 def revision_from_db(db_revision: Row, parents: List[Sha1Git]) -> Revision:
     revision = db_revision._asdict()  # type: ignore
-    metadata = json.loads(revision.pop('metadata', None))
-    if metadata and 'extra_headers' in metadata:
-        extra_headers = db_to_git_headers(
-            metadata['extra_headers'])
-        metadata['extra_headers'] = extra_headers
+    metadata = json.loads(revision.pop("metadata", None))
+    if metadata and "extra_headers" in metadata:
+        extra_headers = db_to_git_headers(metadata["extra_headers"])
+        metadata["extra_headers"] = extra_headers
     return Revision(
         parents=parents,
-        type=RevisionType(revision.pop('type')),
+        type=RevisionType(revision.pop("type")),
         metadata=metadata,
         **revision,
     )
@@ -50,16 +54,13 @@ def revision_from_db(db_revision: Row, parents: List[Sha1Git]) -> Revision:
 
 def release_to_db(release: Release) -> Dict[str, Any]:
     db_release = attr.asdict(release, recurse=False)
-    db_release['target_type'] = db_release['target_type'].value
+    db_release["target_type"] = db_release["target_type"].value
     return db_release
 
 
 def release_from_db(db_release: Row) -> Release:
     release = db_release._asdict()  # type: ignore
-    return Release(
-        target_type=ObjectType(release.pop('target_type')),
-        **release,
-    )
+    return Release(target_type=ObjectType(release.pop("target_type")), **release,)
 
 
 def row_to_content_hashes(row: Row) -> Dict[str, bytes]:
