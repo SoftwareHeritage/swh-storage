@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import functools
 import logging
 import os
 import warnings
@@ -11,7 +12,14 @@ import click
 
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
+from swh.journal.cli import get_journal_client
+from swh.storage import get_storage
 from swh.storage.api.server import load_and_check_config, app
+
+try:
+    from systemd.daemon import notify
+except ImportError:
+    notify = None
 
 
 @click.group(name="storage", context_settings=CONTEXT_SETTINGS)
@@ -133,6 +141,47 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
         if notify:
             notify("STOPPING=1")
         ctx.exit(0)
+
+
+@storage.command()
+@click.option(
+    "--stop-after-objects",
+    "-n",
+    default=None,
+    type=int,
+    help="Stop after processing this many objects. Default is to " "run forever.",
+)
+@click.pass_context
+def replay(ctx, stop_after_objects):
+    """Fill a Storage by reading a Journal.
+
+    There can be several 'replayers' filling a Storage as long as they use
+    the same `group-id`.
+    """
+    from swh.storage.replay import process_replay_objects
+
+    conf = ctx.obj["config"]
+    try:
+        storage = get_storage(**conf.pop("storage"))
+    except KeyError:
+        ctx.fail("You must have a storage configured in your config file.")
+
+    client = get_journal_client(ctx, stop_after_objects=stop_after_objects)
+    worker_fn = functools.partial(process_replay_objects, storage=storage)
+
+    if notify:
+        notify("READY=1")
+
+    try:
+        client.process(worker_fn)
+    except KeyboardInterrupt:
+        ctx.exit(0)
+    else:
+        print("Done.")
+    finally:
+        if notify:
+            notify("STOPPING=1")
+        client.close()
 
 
 def main():
