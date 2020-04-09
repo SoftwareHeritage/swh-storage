@@ -8,9 +8,7 @@ import logging
 
 from swh.core import config
 from swh.storage import get_storage as get_swhstorage
-from swh.core.api import (RPCServerApp,
-                          error_handler,
-                          encode_data_server as encode_data)
+from swh.core.api import RPCServerApp, error_handler, encode_data_server as encode_data
 
 from ..interface import StorageInterface
 from ..metrics import timed
@@ -22,7 +20,7 @@ from .serializers import ENCODERS, DECODERS
 def get_storage():
     global storage
     if not storage:
-        storage = get_swhstorage(**app.config['storage'])
+        storage = get_swhstorage(**app.config["storage"])
 
     return storage
 
@@ -32,9 +30,9 @@ class StorageServerApp(RPCServerApp):
     extra_type_encoders = ENCODERS
 
 
-app = StorageServerApp(__name__,
-                       backend_class=StorageInterface,
-                       backend_factory=get_storage)
+app = StorageServerApp(
+    __name__, backend_class=StorageInterface, backend_factory=get_storage
+)
 storage = None
 
 
@@ -48,10 +46,10 @@ def my_error_handler(exception):
     return error_handler(exception, encode_data)
 
 
-@app.route('/')
+@app.route("/")
 @timed
 def index():
-    return '''<html>
+    return """<html>
 <head><title>Software Heritage storage server</title></head>
 <body>
 <p>You have reached the
@@ -61,16 +59,16 @@ See its
 <a href="https://docs.softwareheritage.org/devel/swh-storage/">documentation
 and API</a> for more information</p>
 </body>
-</html>'''
+</html>"""
 
 
-@app.route('/stat/counters', methods=['GET'])
+@app.route("/stat/counters", methods=["GET"])
 @timed
 def stat_counters():
     return encode_data(get_storage().stat_counters())
 
 
-@app.route('/stat/refresh', methods=['GET'])
+@app.route("/stat/refresh", methods=["GET"])
 @timed
 def refresh_stat_counters():
     return encode_data(get_storage().refresh_stat_counters())
@@ -79,7 +77,7 @@ def refresh_stat_counters():
 api_cfg = None
 
 
-def load_and_check_config(config_file, type='local'):
+def load_and_check_config(config_file, type="local"):
     """Check the minimal configuration is set to run the api or raise an
        error explanation.
 
@@ -96,14 +94,13 @@ def load_and_check_config(config_file, type='local'):
 
     """
     if not config_file:
-        raise EnvironmentError('Configuration file must be defined')
+        raise EnvironmentError("Configuration file must be defined")
 
     if not os.path.exists(config_file):
-        raise FileNotFoundError('Configuration file %s does not exist' % (
-            config_file, ))
+        raise FileNotFoundError("Configuration file %s does not exist" % (config_file,))
 
     cfg = config.read(config_file)
-    if 'storage' not in cfg:
+    if "storage" not in cfg:
         raise KeyError("Missing '%storage' configuration")
 
     return cfg
@@ -119,7 +116,7 @@ def make_app_from_configfile():
     """
     global api_cfg
     if not api_cfg:
-        config_file = os.environ.get('SWH_CONFIG_FILENAME')
+        config_file = os.environ.get("SWH_CONFIG_FILENAME")
         api_cfg = load_and_check_config(config_file)
         app.config.update(api_cfg)
     handler = logging.StreamHandler()
@@ -127,5 +124,5 @@ def make_app_from_configfile():
     return app
 
 
-if __name__ == '__main__':
-    print('Deprecated. Use swh-storage')
+if __name__ == "__main__":
+    print("Deprecated. Use swh-storage")

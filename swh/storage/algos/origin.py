@@ -22,13 +22,14 @@ def iter_origins(storage, origin_from=1, origin_to=None, batch_size=10000):
             origin_count = min(origin_to - start, batch_size)
         else:
             origin_count = batch_size
-        origins = list(storage.origin_get_range(
-            origin_from=start, origin_count=origin_count))
+        origins = list(
+            storage.origin_get_range(origin_from=start, origin_count=origin_count)
+        )
         if not origins:
             break
-        start = origins[-1]['id'] + 1
+        start = origins[-1]["id"] + 1
         for origin in origins:
-            del origin['id']
+            del origin["id"]
             yield origin
         if origin_to and start > origin_to:
             break

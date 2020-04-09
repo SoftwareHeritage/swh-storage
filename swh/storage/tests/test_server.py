@@ -9,7 +9,7 @@ import yaml
 from swh.storage.api.server import load_and_check_config
 
 
-def prepare_config_file(tmpdir, content, name='config.yml'):
+def prepare_config_file(tmpdir, content, name="config.yml"):
     """Prepare configuration file in `$tmpdir/name` with content `content`.
 
     Args:
@@ -25,7 +25,7 @@ def prepare_config_file(tmpdir, content, name='config.yml'):
     config_path = tmpdir / name
     if isinstance(content, dict):  # convert if needed
         content = yaml.dump(content)
-    config_path.write_text(content, encoding='utf-8')
+    config_path.write_text(content, encoding="utf-8")
     # pytest on python3.5 does not support LocalPath manipulation, so
     # convert path to string
     return str(config_path)
@@ -36,50 +36,38 @@ def test_load_and_check_config_no_configuration():
     with pytest.raises(EnvironmentError) as e:
         load_and_check_config(None)
 
-    assert e.value.args[0] == 'Configuration file must be defined'
+    assert e.value.args[0] == "Configuration file must be defined"
 
-    config_path = '/some/inexistent/config.yml'
+    config_path = "/some/inexistent/config.yml"
     with pytest.raises(FileNotFoundError) as e:
         load_and_check_config(config_path)
 
-    assert e.value.args[0] == 'Configuration file %s does not exist' % (
-        config_path, )
+    assert e.value.args[0] == "Configuration file %s does not exist" % (config_path,)
 
 
 def test_load_and_check_config_wrong_configuration(tmpdir):
     """Wrong configuration raises"""
-    config_path = prepare_config_file(tmpdir, 'something: useless')
+    config_path = prepare_config_file(tmpdir, "something: useless")
     with pytest.raises(KeyError) as e:
         load_and_check_config(config_path)
 
-    assert e.value.args[0] == 'Missing \'%storage\' configuration'
+    assert e.value.args[0] == "Missing '%storage' configuration"
 
 
 def test_load_and_check_config_local_config_fine(tmpdir):
     """'Remote configuration is fine"""
     config = {
-        'storage': {
-            'cls': 'local',
-            'args': {
-                'db': 'db',
-                'objstorage': 'something',
-            }
-        }
+        "storage": {"cls": "local", "args": {"db": "db", "objstorage": "something",}}
     }
     config_path = prepare_config_file(tmpdir, config)
-    cfg = load_and_check_config(config_path, type='local')
+    cfg = load_and_check_config(config_path, type="local")
     assert cfg == config
 
 
 def test_load_and_check_config_remote_config_fine(tmpdir):
     """'Remote configuration is fine"""
-    config = {
-        'storage': {
-            'cls': 'remote',
-            'args': {}
-        }
-    }
+    config = {"storage": {"cls": "remote", "args": {}}}
     config_path = prepare_config_file(tmpdir, config)
-    cfg = load_and_check_config(config_path, type='any')
+    cfg = load_and_check_config(config_path, type="any")
 
     assert cfg == config

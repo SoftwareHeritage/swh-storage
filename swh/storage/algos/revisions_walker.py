@@ -14,8 +14,8 @@ _revs_walker_classes = {}
 class _RevisionsWalkerMetaClass(ABCMeta):
     def __new__(cls, clsname, bases, attrs):
         newclass = super().__new__(cls, clsname, bases, attrs)
-        if 'rw_type' in attrs:
-            _revs_walker_classes[attrs['rw_type']] = newclass
+        if "rw_type" in attrs:
+            _revs_walker_classes[attrs["rw_type"]] = newclass
         return newclass
 
 
@@ -65,11 +65,11 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         self._max_revs = max_revs
         self._missing_revs = set()
         if state:
-            self._revs_to_visit = state['revs_to_visit']
-            self._done = state['done']
-            self._last_rev = state['last_rev']
-            self._num_revs = state['num_revs']
-            self._missing_revs = state['missing_revs']
+            self._revs_to_visit = state["revs_to_visit"]
+            self._done = state["done"]
+            self._last_rev = state["last_rev"]
+            self._num_revs = state["num_revs"]
+            self._missing_revs = state["missing_revs"]
         self.storage = storage
         self.process_rev(rev_start)
 
@@ -111,7 +111,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
             rev (dict): A dict describing a revision as returned by
                 :meth:`swh.storage.storage.Storage.revision_get`
         """
-        for parent_id in rev['parents']:
+        for parent_id in rev["parents"]:
             self.process_rev(parent_id)
 
     def should_return(self, rev):
@@ -151,7 +151,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
                 # revision data is missing, returned history will be truncated
                 if rev is None:
                     continue
-                self._revs[rev['id']] = rev
+                self._revs[rev["id"]] = rev
         return self._revs.get(rev_id)
 
     def missing_revisions(self):
@@ -185,11 +185,11 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
             dict: A dict containing the internal state of that revisions walker
         """
         return {
-            'revs_to_visit': self._revs_to_visit,
-            'done': self._done,
-            'last_rev': self._last_rev,
-            'num_revs': self._num_revs,
-            'missing_revs': self._missing_revs
+            "revs_to_visit": self._revs_to_visit,
+            "done": self._done,
+            "last_rev": self._last_rev,
+            "num_revs": self._num_revs,
+            "missing_revs": self._missing_revs,
         }
 
     def __next__(self):
@@ -222,7 +222,7 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
     order according to committer date (same behaviour as ``git log``)
     """
 
-    rw_type = 'committer_date'
+    rw_type = "committer_date"
 
     def process_rev(self, rev_id):
         """
@@ -234,7 +234,7 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
         if rev_id not in self._done:
             rev = self._get_rev(rev_id)
             if rev is not None:
-                commit_time = rev['committer_date']['timestamp']['seconds']
+                commit_time = rev["committer_date"]["timestamp"]["seconds"]
                 heapq.heappush(self._revs_to_visit, (-commit_time, rev_id))
             else:
                 self._missing_revs.add(rev_id)
@@ -259,7 +259,7 @@ class BFSRevisionsWalker(RevisionsWalker):
     DAG.
     """
 
-    rw_type = 'bfs'
+    rw_type = "bfs"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -295,7 +295,7 @@ class DFSPostRevisionsWalker(RevisionsWalker):
     merged on).
     """
 
-    rw_type = 'dfs_post'
+    rw_type = "dfs_post"
 
     def process_rev(self, rev_id):
         """
@@ -327,7 +327,7 @@ class DFSRevisionsWalker(DFSPostRevisionsWalker):
     the merged commit).
     """
 
-    rw_type = 'dfs'
+    rw_type = "dfs"
 
     def process_parent_revs(self, rev):
         """
@@ -338,7 +338,7 @@ class DFSRevisionsWalker(DFSPostRevisionsWalker):
             rev (dict): A dict describing a revision as returned by
                 :meth:`swh.storage.storage.Storage.revision_get`
         """
-        for parent_id in reversed(rev['parents']):
+        for parent_id in reversed(rev["parents"]):
             self.process_rev(parent_id)
 
 
@@ -371,12 +371,12 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
         state (Optional[dict]): previous state of that revisions walker
     """
 
-    rw_type = 'path'
+    rw_type = "path"
 
     def __init__(self, storage, rev_start, path, **kwargs):
         super().__init__(storage, rev_start, **kwargs)
-        paths = path.strip('/').split('/')
-        self._path = list(map(lambda p: p.encode('utf-8'), paths))
+        paths = path.strip("/").split("/")
+        self._path = list(map(lambda p: p.encode("utf-8"), paths))
         self._rev_dir_path = {}
 
     def _get_path_id(self, rev_id):
@@ -396,14 +396,14 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
 
         rev = self._get_rev(rev_id)
 
-        rev_dir_id = rev['directory']
+        rev_dir_id = rev["directory"]
 
         if rev_dir_id not in self._rev_dir_path:
             try:
-                dir_info = \
-                    self.storage.directory_entry_get_by_path(rev_dir_id,
-                                                             self._path)
-                self._rev_dir_path[rev_dir_id] = dir_info['target']
+                dir_info = self.storage.directory_entry_get_by_path(
+                    rev_dir_id, self._path
+                )
+                self._rev_dir_path[rev_dir_id] = dir_info["target"]
             except Exception:
                 self._rev_dir_path[rev_dir_id] = None
 
@@ -420,11 +420,11 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
             bool: Whether to return the revision in the iteration
         """
         if self._path and self._last_rev:
-            last_rev_parents = self._last_rev['parents']
-            last_rev_parents_path_ids = [self._get_path_id(p_rev)
-                                         for p_rev in last_rev_parents]
-            no_path = all([path_id is None
-                           for path_id in last_rev_parents_path_ids])
+            last_rev_parents = self._last_rev["parents"]
+            last_rev_parents_path_ids = [
+                self._get_path_id(p_rev) for p_rev in last_rev_parents
+            ]
+            no_path = all([path_id is None for path_id in last_rev_parents_path_ids])
             if no_path:
                 return True
         return super().is_finished()
@@ -443,19 +443,20 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
             rev (dict): A dict describing a revision as returned by
                 :meth:`swh.storage.storage.Storage.revision_get`
         """
-        rev_path_id = self._get_path_id(rev['id'])
+        rev_path_id = self._get_path_id(rev["id"])
 
         if rev_path_id:
-            if len(rev['parents']) == 1:
-                self.process_rev(rev['parents'][0])
+            if len(rev["parents"]) == 1:
+                self.process_rev(rev["parents"][0])
             else:
-                parent_rev_path_ids = [self._get_path_id(p_rev)
-                                       for p_rev in rev['parents']]
-                different_trees = all([path_id != rev_path_id
-                                       for path_id in parent_rev_path_ids])
-                for i, p_rev in enumerate(rev['parents']):
-                    if different_trees or \
-                            parent_rev_path_ids[i] == rev_path_id:
+                parent_rev_path_ids = [
+                    self._get_path_id(p_rev) for p_rev in rev["parents"]
+                ]
+                different_trees = all(
+                    [path_id != rev_path_id for path_id in parent_rev_path_ids]
+                )
+                for i, p_rev in enumerate(rev["parents"]):
+                    if different_trees or parent_rev_path_ids[i] == rev_path_id:
                         self.process_rev(p_rev)
                         if not different_trees:
                             break
@@ -477,15 +478,15 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
         Returns:
             bool: Whether to return the revision in the iteration
         """
-        rev_path_id = self._get_path_id(rev['id'])
+        rev_path_id = self._get_path_id(rev["id"])
 
-        if not rev['parents']:
+        if not rev["parents"]:
             return rev_path_id is not None
 
-        parent_rev_path_ids = [self._get_path_id(p_rev)
-                               for p_rev in rev['parents']]
-        different_trees = all([path_id != rev_path_id
-                               for path_id in parent_rev_path_ids])
+        parent_rev_path_ids = [self._get_path_id(p_rev) for p_rev in rev["parents"]]
+        different_trees = all(
+            [path_id != rev_path_id for path_id in parent_rev_path_ids]
+        )
 
         if rev_path_id != parent_rev_path_ids[0] and different_trees:
             return True
@@ -542,7 +543,6 @@ def get_revisions_walker(rev_walker_type, *args, **kwargs):
 
     """
     if rev_walker_type not in _revs_walker_classes:
-        raise Exception('No revisions walker found for type "%s"'
-                        % rev_walker_type)
+        raise Exception('No revisions walker found for type "%s"' % rev_walker_type)
     revs_walker_class = _revs_walker_classes[rev_walker_type]
     return revs_walker_class(*args, **kwargs)

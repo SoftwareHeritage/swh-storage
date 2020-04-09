@@ -17,12 +17,10 @@ import collections
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier
 
-from .dir_iterators import (
-    DirectoryIterator, DoubleDirectoryIterator, Remaining
-)
+from .dir_iterators import DirectoryIterator, DoubleDirectoryIterator, Remaining
 
 # get the hash identifier for an empty directory
-_empty_dir_hash = hash_to_bytes(directory_identifier({'entries': []}))
+_empty_dir_hash = hash_to_bytes(directory_identifier({"entries": []}))
 
 
 def _get_rev(storage, rev_id):
@@ -70,16 +68,20 @@ class _RevisionChangesList(object):
             # pop the delete change index in the same order it was inserted
             change = self.result[self.deleted_hash_idx[to_hash].pop(0)]
             # change the delete change as a rename one
-            change['type'] = 'rename'
-            change['to'] = it_to.current()
-            change['to_path'] = it_to.current_path()
+            change["type"] = "rename"
+            change["to"] = it_to.current()
+            change["to_path"] = it_to.current_path()
         else:
             # add the insert change in the list
-            self.result.append({'type': 'insert',
-                                'from': None,
-                                'from_path': None,
-                                'to': it_to.current(),
-                                'to_path': it_to.current_path()})
+            self.result.append(
+                {
+                    "type": "insert",
+                    "from": None,
+                    "from_path": None,
+                    "to": it_to.current(),
+                    "to_path": it_to.current_path(),
+                }
+            )
             # if rename tracking is activated, add the change index in
             # the inserted_hash_idx dict
             if self.track_renaming:
@@ -100,16 +102,20 @@ class _RevisionChangesList(object):
             # pop the insert change index in the same order it was inserted
             change = self.result[self.inserted_hash_idx[from_hash].pop(0)]
             # change the insert change as a rename one
-            change['type'] = 'rename'
-            change['from'] = it_from.current()
-            change['from_path'] = it_from.current_path()
+            change["type"] = "rename"
+            change["from"] = it_from.current()
+            change["from_path"] = it_from.current_path()
         else:
             # add the delete change in the list
-            self.result.append({'type': 'delete',
-                                'from': it_from.current(),
-                                'from_path': it_from.current_path(),
-                                'to': None,
-                                'to_path': None})
+            self.result.append(
+                {
+                    "type": "delete",
+                    "from": it_from.current(),
+                    "from_path": it_from.current_path(),
+                    "to": None,
+                    "to_path": None,
+                }
+            )
             # if rename tracking is activated, add the change index in
             # the deleted_hash_idx dict
             if self.track_renaming:
@@ -125,11 +131,15 @@ class _RevisionChangesList(object):
             it_to (swh.storage.algos.dir_iterators.DirectoryIterator):
                 iterator on the to directory
         """
-        self.result.append({'type': 'modify',
-                            'from': it_from.current(),
-                            'from_path': it_from.current_path(),
-                            'to': it_to.current(),
-                            'to_path': it_to.current_path()})
+        self.result.append(
+            {
+                "type": "modify",
+                "from": it_from.current(),
+                "from_path": it_from.current_path(),
+                "to": it_to.current(),
+                "to_path": it_to.current_path(),
+            }
+        )
 
     def add_recursive(self, it, insert):
         """
@@ -161,8 +171,7 @@ class _RevisionChangesList(object):
         # iterate on files reachable from it and add
         # adequate changes in the list
         else:
-            sub_it = DirectoryIterator(self.storage, dir_id,
-                                       it.current_path() + b'/')
+            sub_it = DirectoryIterator(self.storage, dir_id, it.current_path() + b"/")
             sub_it_current = sub_it.step()
             while sub_it_current:
                 if not sub_it.current_is_dir():
@@ -208,39 +217,39 @@ def _diff_elts_same_name(changes, it):
     status = it.compare()
     # elements have same hash and same permissions:
     # no changes to add and call next on the two iterators
-    if status['same_hash'] and status['same_perms']:
+    if status["same_hash"] and status["same_perms"]:
         it.next_both()
     # elements are regular files and have been modified:
     # insert the modification change in the list and
     # call next on the two iterators
-    elif status['both_are_files']:
+    elif status["both_are_files"]:
         changes.add_modify(it.it_from, it.it_to)
         it.next_both()
     # one element is a regular file, the other a directory:
     # recursively add delete/insert changes and call next
     # on the two iterators
-    elif status['file_and_dir']:
+    elif status["file_and_dir"]:
         changes.add_recursive_delete(it.it_from)
         changes.add_recursive_insert(it.it_to)
         it.next_both()
     # both elements are directories:
-    elif status['both_are_dirs']:
+    elif status["both_are_dirs"]:
         # from directory is empty:
         # recursively add insert changes in the to directory
         # and call next on the two iterators
-        if status['from_is_empty_dir']:
+        if status["from_is_empty_dir"]:
             changes.add_recursive_insert(it.it_to)
             it.next_both()
         # to directory is empty:
         # recursively add delete changes in the from directory
         # and call next on the two iterators
-        elif status['to_is_empty_dir']:
+        elif status["to_is_empty_dir"]:
             changes.add_recursive_delete(it.it_from)
             it.next_both()
         # both directories are not empty:
         # call step on the two iterators to descend further in
         # the directory trees.
-        elif not status['from_is_empty_dir'] and not status['to_is_empty_dir']:
+        elif not status["from_is_empty_dir"] and not status["to_is_empty_dir"]:
             it.step_both()
 
 
@@ -253,8 +262,8 @@ def _compare_paths(path1, path2):
         - "b/c/d" < "b"
         - "c/foo.txt" < "c.txt"
     """
-    path1_parts = path1.split(b'/')
-    path2_parts = path2.split(b'/')
+    path1_parts = path1.split(b"/")
+    path2_parts = path2.split(b"/")
     i = 0
     while True:
         if len(path1_parts) == len(path2_parts) and i == len(path1_parts):
@@ -372,8 +381,8 @@ def diff_revisions(storage, from_rev, to_rev, track_renaming=False):
     """
     from_dir = None
     if from_rev:
-        from_dir = _get_rev(storage, from_rev)['directory']
-    to_dir = _get_rev(storage, to_rev)['directory']
+        from_dir = _get_rev(storage, from_rev)["directory"]
+    to_dir = _get_rev(storage, to_rev)["directory"]
     return diff_directories(storage, from_dir, to_dir, track_renaming)
 
 
@@ -399,6 +408,6 @@ def diff_revision(storage, revision, track_renaming=False):
     """
     rev_data = _get_rev(storage, revision)
     parent = None
-    if rev_data['parents']:
-        parent = rev_data['parents'][0]
+    if rev_data["parents"]:
+        parent = rev_data["parents"][0]
     return diff_revisions(storage, parent, revision, track_renaming)
