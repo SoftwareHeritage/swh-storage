@@ -1,3 +1,20 @@
+swh-storage (0.0.183-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.183     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-04-09 12:35:53
+    +0200)
+  * Upstream changes:     - v0.0.183     - proxy storage: Add a
+    clear_buffers endpoint     - buffer proxy storage: Filter out
+    duplicate objects prior to storage write     - storage: Prevent
+    erroneous HashCollisions by using the same ctime for all rows.     -
+    Enable black     - origin_visit_update: ensure it raises a
+    StorageArgumentException     - Adapt cassandra backend to validating
+    model types     - tests: many refactoring improvments     - tests:
+    Shut down cassandra connection before closing the fixture down     -
+    Add more type annotations
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 09 Apr 2020 10:46:29 +0000
+
 swh-storage (0.0.182-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.182     - (tagged by Antoine R. Dumont
