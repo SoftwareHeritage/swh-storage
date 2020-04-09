@@ -246,7 +246,7 @@ def sample_data() -> Dict:
         "release": [data.release, data.release2, data.release3],
         "snapshot": [data.snapshot],
         "origin": [data.origin, data.origin2],
-        "tool": [data.metadata_tool],
-        "provider": [data.provider],
+        "fetcher": [data.metadata_fetcher],
+        "authority": [data.metadata_authority],
         "origin_metadata": [data.origin_metadata, data.origin_metadata2],
     }

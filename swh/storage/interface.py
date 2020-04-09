@@ -1132,120 +1132,118 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/metadata/add")
-    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata):
-        """ Add an origin_metadata for the origin at ts with provenance and
-        metadata.
+    def origin_metadata_add(
+        self,
+        origin_url: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        """Add an origin_metadata for the origin at discovery_date,
+        obtained using the `fetcher` from the `authority`.
+
+        The authority and fetcher must be known to the storage before
+        using this endpoint.
 
         Args:
-            origin_url (str): the origin url for which the metadata is added
-            ts (datetime): timestamp of the found metadata
-            provider (int): the provider of metadata (ex:'hal')
-            tool (int): tool used to extract metadata
-            metadata (jsonb): the metadata retrieved at the time and location
+            discovery_date: when the metadata was fetched.
+            authority: a dict containing keys `type` and `url`.
+            fetcher: a dict containing keys `name` and `version`.
+            format: text field indicating the format of the content of the
+            metadata: blob of raw metadata
         """
         ...
 
     @remote_api_endpoint("origin/metadata/get")
-    def origin_metadata_get_by(self, origin_url, provider_type=None):
+    def origin_metadata_get(
+        self,
+        origin_url: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         """Retrieve list of all origin_metadata entries for the origin_id
 
         Args:
-            origin_url (str): the origin's URL
-            provider_type (str): (optional) type of provider
+            origin_url: the origin's URL
+            authority: a dict containing keys `type` and `url`.
+            after: minimum discovery_date for a result to be returned
+            limit: maximum number of results to be returned
 
         Returns:
-            list of dicts: the origin_metadata dictionary with the keys:
+            list of dicts in the format:
 
-            - origin_id (int): origin's id
-            - discovery_date (datetime): timestamp of discovery
-            - tool_id (int): metadata's extracting tool
-            - metadata (jsonb)
-            - provider_id (int): metadata's provider
-            - provider_name (str)
-            - provider_type (str)
-            - provider_url (str)
+            .. code-block: python
+
+                {
+                    'authority': {'type': ..., 'url': ...},
+                    'fetcher': {'name': ..., 'version': ...},
+                    'discovery_date': ...,
+                    'format': '...',
+                    'metadata': b'...'
+                }
 
         """
         ...
 
-    @remote_api_endpoint("tool/add")
-    def tool_add(self, tools):
-        """Add new tools to the storage.
+    @remote_api_endpoint("fetcher/add")
+    def metadata_fetcher_add(
+        self, name: str, version: str, metadata: Dict[str, Any]
+    ) -> None:
+        """Add a new metadata fetcher to the storage.
+
+        `name` and `version` together are a unique identifier of this
+        fetcher; and `metadata` is an arbitrary dict of JSONable data
+        with information about this fetcher.
 
         Args:
-            tools (iterable of :class:`dict`): Tool information to add to
-              storage. Each tool is a :class:`dict` with the following keys:
-
-              - name (:class:`str`): name of the tool
-              - version (:class:`str`): version of the tool
-              - configuration (:class:`dict`): configuration of the tool,
-                must be json-encodable
-
-        Returns:
-            :class:`dict`: All the tools inserted in storage
-            (including the internal ``id``). The order of the list is not
-            guaranteed to match the order of the initial list.
+            name: the name of the fetcher
+            version: version of the fetcher
 
         """
         ...
 
-    @remote_api_endpoint("tool/data")
-    def tool_get(self, tool):
-        """Retrieve tool information.
+    @remote_api_endpoint("fetcher/get")
+    def metadata_fetcher_get(self, name: str, version: str) -> Optional[Dict[str, Any]]:
+        """Retrieve information about a fetcher
 
         Args:
-            tool (dict): Tool information we want to retrieve from storage.
-              The dicts have the same keys as those used in :func:`tool_add`.
+            name: the name of the fetcher
+            version: version of the fetcher
 
         Returns:
-            dict: The full tool information if it exists (``id`` included),
-            None otherwise.
+            dictionary with keys `name`, `version`, and `metadata`; or None
+            if the fetcher is not known
 
         """
         ...
 
-    @remote_api_endpoint("provider/add")
-    def metadata_provider_add(
-        self, provider_name, provider_type, provider_url, metadata
-    ):
-        """Add a metadata provider.
+    @remote_api_endpoint("authority/add")
+    def metadata_authority_add(
+        self, type: str, url: str, metadata: Dict[str, Any]
+    ) -> None:
+        """Add a metadata authority
 
         Args:
-            provider_name (str): Its name
-            provider_type (str): Its type (eg. `'deposit-client'`)
-            provider_url (str): Its URL
+            type: one of "deposit", "forge", or "registry"
+            url: unique URI identifying the authority
             metadata: JSON-encodable object
-
-        Returns:
-            int: an identifier of the provider
         """
         ...
 
-    @remote_api_endpoint("provider/get")
-    def metadata_provider_get(self, provider_id):
-        """Get a metadata provider
+    @remote_api_endpoint("authority/get")
+    def metadata_authority_get(self, type: str, url: str) -> Optional[Dict[str, Any]]:
+        """Retrieve information about an authority
 
         Args:
-            provider_id: Its identifier, as given by `metadata_provider_add`.
+            type: one of "deposit", "forge", or "registry"
+            url: unique URI identifying the authority
 
         Returns:
-            dict: same as `metadata_provider_add`;
-                  or None if it does not exist.
-        """
-        ...
-
-    @remote_api_endpoint("provider/getby")
-    def metadata_provider_get_by(self, provider):
-        """Get a metadata provider
-
-        Args:
-            provider (dict): A dictionary with keys:
-                * provider_name: Its name
-                * provider_url: Its URL
-
-        Returns:
-            dict: same as `metadata_provider_add`;
-                  or None if it does not exist.
+            dictionary with keys `type`, `url`, and `metadata`; or None
+            if the authority is not known
         """
         ...
 

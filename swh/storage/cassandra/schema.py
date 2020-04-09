@@ -175,21 +175,37 @@ CREATE TABLE IF NOT EXISTS origin (
 );
 
 
-CREATE TABLE IF NOT EXISTS tool_by_uuid (
-    id              timeuuid PRIMARY KEY,
-    name            ascii,
-    version         ascii,
-    configuration   blob,
+CREATE TABLE IF NOT EXISTS metadata_authority (
+    url             text,
+    type            ascii,
+    metadata        text,
+    PRIMARY KEY ((url), type)
 );
 
 
-CREATE TABLE IF NOT EXISTS tool (
-    id              timeuuid,
+CREATE TABLE IF NOT EXISTS metadata_fetcher (
     name            ascii,
     version         ascii,
-    configuration   blob,
-    PRIMARY KEY ((name, version, configuration))
-)
+    metadata        text,
+    PRIMARY KEY ((name), version)
+);
+
+
+CREATE TABLE IF NOT EXISTS origin_metadata (
+    origin          text,
+    authority_type  text,
+    authority_url   text,
+    discovery_date  timestamp,
+    fetcher_name    ascii,
+    fetcher_version ascii,
+    format          ascii,
+    metadata        blob,
+    PRIMARY KEY ((origin), authority_type, authority_url, discovery_date,
+                           fetcher_name, fetcher_version),
+    -- for now, authority_url could be in the partition key; but leaving
+    -- in the partition key allows listing authorities with metadata on an
+    -- origin if we ever need to do it.
+);
 
 
 CREATE TABLE IF NOT EXISTS object_count (
@@ -220,8 +236,9 @@ CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
 TABLES = (
     "skipped_content content revision revision_parent release "
     "directory directory_entry snapshot snapshot_branch "
-    "origin_visit origin tool_by_uuid tool object_count "
-    "origin_visit_status"
+    "origin_visit origin origin_metadata object_count "
+    "origin_visit_status metadata_authority "
+    "metadata_fetcher"
 ).split()
 
 HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]
