@@ -5,22 +5,29 @@
 
 import datetime
 import contextlib
-from typing import Dict, Iterable, List, Union
+from typing import Dict, Iterable, List, Optional
 
 from swh.model.model import (
-    BaseModel, SkippedContent, Content, Directory, Revision, Release, Snapshot,
-    OriginVisit, Origin
+    BaseModel,
+    SkippedContent,
+    Content,
+    Directory,
+    Revision,
+    Release,
+    Snapshot,
+    OriginVisit,
+    Origin,
 )
 
 from . import get_storage
 from .exc import StorageArgumentException
 
 
-VALIDATION_EXCEPTIONS = (
+VALIDATION_EXCEPTIONS = [
     KeyError,
     TypeError,
     ValueError,
-)
+]
 
 
 @contextlib.contextmanager
@@ -29,8 +36,8 @@ def convert_validation_exceptions():
     StorageArgumentException."""
     try:
         yield
-    except VALIDATION_EXCEPTIONS as e:
-        raise StorageArgumentException(*e.args)
+    except tuple(VALIDATION_EXCEPTIONS) as e:
+        raise StorageArgumentException(str(e))
 
 
 class ValidatingProxyStorage:
@@ -38,11 +45,12 @@ class ValidatingProxyStorage:
     before calling its backend, and back to dicts before returning results
 
     """
+
     def __init__(self, storage):
         self.storage = get_storage(**storage)
 
     def __getattr__(self, key):
-        if key == 'storage':
+        if key == "storage":
             raise AttributeError(key)
         return getattr(self.storage, key)
 
@@ -82,13 +90,13 @@ class ValidatingProxyStorage:
         return self.storage.snapshot_add(snapshots)
 
     def origin_visit_add(
-            self, origin_url: str,
-            date: Union[datetime.datetime], type: str) -> Dict[str, BaseModel]:
+        self, origin_url: str, date: datetime.datetime, type: str
+    ) -> Dict[str, BaseModel]:
         with convert_validation_exceptions():
-            visit = OriginVisit(origin=origin_url, date=date, type=type,
-                                status='ongoing', snapshot=None)
-        return self.storage.origin_visit_add(
-            visit.origin, visit.date, visit.type)
+            visit = OriginVisit(
+                origin=origin_url, date=date, type=type, status="ongoing", snapshot=None
+            )
+        return self.storage.origin_visit_add(visit.origin, visit.date, visit.type)
 
     def origin_add(self, origins: Iterable[Dict]) -> List[Dict]:
         with convert_validation_exceptions():
@@ -99,3 +107,6 @@ class ValidatingProxyStorage:
         with convert_validation_exceptions():
             origin = Origin.from_dict(origin)
         return self.storage.origin_add_one(origin)
+
+    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+        return self.storage.clear_buffers(object_types)

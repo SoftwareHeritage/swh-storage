@@ -2,7 +2,9 @@ MANIFEST.in
 Makefile
 Makefile.local
 README.md
+pyproject.toml
 pytest.ini
+setup.cfg
 setup.py
 tox.ini
 version.txt

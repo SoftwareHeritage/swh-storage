@@ -7,8 +7,15 @@ import warnings
 
 
 STORAGE_IMPLEMENTATION = {
-    'pipeline', 'local', 'remote', 'memory', 'filter', 'buffer', 'retry',
-    'validate', 'cassandra',
+    "pipeline",
+    "local",
+    "remote",
+    "memory",
+    "filter",
+    "buffer",
+    "retry",
+    "validate",
+    "cassandra",
 }
 
 
@@ -30,33 +37,36 @@ def get_storage(cls, **kwargs):
 
     """
     if cls not in STORAGE_IMPLEMENTATION:
-        raise ValueError('Unknown storage class `%s`. Supported: %s' % (
-            cls, ', '.join(STORAGE_IMPLEMENTATION)))
+        raise ValueError(
+            "Unknown storage class `%s`. Supported: %s"
+            % (cls, ", ".join(STORAGE_IMPLEMENTATION))
+        )
 
-    if 'args' in kwargs:
+    if "args" in kwargs:
         warnings.warn(
             'Explicit "args" key is deprecated, use keys directly instead.',
-            DeprecationWarning)
-        kwargs = kwargs['args']
+            DeprecationWarning,
+        )
+        kwargs = kwargs["args"]
 
-    if cls == 'pipeline':
+    if cls == "pipeline":
         return get_storage_pipeline(**kwargs)
 
-    if cls == 'remote':
+    if cls == "remote":
         from .api.client import RemoteStorage as Storage
-    elif cls == 'local':
+    elif cls == "local":
         from .storage import Storage
-    elif cls == 'cassandra':
+    elif cls == "cassandra":
         from .cassandra import CassandraStorage as Storage
-    elif cls == 'memory':
+    elif cls == "memory":
         from .in_memory import InMemoryStorage as Storage
-    elif cls == 'filter':
+    elif cls == "filter":
         from .filter import FilteringProxyStorage as Storage
-    elif cls == 'buffer':
+    elif cls == "buffer":
         from .buffer import BufferingProxyStorage as Storage
-    elif cls == 'retry':
+    elif cls == "retry":
         from .retry import RetryingProxyStorage as Storage
-    elif cls == 'validate':
+    elif cls == "validate":
         from .validate import ValidatingProxyStorage as Storage
 
     return Storage(**kwargs)
@@ -78,17 +88,17 @@ def get_storage_pipeline(steps):
     """
     storage_config = None
     for step in reversed(steps):
-        if 'args' in step:
+        if "args" in step:
             warnings.warn(
-                'Explicit "args" key is deprecated, use keys directly '
-                'instead.',
-                DeprecationWarning)
+                'Explicit "args" key is deprecated, use keys directly ' "instead.",
+                DeprecationWarning,
+            )
             step = {
-                'cls': step['cls'],
-                **step['args'],
+                "cls": step["cls"],
+                **step["args"],
             }
         if storage_config:
-            step['storage'] = storage_config
+            step["storage"] = storage_config
         storage_config = step
 
     return get_storage(**storage_config)

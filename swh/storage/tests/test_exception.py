@@ -17,17 +17,16 @@ def test_hash_collision_exception():
         "blake2s256": hashutil.hash_to_bytes(
             "8f677e3214ca8b2acad91884a1571ef3f12b786501f9a6bedfd6239d82095dd2"
         ),
-        "sha1_git": hashutil.hash_to_bytes(
-            "ba9aaa145ccd24ef760cf31c74d8f7ca1a2e47b0"),
+        "sha1_git": hashutil.hash_to_bytes("ba9aaa145ccd24ef760cf31c74d8f7ca1a2e47b0"),
         "sha256": hashutil.hash_to_bytes(
             "2bb787a73e37352f92383abe7e2902936d1059ad9f1ba6daaa9c1e58ee6970d0"
         ),
         "sha1": hash_id,
     }
 
-    exc = HashCollision('sha1', hash_id, [content])
+    exc = HashCollision("sha1", hash_id, [content])
 
-    assert exc.algo == 'sha1'
+    assert exc.algo == "sha1"
     assert exc.hash_id == hex_hash_id
     assert exc.colliding_contents == [content_hex_hashes(content)]
 

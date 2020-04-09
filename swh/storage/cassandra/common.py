@@ -10,11 +10,11 @@ import hashlib
 Row = tuple
 
 
-TOKEN_BEGIN = -(2**63)
-'''Minimum value returned by the CQL function token()'''
-TOKEN_END = 2**63-1
-'''Maximum value returned by the CQL function token()'''
+TOKEN_BEGIN = -(2 ** 63)
+"""Minimum value returned by the CQL function token()"""
+TOKEN_END = 2 ** 63 - 1
+"""Maximum value returned by the CQL function token()"""
 
 
 def hash_url(url: str) -> bytes:
-    return hashlib.sha1(url.encode('ascii')).digest()
+    return hashlib.sha1(url.encode("ascii")).digest()

@@ -16,7 +16,7 @@ class StorageDBError(Exception):
     """
 
     def __str__(self):
-        return 'An unexpected error occurred in the backend: %s' % self.args
+        return "An unexpected error occurred in the backend: %s" % self.args
 
 
 class StorageAPIError(Exception):
@@ -26,11 +26,12 @@ class StorageAPIError(Exception):
 
     def __str__(self):
         args = self.args
-        return 'An unexpected error occurred in the api backend: %s' % args
+        return "An unexpected error occurred in the api backend: %s" % args
 
 
 class StorageArgumentException(Exception):
     """Argument passed to a Storage endpoint is invalid."""
+
     pass
 
 
@@ -38,11 +39,11 @@ class HashCollision(Exception):
     """Exception raised when a content collides in a storage backend
 
     """
+
     def __init__(self, algo, hash_id, colliding_contents):
         self.algo = algo
         self.hash_id = hash_to_hex(hash_id)
-        self.colliding_contents = [content_hex_hashes(c)
-                                   for c in colliding_contents]
+        self.colliding_contents = [content_hex_hashes(c) for c in colliding_contents]
         super().__init__(self.algo, self.hash_id, self.colliding_contents)
 
     def colliding_content_hashes(self) -> List[Dict[str, bytes]]:
