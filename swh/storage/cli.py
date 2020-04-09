@@ -53,6 +53,56 @@ def serve(ctx, config_path, host, port, debug):
     app.run(host, port=int(port), debug=bool(debug))
 
 
+@storage.command()
+@click.argument("object_type")
+@click.option("--start-object", default=None)
+@click.option("--end-object", default=None)
+@click.option("--dry-run", is_flag=True, default=False)
+@click.pass_context
+def backfiller(ctx, object_type, start_object, end_object, dry_run):
+    """Run the backfiller
+
+    The backfiller list objects from a Storage and produce journal entries from
+    there.
+
+    Typically used to rebuild a journal or compensate for missing objects in a
+    journal (eg. due to a downtime of this later).
+
+    The configuration file requires the following entries:
+    - brokers: a list of kafka endpoints (the journal) in which entries will be
+               added.
+    - storage_dbconn: URL to connect to the storage DB.
+    - prefix: the prefix of the topics (topics will be <prefix>.<object_type>).
+    - client_id: the kafka client ID.
+
+    """
+    # for "lazy" loading
+    from swh.storage.backfill import JournalBackfiller
+
+    try:
+        from systemd.daemon import notify
+    except ImportError:
+        notify = None
+
+    conf = ctx.obj["config"]
+    backfiller = JournalBackfiller(conf)
+
+    if notify:
+        notify("READY=1")
+
+    try:
+        backfiller.run(
+            object_type=object_type,
+            start_object=start_object,
+            end_object=end_object,
+            dry_run=dry_run,
+        )
+    except KeyboardInterrupt:
+        if notify:
+            notify("STOPPING=1")
+        ctx.exit(0)
+
+
 def main():
     logging.basicConfig()
     return serve(auto_envvar_prefix="SWH_STORAGE")
