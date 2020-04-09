@@ -8,4 +8,4 @@ from .cql import create_keyspace
 from .storage import CassandraStorage
 
 
-__all__ = ['create_keyspace', 'CassandraStorage']
+__all__ = ["create_keyspace", "CassandraStorage"]

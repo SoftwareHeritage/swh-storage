@@ -8,7 +8,14 @@ from typing import Iterable, Union
 from attr import evolve
 
 from swh.model.model import (
-    Origin, OriginVisit, Snapshot, Directory, Revision, Release, Content
+    Origin,
+    OriginVisit,
+    Snapshot,
+    Directory,
+    Revision,
+    Release,
+    Content,
+    SkippedContent,
 )
 
 try:
@@ -23,12 +30,14 @@ class JournalWriter:
     the journal.
 
     """
+
     def __init__(self, journal_writer):
         if journal_writer:
             if get_journal_writer is None:
                 raise EnvironmentError(
-                    'You need the swh.journal package to use the '
-                    'journal_writer feature')
+                    "You need the swh.journal package to use the "
+                    "journal_writer feature"
+                )
             self.journal = get_journal_writer(**journal_writer)
         else:
             self.journal = None
@@ -40,62 +49,60 @@ class JournalWriter:
         if not self.journal:
             return
         contents = [evolve(item, data=None) for item in contents]
-        self.journal.write_additions('content', contents)
+        self.journal.write_additions("content", contents)
 
     def content_update(self, contents: Iterable[Content]) -> None:
         if not self.journal:
             return
         raise NotImplementedError(
-            'content_update is not yet supported with a journal writer.')
+            "content_update is not yet supported with a journal writer."
+        )
 
-    def content_add_metadata(
-            self, contents: Iterable[Content]) -> None:
+    def content_add_metadata(self, contents: Iterable[Content]) -> None:
         return self.content_add(contents)
 
-    def skipped_content_add(
-            self, contents: Iterable[Content]) -> None:
+    def skipped_content_add(self, contents: Iterable[SkippedContent]) -> None:
         if not self.journal:
             return
-        self.journal.write_additions('content', contents)
+        self.journal.write_additions("content", contents)
 
     def directory_add(self, directories: Iterable[Directory]) -> None:
         if not self.journal:
             return
-        self.journal.write_additions('directory', directories)
+        self.journal.write_additions("directory", directories)
 
     def revision_add(self, revisions: Iterable[Revision]) -> None:
         if not self.journal:
             return
-        self.journal.write_additions('revision', revisions)
+        self.journal.write_additions("revision", revisions)
 
     def release_add(self, releases: Iterable[Release]) -> None:
         if not self.journal:
             return
-        self.journal.write_additions('release', releases)
+        self.journal.write_additions("release", releases)
 
-    def snapshot_add(
-            self, snapshots: Union[Iterable[Snapshot], Snapshot]) -> None:
+    def snapshot_add(self, snapshots: Union[Iterable[Snapshot], Snapshot]) -> None:
         if not self.journal:
             return
         snaps = snapshots if isinstance(snapshots, list) else [snapshots]
-        self.journal.write_additions('snapshot', snaps)
+        self.journal.write_additions("snapshot", snaps)
 
     def origin_visit_add(self, visit: OriginVisit):
         if not self.journal:
             return
-        self.journal.write_addition('origin_visit', visit)
+        self.journal.write_addition("origin_visit", visit)
 
     def origin_visit_update(self, visit: OriginVisit):
         if not self.journal:
             return
-        self.journal.write_update('origin_visit', visit)
+        self.journal.write_update("origin_visit", visit)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]):
         if not self.journal:
             return
-        self.journal.write_additions('origin_visit', visits)
+        self.journal.write_additions("origin_visit", visits)
 
     def origin_add_one(self, origin: Origin):
         if not self.journal:
             return
-        self.journal.write_addition('origin', origin)
+        self.journal.write_addition("origin", origin)

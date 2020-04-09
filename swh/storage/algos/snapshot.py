@@ -21,11 +21,10 @@ def snapshot_get_all_branches(storage, snapshot_id):
     if not ret:
         return
 
-    next_branch = ret.pop('next_branch', None)
+    next_branch = ret.pop("next_branch", None)
     while next_branch:
-        data = storage.snapshot_get_branches(snapshot_id,
-                                             branches_from=next_branch)
-        ret['branches'].update(data['branches'])
-        next_branch = data.get('next_branch')
+        data = storage.snapshot_get_branches(snapshot_id, branches_from=next_branch)
+        ret["branches"].update(data["branches"])
+        next_branch = data.get("next_branch")
 
     return ret

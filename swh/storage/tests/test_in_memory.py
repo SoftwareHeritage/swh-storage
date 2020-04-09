@@ -5,19 +5,17 @@
 
 import pytest
 
-from swh.storage.tests.test_storage import (  # noqa
-    TestStorage, TestStorageGeneratedData)
+from swh.storage.tests.test_storage import TestStorage, TestStorageGeneratedData  # noqa
 
 
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture
 # below
 
+
 @pytest.fixture
 def swh_storage_backend_config():
     yield {
-        'cls': 'memory',
-        'journal_writer': {
-            'cls': 'memory',
-        },
+        "cls": "memory",
+        "journal_writer": {"cls": "memory",},
     }

@@ -12,16 +12,17 @@ import sys
 from swh.storage.storage import Storage
 from swh.model.hashutil import MultiHash
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         db_connstring = sys.argv[1]
         obj_root = sys.argv[2]
         dirname = sys.argv[3]
     except IndexError:
-        print('Usage: swh-storage-add-dir' +
-              ' DB_CONNSTRING OBJ_STORAGE_DIR DATA_DIR')
-        print('Example: swh-storage-add-dir "dbname=swh user=foo"' +
-              ' /srv/softwareheritage/objects /usr/src/linux-4.2')
+        print("Usage: swh-storage-add-dir" + " DB_CONNSTRING OBJ_STORAGE_DIR DATA_DIR")
+        print(
+            'Example: swh-storage-add-dir "dbname=swh user=foo"'
+            + " /srv/softwareheritage/objects /usr/src/linux-4.2"
+        )
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO)
@@ -33,7 +34,7 @@ if __name__ == '__main__':
             for name in files:
                 path = os.path.join(root, name)
                 cont = MultiHash.from_path(path).digest()
-                cont['data'] = open(path, 'rb').read()
+                cont["data"] = open(path, "rb").read()
                 yield cont
 
     storage.content_add(list_content())

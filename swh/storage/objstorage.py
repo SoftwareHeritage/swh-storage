@@ -17,11 +17,12 @@ class ObjStorage:
     the objstorage.
 
     """
+
     def __init__(self, objstorage_config: Dict):
         self.objstorage = get_objstorage(**objstorage_config)
 
     def __getattr__(self, key):
-        if key == 'objstorage':
+        if key == "objstorage":
             raise AttributeError(key)
         return getattr(self.objstorage, key)
 
@@ -39,7 +40,7 @@ class ObjStorage:
                 yield None
                 continue
 
-            yield {'sha1': obj_id, 'data': data}
+            yield {"sha1": obj_id, "data": data}
 
     def content_add(self, contents: Iterable[Content]) -> Dict:
         """Add contents to the objstorage.
@@ -55,12 +56,9 @@ class ObjStorage:
         try:
             contents = [c.with_data() for c in contents]
         except MissingData:
-            raise StorageArgumentException('Missing data') from None
-        summary = self.objstorage.add_batch({
-            cont.sha1: cont.data
-            for cont in contents
-        })
+            raise StorageArgumentException("Missing data") from None
+        summary = self.objstorage.add_batch({cont.sha1: cont.data for cont in contents})
         return {
-            'content:add': summary['object:add'],
-            'content:add:bytes': summary['object:add:bytes']
+            "content:add": summary["object:add"],
+            "content:add:bytes": summary["object:add:bytes"],
         }

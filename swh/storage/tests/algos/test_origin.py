@@ -13,70 +13,54 @@ def assert_list_eq(left, right, msg=None):
     assert list(left) == list(right), msg
 
 
-storage_config = {
-    'cls': 'validate',
-    'storage': {
-        'cls': 'memory',
-    }
-}
+storage_config = {"cls": "validate", "storage": {"cls": "memory",}}
 
 
 def test_iter_origins():
     storage = get_storage(**storage_config)
-    origins = storage.origin_add([
-        {'url': 'bar'},
-        {'url': 'qux'},
-        {'url': 'quuz'},
-    ])
+    origins = storage.origin_add([{"url": "bar"}, {"url": "qux"}, {"url": "quuz"},])
     assert_list_eq(iter_origins(storage), origins)
     assert_list_eq(iter_origins(storage, batch_size=1), origins)
     assert_list_eq(iter_origins(storage, batch_size=2), origins)
 
     for i in range(1, 5):
-        assert_list_eq(
-            iter_origins(storage, origin_from=i+1),
-            origins[i:],
-            i)
+        assert_list_eq(iter_origins(storage, origin_from=i + 1), origins[i:], i)
 
         assert_list_eq(
-            iter_origins(storage, origin_from=i+1, batch_size=1),
-            origins[i:],
-            i)
+            iter_origins(storage, origin_from=i + 1, batch_size=1), origins[i:], i
+        )
 
         assert_list_eq(
-            iter_origins(storage, origin_from=i+1, batch_size=2),
-            origins[i:],
-            i)
+            iter_origins(storage, origin_from=i + 1, batch_size=2), origins[i:], i
+        )
 
         for j in range(i, 5):
             assert_list_eq(
-                iter_origins(
-                    storage, origin_from=i+1, origin_to=j+1),
+                iter_origins(storage, origin_from=i + 1, origin_to=j + 1),
                 origins[i:j],
-                (i, j))
+                (i, j),
+            )
 
             assert_list_eq(
-                iter_origins(
-                    storage, origin_from=i+1, origin_to=j+1, batch_size=1),
+                iter_origins(storage, origin_from=i + 1, origin_to=j + 1, batch_size=1),
                 origins[i:j],
-                (i, j))
+                (i, j),
+            )
 
             assert_list_eq(
-                iter_origins(
-                    storage, origin_from=i+1, origin_to=j+1, batch_size=2),
+                iter_origins(storage, origin_from=i + 1, origin_to=j + 1, batch_size=2),
                 origins[i:j],
-                (i, j))
+                (i, j),
+            )
 
 
-@patch('swh.storage.in_memory.InMemoryStorage.origin_get_range')
+@patch("swh.storage.in_memory.InMemoryStorage.origin_get_range")
 def test_iter_origins_batch_size(mock_origin_get_range):
     storage = get_storage(**storage_config)
     mock_origin_get_range.return_value = []
 
     list(iter_origins(storage))
-    mock_origin_get_range.assert_called_with(
-        origin_from=1, origin_count=10000)
+    mock_origin_get_range.assert_called_with(origin_from=1, origin_count=10000)
 
     list(iter_origins(storage, batch_size=42))
-    mock_origin_get_range.assert_called_with(
-        origin_from=1, origin_count=42)
+    mock_origin_get_range.assert_called_with(origin_from=1, origin_count=42)
