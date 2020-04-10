@@ -1311,4 +1311,10 @@ class StorageInterface:
         state.
 
         """
+
+    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+        """For backend storages (pg, storage, in-memory), this is expected to be a noop
+        operation. For proxy storages (especially buffer), this is expected to trigger
+        actual writes to the backend.
+        """
         ...

@@ -1022,3 +1022,6 @@ class InMemoryStorage:
 
         """
         return None
+
+    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+        return {}
