@@ -9,7 +9,15 @@ from unittest.mock import call
 import psycopg2
 import pytest
 
-from swh.model.model import Content, Directory, Release, Revision, Snapshot, Origin
+from swh.model.model import (
+    Content,
+    Directory,
+    Release,
+    Revision,
+    Snapshot,
+    SkippedContent,
+    Origin,
+)
 
 from swh.storage import get_storage
 from swh.storage.exc import HashCollision, StorageArgumentException
@@ -184,6 +192,86 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.content_add_metadata([sample_content])
+
+    assert mock_memory.call_count == 1
+
+
+def test_retrying_proxy_storage_skipped_content_add(swh_storage, sample_data):
+    """Standard skipped_content_add works as before
+
+    """
+    sample_content = sample_data["skipped_content"][0]
+
+    skipped_contents = list(swh_storage.skipped_content_missing([sample_content]))
+    assert len(skipped_contents) == 1
+
+    s = swh_storage.skipped_content_add([sample_content])
+    assert s == {
+        "skipped_content:add": 1,
+    }
+
+    skipped_content = list(swh_storage.skipped_content_missing([sample_content]))
+    assert len(skipped_content) == 0
+
+
+def test_retrying_proxy_storage_skipped_content_add_with_retry(
+    swh_storage, sample_data, mocker, fake_hash_collision
+):
+    """Multiple retries for hash collision and psycopg2 error but finally ok
+
+    """
+    mock_memory = mocker.patch(
+        "swh.storage.in_memory.InMemoryStorage.skipped_content_add"
+    )
+    mock_memory.side_effect = [
+        # 1st & 2nd try goes ko
+        fake_hash_collision,
+        psycopg2.IntegrityError("skipped_content already inserted"),
+        # ok then!
+        {"skipped_content:add": 1},
+    ]
+    mock_sleep = mocker.patch(
+        "swh.storage.retry.RetryingProxyStorage" ".skipped_content_add.retry.sleep"
+    )
+
+    sample_content = sample_data["skipped_content"][0]
+
+    s = swh_storage.skipped_content_add([sample_content])
+    assert s == {"skipped_content:add": 1}
+
+    mock_memory.assert_has_calls(
+        [
+            call([SkippedContent.from_dict(sample_content)]),
+            call([SkippedContent.from_dict(sample_content)]),
+            call([SkippedContent.from_dict(sample_content)]),
+        ]
+    )
+    assert mock_sleep.call_count == 2
+
+
+def test_retrying_proxy_swh_storage_skipped_content_add_failure(
+    swh_storage, sample_data, mocker
+):
+    """Unfiltered errors are raising without retry
+
+    """
+    mock_memory = mocker.patch(
+        "swh.storage.in_memory.InMemoryStorage.skipped_content_add"
+    )
+    mock_memory.side_effect = StorageArgumentException(
+        "Refuse to add content_metadata!"
+    )
+
+    sample_content = sample_data["skipped_content"][0]
+
+    skipped_contents = list(swh_storage.skipped_content_missing([sample_content]))
+    assert len(skipped_contents) == 1
+
+    with pytest.raises(StorageArgumentException, match="Refuse to add"):
+        swh_storage.skipped_content_add([sample_content])
+
+    skipped_contents = list(swh_storage.skipped_content_missing([sample_content]))
+    assert len(skipped_contents) == 1
 
     assert mock_memory.call_count == 1
 
