@@ -1,3 +1,14 @@
+swh-storage (0.0.184-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.184     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-04-10 16:07:32
+    +0200)
+  * Upstream changes:     - v0.0.184     - storage*: Add flush endpoints
+    to storage implems (backend, proxy)     - test_retry: Add missing
+    skipped_content_add tests
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 10 Apr 2020 14:14:20 +0000
+
 swh-storage (0.0.183-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.183     - (tagged by Antoine R. Dumont
