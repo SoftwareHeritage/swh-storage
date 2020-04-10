@@ -59,7 +59,7 @@ def serve(ctx, config_path, host, port, debug):
 @click.option("--end-object", default=None)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.pass_context
-def backfiller(ctx, object_type, start_object, end_object, dry_run):
+def backfill(ctx, object_type, start_object, end_object, dry_run):
     """Run the backfiller
 
     The backfiller list objects from a Storage and produce journal entries from
