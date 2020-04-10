@@ -148,3 +148,6 @@ class FilteringProxyStorage:
             self.objects_seen[object_type] = set()
 
         return self.storage.clear_buffers(object_types)
+
+    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+        return self.storage.flush(object_types)
