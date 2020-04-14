@@ -26,7 +26,15 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
-from swh.model.model import Content, OriginVisit
+from swh.model.model import (
+    Content,
+    Directory,
+    Origin,
+    OriginVisit,
+    Release,
+    Revision,
+    Snapshot,
+)
 from swh.model.hypothesis_strategies import objects
 from swh.model.hashutil import hash_to_hex
 from swh.storage import get_storage
@@ -87,6 +95,11 @@ def assert_contents_ok(
         expected_list = set([c.get(k) for c in expected_contents])
         actual_list = set([c.get(k) for c in actual_contents])
         assert actual_list == expected_list, k
+
+
+class LazyContent(Content):
+    def with_data(self):
+        return Content.from_dict({**self.to_dict(), "data": data.cont["data"]})
 
 
 class TestStorage:
@@ -156,12 +169,18 @@ class TestStorage:
 
         expected_cont = data.cont
         del expected_cont["data"]
-        journal_objects = list(swh_storage.journal_writer.journal.objects)
-        for (obj_type, obj) in journal_objects:
-            assert insertion_start_time <= obj["ctime"]
-            assert obj["ctime"] <= insertion_end_time
-            del obj["ctime"]
-        assert journal_objects == [("content", expected_cont)]
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            assert insertion_start_time <= obj.ctime
+            assert obj.ctime <= insertion_end_time
+            obj_d = obj.to_dict()
+            del obj_d["ctime"]
+            assert obj_d == expected_cont
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
@@ -181,16 +200,8 @@ class TestStorage:
         assert swh_storage.stat_counters()["content"] == 1
 
     def test_content_add_from_lazy_content(self, swh_storage):
-        called = False
-        cont = data.cont
 
-        class LazyContent(Content):
-            def with_data(self):
-                nonlocal called
-                called = True
-                return Content.from_dict({**self.to_dict(), "data": cont["data"]})
-
-        lazy_content = LazyContent.from_dict({**cont, "data": b"nope",})
+        lazy_content = LazyContent.from_dict({**data.cont, "data": b"nope",})
 
         insertion_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
 
@@ -201,23 +212,29 @@ class TestStorage:
 
         assert actual_result == {
             "content:add": 1,
-            "content:add:bytes": cont["length"],
+            "content:add:bytes": data.cont["length"],
         }
 
-        assert called
-
-        assert list(swh_storage.content_get([cont["sha1"]])) == [
-            {"sha1": cont["sha1"], "data": cont["data"]}
+        # the fact that we retrieve the content object from the storage with
+        # the correct 'data' field ensures it has been 'called'
+        assert list(swh_storage.content_get([data.cont["sha1"]])) == [
+            {"sha1": data.cont["sha1"], "data": data.cont["data"]}
         ]
 
         expected_cont = data.cont
         del expected_cont["data"]
-        journal_objects = list(swh_storage.journal_writer.journal.objects)
-        for (obj_type, obj) in journal_objects:
-            assert insertion_start_time <= obj["ctime"]
-            assert obj["ctime"] <= insertion_end_time
-            del obj["ctime"]
-        assert journal_objects == [("content", expected_cont)]
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            assert insertion_start_time <= obj.ctime
+            assert obj.ctime <= insertion_end_time
+            obj_d = obj.to_dict()
+            del obj_d["ctime"]
+            assert obj_d == expected_cont
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
@@ -362,8 +379,16 @@ class TestStorage:
         assert swh_storage.content_get_metadata([cont["sha1"]]) == {
             cont["sha1"]: [expected_cont]
         }
-
-        assert list(swh_storage.journal_writer.journal.objects) == [("content", cont)]
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            obj_d = obj.to_dict()
+            del obj_d["ctime"]
+            assert obj_d == expected_cont
 
     def test_content_add_metadata_different_input(self, swh_storage):
         cont = data.cont
@@ -687,7 +712,7 @@ class TestStorage:
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", data.dir)
+            ("directory", Directory.from_dict(data.dir))
         ]
 
         actual_data = list(swh_storage.directory_ls(data.dir["id"]))
@@ -709,7 +734,7 @@ class TestStorage:
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", data.dir)
+            ("directory", Directory.from_dict(data.dir))
         ]
 
         swh_storage.refresh_stat_counters()
@@ -736,14 +761,14 @@ class TestStorage:
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", data.dir)
+            ("directory", Directory.from_dict(data.dir))
         ]
 
         actual_result = swh_storage.directory_add([data.dir])
         assert actual_result == {"directory:add": 0}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", data.dir)
+            ("directory", Directory.from_dict(data.dir))
         ]
 
     def test_directory_get_recursive(self, swh_storage):
@@ -754,9 +779,9 @@ class TestStorage:
         assert actual_result == {"directory:add": 3}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", data.dir),
-            ("directory", data.dir2),
-            ("directory", data.dir3),
+            ("directory", Directory.from_dict(data.dir)),
+            ("directory", Directory.from_dict(data.dir2)),
+            ("directory", Directory.from_dict(data.dir3)),
         ]
 
         # List directory containing a file and an unknown subdirectory
@@ -788,9 +813,9 @@ class TestStorage:
         assert actual_result == {"directory:add": 3}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", data.dir),
-            ("directory", data.dir2),
-            ("directory", data.dir3),
+            ("directory", Directory.from_dict(data.dir)),
+            ("directory", Directory.from_dict(data.dir2)),
+            ("directory", Directory.from_dict(data.dir3)),
         ]
 
         # List directory containing a file and an unknown subdirectory
@@ -899,7 +924,7 @@ class TestStorage:
         assert list(end_missing) == []
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", data.revision)
+            ("revision", Revision.from_dict(data.revision))
         ]
 
         # already there so nothing added
@@ -952,15 +977,15 @@ class TestStorage:
         assert actual_result == {"revision:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", data.revision)
+            ("revision", Revision.from_dict(data.revision))
         ]
 
         actual_result = swh_storage.revision_add([data.revision, data.revision2])
         assert actual_result == {"revision:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", data.revision),
-            ("revision", data.revision2),
+            ("revision", Revision.from_dict(data.revision)),
+            ("revision", Revision.from_dict(data.revision2)),
         ]
 
     def test_revision_add_name_clash(self, swh_storage):
@@ -1012,8 +1037,8 @@ class TestStorage:
         assert actual_results[1] == normalize_entity(data.revision3)
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", data.revision3),
-            ("revision", data.revision4),
+            ("revision", Revision.from_dict(data.revision3)),
+            ("revision", Revision.from_dict(data.revision4)),
         ]
 
     def test_revision_log_with_limit(self, swh_storage):
@@ -1106,8 +1131,8 @@ class TestStorage:
         assert list(end_missing) == []
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", data.release),
-            ("release", data.release2),
+            ("release", Release.from_dict(data.release)),
+            ("release", Release.from_dict(data.release2)),
         ]
 
         # already present so nothing added
@@ -1126,8 +1151,8 @@ class TestStorage:
         assert actual_result == {"release:add": 2}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", data.release),
-            ("release", data.release2),
+            ("release", Release.from_dict(data.release)),
+            ("release", Release.from_dict(data.release2)),
         ]
 
         swh_storage.refresh_stat_counters()
@@ -1146,7 +1171,7 @@ class TestStorage:
         assert list(end_missing) == []
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", release)
+            ("release", Release.from_dict(release))
         ]
 
     def test_release_add_validation(self, swh_storage):
@@ -1180,15 +1205,15 @@ class TestStorage:
         assert actual_result == {"release:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", data.release)
+            ("release", Release.from_dict(data.release))
         ]
 
         actual_result = swh_storage.release_add([data.release, data.release2])
         assert actual_result == {"release:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", data.release),
-            ("release", data.release2),
+            ("release", Release.from_dict(data.release)),
+            ("release", Release.from_dict(data.release2)),
         ]
 
     def test_release_add_name_clash(self, swh_storage):
@@ -1282,8 +1307,8 @@ class TestStorage:
             del actual_origin2["id"]
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", actual_origin),
-            ("origin", actual_origin2),
+            ("origin", Origin.from_dict(actual_origin)),
+            ("origin", Origin.from_dict(actual_origin2)),
         ]
 
         swh_storage.refresh_stat_counters()
@@ -1307,8 +1332,8 @@ class TestStorage:
             del actual_origin2["id"]
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", actual_origin),
-            ("origin", actual_origin2),
+            ("origin", Origin.from_dict(actual_origin)),
+            ("origin", Origin.from_dict(actual_origin2)),
         ]
 
         swh_storage.refresh_stat_counters()
@@ -1317,14 +1342,14 @@ class TestStorage:
     def test_origin_add_twice(self, swh_storage):
         add1 = swh_storage.origin_add([data.origin, data.origin2])
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin),
-            ("origin", data.origin2),
+            ("origin", Origin.from_dict(data.origin)),
+            ("origin", Origin.from_dict(data.origin2)),
         ]
 
         add2 = swh_storage.origin_add([data.origin, data.origin2])
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin),
-            ("origin", data.origin2),
+            ("origin", Origin.from_dict(data.origin)),
+            ("origin", Origin.from_dict(data.origin2)),
         ]
 
         assert add1 == add2
@@ -1584,8 +1609,8 @@ class TestStorage:
         assert expected_origin_visit in actual_origin_visits
 
         objects = list(swh_storage.journal_writer.journal.objects)
-        assert ("origin", data.origin2) in objects
-        assert ("origin_visit", expected_origin_visit) in objects
+        assert ("origin", Origin.from_dict(data.origin2)) in objects
+        assert ("origin_visit", OriginVisit.from_dict(expected_origin_visit)) in objects
 
     def test_origin_visit_get__unknown_origin(self, swh_storage):
         assert [] == list(swh_storage.origin_visit_get("foo"))
@@ -1642,10 +1667,10 @@ class TestStorage:
             assert visit in actual_origin_visits
 
         objects = list(swh_storage.journal_writer.journal.objects)
-        assert ("origin", data.origin2) in objects
+        assert ("origin", Origin.from_dict(data.origin2)) in objects
 
         for visit in expected_visits:
-            assert ("origin_visit", visit) in objects
+            assert ("origin_visit", OriginVisit.from_dict(visit)) in objects
 
     def test_origin_visit_add_validation(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin2)
@@ -1806,20 +1831,22 @@ class TestStorage:
             "snapshot": None,
         }
         objects = list(swh_storage.journal_writer.journal.objects)
-        assert ("origin", data.origin) in objects
-        assert ("origin", data.origin2) in objects
-        assert ("origin_visit", data1) in objects
-        assert ("origin_visit", data2) in objects
-        assert ("origin_visit", data3) in objects
-        assert ("origin_visit", data4) in objects
-        assert ("origin_visit", data5) in objects
+        assert ("origin", Origin.from_dict(data.origin)) in objects
+        assert ("origin", Origin.from_dict(data.origin2)) in objects
+        assert ("origin_visit", OriginVisit.from_dict(data1)) in objects
+        assert ("origin_visit", OriginVisit.from_dict(data2)) in objects
+        assert ("origin_visit", OriginVisit.from_dict(data3)) in objects
+        assert ("origin_visit", OriginVisit.from_dict(data4)) in objects
+        assert ("origin_visit", OriginVisit.from_dict(data5)) in objects
 
     def test_origin_visit_update_validation(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin)
         visit = swh_storage.origin_visit_add(
             origin_url, date=data.date_visit2, type=data.type_visit2
         )
-        with pytest.raises(StorageArgumentException, match="status") as cm:
+        with pytest.raises(
+            (StorageArgumentException, ValueError), match="status"
+        ) as cm:
             swh_storage.origin_visit_update(origin_url, visit.visit, status="foobar")
 
         if type(cm.value) == psycopg2.DataError:
@@ -2006,9 +2033,9 @@ class TestStorage:
             "snapshot": None,
         }
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin2),
-            ("origin_visit", data1),
-            ("origin_visit", data2),
+            ("origin", Origin.from_dict(data.origin2)),
+            ("origin_visit", OriginVisit.from_dict(data1)),
+            ("origin_visit", OriginVisit.from_dict(data2)),
         ]
 
     def test_origin_visit_upsert_existing(self, swh_storage):
@@ -2072,9 +2099,9 @@ class TestStorage:
             "snapshot": None,
         }
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin2),
-            ("origin_visit", data1),
-            ("origin_visit", data2),
+            ("origin", Origin.from_dict(data.origin2)),
+            ("origin_visit", OriginVisit.from_dict(data1)),
+            ("origin_visit", OriginVisit.from_dict(data2)),
         ]
 
     def test_origin_visit_upsert_missing_visit_id(self, swh_storage):
@@ -2100,7 +2127,7 @@ class TestStorage:
             )
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin2)
+            ("origin", Origin.from_dict(data.origin2))
         ]
 
     def test_origin_visit_get_by_no_result(self, swh_storage):
@@ -2275,10 +2302,10 @@ class TestStorage:
             "snapshot": data.empty_snapshot["id"],
         }
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin),
-            ("origin_visit", data1),
-            ("snapshot", data.empty_snapshot),
-            ("origin_visit", data2),
+            ("origin", Origin.from_dict(data.origin)),
+            ("origin_visit", OriginVisit.from_dict(data1)),
+            ("snapshot", Snapshot.from_dict(data.empty_snapshot)),
+            ("origin_visit", OriginVisit.from_dict(data2)),
         ]
 
     def test_snapshot_add_get_complete(self, swh_storage):
@@ -2356,15 +2383,15 @@ class TestStorage:
         assert actual_result == {"snapshot:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("snapshot", data.empty_snapshot)
+            ("snapshot", Snapshot.from_dict(data.empty_snapshot))
         ]
 
         actual_result = swh_storage.snapshot_add([data.snapshot])
         assert actual_result == {"snapshot:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("snapshot", data.empty_snapshot),
-            ("snapshot", data.snapshot),
+            ("snapshot", Snapshot.from_dict(data.empty_snapshot)),
+            ("snapshot", Snapshot.from_dict(data.snapshot)),
         ]
 
     def test_snapshot_add_validation(self, swh_storage):
@@ -2596,7 +2623,7 @@ class TestStorage:
             )
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("snapshot", data.snapshot)
+            ("snapshot", Snapshot.from_dict(data.snapshot))
         ]
 
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage):
@@ -2669,12 +2696,12 @@ class TestStorage:
             "snapshot": data.snapshot["id"],
         }
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", data.origin),
-            ("origin_visit", data1),
-            ("snapshot", data.snapshot),
-            ("origin_visit", data2),
-            ("origin_visit", data3),
-            ("origin_visit", data4),
+            ("origin", Origin.from_dict(data.origin)),
+            ("origin_visit", OriginVisit.from_dict(data1)),
+            ("snapshot", Snapshot.from_dict(data.snapshot)),
+            ("origin_visit", OriginVisit.from_dict(data2)),
+            ("origin_visit", OriginVisit.from_dict(data3)),
+            ("origin_visit", OriginVisit.from_dict(data4)),
         ]
 
     def test_snapshot_get_latest(self, swh_storage):
@@ -3916,10 +3943,16 @@ class TestPgStorage:
 
         expected_cont = cont.copy()
         del expected_cont["data"]
-        journal_objects = list(swh_storage.journal_writer.journal.objects)
-        for (obj_type, obj) in journal_objects:
-            del obj["ctime"]
-        assert journal_objects == [("content", expected_cont)]
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            obj_d = obj.to_dict()
+            del obj_d["ctime"]
+            assert obj_d == expected_cont
 
     def test_content_add_metadata_db(self, swh_storage):
         cont = data.cont
@@ -3949,7 +3982,15 @@ class TestPgStorage:
             "visible",
         )
 
-        assert list(swh_storage.journal_writer.journal.objects) == [("content", cont)]
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            obj_d = obj.to_dict()
+            assert obj_d == cont
 
     def test_skipped_content_add_db(self, swh_storage):
         cont = data.skipped_cont
