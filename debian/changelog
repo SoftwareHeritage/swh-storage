@@ -1,3 +1,14 @@
+swh-storage (0.0.185-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.185     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-04-14 14:15:32
+    +0200)
+  * Upstream changes:     - v0.0.185     - storage.filter: Remove
+    internal state     - test: update storage tests to (future)
+    swh.journal 0.0.30
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Apr 2020 12:22:06 +0000
+
 swh-storage (0.0.184-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.184     - (tagged by Antoine R. Dumont
