@@ -12,6 +12,8 @@ import swh.storage.api.server as server
 import swh.storage.storage
 from swh.storage.tests.test_storage import TestStorageGeneratedData  # noqa
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
+from swh.storage.tests.conftest import BWCompatInMemoryJournalWriter
+from swh.storage.tests.test_api_client import swh_storage  # noqa
 
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture
@@ -24,7 +26,11 @@ def app_server():
         "cls": "validate",
         "storage": {"cls": "memory", "journal_writer": {"cls": "memory",},},
     }
-    server.storage = swh.storage.get_storage(**storage_config)
+    with patch(
+        "swh.journal.writer.inmemory.InMemoryJournalWriter",
+        return_value=BWCompatInMemoryJournalWriter(),
+    ):
+        server.storage = swh.storage.get_storage(**storage_config)
     yield server
 
 
@@ -38,26 +44,8 @@ def swh_rpc_client_class():
     return RemoteStorage
 
 
-@pytest.fixture
-def swh_storage(swh_rpc_client, app_server):
-    # This version of the swh_storage fixture uses the swh_rpc_client fixture
-    # to instantiate a RemoteStorage (see swh_rpc_client_class above) that
-    # proxies, via the swh.core RPC mechanism, the local (in memory) storage
-    # configured in the app_server fixture above.
-    #
-    # Also note that, for the sake of
-    # making it easier to write tests, the in-memory journal writer of the
-    # in-memory backend storage is attached to the RemoteStorage as its
-    # journal_writer attribute.
-    storage = swh_rpc_client
-    journal_writer = getattr(storage, "journal_writer", None)
-    storage.journal_writer = app_server.storage.journal_writer
-    yield storage
-    storage.journal_writer = journal_writer
-
-
 class TestStorage(_TestStorage):
-    def test_content_update(self, swh_storage, app_server):
+    def test_content_update(self, swh_storage, app_server):  # noqa
         # TODO, journal_writer not supported
         swh_storage.journal_writer.journal = None
         with patch.object(server.storage.journal_writer, "journal", None):

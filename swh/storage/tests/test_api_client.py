@@ -12,6 +12,7 @@ import swh.storage.storage
 from swh.storage import get_storage
 from swh.storage.tests.test_storage import TestStorageGeneratedData  # noqa
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
+from swh.storage.tests.conftest import BWCompatInMemoryJournalWriter
 
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture
@@ -24,7 +25,11 @@ def app_server():
         "cls": "memory",
         "journal_writer": {"cls": "memory",},
     }
-    server.storage = swh.storage.get_storage(**storage_config)
+    with patch(
+        "swh.journal.writer.inmemory.InMemoryJournalWriter",
+        return_value=BWCompatInMemoryJournalWriter(),
+    ):
+        server.storage = swh.storage.get_storage(**storage_config)
     yield server
 
 

@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Iterable, Set
 
 from swh.model.model import (
     Content,
@@ -33,12 +33,9 @@ class FilteringProxyStorage:
     """
 
     object_types = ["content", "skipped_content", "directory", "revision"]
-    objects_seen: Dict[str, Set[bytes]] = {}
 
     def __init__(self, storage):
         self.storage = get_storage(**storage)
-        for object_type in self.object_types:
-            self.objects_seen[object_type] = set()
 
     def __getattr__(self, key):
         if key == "storage":
@@ -77,12 +74,8 @@ class FilteringProxyStorage:
                 storage
 
         """
-        objects_seen = self.objects_seen["content"]
         missing_contents = []
         for content in contents:
-            if content.sha256 in objects_seen:
-                continue
-            objects_seen.add(content.sha256)
             missing_contents.append(content.hashes())
 
         return set(self.storage.content_missing(missing_contents, key_hash="sha256",))
@@ -97,12 +90,10 @@ class FilteringProxyStorage:
                 storage
 
         """
-        objects_seen = self.objects_seen["skipped_content"]
         missing_contents = []
         for content in contents:
-            if content.sha1_git is None or content.sha1_git in objects_seen:
+            if content.sha1_git is None:
                 continue
-            objects_seen.add(content.sha1_git)
             missing_contents.append(content.hashes())
 
         return {
@@ -121,12 +112,8 @@ class FilteringProxyStorage:
             Missing ids from the storage for object_type
 
         """
-        objects_seen = self.objects_seen[object_type]
         missing_ids = []
         for id in ids:
-            if id in objects_seen:
-                continue
-            objects_seen.add(id)
             missing_ids.append(id)
 
         fn_by_object_type = {
@@ -136,18 +123,3 @@ class FilteringProxyStorage:
 
         fn = fn_by_object_type[object_type]
         return set(fn(missing_ids))
-
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
-        """Clear objects from current buffer
-
-        """
-        if object_types is None:
-            object_types = self.object_types
-
-        for object_type in object_types:
-            self.objects_seen[object_type] = set()
-
-        return self.storage.clear_buffers(object_types)
-
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
-        return self.storage.flush(object_types)
