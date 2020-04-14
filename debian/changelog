@@ -1,3 +1,12 @@
+swh-storage (0.0.186-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.186     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-04-14 17:09:22 +0200)
+  * Upstream changes:     - Release swh.storage v0.0.186     - Drop
+    backwards-compatibility code with swh.journal < 0.0.30
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Apr 2020 15:20:57 +0000
+
 swh-storage (0.0.185-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.185     - (tagged by Antoine R. Dumont
