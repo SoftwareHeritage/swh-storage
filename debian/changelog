@@ -1,8 +1,12 @@
-swh-storage (0.0.186-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.187-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.187     - (tagged by Antoine R. Dumont
+    (@ardumont) <antoine.romain.dumont@gmail.com> on 2020-04-14 18:13:08
+    +0200)
+  * Upstream changes:     - v0.0.187     - storage.interface: Actually
+    define the remote flush operation
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Apr 2020 15:24:58 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Apr 2020 16:23:41 +0000
 
 swh-storage (0.0.186-1~swh1) unstable-swh; urgency=medium
 
