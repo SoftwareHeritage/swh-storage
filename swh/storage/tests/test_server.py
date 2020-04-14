@@ -7,7 +7,6 @@ import pytest
 import yaml
 
 from swh.storage.api.server import load_and_check_config
-from swh.storage import get_storage
 
 
 def prepare_config_file(tmpdir, content, name="config.yml"):
@@ -72,10 +71,3 @@ def test_load_and_check_config_remote_config_fine(tmpdir):
     cfg = load_and_check_config(config_path, type="any")
 
     assert cfg == config
-
-
-def test_no_remote_flush_operation():
-    config = {"cls": "remote", "url": "http://localhost"}
-    storage = get_storage(**config)
-    with pytest.raises(AttributeError, match="object has no attribute 'flush'"):
-        storage.flush()
