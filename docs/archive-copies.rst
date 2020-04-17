@@ -18,16 +18,17 @@ relationships, as well as their geographical and administrative domains are
 shown in the layout diagram above.
 
 We recall that the archive is conceptually organized as a graph, and
-specifically a Merkle DAG, see :ref:`data-model` for more information.
+specifically a Merkle DAG, see :ref:`data model <data-model>` for more
+information.
 
 Ingested source code artifacts land directly on the **primary copy**, which is
 updated live and also used as reference for deduplication purposes. There,
 different parts of the Merkle DAG as stored using different backend
 technologies. The leaves of the graph, i.e., *content objects* (or "blobs"),
 are stored in a key-value object storage, using their SHA1 identifiers as keys
-(see :ref:`persistent-identifiers`). SHA1 collision avoidance is enforced by
-the :mod:`swh.storage` module. The *rest of the graph* is stored in a Postgres
-database (see :ref:`sql-storage`).
+(see :ref:`persistent identifiers <persistent-identifiers>`). SHA1 collision
+avoidance is enforced by the :mod:`swh.storage` module. The *rest of the graph*
+is stored in a Postgres database (see :ref:`SQL storage <sql-storage>`).
 
 At the time of writing, the primary object storage contains about 5 billion
 blobs with a median size of 3 KB---yes, that is *a lot of very small
