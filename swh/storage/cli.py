@@ -4,18 +4,39 @@
 # See top-level LICENSE file for more information
 
 import logging
+import os
 
 import click
 
+from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.storage.api.server import load_and_check_config, app
 
 
 @click.group(name="storage", context_settings=CONTEXT_SETTINGS)
+@click.option(
+    "--config-file",
+    "-C",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False,),
+    help="Configuration file.",
+)
 @click.pass_context
-def storage(ctx):
+def storage(ctx, config_file):
     """Software Heritage Storage tools."""
-    pass
+    if not config_file:
+        config_file = os.environ.get("SWH_CONFIG_FILENAME")
+
+    if config_file:
+        if not os.path.exists(config_file):
+            raise ValueError("%s does not exist" % config_file)
+        conf = config.read(config_file)
+    else:
+        conf = {}
+
+    ctx.ensure_object(dict)
+
+    ctx.obj["config"] = conf
 
 
 @storage.command(name="rpc-serve")
