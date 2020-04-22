@@ -12,7 +12,7 @@ import click
 
 from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
-from swh.journal.cli import get_journal_client
+from swh.journal.client import get_journal_client
 from swh.storage import get_storage
 from swh.storage.api.server import load_and_check_config, app
 
@@ -165,8 +165,14 @@ def replay(ctx, stop_after_objects):
         storage = get_storage(**conf.pop("storage"))
     except KeyError:
         ctx.fail("You must have a storage configured in your config file.")
+    client_cfg = conf.pop("journal_client")
+    if stop_after_objects:
+        client_cfg["stop_after_objects"] = stop_after_objects
+    try:
+        client = get_journal_client(**client_cfg)
+    except ValueError as exc:
+        ctx.fail(exc)
 
-    client = get_journal_client(ctx, stop_after_objects=stop_after_objects)
     worker_fn = functools.partial(process_replay_objects, storage=storage)
 
     if notify:
