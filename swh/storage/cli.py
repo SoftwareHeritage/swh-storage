@@ -5,6 +5,7 @@
 
 import logging
 import os
+import warnings
 
 import click
 
@@ -40,7 +41,7 @@ def storage(ctx, config_file):
 
 
 @storage.command(name="rpc-serve")
-@click.argument("config-path", required=True)
+@click.argument("config-path", default=None, required=False)
 @click.option(
     "--host",
     default="0.0.0.0",
@@ -69,8 +70,18 @@ def serve(ctx, config_path, host, port, debug):
     """
     if "log_level" in ctx.obj:
         logging.getLogger("werkzeug").setLevel(ctx.obj["log_level"])
-    api_cfg = load_and_check_config(config_path, type="any")
-    app.config.update(api_cfg)
+    if config_path:
+        # for bw compat
+        warnings.warn(
+            "The `config_path` argument of the `swh storage rpc-server` is now "
+            "deprecated. Please use the --config option of `swh storage` instead.",
+            DeprecationWarning,
+        )
+        api_cfg = load_and_check_config(config_path, type="any")
+        app.config.update(api_cfg)
+    else:
+        app.config.update(ctx.obj["config"])
+
     app.run(host, port=int(port), debug=bool(debug))
 
 
