@@ -26,6 +26,20 @@ from .storage_data import date_visit1
 
 
 @pytest.fixture
+def monkeypatch_sleep(monkeypatch, swh_storage):
+    """In test context, we don't want to wait, make test faster
+
+    """
+    from swh.storage.retry import RetryingProxyStorage
+
+    for method_name, method in RetryingProxyStorage.__dict__.items():
+        if "_add" in method_name or "_update" in method_name:
+            monkeypatch.setattr(method.retry, "sleep", lambda x: None)
+
+    return monkeypatch
+
+
+@pytest.fixture
 def fake_hash_collision(sample_data):
     return HashCollision("sha1", "38762cf7f55934b34d179ae6a4c80cadccbb7f0a", [])
 
@@ -59,7 +73,7 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision,
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -73,9 +87,6 @@ def test_retrying_proxy_storage_content_add_with_retry(
         # ok then!
         {"content:add": 1},
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".content_add.retry.sleep"
-    )
 
     sample_content = sample_data["content"][0]
 
@@ -92,7 +103,6 @@ def test_retrying_proxy_storage_content_add_with_retry(
             call([Content.from_dict(sample_content)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_content_add_failure(
@@ -136,7 +146,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -152,9 +162,6 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         # ok then!
         {"content:add": 1},
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".content_add_metadata.retry.sleep"
-    )
 
     sample_content = sample_data["content_metadata"][0]
 
@@ -168,7 +175,6 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
             call([Content.from_dict(sample_content)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_content_add_metadata_failure(
@@ -215,7 +221,7 @@ def test_retrying_proxy_storage_skipped_content_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_skipped_content_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -230,9 +236,6 @@ def test_retrying_proxy_storage_skipped_content_add_with_retry(
         # ok then!
         {"skipped_content:add": 1},
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".skipped_content_add.retry.sleep"
-    )
 
     sample_content = sample_data["skipped_content"][0]
 
@@ -246,7 +249,6 @@ def test_retrying_proxy_storage_skipped_content_add_with_retry(
             call([SkippedContent.from_dict(sample_content)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_skipped_content_add_failure(
@@ -293,7 +295,7 @@ def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
 
 
 def test_retrying_proxy_swh_storage_origin_add_one_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -308,9 +310,6 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
         # ok then!
         sample_origin["url"],
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".origin_add_one.retry.sleep"
-    )
 
     origin = swh_storage.origin_get(sample_origin)
     assert not origin
@@ -325,7 +324,6 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
             call(Origin.from_dict(sample_origin)),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_origin_add_one_failure(
@@ -368,7 +366,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -385,9 +383,6 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
         # ok then!
         {"origin": origin_url, "visit": 1},
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".origin_visit_add.retry.sleep"
-    )
 
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
@@ -402,7 +397,6 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
             call(origin_url, date_visit1, "git"),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add_failure(
@@ -448,7 +442,7 @@ def test_retrying_proxy_storage_tool_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_tool_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -463,9 +457,6 @@ def test_retrying_proxy_storage_tool_add_with_retry(
         # ok then!
         [sample_tool],
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".tool_add.retry.sleep"
-    )
 
     tool = swh_storage.tool_get(sample_tool)
     assert not tool
@@ -476,7 +467,6 @@ def test_retrying_proxy_storage_tool_add_with_retry(
     mock_memory.assert_has_calls(
         [call([sample_tool]), call([sample_tool]), call([sample_tool]),]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_tool_add_failure(swh_storage, sample_data, mocker):
@@ -527,7 +517,7 @@ def test_retrying_proxy_storage_metadata_provider_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_metadata_provider_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -546,9 +536,6 @@ def test_retrying_proxy_storage_metadata_provider_add_with_retry(
         # ok then!
         "provider_id",
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".metadata_provider_add.retry.sleep"
-    )
 
     provider = swh_storage.metadata_provider_get_by(provider_get)
     assert not provider
@@ -561,7 +548,6 @@ def test_retrying_proxy_storage_metadata_provider_add_with_retry(
     mock_memory.assert_has_calls(
         [call(*provider_args), call(*provider_args), call(*provider_args),]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_metadata_provider_add_failure(
@@ -615,7 +601,7 @@ def test_retrying_proxy_storage_origin_metadata_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_origin_metadata_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -638,10 +624,6 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
         None,
     ]
 
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".origin_metadata_add.retry.sleep"
-    )
-
     url = origin["url"]
     ts = ori_meta["discovery_date"]
     tool_id = ori_meta["tool"]
@@ -657,7 +639,6 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
             call(url, ts, provider_id, tool_id, metadata),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
@@ -713,7 +694,7 @@ def test_retrying_proxy_swh_storage_origin_visit_update(swh_storage, sample_data
 
 
 def test_retrying_proxy_swh_storage_origin_visit_update_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -733,10 +714,6 @@ def test_retrying_proxy_swh_storage_origin_visit_update_retry(
         {"origin": origin_url, "visit": 1},
     ]
 
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".origin_visit_update.retry.sleep"
-    )
-
     visit_id = 1
     swh_storage.origin_visit_update(origin_url, visit_id, status="full")
 
@@ -747,7 +724,6 @@ def test_retrying_proxy_swh_storage_origin_visit_update_retry(
             call(origin_url, visit_id, metadata=None, snapshot=None, status="full"),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_origin_visit_update_failure(
@@ -788,7 +764,7 @@ def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_directory_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -802,9 +778,6 @@ def test_retrying_proxy_storage_directory_add_with_retry(
         # ok then!
         {"directory:add": 1},
     ]
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".directory_add.retry.sleep"
-    )
 
     sample_dir = sample_data["directory"][1]
 
@@ -823,7 +796,6 @@ def test_retrying_proxy_storage_directory_add_with_retry(
             call([Directory.from_dict(sample_dir)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_directory_add_failure(
@@ -867,7 +839,7 @@ def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_revision_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -881,10 +853,6 @@ def test_retrying_proxy_storage_revision_add_with_retry(
         # ok then!
         {"revision:add": 1},
     ]
-
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".revision_add.retry.sleep"
-    )
 
     sample_rev = sample_data["revision"][0]
 
@@ -903,7 +871,6 @@ def test_retrying_proxy_storage_revision_add_with_retry(
             call([Revision.from_dict(sample_rev)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_revision_add_failure(
@@ -945,7 +912,7 @@ def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_release_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -959,10 +926,6 @@ def test_retrying_proxy_storage_release_add_with_retry(
         # ok then!
         {"release:add": 1},
     ]
-
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".release_add.retry.sleep"
-    )
 
     sample_rel = sample_data["release"][0]
 
@@ -981,7 +944,6 @@ def test_retrying_proxy_storage_release_add_with_retry(
             call([Release.from_dict(sample_rel)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_release_add_failure(
@@ -1023,7 +985,7 @@ def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_snapshot_add_with_retry(
-    swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -1037,10 +999,6 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
         # ok then!
         {"snapshot:add": 1},
     ]
-
-    mock_sleep = mocker.patch(
-        "swh.storage.retry.RetryingProxyStorage" ".snapshot_add.retry.sleep"
-    )
 
     sample_snap = sample_data["snapshot"][0]
 
@@ -1059,7 +1017,6 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
             call([Snapshot.from_dict(sample_snap)]),
         ]
     )
-    assert mock_sleep.call_count == 2
 
 
 def test_retrying_proxy_swh_storage_snapshot_add_failure(
