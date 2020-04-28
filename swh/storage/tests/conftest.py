@@ -18,7 +18,6 @@ from typing import Dict
 import swh.storage
 
 from swh.core.utils import numfile_sortkey as sortkey
-
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
 from swh.model.model import (
     Content,
@@ -42,7 +41,6 @@ OBJECT_FACTORY = {
     "skipped_content": SkippedContent.from_dict,
     "snapshot": Snapshot.from_dict,
 }
-
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), "sql")
 
