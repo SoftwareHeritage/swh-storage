@@ -16,6 +16,9 @@ insert into dbversion(version, release, description)
 alter type origin_visit_status rename to origin_visit_state;
 comment on type origin_visit_state IS 'Possible visit status';
 
+alter type origin_visit_state add value 'created' before 'ongoing';
+comment on type origin_visit_state IS 'Possible origin visit state values';
+
 -- Update origin visit comment on deprecated columns
 comment on column origin_visit.status is '(Deprecated) Visit status';
 comment on column origin_visit.metadata is '(Deprecated) Optional origin visit metadata';

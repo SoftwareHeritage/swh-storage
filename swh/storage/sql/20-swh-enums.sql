@@ -15,8 +15,9 @@ create type snapshot_target as enum ('content', 'directory', 'revision', 'releas
 comment on type snapshot_target is 'Types of targets for snapshot branches';
 
 create type origin_visit_state as enum (
+  'created',
   'ongoing',
   'full',
   'partial'
 );
-comment on type origin_visit_state IS 'Possible visit status';
+comment on type origin_visit_state IS 'Possible origin visit values';
