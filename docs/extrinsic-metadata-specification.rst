@@ -83,7 +83,7 @@ Examples:
 
 
 Storage API
-~~~~~~~~~~~
+-----------
 
 Authorities and metadata fetchers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -114,8 +114,8 @@ and qualifying the authority.
 With fetchers, the `metadata` field is reserved for configuration metadata
 and other technical usage.
 
-Origin metadata storage
------------------------
+Origin metadata
+^^^^^^^^^^^^^^^
 
 Extrinsic metadata are stored in SWH's :term:`storage database`.
 The storage API offers three endpoints to manipulate origin metadata:
