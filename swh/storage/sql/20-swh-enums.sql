@@ -14,9 +14,10 @@ comment on type object_type is 'Data object types stored in data model';
 create type snapshot_target as enum ('content', 'directory', 'revision', 'release', 'snapshot', 'alias');
 comment on type snapshot_target is 'Types of targets for snapshot branches';
 
-create type origin_visit_status as enum (
+create type origin_visit_state as enum (
+  'created',
   'ongoing',
   'full',
   'partial'
 );
-comment on type origin_visit_status IS 'Possible visit status';
+comment on type origin_visit_state IS 'Possible origin visit values';
