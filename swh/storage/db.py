@@ -6,10 +6,12 @@
 import random
 import select
 
+from typing import Any, Dict, Optional, Tuple
+
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
 from swh.core.db.db_utils import execute_values_generator
-from swh.model.model import OriginVisit, SHA1_SIZE
+from swh.model.model import OriginVisit, OriginVisitStatus, SHA1_SIZE
 
 
 class Db(BaseDb):
@@ -440,6 +442,37 @@ class Db(BaseDb):
         )
         return cur.fetchone()[0]
 
+    origin_visit_status_cols = [
+        "origin",
+        "visit",
+        "date",
+        "status",
+        "snapshot",
+        "metadata",
+    ]
+
+    def origin_visit_status_add(
+        self, visit_status: OriginVisitStatus, cur=None
+    ) -> None:
+        """Add new origin visit status
+
+        """
+        assert self.origin_visit_status_cols[0] == "origin"
+        assert self.origin_visit_status_cols[-1] == "metadata"
+        cols = self.origin_visit_status_cols[1:-1]
+        cur = self._cursor(cur)
+        cur.execute(
+            f"WITH origin_id as (select id from origin where url=%s) "
+            f"INSERT INTO origin_visit_status "
+            f"(origin, {', '.join(cols)}, metadata) "
+            f"VALUES ((select id from origin_id), "
+            f"{', '.join(['%s']*len(cols))}, %s) "
+            f"ON CONFLICT (origin, visit, date) do nothing",
+            [visit_status.origin]
+            + [getattr(visit_status, key) for key in cols]
+            + [jsonize(visit_status.metadata)],
+        )
+
     def origin_visit_update(self, origin_id, visit_id, updates, cur=None):
         """Update origin_visit's status."""
         cur = self._cursor(cur)
@@ -513,6 +546,33 @@ class Db(BaseDb):
         "snapshot",
     ]
 
+    def _make_origin_visit_status(self, row: Tuple[Any]) -> Optional[Dict[str, Any]]:
+        """Make an origin_visit_status dict out of a row
+
+        """
+        if not row:
+            return None
+        return dict(zip(self.origin_visit_status_cols, row))
+
+    def origin_visit_status_get_latest(
+        self, origin: str, visit: int, cur=None
+    ) -> Optional[Dict[str, Any]]:
+        """Given an origin visit id, return its latest origin_visit_status
+
+        """
+        cols = self.origin_visit_status_cols
+        cur = self._cursor(cur)
+        cur.execute(
+            f"SELECT {', '.join(cols)} "
+            f"FROM origin_visit_status ovs "
+            f"INNER JOIN origin o on o.id=ovs.origin "
+            f"WHERE o.url=%s AND ovs.visit=%s"
+            f"ORDER BY ovs.date DESC LIMIT 1",
+            (origin, visit),
+        )
+        row = cur.fetchone()
+        return self._make_origin_visit_status(row)
+
     def origin_visit_get_all(self, origin_id, last_visit=None, limit=None, cur=None):
         """Retrieve all visits for origin with id origin_id.
 
@@ -520,7 +580,7 @@ class Db(BaseDb):
             origin_id: The occurrence's origin
 
         Yields:
-            The occurrence's history visits
+            The visits for that origin
 
         """
         cur = self._cursor(cur)
@@ -533,12 +593,12 @@ class Db(BaseDb):
             args = (origin_id, limit)
 
         query = """\
-        SELECT %s
-        FROM origin_visit
-        INNER JOIN origin ON origin.id = origin_visit.origin
-        WHERE origin.url=%%s %s
-        order by visit asc
-        limit %%s""" % (
+         SELECT %s
+         FROM origin_visit
+         INNER JOIN origin ON origin.id = origin_visit.origin
+         WHERE origin.url=%%s %s
+         order by visit asc
+         limit %%s""" % (
             ", ".join(self.origin_visit_select_cols),
             extra_condition,
         )
@@ -580,9 +640,11 @@ class Db(BaseDb):
         cur.execute(
             "SELECT * FROM swh_visit_find_by_date(%s, %s)", (origin, visit_date)
         )
-        r = cur.fetchall()
-        if r:
-            return r[0]
+        rows = cur.fetchall()
+        if rows:
+            visit = dict(zip(self.origin_visit_get_cols, rows[0]))
+            visit["origin"] = origin
+            return visit
 
     def origin_visit_exists(self, origin_id, visit_id, cur=None):
         """Check whether an origin visit with the given ids exists"""

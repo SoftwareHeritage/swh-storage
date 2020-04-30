@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(146, now(), 'Work In Progress');
+      values(147, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -282,7 +282,8 @@ create table origin_visit
   visit        bigint not null,
   date         timestamptz not null,
   type         text not null,
-  status       origin_visit_status not null,
+  -- remove those when done migrating the schema
+  status       origin_visit_state not null,
   metadata     jsonb,
   snapshot     sha1_git
 );
@@ -291,9 +292,29 @@ comment on column origin_visit.origin is 'Visited origin';
 comment on column origin_visit.visit is 'Sequential visit number for the origin';
 comment on column origin_visit.date is 'Visit timestamp';
 comment on column origin_visit.type is 'Type of loader that did the visit (hg, git, ...)';
-comment on column origin_visit.status is 'Visit result';
-comment on column origin_visit.metadata is 'Origin metadata at visit time';
-comment on column origin_visit.snapshot is 'Origin snapshot at visit time';
+comment on column origin_visit.status is '(Deprecated) Visit status';
+comment on column origin_visit.metadata is '(Deprecated) Optional origin visit metadata';
+comment on column origin_visit.snapshot is '(Deprecated) Optional snapshot of the origin visit. It can be partial.';
+
+
+-- Crawling history of software origin visits by Software Heritage. Each
+-- visit see its history change through new origin visit status updates
+create table origin_visit_status
+(
+  origin   bigint not null,
+  visit    bigint not null,
+  date     timestamptz not null,
+  status   origin_visit_state not null,
+  metadata jsonb,
+  snapshot sha1_git
+);
+
+comment on column origin_visit_status.origin is 'Origin concerned by the visit update';
+comment on column origin_visit_status.visit is 'Visit concerned by the visit update';
+comment on column origin_visit_status.date is 'Visit update timestamp';
+comment on column origin_visit_status.status is 'Visit status (ongoing, failed, full)';
+comment on column origin_visit_status.metadata is 'Optional origin visit metadata';
+comment on column origin_visit_status.snapshot is 'Optional, possibly partial, snapshot of the origin visit. It can be partial.';
 
 
 -- A snapshot represents the entire state of a software origin as crawled by
