@@ -130,6 +130,17 @@ create index concurrently on origin_visit(type, status, date);
 alter table origin_visit add constraint origin_visit_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table origin_visit validate constraint origin_visit_origin_fkey;
 
+-- origin_visit_status
+
+create unique index concurrently origin_visit_status_pkey on origin_visit_status(origin, visit, date);
+alter table origin_visit_status add primary key using index origin_visit_status_pkey;
+
+alter table origin_visit_status
+  add constraint origin_visit_status_origin_visit_fkey
+  foreign key (origin, visit)
+  references origin_visit(origin, visit) not valid;
+alter table origin_visit_status validate constraint origin_visit_status_origin_visit_fkey;
+
 -- release
 create unique index concurrently release_pkey on release(id);
 alter table release add primary key using index release_pkey;

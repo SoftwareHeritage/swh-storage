@@ -21,6 +21,7 @@ from swh.model.model import (
     Content,
     SkippedContent,
     OriginVisit,
+    OriginVisitStatus,
     Snapshot,
     Origin,
 )
@@ -576,11 +577,11 @@ class CassandraStorage:
 
     def snapshot_get_by_origin_visit(self, origin, visit):
         try:
-            visit = self._cql_runner.origin_visit_get_one(origin, visit)
+            visit = self.origin_visit_get_by(origin, visit)
         except IndexError:
             return None
 
-        return self.snapshot_get(visit.snapshot)
+        return self.snapshot_get(visit["snapshot"])
 
     def snapshot_get_latest(self, origin, allowed_statuses=None):
         visit = self.origin_visit_get_latest(
@@ -806,14 +807,14 @@ class CassandraStorage:
             raise StorageArgumentException("Unknown origin %s", origin_url)
 
         visit_id = self._cql_runner.origin_generate_unique_visit_id(origin_url)
-
+        visit_state = "ongoing"
         with convert_validation_exceptions():
             visit = OriginVisit.from_dict(
                 {
                     "origin": origin_url,
                     "date": date,
                     "type": type,
-                    "status": "ongoing",
+                    "status": visit_state,
                     "snapshot": None,
                     "metadata": None,
                     "visit": visit_id,
@@ -822,7 +823,23 @@ class CassandraStorage:
 
         self.journal_writer.origin_visit_add(visit)
         self._cql_runner.origin_visit_add_one(visit)
+
+        with convert_validation_exceptions():
+            visit_status = OriginVisitStatus(
+                origin=origin_url,
+                visit=visit_id,
+                date=date,
+                status=visit_state,
+                snapshot=None,
+                metadata=None,
+            )
+        self._origin_visit_status_add(visit_status)
+
         return visit
+
+    def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
+        """Add an origin visit status"""
+        self._cql_runner.origin_visit_status_add_one(visit_status)
 
     def origin_visit_update(
         self,
@@ -836,16 +853,16 @@ class CassandraStorage:
         origin_url = origin  # TODO: rename the argument
 
         # Get the existing data of the visit
-        row = self._cql_runner.origin_visit_get_one(origin_url, visit_id)
-        if not row:
+        visit_ = self.origin_visit_get_by(origin_url, visit_id)
+        if not visit_:
             raise StorageArgumentException("This origin visit does not exist.")
         with convert_validation_exceptions():
-            visit = OriginVisit.from_dict(self._format_origin_visit_row(row))
+            visit = OriginVisit.from_dict(visit_)
 
         updates: Dict[str, Any] = {"status": status}
-        if metadata:
+        if metadata and metadata != visit.metadata:
             updates["metadata"] = metadata
-        if snapshot:
+        if snapshot and snapshot != visit.snapshot:
             updates["snapshot"] = snapshot
 
         with convert_validation_exceptions():
@@ -853,7 +870,60 @@ class CassandraStorage:
 
         self.journal_writer.origin_visit_update(visit)
 
-        self._cql_runner.origin_visit_update(origin_url, visit_id, updates)
+        last_visit_update = self._origin_visit_get_updated(visit.origin, visit.visit)
+        assert last_visit_update is not None
+
+        with convert_validation_exceptions():
+            visit_status = OriginVisitStatus(
+                origin=origin_url,
+                visit=visit_id,
+                date=date or now(),
+                status=status,
+                snapshot=snapshot or last_visit_update["snapshot"],
+                metadata=metadata or last_visit_update["metadata"],
+            )
+        self._origin_visit_status_add(visit_status)
+
+    def _origin_visit_merge(
+        self, visit: Dict[str, Any], visit_status: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Merge origin_visit and visit_status together.
+
+        """
+        return OriginVisit.from_dict(
+            {
+                # default to the values in visit
+                **visit,
+                # override with the last update
+                **visit_status,
+                # visit['origin'] is the URL (via a join), while
+                # visit_status['origin'] is only an id.
+                "origin": visit["origin"],
+                # but keep the date of the creation of the origin visit
+                "date": visit["date"],
+            }
+        ).to_dict()
+
+    def _origin_visit_apply_last_status(self, visit: Dict[str, Any]) -> Dict[str, Any]:
+        """Retrieve the latest visit status information for the origin visit.
+        Then merge it with the visit and return it.
+
+        """
+        visit_status = self._cql_runner.origin_visit_status_get_latest(
+            visit["origin"], visit["visit"]
+        )
+        assert visit_status is not None
+        return self._origin_visit_merge(visit, visit_status)
+
+    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
+        """Retrieve origin visit and latest origin visit status and merge them
+        into an origin visit.
+
+        """
+        row_visit = self._cql_runner.origin_visit_get_one(origin, visit_id)
+        assert row_visit is not None
+        visit = self._format_origin_visit_row(row_visit)
+        return self._origin_visit_apply_last_status(visit)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         for visit in visits:
@@ -862,7 +932,18 @@ class CassandraStorage:
 
         self.journal_writer.origin_visit_upsert(visits)
         for visit in visits:
+            assert visit.visit is not None
             self._cql_runner.origin_visit_upsert(visit)
+            with convert_validation_exceptions():
+                visit_status = OriginVisitStatus(
+                    origin=visit.origin,
+                    visit=visit.visit,
+                    date=now(),
+                    status=visit.status,
+                    snapshot=visit.snapshot,
+                    metadata=visit.metadata,
+                )
+            self._origin_visit_status_add(visit_status)
 
     @staticmethod
     def _format_origin_visit_row(visit):
@@ -877,8 +958,9 @@ class CassandraStorage:
         self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
     ) -> Iterable[Dict[str, Any]]:
         rows = self._cql_runner.origin_visit_get(origin, last_visit, limit)
-
-        yield from map(self._format_origin_visit_row, rows)
+        for row in rows:
+            visit = self._format_origin_visit_row(row)
+            yield self._origin_visit_apply_last_status(visit)
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
@@ -886,21 +968,23 @@ class CassandraStorage:
         # Iterator over all the visits of the origin
         # This should be ok for now, as there aren't too many visits
         # per origin.
-        visits = list(self._cql_runner.origin_visit_get_all(origin))
+        rows = list(self._cql_runner.origin_visit_get_all(origin))
 
         def key(visit):
             dt = visit.date.replace(tzinfo=datetime.timezone.utc) - visit_date
             return (abs(dt), -visit.visit)
 
-        if visits:
-            visit = min(visits, key=key)
-            return visit._asdict()
+        if rows:
+            row = min(rows, key=key)
+            visit = self._format_origin_visit_row(row)
+            return self._origin_visit_apply_last_status(visit)
         return None
 
     def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
-        visit = self._cql_runner.origin_visit_get_one(origin, visit)
-        if visit:
-            return self._format_origin_visit_row(visit)
+        row = self._cql_runner.origin_visit_get_one(origin, visit)
+        if row:
+            visit_ = self._format_origin_visit_row(row)
+            return self._origin_visit_apply_last_status(visit_)
         return None
 
     def origin_visit_get_latest(
@@ -909,12 +993,27 @@ class CassandraStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        visit = self._cql_runner.origin_visit_get_latest(
-            origin, allowed_statuses=allowed_statuses, require_snapshot=require_snapshot
-        )
-        if visit:
-            return self._format_origin_visit_row(visit)
-        return None
+        # TODO: Do not fetch all visits
+        rows = self._cql_runner.origin_visit_get_all(origin)
+        latest_visit = None
+        for row in rows:
+            visit = self._format_origin_visit_row(row)
+            updated_visit = self._origin_visit_apply_last_status(visit)
+            if allowed_statuses and updated_visit["status"] not in allowed_statuses:
+                continue
+            if require_snapshot and updated_visit["snapshot"] is None:
+                continue
+
+            # updated_visit is a candidate
+            if latest_visit is not None:
+                if updated_visit["date"] < latest_visit["date"]:
+                    continue
+                if updated_visit["visit"] < latest_visit["visit"]:
+                    continue
+
+            latest_visit = updated_visit
+
+        return latest_visit
 
     def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
         back_in_the_day = now() - datetime.timedelta(weeks=12)  # 3 months back
@@ -926,8 +1025,12 @@ class CassandraStorage:
         rows = self._cql_runner.origin_visit_iter(start_token)
         for row in rows:
             visit = self._format_origin_visit_row(row)
-            if visit["date"] > back_in_the_day and visit["status"] == "full":
-                return visit
+            visit_status = self._origin_visit_apply_last_status(visit)
+            if (
+                visit_status["date"] > back_in_the_day
+                and visit_status["status"] == "full"
+            ):
+                return visit_status
         else:
             return None
 

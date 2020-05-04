@@ -102,6 +102,10 @@ class LazyContent(Content):
         return Content.from_dict({**self.to_dict(), "data": data.cont["data"]})
 
 
+def now():
+    return datetime.datetime.now(tz=datetime.timezone.utc)
+
+
 class TestStorage:
     """Main class for Storage testing.
 
@@ -154,9 +158,9 @@ class TestStorage:
     def test_content_add(self, swh_storage):
         cont = data.cont
 
-        insertion_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        insertion_start_time = now()
         actual_result = swh_storage.content_add([cont])
-        insertion_end_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        insertion_end_time = now()
 
         assert actual_result == {
             "content:add": 1,
@@ -203,12 +207,12 @@ class TestStorage:
 
         lazy_content = LazyContent.from_dict({**data.cont, "data": b"nope",})
 
-        insertion_start_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        insertion_start_time = now()
 
         # bypass the validation proxy for now, to directly put a dict
         actual_result = swh_storage.storage.content_add([lazy_content])
 
-        insertion_end_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        insertion_end_time = now()
 
         assert actual_result == {
             "content:add": 1,
@@ -367,7 +371,7 @@ class TestStorage:
     def test_content_add_metadata(self, swh_storage):
         cont = data.cont
         del cont["data"]
-        cont["ctime"] = datetime.datetime.now()
+        cont["ctime"] = now()
 
         actual_result = swh_storage.content_add_metadata([cont])
         assert actual_result == {
@@ -393,10 +397,10 @@ class TestStorage:
     def test_content_add_metadata_different_input(self, swh_storage):
         cont = data.cont
         del cont["data"]
-        cont["ctime"] = datetime.datetime.now()
+        cont["ctime"] = now()
         cont2 = data.cont2
         del cont2["data"]
-        cont2["ctime"] = datetime.datetime.now()
+        cont2["ctime"] = now()
 
         actual_result = swh_storage.content_add_metadata([cont, cont2])
         assert actual_result == {
@@ -406,7 +410,7 @@ class TestStorage:
     def test_content_add_metadata_collision(self, swh_storage):
         cont1 = data.cont
         del cont1["data"]
-        cont1["ctime"] = datetime.datetime.now()
+        cont1["ctime"] = now()
 
         # create (corrupted) content with same sha1{,_git} but != sha256
         cont1b = cont1.copy()
@@ -1386,7 +1390,7 @@ class TestStorage:
 
         """
         visits = []
-        today = datetime.datetime.now(tz=datetime.timezone.utc)
+        today = now()
         for weeks in range(nb_visits, 0, -1):
             hours = random.randint(0, 24)
             minutes = random.randint(0, 60)
@@ -1583,7 +1587,7 @@ class TestStorage:
     def test_origin_visit_add(self, swh_storage):
         # given
         origin_url = swh_storage.origin_add_one(data.origin2)
-        date_visit = datetime.datetime.now(datetime.timezone.utc)
+        date_visit = now()
 
         # Round to milliseconds before insertion, so equality doesn't fail
         # after a round-trip through a DB (eg. Cassandra)
@@ -1620,7 +1624,7 @@ class TestStorage:
         origin_url = swh_storage.origin_add_one(data.origin2)
 
         # when
-        date_visit = datetime.datetime.now(datetime.timezone.utc)
+        date_visit = now()
         date_visit2 = date_visit + datetime.timedelta(minutes=1)
 
         # Round to milliseconds before insertion, so equality doesn't fail
@@ -2922,14 +2926,14 @@ class TestStorage:
     def test_content_find_ctime(self, swh_storage):
         cont = data.cont.copy()
         del cont["data"]
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        cont["ctime"] = now
+        ctime = now()
+        cont["ctime"] = ctime
         swh_storage.content_add_metadata([cont])
 
         actually_present = swh_storage.content_find({"sha1": cont["sha1"]})
 
         # check ctime up to one second
-        dt = actually_present[0]["ctime"] - now
+        dt = actually_present[0]["ctime"] - ctime
         assert abs(dt.total_seconds()) <= 1
         del actually_present[0]["ctime"]
 
@@ -3736,10 +3740,9 @@ class TestStorageGeneratedData:
 
     def test_origin_count_with_visit_with_visits_no_snapshot(self, swh_storage):
         swh_storage.origin_add([{"url": url} for url in self.ORIGINS])
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
 
         origin_url = "https://github.com/user1/repo1"
-        swh_storage.origin_visit_add(origin_url, date=now, type="git")
+        swh_storage.origin_visit_add(origin_url, date=now(), type="git")
 
         assert swh_storage.origin_count("github", with_visit=False) == 3
         # it has a visit, but no snapshot, so with_visit=True => 0
@@ -3760,11 +3763,10 @@ class TestStorageGeneratedData:
 
     def test_origin_count_with_visit_with_visits_and_snapshot(self, swh_storage):
         swh_storage.origin_add([{"url": url} for url in self.ORIGINS])
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
 
         swh_storage.snapshot_add([data.snapshot])
         origin_url = "https://github.com/user1/repo1"
-        visit = swh_storage.origin_visit_add(origin_url, date=now, type="git")
+        visit = swh_storage.origin_visit_add(origin_url, date=now(), type="git")
         swh_storage.origin_visit_update(
             origin_url, visit.visit, status="ongoing", snapshot=data.snapshot["id"]
         )
@@ -3957,7 +3959,7 @@ class TestPgStorage:
     def test_content_add_metadata_db(self, swh_storage):
         cont = data.cont
         del cont["data"]
-        cont["ctime"] = datetime.datetime.now()
+        cont["ctime"] = now()
 
         actual_result = swh_storage.content_add_metadata([cont])
 

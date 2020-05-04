@@ -154,6 +154,15 @@ CREATE TABLE IF NOT EXISTS origin_visit (
     PRIMARY KEY ((origin), visit)
 );
 
+CREATE TABLE IF NOT EXISTS origin_visit_status (
+    origin          text,
+    visit           bigint,
+    date            timestamp,
+    status          ascii,
+    metadata        text,
+    snapshot        blob,
+    PRIMARY KEY ((origin), visit, date)
+);
 
 CREATE TABLE IF NOT EXISTS origin (
     sha1            blob PRIMARY KEY,
@@ -211,7 +220,8 @@ CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
 TABLES = (
     "skipped_content content revision revision_parent release "
     "directory directory_entry snapshot snapshot_branch "
-    "origin_visit origin tool_by_uuid tool object_count"
+    "origin_visit origin tool_by_uuid tool object_count "
+    "origin_visit_status"
 ).split()
 
 HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]
