@@ -239,23 +239,22 @@ create table revision
   committer_date_neg_utc_offset boolean
 );
 
-comment on table revision is 'Revision represents the state of a source code tree at a
- specific point in time';
-comment on column revision.id is 'Git id of sha1 checksum';
-comment on column revision.date is 'Timestamp when revision was authored';
-comment on column revision.date_offset is 'Authored timestamp offset from UTC';
-comment on column revision.committer_date is 'Timestamp when revision was committed';
-comment on column revision.committer_date_offset is 'Committed timestamp offset from UTC';
-comment on column revision.type is 'Possible revision types (''git'', ''tar'', ''dsc'', ''svn'', ''hg'')';
+comment on table revision is 'A revision represents the state of a source code tree at a specific point in time';
+comment on column revision.id is 'Git-style SHA1 commit identifier';
+comment on column revision.date is 'Author timestamp as UNIX epoch';
+comment on column revision.date_offset is 'Author timestamp timezone, as minute offsets from UTC';
+comment on column revision.date_neg_utc_offset is 'True indicates a -0 UTC offset on author timestamp';
+comment on column revision.committer_date is 'Committer timestamp as UNIX epoch';
+comment on column revision.committer_date_offset is 'Committer timestamp timezone, as minute offsets from UTC';
+comment on column revision.committer_date_neg_utc_offset is 'True indicates a -0 UTC offset on committer timestamp';
+comment on column revision.type is 'Type of revision';
 comment on column revision.directory is 'Directory identifier';
-comment on column revision.message is 'Revision message';
-comment on column revision.author is 'Author identifier';
-comment on column revision.committer is 'Committer identifier';
-comment on column revision.synthetic is 'true iff revision has been created by Software Heritage';
-comment on column revision.metadata is 'extra metadata (tarball checksums, extra commit information, etc...)';
-comment on column revision.object_id is 'Object identifier';
-comment on column revision.date_neg_utc_offset is 'True indicates -0 UTC offset for author timestamp';
-comment on column revision.committer_date_neg_utc_offset is 'True indicates -0 UTC offset for committer timestamp';
+comment on column revision.message is 'Commit message';
+comment on column revision.author is 'Author identity';
+comment on column revision.committer is 'Committer identity';
+comment on column revision.synthetic is 'True iff revision has been synthesized by Software Heritage';
+comment on column revision.metadata is 'Extra revision metadata';
+comment on column revision.object_id is 'Non-intrinsic, sequential object identifier';
 
 
 -- either this table or the sha1_git[] column on the revision table
