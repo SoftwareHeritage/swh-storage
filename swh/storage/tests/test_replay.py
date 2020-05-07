@@ -60,7 +60,7 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
 
     This:
     - writes objects to a source storage
-    - replayer consumes objects from the topic and replay them
+    - replayer consumes objects from the topic and replays them
     - a destination storage is filled from this
 
     In the end, both storages should have the same content.
@@ -197,8 +197,8 @@ def _check_replayed(
     """Simple utility function to compare the content of 2 in_memory storages
 
     """
-    expected_persons = set(src._persons)
-    got_persons = set(dst._persons)
+    expected_persons = set(src._persons.values())
+    got_persons = set(dst._persons.values())
     assert got_persons == expected_persons
 
     for attr in (
@@ -267,3 +267,102 @@ def _gen_skipped_contents(n=10):
         )
         for i in range(n)
     ]
+
+
+def test_storage_play_anonymized(
+    kafka_prefix: str, kafka_consumer_group: str, kafka_server: str
+):
+    """Optimal replayer scenario.
+
+    This:
+    - writes objects to the topic
+    - replayer consumes objects from the topic and replay them
+
+    """
+    writer_config = {
+        "cls": "kafka",
+        "brokers": [kafka_server],
+        "client_id": "kafka_writer",
+        "prefix": kafka_prefix,
+        "anonymize": True,
+    }
+    src_config = {"cls": "memory", "journal_writer": writer_config}
+
+    storage = get_storage(**src_config)
+
+    # Fill the src storage
+    nb_sent = 0
+    for obj_type, objs in TEST_OBJECTS.items():
+        if obj_type == "origin_visit":
+            # these have non-consistent API and are unrelated with what we
+            # want to test here
+            continue
+        method = getattr(storage, obj_type + "_add")
+        method(objs)
+        nb_sent += len(objs)
+
+    # Fill a destination storage from Kafka **using anonymized topics**
+    dst_storage = get_storage(cls="memory")
+    replayer = JournalClient(
+        brokers=kafka_server,
+        group_id=kafka_consumer_group,
+        prefix=kafka_prefix,
+        stop_after_objects=nb_sent,
+        privileged=False,
+    )
+    worker_fn = functools.partial(process_replay_objects, storage=dst_storage)
+
+    nb_inserted = replayer.process(worker_fn)
+    assert nb_sent == nb_inserted
+    check_replayed(storage, dst_storage, expected_anonymized=True)
+
+    # Fill a destination storage from Kafka **with stock (non-anonymized) topics**
+    dst_storage = get_storage(cls="memory")
+    replayer = JournalClient(
+        brokers=kafka_server,
+        group_id=kafka_consumer_group,
+        prefix=kafka_prefix,
+        stop_after_objects=nb_sent,
+        privileged=True,
+    )
+    worker_fn = functools.partial(process_replay_objects, storage=dst_storage)
+
+    nb_inserted = replayer.process(worker_fn)
+    assert nb_sent == nb_inserted
+    check_replayed(storage, dst_storage, expected_anonymized=False)
+
+
+def check_replayed(src, dst, expected_anonymized=False):
+    """Simple utility function to compare the content of 2 in_memory storages
+
+    If expected_anonymized is True, objects from the source storage are anonymized
+    before comparing with the destination storage.
+
+    """
+
+    def maybe_anonymize(obj):
+        if expected_anonymized:
+            return obj.anonymize() or obj
+        return obj
+
+    expected_persons = {maybe_anonymize(person) for person in src._persons.values()}
+    got_persons = set(dst._persons.values())
+    assert got_persons == expected_persons
+
+    for attr in (
+        "contents",
+        "skipped_contents",
+        "directories",
+        "revisions",
+        "releases",
+        "snapshots",
+        "origins",
+    ):
+        expected_objects = [
+            (id, maybe_anonymize(obj))
+            for id, obj in sorted(getattr(src, f"_{attr}").items())
+        ]
+        got_objects = [
+            (id, obj) for id, obj in sorted(getattr(dst, f"_{attr}").items())
+        ]
+        assert got_objects == expected_objects, f"Mismatch object list for {attr}"
