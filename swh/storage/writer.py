@@ -55,9 +55,7 @@ class JournalWriter:
 
     def content_update(self, contents: Iterable[Content]) -> None:
         if self.journal:
-            raise NotImplementedError(
-                "content_update is not yet supported with a journal writer."
-            )
+            raise NotImplementedError("content_update is not supported by the journal.")
 
     def content_add_metadata(self, contents: Iterable[Content]) -> None:
         self.content_add(contents)
