@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterable, Union
+from typing import Iterable
 
 from attr import evolve
 
@@ -42,67 +42,49 @@ class JournalWriter:
         else:
             self.journal = None
 
+    def write_additions(self, obj_type, values):
+        if self.journal:
+            self.journal.write_additions(obj_type, values)
+
     def content_add(self, contents: Iterable[Content]) -> None:
         """Add contents to the journal. Drop the data field if provided.
 
         """
-        if not self.journal:
-            return
         contents = [evolve(item, data=None) for item in contents]
-        self.journal.write_additions("content", contents)
+        self.write_additions("content", contents)
 
     def content_update(self, contents: Iterable[Content]) -> None:
-        if not self.journal:
-            return
-        raise NotImplementedError(
-            "content_update is not yet supported with a journal writer."
-        )
+        if self.journal:
+            raise NotImplementedError(
+                "content_update is not yet supported with a journal writer."
+            )
 
     def content_add_metadata(self, contents: Iterable[Content]) -> None:
-        return self.content_add(contents)
+        self.content_add(contents)
 
     def skipped_content_add(self, contents: Iterable[SkippedContent]) -> None:
-        if not self.journal:
-            return
-        self.journal.write_additions("content", contents)
+        self.write_additions("content", contents)
 
     def directory_add(self, directories: Iterable[Directory]) -> None:
-        if not self.journal:
-            return
-        self.journal.write_additions("directory", directories)
+        self.write_additions("directory", directories)
 
     def revision_add(self, revisions: Iterable[Revision]) -> None:
-        if not self.journal:
-            return
-        self.journal.write_additions("revision", revisions)
+        self.write_additions("revision", revisions)
 
     def release_add(self, releases: Iterable[Release]) -> None:
-        if not self.journal:
-            return
-        self.journal.write_additions("release", releases)
+        self.write_additions("release", releases)
 
-    def snapshot_add(self, snapshots: Union[Iterable[Snapshot], Snapshot]) -> None:
-        if not self.journal:
-            return
-        snaps = snapshots if isinstance(snapshots, list) else [snapshots]
-        self.journal.write_additions("snapshot", snaps)
+    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> None:
+        self.write_additions("snapshot", snapshots)
 
-    def origin_visit_add(self, visit: OriginVisit):
-        if not self.journal:
-            return
-        self.journal.write_addition("origin_visit", visit)
+    def origin_visit_add(self, visits: Iterable[OriginVisit]):
+        self.write_additions("origin_visit", visits)
 
-    def origin_visit_update(self, visit: OriginVisit):
-        if not self.journal:
-            return
-        self.journal.write_update("origin_visit", visit)
+    def origin_visit_update(self, visits: Iterable[OriginVisit]):
+        self.write_additions("origin_visit", visits)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]):
-        if not self.journal:
-            return
-        self.journal.write_additions("origin_visit", visits)
+        self.write_additions("origin_visit", visits)
 
-    def origin_add_one(self, origin: Origin):
-        if not self.journal:
-            return
-        self.journal.write_addition("origin", origin)
+    def origin_add(self, origins: Iterable[Origin]):
+        self.write_additions("origin", origins)
