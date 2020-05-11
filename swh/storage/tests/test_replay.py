@@ -31,6 +31,8 @@ from swh.journal.tests.conftest import (
 )
 
 
+UTC = datetime.timezone.utc
+
 storage_config = {"cls": "pipeline", "steps": [{"cls": "memory"},]}
 
 
@@ -56,7 +58,7 @@ def test_storage_play(
         }
     )
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=UTC)
 
     # Fill Kafka
     nb_sent = 0
@@ -155,7 +157,7 @@ def test_storage_play_with_collision(
         }
     )
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=UTC)
 
     # Fill Kafka
     nb_sent = 0
@@ -311,7 +313,7 @@ def _test_write_replay_origin_visit(visits: List[Dict]):
 
 def test_write_replay_origin_visit():
     """Test origin_visit when the 'origin' is just a string."""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visits = [
         {
             "visit": 1,
@@ -333,7 +335,7 @@ def test_write_replay_legacy_origin_visit1():
     topic.
 
     """
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visit = {
         "visit": 1,
         "origin": "http://example.com/",
@@ -341,7 +343,7 @@ def test_write_replay_legacy_origin_visit1():
         "status": "partial",
         "snapshot": None,
     }
-    now2 = datetime.datetime.now()
+    now2 = datetime.datetime.now(tz=UTC)
     visit2 = {
         "visit": 2,
         "origin": {"url": "http://example.com/"},
@@ -358,7 +360,7 @@ def test_write_replay_legacy_origin_visit1():
 def test_write_replay_legacy_origin_visit2():
     """Test origin_visit when 'type' is missing from the visit, but not
     from the origin."""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visits = [
         {
             "visit": 1,
@@ -374,7 +376,7 @@ def test_write_replay_legacy_origin_visit2():
 
 def test_write_replay_legacy_origin_visit3():
     """Test origin_visit when the origin is a dict"""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visits = [
         {
             "visit": 1,
