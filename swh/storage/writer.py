@@ -42,7 +42,7 @@ class JournalWriter:
         else:
             self.journal = None
 
-    def write_additions(self, obj_type, values):
+    def write_additions(self, obj_type, values) -> None:
         if self.journal:
             self.journal.write_additions(obj_type, values)
 
@@ -75,14 +75,14 @@ class JournalWriter:
     def snapshot_add(self, snapshots: Iterable[Snapshot]) -> None:
         self.write_additions("snapshot", snapshots)
 
-    def origin_visit_add(self, visits: Iterable[OriginVisit]):
+    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> None:
         self.write_additions("origin_visit", visits)
 
-    def origin_visit_update(self, visits: Iterable[OriginVisit]):
+    def origin_visit_update(self, visits: Iterable[OriginVisit]) -> None:
         self.write_additions("origin_visit", visits)
 
-    def origin_visit_upsert(self, visits: Iterable[OriginVisit]):
+    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         self.write_additions("origin_visit", visits)
 
-    def origin_add(self, origins: Iterable[Origin]):
+    def origin_add(self, origins: Iterable[Origin]) -> None:
         self.write_additions("origin", origins)
