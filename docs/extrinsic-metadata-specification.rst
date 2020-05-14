@@ -183,3 +183,61 @@ Its format is specific to each authority; and is treated as an opaque value
 by the storage.
 Unifying these various formats into a common language is outside the scope
 of this specification.
+
+Artifact metadata
+^^^^^^^^^^^^^^^^^
+
+In addition to origin metadata, the storage database stores metadata on
+all software artifacts supported by the data model.
+
+This works similarly to origin metadata, with one major difference:
+extrinsic metadata can be given on a specific artifact within a specified
+context (for example: a directory in a specific revision from a specific
+visit on a specific origin) which will be stored along the metadata itself.
+
+For example, two origins may develop the same file independently;
+the information about authorship, licensing or even description may vary
+about the same artifact in a different context.
+This is why it is important to qualify the metadata with the complete
+context for which it is intended, if any.
+
+for each artifact type ``<X>``, there are two endpoints
+to manipulate metadata associated with artifacts of that type:
+
+* Adding metadata::
+
+      <X>_metadata_add(id, context, discovery_date,
+                       authority, fetcher,
+                       format, metadata)
+
+
+* Getting all metadata::
+
+      <X>_metadata_get(id,
+                       authority,
+                       after, limit)
+
+
+definited similarly to ``origin_metadata_add`` and ``origin_metadata_get``,
+but where ``id`` is a core SWHID (with type matching ``<X>``),
+and with an extra ``context`` (argument when adding metadata, and dictionary
+key when getting them) that is a dictionary with keys
+depending on the artifact type ``<X>``:
+
+* for ``snapshot``: ``origin`` (a URL) and ``visit`` (an integer)
+* for ``release``: those above, plus ``snapshot``
+  (the core SWHID of a snapshot)
+* for ``revision``: all those above, plus ``release``
+  (the core SWHID of a release)
+* for ``directory``: all those above, plus ``revision``
+  (the core SWHID of a revision)
+  and ``path`` (a byte string), representing the path to this directory
+  from the root of the ``revision``
+* for ``content``: all those above, plus ``directory``
+  (the core SWHID of a directory)
+
+All keys are optional, but should be provided whenever possible.
+The dictionary may be empty, if metadata is fully independent from context.
+
+In all cases, ``visit`` should only be provided if ``origin`` is
+(as visit ids are only unique with respect to an origin).
