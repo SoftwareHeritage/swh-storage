@@ -529,7 +529,7 @@ class InMemoryStorage:
         count = 0
         snapshots = (snap for snap in snapshots if snap.id not in self._snapshots)
         for snapshot in snapshots:
-            self.journal_writer.snapshot_add(snapshot)
+            self.journal_writer.snapshot_add([snapshot])
             sorted_branch_names = sorted(snapshot.branches)
             self._snapshots[snapshot.id] = (snapshot, sorted_branch_names)
             self._objects[snapshot.id].append(("snapshot", snapshot.id))
@@ -756,7 +756,7 @@ class InMemoryStorage:
 
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
-            self.journal_writer.origin_add_one(origin)
+            self.journal_writer.origin_add([origin])
             # generate an origin_id because it is needed by origin_get_range.
             # TODO: remove this when we remove origin_get_range
             origin_id = len(self._origins) + 1
@@ -816,7 +816,7 @@ class InMemoryStorage:
 
             self._objects[visit_key].append(("origin_visit", None))
 
-            self.journal_writer.origin_visit_add(visit)
+            self.journal_writer.origin_visit_add([visit])
 
         # return last visit
         return visit
@@ -859,7 +859,7 @@ class InMemoryStorage:
         self._origin_visit_statuses[visit_key].append(visit_update)
 
         self.journal_writer.origin_visit_update(
-            self._origin_visit_get_updated(origin_url, visit_id)
+            [self._origin_visit_get_updated(origin_url, visit_id)]
         )
 
         self._origin_visits[origin_url][visit_id - 1] = visit

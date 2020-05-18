@@ -15,7 +15,7 @@ from confluent_kafka import Producer
 
 import pytest
 
-from swh.model.hashutil import hash_to_hex
+from swh.model.hashutil import hash_to_hex, MultiHash, DEFAULT_ALGORITHMS
 from swh.model.model import Content
 
 from swh.storage import get_storage
@@ -30,6 +30,8 @@ from swh.journal.tests.conftest import (
     DUPLICATE_CONTENTS,
 )
 
+
+UTC = datetime.timezone.utc
 
 storage_config = {"cls": "pipeline", "steps": [{"cls": "memory"},]}
 
@@ -56,7 +58,7 @@ def test_storage_play(
         }
     )
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=UTC)
 
     # Fill Kafka
     nb_sent = 0
@@ -155,7 +157,7 @@ def test_storage_play_with_collision(
         }
     )
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=UTC)
 
     # Fill Kafka
     nb_sent = 0
@@ -309,9 +311,9 @@ def _test_write_replay_origin_visit(visits: List[Dict]):
         assert vin == vout
 
 
-def test_write_replay_origin_visit():
+def test_write_replay_origin_visit(kafka_server):
     """Test origin_visit when the 'origin' is just a string."""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visits = [
         {
             "visit": 1,
@@ -333,7 +335,7 @@ def test_write_replay_legacy_origin_visit1():
     topic.
 
     """
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visit = {
         "visit": 1,
         "origin": "http://example.com/",
@@ -341,7 +343,7 @@ def test_write_replay_legacy_origin_visit1():
         "status": "partial",
         "snapshot": None,
     }
-    now2 = datetime.datetime.now()
+    now2 = datetime.datetime.now(tz=UTC)
     visit2 = {
         "visit": 2,
         "origin": {"url": "http://example.com/"},
@@ -358,7 +360,7 @@ def test_write_replay_legacy_origin_visit1():
 def test_write_replay_legacy_origin_visit2():
     """Test origin_visit when 'type' is missing from the visit, but not
     from the origin."""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visits = [
         {
             "visit": 1,
@@ -374,7 +376,7 @@ def test_write_replay_legacy_origin_visit2():
 
 def test_write_replay_legacy_origin_visit3():
     """Test origin_visit when the origin is a dict"""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(tz=UTC)
     visits = [
         {
             "visit": 1,
@@ -386,3 +388,78 @@ def test_write_replay_legacy_origin_visit3():
         }
     ]
     _test_write_replay_origin_visit(visits)
+
+
+def test_replay_skipped_content(kafka_server, kafka_prefix):
+    """Test the 'skipped_content' topic is properly replayed."""
+    _check_replay_skipped_content(kafka_server, kafka_prefix, "skipped_content")
+
+
+def test_replay_skipped_content_bwcompat(kafka_server, kafka_prefix):
+    """Test the 'content' topic can be used to replay SkippedContent objects."""
+    _check_replay_skipped_content(kafka_server, kafka_prefix, "content")
+
+
+def _check_replay_skipped_content(kafka_server, kafka_prefix, topic):
+    skipped_contents = _gen_skipped_contents(100)
+    nb_sent = len(skipped_contents)
+
+    producer = Producer(
+        {
+            "bootstrap.servers": kafka_server,
+            "client.id": "test producer",
+            "acks": "all",
+        }
+    )
+    replayer = JournalClient(
+        brokers=[kafka_server],
+        group_id="test consumer",
+        prefix=kafka_prefix,
+        stop_after_objects=nb_sent,
+    )
+    assert f"{kafka_prefix}.skipped_content" in replayer.subscription
+
+    for i, obj in enumerate(skipped_contents):
+        obj.pop("data", None)
+        producer.produce(
+            topic=f"{kafka_prefix}.{topic}",
+            key=key_to_kafka({"sha1": obj["sha1"]}),
+            value=value_to_kafka(obj),
+        )
+    producer.flush()
+
+    storage = get_storage(cls="memory")
+
+    worker_fn = functools.partial(process_replay_objects, storage=storage)
+    nb_inserted = replayer.process(worker_fn)
+    assert nb_sent == nb_inserted
+    for content in skipped_contents:
+        assert not storage.content_find({"sha1": content["sha1"]})
+
+    # no skipped_content_find API endpoint, so use this instead
+    assert not list(storage.skipped_content_missing(skipped_contents))
+
+
+def _updated(d1, d2):
+    d1.update(d2)
+    d1.pop("data", None)
+    return d1
+
+
+def _gen_skipped_contents(n=10):
+    # we do not use the hypothesis strategy here because this does not play well with
+    # pytest fixtures, and it makes test execution very slow
+    algos = DEFAULT_ALGORITHMS | {"length"}
+    now = datetime.datetime.now(tz=UTC)
+    return [
+        _updated(
+            MultiHash.from_data(data=f"foo{i}".encode(), hash_names=algos).digest(),
+            {
+                "status": "absent",
+                "reason": "why not",
+                "origin": f"https://somewhere/{i}",
+                "ctime": now,
+            },
+        )
+        for i in range(n)
+    ]

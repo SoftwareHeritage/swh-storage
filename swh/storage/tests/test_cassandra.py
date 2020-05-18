@@ -340,6 +340,10 @@ class TestCassandraStorage(_TestStorage):
         pass
 
     @pytest.mark.skip("Not yet implemented")
+    def test_metadata_provider_add_idempotent(self):
+        pass
+
+    @pytest.mark.skip("Not yet implemented")
     def test_metadata_provider_get(self):
         pass
 

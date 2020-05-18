@@ -101,6 +101,8 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
     objects = fix_objects(object_type, objects)
 
     if object_type == "content":
+        # for bw compat, skipped content should now be delivered in the skipped_content
+        # topic
         contents: List[BaseContent] = []
         skipped_contents: List[BaseContent] = []
         for content in objects:
@@ -109,9 +111,11 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
                 skipped_contents.append(c)
             else:
                 contents.append(c)
-
         collision_aware_content_add(storage.skipped_content_add, skipped_contents)
         collision_aware_content_add(storage.content_add_metadata, contents)
+    if object_type == "skipped_content":
+        skipped_contents = [SkippedContent.from_dict(obj) for obj in objects]
+        collision_aware_content_add(storage.skipped_content_add, skipped_contents)
     elif object_type == "origin_visit":
         visits: List[OriginVisit] = []
         origins: List[Origin] = []
@@ -121,7 +125,7 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
             origins.append(Origin(url=visit.origin))
         storage.origin_add(origins)
         storage.origin_visit_upsert(visits)
-    elif object_type in ("directory", "revision", "release", "snapshot", "origin"):
+    elif object_type in ("directory", "revision", "release", "snapshot", "origin",):
         method = getattr(storage, object_type + "_add")
         method(object_converter_fn[object_type](o) for o in objects)
     else:
