@@ -1150,18 +1150,43 @@ class Db(BaseDb):
     ]
 
     def metadata_provider_add(
-        self, provider_name, provider_type, provider_url, metadata, cur=None
-    ):
+        self,
+        provider_name: str,
+        provider_type: str,
+        provider_url: str,
+        metadata: Dict,
+        cur=None,
+    ) -> int:
         """Insert a new provider and return the new identifier."""
         cur = self._cursor(cur)
-        insert = """INSERT INTO metadata_provider (provider_name, provider_type,
-                    provider_url, metadata) values (%s, %s, %s, %s)
-                    RETURNING id"""
-
+        insert = """
+            INSERT INTO metadata_provider (provider_name, provider_type,
+              provider_url, metadata) values (%s, %s, %s, %s)
+            ON CONFLICT(provider_type, provider_url) do nothing
+        """
         cur.execute(
             insert, (provider_name, provider_type, provider_url, jsonize(metadata))
         )
-        return cur.fetchone()[0]
+        row = self.metadata_provider_get_by_composite_key(
+            provider_type, provider_url, cur=cur
+        )
+        return row[0]
+
+    def metadata_provider_get_by_composite_key(
+        self, provider_type: str, provider_url: str, cur=None
+    ) -> Tuple:
+        """Retrieve metadata provider by its composite primary key.
+
+        """
+        cur = self._cursor(cur)
+        cur.execute(
+            """select %s
+                       from metadata_provider
+                       where provider_type=%%s and provider_url=%%s"""
+            % (",".join(self.metadata_provider_cols)),
+            (provider_type, provider_url,),
+        )
+        return cur.fetchone()
 
     def metadata_provider_get(self, provider_id, cur=None):
         cur = self._cursor(cur)
