@@ -707,7 +707,7 @@ class Storage:
                         cur,
                     )
 
-                self.journal_writer.snapshot_add(snapshot)
+                self.journal_writer.snapshot_add([snapshot])
 
                 db.snapshot_add(snapshot.id, cur)
                 count += 1
@@ -871,7 +871,7 @@ class Storage:
             )
         self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
-        self.journal_writer.origin_visit_add(visit)
+        self.journal_writer.origin_visit_add([visit])
 
         send_metric("origin_visit:add", count=1, method_name="origin_visit")
         return visit
@@ -922,7 +922,7 @@ class Storage:
         if updates:
             with convert_validation_exceptions():
                 updated_visit = OriginVisit.from_dict({**visit, **updates})
-            self.journal_writer.origin_visit_update(updated_visit)
+            self.journal_writer.origin_visit_update([updated_visit])
 
             # Write updates to origin visit (backward compatibility)
             db.origin_visit_update(origin, visit_id, updates)
@@ -1202,7 +1202,7 @@ class Storage:
         if origin_url:
             return origin_url
 
-        self.journal_writer.origin_add_one(origin)
+        self.journal_writer.origin_add([origin])
 
         url = db.origin_add(origin.url, cur)
         send_metric("origin:add", count=1, method_name="origin_add_one")

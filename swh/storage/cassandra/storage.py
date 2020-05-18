@@ -543,7 +543,7 @@ class CassandraStorage:
         snapshots = [snp for snp in snapshots if snp.id in missing]
 
         for snapshot in snapshots:
-            self.journal_writer.snapshot_add(snapshot)
+            self.journal_writer.snapshot_add([snapshot])
 
             # Add branches
             for (branch_name, branch) in snapshot.branches.items():
@@ -787,7 +787,7 @@ class CassandraStorage:
         if known_origin:
             origin_url = known_origin["url"]
         else:
-            self.journal_writer.origin_add_one(origin)
+            self.journal_writer.origin_add([origin])
 
             self._cql_runner.origin_add_one(origin)
             origin_url = origin.url
@@ -821,7 +821,7 @@ class CassandraStorage:
                 }
             )
 
-        self.journal_writer.origin_visit_add(visit)
+        self.journal_writer.origin_visit_add([visit])
         self._cql_runner.origin_visit_add_one(visit)
 
         with convert_validation_exceptions():
@@ -868,7 +868,7 @@ class CassandraStorage:
         with convert_validation_exceptions():
             visit = attr.evolve(visit, **updates)
 
-        self.journal_writer.origin_visit_update(visit)
+        self.journal_writer.origin_visit_update([visit])
 
         last_visit_update = self._origin_visit_get_updated(visit.origin, visit.visit)
         assert last_visit_update is not None

@@ -12,7 +12,6 @@ from swh.journal.tests.journal_data import TEST_OBJECTS
 
 
 def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consumer):
-    kafka_prefix += ".swh.journal.objects"
 
     writer_config = {
         "cls": "kafka",
@@ -33,6 +32,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         method = getattr(storage, object_type + "_add")
         if object_type in (
             "content",
+            "skipped_content",
             "directory",
             "revision",
             "release",

@@ -166,10 +166,13 @@ create unique index concurrently metadata_provider_pkey on metadata_provider(id)
 alter table metadata_provider add primary key using index metadata_provider_pkey;
 
 create index concurrently on metadata_provider(provider_name, provider_url);
+create unique index metadata_provider_type_url
+    on metadata_provider(provider_type, provider_url);
 
 -- origin_metadata
 create unique index concurrently origin_metadata_pkey on origin_metadata(id);
 alter table origin_metadata add primary key using index origin_metadata_pkey;
+
 
 create index concurrently on origin_metadata(origin_id, provider_id, tool_id);
 

@@ -1,8 +1,18 @@
-swh-storage (0.0.189-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.190-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.190     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-05-18 14:10:39
+    +0200)
+  * Upstream changes:     - v0.0.190     - storage: metadata_provider:
+    Ensure idempotency when creating provider     - journal: add a
+    skipped_content topic dedicated to SkippedContent objects     - Add
+    missing return annotations on JournalWriter methods     - Improve a
+    bit the exception message of JournalWriter.content_update     -
+    Refactor the JournalWriter class to normalize its methods     -
+    tests: fix test_replay; do only use aware datetime objects     -
+    test_kafka_writer: Add missing object type skipped_content
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 04 May 2020 16:19:47 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 May 2020 12:18:09 +0000
 
 swh-storage (0.0.189-1~swh1) unstable-swh; urgency=medium
 

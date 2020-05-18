@@ -3446,6 +3446,27 @@ class TestStorage:
         )
         assert provider == swh_storage.metadata_provider_get(provider_id)
 
+    def test_metadata_provider_add_idempotent(self, swh_storage):
+        provider = {
+            "provider_name": "swMATH",
+            "provider_type": "registry",
+            "provider_url": "http://www.swmath.org/",
+            "metadata": {
+                "email": "contact@swmath.org",
+                "license": "All rights reserved",
+            },
+        }
+        provider_id = swh_storage.metadata_provider_add(**provider)
+
+        expected_provider = {**provider, "id": provider_id}
+        assert expected_provider == swh_storage.metadata_provider_get_by(
+            {"provider_name": "swMATH", "provider_url": "http://www.swmath.org/"}
+        )
+        assert expected_provider == swh_storage.metadata_provider_get(provider_id)
+
+        provider_id2 = swh_storage.metadata_provider_add(**provider)
+        assert provider_id2 == provider_id
+
     def test_origin_metadata_get_by_provider_type(self, swh_storage):
         # given
         origin_url = data.origin["url"]
