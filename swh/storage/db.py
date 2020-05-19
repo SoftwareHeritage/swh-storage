@@ -3,9 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import random
 import select
-
 from typing import Any, Dict, Optional, Tuple
 
 from swh.core.db import BaseDb
@@ -1059,159 +1059,150 @@ class Db(BaseDb):
     def release_get_random(self, cur=None):
         return self._get_random_row_from_table("release", ["id"], "id", cur)
 
-    def origin_metadata_add(self, origin, ts, provider, tool, metadata, cur=None):
+    origin_metadata_get_cols = [
+        "origin.url",
+        "discovery_date",
+        "metadata_authority.type",
+        "metadata_authority.url",
+        "metadata_fetcher.name",
+        "metadata_fetcher.version",
+        "format",
+        "metadata",
+    ]
+
+    def origin_metadata_add(
+        self,
+        origin: str,
+        discovery_date: datetime.datetime,
+        authority: int,
+        fetcher: int,
+        format: str,
+        metadata: bytes,
+        cur=None,
+    ) -> None:
         """ Add an origin_metadata for the origin at ts with provider, tool and
         metadata.
 
         Args:
-            origin (int): the origin's id for which the metadata is added
-            ts (datetime): time when the metadata was found
-            provider (int): the metadata provider identifier
-            tool (int): the tool's identifier used to extract metadata
-            metadata (jsonb): the metadata retrieved at the time and location
-
-        Returns:
-            id (int): the origin_metadata unique id
-
+            origin: the origin's id for which the metadata is added
+            discovery_date: time when the metadata was found
+            authority: the metadata provider identifier
+            fetcher: the tool's identifier used to extract metadata
+            format: the format of the metadata
+            metadata: the metadata retrieved at the time and location
         """
         cur = self._cursor(cur)
         insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
-                    provider_id, tool_id, metadata)
-                    SELECT id, %s, %s, %s, %s FROM origin WHERE url = %s"""
-        cur.execute(insert, (ts, provider, tool, jsonize(metadata), origin))
-
-    origin_metadata_get_cols = [
-        "origin_url",
-        "discovery_date",
-        "tool_id",
-        "metadata",
-        "provider_id",
-        "provider_name",
-        "provider_type",
-        "provider_url",
-    ]
-
-    def origin_metadata_get_by(self, origin_url, provider_type=None, cur=None):
-        """Retrieve all origin_metadata entries for one origin_url
-
-        """
-        cur = self._cursor(cur)
-        if not provider_type:
-            query = """SELECT %s
-                       FROM swh_origin_metadata_get_by_origin(
-                            %%s)""" % (
-                ",".join(self.origin_metadata_get_cols)
-            )
-
-            cur.execute(query, (origin_url,))
-
-        else:
-            query = """SELECT %s
-                       FROM swh_origin_metadata_get_by_provider_type(
-                            %%s, %%s)""" % (
-                ",".join(self.origin_metadata_get_cols)
-            )
-
-            cur.execute(query, (origin_url, provider_type))
-
-        yield from cur
-
-    tool_cols = ["id", "name", "version", "configuration"]
-
-    @stored_procedure("swh_mktemp_tool")
-    def mktemp_tool(self, cur=None):
-        pass
-
-    def tool_add_from_temp(self, cur=None):
-        cur = self._cursor(cur)
-        cur.execute("SELECT %s from swh_tool_add()" % (",".join(self.tool_cols),))
-        yield from cur
-
-    def tool_get(self, name, version, configuration, cur=None):
-        cur = self._cursor(cur)
+                    authority_id, fetcher_id, format, metadata)
+                    SELECT id, %s, %s, %s, %s, %s FROM origin WHERE url = %s"""
         cur.execute(
-            """select %s
-                       from tool
-                       where name=%%s and
-                             version=%%s and
-                             configuration=%%s"""
-            % (",".join(self.tool_cols)),
-            (name, version, configuration),
+            insert,
+            (discovery_date, authority, fetcher, format, jsonize(metadata), origin),
         )
 
-        return cur.fetchone()
-
-    metadata_provider_cols = [
-        "id",
-        "provider_name",
-        "provider_type",
-        "provider_url",
-        "metadata",
-    ]
-
-    def metadata_provider_add(
+    def origin_metadata_get(
         self,
-        provider_name: str,
-        provider_type: str,
-        provider_url: str,
-        metadata: Dict,
+        origin_url: str,
+        authority: int,
+        after: Optional[datetime.datetime],
+        limit: Optional[int],
         cur=None,
-    ) -> int:
-        """Insert a new provider and return the new identifier."""
+    ):
         cur = self._cursor(cur)
-        insert = """
-            INSERT INTO metadata_provider (provider_name, provider_type,
-              provider_url, metadata) values (%s, %s, %s, %s)
-            ON CONFLICT(provider_type, provider_url) do nothing
-        """
-        cur.execute(
-            insert, (provider_name, provider_type, provider_url, jsonize(metadata))
-        )
-        row = self.metadata_provider_get_by_composite_key(
-            provider_type, provider_url, cur=cur
-        )
-        return row[0]
+        assert self.origin_metadata_get_cols[-1] == "metadata"
+        query_parts = [
+            f"SELECT {', '.join(self.origin_metadata_get_cols[0:-1])}, "
+            f"  origin_metadata.metadata AS metadata "
+            f"FROM origin_metadata "
+            f"INNER JOIN metadata_authority "
+            f"  ON (metadata_authority.id=authority_id) "
+            f"INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id) "
+            f"INNER JOIN origin ON (origin.id=origin_metadata.origin_id) "
+            f"WHERE origin.url=%s AND authority_id=%s"
+        ]
+        args = [origin_url, authority]
 
-    def metadata_provider_get_by_composite_key(
-        self, provider_type: str, provider_url: str, cur=None
-    ) -> Tuple:
-        """Retrieve metadata provider by its composite primary key.
+        if after:
+            query_parts.append("AND discovery_date >= %s")
+            args.append(after)
 
-        """
+        query_parts.append("ORDER BY discovery_date")
+
+        if limit:
+            query_parts.append("LIMIT %s")
+            args.append(limit)
+
+        cur.execute(" ".join(query_parts), args)
+        yield from cur
+
+    metadata_fetcher_cols = ["name", "version", "metadata"]
+
+    def metadata_fetcher_add(
+        self, name: str, version: str, metadata: bytes, cur=None
+    ) -> None:
         cur = self._cursor(cur)
         cur.execute(
-            """select %s
-                       from metadata_provider
-                       where provider_type=%%s and provider_url=%%s"""
-            % (",".join(self.metadata_provider_cols)),
-            (provider_type, provider_url,),
+            "INSERT INTO metadata_fetcher (name, version, metadata) "
+            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (name, version, jsonize(metadata)),
+        )
+
+    def metadata_fetcher_get(self, name: str, version: str, cur=None):
+        cur = self._cursor(cur)
+        cur.execute(
+            f"SELECT {', '.join(self.metadata_fetcher_cols)} "
+            f"FROM metadata_fetcher "
+            f"WHERE name=%s AND version=%s",
+            (name, version),
         )
         return cur.fetchone()
 
-    def metadata_provider_get(self, provider_id, cur=None):
+    def metadata_fetcher_get_id(
+        self, name: str, version: str, cur=None
+    ) -> Optional[int]:
         cur = self._cursor(cur)
         cur.execute(
-            """select %s
-                       from metadata_provider
-                       where id=%%s """
-            % (",".join(self.metadata_provider_cols)),
-            (provider_id,),
+            "SELECT id FROM metadata_fetcher WHERE name=%s AND version=%s",
+            (name, version),
         )
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        else:
+            return None
 
-        return cur.fetchone()
+    metadata_authority_cols = ["type", "url", "metadata"]
 
-    def metadata_provider_get_by(self, provider_name, provider_url, cur=None):
+    def metadata_authority_add(
+        self, type: str, url: str, metadata: bytes, cur=None
+    ) -> None:
         cur = self._cursor(cur)
         cur.execute(
-            """select %s
-                       from metadata_provider
-                       where provider_name=%%s and
-                             provider_url=%%s"""
-            % (",".join(self.metadata_provider_cols)),
-            (provider_name, provider_url),
+            "INSERT INTO metadata_authority (type, url, metadata) "
+            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            (type, url, jsonize(metadata)),
         )
 
+    def metadata_authority_get(self, type: str, url: str, cur=None):
+        cur = self._cursor(cur)
+        cur.execute(
+            f"SELECT {', '.join(self.metadata_authority_cols)} "
+            f"FROM metadata_authority "
+            f"WHERE type=%s AND url=%s",
+            (type, url),
+        )
         return cur.fetchone()
+
+    def metadata_authority_get_id(self, type: str, url: str, cur=None) -> Optional[int]:
+        cur = self._cursor(cur)
+        cur.execute(
+            "SELECT id FROM metadata_authority WHERE type=%s AND url=%s", (type, url)
+        )
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        else:
+            return None
 
     def _get_random_row_from_table(self, table_name, cols, id_col, cur=None):
         random_sha1 = bytes(random.randint(0, 255) for _ in range(SHA1_SIZE))

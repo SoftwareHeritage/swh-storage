@@ -794,34 +794,100 @@ class CqlRunner:
         yield from self._origin_visit_iter_to(start_token)
 
     ##########################
-    # 'tool' table
+    # 'metadata_authority' table
     ##########################
 
-    _tool_keys = ["id", "name", "version", "configuration"]
+    _metadata_authority_keys = ["url", "type", "metadata"]
 
-    @_prepared_insert_statement("tool_by_uuid", _tool_keys)
-    def tool_by_uuid_add_one(self, tool: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(statement, [tool[key] for key in self._tool_keys])
+    @_prepared_insert_statement("metadata_authority", _metadata_authority_keys)
+    def metadata_authority_add(self, url, type, metadata, *, statement):
+        return self._execute_with_retries(statement, [url, type, metadata])
 
-    @_prepared_insert_statement("tool", _tool_keys)
-    def tool_add_one(self, tool: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(statement, [tool[key] for key in self._tool_keys])
-        self._increment_counter("tool", 1)
+    @_prepared_statement("SELECT * from metadata_authority WHERE type = ? AND url = ?")
+    def metadata_authority_get(self, type, url, *, statement) -> Optional[Row]:
+        return next(iter(self._execute_with_retries(statement, [type, url])), None)
+
+    ##########################
+    # 'metadata_fetcher' table
+    ##########################
+
+    _metadata_fetcher_keys = ["name", "version", "metadata"]
+
+    @_prepared_insert_statement("metadata_fetcher", _metadata_fetcher_keys)
+    def metadata_fetcher_add(self, name, version, metadata, *, statement):
+        return self._execute_with_retries(statement, [name, version, metadata])
 
     @_prepared_statement(
-        "SELECT id FROM tool " "WHERE name = ? AND version = ? " "AND configuration = ?"
+        "SELECT * from metadata_fetcher WHERE name = ? AND version = ?"
     )
-    def tool_get_one_uuid(
-        self, name: str, version: str, configuration: Dict[str, Any], *, statement
-    ) -> Optional[str]:
-        rows = list(
-            self._execute_with_retries(statement, [name, version, configuration])
+    def metadata_fetcher_get(self, name, version, *, statement) -> Optional[Row]:
+        return next(iter(self._execute_with_retries(statement, [name, version])), None)
+
+    ##########################
+    # 'origin_metadata' table
+    ##########################
+
+    _origin_metadata_keys = [
+        "origin",
+        "authority_type",
+        "authority_url",
+        "discovery_date",
+        "fetcher_name",
+        "fetcher_version",
+        "format",
+        "metadata",
+    ]
+
+    @_prepared_insert_statement("origin_metadata", _origin_metadata_keys)
+    def origin_metadata_add(
+        self,
+        origin,
+        authority_type,
+        authority_url,
+        discovery_date,
+        fetcher_name,
+        fetcher_version,
+        format,
+        metadata,
+        *,
+        statement,
+    ):
+        return self._execute_with_retries(
+            statement,
+            [
+                origin,
+                authority_type,
+                authority_url,
+                discovery_date,
+                fetcher_name,
+                fetcher_version,
+                format,
+                metadata,
+            ],
         )
-        if rows:
-            assert len(rows) == 1
-            return rows[0].id
-        else:
-            return None
+
+    @_prepared_statement(
+        "SELECT * from origin_metadata "
+        "WHERE origin=? AND authority_url=? AND discovery_date>=? "
+        "AND authority_type=?"
+    )
+    def origin_metadata_get_after(
+        self, origin, authority_type, authority_url, after, *, statement
+    ):
+        return self._execute_with_retries(
+            statement, [origin, authority_url, after, authority_type]
+        )
+
+    @_prepared_statement(
+        "SELECT * from origin_metadata "
+        "WHERE origin=? AND authority_url=? AND authority_type=?"
+    )
+    def origin_metadata_get(
+        self, origin, authority_type, authority_url, *, statement
+    ) -> Iterable[Row]:
+        return self._execute_with_retries(
+            statement, [origin, authority_url, authority_type]
+        )
 
     ##########################
     # Miscellaneous

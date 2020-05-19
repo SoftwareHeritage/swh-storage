@@ -326,17 +326,26 @@ origin2 = {
 origins = (origin, origin2)
 
 
-provider = {
-    "name": "hal",
-    "type": "deposit-client",
-    "url": "http:///hal/inria",
+metadata_authority = {
+    "type": "deposit",
+    "url": "http://hal.inria.example.com/",
     "metadata": {"location": "France"},
 }
+metadata_authority2 = {
+    "type": "registry",
+    "url": "http://wikidata.example.com/",
+    "metadata": {},
+}
 
-metadata_tool = {
+metadata_fetcher = {
     "name": "swh-deposit",
     "version": "0.0.1",
-    "configuration": {"sword_version": "2"},
+    "metadata": {"sword_version": "2"},
+}
+metadata_fetcher2 = {
+    "name": "swh-example",
+    "version": "0.0.1",
+    "metadata": {},
 }
 
 date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
@@ -456,22 +465,52 @@ complete_snapshot = {
 }
 
 origin_metadata = {
-    "origin": origin,
+    "origin_url": origin["url"],
     "discovery_date": datetime.datetime(
         2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "provider": provider,
-    "tool": "swh-deposit",
-    "metadata": {"name": "test_origin_metadata", "version": "0.0.1"},
+    "authority": {
+        "type": metadata_authority["type"],
+        "url": metadata_authority["url"],
+    },
+    "fetcher": {
+        "name": metadata_fetcher["name"],
+        "version": metadata_fetcher["version"],
+    },
+    "format": "json",
+    "metadata": b'{"foo": "bar"}',
 }
 origin_metadata2 = {
-    "origin": origin,
+    "origin_url": origin["url"],
     "discovery_date": datetime.datetime(
         2017, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "provider": provider,
-    "tool": "swh-deposit",
-    "metadata": {"name": "test_origin_metadata", "version": "0.0.1"},
+    "authority": {
+        "type": metadata_authority["type"],
+        "url": metadata_authority["url"],
+    },
+    "fetcher": {
+        "name": metadata_fetcher["name"],
+        "version": metadata_fetcher["version"],
+    },
+    "format": "yaml",
+    "metadata": b"foo: bar",
+}
+origin_metadata3 = {
+    "origin_url": origin["url"],
+    "discovery_date": datetime.datetime(
+        2017, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc
+    ),
+    "authority": {
+        "type": metadata_authority2["type"],
+        "url": metadata_authority2["url"],
+    },
+    "fetcher": {
+        "name": metadata_fetcher2["name"],
+        "version": metadata_fetcher2["version"],
+    },
+    "format": "yaml",
+    "metadata": b"foo: bar",
 }
 
 person = {
