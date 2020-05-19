@@ -1255,9 +1255,18 @@ class Storage:
         )
         if not fetcher_id:
             raise StorageArgumentException(f"Unknown fetcher {fetcher}")
-        db.origin_metadata_add(
-            origin_url, discovery_date, authority_id, fetcher_id, format, metadata, cur
-        )
+        try:
+            db.origin_metadata_add(
+                origin_url,
+                discovery_date,
+                authority_id,
+                fetcher_id,
+                format,
+                metadata,
+                cur,
+            )
+        except psycopg2.ProgrammingError as e:
+            raise StorageArgumentException(*e.args)
         send_metric("origin_metadata:add", count=1, method_name="origin_metadata_add")
 
     @timed
