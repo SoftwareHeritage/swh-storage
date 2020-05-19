@@ -3225,6 +3225,21 @@ class TestStorage:
             )
         )
 
+    def test_origin_metadata_add_dict(self, swh_storage):
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+        swh_storage.origin_add([origin])[0]
+
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority)
+
+        kwargs = data.origin_metadata.copy()
+        kwargs["metadata"] = {"foo": "bar"}
+
+        with pytest.raises(StorageArgumentException):
+            swh_storage.origin_metadata_add(**kwargs)
+
     def test_origin_metadata_get(self, swh_storage):
         authority = data.metadata_authority
         fetcher = data.metadata_fetcher
