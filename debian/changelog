@@ -1,3 +1,12 @@
+swh-storage (0.0.192-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.0.192     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-05-19 18:42:00 +0200)
+  * Upstream changes:     - v0.0.192     - * origin_metadata_add: Reject
+    non-bytes types for 'metadata'.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 19 May 2020 16:54:00 +0000
+
 swh-storage (0.0.191-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.0.191     - (tagged by Valentin Lorentz
