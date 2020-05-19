@@ -4,11 +4,11 @@
 # See top-level LICENSE file for more information
 
 import datetime
+import itertools
 import json
 import random
 import re
 from typing import Any, Dict, List, Iterable, Optional, Union
-import uuid
 
 import attr
 import dateutil
@@ -1034,37 +1034,6 @@ class CassandraStorage:
         else:
             return None
 
-    def tool_add(self, tools):
-        inserted = []
-        for tool in tools:
-            tool = tool.copy()
-            tool_json = tool.copy()
-            tool_json["configuration"] = json.dumps(
-                tool["configuration"], sort_keys=True
-            ).encode()
-            id_ = self._cql_runner.tool_get_one_uuid(**tool_json)
-            if not id_:
-                id_ = uuid.uuid1()
-                tool_json["id"] = id_
-                self._cql_runner.tool_by_uuid_add_one(tool_json)
-                self._cql_runner.tool_add_one(tool_json)
-            tool["id"] = id_
-            inserted.append(tool)
-        return inserted
-
-    def tool_get(self, tool):
-        id_ = self._cql_runner.tool_get_one_uuid(
-            tool["name"],
-            tool["version"],
-            json.dumps(tool["configuration"], sort_keys=True).encode(),
-        )
-        if id_:
-            tool = tool.copy()
-            tool["id"] = id_
-            return tool
-        else:
-            return None
-
     def stat_counters(self):
         rows = self._cql_runner.stat_counters()
         keys = (
@@ -1084,27 +1053,109 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata):
-        # TODO
-        raise NotImplementedError("not yet supported for Cassandra")
+    def origin_metadata_add(
+        self,
+        origin_url: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        if not isinstance(origin_url, str):
+            raise StorageArgumentException(
+                "origin_id must be str, not %r" % (origin_url,)
+            )
+        if not self._cql_runner.metadata_authority_get(**authority):
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        if not self._cql_runner.metadata_fetcher_get(**fetcher):
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
-    def origin_metadata_get_by(self, origin_url, provider_type=None):
-        # TODO
-        raise NotImplementedError("not yet supported for Cassandra")
+        self._cql_runner.origin_metadata_add(
+            origin_url,
+            authority["type"],
+            authority["url"],
+            discovery_date,
+            fetcher["name"],
+            fetcher["version"],
+            format,
+            metadata,
+        )
 
-    def metadata_provider_add(
-        self, provider_name, provider_type, provider_url, metadata
-    ):
-        # TODO
-        raise NotImplementedError("not yet supported for Cassandra")
+    def origin_metadata_get(
+        self,
+        origin_url: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        if not isinstance(origin_url, str):
+            raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
-    def metadata_provider_get(self, provider_id):
-        # TODO
-        raise NotImplementedError("not yet supported for Cassandra")
+        if after is None:
+            entries = self._cql_runner.origin_metadata_get(
+                origin_url, authority["type"], authority["url"]
+            )
+        else:
+            entries = self._cql_runner.origin_metadata_get_after(
+                origin_url, authority["type"], authority["url"], after
+            )
 
-    def metadata_provider_get_by(self, provider):
-        # TODO
-        raise NotImplementedError("not yet supported for Cassandra")
+        if limit:
+            entries = itertools.islice(entries, 0, limit)
+
+        results = []
+        for entry in entries:
+            discovery_date = entry.discovery_date.replace(tzinfo=datetime.timezone.utc)
+            results.append(
+                {
+                    "origin_url": entry.origin,
+                    "authority": {
+                        "type": entry.authority_type,
+                        "url": entry.authority_url,
+                    },
+                    "fetcher": {
+                        "name": entry.fetcher_name,
+                        "version": entry.fetcher_version,
+                    },
+                    "discovery_date": discovery_date,
+                    "format": entry.format,
+                    "metadata": entry.metadata,
+                }
+            )
+        return results
+
+    def metadata_fetcher_add(
+        self, name: str, version: str, metadata: Dict[str, Any]
+    ) -> None:
+        self._cql_runner.metadata_fetcher_add(name, version, json.dumps(metadata))
+
+    def metadata_fetcher_get(self, name: str, version: str) -> Optional[Dict[str, Any]]:
+        fetcher = self._cql_runner.metadata_fetcher_get(name, version)
+        if fetcher:
+            return {
+                "name": fetcher.name,
+                "version": fetcher.version,
+                "metadata": json.loads(fetcher.metadata),
+            }
+        else:
+            return None
+
+    def metadata_authority_add(
+        self, type: str, url: str, metadata: Dict[str, Any]
+    ) -> None:
+        self._cql_runner.metadata_authority_add(url, type, json.dumps(metadata))
+
+    def metadata_authority_get(self, type: str, url: str) -> Optional[Dict[str, Any]]:
+        authority = self._cql_runner.metadata_authority_get(type, url)
+        if authority:
+            return {
+                "type": authority.type,
+                "url": authority.url,
+                "metadata": json.loads(authority.metadata),
+            }
+        else:
+            return None
 
     def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
         """Do nothing

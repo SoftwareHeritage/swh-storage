@@ -19,6 +19,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    Hashable,
     Iterable,
     Iterator,
     List,
@@ -123,11 +124,17 @@ class InMemoryStorage:
         self._origin_visits = {}
         self._origin_visit_statuses: Dict[Tuple[str, int], List[OriginVisitStatus]] = {}
         self._persons = []
-        self._origin_metadata = defaultdict(list)
-        self._tools = {}
-        self._metadata_providers = {}
-        self._objects = defaultdict(list)
 
+        # {origin_url: {authority: [metadata]}}
+        self._origin_metadata: Dict[
+            str, Dict[Hashable, SortedList[datetime.datetime, Dict[str, Any]]]
+        ] = defaultdict(
+            lambda: defaultdict(lambda: SortedList(key=lambda x: x["discovery_date"]))
+        )  # noqa
+
+        self._metadata_fetchers: Dict[Hashable, Dict[str, Any]] = {}
+        self._metadata_authorities: Dict[Hashable, Dict[str, Any]] = {}
+        self._objects = defaultdict(list)
         self._sorted_sha1s = SortedList[bytes, bytes]()
 
         self.objstorage = ObjStorage({"cls": "memory", "args": {}})
@@ -139,7 +146,6 @@ class InMemoryStorage:
         self.journal_writer.content_add(contents)
 
         content_add = 0
-        content_add_bytes = 0
         if with_data:
             summary = self.objstorage.content_add(
                 c for c in contents if c.status != "absent"
@@ -1040,71 +1046,104 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
-    def origin_metadata_add(self, origin_url, ts, provider, tool, metadata):
+    def origin_metadata_add(
+        self,
+        origin_url: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
         if not isinstance(origin_url, str):
-            raise TypeError("origin_id must be str, not %r" % (origin_url,))
-
-        if isinstance(ts, str):
-            ts = dateutil.parser.parse(ts)
+            raise StorageArgumentException(
+                "origin_id must be str, not %r" % (origin_url,)
+            )
+        authority_key = self._metadata_authority_key(authority)
+        if authority_key not in self._metadata_authorities:
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        fetcher_key = self._metadata_fetcher_key(fetcher)
+        if fetcher_key not in self._metadata_fetchers:
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
         origin_metadata = {
             "origin_url": origin_url,
-            "discovery_date": ts,
-            "tool_id": tool,
+            "discovery_date": discovery_date,
+            "authority": authority_key,
+            "fetcher": fetcher_key,
+            "format": format,
             "metadata": metadata,
-            "provider_id": provider,
         }
-        self._origin_metadata[origin_url].append(origin_metadata)
+        self._origin_metadata[origin_url][authority_key].add(origin_metadata)
         return None
 
-    def origin_metadata_get_by(self, origin_url, provider_type=None):
+    def origin_metadata_get(
+        self,
+        origin_url: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
-        metadata = []
-        for item in self._origin_metadata[origin_url]:
-            item = copy.deepcopy(item)
-            provider = self.metadata_provider_get(item["provider_id"])
-            for attr_name in ("name", "type", "url"):
-                item["provider_" + attr_name] = provider["provider_" + attr_name]
-            metadata.append(item)
-        return metadata
 
-    def tool_add(self, tools):
-        inserted = []
-        for tool in tools:
-            key = self._tool_key(tool)
-            assert "id" not in tool
-            record = copy.deepcopy(tool)
-            record["id"] = key  # TODO: remove this
-            if key not in self._tools:
-                self._tools[key] = record
-            inserted.append(copy.deepcopy(self._tools[key]))
+        authority_key = self._metadata_authority_key(authority)
 
-        return inserted
+        if after is None:
+            entries = iter(self._origin_metadata[origin_url][authority_key])
+        else:
+            entries = self._origin_metadata[origin_url][authority_key].iter_from(after)
+        if limit:
+            entries = itertools.islice(entries, 0, limit)
 
-    def tool_get(self, tool):
-        return self._tools.get(self._tool_key(tool))
+        results = []
+        for entry in entries:
+            authority = self._metadata_authorities[entry["authority"]]
+            fetcher = self._metadata_fetchers[entry["fetcher"]]
+            results.append(
+                {
+                    **entry,
+                    "authority": {"type": authority["type"], "url": authority["url"],},
+                    "fetcher": {
+                        "name": fetcher["name"],
+                        "version": fetcher["version"],
+                    },
+                }
+            )
+        return results
 
-    def metadata_provider_add(
-        self, provider_name, provider_type, provider_url, metadata
-    ):
-        provider = {
-            "provider_name": provider_name,
-            "provider_type": provider_type,
-            "provider_url": provider_url,
+    def metadata_fetcher_add(
+        self, name: str, version: str, metadata: Dict[str, Any]
+    ) -> None:
+        fetcher = {
+            "name": name,
+            "version": version,
             "metadata": metadata,
         }
-        key = self._metadata_provider_key(provider)
-        provider["id"] = key
-        self._metadata_providers[key] = provider
-        return key
+        key = self._metadata_fetcher_key(fetcher)
+        if key not in self._metadata_fetchers:
+            self._metadata_fetchers[key] = fetcher
 
-    def metadata_provider_get(self, provider_id):
-        return self._metadata_providers.get(provider_id)
+    def metadata_fetcher_get(self, name: str, version: str) -> Optional[Dict[str, Any]]:
+        return self._metadata_fetchers.get(
+            self._metadata_fetcher_key({"name": name, "version": version})
+        )
 
-    def metadata_provider_get_by(self, provider):
-        key = self._metadata_provider_key(provider)
-        return self._metadata_providers.get(key)
+    def metadata_authority_add(
+        self, type: str, url: str, metadata: Dict[str, Any]
+    ) -> None:
+        authority = {
+            "type": type,
+            "url": url,
+            "metadata": metadata,
+        }
+        key = self._metadata_authority_key(authority)
+        self._metadata_authorities[key] = authority
+
+    def metadata_authority_get(self, type: str, url: str) -> Optional[Dict[str, Any]]:
+        return self._metadata_authorities.get(
+            self._metadata_authority_key({"type": type, "url": url})
+        )
 
     def _get_origin_url(self, origin):
         if isinstance(origin, str):
@@ -1131,16 +1170,12 @@ class InMemoryStorage:
         return tuple((key, content.get(key)) for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
-    def _tool_key(tool):
-        return "%r %r %r" % (
-            tool["name"],
-            tool["version"],
-            tuple(sorted(tool["configuration"].items())),
-        )
+    def _metadata_fetcher_key(fetcher: Dict) -> Hashable:
+        return (fetcher["name"], fetcher["version"])
 
     @staticmethod
-    def _metadata_provider_key(provider):
-        return "%r %r" % (provider["provider_name"], provider["provider_url"])
+    def _metadata_authority_key(authority: Dict) -> Hashable:
+        return (authority["type"], authority["url"])
 
     def diff_directories(self, from_dir, to_dir, track_renaming=False):
         raise NotImplementedError("InMemoryStorage.diff_directories")

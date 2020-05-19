@@ -155,35 +155,32 @@ alter table release validate constraint release_author_fkey;
 alter table release add constraint release_author_date_check check ((date is null) or (author is not null)) not valid;
 alter table release validate constraint release_author_date_check;
 
--- tool
-create unique index tool_pkey on tool(id);
-alter table tool add primary key using index tool_pkey;
+-- metadata_fetcher
+create unique index metadata_fetcher_pkey on metadata_fetcher(id);
+alter table metadata_fetcher add primary key using index metadata_fetcher_pkey;
 
-create unique index on tool(name, version, configuration);
+create unique index metadata_fetcher_name_version on metadata_fetcher(name, version);
 
--- metadata_provider
-create unique index concurrently metadata_provider_pkey on metadata_provider(id);
-alter table metadata_provider add primary key using index metadata_provider_pkey;
+-- metadata_authority
+create unique index concurrently metadata_authority_pkey on metadata_authority(id);
+alter table metadata_authority add primary key using index metadata_authority_pkey;
 
-create index concurrently on metadata_provider(provider_name, provider_url);
-create unique index metadata_provider_type_url
-    on metadata_provider(provider_type, provider_url);
+create unique index metadata_authority_type_url on metadata_authority(type, url);
 
 -- origin_metadata
 create unique index concurrently origin_metadata_pkey on origin_metadata(id);
 alter table origin_metadata add primary key using index origin_metadata_pkey;
 
-
-create index concurrently on origin_metadata(origin_id, provider_id, tool_id);
+create index concurrently origin_metadata_origin_authority_date on origin_metadata(origin_id, authority_id, discovery_date);
 
 alter table origin_metadata add constraint origin_metadata_origin_fkey foreign key (origin_id) references origin(id) not valid;
 alter table origin_metadata validate constraint origin_metadata_origin_fkey;
 
-alter table origin_metadata add constraint origin_metadata_provider_fkey foreign key (provider_id) references metadata_provider(id) not valid;
-alter table origin_metadata validate constraint origin_metadata_provider_fkey;
+alter table origin_metadata add constraint origin_metadata_authority_fkey foreign key (authority_id) references metadata_authority(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_authority_fkey;
 
-alter table origin_metadata add constraint origin_metadata_tool_fkey foreign key (tool_id) references tool(id) not valid;
-alter table origin_metadata validate constraint origin_metadata_tool_fkey;
+alter table origin_metadata add constraint origin_metadata_fetcher_fkey foreign key (fetcher_id) references metadata_fetcher(id) not valid;
+alter table origin_metadata validate constraint origin_metadata_fetcher_fkey;
 
 -- object_counts
 create unique index concurrently object_counts_pkey on object_counts(object_type);

@@ -1,8 +1,11 @@
-swh-storage (0.0.190-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.191-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.191     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-05-19 13:43:35 +0200)
+  * Upstream changes:     - v0.0.191     - * Implement the new extrinsic
+    metadata specification/vocabulary.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 18 May 2020 12:22:58 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 19 May 2020 11:52:00 +0000
 
 swh-storage (0.0.190-1~swh1) unstable-swh; urgency=medium
 

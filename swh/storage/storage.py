@@ -6,7 +6,6 @@
 import contextlib
 import datetime
 import itertools
-import json
 
 from collections import defaultdict
 from contextlib import contextmanager
@@ -1236,72 +1235,101 @@ class Storage:
     @timed
     @db_transaction()
     def origin_metadata_add(
-        self, origin_url, ts, provider, tool, metadata, db=None, cur=None
-    ):
-        if isinstance(ts, str):
-            ts = dateutil.parser.parse(ts)
-
-        db.origin_metadata_add(origin_url, ts, provider, tool, metadata, cur)
+        self,
+        origin_url: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        db=None,
+        cur=None,
+    ) -> None:
+        authority_id = db.metadata_authority_get_id(
+            authority["type"], authority["url"], cur
+        )
+        if not authority_id:
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        fetcher_id = db.metadata_fetcher_get_id(
+            fetcher["name"], fetcher["version"], cur
+        )
+        if not fetcher_id:
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+        db.origin_metadata_add(
+            origin_url, discovery_date, authority_id, fetcher_id, format, metadata, cur
+        )
         send_metric("origin_metadata:add", count=1, method_name="origin_metadata_add")
 
     @timed
-    @db_transaction_generator(statement_timeout=500)
-    def origin_metadata_get_by(self, origin_url, provider_type=None, db=None, cur=None):
-        for line in db.origin_metadata_get_by(origin_url, provider_type, cur):
-            yield dict(zip(db.origin_metadata_get_cols, line))
-
-    @timed
-    @db_transaction()
-    def tool_add(self, tools, db=None, cur=None):
-        db.mktemp_tool(cur)
-        with convert_validation_exceptions():
-            db.copy_to(tools, "tmp_tool", ["name", "version", "configuration"], cur)
-            tools = db.tool_add_from_temp(cur)
-
-        results = [dict(zip(db.tool_cols, line)) for line in tools]
-        send_metric("tool:add", count=len(results), method_name="tool_add")
+    @db_transaction(statement_timeout=500)
+    def origin_metadata_get(
+        self,
+        origin_url: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+        db=None,
+        cur=None,
+    ) -> List[Dict[str, Any]]:
+        authority_id = db.metadata_authority_get_id(
+            authority["type"], authority["url"], cur
+        )
+        if not authority_id:
+            return []
+        results = []
+        for line in db.origin_metadata_get(origin_url, authority_id, after, limit, cur):
+            row = dict(zip(db.origin_metadata_get_cols, line))
+            results.append(
+                {
+                    "origin_url": row.pop("origin.url"),
+                    "authority": {
+                        "type": row.pop("metadata_authority.type"),
+                        "url": row.pop("metadata_authority.url"),
+                    },
+                    "fetcher": {
+                        "name": row.pop("metadata_fetcher.name"),
+                        "version": row.pop("metadata_fetcher.version"),
+                    },
+                    **row,
+                }
+            )
         return results
 
     @timed
+    @db_transaction()
+    def metadata_fetcher_add(
+        self, name: str, version: str, metadata: Dict[str, Any], db=None, cur=None
+    ) -> None:
+        db.metadata_fetcher_add(name, version, metadata)
+        send_metric("metadata_fetcher:add", count=1, method_name="metadata_fetcher")
+
+    @timed
     @db_transaction(statement_timeout=500)
-    def tool_get(self, tool, db=None, cur=None):
-        tool_conf = tool["configuration"]
-        if isinstance(tool_conf, dict):
-            tool_conf = json.dumps(tool_conf)
-
-        idx = db.tool_get(tool["name"], tool["version"], tool_conf)
-        if not idx:
+    def metadata_fetcher_get(
+        self, name: str, version: str, db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
+        row = db.metadata_fetcher_get(name, version, cur=cur)
+        if not row:
             return None
-        return dict(zip(db.tool_cols, idx))
+        return dict(zip(db.metadata_fetcher_cols, row))
 
     @timed
     @db_transaction()
-    def metadata_provider_add(
-        self, provider_name, provider_type, provider_url, metadata, db=None, cur=None
-    ):
-        result = db.metadata_provider_add(
-            provider_name, provider_type, provider_url, metadata, cur
-        )
-        send_metric("metadata_provider:add", count=1, method_name="metadata_provider")
-        return result
+    def metadata_authority_add(
+        self, type: str, url: str, metadata: Dict[str, Any], db=None, cur=None
+    ) -> None:
+        db.metadata_authority_add(type, url, metadata, cur)
+        send_metric("metadata_authority:add", count=1, method_name="metadata_authority")
 
     @timed
     @db_transaction()
-    def metadata_provider_get(self, provider_id, db=None, cur=None):
-        result = db.metadata_provider_get(provider_id)
-        if not result:
+    def metadata_authority_get(
+        self, type: str, url: str, db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
+        row = db.metadata_authority_get(type, url, cur=cur)
+        if not row:
             return None
-        return dict(zip(db.metadata_provider_cols, result))
-
-    @timed
-    @db_transaction()
-    def metadata_provider_get_by(self, provider, db=None, cur=None):
-        result = db.metadata_provider_get_by(
-            provider["provider_name"], provider["provider_url"]
-        )
-        if not result:
-            return None
-        return dict(zip(db.metadata_provider_cols, result))
+        return dict(zip(db.metadata_authority_cols, row))
 
     @timed
     def diff_directories(self, from_dir, to_dir, track_renaming=False):

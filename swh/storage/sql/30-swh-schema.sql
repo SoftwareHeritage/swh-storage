@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(148, now(), 'Work In Progress');
+      values(149, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -397,35 +397,34 @@ comment on column release.target_type is 'Object type (''content'', ''directory'
 comment on column release.date_neg_utc_offset is 'True indicates -0 UTC offset for release timestamp';
 
 -- Tools
-create table tool
+create table metadata_fetcher
 (
-  id serial not null,
-  name text not null,
-  version text not null,
-  configuration jsonb
+  id            serial  not null,
+  name          text    not null,
+  version       text    not null,
+  metadata      jsonb   not null
 );
 
-comment on table tool is 'Tool information';
-comment on column tool.id is 'Tool identifier';
-comment on column tool.version is 'Tool name';
-comment on column tool.version is 'Tool version';
-comment on column tool.configuration is 'Tool configuration: command line, flags, etc...';
+comment on table metadata_fetcher is 'Tools used to retrieve metadata';
+comment on column metadata_fetcher.id is 'Internal identifier of the fetcher';
+comment on column metadata_fetcher.name is 'Fetcher name';
+comment on column metadata_fetcher.version is 'Fetcher version';
+comment on column metadata_fetcher.metadata is 'Extra information about the fetcher';
 
 
-create table metadata_provider
+create table metadata_authority
 (
-  id            serial not null,
-  provider_name text   not null,
-  provider_type text   not null,
-  provider_url  text,
-  metadata      jsonb
+  id            serial  not null,
+  type          text    not null,
+  url           text    not null,
+  metadata      jsonb   not null
 );
 
-comment on table metadata_provider is 'Metadata provider information';
-comment on column metadata_provider.id is 'Provider''s identifier';
-comment on column metadata_provider.provider_name is 'Provider''s name';
-comment on column metadata_provider.provider_url is 'Provider''s url';
-comment on column metadata_provider.metadata is 'Other metadata about provider';
+comment on table metadata_authority is 'Metadata authority information';
+comment on column metadata_authority.id is 'Internal identifier of the authority';
+comment on column metadata_authority.type is 'Type of authority (deposit/forge/registry)';
+comment on column metadata_authority.url is 'Authority''s uri';
+comment on column metadata_authority.metadata is 'Other metadata about authority';
 
 
 -- Discovery of metadata during a listing, loading, deposit or external_catalog of an origin
@@ -435,18 +434,20 @@ create table origin_metadata
   id             bigserial     not null,  -- PK internal object identifier
   origin_id      bigint        not null,  -- references origin(id)
   discovery_date timestamptz   not null,  -- when it was extracted
-  provider_id    bigint        not null,  -- ex: 'hal', 'lister-github', 'loader-github'
-  tool_id        bigint        not null,
-  metadata       jsonb         not null
+  authority_id   bigint        not null,
+  fetcher_id     bigint        not null,
+  format         text          not null,
+  metadata       bytea         not null
 );
 
 comment on table origin_metadata is 'keeps all metadata found concerning an origin';
 comment on column origin_metadata.id is 'the origin_metadata object''s id';
 comment on column origin_metadata.origin_id is 'the origin id for which the metadata was found';
 comment on column origin_metadata.discovery_date is 'the date of retrieval';
-comment on column origin_metadata.provider_id is 'the metadata provider: github, openhub, deposit, etc.';
-comment on column origin_metadata.tool_id is 'the tool used for extracting metadata: lister-github, etc.';
-comment on column origin_metadata.metadata is 'metadata in json format but with original terms';
+comment on column origin_metadata.authority_id is 'the metadata provider: github, openhub, deposit, etc.';
+comment on column origin_metadata.fetcher_id is 'the tool used for extracting metadata: loaders, crawlers, etc.';
+comment on column origin_metadata.format is 'name of the format of metadata, used by readers to interpret it.';
+comment on column origin_metadata.metadata is 'original metadata in opaque format';
 
 
 -- Keep a cache of object counts

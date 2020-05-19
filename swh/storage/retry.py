@@ -7,7 +7,7 @@ import logging
 import traceback
 
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 from tenacity import (
     retry,
@@ -127,29 +127,29 @@ class RetryingProxyStorage:
         )
 
     @swh_retry
-    def tool_add(self, tools: Iterable[Dict]) -> List[Dict]:
-        tools = list(tools)
-        return self.storage.tool_add(tools)
+    def metadata_fetcher_add(
+        self, name: str, version: str, metadata: Dict[str, Any]
+    ) -> None:
+        return self.storage.metadata_fetcher_add(name, version, metadata)
 
     @swh_retry
-    def metadata_provider_add(
-        self, provider_name: str, provider_type: str, provider_url: str, metadata: Dict
-    ) -> Union[str, int]:
-        return self.storage.metadata_provider_add(
-            provider_name, provider_type, provider_url, metadata
-        )
+    def metadata_authority_add(
+        self, type: str, url: str, metadata: Dict[str, Any]
+    ) -> None:
+        return self.storage.metadata_authority_add(type, url, metadata)
 
     @swh_retry
     def origin_metadata_add(
         self,
         origin_url: str,
-        ts: Union[str, datetime],
-        provider_id: int,
-        tool_id: int,
-        metadata: Dict,
+        discovery_date: datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
     ) -> None:
         return self.storage.origin_metadata_add(
-            origin_url, ts, provider_id, tool_id, metadata
+            origin_url, discovery_date, authority, fetcher, format, metadata
         )
 
     @swh_retry
