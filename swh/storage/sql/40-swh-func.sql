@@ -101,17 +101,6 @@ as $$
   ) on commit delete rows;
 $$;
 
--- create a temporary table for the tools
-create or replace function swh_mktemp_tool()
-    returns void
-    language sql
-as $$
-    create temporary table if not exists tmp_tool (
-      like tool including defaults
-    ) on commit delete rows;
-    alter table tmp_tool drop column if exists id;
-$$;
-
 -- a content signature is a set of cryptographic checksums that we use to
 -- uniquely identify content, for the purpose of verifying if we already have
 -- some content or not during content injection
@@ -917,76 +906,6 @@ as $$
     from rels r
     left join person p on p.id = r.author
     order by r.object_id;
-$$;
-
-
--- end revision_metadata functions
--- origin_metadata functions
-create type origin_metadata_signature as (
-    id bigint,
-    origin_url text,
-    discovery_date timestamptz,
-    tool_id bigint,
-    metadata jsonb,
-    provider_id integer,
-    provider_name text,
-    provider_type text,
-    provider_url  text
-);
-create or replace function swh_origin_metadata_get_by_origin(
-       origin text)
-    returns setof origin_metadata_signature
-    language sql
-    stable
-as $$
-    select om.id as id, o.url as origin_url, discovery_date, tool_id, om.metadata,
-           mp.id as provider_id, provider_name, provider_type, provider_url
-    from origin_metadata as om
-    inner join metadata_provider mp on om.provider_id = mp.id
-    inner join origin o on om.origin_id = o.id
-    where o.url = origin
-    order by discovery_date desc;
-$$;
-
-create or replace function swh_origin_metadata_get_by_provider_type(
-       origin_url text,
-       provider_type text)
-    returns setof origin_metadata_signature
-    language sql
-    stable
-as $$
-    select om.id as id, o.url as origin_url, discovery_date, tool_id, om.metadata,
-           mp.id as provider_id, provider_name, provider_type, provider_url
-    from origin_metadata as om
-    inner join metadata_provider mp on om.provider_id = mp.id
-    inner join origin o on om.origin_id = o.id
-    where o.url = origin_url
-    and mp.provider_type = provider_type
-    order by discovery_date desc;
-$$;
--- end origin_metadata functions
-
--- add tmp_tool entries to tool,
--- skipping duplicates if any.
---
--- operates in bulk: 0. create temporary tmp_tool, 1. COPY to
--- it, 2. call this function to insert and filtering out duplicates
-create or replace function swh_tool_add()
-    returns setof tool
-    language plpgsql
-as $$
-begin
-      insert into tool(name, version, configuration)
-      select name, version, configuration from tmp_tool tmp
-      on conflict(name, version, configuration) do nothing;
-
-      return query
-          select id, name, version, configuration
-          from tmp_tool join tool
-              using(name, version, configuration);
-
-      return;
-end
 $$;
 
 

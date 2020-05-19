@@ -3174,374 +3174,99 @@ class TestStorage:
 
         assert expected == ret
 
-    def test_tool_add(self, swh_storage):
-        tool = {
-            "name": "some-unknown-tool",
-            "version": "some-version",
-            "configuration": {"debian-package": "some-package"},
-        }
+    def test_metadata_fetcher_add_get(self, swh_storage):
+        actual_fetcher = swh_storage.metadata_fetcher_get(
+            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
+        )
+        assert actual_fetcher is None  # does not exist
 
-        actual_tool = swh_storage.tool_get(tool)
-        assert actual_tool is None  # does not exist
+        swh_storage.metadata_fetcher_add(**data.metadata_fetcher)
 
-        # add it
-        actual_tools = swh_storage.tool_add([tool])
-
-        assert len(actual_tools) == 1
-        actual_tool = actual_tools[0]
-        assert actual_tool is not None  # now it exists
-        new_id = actual_tool.pop("id")
-        assert actual_tool == tool
-
-        actual_tools2 = swh_storage.tool_add([tool])
-        actual_tool2 = actual_tools2[0]
-        assert actual_tool2 is not None  # now it exists
-        new_id2 = actual_tool2.pop("id")
-
-        assert new_id == new_id2
-        assert actual_tool == actual_tool2
-
-    def test_tool_add_multiple(self, swh_storage):
-        tool = {
-            "name": "some-unknown-tool",
-            "version": "some-version",
-            "configuration": {"debian-package": "some-package"},
-        }
-
-        actual_tools = list(swh_storage.tool_add([tool]))
-        assert len(actual_tools) == 1
-
-        new_tools = [
-            tool,
-            {"name": "yet-another-tool", "version": "version", "configuration": {},},
-        ]
-
-        actual_tools = swh_storage.tool_add(new_tools)
-        assert len(actual_tools) == 2
-
-        # order not guaranteed, so we iterate over results to check
-        for tool in actual_tools:
-            _id = tool.pop("id")
-            assert _id is not None
-            assert tool in new_tools
-
-    def test_tool_get_missing(self, swh_storage):
-        tool = {
-            "name": "unknown-tool",
-            "version": "3.1.0rc2-31-ga2cbb8c",
-            "configuration": {"command_line": "nomossa <filepath>"},
-        }
-
-        actual_tool = swh_storage.tool_get(tool)
-
-        assert actual_tool is None
-
-    def test_tool_metadata_get_missing_context(self, swh_storage):
-        tool = {
-            "name": "swh-metadata-translator",
-            "version": "0.0.1",
-            "configuration": {"context": "unknown-context"},
-        }
-
-        actual_tool = swh_storage.tool_get(tool)
-
-        assert actual_tool is None
-
-    def test_tool_metadata_get(self, swh_storage):
-        tool = {
-            "name": "swh-metadata-translator",
-            "version": "0.0.1",
-            "configuration": {"type": "local", "context": "npm"},
-        }
-        expected_tool = swh_storage.tool_add([tool])[0]
-
-        # when
-        actual_tool = swh_storage.tool_get(tool)
-
-        # then
-        assert expected_tool == actual_tool
-
-    def test_metadata_provider_get(self, swh_storage):
-        # given
-        no_provider = swh_storage.metadata_provider_get(6459456445615)
-        assert no_provider is None
-        # when
-        provider_id = swh_storage.metadata_provider_add(
-            data.provider["name"],
-            data.provider["type"],
-            data.provider["url"],
-            data.provider["metadata"],
+        res = swh_storage.metadata_fetcher_get(
+            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
         )
 
-        actual_provider = swh_storage.metadata_provider_get(provider_id)
-        expected_provider = {
-            "provider_name": data.provider["name"],
-            "provider_url": data.provider["url"],
-        }
-        # then
-        del actual_provider["id"]
-        assert actual_provider, expected_provider
+        assert res is not data.metadata_fetcher
+        assert res == data.metadata_fetcher
 
-    def test_metadata_provider_get_by(self, swh_storage):
-        # given
-        no_provider = swh_storage.metadata_provider_get_by(
-            {
-                "provider_name": data.provider["name"],
-                "provider_url": data.provider["url"],
-            }
+    def test_metadata_authority_add_get(self, swh_storage):
+        actual_authority = swh_storage.metadata_authority_get(
+            data.metadata_authority["type"], data.metadata_authority["url"]
         )
-        assert no_provider is None
-        # when
-        provider_id = swh_storage.metadata_provider_add(
-            data.provider["name"],
-            data.provider["type"],
-            data.provider["url"],
-            data.provider["metadata"],
+        assert actual_authority is None  # does not exist
+
+        swh_storage.metadata_authority_add(**data.metadata_authority)
+
+        res = swh_storage.metadata_authority_get(
+            data.metadata_authority["type"], data.metadata_authority["url"]
         )
 
-        actual_provider = swh_storage.metadata_provider_get_by(
-            {
-                "provider_name": data.provider["name"],
-                "provider_url": data.provider["url"],
-            }
-        )
-        # then
-        assert provider_id, actual_provider["id"]
+        assert res is not data.metadata_authority
+        assert res == data.metadata_authority
 
     def test_origin_metadata_add(self, swh_storage):
-        # given
         origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
         swh_storage.origin_add([origin])[0]
 
-        tools = swh_storage.tool_add([data.metadata_tool])
-        tool = tools[0]
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority)
 
-        swh_storage.metadata_provider_add(
-            data.provider["name"],
-            data.provider["type"],
-            data.provider["url"],
-            data.provider["metadata"],
-        )
-        provider = swh_storage.metadata_provider_get_by(
-            {
-                "provider_name": data.provider["name"],
-                "provider_url": data.provider["url"],
-            }
-        )
+        swh_storage.origin_metadata_add(**data.origin_metadata)
+        swh_storage.origin_metadata_add(**data.origin_metadata2)
 
-        # when adding for the same origin 2 metadatas
-        n_om = len(list(swh_storage.origin_metadata_get_by(origin["url"])))
-        swh_storage.origin_metadata_add(
-            origin["url"],
-            data.origin_metadata["discovery_date"],
-            provider["id"],
-            tool["id"],
-            data.origin_metadata["metadata"],
-        )
-        swh_storage.origin_metadata_add(
-            origin["url"],
-            "2015-01-01 23:00:00+00",
-            provider["id"],
-            tool["id"],
-            data.origin_metadata2["metadata"],
-        )
-        n_actual_om = len(list(swh_storage.origin_metadata_get_by(origin["url"])))
-        # then
-        assert n_actual_om == n_om + 2
+        swh_storage.origin_metadata_get(origin["url"], authority)
 
-    def test_origin_metadata_get(self, swh_storage):
-        # given
-        origin_url = data.origin["url"]
-        origin_url2 = data.origin2["url"]
-        swh_storage.origin_add([data.origin])
-        swh_storage.origin_add([data.origin2])
-
-        swh_storage.metadata_provider_add(
-            data.provider["name"],
-            data.provider["type"],
-            data.provider["url"],
-            data.provider["metadata"],
-        )
-        provider = swh_storage.metadata_provider_get_by(
-            {
-                "provider_name": data.provider["name"],
-                "provider_url": data.provider["url"],
-            }
-        )
-        tool = swh_storage.tool_add([data.metadata_tool])[0]
-        # when adding for the same origin 2 metadatas
-        swh_storage.origin_metadata_add(
-            origin_url,
-            data.origin_metadata["discovery_date"],
-            provider["id"],
-            tool["id"],
-            data.origin_metadata["metadata"],
-        )
-        swh_storage.origin_metadata_add(
-            origin_url2,
-            data.origin_metadata2["discovery_date"],
-            provider["id"],
-            tool["id"],
-            data.origin_metadata2["metadata"],
-        )
-        swh_storage.origin_metadata_add(
-            origin_url,
-            data.origin_metadata2["discovery_date"],
-            provider["id"],
-            tool["id"],
-            data.origin_metadata2["metadata"],
-        )
-        all_metadatas = list(
+        assert [data.origin_metadata, data.origin_metadata2] == list(
             sorted(
-                swh_storage.origin_metadata_get_by(origin_url),
+                swh_storage.origin_metadata_get(origin["url"], authority),
                 key=lambda x: x["discovery_date"],
             )
         )
-        metadatas_for_origin2 = list(swh_storage.origin_metadata_get_by(origin_url2))
-        expected_results = [
-            {
-                "origin_url": origin_url,
-                "discovery_date": datetime.datetime(
-                    2015, 1, 1, 23, 0, tzinfo=datetime.timezone.utc
-                ),
-                "metadata": {"name": "test_origin_metadata", "version": "0.0.1"},
-                "provider_id": provider["id"],
-                "provider_name": "hal",
-                "provider_type": "deposit-client",
-                "provider_url": "http:///hal/inria",
-                "tool_id": tool["id"],
-            },
-            {
-                "origin_url": origin_url,
-                "discovery_date": datetime.datetime(
-                    2017, 1, 1, 23, 0, tzinfo=datetime.timezone.utc
-                ),
-                "metadata": {"name": "test_origin_metadata", "version": "0.0.1"},
-                "provider_id": provider["id"],
-                "provider_name": "hal",
-                "provider_type": "deposit-client",
-                "provider_url": "http:///hal/inria",
-                "tool_id": tool["id"],
-            },
-        ]
 
-        # then
-        assert len(all_metadatas) == 2
-        assert len(metadatas_for_origin2) == 1
-        assert all_metadatas == expected_results
-
-    def test_metadata_provider_add(self, swh_storage):
-        provider = {
-            "provider_name": "swMATH",
-            "provider_type": "registry",
-            "provider_url": "http://www.swmath.org/",
-            "metadata": {
-                "email": "contact@swmath.org",
-                "license": "All rights reserved",
-            },
-        }
-        provider["id"] = provider_id = swh_storage.metadata_provider_add(**provider)
-        assert provider == swh_storage.metadata_provider_get_by(
-            {"provider_name": "swMATH", "provider_url": "http://www.swmath.org/"}
-        )
-        assert provider == swh_storage.metadata_provider_get(provider_id)
-
-    def test_metadata_provider_add_idempotent(self, swh_storage):
-        provider = {
-            "provider_name": "swMATH",
-            "provider_type": "registry",
-            "provider_url": "http://www.swmath.org/",
-            "metadata": {
-                "email": "contact@swmath.org",
-                "license": "All rights reserved",
-            },
-        }
-        provider_id = swh_storage.metadata_provider_add(**provider)
-
-        expected_provider = {**provider, "id": provider_id}
-        assert expected_provider == swh_storage.metadata_provider_get_by(
-            {"provider_name": "swMATH", "provider_url": "http://www.swmath.org/"}
-        )
-        assert expected_provider == swh_storage.metadata_provider_get(provider_id)
-
-        provider_id2 = swh_storage.metadata_provider_add(**provider)
-        assert provider_id2 == provider_id
-
-    def test_origin_metadata_get_by_provider_type(self, swh_storage):
-        # given
-        origin_url = data.origin["url"]
+    def test_origin_metadata_get(self, swh_storage):
+        authority = data.metadata_authority
+        fetcher = data.metadata_fetcher
+        authority2 = data.metadata_authority2
+        fetcher2 = data.metadata_fetcher2
+        origin_url1 = data.origin["url"]
         origin_url2 = data.origin2["url"]
         swh_storage.origin_add([data.origin])
         swh_storage.origin_add([data.origin2])
-        provider1_id = swh_storage.metadata_provider_add(
-            data.provider["name"],
-            data.provider["type"],
-            data.provider["url"],
-            data.provider["metadata"],
-        )
-        provider1 = swh_storage.metadata_provider_get_by(
-            {
-                "provider_name": data.provider["name"],
-                "provider_url": data.provider["url"],
-            }
-        )
-        assert provider1 == swh_storage.metadata_provider_get(provider1_id)
 
-        provider2_id = swh_storage.metadata_provider_add(
-            "swMATH",
-            "registry",
-            "http://www.swmath.org/",
-            {"email": "contact@swmath.org", "license": "All rights reserved"},
-        )
-        provider2 = swh_storage.metadata_provider_get_by(
-            {"provider_name": "swMATH", "provider_url": "http://www.swmath.org/"}
-        )
-        assert provider2 == swh_storage.metadata_provider_get(provider2_id)
+        origin1_metadata1 = data.origin_metadata
+        origin1_metadata2 = data.origin_metadata2
+        origin1_metadata3 = data.origin_metadata3
+        origin2_metadata = {**data.origin_metadata2, "origin_url": origin_url2}
 
-        # using the only tool now inserted in the data.sql, but for this
-        # provider should be a crawler tool (not yet implemented)
-        tool = swh_storage.tool_add([data.metadata_tool])[0]
+        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority2)
+        swh_storage.metadata_fetcher_add(**fetcher2)
 
-        # when adding for the same origin 2 metadatas
-        swh_storage.origin_metadata_add(
-            origin_url,
-            data.origin_metadata["discovery_date"],
-            provider1["id"],
-            tool["id"],
-            data.origin_metadata["metadata"],
-        )
-        swh_storage.origin_metadata_add(
-            origin_url2,
-            data.origin_metadata2["discovery_date"],
-            provider2["id"],
-            tool["id"],
-            data.origin_metadata2["metadata"],
-        )
-        provider_type = "registry"
-        m_by_provider = list(
-            swh_storage.origin_metadata_get_by(origin_url2, provider_type)
-        )
-        for item in m_by_provider:
-            if "id" in item:
-                del item["id"]
-        expected_results = [
-            {
-                "origin_url": origin_url2,
-                "discovery_date": datetime.datetime(
-                    2017, 1, 1, 23, 0, tzinfo=datetime.timezone.utc
-                ),
-                "metadata": {"name": "test_origin_metadata", "version": "0.0.1"},
-                "provider_id": provider2["id"],
-                "provider_name": "swMATH",
-                "provider_type": provider_type,
-                "provider_url": "http://www.swmath.org/",
-                "tool_id": tool["id"],
-            }
-        ]
-        # then
+        swh_storage.origin_metadata_add(**origin1_metadata1)
+        swh_storage.origin_metadata_add(**origin1_metadata2)
+        swh_storage.origin_metadata_add(**origin1_metadata3)
+        swh_storage.origin_metadata_add(**origin2_metadata)
 
-        assert len(m_by_provider) == 1
-        assert m_by_provider == expected_results
+        assert [origin1_metadata1, origin1_metadata2] == list(
+            sorted(
+                swh_storage.origin_metadata_get(origin_url1, authority),
+                key=lambda x: x["discovery_date"],
+            )
+        )
+
+        assert [origin1_metadata3] == list(
+            sorted(
+                swh_storage.origin_metadata_get(origin_url1, authority2),
+                key=lambda x: x["discovery_date"],
+            )
+        )
+
+        assert [origin2_metadata] == list(
+            swh_storage.origin_metadata_get(origin_url2, authority)
+        )
 
 
 class TestStorageGeneratedData:
