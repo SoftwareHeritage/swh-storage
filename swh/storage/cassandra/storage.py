@@ -1071,16 +1071,19 @@ class CassandraStorage:
         if not self._cql_runner.metadata_fetcher_get(**fetcher):
             raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
-        self._cql_runner.origin_metadata_add(
-            origin_url,
-            authority["type"],
-            authority["url"],
-            discovery_date,
-            fetcher["name"],
-            fetcher["version"],
-            format,
-            metadata,
-        )
+        try:
+            self._cql_runner.origin_metadata_add(
+                origin_url,
+                authority["type"],
+                authority["url"],
+                discovery_date,
+                fetcher["name"],
+                fetcher["version"],
+                format,
+                metadata,
+            )
+        except TypeError as e:
+            raise StorageArgumentException(*e.args)
 
     def origin_metadata_get(
         self,
