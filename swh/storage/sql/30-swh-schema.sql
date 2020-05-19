@@ -417,7 +417,7 @@ create table metadata_authority
   id            serial  not null,
   type          text    not null,
   url           text    not null,
-  metadata      jsonb   not null
+  metadata      jsonb
 );
 
 comment on table metadata_authority is 'Metadata authority information';
@@ -436,8 +436,8 @@ create table origin_metadata
   discovery_date timestamptz   not null,  -- when it was extracted
   authority_id   bigint        not null,
   fetcher_id     bigint        not null,
-  format         text          not null,
-  metadata       bytea         not null
+  format         text          default 'sword-v2-atom-codemeta-v2-in-json',
+  metadata       bytea
 );
 
 comment on table origin_metadata is 'keeps all metadata found concerning an origin';
