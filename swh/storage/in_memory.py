@@ -1059,6 +1059,10 @@ class InMemoryStorage:
             raise StorageArgumentException(
                 "origin_id must be str, not %r" % (origin_url,)
             )
+        if not isinstance(metadata, bytes):
+            raise StorageArgumentException(
+                "metadata must be bytes, not %r" % (metadata,)
+            )
         authority_key = self._metadata_authority_key(authority)
         if authority_key not in self._metadata_authorities:
             raise StorageArgumentException(f"Unknown authority {authority}")

@@ -1096,8 +1096,7 @@ class Db(BaseDb):
                     authority_id, fetcher_id, format, metadata)
                     SELECT id, %s, %s, %s, %s, %s FROM origin WHERE url = %s"""
         cur.execute(
-            insert,
-            (discovery_date, authority, fetcher, format, jsonize(metadata), origin),
+            insert, (discovery_date, authority, fetcher, format, metadata, origin),
         )
 
     def origin_metadata_get(
