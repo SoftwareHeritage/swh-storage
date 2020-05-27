@@ -260,9 +260,13 @@ class Db(BaseDb):
     def snapshot_get_by_origin_visit(self, origin_url, visit_id, cur=None):
         cur = self._cursor(cur)
         query = """\
-           SELECT snapshot FROM origin_visit
-           INNER JOIN origin ON origin.id = origin_visit.origin
-           WHERE origin.url=%s AND origin_visit.visit=%s;
+           SELECT ovs.snapshot
+           FROM origin_visit ov
+           INNER JOIN origin o ON o.id = ov.origin
+           INNER JOIN origin_visit_status ovs
+             ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+           WHERE o.url=%s AND ov.visit=%s
+           ORDER BY ovs.date DESC LIMIT 1
         """
 
         cur.execute(query, (origin_url, visit_id))
@@ -537,13 +541,13 @@ class Db(BaseDb):
         "snapshot",
     ]
     origin_visit_select_cols = [
-        "origin.url AS origin",
-        "visit",
-        "date",
-        "origin_visit.type AS type",
-        "status",
-        "metadata",
-        "snapshot",
+        "o.url AS origin",
+        "ov.visit",
+        "ov.date",
+        "ov.type AS type",
+        "ovs.status",
+        "ovs.metadata",
+        "ovs.snapshot",
     ]
 
     def _make_origin_visit_status(self, row: Tuple[Any]) -> Optional[Dict[str, Any]]:
@@ -586,19 +590,21 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         if last_visit:
-            extra_condition = "and visit > %s"
+            extra_condition = "and ov.visit > %s"
             args = (origin_id, last_visit, limit)
         else:
             extra_condition = ""
             args = (origin_id, limit)
 
         query = """\
-         SELECT %s
-         FROM origin_visit
-         INNER JOIN origin ON origin.id = origin_visit.origin
-         WHERE origin.url=%%s %s
-         order by visit asc
-         limit %%s""" % (
+        SELECT DISTINCT ON (ov.visit) %s
+        FROM origin_visit ov
+        INNER JOIN origin o ON o.id = ov.origin
+        INNER JOIN origin_visit_status ovs
+          ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+        WHERE o.url=%%s %s
+        ORDER BY ov.visit ASC, ovs.date DESC
+        LIMIT %%s""" % (
             ", ".join(self.origin_visit_select_cols),
             extra_condition,
         )
@@ -622,9 +628,13 @@ class Db(BaseDb):
 
         query = """\
             SELECT %s
-            FROM origin_visit
-            INNER JOIN origin ON origin.id = origin_visit.origin
-            WHERE origin.url = %%s AND visit = %%s
+            FROM origin_visit ov
+            INNER JOIN origin o ON o.id = ov.origin
+            INNER JOIN origin_visit_status ovs
+            ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+            WHERE o.url = %%s AND ov.visit = %%s
+            ORDER BY ovs.date DESC
+            LIMIT 1
             """ % (
             ", ".join(self.origin_visit_select_cols)
         )
@@ -675,21 +685,25 @@ class Db(BaseDb):
 
         query_parts = [
             "SELECT %s" % ", ".join(self.origin_visit_select_cols),
-            "FROM origin_visit",
-            "INNER JOIN origin ON origin.id = origin_visit.origin",
+            "FROM origin_visit ov ",
+            "INNER JOIN origin o ON o.id = ov.origin",
+            "INNER JOIN origin_visit_status ovs ",
+            "ON o.id = ovs.origin AND ov.visit = ovs.visit ",
         ]
 
-        query_parts.append("WHERE origin.url = %s")
+        query_parts.append("WHERE o.url = %s")
 
         if require_snapshot:
-            query_parts.append("AND snapshot is not null")
+            query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
             query_parts.append(
-                cur.mogrify("AND status IN %s", (tuple(allowed_statuses),)).decode()
+                cur.mogrify("AND ovs.status IN %s", (tuple(allowed_statuses),)).decode()
             )
 
-        query_parts.append("ORDER BY date DESC, visit DESC LIMIT 1")
+        query_parts.append(
+            "ORDER BY ov.date DESC, ov.visit DESC, ovs.date DESC LIMIT 1"
+        )
 
         query = "\n".join(query_parts)
 
@@ -706,18 +720,15 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
         columns = ",".join(self.origin_visit_select_cols)
-        query = f"""with visits as (
-                      select *
-                      from origin_visit
-                      where origin_visit.status='full' and
-                            origin_visit.type=%s and
-                            origin_visit.date > now() - '3 months'::interval
-                    )
-                    select {columns}
-                    from visits as origin_visit
-                    inner join origin
-                    on origin_visit.origin=origin.id
-                    where random() < 0.1
+        query = f"""select {columns}
+                    from origin_visit ov
+                    inner join origin o on ov.origin=o.id
+                    inner join origin_visit_status ovs
+                      on ov.origin = ovs.origin and ov.visit = ovs.visit
+                    where ovs.status='full'
+                      and ov.type=%s
+                      and ov.date > now() - '3 months'::interval
+                      and random() < 0.1
                     limit 1
                  """
         cur.execute(query, (type,))
@@ -951,15 +962,17 @@ class Db(BaseDb):
             origin_cols = ",".join(self.origin_cols)
 
         query = """SELECT %s
-                   FROM origin
+                   FROM origin o
                    WHERE """
         if with_visit:
             query += """
                    EXISTS (
                      SELECT 1
-                     FROM origin_visit
-                       INNER JOIN snapshot ON snapshot=snapshot.id
-                     WHERE origin=origin.id
+                     FROM origin_visit ov
+                     INNER JOIN origin_visit_status ovs
+                       ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+                     INNER JOIN snapshot ON ovs.snapshot=snapshot.id
+                     WHERE ov.origin=o.id
                      )
                    AND """
         query += "url %s %%s "
