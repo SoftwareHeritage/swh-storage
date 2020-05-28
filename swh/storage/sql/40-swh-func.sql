@@ -133,54 +133,6 @@ end
 $$;
 
 
--- Look up content based on one or several different checksums. Return all
--- content information if the content is found; a NULL row otherwise.
---
--- At least one checksum should be not NULL. If several are not NULL, they will
--- be AND-ed together in the lookup query.
---
--- Note: this function is meant to be used to look up individual contents
--- (e.g., for the web app), for batch lookup of missing content (e.g., to be
--- added) see swh_content_missing
-create or replace function swh_content_find(
-    sha1       sha1       default NULL,
-    sha1_git   sha1_git   default NULL,
-    sha256     sha256     default NULL,
-    blake2s256 blake2s256 default NULL
-)
-    returns content
-    language plpgsql
-as $$
-declare
-    con content;
-    filters text[] := array[] :: text[];  -- AND-clauses used to filter content
-    q text;
-begin
-    if sha1 is not null then
-        filters := filters || format('sha1 = %L', sha1);
-    end if;
-    if sha1_git is not null then
-        filters := filters || format('sha1_git = %L', sha1_git);
-    end if;
-    if sha256 is not null then
-        filters := filters || format('sha256 = %L', sha256);
-    end if;
-    if blake2s256 is not null then
-        filters := filters || format('blake2s256 = %L', blake2s256);
-    end if;
-
-    if cardinality(filters) = 0 then
-        return null;
-    else
-        q = format('select * from content where %s',
-                   array_to_string(filters, ' and '));
-        execute q into con;
-	return con;
-    end if;
-end
-$$;
-
-
 -- add tmp_content entries to content, skipping duplicates
 --
 -- operates in bulk: 0. swh_mktemp(content), 1. COPY to tmp_content,
@@ -215,7 +167,7 @@ begin
         );
         -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
         -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
-        -- the extra swh_content_missing() query here.
+        -- the extra swh_skipped_content_missing() query here.
     return;
 end
 $$;
@@ -248,24 +200,6 @@ end
 $$;
 
 comment on function swh_content_update(text[]) IS 'Update existing content''s columns';
-
--- check which entries of tmp_directory are missing from directory
---
--- operates in bulk: 0. swh_mktemp(directory), 1. COPY to tmp_directory,
--- 2. call this function
-create or replace function swh_directory_missing()
-    returns setof sha1_git
-    language plpgsql
-as $$
-begin
-    return query
-	select id from tmp_directory t
-	where not exists (
-	    select 1 from directory d
-	    where d.id = t.id);
-    return;
-end
-$$;
 
 
 create type directory_entry_type as enum('file', 'dir', 'rev');
@@ -415,18 +349,6 @@ as $$
     from entries
 $$;
 
-create or replace function swh_revision_walk(revision_id sha1_git)
-  returns setof directory_entry
-  language sql
-  stable
-as $$
-  select dir_id, type, target, name, perms, status, sha1, sha1_git, sha256, length
-  from swh_directory_walk((select directory from revision where id=revision_id))
-$$;
-
-COMMENT ON FUNCTION swh_revision_walk(sha1_git) IS 'Recursively list the revision targeted directory arborescence';
-
-
 -- Find a directory entry by its path
 create or replace function swh_find_directory_entry_by_path(
     walked_dir_id sha1_git,
@@ -497,29 +419,6 @@ as $$
         (select h.parent_id
          from revision_history as h
          join full_rev_list on h.id = full_rev_list.id)
-    ),
-    rev_list as (select id from full_rev_list limit num_revs)
-    select rev_list.id as id,
-           array(select rh.parent_id::bytea
-                 from revision_history rh
-                 where rh.id = rev_list.id
-                 order by rh.parent_rank
-                ) as parent
-    from rev_list;
-$$;
-
--- List all the children of a given revision
-create or replace function swh_revision_list_children(root_revisions bytea[], num_revs bigint default NULL)
-    returns table (id sha1_git, parents bytea[])
-    language sql
-    stable
-as $$
-    with recursive full_rev_list(id) as (
-        (select id from revision where id = ANY(root_revisions))
-        union
-        (select h.id
-         from revision_history as h
-         join full_rev_list on h.parent_id = full_rev_list.id)
     ),
     rev_list as (select id from full_rev_list limit num_revs)
     select rev_list.id as id,
