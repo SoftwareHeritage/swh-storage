@@ -275,7 +275,7 @@ class CqlRunner:
     )
     def content_get_token_range(
         self, start: int, end: int, limit: int, *, statement
-    ) -> Row:
+    ) -> Iterable[Row]:
         return self._execute_with_retries(statement, [start, end, limit])
 
     ##########################
