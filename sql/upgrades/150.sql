@@ -3,6 +3,10 @@
 -- to_version: 150
 -- description: Add not null values with default values
 
+-- latest schema version
+insert into dbversion(version, release, description)
+      values(150, now(), 'Work In Progress');
+
 update metadata_authority
 set metadata='{}'::jsonb where metadata is null;
 
