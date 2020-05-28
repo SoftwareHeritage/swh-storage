@@ -6,7 +6,7 @@
 import datetime
 import random
 import select
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
@@ -667,7 +667,7 @@ class Db(BaseDb):
         return bool(cur.fetchone())
 
     def origin_visit_get_latest(
-        self, origin_id, allowed_statuses=None, require_snapshot=False, cur=None
+        self, origin_id: str, allowed_statuses=None, require_snapshot=False, cur=None
     ):
         """Retrieve the most recent origin_visit of the given origin,
         with optional filters.
@@ -690,16 +690,15 @@ class Db(BaseDb):
             "INNER JOIN origin_visit_status ovs ",
             "ON o.id = ovs.origin AND ov.visit = ovs.visit ",
         ]
-
         query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin_id]
 
         if require_snapshot:
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append(
-                cur.mogrify("AND ovs.status IN %s", (tuple(allowed_statuses),)).decode()
-            )
+            query_parts.append("AND ovs.status IN %s")
+            query_params.append(tuple(allowed_statuses))
 
         query_parts.append(
             "ORDER BY ov.date DESC, ov.visit DESC, ovs.date DESC LIMIT 1"
@@ -707,7 +706,7 @@ class Db(BaseDb):
 
         query = "\n".join(query_parts)
 
-        cur.execute(query, (origin_id,))
+        cur.execute(query, tuple(query_params))
         r = cur.fetchone()
         if not r:
             return None
