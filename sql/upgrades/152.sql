@@ -8,4 +8,4 @@ insert into dbversion(version, release, description)
       values(152, now(), 'Work In Progress');
 
 alter table content
-    alter column blake2s256 not null;
+    alter column blake2s256 set not null;
