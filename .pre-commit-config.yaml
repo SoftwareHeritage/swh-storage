@@ -24,6 +24,13 @@ repos:
     language: system
     types: [python]
 
+  - id: check-bumped-dbversion
+    name: check-bumped-dbversion
+    files: 'sql/upgrades/.*\.sql'
+    entry: grep
+    args: ['insert into dbversion']
+    language: system
+
 - repo: https://github.com/python/black
   rev: 19.10b0
   hooks:
