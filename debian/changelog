@@ -1,8 +1,20 @@
-swh-storage (0.0.192-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.0.193-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.0.193     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-05-28 14:28:54
+    +0200)
+  * Upstream changes:     - v0.0.193     - pg: Write origin visit
+    updates & status, read from origin_visit_status     - Make
+    content.blake2s256 not null.     - Remove unused SQL functions.     -
+    README: Update necessary dependencies for test purposes     - Add a
+    pre-commit hook to check there are version bumps in
+    sql/upgrades/*.sql     - Add missing dbversion bump in 150.sql.     -
+    Add artifact metadata to the extrinsic metadata storage
+    specification.     - Add not null constraints to
+    metadata_authority/origin_metadata     - Realign schema with latest
+    149 migration script
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 19 May 2020 16:58:29 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 28 May 2020 12:37:58 +0000
 
 swh-storage (0.0.192-1~swh1) unstable-swh; urgency=medium
 
