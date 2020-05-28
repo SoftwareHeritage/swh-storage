@@ -12,13 +12,25 @@ for more details.
 
 ### Dependencies
 
-Python tests for this module include tests that cannot be run without
-a local Postgresql database, so you need the Postgresql server executable on
-your machine (no need to have a running Postgresql server). On a Debian-like
-host:
+Python tests for this module include tests that cannot be run without a local
+Postgresql database, so you need the Postgresql server executable on your
+machine (no need to have a running Postgresql server). They also expect a
+cassandra server.
+
+#### Debian-like host
 
 ```
-$ sudo apt install libpq-dev postgresql
+$ sudo apt install libpq-dev postgresql-11 cassandra
+```
+
+#### Non Debian-like host
+
+The tests expects `/usr/sbin/cassandra` to exist.
+
+Optionally, you can avoid running the cassandra tests.
+
+```
+(swh) :~/swh-storage$ tox -- -m 'not cassandra'
 ```
 
 ### Installation
