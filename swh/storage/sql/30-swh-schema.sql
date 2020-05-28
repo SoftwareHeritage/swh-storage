@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(151, now(), 'Work In Progress');
+      values(152, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -47,7 +47,7 @@ create table content
   sha1       sha1 not null,
   sha1_git   sha1_git not null,
   sha256     sha256 not null,
-  blake2s256 blake2s256,
+  blake2s256 blake2s256 not null,
   length     bigint not null,
   ctime      timestamptz not null default now(),
              -- creation time, i.e. time of (first) injection into the storage
