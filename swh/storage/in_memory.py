@@ -881,6 +881,7 @@ class InMemoryStorage:
 
         for visit in visits:
             assert visit.visit is not None
+            assert visit.visit > 0
             origin_url = visit.origin
             origin = self.origin_get({"url": origin_url})
 
@@ -904,7 +905,7 @@ class InMemoryStorage:
                     )
 
                 self._origin_visit_statuses.setdefault(visit_key, [])
-                while len(self._origin_visits[origin_url]) <= visit.visit:
+                while len(self._origin_visits[origin_url]) < visit.visit:
                     self._origin_visits[origin_url].append(None)
 
                 self._origin_visits[origin_url][visit.visit - 1] = visit
