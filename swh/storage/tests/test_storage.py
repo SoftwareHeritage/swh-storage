@@ -366,7 +366,7 @@ class TestStorage:
 
         results = swh_storage.content_get_metadata([cont["sha1"]])
         del cont["data"]
-        assert results == {cont["sha1"]: [cont]}
+        assert tuple(results[cont["sha1"]]) == (cont,)
 
     def test_content_add_metadata(self, swh_storage):
         cont = data.cont
@@ -380,9 +380,9 @@ class TestStorage:
 
         expected_cont = cont.copy()
         del expected_cont["ctime"]
-        assert swh_storage.content_get_metadata([cont["sha1"]]) == {
-            cont["sha1"]: [expected_cont]
-        }
+        assert tuple(
+            swh_storage.content_get_metadata([cont["sha1"]])[cont["sha1"]]
+        ) == (expected_cont,)
         contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
@@ -684,8 +684,8 @@ class TestStorage:
         cont1.pop("data")
         cont2.pop("data")
 
-        assert actual_md[cont1["sha1"]] == [cont1]
-        assert actual_md[cont2["sha1"]] == [cont2]
+        assert tuple(actual_md[cont1["sha1"]]) == (cont1,)
+        assert tuple(actual_md[cont2["sha1"]]) == (cont2,)
         assert len(actual_md.keys()) == 2
 
     def test_content_get_metadata_missing_sha1(self, swh_storage):
@@ -697,7 +697,8 @@ class TestStorage:
 
         actual_contents = swh_storage.content_get_metadata([missing_cont["sha1"]])
 
-        assert actual_contents == {missing_cont["sha1"]: []}
+        assert len(actual_contents) == 1
+        assert tuple(actual_contents[missing_cont["sha1"]]) == ()
 
     def test_content_get_random(self, swh_storage):
         swh_storage.content_add([data.cont, data.cont2, data.cont3])
@@ -1109,7 +1110,7 @@ class TestStorage:
         get = list(swh_storage.revision_get([data.revision3["id"]]))
 
         assert len(get) == 1
-        assert get[0]["parents"] == []  # no parents on this one
+        assert get[0]["parents"] == ()  # no parents on this one
 
     def test_revision_get_random(self, swh_storage):
         swh_storage.revision_add([data.revision, data.revision2, data.revision3])

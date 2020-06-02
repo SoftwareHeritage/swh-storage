@@ -5,7 +5,7 @@
 
 from copy import deepcopy
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, Tuple
 
 import attr
 
@@ -38,7 +38,7 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
     return db_revision
 
 
-def revision_from_db(db_revision: Row, parents: List[Sha1Git]) -> Revision:
+def revision_from_db(db_revision: Row, parents: Tuple[Sha1Git]) -> Revision:
     revision = db_revision._asdict()  # type: ignore
     metadata = json.loads(revision.pop("metadata", None))
     if metadata and "extra_headers" in metadata:

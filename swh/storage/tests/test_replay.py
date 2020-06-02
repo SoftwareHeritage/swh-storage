@@ -25,7 +25,7 @@ from swh.journal.serializers import key_to_kafka, value_to_kafka
 from swh.journal.client import JournalClient
 
 from swh.journal.tests.utils import MockedJournalClient, MockedKafkaWriter
-from swh.journal.tests.conftest import (
+from swh.journal.tests.journal_data import (
     TEST_OBJECT_DICTS,
     DUPLICATE_CONTENTS,
 )
@@ -62,7 +62,6 @@ def test_storage_play(
 
     # Fill Kafka
     nb_sent = 0
-    nb_visits = 0
     for object_type, objects in TEST_OBJECT_DICTS.items():
         topic = f"{kafka_prefix}.{object_type}"
         for object_ in objects:
@@ -70,9 +69,6 @@ def test_storage_play(
             object_ = object_.copy()
             if object_type == "content":
                 object_["ctime"] = now
-            elif object_type == "origin_visit":
-                nb_visits += 1
-                object_["visit"] = nb_visits
             producer.produce(
                 topic=topic, key=key_to_kafka(key), value=value_to_kafka(object_),
             )
@@ -116,8 +112,6 @@ def test_storage_play(
             if visit["origin"] == origin["url"]
         ]
         actual_visits = list(storage.origin_visit_get(origin_url))
-        for visit in actual_visits:
-            del visit["visit"]  # opaque identifier
         assert expected_visits == actual_visits
 
     input_contents = TEST_OBJECT_DICTS["content"]
@@ -161,7 +155,6 @@ def test_storage_play_with_collision(
 
     # Fill Kafka
     nb_sent = 0
-    nb_visits = 0
     for object_type, objects in TEST_OBJECT_DICTS.items():
         topic = f"{kafka_prefix}.{object_type}"
         for object_ in objects:
@@ -169,9 +162,6 @@ def test_storage_play_with_collision(
             object_ = object_.copy()
             if object_type == "content":
                 object_["ctime"] = now
-            elif object_type == "origin_visit":
-                nb_visits += 1
-                object_["visit"] = nb_visits
             producer.produce(
                 topic=topic, key=key_to_kafka(key), value=value_to_kafka(object_),
             )
@@ -225,8 +215,6 @@ def test_storage_play_with_collision(
             if visit["origin"] == origin["url"]
         ]
         actual_visits = list(storage.origin_visit_get(origin_url))
-        for visit in actual_visits:
-            del visit["visit"]  # opaque identifier
         assert expected_visits == actual_visits
 
     input_contents = TEST_OBJECT_DICTS["content"]
