@@ -887,6 +887,21 @@ class Storage:
 
     @timed
     @db_transaction()
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus], db=None, cur=None,
+    ) -> None:
+        # First round to check existence (fail early if any is ko)
+        for visit_status in visit_statuses:
+            origin_url = self.origin_get({"url": visit_status.origin}, db=db, cur=cur)
+            if not origin_url:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+
+        self.journal_writer.origin_visit_status_add(visit_statuses)
+        for visit_status in visit_statuses:
+            self._origin_visit_status_add(visit_status, db, cur)
+
+    @timed
+    @db_transaction()
     def origin_visit_update(
         self,
         origin: str,

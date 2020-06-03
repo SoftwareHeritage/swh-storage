@@ -31,6 +31,7 @@ from swh.model.model import (
     Directory,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Release,
     Revision,
     Snapshot,
@@ -1684,6 +1685,68 @@ class TestStorage:
 
         if type(cm.value) == psycopg2.ProgrammingError:
             assert cm.value.pgcode == psycopg2.errorcodes.UNDEFINED_FUNCTION
+
+    def test_origin_visit_status_add_validation(self, swh_storage):
+        """Wrong origin_visit_status input should raise storage argument error"""
+        date_visit = now()
+        visit_status1 = OriginVisitStatus(
+            origin="unknown-origin-url",
+            visit=10,
+            date=date_visit,
+            status="full",
+            snapshot=None,
+        )
+        with pytest.raises(StorageArgumentException, match="Unknown origin"):
+            swh_storage.origin_visit_status_add([visit_status1])
+
+    def test_origin_visit_status_add(self, swh_storage):
+        """Correct origin visit statuses should add a new visit status
+
+        """
+        origin_url = swh_storage.origin_add_one(data.origin2)
+        origin_visit1 = swh_storage.origin_visit_add(
+            origin_url, date=data.date_visit1, type=data.type_visit1
+        )
+        snapshot_id = data.snapshot["id"]
+        date_visit_now = now()
+        visit_status1 = OriginVisitStatus(
+            origin=origin_visit1.origin,
+            visit=origin_visit1.visit,
+            date=date_visit_now,
+            status="full",
+            snapshot=snapshot_id,
+        )
+
+        origin_url2 = swh_storage.origin_add_one({"url": "new-origin"})
+        origin_visit2 = swh_storage.origin_visit_add(
+            origin_url2, date=data.date_visit2, type=data.type_visit2
+        )
+        date_visit_now = now()
+        visit_status2 = OriginVisitStatus(
+            origin=origin_visit2.origin,
+            visit=origin_visit2.visit,
+            date=date_visit_now,
+            status="ongoing",
+            snapshot=None,
+            metadata={"intrinsic": "something"},
+        )
+        swh_storage.origin_visit_status_add([visit_status1, visit_status2])
+
+        origin_visit1 = swh_storage.origin_visit_get_latest(
+            origin_url, require_snapshot=True
+        )
+        assert origin_visit1
+        assert origin_visit1["status"] == "full"
+        assert origin_visit1["snapshot"] == snapshot_id
+
+        origin_visit2 = swh_storage.origin_visit_get_latest(
+            origin_url2, require_snapshot=False
+        )
+        assert origin_url2 != origin_url
+        assert origin_visit2
+        assert origin_visit2["status"] == "ongoing"
+        assert origin_visit2["snapshot"] is None
+        assert origin_visit2["metadata"] == {"intrinsic": "something"}
 
     def test_origin_visit_update(self, swh_storage):
         # given

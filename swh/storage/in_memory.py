@@ -826,6 +826,21 @@ class InMemoryStorage:
         # return last visit
         return visit
 
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus],
+    ) -> None:
+        # First round to check existence (fail early if any is ko)
+        for visit_status in visit_statuses:
+            origin_url = self.origin_get({"url": visit_status.origin})
+            if not origin_url:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+
+        # Insert
+        for visit_status in visit_statuses:
+            visit_key = (visit_status.origin, visit_status.visit)
+            self.journal_writer.origin_visit_status_add([visit_status])
+            self._origin_visit_statuses[visit_key].append(visit_status)
+
     def origin_visit_update(
         self,
         origin: str,
@@ -922,7 +937,6 @@ class InMemoryStorage:
         visit_key = (origin, visit_id)
 
         visit_update = max(self._origin_visit_statuses[visit_key], key=lambda v: v.date)
-
         return OriginVisit.from_dict(
             {
                 # default to the values in visit
@@ -937,6 +951,7 @@ class InMemoryStorage:
     def origin_visit_get(
         self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
     ) -> Iterable[Dict[str, Any]]:
+
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
@@ -985,6 +1000,7 @@ class InMemoryStorage:
         if not ori:
             return None
         visits = self._origin_visits[ori.url]
+
         visits = [
             self._origin_visit_get_updated(visit.origin, visit.visit)
             for visit in visits

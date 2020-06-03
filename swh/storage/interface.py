@@ -13,6 +13,7 @@ from swh.model.model import (
     Directory,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Revision,
     Release,
     Snapshot,
@@ -797,6 +798,20 @@ class StorageInterface:
             dict: dictionary with keys origin and visit where:
             - origin: origin object
             - visit: the visit object for the new visit occurrence
+
+        """
+        ...
+
+    @remote_api_endpoint("origin/visit_status/add")
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus],
+    ) -> None:
+        """Add origin visit statuses.
+
+        Args:
+            visit_statuses: origin visit statuses to add
+
+        Raises: StorageArgumentException if the origin of the visit status is unknown
 
         """
         ...

@@ -841,6 +841,19 @@ class CassandraStorage:
         """Add an origin visit status"""
         self._cql_runner.origin_visit_status_add_one(visit_status)
 
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus]
+    ) -> None:
+        # First round to check existence (fail early if any is ko)
+        for visit_status in visit_statuses:
+            origin_url = self.origin_get({"url": visit_status.origin})
+            if not origin_url:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+
+        self.journal_writer.origin_visit_status_add(visit_statuses)
+        for visit_status in visit_statuses:
+            self._origin_visit_status_add(visit_status)
+
     def origin_visit_update(
         self,
         origin: str,
