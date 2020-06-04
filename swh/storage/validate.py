@@ -5,7 +5,7 @@
 
 import datetime
 import contextlib
-from typing import Dict, Iterable, Optional, List
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
 from swh.model.model import (
     BaseModel,
@@ -78,6 +78,29 @@ class ValidatingProxyStorage:
         with convert_validation_exceptions():
             revisions = [Revision.from_dict(r) for r in revisions]
         return self.storage.revision_add(revisions)
+
+    def revision_get(self, revisions: Iterable[bytes]) -> Iterator[Optional[Dict]]:
+        rev_dicts = self.storage.revision_get(revisions)
+        with convert_validation_exceptions():
+            for rev_dict in rev_dicts:
+                if rev_dict is None:
+                    yield None
+                else:
+                    yield Revision.from_dict(rev_dict).to_dict()
+
+    def revision_log(
+        self, revisions: Iterable[bytes], limit: Optional[int] = None
+    ) -> Iterator[Dict]:
+        for rev_dict in self.storage.revision_log(revisions, limit):
+            with convert_validation_exceptions():
+                rev_obj = Revision.from_dict(rev_dict)
+            yield rev_obj.to_dict()
+
+    def revision_shortlog(
+        self, revisions: Iterable[bytes], limit: Optional[int] = None
+    ) -> Iterator[Tuple[bytes, Tuple]]:
+        for rev, parents in self.storage.revision_shortlog(revisions, limit):
+            yield (rev, tuple(parents))
 
     def release_add(self, releases: Iterable[Dict]) -> Dict:
         with convert_validation_exceptions():
