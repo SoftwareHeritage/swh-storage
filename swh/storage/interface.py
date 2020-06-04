@@ -1162,6 +1162,9 @@ class StorageInterface:
         The authority and fetcher must be known to the storage before
         using this endpoint.
 
+        If there is already origin metadata for the same origin, authority,
+        fetcher, and at the same date, it will be replaced by this one.
+
         Args:
             discovery_date: when the metadata was fetched.
             authority: a dict containing keys `type` and `url`.

@@ -1086,6 +1086,8 @@ class InMemoryStorage:
         if fetcher_key not in self._metadata_fetchers:
             raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
+        origin_metadata_list = self._origin_metadata[origin_url][authority_key]
+
         origin_metadata = {
             "origin_url": origin_url,
             "discovery_date": discovery_date,
@@ -1094,7 +1096,17 @@ class InMemoryStorage:
             "format": format,
             "metadata": metadata,
         }
-        self._origin_metadata[origin_url][authority_key].add(origin_metadata)
+
+        for existing_origin_metadata in origin_metadata_list:
+            if (
+                existing_origin_metadata["fetcher"] == fetcher_key
+                and existing_origin_metadata["discovery_date"] == discovery_date
+            ):
+                # Duplicate of an existing one; replace it.
+                existing_origin_metadata.update(origin_metadata)
+                break
+        else:
+            origin_metadata_list.add(origin_metadata)
         return None
 
     def origin_metadata_get(

@@ -3289,6 +3289,35 @@ class TestStorage:
             )
         )
 
+    def test_origin_metadata_add_duplicate(self, swh_storage):
+        """Duplicates should be silently updated."""
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+        swh_storage.origin_add([origin])[0]
+
+        new_origin_metadata2 = {
+            **data.origin_metadata2,
+            "format": "new-format",
+            "metadata": b"new-metadata",
+        }
+
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority)
+
+        swh_storage.origin_metadata_add(**data.origin_metadata)
+        swh_storage.origin_metadata_add(**data.origin_metadata2)
+        swh_storage.origin_metadata_add(**new_origin_metadata2)
+
+        swh_storage.origin_metadata_get(origin["url"], authority)
+
+        assert [data.origin_metadata, new_origin_metadata2] == list(
+            sorted(
+                swh_storage.origin_metadata_get(origin["url"], authority),
+                key=lambda x: x["discovery_date"],
+            )
+        )
+
     def test_origin_metadata_add_dict(self, swh_storage):
         origin = data.origin
         fetcher = data.metadata_fetcher

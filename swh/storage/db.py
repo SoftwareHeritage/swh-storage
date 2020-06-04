@@ -1106,7 +1106,12 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
                     authority_id, fetcher_id, format, metadata)
-                    SELECT id, %s, %s, %s, %s, %s FROM origin WHERE url = %s"""
+                    SELECT id, %s, %s, %s, %s, %s FROM origin WHERE url = %s
+                    ON CONFLICT (origin_id, authority_id, discovery_date, fetcher_id)
+                    DO UPDATE SET
+                        format=EXCLUDED.format,
+                        metadata=EXCLUDED.metadata
+                 """
         cur.execute(
             insert, (discovery_date, authority, fetcher, format, metadata, origin),
         )
