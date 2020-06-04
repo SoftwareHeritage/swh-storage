@@ -113,7 +113,7 @@ skipped_cont2 = {
 
 dir = {
     "id": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),
-    "entries": [
+    "entries": (
         {
             "name": b"foo",
             "type": "file",
@@ -126,12 +126,12 @@ dir = {
             "target": b"12345678901234567890",
             "perms": from_disk.DentryPerms.directory,
         },
-    ],
+    ),
 }
 
 dir2 = {
     "id": hash_to_bytes("340133423253310030f531e632a733ff37c3a935"),
-    "entries": [
+    "entries": (
         {
             "name": b"oof",
             "type": "file",
@@ -139,13 +139,13 @@ dir2 = {
                 "36fade77193cb6d2bd826161a0979d64c28ab4fa"
             ),
             "perms": from_disk.DentryPerms.content,
-        }
-    ],
+        },
+    ),
 }
 
 dir3 = {
     "id": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8921"),
-    "entries": [
+    "entries": (
         {
             "name": b"foo",
             "type": "file",
@@ -164,19 +164,19 @@ dir3 = {
             "target": b"12345678901234567890",
             "perms": from_disk.DentryPerms.content,
         },
-    ],
+    ),
 }
 
 dir4 = {
     "id": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8922"),
-    "entries": [
+    "entries": (
         {
             "name": b"subdir1",
             "type": "dir",
             "target": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8921"),  # dir3
             "perms": from_disk.DentryPerms.directory,
         },
-    ],
+    ),
 }
 
 dierctories = (dir, dir2, dir3, dir4)
@@ -208,7 +208,7 @@ revision = {
         "offset": 0,
         "negative_utc": True,
     },
-    "parents": [b"01234567890123456789", b"23434512345123456789"],
+    "parents": (b"01234567890123456789", b"23434512345123456789"),
     "type": "git",
     "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),  # dir
     "metadata": {
@@ -245,7 +245,7 @@ revision2 = {
         "offset": 0,
         "negative_utc": False,
     },
-    "parents": [b"01234567890123456789"],
+    "parents": (b"01234567890123456789",),
     "type": "git",
     "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a935"),  # dir2
     "metadata": None,
@@ -275,7 +275,7 @@ revision3 = {
         "offset": 0,
         "negative_utc": False,
     },
-    "parents": [],
+    "parents": (),
     "type": "git",
     "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a935"),  # dir2
     "metadata": None,
@@ -305,7 +305,9 @@ revision4 = {
         "offset": -720,
         "negative_utc": False,
     },
-    "parents": [hash_to_bytes("7026b7c1a2af56521e951c01ed20f255fa054238")],  # revision3
+    "parents": (
+        hash_to_bytes("7026b7c1a2af56521e951c01ed20f255fa054238"),
+    ),  # revision3
     "type": "git",
     "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),  # dir
     "metadata": None,

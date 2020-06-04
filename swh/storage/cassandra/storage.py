@@ -458,7 +458,7 @@ class CassandraStorage:
             parent_rows = self._cql_runner.revision_parent_get(row.id)
             # parent_rank is the clustering key, so results are already
             # sorted by rank.
-            parents = [row.parent_id for row in parent_rows]
+            parents = tuple(row.parent_id for row in parent_rows)
             rev = revision_from_db(row, parents=parents)
             revs[rev.id] = rev.to_dict()
 
@@ -490,7 +490,7 @@ class CassandraStorage:
 
             # parent_rank is the clustering key, so results are already
             # sorted by rank.
-            parents = [row.parent_id for row in parent_rows]
+            parents = tuple(row.parent_id for row in parent_rows)
 
             if short:
                 yield (row.id, parents)

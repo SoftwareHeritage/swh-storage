@@ -1,8 +1,25 @@
-swh-storage (0.0.193-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.1.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.1.1     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-06-04 16:49:22 +0200)
+  * Upstream changes:     - Release swh.storage v0.1.1     - Work around
+    tests hanging during Debian build
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 28 May 2020 12:42:14 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Jun 2020 14:56:54 +0000
+
+swh-storage (0.1.0-2~swh1) unstable-swh; urgency=medium
+
+  * Update dependencies.
+
+ -- David Douard <david.douard@sdfa3.org>  Thu, 04 Jun 2020 13:40:52 +0200
+
+swh-storage (0.1.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.1.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2020-06-04 12:08:46 +0200)
+  * Upstream changes:     - v0.1.0
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Jun 2020 10:28:43 +0000
 
 swh-storage (0.0.193-1~swh1) unstable-swh; urgency=medium
 
