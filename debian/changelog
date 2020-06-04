@@ -1,3 +1,9 @@
+swh-storage (0.1.0-2~swh1) UNRELEASED; urgency=medium
+
+  * Update dependencies.
+
+ -- David Douard <david.douard@sdfa3.org>  Thu, 04 Jun 2020 13:40:52 +0200
+
 swh-storage (0.1.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.1.0     - (tagged by David Douard
