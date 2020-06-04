@@ -102,6 +102,16 @@ class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
         for (k, item) in itertools.islice(self.data, from_index, None):
             yield item
 
+    def iter_after(self, start_key: SortedListKey) -> Iterator[SortedListItem]:
+        """Same as iter_from, but using a strict inequality."""
+        it = self.iter_from(start_key)
+        for item in it:
+            if self.key(item) > start_key:  # type: ignore
+                yield item
+                break
+
+        yield from it
+
 
 class InMemoryStorage:
     def __init__(self, journal_writer=None):
