@@ -232,7 +232,6 @@ swh/storage/tests/conftest.py
 swh/storage/tests/generate_data_test.py
 swh/storage/tests/storage_data.py
 swh/storage/tests/test_api_client.py
-swh/storage/tests/test_api_client_dicts.py
 swh/storage/tests/test_backfill.py
 swh/storage/tests/test_buffer.py
 swh/storage/tests/test_cassandra.py
@@ -251,7 +250,6 @@ swh/storage/tests/test_retry.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/test_utils.py
-swh/storage/tests/test_write_replay.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py
 swh/storage/tests/algos/test_dir_iterator.py
