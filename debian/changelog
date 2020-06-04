@@ -1,4 +1,4 @@
-swh-storage (0.1.0-2~swh1) UNRELEASED; urgency=medium
+swh-storage (0.1.0-2~swh1) unstable-swh; urgency=medium
 
   * Update dependencies.
 
