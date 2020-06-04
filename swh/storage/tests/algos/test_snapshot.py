@@ -4,12 +4,20 @@
 # See top-level LICENSE file for more information
 
 from hypothesis import given
+import pytest
 
 from swh.model.identifiers import snapshot_identifier, identifier_to_bytes
 from swh.model.hypothesis_strategies import snapshots, branch_names, branch_targets
 
 from swh.storage.algos.snapshot import snapshot_get_all_branches
-from swh.storage.tests.test_in_memory import swh_storage_backend_config  # noqa
+
+
+@pytest.fixture
+def swh_storage_backend_config():
+    yield {
+        "cls": "memory",
+        "journal_writer": None,
+    }
 
 
 @given(snapshot=snapshots(min_size=0, max_size=10, only_objects=False))
