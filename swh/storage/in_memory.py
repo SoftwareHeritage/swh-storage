@@ -123,7 +123,7 @@ class InMemoryStorage:
         self._origins_by_sha1 = {}
         self._origin_visits = {}
         self._origin_visit_statuses: Dict[Tuple[str, int], List[OriginVisitStatus]] = {}
-        self._persons = []
+        self._persons = {}
 
         # {origin_url: {authority: [metadata]}}
         self._origin_metadata: Dict[
@@ -536,8 +536,7 @@ class InMemoryStorage:
         snapshots = (snap for snap in snapshots if snap.id not in self._snapshots)
         for snapshot in snapshots:
             self.journal_writer.snapshot_add([snapshot])
-            sorted_branch_names = sorted(snapshot.branches)
-            self._snapshots[snapshot.id] = (snapshot, sorted_branch_names)
+            self._snapshots[snapshot.id] = snapshot
             self._objects[snapshot.id].append(("snapshot", snapshot.id))
             count += 1
 
@@ -585,7 +584,7 @@ class InMemoryStorage:
             return snapshot
 
     def snapshot_count_branches(self, snapshot_id):
-        (snapshot, _) = self._snapshots[snapshot_id]
+        snapshot = self._snapshots[snapshot_id]
         return collections.Counter(
             branch.target_type.value if branch else None
             for branch in snapshot.branches.values()
@@ -594,10 +593,10 @@ class InMemoryStorage:
     def snapshot_get_branches(
         self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
     ):
-        res = self._snapshots.get(snapshot_id)
-        if res is None:
+        snapshot = self._snapshots.get(snapshot_id)
+        if snapshot is None:
             return None
-        (snapshot, sorted_branch_names) = res
+        sorted_branch_names = sorted(snapshot.branches)
         from_index = bisect.bisect_left(sorted_branch_names, branches_from)
         if target_types:
             next_branch = None
@@ -1159,13 +1158,10 @@ class InMemoryStorage:
     def _person_add(self, person):
         key = ("person", person.fullname)
         if key not in self._objects:
-            person_id = len(self._persons) + 1
-            self._persons.append(person)
-            self._objects[key].append(("person", person_id))
-        else:
-            person_id = self._objects[key][0][1]
-            person = self._persons[person_id - 1]
-        return person
+            self._persons[person.fullname] = person
+            self._objects[key].append(key)
+
+        return self._persons[person.fullname]
 
     @staticmethod
     def _content_key(content):
