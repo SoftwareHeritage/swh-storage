@@ -42,7 +42,7 @@ from swh.storage import get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
-from swh.storage.utils import content_hex_hashes
+from swh.storage.utils import content_hex_hashes, now
 
 from .storage_data import data
 
@@ -101,10 +101,6 @@ def assert_contents_ok(
 class LazyContent(Content):
     def with_data(self):
         return Content.from_dict({**self.to_dict(), "data": data.cont["data"]})
-
-
-def now():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class TestStorage:
@@ -2342,12 +2338,14 @@ class TestStorage:
         actual_result = swh_storage.snapshot_add([data.empty_snapshot])
         assert actual_result == {"snapshot:add": 1}
 
+        date_now = now()
+
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit1.visit,
             status="ongoing",
             snapshot=data.empty_snapshot["id"],
-            # date=data.date_visit2
+            date=date_now,
         )
 
         by_id = swh_storage.snapshot_get(data.empty_snapshot["id"])
@@ -2385,7 +2383,10 @@ class TestStorage:
                 "origin_visit",
                 OriginVisit.from_dict({**data2, "type": data.type_visit1,}),
             ),
-            # ("origin_visit_status", OriginVisitStatus.from_dict(data2)),
+            (
+                "origin_visit_status",
+                OriginVisitStatus.from_dict({**data2, "date": date_now}),
+            ),
         ]
 
     def test_snapshot_add_get_complete(self, swh_storage):
@@ -2713,11 +2714,13 @@ class TestStorage:
         )
         visit1_id = origin_visit1.visit
         swh_storage.snapshot_add([data.snapshot])
+        date_now2 = now()
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit1.visit,
             status="ongoing",
             snapshot=data.snapshot["id"],
+            date=date_now2,
         )
 
         by_ov1 = swh_storage.snapshot_get_by_origin_visit(origin_url, visit1_id)
@@ -2729,11 +2732,13 @@ class TestStorage:
         visit2_id = origin_visit2.visit
 
         swh_storage.snapshot_add([data.snapshot])
+        date_now4 = now()
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit2.visit,
             status="ongoing",
             snapshot=data.snapshot["id"],
+            date=date_now4,
         )
 
         by_ov2 = swh_storage.snapshot_get_by_origin_visit(origin_url, visit2_id)
@@ -2743,7 +2748,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            # "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2752,7 +2756,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.snapshot["id"],
@@ -2761,7 +2764,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit2.visit,
-            # "type": data.type_visit2,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2770,12 +2772,12 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit2.visit,
-            "type": data.type_visit2,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.snapshot["id"],
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        assert actual_objects == [
             ("origin", Origin.from_dict(data.origin)),
             (
                 "origin_visit",
@@ -2783,13 +2785,27 @@ class TestStorage:
             ),
             ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.snapshot)),
-            ("origin_visit", OriginVisit.from_dict(data2)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data2, "type": data.type_visit1}),
+            ),
+            (
+                "origin_visit_status",
+                OriginVisitStatus.from_dict({**data2, "date": date_now2}),
+            ),
             (
                 "origin_visit",
                 OriginVisit.from_dict({**data3, "type": data.type_visit2}),
             ),
             ("origin_visit_status", OriginVisitStatus.from_dict(data3)),
-            ("origin_visit", OriginVisit.from_dict(data4)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data4, "type": data.type_visit2}),
+            ),
+            (
+                "origin_visit_status",
+                OriginVisitStatus.from_dict({**data4, "date": date_now4}),
+            ),
         ]
 
     def test_snapshot_get_latest(self, swh_storage):

@@ -897,8 +897,7 @@ class CassandraStorage:
                 snapshot=snapshot or last_visit_update["snapshot"],
                 metadata=metadata or last_visit_update["metadata"],
             )
-        self._cql_runner.origin_visit_status_add_one(visit_status)
-        # self._origin_visit_status_add(visit_status)
+        self._origin_visit_status_add(visit_status)
 
     def _origin_visit_merge(
         self, visit: Dict[str, Any], visit_status: Dict[str, Any]

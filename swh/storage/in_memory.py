@@ -899,7 +899,6 @@ class InMemoryStorage:
 
             # Retrieve the previous visit status
             assert visit.visit is not None
-            visit_key = (origin_url, visit.visit)
 
             last_visit_status = self._origin_visit_get_updated(origin, visit_id)
             assert last_visit_status is not None
@@ -913,10 +912,7 @@ class InMemoryStorage:
                     snapshot=snapshot or last_visit_status.snapshot,
                     metadata=metadata or last_visit_status.metadata,
                 )
-                visit_key = (visit_status.origin, visit_status.visit)
-                self._origin_visit_statuses.setdefault(visit_key, [])
-                self._origin_visit_statuses[visit_key].append(visit_status)
-                # self._origin_visit_status_add_one(visit_status)
+                self._origin_visit_status_add_one(visit_status)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         for visit in visits:

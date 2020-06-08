@@ -954,13 +954,7 @@ class Storage:
                     snapshot=snapshot or last_visit_status["snapshot"],
                     metadata=metadata or last_visit_status["metadata"],
                 )
-                db.origin_visit_status_add(visit_status, cur=cur)
-                send_metric(
-                    "origin_visit_status:add",
-                    count=1,
-                    method_name="origin_visit_status",
-                )
-                # self._origin_visit_status_add(visit_status, db=db, cur=cur)
+                self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
     def _origin_visit_get_updated(
         self, origin: str, visit_id: int, db, cur

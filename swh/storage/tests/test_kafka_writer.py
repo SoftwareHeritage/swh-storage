@@ -60,7 +60,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
                 for k in ("visit", "origin", "date", "type"):
                     del obj_d[k]
                 storage.origin_visit_update(obj.origin, visit.visit, **obj_d)
-                expected_messages += 1
+                expected_messages += 1 + 1  # 1 visit update + 1 visit status
         else:
             assert False, obj_type
 
