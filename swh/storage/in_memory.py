@@ -823,6 +823,7 @@ class InMemoryStorage:
                     metadata=None,
                     visit=visit_id,
                 )
+            self.journal_writer.origin_visit_add([visit])
             self._origin_visits[origin_url].append(visit)
             assert visit.visit is not None
             visit_key = (origin_url, visit.visit)
@@ -836,14 +837,20 @@ class InMemoryStorage:
                     snapshot=None,
                     metadata=None,
                 )
-            self._origin_visit_statuses[visit_key] = [visit_update]
-
+            self._origin_visit_status_add_one(visit_update)
             self._objects[visit_key].append(("origin_visit", None))
-
-            self.journal_writer.origin_visit_add([visit])
 
         # return last visit
         return visit
+
+    def _origin_visit_status_add_one(self, visit_status: OriginVisitStatus) -> None:
+        """Add an origin visit status without checks.
+
+        """
+        self.journal_writer.origin_visit_status_add([visit_status])
+        visit_key = (visit_status.origin, visit_status.visit)
+        self._origin_visit_statuses.setdefault(visit_key, [])
+        self._origin_visit_statuses[visit_key].append(visit_status)
 
     def origin_visit_status_add(
         self, visit_statuses: Iterable[OriginVisitStatus],
@@ -854,11 +861,8 @@ class InMemoryStorage:
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 
-        # Insert
         for visit_status in visit_statuses:
-            visit_key = (visit_status.origin, visit_status.visit)
-            self.journal_writer.origin_visit_status_add([visit_status])
-            self._origin_visit_statuses[visit_key].append(visit_status)
+            self._origin_visit_status_add_one(visit_status)
 
     def origin_visit_update(
         self,
@@ -878,30 +882,41 @@ class InMemoryStorage:
         except IndexError:
             raise StorageArgumentException("Unknown visit_id for this origin") from None
 
-        # Retrieve the previous visit status
-        assert visit.visit is not None
-        visit_key = (origin_url, visit.visit)
+        updates: Dict[str, Any] = {
+            "status": status,
+        }
+        if metadata and metadata != visit.metadata:
+            updates["metadata"] = metadata
+        if snapshot and snapshot != visit.snapshot:
+            updates["snapshot"] = snapshot
 
-        last_visit_update = max(
-            self._origin_visit_statuses[visit_key], key=lambda v: v.date
-        )
+        if updates:
+            with convert_validation_exceptions():
+                updated_visit = OriginVisit.from_dict({**visit.to_dict(), **updates})
+            self.journal_writer.origin_visit_update([updated_visit])
 
-        with convert_validation_exceptions():
-            visit_update = OriginVisitStatus(
-                origin=origin_url,
-                visit=visit_id,
-                date=date or now(),
-                status=status,
-                snapshot=snapshot or last_visit_update.snapshot,
-                metadata=metadata or last_visit_update.metadata,
-            )
-        self._origin_visit_statuses[visit_key].append(visit_update)
+            self._origin_visits[origin_url][visit_id - 1] = updated_visit
 
-        self.journal_writer.origin_visit_update(
-            [self._origin_visit_get_updated(origin_url, visit_id)]
-        )
+            # Retrieve the previous visit status
+            assert visit.visit is not None
+            visit_key = (origin_url, visit.visit)
 
-        self._origin_visits[origin_url][visit_id - 1] = visit
+            last_visit_status = self._origin_visit_get_updated(origin, visit_id)
+            assert last_visit_status is not None
+
+            with convert_validation_exceptions():
+                visit_status = OriginVisitStatus(
+                    origin=origin_url,
+                    visit=visit_id,
+                    date=date or now(),
+                    status=status,
+                    snapshot=snapshot or last_visit_status.snapshot,
+                    metadata=metadata or last_visit_status.metadata,
+                )
+                visit_key = (visit_status.origin, visit_status.visit)
+                self._origin_visit_statuses.setdefault(visit_key, [])
+                self._origin_visit_statuses[visit_key].append(visit_status)
+                # self._origin_visit_status_add_one(visit_status)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         for visit in visits:

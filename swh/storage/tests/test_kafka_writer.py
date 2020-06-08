@@ -45,6 +45,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             "release",
             "snapshot",
             "origin",
+            "origin_visit_status",
         ):
             method(objs)
             expected_messages += len(objs)
@@ -53,7 +54,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
                 assert isinstance(obj, OriginVisit)
                 storage.origin_add_one(Origin(url=obj.origin))
                 visit = method(obj.origin, date=obj.date, type=obj.type)
-                expected_messages += 1
+                expected_messages += 1 + 1  # 1 visit + 1 visit status
 
                 obj_d = obj.to_dict()
                 for k in ("visit", "origin", "date", "type"):
@@ -75,6 +76,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             "directory",
             "origin",
             "origin_visit",
+            "origin_visit_status",
             "release",
             "revision",
             "snapshot",
@@ -127,6 +129,7 @@ def test_storage_direct_writer_anonymized(
             "directory",
             "origin",
             "origin_visit",
+            "origin_visit_status",
             "release",
             "revision",
             "snapshot",

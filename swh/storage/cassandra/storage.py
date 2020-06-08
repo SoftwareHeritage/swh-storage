@@ -840,6 +840,7 @@ class CassandraStorage:
 
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status"""
+        self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(visit_status)
 
     def origin_visit_status_add(
@@ -896,7 +897,8 @@ class CassandraStorage:
                 snapshot=snapshot or last_visit_update["snapshot"],
                 metadata=metadata or last_visit_update["metadata"],
             )
-        self._origin_visit_status_add(visit_status)
+        self._cql_runner.origin_visit_status_add_one(visit_status)
+        # self._origin_visit_status_add(visit_status)
 
     def _origin_visit_merge(
         self, visit: Dict[str, Any], visit_status: Dict[str, Any]
@@ -957,7 +959,7 @@ class CassandraStorage:
                     snapshot=visit.snapshot,
                     metadata=visit.metadata,
                 )
-            self._origin_visit_status_add(visit_status)
+            self._cql_runner.origin_visit_status_add_one(visit_status)
 
     @staticmethod
     def _format_origin_visit_row(visit):

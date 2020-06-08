@@ -76,6 +76,7 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
                 src.origin_visit_add(
                     origin_url=visit.origin, date=visit.date, type=visit.type
                 )
+                nb_sent += 1  # this adds origin-visit-status as well
         else:
             method = getattr(src, object_type + "_add")
             method(objects)
@@ -119,6 +120,7 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
                 src.origin_visit_add(
                     origin_url=visit.origin, date=visit.date, type=visit.type
                 )
+                nb_sent += 1  # this adds origin-visit-status as well
         else:
             method = getattr(src, object_type + "_add")
             method(objects)

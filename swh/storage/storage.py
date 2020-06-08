@@ -859,6 +859,7 @@ class Storage:
                 "snapshot": None,
             }
         )
+        self.journal_writer.origin_visit_add([visit])
 
         with convert_validation_exceptions():
             visit_status = OriginVisitStatus(
@@ -870,18 +871,15 @@ class Storage:
                 metadata=None,
             )
         self._origin_visit_status_add(visit_status, db=db, cur=cur)
-
-        self.journal_writer.origin_visit_add([visit])
-
         send_metric("origin_visit:add", count=1, method_name="origin_visit")
         return visit
 
     def _origin_visit_status_add(
-        self, origin_visit_status: OriginVisitStatus, db, cur
+        self, visit_status: OriginVisitStatus, db, cur
     ) -> None:
         """Add an origin visit status"""
-        db.origin_visit_status_add(origin_visit_status, cur=cur)
-        # TODO: write to the journal the origin visit status
+        self.journal_writer.origin_visit_status_add([visit_status])
+        db.origin_visit_status_add(visit_status, cur=cur)
         send_metric(
             "origin_visit_status:add", count=1, method_name="origin_visit_status"
         )
@@ -897,7 +895,6 @@ class Storage:
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 
-        self.journal_writer.origin_visit_status_add(visit_statuses)
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status, db, cur)
 
@@ -957,7 +954,13 @@ class Storage:
                     snapshot=snapshot or last_visit_status["snapshot"],
                     metadata=metadata or last_visit_status["metadata"],
                 )
-            self._origin_visit_status_add(visit_status, db=db, cur=cur)
+                db.origin_visit_status_add(visit_status, cur=cur)
+                send_metric(
+                    "origin_visit_status:add",
+                    count=1,
+                    method_name="origin_visit_status",
+                )
+                # self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
     def _origin_visit_get_updated(
         self, origin: str, visit_id: int, db, cur

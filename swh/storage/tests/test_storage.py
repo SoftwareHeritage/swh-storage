@@ -2152,7 +2152,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2166,9 +2165,14 @@ class TestStorage:
             "metadata": None,
             "snapshot": None,
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        actual_written_objects = list(swh_storage.journal_writer.journal.objects)
+        assert actual_written_objects == [
             ("origin", Origin.from_dict(data.origin2)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data1, "type": data.type_visit1,}),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("origin_visit", OriginVisit.from_dict(data2)),
         ]
 
@@ -2343,6 +2347,7 @@ class TestStorage:
             origin_visit1.visit,
             status="ongoing",
             snapshot=data.empty_snapshot["id"],
+            # date=data.date_visit2
         )
 
         by_id = swh_storage.snapshot_get(data.empty_snapshot["id"])
@@ -2355,7 +2360,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2364,16 +2368,24 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.empty_snapshot["id"],
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        assert actual_objects == [
             ("origin", Origin.from_dict(data.origin)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data1, "type": data.type_visit1},),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.empty_snapshot)),
-            ("origin_visit", OriginVisit.from_dict(data2)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data2, "type": data.type_visit1,}),
+            ),
+            # ("origin_visit_status", OriginVisitStatus.from_dict(data2)),
         ]
 
     def test_snapshot_add_get_complete(self, swh_storage):
@@ -2731,7 +2743,7 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
+            # "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2749,7 +2761,7 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit2.visit,
-            "type": data.type_visit2,
+            # "type": data.type_visit2,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2765,10 +2777,18 @@ class TestStorage:
         }
         assert list(swh_storage.journal_writer.journal.objects) == [
             ("origin", Origin.from_dict(data.origin)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data1, "type": data.type_visit1}),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.snapshot)),
             ("origin_visit", OriginVisit.from_dict(data2)),
-            ("origin_visit", OriginVisit.from_dict(data3)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data3, "type": data.type_visit2}),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data3)),
             ("origin_visit", OriginVisit.from_dict(data4)),
         ]
 
