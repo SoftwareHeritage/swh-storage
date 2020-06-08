@@ -17,6 +17,7 @@ import psycopg2
 import psycopg2.pool
 import psycopg2.errors
 
+from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
     Content,
     Directory,
@@ -1293,18 +1294,38 @@ class Storage:
         origin_url: str,
         authority: Dict[str, str],
         after: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
         db=None,
         cur=None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
+        if page_token:
+            (after_time, after_fetcher) = msgpack_loads(page_token)
+            if after and after_time < after:
+                raise StorageArgumentException(
+                    "page_token is inconsistent with the value of 'after'."
+                )
+        else:
+            after_time = after
+            after_fetcher = None
+
         authority_id = db.metadata_authority_get_id(
             authority["type"], authority["url"], cur
         )
         if not authority_id:
-            return []
+            return {
+                "next_page_token": None,
+                "results": [],
+            }
+
+        rows = db.origin_metadata_get(
+            origin_url, authority_id, after_time, after_fetcher, limit + 1, cur
+        )
+        rows = [dict(zip(db.origin_metadata_get_cols, row)) for row in rows]
         results = []
-        for line in db.origin_metadata_get(origin_url, authority_id, after, limit, cur):
-            row = dict(zip(db.origin_metadata_get_cols, line))
+        for row in rows:
+            row = row.copy()
+            row.pop("metadata_fetcher.id")
             results.append(
                 {
                     "origin_url": row.pop("origin.url"),
@@ -1319,7 +1340,24 @@ class Storage:
                     **row,
                 }
             )
-        return results
+
+        if len(results) > limit:
+            results.pop()
+            assert len(results) == limit
+            last_returned_row = rows[-2]  # rows[-1] corresponds to the popped result
+            next_page_token: Optional[bytes] = msgpack_dumps(
+                (
+                    last_returned_row["discovery_date"],
+                    last_returned_row["metadata_fetcher.id"],
+                )
+            )
+        else:
+            next_page_token = None
+
+        return {
+            "next_page_token": next_page_token,
+            "results": results,
+        }
 
     @timed
     @db_transaction()

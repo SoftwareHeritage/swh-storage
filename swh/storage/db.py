@@ -1076,6 +1076,7 @@ class Db(BaseDb):
         "discovery_date",
         "metadata_authority.type",
         "metadata_authority.url",
+        "metadata_fetcher.id",
         "metadata_fetcher.name",
         "metadata_fetcher.version",
         "format",
@@ -1120,7 +1121,8 @@ class Db(BaseDb):
         self,
         origin_url: str,
         authority: int,
-        after: Optional[datetime.datetime],
+        after_time: Optional[datetime.datetime],
+        after_fetcher: Optional[int],
         limit: Optional[int],
         cur=None,
     ):
@@ -1134,15 +1136,19 @@ class Db(BaseDb):
             f"  ON (metadata_authority.id=authority_id) "
             f"INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id) "
             f"INNER JOIN origin ON (origin.id=origin_metadata.origin_id) "
-            f"WHERE origin.url=%s AND authority_id=%s"
+            f"WHERE origin.url=%s AND authority_id=%s "
         ]
         args = [origin_url, authority]
 
-        if after:
-            query_parts.append("AND discovery_date >= %s")
-            args.append(after)
+        if after_fetcher is not None:
+            assert after_time
+            query_parts.append("AND (discovery_date, fetcher_id) > (%s, %s)")
+            args.extend([after_time, after_fetcher])
+        elif after_time is not None:
+            query_parts.append("AND discovery_date > %s")
+            args.append(after_time)
 
-        query_parts.append("ORDER BY discovery_date")
+        query_parts.append("ORDER BY discovery_date, fetcher_id")
 
         if limit:
             query_parts.append("LIMIT %s")

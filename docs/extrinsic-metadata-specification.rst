@@ -158,12 +158,17 @@ The storage API offers three endpoints to manipulate origin metadata:
 
       origin_metadata_get(origin_url,
                           authority,
-                          after, limit)
+                          page_token, limit)
 
-  which returns a list of dictionaries, one for each metadata item
-  deposited, corresponding to the given origin and obtained from the
-  specified authority.
-  `authority` must be a dict containing keys `type` and `url`.
+  where `authority` must be a dict containing keys `type` and `url`
+  which returns a dictionary with keys:
+
+  * `next_page_token`, which is an opaque token to be used as
+    `page_token` for retrieving the next page. if absent, there is
+    no more pages to gather.
+  * `results`: list of dictionaries, one for each metadata item
+    deposited, corresponding to the given origin and obtained from the
+    specified authority.
 
   Each of these dictionaries is in the following format::
 
@@ -175,8 +180,10 @@ The storage API offers three endpoints to manipulate origin metadata:
         'metadata': b'...'
       }
 
-The parameters ``after`` and ``limit`` are used for pagination based on the
-order defined by the ``discovery_date``.
+The parameters ``page_token`` and ``limit`` are used for pagination based on
+an arbitrary order. An initial query to ``origin_metadata_get`` must set
+``page_token`` to ``None``, and further query must use the value from the
+previous query's ``next_page_token`` to get the next page of results.
 
 ``metadata`` is a bytes array (eventually encoded using Base64).
 Its format is specific to each authority; and is treated as an opaque value
@@ -215,7 +222,8 @@ to manipulate metadata associated with artifacts of that type:
 
       <X>_metadata_get(id,
                        authority,
-                       after, limit)
+                       after,
+                       page_token, limit)
 
 
 definited similarly to ``origin_metadata_add`` and ``origin_metadata_get``,

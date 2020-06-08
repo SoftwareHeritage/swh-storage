@@ -31,6 +31,7 @@ from typing import (
 
 import attr
 
+from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
     BaseContent,
     Content,
@@ -62,6 +63,8 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 SortedListItem = TypeVar("SortedListItem")
 SortedListKey = TypeVar("SortedListKey")
 
+FetcherKey = Tuple[str, str]
+
 
 class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
     data: List[Tuple[SortedListKey, SortedListItem]]
@@ -92,7 +95,7 @@ class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
         for (k, item) in self.data:
             yield item
 
-    def iter_from(self, start_key: SortedListKey) -> Iterator[SortedListItem]:
+    def iter_from(self, start_key: Any) -> Iterator[SortedListItem]:
         """Returns an iterator over all the elements whose key is greater
         or equal to `start_key`.
         (This is an efficient equivalent to:
@@ -102,7 +105,7 @@ class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
         for (k, item) in itertools.islice(self.data, from_index, None):
             yield item
 
-    def iter_after(self, start_key: SortedListKey) -> Iterator[SortedListItem]:
+    def iter_after(self, start_key: Any) -> Iterator[SortedListItem]:
         """Same as iter_from, but using a strict inequality."""
         it = self.iter_from(start_key)
         for item in it:
@@ -137,12 +140,18 @@ class InMemoryStorage:
 
         # {origin_url: {authority: [metadata]}}
         self._origin_metadata: Dict[
-            str, Dict[Hashable, SortedList[datetime.datetime, Dict[str, Any]]]
+            str,
+            Dict[
+                Hashable,
+                SortedList[Tuple[datetime.datetime, FetcherKey], Dict[str, Any]],
+            ],
         ] = defaultdict(
-            lambda: defaultdict(lambda: SortedList(key=lambda x: x["discovery_date"]))
+            lambda: defaultdict(
+                lambda: SortedList(key=lambda x: (x["discovery_date"], x["fetcher"]))
+            )
         )  # noqa
 
-        self._metadata_fetchers: Dict[Hashable, Dict[str, Any]] = {}
+        self._metadata_fetchers: Dict[FetcherKey, Dict[str, Any]] = {}
         self._metadata_authorities: Dict[Hashable, Dict[str, Any]] = {}
         self._objects = defaultdict(list)
         self._sorted_sha1s = SortedList[bytes, bytes]()
@@ -1124,24 +1133,41 @@ class InMemoryStorage:
         origin_url: str,
         authority: Dict[str, str],
         after: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
         authority_key = self._metadata_authority_key(authority)
 
-        if after is None:
-            entries = iter(self._origin_metadata[origin_url][authority_key])
+        if page_token is not None:
+            (after_time, after_fetcher) = msgpack_loads(page_token)
+            after_fetcher = tuple(after_fetcher)
+            if after is not None and after > after_time:
+                raise StorageArgumentException(
+                    "page_token is inconsistent with the value of 'after'."
+                )
+            entries = self._origin_metadata[origin_url][authority_key].iter_after(
+                (after_time, after_fetcher)
+            )
+        elif after is not None:
+            entries = self._origin_metadata[origin_url][authority_key].iter_from(
+                (after,)
+            )
+            entries = (entry for entry in entries if entry["discovery_date"] > after)
         else:
-            entries = self._origin_metadata[origin_url][authority_key].iter_from(after)
+            entries = iter(self._origin_metadata[origin_url][authority_key])
+
         if limit:
-            entries = itertools.islice(entries, 0, limit)
+            entries = itertools.islice(entries, 0, limit + 1)
 
         results = []
         for entry in entries:
             authority = self._metadata_authorities[entry["authority"]]
             fetcher = self._metadata_fetchers[entry["fetcher"]]
+            if after:
+                assert entry["discovery_date"] > after
             results.append(
                 {
                     **entry,
@@ -1152,7 +1178,24 @@ class InMemoryStorage:
                     },
                 }
             )
-        return results
+
+        if len(results) > limit:
+            results.pop()
+            assert len(results) == limit
+            last_result = results[-1]
+            next_page_token: Optional[bytes] = msgpack_dumps(
+                (
+                    last_result["discovery_date"],
+                    self._metadata_fetcher_key(last_result["fetcher"]),
+                )
+            )
+        else:
+            next_page_token = None
+
+        return {
+            "next_page_token": next_page_token,
+            "results": results,
+        }
 
     def metadata_fetcher_add(
         self, name: str, version: str, metadata: Dict[str, Any]
@@ -1209,7 +1252,7 @@ class InMemoryStorage:
         return tuple((key, content.get(key)) for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
-    def _metadata_fetcher_key(fetcher: Dict) -> Hashable:
+    def _metadata_fetcher_key(fetcher: Dict) -> FetcherKey:
         return (fetcher["name"], fetcher["version"])
 
     @staticmethod
