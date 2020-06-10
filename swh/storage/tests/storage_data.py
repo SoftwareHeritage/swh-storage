@@ -469,7 +469,7 @@ complete_snapshot = {
 origin_metadata = {
     "origin_url": origin["url"],
     "discovery_date": datetime.datetime(
-        2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc
+        2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
     ),
     "authority": {
         "type": metadata_authority["type"],
@@ -485,7 +485,7 @@ origin_metadata = {
 origin_metadata2 = {
     "origin_url": origin["url"],
     "discovery_date": datetime.datetime(
-        2017, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc
+        2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
     "authority": {
         "type": metadata_authority["type"],
@@ -501,7 +501,7 @@ origin_metadata2 = {
 origin_metadata3 = {
     "origin_url": origin["url"],
     "discovery_date": datetime.datetime(
-        2017, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc
+        2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
     "authority": {
         "type": metadata_authority2["type"],

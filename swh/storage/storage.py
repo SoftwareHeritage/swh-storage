@@ -17,6 +17,7 @@ import psycopg2
 import psycopg2.pool
 import psycopg2.errors
 
+from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
     Content,
     Directory,
@@ -858,6 +859,7 @@ class Storage:
                 "snapshot": None,
             }
         )
+        self.journal_writer.origin_visit_add([visit])
 
         with convert_validation_exceptions():
             visit_status = OriginVisitStatus(
@@ -869,21 +871,32 @@ class Storage:
                 metadata=None,
             )
         self._origin_visit_status_add(visit_status, db=db, cur=cur)
-
-        self.journal_writer.origin_visit_add([visit])
-
         send_metric("origin_visit:add", count=1, method_name="origin_visit")
         return visit
 
     def _origin_visit_status_add(
-        self, origin_visit_status: OriginVisitStatus, db, cur
+        self, visit_status: OriginVisitStatus, db, cur
     ) -> None:
         """Add an origin visit status"""
-        db.origin_visit_status_add(origin_visit_status, cur=cur)
-        # TODO: write to the journal the origin visit status
+        self.journal_writer.origin_visit_status_add([visit_status])
+        db.origin_visit_status_add(visit_status, cur=cur)
         send_metric(
             "origin_visit_status:add", count=1, method_name="origin_visit_status"
         )
+
+    @timed
+    @db_transaction()
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus], db=None, cur=None,
+    ) -> None:
+        # First round to check existence (fail early if any is ko)
+        for visit_status in visit_statuses:
+            origin_url = self.origin_get({"url": visit_status.origin}, db=db, cur=cur)
+            if not origin_url:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+
+        for visit_status in visit_statuses:
+            self._origin_visit_status_add(visit_status, db, cur)
 
     @timed
     @db_transaction()
@@ -941,7 +954,7 @@ class Storage:
                     snapshot=snapshot or last_visit_status["snapshot"],
                     metadata=metadata or last_visit_status["metadata"],
                 )
-            self._origin_visit_status_add(visit_status, db=db, cur=cur)
+                self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
     def _origin_visit_get_updated(
         self, origin: str, visit_id: int, db, cur
@@ -993,26 +1006,35 @@ class Storage:
     def origin_visit_upsert(
         self, visits: Iterable[OriginVisit], db=None, cur=None
     ) -> None:
+        visit_statuses = []
+        nb_visits = 0
         for visit in visits:
+            nb_visits += 1
             if visit.visit is None:
                 raise StorageArgumentException(f"Missing visit id for visit {visit}")
+            with convert_validation_exceptions():
+                visit_statuses.append(
+                    OriginVisitStatus(
+                        origin=visit.origin,
+                        visit=visit.visit,
+                        date=now(),
+                        status=visit.status,
+                        snapshot=visit.snapshot,
+                        metadata=visit.metadata,
+                    )
+                )
 
+        assert len(visit_statuses) == nb_visits
+
+        # write in journal first
         self.journal_writer.origin_visit_upsert(visits)
+        self.journal_writer.origin_visit_status_add(visit_statuses)
 
-        for visit in visits:
-            # TODO: upsert them all in a single query
+        # then sync to db
+        for i, visit in enumerate(visits):
             assert visit.visit is not None
             db.origin_visit_upsert(visit, cur=cur)
-            with convert_validation_exceptions():
-                visit_status = OriginVisitStatus(
-                    origin=visit.origin,
-                    visit=visit.visit,
-                    date=now(),
-                    status=visit.status,
-                    snapshot=visit.snapshot,
-                    metadata=visit.metadata,
-                )
-            db.origin_visit_status_add(visit_status, cur=cur)
+            db.origin_visit_status_add(visit_statuses[i], cur=cur)
 
     @timed
     @db_transaction_generator(statement_timeout=500)
@@ -1278,18 +1300,38 @@ class Storage:
         origin_url: str,
         authority: Dict[str, str],
         after: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
         db=None,
         cur=None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
+        if page_token:
+            (after_time, after_fetcher) = msgpack_loads(page_token)
+            if after and after_time < after:
+                raise StorageArgumentException(
+                    "page_token is inconsistent with the value of 'after'."
+                )
+        else:
+            after_time = after
+            after_fetcher = None
+
         authority_id = db.metadata_authority_get_id(
             authority["type"], authority["url"], cur
         )
         if not authority_id:
-            return []
+            return {
+                "next_page_token": None,
+                "results": [],
+            }
+
+        rows = db.origin_metadata_get(
+            origin_url, authority_id, after_time, after_fetcher, limit + 1, cur
+        )
+        rows = [dict(zip(db.origin_metadata_get_cols, row)) for row in rows]
         results = []
-        for line in db.origin_metadata_get(origin_url, authority_id, after, limit, cur):
-            row = dict(zip(db.origin_metadata_get_cols, line))
+        for row in rows:
+            row = row.copy()
+            row.pop("metadata_fetcher.id")
             results.append(
                 {
                     "origin_url": row.pop("origin.url"),
@@ -1304,7 +1346,24 @@ class Storage:
                     **row,
                 }
             )
-        return results
+
+        if len(results) > limit:
+            results.pop()
+            assert len(results) == limit
+            last_returned_row = rows[-2]  # rows[-1] corresponds to the popped result
+            next_page_token: Optional[bytes] = msgpack_dumps(
+                (
+                    last_returned_row["discovery_date"],
+                    last_returned_row["metadata_fetcher.id"],
+                )
+            )
+        else:
+            next_page_token = None
+
+        return {
+            "next_page_token": next_page_token,
+            "results": results,
+        }
 
     @timed
     @db_transaction()

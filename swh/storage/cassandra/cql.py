@@ -868,14 +868,42 @@ class CqlRunner:
 
     @_prepared_statement(
         "SELECT * from origin_metadata "
-        "WHERE origin=? AND authority_url=? AND discovery_date>=? "
+        "WHERE origin=? AND authority_url=? AND discovery_date>? "
         "AND authority_type=?"
     )
-    def origin_metadata_get_after(
+    def origin_metadata_get_after_date(
         self, origin, authority_type, authority_url, after, *, statement
     ):
         return self._execute_with_retries(
             statement, [origin, authority_url, after, authority_type]
+        )
+
+    @_prepared_statement(
+        "SELECT * from origin_metadata "
+        "WHERE origin=? AND authority_type=? AND authority_url=? "
+        "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)"
+    )
+    def origin_metadata_get_after_date_and_fetcher(
+        self,
+        origin,
+        authority_type,
+        authority_url,
+        after_date,
+        after_fetcher_name,
+        after_fetcher_version,
+        *,
+        statement,
+    ):
+        return self._execute_with_retries(
+            statement,
+            [
+                origin,
+                authority_type,
+                authority_url,
+                after_date,
+                after_fetcher_name,
+                after_fetcher_version,
+            ],
         )
 
     @_prepared_statement(
