@@ -958,7 +958,7 @@ class CassandraStorage:
                     snapshot=visit.snapshot,
                     metadata=visit.metadata,
                 )
-            self._cql_runner.origin_visit_status_add_one(visit_status)
+            self._origin_visit_status_add(visit_status)
 
     @staticmethod
     def _format_origin_visit_row(visit):

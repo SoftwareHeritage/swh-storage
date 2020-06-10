@@ -939,7 +939,7 @@ class InMemoryStorage:
                 visit_key = (origin_url, visit.visit)
 
                 with convert_validation_exceptions():
-                    visit_update = OriginVisitStatus(
+                    visit_status = OriginVisitStatus(
                         origin=origin_url,
                         visit=visit.visit,
                         date=date,
@@ -948,12 +948,11 @@ class InMemoryStorage:
                         metadata=visit.metadata,
                     )
 
-                self._origin_visit_statuses.setdefault(visit_key, [])
                 while len(self._origin_visits[origin_url]) < visit.visit:
                     self._origin_visits[origin_url].append(None)
 
                 self._origin_visits[origin_url][visit.visit - 1] = visit
-                self._origin_visit_statuses[visit_key].append(visit_update)
+                self._origin_visit_status_add_one(visit_status)
 
                 self._objects[visit_key].append(("origin_visit", None))
 

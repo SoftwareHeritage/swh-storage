@@ -1006,26 +1006,35 @@ class Storage:
     def origin_visit_upsert(
         self, visits: Iterable[OriginVisit], db=None, cur=None
     ) -> None:
+        visit_statuses = []
+        nb_visits = 0
         for visit in visits:
+            nb_visits += 1
             if visit.visit is None:
                 raise StorageArgumentException(f"Missing visit id for visit {visit}")
+            with convert_validation_exceptions():
+                visit_statuses.append(
+                    OriginVisitStatus(
+                        origin=visit.origin,
+                        visit=visit.visit,
+                        date=now(),
+                        status=visit.status,
+                        snapshot=visit.snapshot,
+                        metadata=visit.metadata,
+                    )
+                )
 
+        assert len(visit_statuses) == nb_visits
+
+        # write in journal first
         self.journal_writer.origin_visit_upsert(visits)
+        self.journal_writer.origin_visit_status_add(visit_statuses)
 
-        for visit in visits:
-            # TODO: upsert them all in a single query
+        # then sync to db
+        for i, visit in enumerate(visits):
             assert visit.visit is not None
             db.origin_visit_upsert(visit, cur=cur)
-            with convert_validation_exceptions():
-                visit_status = OriginVisitStatus(
-                    origin=visit.origin,
-                    visit=visit.visit,
-                    date=now(),
-                    status=visit.status,
-                    snapshot=visit.snapshot,
-                    metadata=visit.metadata,
-                )
-            db.origin_visit_status_add(visit_status, cur=cur)
+            db.origin_visit_status_add(visit_statuses[i], cur=cur)
 
     @timed
     @db_transaction_generator(statement_timeout=500)
