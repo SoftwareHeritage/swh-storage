@@ -68,3 +68,19 @@ def test_sorted_list_iter_from__key(items):
     for split in items:
         expected = reversed(sorted(item for item in items if item <= split))
         assert list(list_.iter_from(-split)) == list(expected), f"split: {split}"
+
+
+@parametrize
+def test_sorted_list_iter_after(items):
+    list_ = SortedList(items)
+    for split in items:
+        expected = sorted(item for item in items if item > split)
+        assert list(list_.iter_after(split)) == expected, f"split: {split}"
+
+
+@parametrize
+def test_sorted_list_iter_after__key(items):
+    list_ = SortedList(items, key=lambda item: -item)
+    for split in items:
+        expected = reversed(sorted(item for item in items if item < split))
+        assert list(list_.iter_after(-split)) == list(expected), f"split: {split}"

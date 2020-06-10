@@ -31,6 +31,7 @@ from typing import (
 
 import attr
 
+from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
     BaseContent,
     Content,
@@ -62,6 +63,8 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 SortedListItem = TypeVar("SortedListItem")
 SortedListKey = TypeVar("SortedListKey")
 
+FetcherKey = Tuple[str, str]
+
 
 class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
     data: List[Tuple[SortedListKey, SortedListItem]]
@@ -92,7 +95,7 @@ class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
         for (k, item) in self.data:
             yield item
 
-    def iter_from(self, start_key: SortedListKey) -> Iterator[SortedListItem]:
+    def iter_from(self, start_key: Any) -> Iterator[SortedListItem]:
         """Returns an iterator over all the elements whose key is greater
         or equal to `start_key`.
         (This is an efficient equivalent to:
@@ -101,6 +104,16 @@ class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
         from_index = bisect.bisect_left(self.data, (start_key,))
         for (k, item) in itertools.islice(self.data, from_index, None):
             yield item
+
+    def iter_after(self, start_key: Any) -> Iterator[SortedListItem]:
+        """Same as iter_from, but using a strict inequality."""
+        it = self.iter_from(start_key)
+        for item in it:
+            if self.key(item) > start_key:  # type: ignore
+                yield item
+                break
+
+        yield from it
 
 
 class InMemoryStorage:
@@ -123,16 +136,22 @@ class InMemoryStorage:
         self._origins_by_sha1 = {}
         self._origin_visits = {}
         self._origin_visit_statuses: Dict[Tuple[str, int], List[OriginVisitStatus]] = {}
-        self._persons = []
+        self._persons = {}
 
         # {origin_url: {authority: [metadata]}}
         self._origin_metadata: Dict[
-            str, Dict[Hashable, SortedList[datetime.datetime, Dict[str, Any]]]
+            str,
+            Dict[
+                Hashable,
+                SortedList[Tuple[datetime.datetime, FetcherKey], Dict[str, Any]],
+            ],
         ] = defaultdict(
-            lambda: defaultdict(lambda: SortedList(key=lambda x: x["discovery_date"]))
+            lambda: defaultdict(
+                lambda: SortedList(key=lambda x: (x["discovery_date"], x["fetcher"]))
+            )
         )  # noqa
 
-        self._metadata_fetchers: Dict[Hashable, Dict[str, Any]] = {}
+        self._metadata_fetchers: Dict[FetcherKey, Dict[str, Any]] = {}
         self._metadata_authorities: Dict[Hashable, Dict[str, Any]] = {}
         self._objects = defaultdict(list)
         self._sorted_sha1s = SortedList[bytes, bytes]()
@@ -536,8 +555,7 @@ class InMemoryStorage:
         snapshots = (snap for snap in snapshots if snap.id not in self._snapshots)
         for snapshot in snapshots:
             self.journal_writer.snapshot_add([snapshot])
-            sorted_branch_names = sorted(snapshot.branches)
-            self._snapshots[snapshot.id] = (snapshot, sorted_branch_names)
+            self._snapshots[snapshot.id] = snapshot
             self._objects[snapshot.id].append(("snapshot", snapshot.id))
             count += 1
 
@@ -585,7 +603,7 @@ class InMemoryStorage:
             return snapshot
 
     def snapshot_count_branches(self, snapshot_id):
-        (snapshot, _) = self._snapshots[snapshot_id]
+        snapshot = self._snapshots[snapshot_id]
         return collections.Counter(
             branch.target_type.value if branch else None
             for branch in snapshot.branches.values()
@@ -594,10 +612,10 @@ class InMemoryStorage:
     def snapshot_get_branches(
         self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
     ):
-        res = self._snapshots.get(snapshot_id)
-        if res is None:
+        snapshot = self._snapshots.get(snapshot_id)
+        if snapshot is None:
             return None
-        (snapshot, sorted_branch_names) = res
+        sorted_branch_names = sorted(snapshot.branches)
         from_index = bisect.bisect_left(sorted_branch_names, branches_from)
         if target_types:
             next_branch = None
@@ -805,6 +823,7 @@ class InMemoryStorage:
                     metadata=None,
                     visit=visit_id,
                 )
+            self.journal_writer.origin_visit_add([visit])
             self._origin_visits[origin_url].append(visit)
             assert visit.visit is not None
             visit_key = (origin_url, visit.visit)
@@ -818,14 +837,32 @@ class InMemoryStorage:
                     snapshot=None,
                     metadata=None,
                 )
-            self._origin_visit_statuses[visit_key] = [visit_update]
-
+            self._origin_visit_status_add_one(visit_update)
             self._objects[visit_key].append(("origin_visit", None))
-
-            self.journal_writer.origin_visit_add([visit])
 
         # return last visit
         return visit
+
+    def _origin_visit_status_add_one(self, visit_status: OriginVisitStatus) -> None:
+        """Add an origin visit status without checks.
+
+        """
+        self.journal_writer.origin_visit_status_add([visit_status])
+        visit_key = (visit_status.origin, visit_status.visit)
+        self._origin_visit_statuses.setdefault(visit_key, [])
+        self._origin_visit_statuses[visit_key].append(visit_status)
+
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus],
+    ) -> None:
+        # First round to check existence (fail early if any is ko)
+        for visit_status in visit_statuses:
+            origin_url = self.origin_get({"url": visit_status.origin})
+            if not origin_url:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+
+        for visit_status in visit_statuses:
+            self._origin_visit_status_add_one(visit_status)
 
     def origin_visit_update(
         self,
@@ -845,30 +882,37 @@ class InMemoryStorage:
         except IndexError:
             raise StorageArgumentException("Unknown visit_id for this origin") from None
 
-        # Retrieve the previous visit status
-        assert visit.visit is not None
-        visit_key = (origin_url, visit.visit)
+        updates: Dict[str, Any] = {
+            "status": status,
+        }
+        if metadata and metadata != visit.metadata:
+            updates["metadata"] = metadata
+        if snapshot and snapshot != visit.snapshot:
+            updates["snapshot"] = snapshot
 
-        last_visit_update = max(
-            self._origin_visit_statuses[visit_key], key=lambda v: v.date
-        )
+        if updates:
+            with convert_validation_exceptions():
+                updated_visit = OriginVisit.from_dict({**visit.to_dict(), **updates})
+            self.journal_writer.origin_visit_update([updated_visit])
 
-        with convert_validation_exceptions():
-            visit_update = OriginVisitStatus(
-                origin=origin_url,
-                visit=visit_id,
-                date=date or now(),
-                status=status,
-                snapshot=snapshot or last_visit_update.snapshot,
-                metadata=metadata or last_visit_update.metadata,
-            )
-        self._origin_visit_statuses[visit_key].append(visit_update)
+            self._origin_visits[origin_url][visit_id - 1] = updated_visit
 
-        self.journal_writer.origin_visit_update(
-            [self._origin_visit_get_updated(origin_url, visit_id)]
-        )
+            # Retrieve the previous visit status
+            assert visit.visit is not None
 
-        self._origin_visits[origin_url][visit_id - 1] = visit
+            last_visit_status = self._origin_visit_get_updated(origin, visit_id)
+            assert last_visit_status is not None
+
+            with convert_validation_exceptions():
+                visit_status = OriginVisitStatus(
+                    origin=origin_url,
+                    visit=visit_id,
+                    date=date or now(),
+                    status=status,
+                    snapshot=snapshot or last_visit_status.snapshot,
+                    metadata=metadata or last_visit_status.metadata,
+                )
+                self._origin_visit_status_add_one(visit_status)
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         for visit in visits:
@@ -895,7 +939,7 @@ class InMemoryStorage:
                 visit_key = (origin_url, visit.visit)
 
                 with convert_validation_exceptions():
-                    visit_update = OriginVisitStatus(
+                    visit_status = OriginVisitStatus(
                         origin=origin_url,
                         visit=visit.visit,
                         date=date,
@@ -904,12 +948,11 @@ class InMemoryStorage:
                         metadata=visit.metadata,
                     )
 
-                self._origin_visit_statuses.setdefault(visit_key, [])
                 while len(self._origin_visits[origin_url]) < visit.visit:
                     self._origin_visits[origin_url].append(None)
 
                 self._origin_visits[origin_url][visit.visit - 1] = visit
-                self._origin_visit_statuses[visit_key].append(visit_update)
+                self._origin_visit_status_add_one(visit_status)
 
                 self._objects[visit_key].append(("origin_visit", None))
 
@@ -923,7 +966,6 @@ class InMemoryStorage:
         visit_key = (origin, visit_id)
 
         visit_update = max(self._origin_visit_statuses[visit_key], key=lambda v: v.date)
-
         return OriginVisit.from_dict(
             {
                 # default to the values in visit
@@ -938,6 +980,7 @@ class InMemoryStorage:
     def origin_visit_get(
         self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
     ) -> Iterable[Dict[str, Any]]:
+
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
@@ -986,6 +1029,7 @@ class InMemoryStorage:
         if not ori:
             return None
         visits = self._origin_visits[ori.url]
+
         visits = [
             self._origin_visit_get_updated(visit.origin, visit.visit)
             for visit in visits
@@ -1071,6 +1115,8 @@ class InMemoryStorage:
         if fetcher_key not in self._metadata_fetchers:
             raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
+        origin_metadata_list = self._origin_metadata[origin_url][authority_key]
+
         origin_metadata = {
             "origin_url": origin_url,
             "discovery_date": discovery_date,
@@ -1079,7 +1125,17 @@ class InMemoryStorage:
             "format": format,
             "metadata": metadata,
         }
-        self._origin_metadata[origin_url][authority_key].add(origin_metadata)
+
+        for existing_origin_metadata in origin_metadata_list:
+            if (
+                existing_origin_metadata["fetcher"] == fetcher_key
+                and existing_origin_metadata["discovery_date"] == discovery_date
+            ):
+                # Duplicate of an existing one; replace it.
+                existing_origin_metadata.update(origin_metadata)
+                break
+        else:
+            origin_metadata_list.add(origin_metadata)
         return None
 
     def origin_metadata_get(
@@ -1087,24 +1143,41 @@ class InMemoryStorage:
         origin_url: str,
         authority: Dict[str, str],
         after: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
         authority_key = self._metadata_authority_key(authority)
 
-        if after is None:
-            entries = iter(self._origin_metadata[origin_url][authority_key])
+        if page_token is not None:
+            (after_time, after_fetcher) = msgpack_loads(page_token)
+            after_fetcher = tuple(after_fetcher)
+            if after is not None and after > after_time:
+                raise StorageArgumentException(
+                    "page_token is inconsistent with the value of 'after'."
+                )
+            entries = self._origin_metadata[origin_url][authority_key].iter_after(
+                (after_time, after_fetcher)
+            )
+        elif after is not None:
+            entries = self._origin_metadata[origin_url][authority_key].iter_from(
+                (after,)
+            )
+            entries = (entry for entry in entries if entry["discovery_date"] > after)
         else:
-            entries = self._origin_metadata[origin_url][authority_key].iter_from(after)
+            entries = iter(self._origin_metadata[origin_url][authority_key])
+
         if limit:
-            entries = itertools.islice(entries, 0, limit)
+            entries = itertools.islice(entries, 0, limit + 1)
 
         results = []
         for entry in entries:
             authority = self._metadata_authorities[entry["authority"]]
             fetcher = self._metadata_fetchers[entry["fetcher"]]
+            if after:
+                assert entry["discovery_date"] > after
             results.append(
                 {
                     **entry,
@@ -1115,7 +1188,24 @@ class InMemoryStorage:
                     },
                 }
             )
-        return results
+
+        if len(results) > limit:
+            results.pop()
+            assert len(results) == limit
+            last_result = results[-1]
+            next_page_token: Optional[bytes] = msgpack_dumps(
+                (
+                    last_result["discovery_date"],
+                    self._metadata_fetcher_key(last_result["fetcher"]),
+                )
+            )
+        else:
+            next_page_token = None
+
+        return {
+            "next_page_token": next_page_token,
+            "results": results,
+        }
 
     def metadata_fetcher_add(
         self, name: str, version: str, metadata: Dict[str, Any]
@@ -1159,13 +1249,10 @@ class InMemoryStorage:
     def _person_add(self, person):
         key = ("person", person.fullname)
         if key not in self._objects:
-            person_id = len(self._persons) + 1
-            self._persons.append(person)
-            self._objects[key].append(("person", person_id))
-        else:
-            person_id = self._objects[key][0][1]
-            person = self._persons[person_id - 1]
-        return person
+            self._persons[person.fullname] = person
+            self._objects[key].append(key)
+
+        return self._persons[person.fullname]
 
     @staticmethod
     def _content_key(content):
@@ -1175,7 +1262,7 @@ class InMemoryStorage:
         return tuple((key, content.get(key)) for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
-    def _metadata_fetcher_key(fetcher: Dict) -> Hashable:
+    def _metadata_fetcher_key(fetcher: Dict) -> FetcherKey:
         return (fetcher["name"], fetcher["version"])
 
     @staticmethod

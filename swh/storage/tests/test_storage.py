@@ -22,15 +22,17 @@ import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
 
-from typing import ClassVar, Optional
+from typing import ClassVar, Iterable, Optional, Tuple
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
 from swh.model.model import (
+    BaseModel,
     Content,
     Directory,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Release,
     Revision,
     Snapshot,
@@ -41,7 +43,7 @@ from swh.storage import get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
-from swh.storage.utils import content_hex_hashes
+from swh.storage.utils import content_hex_hashes, now
 
 from .storage_data import data
 
@@ -100,10 +102,6 @@ def assert_contents_ok(
 class LazyContent(Content):
     def with_data(self):
         return Content.from_dict({**self.to_dict(), "data": data.cont["data"]})
-
-
-def now():
-    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 class TestStorage:
@@ -1685,6 +1683,68 @@ class TestStorage:
         if type(cm.value) == psycopg2.ProgrammingError:
             assert cm.value.pgcode == psycopg2.errorcodes.UNDEFINED_FUNCTION
 
+    def test_origin_visit_status_add_validation(self, swh_storage):
+        """Wrong origin_visit_status input should raise storage argument error"""
+        date_visit = now()
+        visit_status1 = OriginVisitStatus(
+            origin="unknown-origin-url",
+            visit=10,
+            date=date_visit,
+            status="full",
+            snapshot=None,
+        )
+        with pytest.raises(StorageArgumentException, match="Unknown origin"):
+            swh_storage.origin_visit_status_add([visit_status1])
+
+    def test_origin_visit_status_add(self, swh_storage):
+        """Correct origin visit statuses should add a new visit status
+
+        """
+        origin_url = swh_storage.origin_add_one(data.origin2)
+        origin_visit1 = swh_storage.origin_visit_add(
+            origin_url, date=data.date_visit1, type=data.type_visit1
+        )
+        snapshot_id = data.snapshot["id"]
+        date_visit_now = now()
+        visit_status1 = OriginVisitStatus(
+            origin=origin_visit1.origin,
+            visit=origin_visit1.visit,
+            date=date_visit_now,
+            status="full",
+            snapshot=snapshot_id,
+        )
+
+        origin_url2 = swh_storage.origin_add_one({"url": "new-origin"})
+        origin_visit2 = swh_storage.origin_visit_add(
+            origin_url2, date=data.date_visit2, type=data.type_visit2
+        )
+        date_visit_now = now()
+        visit_status2 = OriginVisitStatus(
+            origin=origin_visit2.origin,
+            visit=origin_visit2.visit,
+            date=date_visit_now,
+            status="ongoing",
+            snapshot=None,
+            metadata={"intrinsic": "something"},
+        )
+        swh_storage.origin_visit_status_add([visit_status1, visit_status2])
+
+        origin_visit1 = swh_storage.origin_visit_get_latest(
+            origin_url, require_snapshot=True
+        )
+        assert origin_visit1
+        assert origin_visit1["status"] == "full"
+        assert origin_visit1["snapshot"] == snapshot_id
+
+        origin_visit2 = swh_storage.origin_visit_get_latest(
+            origin_url2, require_snapshot=False
+        )
+        assert origin_url2 != origin_url
+        assert origin_visit2
+        assert origin_visit2["status"] == "ongoing"
+        assert origin_visit2["snapshot"] is None
+        assert origin_visit2["metadata"] == {"intrinsic": "something"}
+
     def test_origin_visit_update(self, swh_storage):
         # given
         origin_url = swh_storage.origin_add_one(data.origin)
@@ -1964,7 +2024,54 @@ class TestStorage:
     def test_origin_visit_get_by__unknown_origin(self, swh_storage):
         assert swh_storage.origin_visit_get_by("foo", 10) is None
 
-    def test_origin_visit_upsert_new(self, swh_storage):
+    def assert_upsert_written_objects(
+        self,
+        actual_written_objects: Iterable[Tuple[str, BaseModel]],
+        expected_written_objects: Iterable[Tuple[str, BaseModel]],
+    ):
+        """Helper utility to ensure written upsert objects are as expected.
+
+        OriginVisitStatus from the origin_visit_upsert call point of view need special
+        so we can compare actual and expected values.
+
+        """
+        written_objects_by = defaultdict(list)
+        for obj_type, obj in actual_written_objects:
+            written_objects_by[obj_type].append(obj)
+
+        expected_objects_by = defaultdict(list)
+        for obj_type, obj in expected_written_objects:
+            expected_objects_by[obj_type].append(obj)
+
+        # straightforward comparison for those (order does not matter)
+        for obj_type in ["origin", "origin_visit"]:
+            assert set(written_objects_by[obj_type]) == set(
+                expected_objects_by[obj_type]
+            )
+
+        # origin-visit-status is specific though, origin_visit_upsert writes now() date.
+        # We cannot mock as we use multiple implementations (fully qualified name is
+        # thus different), we cannot open a parameter field date (not part of the
+        # signature), so we overwrite both actual and expected visit_status to use the
+        # same date so the comparison works...
+
+        obj_type = "origin_visit_status"
+        expected_visit_statuses = expected_objects_by[obj_type]
+        for i, actual_visit_status in enumerate(written_objects_by[obj_type]):
+            expected_visit_status = expected_visit_statuses[i]
+
+            test_date = now()
+            actual_new = OriginVisitStatus.from_dict(
+                {**actual_visit_status.to_dict(), "date": test_date}
+            )
+
+            expected_new = OriginVisitStatus.from_dict(
+                {**expected_visit_status.to_dict(), "date": test_date}
+            )
+
+            assert actual_new == expected_new
+
+    def test_origin_visit_upsert_new(self, swh_storage, mocker):
         # given
         origin_url = swh_storage.origin_add_one(data.origin2)
 
@@ -2023,7 +2130,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": 123,
-            "type": data.type_visit2,
             "status": "full",
             "metadata": None,
             "snapshot": None,
@@ -2032,16 +2138,29 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit3,
             "visit": 1234,
-            "type": data.type_visit2,
             "status": "full",
             "metadata": None,
             "snapshot": None,
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", Origin.from_dict(data.origin2)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
-            ("origin_visit", OriginVisit.from_dict(data2)),
-        ]
+        actual_written_objects = list(swh_storage.journal_writer.journal.objects)
+
+        # Ensure we have those written to journal
+        self.assert_upsert_written_objects(
+            actual_written_objects,
+            [
+                ("origin", Origin.from_dict(data.origin2)),
+                (
+                    "origin_visit",
+                    OriginVisit.from_dict({**data1, "type": data.type_visit2}),
+                ),
+                (
+                    "origin_visit",
+                    OriginVisit.from_dict({**data2, "type": data.type_visit2,}),
+                ),
+                ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
+                ("origin_visit_status", OriginVisitStatus.from_dict(data2)),
+            ],
+        )
 
     def test_origin_visit_upsert_existing(self, swh_storage):
         # given
@@ -2089,7 +2208,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2098,16 +2216,27 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "full",
             "metadata": None,
             "snapshot": None,
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", Origin.from_dict(data.origin2)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
-            ("origin_visit", OriginVisit.from_dict(data2)),
-        ]
+        actual_written_objects = list(swh_storage.journal_writer.journal.objects)
+        self.assert_upsert_written_objects(
+            actual_written_objects,
+            [
+                ("origin", Origin.from_dict(data.origin2)),
+                (
+                    "origin_visit",
+                    OriginVisit.from_dict({**data1, "type": data.type_visit1,}),
+                ),
+                ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
+                (
+                    "origin_visit",
+                    OriginVisit.from_dict({**data2, "type": data.type_visit1}),
+                ),
+                ("origin_visit_status", OriginVisitStatus.from_dict(data2)),
+            ],
+        )
 
     def test_origin_visit_upsert_missing_visit_id(self, swh_storage):
         # given
@@ -2275,11 +2404,14 @@ class TestStorage:
         actual_result = swh_storage.snapshot_add([data.empty_snapshot])
         assert actual_result == {"snapshot:add": 1}
 
+        date_now = now()
+
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit1.visit,
             status="ongoing",
             snapshot=data.empty_snapshot["id"],
+            date=date_now,
         )
 
         by_id = swh_storage.snapshot_get(data.empty_snapshot["id"])
@@ -2292,7 +2424,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2301,16 +2432,27 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.empty_snapshot["id"],
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        assert actual_objects == [
             ("origin", Origin.from_dict(data.origin)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data1, "type": data.type_visit1},),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.empty_snapshot)),
-            ("origin_visit", OriginVisit.from_dict(data2)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data2, "type": data.type_visit1,}),
+            ),
+            (
+                "origin_visit_status",
+                OriginVisitStatus.from_dict({**data2, "date": date_now}),
+            ),
         ]
 
     def test_snapshot_add_get_complete(self, swh_storage):
@@ -2638,11 +2780,13 @@ class TestStorage:
         )
         visit1_id = origin_visit1.visit
         swh_storage.snapshot_add([data.snapshot])
+        date_now2 = now()
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit1.visit,
             status="ongoing",
             snapshot=data.snapshot["id"],
+            date=date_now2,
         )
 
         by_ov1 = swh_storage.snapshot_get_by_origin_visit(origin_url, visit1_id)
@@ -2654,11 +2798,13 @@ class TestStorage:
         visit2_id = origin_visit2.visit
 
         swh_storage.snapshot_add([data.snapshot])
+        date_now4 = now()
         swh_storage.origin_visit_update(
             origin_url,
             origin_visit2.visit,
             status="ongoing",
             snapshot=data.snapshot["id"],
+            date=date_now4,
         )
 
         by_ov2 = swh_storage.snapshot_get_by_origin_visit(origin_url, visit2_id)
@@ -2668,7 +2814,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2677,7 +2822,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit1,
             "visit": origin_visit1.visit,
-            "type": data.type_visit1,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.snapshot["id"],
@@ -2686,7 +2830,6 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit2.visit,
-            "type": data.type_visit2,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
@@ -2695,18 +2838,40 @@ class TestStorage:
             "origin": origin_url,
             "date": data.date_visit2,
             "visit": origin_visit2.visit,
-            "type": data.type_visit2,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.snapshot["id"],
         }
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        assert actual_objects == [
             ("origin", Origin.from_dict(data.origin)),
-            ("origin_visit", OriginVisit.from_dict(data1)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data1, "type": data.type_visit1}),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.snapshot)),
-            ("origin_visit", OriginVisit.from_dict(data2)),
-            ("origin_visit", OriginVisit.from_dict(data3)),
-            ("origin_visit", OriginVisit.from_dict(data4)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data2, "type": data.type_visit1}),
+            ),
+            (
+                "origin_visit_status",
+                OriginVisitStatus.from_dict({**data2, "date": date_now2}),
+            ),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data3, "type": data.type_visit2}),
+            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data3)),
+            (
+                "origin_visit",
+                OriginVisit.from_dict({**data4, "type": data.type_visit2}),
+            ),
+            (
+                "origin_visit_status",
+                OriginVisitStatus.from_dict({**data4, "date": date_now4}),
+            ),
         ]
 
     def test_snapshot_get_latest(self, swh_storage):
@@ -3217,13 +3382,36 @@ class TestStorage:
         swh_storage.origin_metadata_add(**data.origin_metadata)
         swh_storage.origin_metadata_add(**data.origin_metadata2)
 
-        swh_storage.origin_metadata_get(origin["url"], authority)
-
+        result = swh_storage.origin_metadata_get(origin["url"], authority)
+        assert result["next_page_token"] is None
         assert [data.origin_metadata, data.origin_metadata2] == list(
-            sorted(
-                swh_storage.origin_metadata_get(origin["url"], authority),
-                key=lambda x: x["discovery_date"],
-            )
+            sorted(result["results"], key=lambda x: x["discovery_date"],)
+        )
+
+    def test_origin_metadata_add_duplicate(self, swh_storage):
+        """Duplicates should be silently updated."""
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+        swh_storage.origin_add([origin])[0]
+
+        new_origin_metadata2 = {
+            **data.origin_metadata2,
+            "format": "new-format",
+            "metadata": b"new-metadata",
+        }
+
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority)
+
+        swh_storage.origin_metadata_add(**data.origin_metadata)
+        swh_storage.origin_metadata_add(**data.origin_metadata2)
+        swh_storage.origin_metadata_add(**new_origin_metadata2)
+
+        result = swh_storage.origin_metadata_get(origin["url"], authority)
+        assert result["next_page_token"] is None
+        assert [data.origin_metadata, new_origin_metadata2] == list(
+            sorted(result["results"], key=lambda x: x["discovery_date"],)
         )
 
     def test_origin_metadata_add_dict(self, swh_storage):
@@ -3266,23 +3454,109 @@ class TestStorage:
         swh_storage.origin_metadata_add(**origin1_metadata3)
         swh_storage.origin_metadata_add(**origin2_metadata)
 
+        result = swh_storage.origin_metadata_get(origin_url1, authority)
+        assert result["next_page_token"] is None
         assert [origin1_metadata1, origin1_metadata2] == list(
-            sorted(
-                swh_storage.origin_metadata_get(origin_url1, authority),
-                key=lambda x: x["discovery_date"],
-            )
+            sorted(result["results"], key=lambda x: x["discovery_date"],)
         )
 
+        result = swh_storage.origin_metadata_get(origin_url1, authority2)
+        assert result["next_page_token"] is None
         assert [origin1_metadata3] == list(
-            sorted(
-                swh_storage.origin_metadata_get(origin_url1, authority2),
-                key=lambda x: x["discovery_date"],
-            )
+            sorted(result["results"], key=lambda x: x["discovery_date"],)
         )
 
-        assert [origin2_metadata] == list(
-            swh_storage.origin_metadata_get(origin_url2, authority)
+        result = swh_storage.origin_metadata_get(origin_url2, authority)
+        assert result["next_page_token"] is None
+        assert [origin2_metadata] == list(result["results"],)
+
+    def test_origin_metadata_get_after(self, swh_storage):
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+        swh_storage.origin_add([origin])[0]
+
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority)
+
+        swh_storage.origin_metadata_add(**data.origin_metadata)
+        swh_storage.origin_metadata_add(**data.origin_metadata2)
+
+        result = swh_storage.origin_metadata_get(
+            origin["url"],
+            authority,
+            after=data.origin_metadata["discovery_date"] - timedelta(seconds=1),
         )
+        assert result["next_page_token"] is None
+        assert [data.origin_metadata, data.origin_metadata2] == list(
+            sorted(result["results"], key=lambda x: x["discovery_date"],)
+        )
+
+        result = swh_storage.origin_metadata_get(
+            origin["url"], authority, after=data.origin_metadata["discovery_date"]
+        )
+        assert result["next_page_token"] is None
+        assert [data.origin_metadata2] == result["results"]
+
+        result = swh_storage.origin_metadata_get(
+            origin["url"], authority, after=data.origin_metadata2["discovery_date"]
+        )
+        assert result["next_page_token"] is None
+        assert [] == result["results"]
+
+    def test_origin_metadata_get_paginate(self, swh_storage):
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+        swh_storage.origin_add([origin])[0]
+
+        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage.metadata_authority_add(**authority)
+
+        swh_storage.origin_metadata_add(**data.origin_metadata)
+        swh_storage.origin_metadata_add(**data.origin_metadata2)
+
+        swh_storage.origin_metadata_get(origin["url"], authority)
+
+        result = swh_storage.origin_metadata_get(origin["url"], authority, limit=1)
+        assert result["next_page_token"] is not None
+        assert [data.origin_metadata] == result["results"]
+
+        result = swh_storage.origin_metadata_get(
+            origin["url"], authority, limit=1, page_token=result["next_page_token"]
+        )
+        assert result["next_page_token"] is None
+        assert [data.origin_metadata2] == result["results"]
+
+    def test_origin_metadata_get_paginate_same_date(self, swh_storage):
+        origin = data.origin
+        fetcher1 = data.metadata_fetcher
+        fetcher2 = data.metadata_fetcher2
+        authority = data.metadata_authority
+        swh_storage.origin_add([origin])[0]
+
+        swh_storage.metadata_fetcher_add(**fetcher1)
+        swh_storage.metadata_fetcher_add(**fetcher2)
+        swh_storage.metadata_authority_add(**authority)
+
+        origin_metadata2 = {
+            **data.origin_metadata2,
+            "discovery_date": data.origin_metadata2["discovery_date"],
+            "fetcher": {"name": fetcher2["name"], "version": fetcher2["version"],},
+        }
+
+        swh_storage.origin_metadata_add(**data.origin_metadata)
+        swh_storage.origin_metadata_add(**origin_metadata2)
+
+        result = swh_storage.origin_metadata_get(origin["url"], authority, limit=1)
+        assert result["next_page_token"] is not None
+        assert [data.origin_metadata] == result["results"]
+
+        result = swh_storage.origin_metadata_get(
+            origin["url"], authority, limit=1, page_token=result["next_page_token"]
+        )
+        assert result["next_page_token"] is None
+        assert [origin_metadata2] == result["results"]
 
 
 class TestStorageGeneratedData:

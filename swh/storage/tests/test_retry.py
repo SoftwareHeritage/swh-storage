@@ -582,7 +582,8 @@ def test_retrying_proxy_storage_origin_metadata_add(swh_storage, sample_data):
     origin_metadata = swh_storage.origin_metadata_get(
         ori_meta["origin_url"], ori_meta["authority"]
     )
-    assert not origin_metadata
+    assert origin_metadata["next_page_token"] is None
+    assert not origin_metadata["results"]
 
     swh_storage.origin_metadata_add(**ori_meta)
 

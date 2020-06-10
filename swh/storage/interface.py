@@ -13,6 +13,7 @@ from swh.model.model import (
     Directory,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Revision,
     Release,
     Snapshot,
@@ -801,6 +802,20 @@ class StorageInterface:
         """
         ...
 
+    @remote_api_endpoint("origin/visit_status/add")
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus],
+    ) -> None:
+        """Add origin visit statuses.
+
+        Args:
+            visit_statuses: origin visit statuses to add
+
+        Raises: StorageArgumentException if the origin of the visit status is unknown
+
+        """
+        ...
+
     @remote_api_endpoint("origin/visit/update")
     def origin_visit_update(
         self,
@@ -1147,6 +1162,9 @@ class StorageInterface:
         The authority and fetcher must be known to the storage before
         using this endpoint.
 
+        If there is already origin metadata for the same origin, authority,
+        fetcher, and at the same date, it will be replaced by this one.
+
         Args:
             discovery_date: when the metadata was fetched.
             authority: a dict containing keys `type` and `url`.
@@ -1162,18 +1180,23 @@ class StorageInterface:
         origin_url: str,
         authority: Dict[str, str],
         after: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         """Retrieve list of all origin_metadata entries for the origin_id
 
         Args:
             origin_url: the origin's URL
             authority: a dict containing keys `type` and `url`.
             after: minimum discovery_date for a result to be returned
+            page_token: opaque token, used to get the next page of results
             limit: maximum number of results to be returned
 
         Returns:
-            list of dicts in the format:
+            dict with keys `next_page_token` and `results`.
+            `next_page_token` is an opaque token that is used to get the
+            next page of results, or `None` if there are no more results.
+            `results` is a list of dicts in the format:
 
             .. code-block: python
 

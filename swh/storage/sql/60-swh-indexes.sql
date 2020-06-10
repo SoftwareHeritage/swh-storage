@@ -171,7 +171,7 @@ create unique index metadata_authority_type_url on metadata_authority(type, url)
 create unique index concurrently origin_metadata_pkey on origin_metadata(id);
 alter table origin_metadata add primary key using index origin_metadata_pkey;
 
-create index concurrently origin_metadata_origin_authority_date on origin_metadata(origin_id, authority_id, discovery_date);
+create unique index concurrently origin_metadata_origin_authority_date_fetcher on origin_metadata(origin_id, authority_id, discovery_date, fetcher_id);
 
 alter table origin_metadata add constraint origin_metadata_origin_fkey foreign key (origin_id) references origin(id) not valid;
 alter table origin_metadata validate constraint origin_metadata_origin_fkey;
