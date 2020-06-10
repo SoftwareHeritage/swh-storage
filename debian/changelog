@@ -1,8 +1,19 @@
-swh-storage (0.1.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.2.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.2.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-06-10 11:51:30
+    +0200)
+  * Upstream changes:     - v0.2.0     - origin-visit-upsert: Write
+    visit status objects to the journal     - origin-visit-update: Write
+    visit status objects to the journal     - origin-visit-add: Write
+    visit status to the journal     - Add pagination to
+    origin_metadata_get.     - Deduplicate origin-metadata when they
+    have the same authority + discovery_date + fetcher.     - Open
+    `origin_visit_status_add` endpoint to add origin visit statuses     -
+    Add a replayer test for anonymized journal topics     - Small
+    refactoring of the InMemoryStorage to make it more consistent
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Jun 2020 15:01:30 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 10 Jun 2020 10:02:45 +0000
 
 swh-storage (0.1.1-1~swh1) unstable-swh; urgency=medium
 

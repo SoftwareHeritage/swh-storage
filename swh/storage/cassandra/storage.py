@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Iterable, Optional, Union
 import attr
 import dateutil
 
+from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
     Revision,
     Release,
@@ -839,7 +840,21 @@ class CassandraStorage:
 
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status"""
+        self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(visit_status)
+
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus]
+    ) -> None:
+        # First round to check existence (fail early if any is ko)
+        for visit_status in visit_statuses:
+            origin_url = self.origin_get({"url": visit_status.origin})
+            if not origin_url:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+
+        self.journal_writer.origin_visit_status_add(visit_statuses)
+        for visit_status in visit_statuses:
+            self._origin_visit_status_add(visit_status)
 
     def origin_visit_update(
         self,
@@ -1090,22 +1105,39 @@ class CassandraStorage:
         origin_url: str,
         authority: Dict[str, str],
         after: Optional[datetime.datetime] = None,
-        limit: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
-        if after is None:
+        if page_token is not None:
+            (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
+                page_token
+            )
+            if after and after_date < after:
+                raise StorageArgumentException(
+                    "page_token is inconsistent with the value of 'after'."
+                )
+            entries = self._cql_runner.origin_metadata_get_after_date_and_fetcher(
+                origin_url,
+                authority["type"],
+                authority["url"],
+                after_date,
+                after_fetcher_name,
+                after_fetcher_url,
+            )
+        elif after is not None:
+            entries = self._cql_runner.origin_metadata_get_after_date(
+                origin_url, authority["type"], authority["url"], after
+            )
+        else:
             entries = self._cql_runner.origin_metadata_get(
                 origin_url, authority["type"], authority["url"]
             )
-        else:
-            entries = self._cql_runner.origin_metadata_get_after(
-                origin_url, authority["type"], authority["url"], after
-            )
 
         if limit:
-            entries = itertools.islice(entries, 0, limit)
+            entries = itertools.islice(entries, 0, limit + 1)
 
         results = []
         for entry in entries:
@@ -1126,7 +1158,25 @@ class CassandraStorage:
                     "metadata": entry.metadata,
                 }
             )
-        return results
+
+        if len(results) > limit:
+            results.pop()
+            assert len(results) == limit
+            last_result = results[-1]
+            next_page_token: Optional[bytes] = msgpack_dumps(
+                (
+                    last_result["discovery_date"],
+                    last_result["fetcher"]["name"],
+                    last_result["fetcher"]["version"],
+                )
+            )
+        else:
+            next_page_token = None
+
+        return {
+            "next_page_token": next_page_token,
+            "results": results,
+        }
 
     def metadata_fetcher_add(
         self, name: str, version: str, metadata: Dict[str, Any]

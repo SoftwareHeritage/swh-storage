@@ -10,6 +10,7 @@ from attr import evolve
 from swh.model.model import (
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Snapshot,
     Directory,
     Revision,
@@ -83,6 +84,11 @@ class JournalWriter:
 
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         self.write_additions("origin_visit", visits)
+
+    def origin_visit_status_add(
+        self, visit_statuses: Iterable[OriginVisitStatus]
+    ) -> None:
+        self.write_additions("origin_visit_status", visit_statuses)
 
     def origin_add(self, origins: Iterable[Origin]) -> None:
         self.write_additions("origin", origins)
