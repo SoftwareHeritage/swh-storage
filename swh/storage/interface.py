@@ -810,25 +810,6 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("origin/visit/upsert")
-    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
-        """Add a origin_visits with a specific id and with all its data.
-        If there is already an origin_visit with the same
-        `(origin_id, visit_id)`, overwrites it.
-
-        Args:
-            visits: iterable of dicts with keys:
-
-                - **origin**: dict with keys either `id` or `url`
-                - **visit**: origin visit id
-                - **date**: timestamp of such visit
-                - **status**: Visit's new status
-                - **metadata**: Data associated to the visit
-                - **snapshot**: identifier of the snapshot to add to
-                    the visit
-        """
-        ...
-
     @remote_api_endpoint("origin/visit/get")
     def origin_visit_get(
         self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None

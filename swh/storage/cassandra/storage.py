@@ -28,7 +28,6 @@ from swh.model.model import (
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
-from swh.storage.validate import convert_validation_exceptions
 from swh.storage.utils import now
 
 from ..exc import StorageArgumentException, HashCollision
@@ -878,26 +877,6 @@ class CassandraStorage:
         assert row_visit is not None
         visit = self._format_origin_visit_row(row_visit)
         return self._origin_visit_apply_last_status(visit)
-
-    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
-        for visit in visits:
-            if visit.visit is None:
-                raise StorageArgumentException(f"Missing visit id for visit {visit}")
-
-        self.journal_writer.origin_visit_upsert(visits)
-        for visit in visits:
-            assert visit.visit is not None
-            self._cql_runner.origin_visit_upsert(visit)
-            with convert_validation_exceptions():
-                visit_status = OriginVisitStatus(
-                    origin=visit.origin,
-                    visit=visit.visit,
-                    date=now(),
-                    status=visit.status,
-                    snapshot=visit.snapshot,
-                    metadata=visit.metadata,
-                )
-            self._origin_visit_status_add(visit_status)
 
     @staticmethod
     def _format_origin_visit_row(visit):

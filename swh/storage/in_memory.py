@@ -45,7 +45,6 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
-from swh.storage.validate import convert_validation_exceptions
 from swh.storage.utils import now
 
 from .exc import StorageArgumentException, HashCollision
@@ -852,48 +851,6 @@ class InMemoryStorage:
 
         for visit_status in visit_statuses:
             self._origin_visit_status_add_one(visit_status)
-
-    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
-        for visit in visits:
-            if visit.visit is None:
-                raise StorageArgumentException(f"Missing visit id for visit {visit}")
-
-        self.journal_writer.origin_visit_upsert(visits)
-
-        date = now()
-
-        for visit in visits:
-            assert visit.visit is not None
-            assert visit.visit > 0
-            origin_url = visit.origin
-            origin = self.origin_get({"url": origin_url})
-
-            if not origin:  # Cannot add a visit without an origin
-                raise StorageArgumentException("Unknown origin %s", origin_url)
-
-            if origin_url in self._origins:
-                origin = self._origins[origin_url]
-                # visit ids are in the range [1, +inf[
-                assert visit.visit is not None
-                visit_key = (origin_url, visit.visit)
-
-                with convert_validation_exceptions():
-                    visit_status = OriginVisitStatus(
-                        origin=origin_url,
-                        visit=visit.visit,
-                        date=date,
-                        status=visit.status,
-                        snapshot=visit.snapshot,
-                        metadata=visit.metadata,
-                    )
-
-                while len(self._origin_visits[origin_url]) < visit.visit:
-                    self._origin_visits[origin_url].append(None)
-
-                self._origin_visits[origin_url][visit.visit - 1] = visit
-                self._origin_visit_status_add_one(visit_status)
-
-                self._objects[visit_key].append(("origin_visit", None))
 
     def _origin_visit_get_updated(self, origin: str, visit_id: int) -> OriginVisit:
         """Merge origin visit and latest origin visit status
