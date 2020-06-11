@@ -3831,10 +3831,6 @@ class TestStorageGeneratedData:
                 if "visit" in obj:
                     del obj["visit"]
                 swh_storage.origin_visit_add(origin_url, obj["date"], obj["type"])
-            elif obj_type == "origin_visit_update":
-                # internal object for now, they don't have a storage
-                # endpoint yet
-                continue
             else:
                 if obj_type == "content" and obj["status"] == "absent":
                     obj_type = "skipped_content"
