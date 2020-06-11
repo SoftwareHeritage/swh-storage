@@ -201,6 +201,7 @@ def _check_replayed(
         "snapshots",
         "origins",
         "origin_visits",
+        "origin_visit_statuses",
     ):
         if exclude and attr in exclude:
             continue
@@ -284,9 +285,8 @@ def test_storage_play_anonymized(
     # Fill the src storage
     nb_sent = 0
     for obj_type, objs in TEST_OBJECTS.items():
-        if obj_type == "origin_visit":
-            # these have non-consistent API and are unrelated with what we
-            # want to test here
+        if obj_type in ("origin_visit", "origin_visit_status"):
+            # these are unrelated with what we want to test here
             continue
         method = getattr(storage, obj_type + "_add")
         method(objs)
@@ -348,6 +348,7 @@ def check_replayed(src, dst, expected_anonymized=False):
         "releases",
         "snapshots",
         "origins",
+        "origin_visit_statuses",
     ):
         expected_objects = [
             (id, maybe_anonymize(obj))
