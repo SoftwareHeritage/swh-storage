@@ -5,7 +5,7 @@
 
 import datetime
 
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional
 
 from swh.core.api import remote_api_endpoint
 from swh.model.model import (
@@ -780,24 +780,18 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/visit/add")
-    def origin_visit_add(
-        self, origin_url: str, date: Union[str, datetime.datetime], type: str
-    ) -> OriginVisit:
-        """Add an origin_visit for the origin at ts with status 'ongoing'.
+    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+        """Add visits to storage. If the visits have no id, they will be created and assigned
+        one. The resulted visits are visits with their visit id set.
 
         Args:
-            origin_url: visited origin identifier (its URL)
-            date: timestamp of such visit
-            type: the type of loader used for the visit (hg, git, ...)
+            visits: Iterable of OriginVisit objects to add
 
         Raises:
-            StorageArgumentException if the date is mistyped, or the origin
-            is unknown.
+            StorageArgumentException if some origin visit reference unknown origins
 
         Returns:
-            dict: dictionary with keys origin and visit where:
-            - origin: origin object
-            - visit: the visit object for the new visit occurrence
+            Iterable[OriginVisit] stored
 
         """
         ...

@@ -7,7 +7,7 @@ import logging
 import traceback
 
 from datetime import datetime
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Dict, Iterable, Optional
 
 from tenacity import (
     retry,
@@ -108,10 +108,8 @@ class RetryingProxyStorage:
         return self.storage.origin_add_one(origin)
 
     @swh_retry
-    def origin_visit_add(
-        self, origin_url: str, date: Union[datetime, str], type: str
-    ) -> OriginVisit:
-        return self.storage.origin_visit_add(origin_url, date, type)
+    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+        return self.storage.origin_visit_add(visits)
 
     @swh_retry
     def origin_visit_update(

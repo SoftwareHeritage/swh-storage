@@ -70,16 +70,10 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
+        method = getattr(src, object_type + "_add")
+        method(objects)
         if object_type == "origin_visit":
-            # src.origin_visit_upsert(objects)
-            for visit in objects:
-                src.origin_visit_add(
-                    origin_url=visit.origin, date=visit.date, type=visit.type
-                )
-                nb_sent += 1  # this adds origin-visit-status as well
-        else:
-            method = getattr(src, object_type + "_add")
-            method(objects)
+            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     caplog.set_level(logging.ERROR, "swh.journal.replay")
@@ -115,15 +109,10 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
+        method = getattr(src, object_type + "_add")
+        method(objects)
         if object_type == "origin_visit":
-            for visit in objects:
-                src.origin_visit_add(
-                    origin_url=visit.origin, date=visit.date, type=visit.type
-                )
-                nb_sent += 1  # this adds origin-visit-status as well
-        else:
-            method = getattr(src, object_type + "_add")
-            method(objects)
+            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     # Create collision in input data
