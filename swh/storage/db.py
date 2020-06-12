@@ -477,31 +477,6 @@ class Db(BaseDb):
             + [jsonize(visit_status.metadata)],
         )
 
-    def origin_visit_update(self, origin_id, visit_id, updates, cur=None):
-        """Update origin_visit's status."""
-        cur = self._cursor(cur)
-        update_cols = []
-        values = []
-        where = ["origin.id = origin_visit.origin", "origin.url=%s", "visit=%s"]
-        where_values = [origin_id, visit_id]
-        if "status" in updates:
-            update_cols.append("status=%s")
-            values.append(updates.pop("status"))
-        if "metadata" in updates:
-            update_cols.append("metadata=%s")
-            values.append(jsonize(updates.pop("metadata")))
-        if "snapshot" in updates:
-            update_cols.append("snapshot=%s")
-            values.append(updates.pop("snapshot"))
-        assert not updates, "Unknown fields: %r" % updates
-        query = """UPDATE origin_visit
-                   SET {update_cols}
-                   FROM origin
-                   WHERE {where}""".format(
-            **{"update_cols": ", ".join(update_cols), "where": " AND ".join(where)}
-        )
-        cur.execute(query, (*values, *where_values))
-
     def origin_visit_upsert(self, origin_visit: OriginVisit, cur=None) -> None:
         # doing an extra query like this is way simpler than trying to join
         # the origin id in the query below

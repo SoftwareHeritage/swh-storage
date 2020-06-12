@@ -810,33 +810,6 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("origin/visit/update")
-    def origin_visit_update(
-        self,
-        origin: str,
-        visit_id: int,
-        status: str,
-        metadata: Optional[Dict] = None,
-        snapshot: Optional[bytes] = None,
-        date: Optional[datetime.datetime] = None,
-    ):
-        """Update an origin_visit's status.
-
-        Args:
-            origin (str): visited origin's URL
-            visit_id: Visit's id
-            status: Visit's new status
-            metadata: Data associated to the visit
-            snapshot (sha1_git): identifier of the snapshot to add to
-                the visit
-            date: Update date
-
-        Returns:
-            None
-
-        """
-        ...
-
     @remote_api_endpoint("origin/visit/upsert")
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         """Add a origin_visits with a specific id and with all its data.

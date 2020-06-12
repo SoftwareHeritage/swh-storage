@@ -838,49 +838,6 @@ class CassandraStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
 
-    def origin_visit_update(
-        self,
-        origin: str,
-        visit_id: int,
-        status: str,
-        metadata: Optional[Dict] = None,
-        snapshot: Optional[bytes] = None,
-        date: Optional[datetime.datetime] = None,
-    ):
-        origin_url = origin  # TODO: rename the argument
-
-        # Get the existing data of the visit
-        visit_ = self.origin_visit_get_by(origin_url, visit_id)
-        if not visit_:
-            raise StorageArgumentException("This origin visit does not exist.")
-        with convert_validation_exceptions():
-            visit = OriginVisit.from_dict(visit_)
-
-        updates: Dict[str, Any] = {"status": status}
-        if metadata and metadata != visit.metadata:
-            updates["metadata"] = metadata
-        if snapshot and snapshot != visit.snapshot:
-            updates["snapshot"] = snapshot
-
-        with convert_validation_exceptions():
-            visit = attr.evolve(visit, **updates)
-
-        self.journal_writer.origin_visit_update([visit])
-
-        last_visit_update = self._origin_visit_get_updated(visit.origin, visit.visit)
-        assert last_visit_update is not None
-
-        with convert_validation_exceptions():
-            visit_status = OriginVisitStatus(
-                origin=origin_url,
-                visit=visit_id,
-                date=date or now(),
-                status=status,
-                snapshot=snapshot or last_visit_update["snapshot"],
-                metadata=metadata or last_visit_update["metadata"],
-            )
-        self._origin_visit_status_add(visit_status)
-
     def _origin_visit_merge(
         self, visit: Dict[str, Any], visit_status: Dict[str, Any]
     ) -> Dict[str, Any]:

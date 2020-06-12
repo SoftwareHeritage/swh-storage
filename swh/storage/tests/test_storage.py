@@ -1427,8 +1427,16 @@ class TestStorage:
                         )
                     ]
                 )[0]
-                swh_storage.origin_visit_update(
-                    origin_url, visit_id=visit.visit, status="full"
+                swh_storage.origin_visit_status_add(
+                    [
+                        OriginVisitStatus(
+                            origin=origin_url,
+                            visit=visit.visit,
+                            date=now(),
+                            status="full",
+                            snapshot=None,
+                        )
+                    ]
                 )
 
         swh_storage.refresh_stat_counters()
@@ -1463,7 +1471,17 @@ class TestStorage:
                         )
                     ]
                 )[0]
-                swh_storage.origin_visit_update(origin_url, visit.visit, status="full")
+                swh_storage.origin_visit_status_add(
+                    [
+                        OriginVisitStatus(
+                            origin=origin_url,
+                            visit=visit.visit,
+                            date=now(),
+                            status="full",
+                            snapshot=None,
+                        )
+                    ]
+                )
 
         random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
         assert random_origin_visit is None
@@ -1842,194 +1860,6 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_update(self, swh_storage):
-        # given
-        origin_url = swh_storage.origin_add_one(data.origin)
-        origin_url2 = swh_storage.origin_add_one(data.origin2)
-        # date_visit < date_visit2
-        date_visit = data.date_visit1
-        date_visit2 = data.date_visit2
-
-        # Round to milliseconds before insertion, so equality doesn't fail
-        # after a round-trip through a DB (eg. Cassandra)
-        date_visit = date_visit.replace(microsecond=round(date_visit.microsecond, -3))
-        date_visit2 = date_visit2.replace(
-            microsecond=round(date_visit2.microsecond, -3)
-        )
-
-        visit1 = OriginVisit(
-            origin=origin_url,
-            date=date_visit,
-            type=data.type_visit1,
-            status="ongoing",
-            snapshot=None,
-        )
-        visit2 = OriginVisit(
-            origin=origin_url,
-            date=date_visit2,
-            type=data.type_visit2,
-            status="ongoing",
-            snapshot=None,
-        )
-        visit3 = OriginVisit(
-            origin=origin_url2,
-            date=date_visit2,
-            type=data.type_visit3,  # noqa
-            status="ongoing",
-            snapshot=None,
-        )
-        ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
-
-        # when
-        visit1_metadata = {
-            "contents": 42,
-            "directories": 22,
-        }
-        swh_storage.origin_visit_update(
-            origin_url, ov1.visit, status="full", metadata=visit1_metadata
-        )
-        swh_storage.origin_visit_update(origin_url2, ov3.visit, status="partial")
-
-        # then
-        actual_origin_visits = list(swh_storage.origin_visit_get(origin_url))
-        expected_visits = [
-            {
-                "origin": origin_url,
-                "date": date_visit,
-                "visit": ov1.visit,
-                "type": data.type_visit1,
-                "status": "full",
-                "metadata": visit1_metadata,
-                "snapshot": None,
-            },
-            {
-                "origin": origin_url,
-                "date": date_visit2,
-                "visit": ov2.visit,
-                "type": data.type_visit2,
-                "status": "ongoing",
-                "metadata": None,
-                "snapshot": None,
-            },
-        ]
-        for visit in expected_visits:
-            assert visit in actual_origin_visits
-
-        actual_origin_visits_bis = list(
-            swh_storage.origin_visit_get(origin_url, limit=1)
-        )
-        assert actual_origin_visits_bis == [
-            {
-                "origin": origin_url,
-                "date": date_visit,
-                "visit": ov1.visit,
-                "type": data.type_visit1,
-                "status": "full",
-                "metadata": visit1_metadata,
-                "snapshot": None,
-            }
-        ]
-
-        actual_origin_visits_ter = list(
-            swh_storage.origin_visit_get(origin_url, last_visit=ov1.visit)
-        )
-        assert actual_origin_visits_ter == [
-            {
-                "origin": origin_url,
-                "date": date_visit2,
-                "visit": ov2.visit,
-                "type": data.type_visit2,
-                "status": "ongoing",
-                "metadata": None,
-                "snapshot": None,
-            }
-        ]
-
-        actual_origin_visits2 = list(swh_storage.origin_visit_get(origin_url2))
-        assert actual_origin_visits2 == [
-            {
-                "origin": origin_url2,
-                "date": date_visit2,
-                "visit": ov3.visit,
-                "type": data.type_visit3,
-                "status": "partial",
-                "metadata": None,
-                "snapshot": None,
-            }
-        ]
-
-        data1 = {
-            "origin": origin_url,
-            "date": date_visit,
-            "visit": ov1.visit,
-            "type": data.type_visit1,
-            "status": "ongoing",
-            "metadata": None,
-            "snapshot": None,
-        }
-        data2 = {
-            "origin": origin_url,
-            "date": date_visit2,
-            "visit": ov2.visit,
-            "type": data.type_visit2,
-            "status": "ongoing",
-            "metadata": None,
-            "snapshot": None,
-        }
-        data3 = {
-            "origin": origin_url2,
-            "date": date_visit2,
-            "visit": ov3.visit,
-            "type": data.type_visit3,
-            "status": "ongoing",
-            "metadata": None,
-            "snapshot": None,
-        }
-        data4 = {
-            "origin": origin_url,
-            "date": date_visit,
-            "visit": ov1.visit,
-            "type": data.type_visit1,
-            "metadata": visit1_metadata,
-            "status": "full",
-            "snapshot": None,
-        }
-        data5 = {
-            "origin": origin_url2,
-            "date": date_visit2,
-            "visit": ov3.visit,
-            "type": data.type_visit3,
-            "status": "partial",
-            "metadata": None,
-            "snapshot": None,
-        }
-        objects = list(swh_storage.journal_writer.journal.objects)
-        assert ("origin", Origin.from_dict(data.origin)) in objects
-        assert ("origin", Origin.from_dict(data.origin2)) in objects
-        assert ("origin_visit", OriginVisit.from_dict(data1)) in objects
-        assert ("origin_visit", OriginVisit.from_dict(data2)) in objects
-        assert ("origin_visit", OriginVisit.from_dict(data3)) in objects
-        assert ("origin_visit", OriginVisit.from_dict(data4)) in objects
-        assert ("origin_visit", OriginVisit.from_dict(data5)) in objects
-
-    def test_origin_visit_update_validation(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
-        visit = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit2,
-            type=data.type_visit2,
-            status="ongoing",
-            snapshot=None,
-        )
-        visit = swh_storage.origin_visit_add([visit])[0]
-        with pytest.raises(
-            (StorageArgumentException, ValueError), match="status"
-        ) as cm:
-            swh_storage.origin_visit_update(origin_url, visit.visit, status="foobar")
-
-        if type(cm.value) == psycopg2.DataError:
-            assert cm.value.pgcode == psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION
-
     def test_origin_visit_find_by_date(self, swh_storage):
         # given
         origin_url = swh_storage.origin_add_one(data.origin)
@@ -2068,36 +1898,6 @@ class TestStorage:
     def test_origin_visit_find_by_date__unknown_origin(self, swh_storage):
         swh_storage.origin_visit_find_by_date("foo", data.date_visit2)
 
-    def test_origin_visit_update_missing_snapshot(self, swh_storage):
-        # given
-        origin_url = swh_storage.origin_add_one(data.origin)
-        visit = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit1,
-            type=data.type_visit1,
-            status="ongoing",
-            snapshot=None,
-        )
-        origin_visit = swh_storage.origin_visit_add([visit])[0]
-
-        # when
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit.visit,
-            status="ongoing",
-            snapshot=data.snapshot["id"],
-        )  # snapshot does not exist yet
-
-        # then
-        actual_origin_visit = swh_storage.origin_visit_get_by(
-            origin_url, origin_visit.visit
-        )
-        assert actual_origin_visit["snapshot"] == data.snapshot["id"]
-
-        # when
-        swh_storage.snapshot_add([data.snapshot])
-        assert actual_origin_visit["snapshot"] == data.snapshot["id"]
-
     def test_origin_visit_get_by(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin)
         origin_url2 = swh_storage.origin_add_one(data.origin2)
@@ -2111,11 +1911,16 @@ class TestStorage:
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
         swh_storage.snapshot_add([data.snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=origin_visit1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
 
         # Add some other {origin, visit} entries
@@ -2141,8 +1946,17 @@ class TestStorage:
             "directories": 22,
         }
 
-        swh_storage.origin_visit_update(
-            origin_url, origin_visit1.visit, status="full", metadata=visit1_metadata
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=origin_visit1.visit,
+                    date=now(),
+                    status="full",
+                    snapshot=data.snapshot["id"],
+                    metadata=visit1_metadata,
+                )
+            ]
         )
 
         expected_origin_visit = origin_visit1.to_dict()
@@ -2458,11 +2272,16 @@ class TestStorage:
         # Add snapshot to visit1; require_snapshot=True makes it return
         # visit1 and require_snapshot=False still returns visit2
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            ov1.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
         assert {
             **origin_visit1,
@@ -2479,7 +2298,18 @@ class TestStorage:
         )
 
         # Mark the first visit as completed and check status filter again
-        swh_storage.origin_visit_update(origin_url, ov1.visit, status="full")
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=now(),
+                    status="full",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
+        )
+
         assert {
             **origin_visit1,
             "snapshot": data.complete_snapshot["id"],
@@ -2490,8 +2320,17 @@ class TestStorage:
 
         # Add snapshot to visit2 and check that the new snapshot is returned
         swh_storage.snapshot_add([data.empty_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url, ov2.visit, status="ongoing", snapshot=data.empty_snapshot["id"]
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov2.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.empty_snapshot["id"],
+                )
+            ]
         )
         assert {
             **origin_visit2,
@@ -2509,11 +2348,17 @@ class TestStorage:
 
         # Add snapshot to visit3 (same date as visit2)
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            ov3.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov3.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
         assert {
             **origin_visit1,
@@ -2559,48 +2404,54 @@ class TestStorage:
 
     def test_snapshot_add_get_empty(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin)
-        visit = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit1,
-            type=data.type_visit1,
-            status="ongoing",
-            snapshot=None,
-        )
-        origin_visit1 = swh_storage.origin_visit_add([visit])[0]
-        visit_id = origin_visit1.visit
+        ov1 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin_url,
+                    date=data.date_visit1,
+                    type=data.type_visit1,
+                    status="ongoing",
+                    snapshot=None,
+                )
+            ]
+        )[0]
 
         actual_result = swh_storage.snapshot_add([data.empty_snapshot])
         assert actual_result == {"snapshot:add": 1}
 
         date_now = now()
 
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.empty_snapshot["id"],
-            date=date_now,
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=date_now,
+                    status="full",
+                    snapshot=data.empty_snapshot["id"],
+                )
+            ]
         )
 
         by_id = swh_storage.snapshot_get(data.empty_snapshot["id"])
         assert by_id == {**data.empty_snapshot, "next_branch": None}
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_url, visit_id)
+        by_ov = swh_storage.snapshot_get_by_origin_visit(origin_url, ov1.visit)
         assert by_ov == {**data.empty_snapshot, "next_branch": None}
 
         data1 = {
             "origin": origin_url,
             "date": data.date_visit1,
-            "visit": origin_visit1.visit,
+            "visit": ov1.visit,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
         }
         data2 = {
             "origin": origin_url,
-            "date": data.date_visit1,
-            "visit": origin_visit1.visit,
-            "status": "ongoing",
+            "date": date_now,
+            "visit": ov1.visit,
+            "status": "full",
             "metadata": None,
             "snapshot": data.empty_snapshot["id"],
         }
@@ -2613,14 +2464,7 @@ class TestStorage:
             ),
             ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.empty_snapshot)),
-            (
-                "origin_visit",
-                OriginVisit.from_dict({**data2, "type": data.type_visit1,}),
-            ),
-            (
-                "origin_visit_status",
-                OriginVisitStatus.from_dict({**data2, "date": date_now}),
-            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data2),),
         ]
 
     def test_snapshot_add_get_complete(self, swh_storage):
@@ -2637,11 +2481,16 @@ class TestStorage:
         visit_id = origin_visit1.visit
 
         actual_result = swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=origin_visit1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
         assert actual_result == {"snapshot:add": 1}
 
@@ -2803,11 +2652,16 @@ class TestStorage:
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=origin_visit1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
 
         snp_id = data.complete_snapshot["id"]
@@ -2923,11 +2777,16 @@ class TestStorage:
         visit_id = origin_visit1.visit
 
         swh_storage.snapshot_add([data.snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=origin_visit1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
 
         by_id = swh_storage.snapshot_get(data.snapshot["id"])
@@ -2939,82 +2798,78 @@ class TestStorage:
         origin_visit_info = swh_storage.origin_visit_get_by(origin_url, visit_id)
         assert origin_visit_info["snapshot"] == data.snapshot["id"]
 
-    def test_snapshot_add_nonexistent_visit(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
-        # unknown visit
-        visit_id = 54164461156
-        swh_storage.journal_writer.journal.objects[:] = []
-
-        swh_storage.snapshot_add([data.snapshot])
-
-        with pytest.raises(StorageArgumentException):
-            swh_storage.origin_visit_update(
-                origin_url, visit_id, status="ongoing", snapshot=data.snapshot["id"]
-            )
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("snapshot", Snapshot.from_dict(data.snapshot))
-        ]
-
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin)
-        visit = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit1,
-            type=data.type_visit1,
-            status="ongoing",
-            snapshot=None,
-        )
-        origin_visit1 = swh_storage.origin_visit_add([visit])[0]
-        visit1_id = origin_visit1.visit
+        ov1 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin_url,
+                    date=data.date_visit1,
+                    type=data.type_visit1,
+                    status="ongoing",
+                    snapshot=None,
+                )
+            ]
+        )[0]
         swh_storage.snapshot_add([data.snapshot])
         date_now2 = now()
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.snapshot["id"],
-            date=date_now2,
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=date_now2,
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
 
-        by_ov1 = swh_storage.snapshot_get_by_origin_visit(origin_url, visit1_id)
+        by_ov1 = swh_storage.snapshot_get_by_origin_visit(origin_url, ov1.visit)
         assert by_ov1 == {**data.snapshot, "next_branch": None}
 
-        visit2 = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit2,
-            type=data.type_visit2,
-            status="ongoing",
-            snapshot=None,
-        )
-        origin_visit2 = swh_storage.origin_visit_add([visit2])[0]
-        visit2_id = origin_visit2.visit
+        ov2 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin_url,
+                    date=data.date_visit2,
+                    type=data.type_visit2,
+                    status="ongoing",
+                    snapshot=None,
+                )
+            ]
+        )[0]
 
         swh_storage.snapshot_add([data.snapshot])
         date_now4 = now()
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit2.visit,
-            status="ongoing",
-            snapshot=data.snapshot["id"],
-            date=date_now4,
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov2.visit,
+                    date=date_now4,
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
 
-        by_ov2 = swh_storage.snapshot_get_by_origin_visit(origin_url, visit2_id)
+        by_ov2 = swh_storage.snapshot_get_by_origin_visit(origin_url, ov2.visit)
         assert by_ov2 == {**data.snapshot, "next_branch": None}
 
         data1 = {
             "origin": origin_url,
             "date": data.date_visit1,
-            "visit": origin_visit1.visit,
+            "visit": ov1.visit,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
         }
         data2 = {
             "origin": origin_url,
-            "date": data.date_visit1,
-            "visit": origin_visit1.visit,
+            "date": date_now2,
+            "visit": ov1.visit,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.snapshot["id"],
@@ -3022,15 +2877,15 @@ class TestStorage:
         data3 = {
             "origin": origin_url,
             "date": data.date_visit2,
-            "visit": origin_visit2.visit,
+            "visit": ov2.visit,
             "status": "ongoing",
             "metadata": None,
             "snapshot": None,
         }
         data4 = {
             "origin": origin_url,
-            "date": data.date_visit2,
-            "visit": origin_visit2.visit,
+            "date": date_now4,
+            "visit": ov2.visit,
             "status": "ongoing",
             "metadata": None,
             "snapshot": data.snapshot["id"],
@@ -3044,27 +2899,13 @@ class TestStorage:
             ),
             ("origin_visit_status", OriginVisitStatus.from_dict(data1)),
             ("snapshot", Snapshot.from_dict(data.snapshot)),
-            (
-                "origin_visit",
-                OriginVisit.from_dict({**data2, "type": data.type_visit1}),
-            ),
-            (
-                "origin_visit_status",
-                OriginVisitStatus.from_dict({**data2, "date": date_now2}),
-            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data2),),
             (
                 "origin_visit",
                 OriginVisit.from_dict({**data3, "type": data.type_visit2}),
             ),
             ("origin_visit_status", OriginVisitStatus.from_dict(data3)),
-            (
-                "origin_visit",
-                OriginVisit.from_dict({**data4, "type": data.type_visit2}),
-            ),
-            (
-                "origin_visit_status",
-                OriginVisitStatus.from_dict({**data4, "date": date_now4}),
-            ),
+            ("origin_visit_status", OriginVisitStatus.from_dict(data4),),
         ]
 
     def test_snapshot_get_latest(self, swh_storage):
@@ -3097,11 +2938,16 @@ class TestStorage:
 
         # Add snapshot to visit1, latest snapshot = visit 1 snapshot
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            ov1.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
         assert {
             **data.complete_snapshot,
@@ -3116,7 +2962,17 @@ class TestStorage:
         )
 
         # Mark the first visit as completed and check status filter again
-        swh_storage.origin_visit_update(origin_url, ov1.visit, status="full")
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=now(),
+                    status="full",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
+        )
         assert {
             **data.complete_snapshot,
             "next_branch": None,
@@ -3124,8 +2980,16 @@ class TestStorage:
 
         # Add snapshot to visit2 and check that the new snapshot is returned
         swh_storage.snapshot_add([data.empty_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url, ov2.visit, status="ongoing", snapshot=data.empty_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov2.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.empty_snapshot["id"],
+                )
+            ]
         )
         assert {
             **data.empty_snapshot,
@@ -3141,11 +3005,16 @@ class TestStorage:
         # Add snapshot to visit3 (same date as visit2) and check that
         # the new snapshot is returned
         swh_storage.snapshot_add([data.complete_snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            ov3.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov3.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
         assert {
             **data.complete_snapshot,
@@ -3176,11 +3045,16 @@ class TestStorage:
 
         # Add unknown snapshot to visit1, check that the inconsistency is
         # detected
-        swh_storage.origin_visit_update(
-            origin_url,
-            ov1.visit,
-            status="ongoing",
-            snapshot=data.complete_snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
         )
         with pytest.raises(Exception):
             # XXX: should the exception be more specific than this?
@@ -3194,7 +3068,18 @@ class TestStorage:
         )
 
         # Mark the first visit as completed and check status filter again
-        swh_storage.origin_visit_update(origin_url, ov1.visit, status="full")
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov1.visit,
+                    date=now(),
+                    status="full",
+                    snapshot=data.complete_snapshot["id"],
+                )
+            ]
+        )
+
         with pytest.raises(Exception):
             # XXX: should the exception be more specific than this?
             swh_storage.snapshot_get_latest(origin_url, allowed_statuses=["full"]),
@@ -3208,8 +3093,16 @@ class TestStorage:
 
         # Add unknown snapshot to visit2 and check that the inconsistency
         # is detected
-        swh_storage.origin_visit_update(
-            origin_url, ov2.visit, status="ongoing", snapshot=data.snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=ov2.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
         with pytest.raises(Exception):
             # XXX: should the exception be more specific than this?
@@ -3280,11 +3173,16 @@ class TestStorage:
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
         swh_storage.snapshot_add([data.snapshot])
-        swh_storage.origin_visit_update(
-            origin_url,
-            origin_visit1.visit,
-            status="ongoing",
-            snapshot=data.snapshot["id"],
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=origin_visit1.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
         swh_storage.directory_add([data.dir])
         swh_storage.revision_add([data.revision])
@@ -4023,8 +3921,16 @@ class TestStorageGeneratedData:
             origin=origin_url, date=now(), type="git", status="ongoing", snapshot=None
         )
         visit = swh_storage.origin_visit_add([visit])[0]
-        swh_storage.origin_visit_update(
-            origin_url, visit.visit, status="ongoing", snapshot=data.snapshot["id"]
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin_url,
+                    visit=visit.visit,
+                    date=now(),
+                    status="ongoing",
+                    snapshot=data.snapshot["id"],
+                )
+            ]
         )
 
         assert swh_storage.origin_count("github", with_visit=False) == 3

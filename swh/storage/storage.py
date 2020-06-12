@@ -878,64 +878,6 @@ class Storage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status, db, cur)
 
-    @timed
-    @db_transaction()
-    def origin_visit_update(
-        self,
-        origin: str,
-        visit_id: int,
-        status: str,
-        metadata: Optional[Dict] = None,
-        snapshot: Optional[bytes] = None,
-        date: Optional[datetime.datetime] = None,
-        db=None,
-        cur=None,
-    ):
-        if not isinstance(origin, str):
-            raise StorageArgumentException(
-                "origin must be a string, not %r" % (origin,)
-            )
-        origin_url = origin
-        visit = db.origin_visit_get(origin_url, visit_id, cur=cur)
-
-        if not visit:
-            raise StorageArgumentException("Invalid visit_id for this origin.")
-
-        visit = dict(zip(db.origin_visit_get_cols, visit))
-
-        updates: Dict[str, Any] = {
-            "status": status,
-        }
-        if metadata and metadata != visit["metadata"]:
-            updates["metadata"] = metadata
-        if snapshot and snapshot != visit["snapshot"]:
-            updates["snapshot"] = snapshot
-
-        if updates:
-            with convert_validation_exceptions():
-                updated_visit = OriginVisit.from_dict({**visit, **updates})
-            self.journal_writer.origin_visit_update([updated_visit])
-
-            # Write updates to origin visit (backward compatibility)
-            db.origin_visit_update(origin, visit_id, updates)
-
-            # Add new origin visit status
-            last_visit_status = self._origin_visit_get_updated(
-                origin, visit_id, db=db, cur=cur
-            )
-            assert last_visit_status is not None
-
-            with convert_validation_exceptions():
-                visit_status = OriginVisitStatus(
-                    origin=origin_url,
-                    visit=visit_id,
-                    date=date or now(),
-                    status=status,
-                    snapshot=snapshot or last_visit_status["snapshot"],
-                    metadata=metadata or last_visit_status["metadata"],
-                )
-                self._origin_visit_status_add(visit_status, db=db, cur=cur)
-
     def _origin_visit_get_updated(
         self, origin: str, visit_id: int, db, cur
     ) -> Optional[Dict[str, Any]]:

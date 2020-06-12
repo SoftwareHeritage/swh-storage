@@ -853,56 +853,6 @@ class InMemoryStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add_one(visit_status)
 
-    def origin_visit_update(
-        self,
-        origin: str,
-        visit_id: int,
-        status: str,
-        metadata: Optional[Dict] = None,
-        snapshot: Optional[bytes] = None,
-        date: Optional[datetime.datetime] = None,
-    ):
-        origin_url = self._get_origin_url(origin)
-        if origin_url is None:
-            raise StorageArgumentException("Unknown origin.")
-
-        try:
-            visit = self._origin_visits[origin_url][visit_id - 1]
-        except IndexError:
-            raise StorageArgumentException("Unknown visit_id for this origin") from None
-
-        updates: Dict[str, Any] = {
-            "status": status,
-        }
-        if metadata and metadata != visit.metadata:
-            updates["metadata"] = metadata
-        if snapshot and snapshot != visit.snapshot:
-            updates["snapshot"] = snapshot
-
-        if updates:
-            with convert_validation_exceptions():
-                updated_visit = OriginVisit.from_dict({**visit.to_dict(), **updates})
-            self.journal_writer.origin_visit_update([updated_visit])
-
-            self._origin_visits[origin_url][visit_id - 1] = updated_visit
-
-            # Retrieve the previous visit status
-            assert visit.visit is not None
-
-            last_visit_status = self._origin_visit_get_updated(origin, visit_id)
-            assert last_visit_status is not None
-
-            with convert_validation_exceptions():
-                visit_status = OriginVisitStatus(
-                    origin=origin_url,
-                    visit=visit_id,
-                    date=date or now(),
-                    status=status,
-                    snapshot=snapshot or last_visit_status.snapshot,
-                    metadata=metadata or last_visit_status.metadata,
-                )
-                self._origin_visit_status_add_one(visit_status)
-
     def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
         for visit in visits:
             if visit.visit is None:
