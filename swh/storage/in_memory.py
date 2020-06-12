@@ -5,7 +5,6 @@
 
 import re
 import bisect
-import dateutil
 import collections
 import copy
 import datetime
@@ -26,7 +25,6 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
-    Union,
 )
 
 import attr
@@ -794,54 +792,43 @@ class InMemoryStorage:
 
         return origin.url
 
-    def origin_visit_add(
-        self, origin_url: str, date: Union[str, datetime.datetime], type: str
-    ) -> OriginVisit:
-        if isinstance(date, str):
-            # FIXME: Converge on iso8601 at some point
-            date = dateutil.parser.parse(date)
-        elif not isinstance(date, datetime.datetime):
-            raise StorageArgumentException("Date must be a datetime or a string")
+    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+        for visit in visits:
+            origin = self.origin_get({"url": visit.origin})
+            if not origin:  # Cannot add a visit without an origin
+                raise StorageArgumentException("Unknown origin %s", visit.origin)
 
-        origin = self.origin_get({"url": origin_url})
-        if not origin:  # Cannot add a visit without an origin
-            raise StorageArgumentException("Unknown origin %s", origin_url)
+        all_visits = []
+        for visit in visits:
+            origin_url = visit.origin
+            if origin_url in self._origins:
+                origin = self._origins[origin_url]
+                if visit.visit:
+                    self.journal_writer.origin_visit_add([visit])
+                    while len(self._origin_visits[origin_url]) < visit.visit:
+                        self._origin_visits[origin_url].append(None)
+                    self._origin_visits[origin_url][visit.visit - 1] = visit
+                    visit_status_dict = visit.to_dict()
+                    visit_status_dict.pop("type")
+                    visit_status = OriginVisitStatus.from_dict(visit_status_dict)
+                    self._origin_visit_status_add_one(visit_status)
+                else:
+                    # visit ids are in the range [1, +inf[
+                    visit_id = len(self._origin_visits[origin_url]) + 1
+                    visit = attr.evolve(visit, visit=visit_id)
+                    self.journal_writer.origin_visit_add([visit])
+                    self._origin_visits[origin_url].append(visit)
+                    visit_key = (origin_url, visit.visit)
 
-        if origin_url in self._origins:
-            origin = self._origins[origin_url]
-            # visit ids are in the range [1, +inf[
-            visit_id = len(self._origin_visits[origin_url]) + 1
-            status = "ongoing"
-            with convert_validation_exceptions():
-                visit = OriginVisit(
-                    origin=origin_url,
-                    date=date,
-                    type=type,
-                    # TODO: Remove when we remove those fields from the model
-                    status=status,
-                    snapshot=None,
-                    metadata=None,
-                    visit=visit_id,
-                )
-            self.journal_writer.origin_visit_add([visit])
-            self._origin_visits[origin_url].append(visit)
-            assert visit.visit is not None
-            visit_key = (origin_url, visit.visit)
+                    visit_status_dict = visit.to_dict()
+                    visit_status_dict.pop("type")
+                    visit_status = OriginVisitStatus.from_dict(visit_status_dict)
+                    self._origin_visit_status_add_one(visit_status)
+                    self._objects[visit_key].append(("origin_visit", None))
+                assert visit.visit is not None
+                all_visits.append(visit)
 
-            with convert_validation_exceptions():
-                visit_update = OriginVisitStatus(
-                    origin=origin_url,
-                    visit=visit_id,
-                    date=date,
-                    status=status,
-                    snapshot=None,
-                    metadata=None,
-                )
-            self._origin_visit_status_add_one(visit_update)
-            self._objects[visit_key].append(("origin_visit", None))
-
-        # return last visit
-        return visit
+        return all_visits
 
     def _origin_visit_status_add_one(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status without checks.
