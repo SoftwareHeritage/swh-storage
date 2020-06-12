@@ -835,7 +835,6 @@ class CassandraStorage:
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 
-        self.journal_writer.origin_visit_status_add(visit_statuses)
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
 
