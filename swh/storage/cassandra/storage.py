@@ -8,10 +8,9 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Dict, List, Iterable, Optional, Union
+from typing import Any, Dict, List, Iterable, Optional
 
 import attr
-import dateutil
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
@@ -795,48 +794,32 @@ class CassandraStorage:
 
         return origin_url
 
-    def origin_visit_add(
-        self, origin_url: str, date: Union[str, datetime.datetime], type: str
-    ) -> OriginVisit:
-        if isinstance(date, str):
-            # FIXME: Converge on iso8601 at some point
-            date = dateutil.parser.parse(date)
-        elif not isinstance(date, datetime.datetime):
-            raise StorageArgumentException("Date must be a datetime or a string")
+    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+        for visit in visits:
+            origin = self.origin_get({"url": visit.origin})
+            if not origin:  # Cannot add a visit without an origin
+                raise StorageArgumentException("Unknown origin %s", visit.origin)
 
-        if not self.origin_get_one({"url": origin_url}):
-            raise StorageArgumentException("Unknown origin %s", origin_url)
+        all_visits = []
+        nb_visits = 0
+        for visit in visits:
+            nb_visits += 1
+            if not visit.visit:
+                visit_id = self._cql_runner.origin_generate_unique_visit_id(
+                    visit.origin
+                )
+                visit = attr.evolve(visit, visit=visit_id)
+            self.journal_writer.origin_visit_add([visit])
+            self._cql_runner.origin_visit_add_one(visit)
+            assert visit.visit is not None
+            all_visits.append(visit)
 
-        visit_id = self._cql_runner.origin_generate_unique_visit_id(origin_url)
-        visit_state = "ongoing"
-        with convert_validation_exceptions():
-            visit = OriginVisit.from_dict(
-                {
-                    "origin": origin_url,
-                    "date": date,
-                    "type": type,
-                    "status": visit_state,
-                    "snapshot": None,
-                    "metadata": None,
-                    "visit": visit_id,
-                }
-            )
+            visit_status_dict = visit.to_dict()
+            visit_status_dict.pop("type")
+            visit_status = OriginVisitStatus.from_dict(visit_status_dict)
+            self._origin_visit_status_add(visit_status)
 
-        self.journal_writer.origin_visit_add([visit])
-        self._cql_runner.origin_visit_add_one(visit)
-
-        with convert_validation_exceptions():
-            visit_status = OriginVisitStatus(
-                origin=origin_url,
-                visit=visit_id,
-                date=date,
-                status=visit_state,
-                snapshot=None,
-                metadata=None,
-            )
-        self._origin_visit_status_add(visit_status)
-
-        return visit
+        return all_visits
 
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status"""

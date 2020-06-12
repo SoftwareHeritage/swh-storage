@@ -16,6 +16,7 @@ from swh.model.model import (
     Snapshot,
     SkippedContent,
     Origin,
+    OriginVisit,
 )
 
 from swh.storage import get_storage
@@ -355,7 +356,10 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    origin_visit = swh_storage.origin_visit_add(origin_url, date_visit1, "hg")
+    visit = OriginVisit(
+        origin=origin_url, date=date_visit1, type="hg", status="ongoing", snapshot=None
+    )
+    origin_visit = swh_storage.origin_visit_add([visit])[0]
     assert origin_visit.origin == origin_url
     assert isinstance(origin_visit.visit, int)
 
@@ -374,27 +378,26 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     origin_url = swh_storage.origin_add_one(sample_origin)
 
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_visit_add")
+    visit = OriginVisit(
+        origin=origin_url, date=date_visit1, type="git", status="ongoing", snapshot=None
+    )
     mock_memory.side_effect = [
         # first try goes ko
         fake_hash_collision,
         # second try goes ko
         psycopg2.IntegrityError("origin already inserted"),
         # ok then!
-        {"origin": origin_url, "visit": 1},
+        [visit],
     ]
 
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    r = swh_storage.origin_visit_add(origin_url, date_visit1, "git")
-    assert r == {"origin": origin_url, "visit": 1}
+    r = swh_storage.origin_visit_add([visit])
+    assert r == [visit]
 
     mock_memory.assert_has_calls(
-        [
-            call(origin_url, date_visit1, "git"),
-            call(origin_url, date_visit1, "git"),
-            call(origin_url, date_visit1, "git"),
-        ]
+        [call([visit]), call([visit]), call([visit]),]
     )
 
 
@@ -413,10 +416,17 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     assert not origin
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.origin_visit_add(origin_url, date_visit1, "svn")
+        visit = OriginVisit(
+            origin=origin_url,
+            date=date_visit1,
+            type="svn",
+            status="ongoing",
+            snapshot=None,
+        )
+        swh_storage.origin_visit_add([visit])
 
     mock_memory.assert_has_calls(
-        [call(origin_url, date_visit1, "svn"),]
+        [call([visit]),]
     )
 
 
@@ -675,7 +685,11 @@ def test_retrying_proxy_swh_storage_origin_visit_update(swh_storage, sample_data
     """
     sample_origin = sample_data["origin"][0]
     origin_url = swh_storage.origin_add_one(sample_origin)
-    origin_visit = swh_storage.origin_visit_add(origin_url, date_visit1, "hg")
+    visit = OriginVisit(
+        origin=origin_url, date=date_visit1, type="hg", status="ongoing", snapshot=None
+    )
+
+    origin_visit = swh_storage.origin_visit_add([visit])[0]
 
     ov = next(swh_storage.origin_visit_get(origin_url))
     assert ov["origin"] == origin_url

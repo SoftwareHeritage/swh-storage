@@ -53,7 +53,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             for obj in objs:
                 assert isinstance(obj, OriginVisit)
                 storage.origin_add_one(Origin(url=obj.origin))
-                visit = method(obj.origin, date=obj.date, type=obj.type)
+                visit = method([obj])[0]
                 expected_messages += 1 + 1  # 1 visit + 1 visit status
 
                 obj_d = obj.to_dict()
