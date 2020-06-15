@@ -79,9 +79,6 @@ class JournalWriter:
     def origin_visit_add(self, visits: Iterable[OriginVisit]) -> None:
         self.write_additions("origin_visit", visits)
 
-    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
-        self.write_additions("origin_visit", visits)
-
     def origin_visit_status_add(
         self, visit_statuses: Iterable[OriginVisitStatus]
     ) -> None:

@@ -112,19 +112,6 @@ class RetryingProxyStorage:
         return self.storage.origin_visit_add(visits)
 
     @swh_retry
-    def origin_visit_update(
-        self,
-        origin: str,
-        visit_id: int,
-        status: Optional[str] = None,
-        metadata: Optional[Dict] = None,
-        snapshot: Optional[Dict] = None,
-    ) -> Dict:
-        return self.storage.origin_visit_update(
-            origin, visit_id, status=status, metadata=metadata, snapshot=snapshot
-        )
-
-    @swh_retry
     def metadata_fetcher_add(
         self, name: str, version: str, metadata: Dict[str, Any]
     ) -> None:
