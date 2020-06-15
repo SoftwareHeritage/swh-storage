@@ -1702,21 +1702,24 @@ class TestStorage:
         origin2 = Origin(url="new-origin")
         swh_storage.origin_add([origin1, origin2])
 
-        visit1 = OriginVisit(
-            origin=origin1.url,
-            date=data.date_visit1,
-            type=data.type_visit1,
-            status="ongoing",
-            snapshot=None,
+        ov1, ov2 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin1.url,
+                    date=data.date_visit1,
+                    type=data.type_visit1,
+                    status="ongoing",
+                    snapshot=None,
+                ),
+                OriginVisit(
+                    origin=origin2.url,
+                    date=data.date_visit2,
+                    type=data.type_visit2,
+                    status="ongoing",
+                    snapshot=None,
+                ),
+            ]
         )
-        visit2 = OriginVisit(
-            origin=origin2.url,
-            date=data.date_visit2,
-            type=data.type_visit2,
-            status="ongoing",
-            snapshot=None,
-        )
-        ov1, ov2 = swh_storage.origin_visit_add([visit1, visit2])
 
         snapshot_id = data.snapshot["id"]
         date_visit_now = now()
@@ -1755,22 +1758,89 @@ class TestStorage:
         assert origin_visit2["snapshot"] is None
         assert origin_visit2["metadata"] == {"intrinsic": "something"}
 
-        objects = list(swh_storage.journal_writer.journal.objects)
-        visit_status1_dict = ov1.to_dict()
-        visit_status1_dict.pop("type")
-        visit_status2_dict = ov2.to_dict()
-        visit_status2_dict.pop("type")
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
 
-        assert objects == [
-            ("origin", origin1),
-            ("origin", origin2),
-            ("origin_visit", ov1),
-            ("origin_visit_status", OriginVisitStatus.from_dict(visit_status1_dict)),
-            ("origin_visit", ov2),
-            ("origin_visit_status", OriginVisitStatus.from_dict(visit_status2_dict)),
-            ("origin_visit_status", visit_status1),
-            ("origin_visit_status", visit_status2),
-        ]
+        expected_origins = [origin1, origin2]
+        expected_visits = [ov1, ov2]
+        expected_visit_statuses = []
+        for visit in expected_visits:  # out of origin-visit-add calls
+            visit_status = visit.to_dict()
+            visit_status.pop("type")
+            expected_visit_statuses.append(OriginVisitStatus.from_dict(visit_status))
+
+        # out of origin-visit-status add calls
+        expected_visit_statuses += [visit_status1, visit_status2]
+        expected_objects = (
+            [("origin", o) for o in expected_origins]
+            + [("origin_visit", v) for v in expected_visits]
+            + [("origin_visit_status", ovs) for ovs in expected_visit_statuses]
+        )
+
+        assert len(actual_objects) == len(expected_objects)
+        for obj in expected_objects:
+            assert obj in actual_objects
+
+    def test_origin_visit_status_add_twice(self, swh_storage):
+        """Correct origin visit statuses should add a new visit status
+
+        """
+        origin1 = Origin.from_dict(data.origin2)
+        swh_storage.origin_add([origin1])
+        ov1 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin1.url,
+                    date=data.date_visit1,
+                    type=data.type_visit1,
+                    status="ongoing",
+                    snapshot=None,
+                ),
+            ]
+        )[0]
+
+        snapshot_id = data.snapshot["id"]
+        date_visit_now = now()
+        visit_status1 = OriginVisitStatus(
+            origin=ov1.origin,
+            visit=ov1.visit,
+            date=date_visit_now,
+            status="full",
+            snapshot=snapshot_id,
+        )
+
+        swh_storage.origin_visit_status_add([visit_status1])
+        # second call will ignore existing entries (will send to storage though)
+        swh_storage.origin_visit_status_add([visit_status1])
+
+        origin_visits = list(swh_storage.origin_visit_get(ov1.origin))
+
+        assert len(origin_visits) == 1
+        origin_visit1 = origin_visits[0]
+        assert origin_visit1
+        assert origin_visit1["status"] == "full"
+        assert origin_visit1["snapshot"] == snapshot_id
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+
+        expected_origins = [origin1]
+        expected_visits = [ov1]
+        expected_visit_statuses = []
+        for visit in expected_visits:  # out of origin-visit-add calls
+            visit_status = visit.to_dict()
+            visit_status.pop("type")
+            expected_visit_statuses.append(OriginVisitStatus.from_dict(visit_status))
+
+        # write twice in the journal
+        expected_visit_statuses += [visit_status1] * 2
+        expected_objects = (
+            [("origin", o) for o in expected_origins]
+            + [("origin_visit", v) for v in expected_visits]
+            + [("origin_visit_status", ovs) for ovs in expected_visit_statuses]
+        )
+
+        assert len(actual_objects) == len(expected_objects)
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_origin_visit_update(self, swh_storage):
         # given

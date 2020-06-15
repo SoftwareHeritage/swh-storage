@@ -831,13 +831,15 @@ class InMemoryStorage:
         return all_visits
 
     def _origin_visit_status_add_one(self, visit_status: OriginVisitStatus) -> None:
-        """Add an origin visit status without checks.
+        """Add an origin visit status without checks. If already present, do nothing.
 
         """
         self.journal_writer.origin_visit_status_add([visit_status])
         visit_key = (visit_status.origin, visit_status.visit)
         self._origin_visit_statuses.setdefault(visit_key, [])
-        self._origin_visit_statuses[visit_key].append(visit_status)
+        visit_statuses = self._origin_visit_statuses[visit_key]
+        if visit_status not in visit_statuses:
+            visit_statuses.append(visit_status)
 
     def origin_visit_status_add(
         self, visit_statuses: Iterable[OriginVisitStatus],
