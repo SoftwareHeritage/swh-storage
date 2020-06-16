@@ -5,6 +5,8 @@
 
 import datetime
 
+from typing import Optional, Dict
+
 from swh.core.utils import decode_with_escape, encode_with_unescape
 from swh.model import identifiers
 from swh.model.hashutil import MultiHash
@@ -39,19 +41,22 @@ def author_to_db(author):
     return author
 
 
-def db_to_author(fullname, name, email):
+def db_to_author(
+    fullname: Optional[bytes], name: Optional[bytes], email: Optional[bytes]
+) -> Optional[Dict[str, Optional[bytes]]]:
     """Convert the DB representation of an author to a swh-model author.
 
     Args:
-        id (long): the author's identifier
         fullname (bytes): the author's fullname
         name (bytes): the author's name
         email (bytes): the author's email
 
     Returns:
-        dict: a dictionary with four keys: id, fullname, name and email, or
-        None if the id is None
+        a dictionary with three keys (fullname, name and email), or
+        None if all the arguments are None.
     """
+    if (fullname, name, email) == (None, None, None):
+        return None
     return {
         "fullname": fullname,
         "name": name,
