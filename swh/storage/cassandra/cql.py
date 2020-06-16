@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import datetime
 import functools
 import json
 import logging
@@ -711,38 +710,31 @@ class CqlRunner:
             statement, [getattr(visit_update, key) for key in keys[:-1]] + [metadata]
         )
 
-    def _format_origin_visit_status_row(
-        self, visit_status: ResultSet
-    ) -> Dict[str, Any]:
-        """Format a row visit_status into an origin_visit_status dict
+    def origin_visit_status_get_latest(self, origin: str, visit: int,) -> Optional[Row]:
+        """Given an origin visit id, return its latest origin_visit_status
 
-        """
-        return {
-            **visit_status._asdict(),
-            "origin": visit_status.origin,
-            "date": visit_status.date.replace(tzinfo=datetime.timezone.utc),
-            "metadata": (
-                json.loads(visit_status.metadata) if visit_status.metadata else None
-            ),
-        }
+         """
+        rows = self.origin_visit_status_get(origin, visit)
+        return rows[0] if rows else None
 
     @_prepared_statement(
         "SELECT * FROM origin_visit_status "
         "WHERE origin = ? AND visit = ? "
-        "ORDER BY date DESC "
-        "LIMIT 1"
+        "ORDER BY date DESC"
     )
-    def origin_visit_status_get_latest(
-        self, origin: str, visit: int, *, statement
-    ) -> Optional[Dict[str, Any]]:
-        """Given an origin visit id, return its latest origin_visit_status
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        *,
+        statement,
+    ) -> List[Row]:
+        """Return all origin visit statuses for a given visit
 
         """
-        rows = list(self._execute_with_retries(statement, [origin, visit]))
-        if rows:
-            return self._format_origin_visit_status_row(rows[0])
-        else:
-            return None
+        return list(self._execute_with_retries(statement, [origin, visit]))
 
     @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ? AND visit = ?")
     def origin_visit_get_one(

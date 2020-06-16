@@ -878,6 +878,24 @@ class Storage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status, db, cur)
 
+    @timed
+    @db_transaction()
+    def origin_visit_status_get_latest(
+        self,
+        origin_url: str,
+        visit: int,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        db=None,
+        cur=None,
+    ) -> Optional[OriginVisitStatus]:
+        row = db.origin_visit_status_get_latest(
+            origin_url, visit, allowed_statuses, require_snapshot, cur=cur
+        )
+        if not row:
+            return None
+        return OriginVisitStatus.from_dict(row)
+
     def _origin_visit_get_updated(
         self, origin: str, visit_id: int, db, cur
     ) -> Optional[Dict[str, Any]]:
