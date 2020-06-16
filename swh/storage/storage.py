@@ -899,7 +899,7 @@ class Storage:
 
         """
         visit_status = db.origin_visit_status_get_latest(
-            visit["origin"], visit["visit"]
+            visit["origin"], visit["visit"], cur=cur
         )
         return self._origin_visit_merge(visit, visit_status)
 
