@@ -282,9 +282,7 @@ class CqlRunner:
     # 'content_by_*' tables
     ##########################
 
-    @_prepared_statement(
-        "SELECT sha1_git FROM content_by_sha1_git " "WHERE sha1_git IN ?"
-    )
+    @_prepared_statement("SELECT sha1_git FROM content_by_sha1_git WHERE sha1_git IN ?")
     def content_missing_by_sha1_git(
         self, ids: List[bytes], *, statement
     ) -> List[bytes]:
@@ -533,7 +531,7 @@ class CqlRunner:
             statement, [entry[key] for key in self._directory_entry_keys]
         )
 
-    @_prepared_statement("SELECT * FROM directory_entry " "WHERE directory_id IN ?")
+    @_prepared_statement("SELECT * FROM directory_entry WHERE directory_id IN ?")
     def directory_entry_get(self, directory_ids, *, statement) -> ResultSet:
         return self._execute_with_retries(statement, [directory_ids])
 
@@ -552,7 +550,7 @@ class CqlRunner:
         self._execute_with_retries(statement, [snapshot_id])
         self._increment_counter("snapshot", 1)
 
-    @_prepared_statement("SELECT * FROM snapshot " "WHERE id = ?")
+    @_prepared_statement("SELECT * FROM snapshot WHERE id = ?")
     def snapshot_get(self, snapshot_id: Sha1Git, *, statement) -> ResultSet:
         return self._execute_with_retries(statement, [snapshot_id])
 
@@ -581,7 +579,7 @@ class CqlRunner:
         return self._execute_with_retries(statement, [snapshot_id])
 
     @_prepared_statement(
-        "SELECT * FROM snapshot_branch " "WHERE snapshot_id = ? AND name >= ?" "LIMIT ?"
+        "SELECT * FROM snapshot_branch WHERE snapshot_id = ? AND name >= ? LIMIT ?"
     )
     def snapshot_branch_get(
         self, snapshot_id: Sha1Git, from_: bytes, limit: int, *, statement
@@ -627,7 +625,7 @@ class CqlRunner:
         return rows[0].next_visit_id
 
     @_prepared_statement(
-        "UPDATE origin SET next_visit_id=? " "WHERE sha1 = ? IF next_visit_id=?"
+        "UPDATE origin SET next_visit_id=? WHERE sha1 = ? IF next_visit_id=?"
     )
     def origin_generate_unique_visit_id(self, origin_url: str, *, statement) -> int:
         origin_sha1 = hash_url(origin_url)
@@ -663,14 +661,14 @@ class CqlRunner:
         "snapshot",
     ]
 
-    @_prepared_statement("SELECT * FROM origin_visit " "WHERE origin = ? AND visit > ?")
+    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ? AND visit > ?")
     def _origin_visit_get_no_limit(
         self, origin_url: str, last_visit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, last_visit])
 
     @_prepared_statement(
-        "SELECT * FROM origin_visit " "WHERE origin = ? AND visit > ? LIMIT ?"
+        "SELECT * FROM origin_visit WHERE origin = ? AND visit > ? LIMIT ?"
     )
     def _origin_visit_get_limit(
         self, origin_url: str, last_visit: int, limit: int, *, statement
@@ -746,7 +744,7 @@ class CqlRunner:
         else:
             return None
 
-    @_prepared_statement("SELECT * FROM origin_visit " "WHERE origin = ? AND visit = ?")
+    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ? AND visit = ?")
     def origin_visit_get_one(
         self, origin_url: str, visit_id: int, *, statement
     ) -> Optional[Row]:
@@ -757,7 +755,7 @@ class CqlRunner:
         else:
             return None
 
-    @_prepared_statement("SELECT * FROM origin_visit " "WHERE origin = ?")
+    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ?")
     def origin_visit_get_all(self, origin_url: str, *, statement) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url])
 
@@ -908,7 +906,7 @@ class CqlRunner:
         self._execute_with_retries(statement, [])
 
     @_prepared_statement(
-        "SELECT object_type, count FROM object_count " "WHERE partition_key=0"
+        "SELECT object_type, count FROM object_count WHERE partition_key=0"
     )
     def stat_counters(self, *, statement) -> ResultSet:
         return self._execute_with_retries(statement, [])
