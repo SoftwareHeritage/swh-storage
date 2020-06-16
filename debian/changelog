@@ -1,3 +1,19 @@
+swh-storage (0.4.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.4.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-06-16 09:50:25
+    +0200)
+  * Upstream changes:     - v0.4.0     - ardumont/master storage*: Drop
+    leftover code     - storage*: Drop origin_visit_upsert endpoint     -
+    storage*: Remove origin-visit-update endpoint     - replay: Replay
+    origin-visit and origin-visit-status     - in_memory: Make origin-
+    visit-status-add respect "on conflict ignore" policy     -
+    test_storage: Add journal behavior coverage for origin-visit-*add
+    - Start migrating the validate proxy toward using BaseModel objects
+    - storage*: Do not write twice origin-visit-status in journal
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 16 Jun 2020 07:58:23 +0000
+
 swh-storage (0.3.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.3.0     - (tagged by Antoine R. Dumont
