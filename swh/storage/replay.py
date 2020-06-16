@@ -21,6 +21,7 @@ from swh.model.model import (
     Directory,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Revision,
     SkippedContent,
     Snapshot,
@@ -37,6 +38,7 @@ GRAPH_DURATION_METRIC = "swh_graph_replayer_duration_seconds"
 object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
     "origin": Origin.from_dict,
     "origin_visit": OriginVisit.from_dict,
+    "origin_visit_status": OriginVisitStatus.from_dict,
     "snapshot": Snapshot.from_dict,
     "revision": Revision.from_dict,
     "release": Release.from_dict,
@@ -116,15 +118,16 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
     if object_type == "skipped_content":
         skipped_contents = [SkippedContent.from_dict(obj) for obj in objects]
         collision_aware_content_add(storage.skipped_content_add, skipped_contents)
-    elif object_type == "origin_visit":
-        visits: List[OriginVisit] = []
+    elif object_type in ("origin_visit", "origin_visit_status"):
         origins: List[Origin] = []
+        converter_fn = object_converter_fn[object_type]
+        model_objs = []
         for obj in objects:
-            visit = OriginVisit.from_dict(obj)
-            visits.append(visit)
-            origins.append(Origin(url=visit.origin))
+            origins.append(Origin(url=obj["origin"]))
+            model_objs.append(converter_fn(obj))
         storage.origin_add(origins)
-        storage.origin_visit_upsert(visits)
+        method = getattr(storage, f"{object_type}_add")
+        method(model_objs)
     elif object_type in ("directory", "revision", "release", "snapshot", "origin",):
         method = getattr(storage, object_type + "_add")
         method(object_converter_fn[object_type](o) for o in objects)
