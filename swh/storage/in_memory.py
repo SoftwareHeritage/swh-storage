@@ -45,7 +45,6 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
-from swh.storage.validate import convert_validation_exceptions
 from swh.storage.utils import now
 
 from .exc import StorageArgumentException, HashCollision
@@ -831,13 +830,15 @@ class InMemoryStorage:
         return all_visits
 
     def _origin_visit_status_add_one(self, visit_status: OriginVisitStatus) -> None:
-        """Add an origin visit status without checks.
+        """Add an origin visit status without checks. If already present, do nothing.
 
         """
         self.journal_writer.origin_visit_status_add([visit_status])
         visit_key = (visit_status.origin, visit_status.visit)
         self._origin_visit_statuses.setdefault(visit_key, [])
-        self._origin_visit_statuses[visit_key].append(visit_status)
+        visit_statuses = self._origin_visit_statuses[visit_key]
+        if visit_status not in visit_statuses:
+            visit_statuses.append(visit_status)
 
     def origin_visit_status_add(
         self, visit_statuses: Iterable[OriginVisitStatus],
@@ -850,98 +851,6 @@ class InMemoryStorage:
 
         for visit_status in visit_statuses:
             self._origin_visit_status_add_one(visit_status)
-
-    def origin_visit_update(
-        self,
-        origin: str,
-        visit_id: int,
-        status: str,
-        metadata: Optional[Dict] = None,
-        snapshot: Optional[bytes] = None,
-        date: Optional[datetime.datetime] = None,
-    ):
-        origin_url = self._get_origin_url(origin)
-        if origin_url is None:
-            raise StorageArgumentException("Unknown origin.")
-
-        try:
-            visit = self._origin_visits[origin_url][visit_id - 1]
-        except IndexError:
-            raise StorageArgumentException("Unknown visit_id for this origin") from None
-
-        updates: Dict[str, Any] = {
-            "status": status,
-        }
-        if metadata and metadata != visit.metadata:
-            updates["metadata"] = metadata
-        if snapshot and snapshot != visit.snapshot:
-            updates["snapshot"] = snapshot
-
-        if updates:
-            with convert_validation_exceptions():
-                updated_visit = OriginVisit.from_dict({**visit.to_dict(), **updates})
-            self.journal_writer.origin_visit_update([updated_visit])
-
-            self._origin_visits[origin_url][visit_id - 1] = updated_visit
-
-            # Retrieve the previous visit status
-            assert visit.visit is not None
-
-            last_visit_status = self._origin_visit_get_updated(origin, visit_id)
-            assert last_visit_status is not None
-
-            with convert_validation_exceptions():
-                visit_status = OriginVisitStatus(
-                    origin=origin_url,
-                    visit=visit_id,
-                    date=date or now(),
-                    status=status,
-                    snapshot=snapshot or last_visit_status.snapshot,
-                    metadata=metadata or last_visit_status.metadata,
-                )
-                self._origin_visit_status_add_one(visit_status)
-
-    def origin_visit_upsert(self, visits: Iterable[OriginVisit]) -> None:
-        for visit in visits:
-            if visit.visit is None:
-                raise StorageArgumentException(f"Missing visit id for visit {visit}")
-
-        self.journal_writer.origin_visit_upsert(visits)
-
-        date = now()
-
-        for visit in visits:
-            assert visit.visit is not None
-            assert visit.visit > 0
-            origin_url = visit.origin
-            origin = self.origin_get({"url": origin_url})
-
-            if not origin:  # Cannot add a visit without an origin
-                raise StorageArgumentException("Unknown origin %s", origin_url)
-
-            if origin_url in self._origins:
-                origin = self._origins[origin_url]
-                # visit ids are in the range [1, +inf[
-                assert visit.visit is not None
-                visit_key = (origin_url, visit.visit)
-
-                with convert_validation_exceptions():
-                    visit_status = OriginVisitStatus(
-                        origin=origin_url,
-                        visit=visit.visit,
-                        date=date,
-                        status=visit.status,
-                        snapshot=visit.snapshot,
-                        metadata=visit.metadata,
-                    )
-
-                while len(self._origin_visits[origin_url]) < visit.visit:
-                    self._origin_visits[origin_url].append(None)
-
-                self._origin_visits[origin_url][visit.visit - 1] = visit
-                self._origin_visit_status_add_one(visit_status)
-
-                self._objects[visit_key].append(("origin_visit", None))
 
     def _origin_visit_get_updated(self, origin: str, visit_id: int) -> OriginVisit:
         """Merge origin visit and latest origin visit status

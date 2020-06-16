@@ -662,7 +662,6 @@ class CqlRunner:
         "metadata",
         "snapshot",
     ]
-    _origin_visit_update_keys = ["type", "date", "status", "metadata", "snapshot"]
 
     @_prepared_statement("SELECT * FROM origin_visit " "WHERE origin = ? AND visit > ?")
     def _origin_visit_get_no_limit(
@@ -746,23 +745,6 @@ class CqlRunner:
             return self._format_origin_visit_status_row(rows[0])
         else:
             return None
-
-    @_prepared_statement(
-        "UPDATE origin_visit SET "
-        + ", ".join("%s = ?" % key for key in _origin_visit_update_keys)
-        + " WHERE origin = ? AND visit = ?"
-    )
-    def origin_visit_upsert(self, visit: OriginVisit, *, statement) -> None:
-        args: List[Any] = []
-        for column in self._origin_visit_update_keys:
-            if column == "metadata":
-                args.append(json.dumps(visit.metadata))
-            else:
-                args.append(getattr(visit, column))
-
-        self._execute_with_retries(statement, args + [visit.origin, visit.visit])
-        # TODO:  check if there is already one
-        self._increment_counter("origin_visit", 1)
 
     @_prepared_statement("SELECT * FROM origin_visit " "WHERE origin = ? AND visit = ?")
     def origin_visit_get_one(
