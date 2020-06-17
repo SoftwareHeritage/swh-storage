@@ -525,7 +525,18 @@ class Db(BaseDb):
         "ovs.snapshot",
     ]
 
-    def _make_origin_visit_status(self, row: Tuple[Any]) -> Optional[Dict[str, Any]]:
+    origin_visit_status_select_cols = [
+        "o.url AS origin",
+        "ovs.visit",
+        "ovs.date",
+        "ovs.status",
+        "ovs.snapshot",
+        "ovs.metadata",
+    ]
+
+    def _make_origin_visit_status(
+        self, row: Optional[Tuple[Any]]
+    ) -> Optional[Dict[str, Any]]:
         """Make an origin_visit_status dict out of a row
 
         """
@@ -534,21 +545,39 @@ class Db(BaseDb):
         return dict(zip(self.origin_visit_status_cols, row))
 
     def origin_visit_status_get_latest(
-        self, origin: str, visit: int, cur=None
+        self,
+        origin_url: str,
+        visit: int,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        cur=None,
     ) -> Optional[Dict[str, Any]]:
         """Given an origin visit id, return its latest origin_visit_status
 
         """
-        cols = self.origin_visit_status_cols
         cur = self._cursor(cur)
-        cur.execute(
-            f"SELECT {', '.join(cols)} "
-            f"FROM origin_visit_status ovs "
-            f"INNER JOIN origin o on o.id=ovs.origin "
-            f"WHERE o.url=%s AND ovs.visit=%s"
-            f"ORDER BY ovs.date DESC LIMIT 1",
-            (origin, visit),
-        )
+
+        query_parts = [
+            "SELECT %s" % ", ".join(self.origin_visit_status_select_cols),
+            "FROM origin_visit_status ovs ",
+            "INNER JOIN origin o ON o.id = ovs.origin",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin_url]
+        query_parts.append("AND ovs.visit = %s")
+        query_params.append(visit)
+
+        if require_snapshot:
+            query_parts.append("AND ovs.snapshot is not null")
+
+        if allowed_statuses:
+            query_parts.append("AND ovs.status IN %s")
+            query_params.append(tuple(allowed_statuses))
+
+        query_parts.append("ORDER BY ovs.date DESC LIMIT 1")
+        query = "\n".join(query_parts)
+
+        cur.execute(query, tuple(query_params))
         row = cur.fetchone()
         return self._make_origin_visit_status(row)
 
