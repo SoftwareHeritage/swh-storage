@@ -104,7 +104,16 @@ def round_to_milliseconds(date):
     round-trip through a DB (eg. Cassandra)
 
     """
-    return date.replace(microsecond=round(date.microsecond, -3))
+    return date.replace(microsecond=(date.microsecond // 1000) * 1000)
+
+
+def test_round_to_milliseconds():
+    date = now()
+
+    for (ms, expected_ms) in [(0, 0), (1000, 1000), (555555, 555000), (999500, 999000)]:
+        date = date.replace(microsecond=ms)
+        actual_date = round_to_milliseconds(date)
+        assert actual_date.microsecond == expected_ms
 
 
 class LazyContent(Content):
