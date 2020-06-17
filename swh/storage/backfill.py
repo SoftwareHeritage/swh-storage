@@ -21,6 +21,7 @@ import logging
 from swh.core.db import BaseDb
 from swh.journal.writer.kafka import KafkaJournalWriter
 from swh.storage.converters import db_to_release, db_to_revision
+from swh.storage.replay import object_converter_fn
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ PARTITION_KEY = {
     "snapshot": "id",
     "origin": "id",
     "origin_visit": "origin_visit.origin",
+    "origin_visit_status": "origin_visit_status.origin",
 }
 
 COLUMNS = {
@@ -61,15 +63,15 @@ COLUMNS = {
         ("revision.id", "id"),
         "date",
         "date_offset",
+        "date_neg_utc_offset",
         "committer_date",
         "committer_date_offset",
+        "committer_date_neg_utc_offset",
         "type",
         "directory",
         "message",
         "synthetic",
         "metadata",
-        "date_neg_utc_offset",
-        "committer_date_neg_utc_offset",
         (
             "array(select parent_id::bytea from revision_history rh "
             "where rh.id = revision.id order by rh.parent_rank asc)",
@@ -88,10 +90,10 @@ COLUMNS = {
         ("release.id", "id"),
         "date",
         "date_offset",
+        "date_neg_utc_offset",
         "comment",
         ("release.name", "name"),
         "synthetic",
-        "date_neg_utc_offset",
         "target",
         "target_type",
         ("a.id", "author_id"),
@@ -100,12 +102,19 @@ COLUMNS = {
         ("a.fullname", "author_fullname"),
     ],
     "snapshot": ["id", "object_id"],
-    "origin": ["type", "url"],
+    "origin": ["url"],
     "origin_visit": [
         "visit",
-        "origin.type",
-        "origin_visit.type",
-        "url",
+        "type",
+        ("origin.url", "origin"),
+        "date",
+        "snapshot",
+        "status",
+        "metadata",
+    ],
+    "origin_visit_status": [
+        "visit",
+        ("origin.url", "origin"),
         "date",
         "snapshot",
         "status",
@@ -121,6 +130,7 @@ JOINS = {
         "person c on revision.committer=c.id",
     ],
     "origin_visit": ["origin on origin_visit.origin=origin.id"],
+    "origin_visit_status": ["origin on origin_visit_status.origin=origin.id"],
 }
 
 
@@ -171,10 +181,7 @@ def release_converter(db, release):
        compatible objects.
 
     """
-    release = db_to_release(release)
-    if "author" in release and release["author"]:
-        del release["author"]["id"]
-    return release
+    return db_to_release(release)
 
 
 def snapshot_converter(db, snapshot):
@@ -204,22 +211,11 @@ def snapshot_converter(db, snapshot):
     return snapshot
 
 
-def origin_visit_converter(db, origin_visit):
-    origin = {
-        "type": origin_visit.pop("origin.type"),
-        "url": origin_visit.pop("url"),
-    }
-    origin_visit["origin"] = origin
-    origin_visit["type"] = origin_visit.pop("origin_visit.type")
-    return origin_visit
-
-
 CONVERTERS = {
     "directory": directory_converter,
     "revision": revision_converter,
     "release": release_converter,
     "snapshot": snapshot_converter,
-    "origin_visit": origin_visit_converter,
 }
 
 
@@ -307,6 +303,7 @@ RANGE_GENERATORS = {
     "snapshot": lambda start, end: byte_ranges(16, start, end),
     "origin": integer_ranges,
     "origin_visit": integer_ranges,
+    "origin_visit_status": integer_ranges,
 }
 
 
@@ -478,7 +475,8 @@ class JournalBackfiller:
                 _format_range_bound(range_end),
             )
 
-            for obj in fetch(db, object_type, start=range_start, end=range_end,):
+            for obj_d in fetch(db, object_type, start=range_start, end=range_end,):
+                obj = object_converter_fn[object_type](obj_d)
                 if dry_run:
                     continue
                 writer.write_addition(object_type=object_type, object_=obj)

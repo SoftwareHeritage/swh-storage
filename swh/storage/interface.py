@@ -871,7 +871,7 @@ class StorageInterface:
     ) -> Optional[Dict[str, Any]]:
         """Get the latest origin visit for the given origin, optionally
         looking only for those with one of the given allowed_statuses
-        or for those with a known snapshot.
+        or for those with a snapshot.
 
         Args:
             origin: origin URL
@@ -893,6 +893,34 @@ class StorageInterface:
                 - **metadata**: Data associated to the visit
                 - **snapshot** (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
+        """
+        ...
+
+    @remote_api_endpoint("origin/visit_status/get_latest")
+    def origin_visit_status_get_latest(
+        self,
+        origin_url: str,
+        visit: int,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+    ) -> Optional[OriginVisitStatus]:
+        """Get the latest origin visit status for the given origin visit, optionally
+        looking only for those with one of the given allowed_statuses or with a
+        snapshot.
+
+        Args:
+            origin: origin URL
+
+            allowed_statuses: list of visit statuses considered to find the latest
+                visit. Possible values are {created, ongoing, partial, full}. For
+                instance, ``allowed_statuses=['full']`` will only consider visits that
+                have successfully run to completion.
+            require_snapshot: If True, only a visit with a snapshot
+                will be returned.
+
+        Returns:
+            The OriginVisitStatus matching the criteria
+
         """
         ...
 

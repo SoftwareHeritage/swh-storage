@@ -99,6 +99,23 @@ def assert_contents_ok(
         assert actual_list == expected_list, k
 
 
+def round_to_milliseconds(date):
+    """Round datetime to milliseconds before insertion, so equality doesn't fail after a
+    round-trip through a DB (eg. Cassandra)
+
+    """
+    return date.replace(microsecond=(date.microsecond // 1000) * 1000)
+
+
+def test_round_to_milliseconds():
+    date = now()
+
+    for (ms, expected_ms) in [(0, 0), (1000, 1000), (555555, 555000), (999500, 999000)]:
+        date = date.replace(microsecond=ms)
+        actual_date = round_to_milliseconds(date)
+        assert actual_date.microsecond == expected_ms
+
+
 class LazyContent(Content):
     def with_data(self):
         return Content.from_dict({**self.to_dict(), "data": data.cont["data"]})
@@ -1627,12 +1644,8 @@ class TestStorage:
         date_visit = now()
         date_visit2 = date_visit + datetime.timedelta(minutes=1)
 
-        # Round to milliseconds before insertion, so equality doesn't fail
-        # after a round-trip through a DB (eg. Cassandra)
-        date_visit = date_visit.replace(microsecond=round(date_visit.microsecond, -3))
-        date_visit2 = date_visit2.replace(
-            microsecond=round(date_visit2.microsecond, -3)
-        )
+        date_visit = round_to_milliseconds(date_visit)
+        date_visit2 = round_to_milliseconds(date_visit2)
 
         visit1 = OriginVisit(
             origin=origin1.url,
@@ -2135,6 +2148,122 @@ class TestStorage:
             **origin_visit3,
             "snapshot": data.complete_snapshot["id"],
         } == swh_storage.origin_visit_get_latest(origin_url, require_snapshot=True)
+
+    def test_origin_visit_status_get_latest(self, swh_storage):
+        origin1 = Origin.from_dict(data.origin)
+        swh_storage.origin_add_one(data.origin)
+
+        # to have some reference visits
+
+        ov1, ov2 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin1.url,
+                    date=data.date_visit1,
+                    type=data.type_visit1,
+                    status="ongoing",
+                    snapshot=None,
+                ),
+                OriginVisit(
+                    origin=origin1.url,
+                    date=data.date_visit2,
+                    type=data.type_visit2,
+                    status="ongoing",
+                    snapshot=None,
+                ),
+            ]
+        )
+
+        snapshot = Snapshot.from_dict(data.complete_snapshot)
+        swh_storage.snapshot_add([snapshot])
+
+        date_now = now()
+        date_now = round_to_milliseconds(date_now)
+        assert data.date_visit1 < data.date_visit2
+        assert data.date_visit2 < date_now
+
+        ovs1 = OriginVisitStatus(
+            origin=origin1.url,
+            visit=ov1.visit,
+            date=data.date_visit1,
+            status="partial",
+            snapshot=None,
+        )
+        ovs2 = OriginVisitStatus(
+            origin=origin1.url,
+            visit=ov1.visit,
+            date=data.date_visit2,
+            status="ongoing",
+            snapshot=None,
+        )
+        ovs3 = OriginVisitStatus(
+            origin=origin1.url,
+            visit=ov2.visit,
+            date=data.date_visit2,
+            status="ongoing",
+            snapshot=None,
+        )
+        ovs4 = OriginVisitStatus(
+            origin=origin1.url,
+            visit=ov2.visit,
+            date=date_now,
+            status="full",
+            snapshot=snapshot.id,
+            metadata={"something": "wicked"},
+        )
+
+        swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3, ovs4])
+
+        # unknown origin so no result
+        actual_origin_visit = swh_storage.origin_visit_status_get_latest(
+            "unknown-origin", ov1.visit
+        )
+        assert actual_origin_visit is None
+
+        # unknown visit so no result
+        actual_origin_visit = swh_storage.origin_visit_status_get_latest(
+            ov1.origin, ov1.visit + 10
+        )
+        assert actual_origin_visit is None
+
+        # Two visits, both with no snapshot, take the most recent
+        actual_origin_visit2 = swh_storage.origin_visit_status_get_latest(
+            origin1.url, ov1.visit
+        )
+        assert isinstance(actual_origin_visit2, OriginVisitStatus)
+        assert actual_origin_visit2 == ovs2
+        assert ovs2.origin == origin1.url
+        assert ovs2.visit == ov1.visit
+
+        actual_origin_visit = swh_storage.origin_visit_status_get_latest(
+            origin1.url, ov1.visit, require_snapshot=True
+        )
+        # there is no visit with snapshot yet for that visit
+        assert actual_origin_visit is None
+
+        actual_origin_visit2 = swh_storage.origin_visit_status_get_latest(
+            origin1.url, ov1.visit, allowed_statuses=["partial", "ongoing"]
+        )
+        # visit status with partial status visit elected
+        assert actual_origin_visit2 == ovs2
+        assert actual_origin_visit2.status == "ongoing"
+
+        actual_origin_visit4 = swh_storage.origin_visit_status_get_latest(
+            origin1.url, ov2.visit, require_snapshot=True
+        )
+        assert actual_origin_visit4 == ovs4
+        assert actual_origin_visit4.snapshot == snapshot.id
+
+        actual_origin_visit = swh_storage.origin_visit_status_get_latest(
+            origin1.url, ov2.visit, require_snapshot=True, allowed_statuses=["ongoing"]
+        )
+        # nothing matches so nothing
+        assert actual_origin_visit is None  # there is no visit with status full
+
+        actual_origin_visit3 = swh_storage.origin_visit_status_get_latest(
+            origin1.url, ov2.visit, allowed_statuses=["ongoing"]
+        )
+        assert actual_origin_visit3 == ovs3
 
     def test_person_fullname_unicity(self, swh_storage):
         # given (person injection through revisions for example)

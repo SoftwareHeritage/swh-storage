@@ -55,6 +55,14 @@ def test_db_to_author():
     }
 
 
+def test_db_to_author_none():
+    # when
+    actual_author = converters.db_to_author(None, None, None)
+
+    # then
+    assert actual_author is None
+
+
 def test_db_to_revision():
     # when
     actual_revision = converters.db_to_revision(
