@@ -37,6 +37,7 @@ from .converters import (
     revision_from_db,
     release_to_db,
     release_from_db,
+    row_to_visit_status,
 )
 from .cql import CqlRunner
 from .schema import HASH_ALGORITHMS
@@ -838,7 +839,7 @@ class CassandraStorage:
             self._origin_visit_status_add(visit_status)
 
     def _origin_visit_merge(
-        self, visit: Dict[str, Any], visit_status: Dict[str, Any]
+        self, visit: Dict[str, Any], visit_status: OriginVisitStatus,
     ) -> Dict[str, Any]:
         """Merge origin_visit and visit_status together.
 
@@ -848,7 +849,7 @@ class CassandraStorage:
                 # default to the values in visit
                 **visit,
                 # override with the last update
-                **visit_status,
+                **visit_status.to_dict(),
                 # visit['origin'] is the URL (via a join), while
                 # visit_status['origin'] is only an id.
                 "origin": visit["origin"],
@@ -862,11 +863,11 @@ class CassandraStorage:
         Then merge it with the visit and return it.
 
         """
-        visit_status = self._cql_runner.origin_visit_status_get_latest(
+        row = self._cql_runner.origin_visit_status_get_latest(
             visit["origin"], visit["visit"]
         )
-        assert visit_status is not None
-        return self._origin_visit_merge(visit, visit_status)
+        assert row is not None
+        return self._origin_visit_merge(visit, row_to_visit_status(row))
 
     def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
         """Retrieve origin visit and latest origin visit status and merge them
@@ -947,6 +948,25 @@ class CassandraStorage:
             latest_visit = updated_visit
 
         return latest_visit
+
+    def origin_visit_status_get_latest(
+        self,
+        origin_url: str,
+        visit: int,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+    ) -> Optional[OriginVisitStatus]:
+        rows = self._cql_runner.origin_visit_status_get(
+            origin_url, visit, allowed_statuses, require_snapshot
+        )
+        # filtering is done python side as we cannot do it server side
+        if allowed_statuses:
+            rows = [row for row in rows if row.status in allowed_statuses]
+        if require_snapshot:
+            rows = [row for row in rows if row.snapshot is not None]
+        if not rows:
+            return None
+        return row_to_visit_status(rows[0])
 
     def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
         back_in_the_day = now() - datetime.timedelta(weeks=12)  # 3 months back

@@ -942,6 +942,30 @@ class InMemoryStorage:
             return None
         return visit.to_dict()
 
+    def origin_visit_status_get_latest(
+        self,
+        origin_url: str,
+        visit: int,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+    ) -> Optional[OriginVisitStatus]:
+        ori = self._origins.get(origin_url)
+        if not ori:
+            return None
+
+        visit_key = (origin_url, visit)
+        visits = self._origin_visit_statuses.get(visit_key)
+        if not visits:
+            return None
+
+        if allowed_statuses is not None:
+            visits = [visit for visit in visits if visit.status in allowed_statuses]
+        if require_snapshot:
+            visits = [visit for visit in visits if visit.snapshot]
+
+        visit_status = max(visits, key=lambda v: (v.date, v.visit), default=None)
+        return visit_status
+
     def _select_random_origin_visit_by_type(self, type: str) -> str:
         while True:
             url = random.choice(list(self._origin_visits.keys()))

@@ -3,16 +3,20 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from copy import deepcopy
+import datetime
 import json
-from typing import Any, Dict, Tuple
-
 import attr
 
+from copy import deepcopy
+from typing import Any, Dict, Tuple
+
+from cassandra.cluster import ResultSet
+
 from swh.model.model import (
-    RevisionType,
     ObjectType,
+    OriginVisitStatus,
     Revision,
+    RevisionType,
     Release,
     Sha1Git,
 )
@@ -71,3 +75,18 @@ def row_to_content_hashes(row: Row) -> Dict[str, bytes]:
     for algo in DEFAULT_ALGORITHMS:
         hashes[algo] = getattr(row, algo)
     return hashes
+
+
+def row_to_visit_status(row: ResultSet) -> OriginVisitStatus:
+    """Format a row representing a visit_status to an actual dict representing an
+    OriginVisitStatus.
+
+    """
+    return OriginVisitStatus.from_dict(
+        {
+            **row._asdict(),
+            "origin": row.origin,
+            "date": row.date.replace(tzinfo=datetime.timezone.utc),
+            "metadata": (json.loads(row.metadata) if row.metadata else None),
+        }
+    )

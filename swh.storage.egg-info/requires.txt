@@ -10,7 +10,7 @@ swh.model>=0.3
 swh.objstorage>=0.0.40
 
 [journal]
-swh.journal>=0.2
+swh.journal>=0.3.2
 
 [schemata]
 SQLAlchemy
@@ -24,4 +24,4 @@ sqlalchemy-stubs
 swh.model[testing]>=0.0.50
 pytz
 pytest-xdist
-swh.journal>=0.2
+swh.journal>=0.3.2
