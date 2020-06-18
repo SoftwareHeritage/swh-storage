@@ -924,6 +924,7 @@ class CassandraStorage:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[Dict[str, Any]]:
@@ -933,6 +934,8 @@ class CassandraStorage:
         for row in rows:
             visit = self._format_origin_visit_row(row)
             updated_visit = self._origin_visit_apply_last_status(visit)
+            if type is not None and updated_visit["type"] != type:
+                continue
             if allowed_statuses and updated_visit["status"] not in allowed_statuses:
                 continue
             if require_snapshot and updated_visit["snapshot"] is None:

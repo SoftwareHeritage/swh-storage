@@ -984,6 +984,7 @@ class Storage:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
         db=None,
@@ -991,6 +992,7 @@ class Storage:
     ) -> Optional[Dict[str, Any]]:
         row = db.origin_visit_get_latest(
             origin,
+            type=type,
             allowed_statuses=allowed_statuses,
             require_snapshot=require_snapshot,
             cur=cur,

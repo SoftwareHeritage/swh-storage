@@ -918,6 +918,7 @@ class InMemoryStorage:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[Dict[str, Any]]:
@@ -932,6 +933,8 @@ class InMemoryStorage:
             if visit is not None
         ]
 
+        if type is not None:
+            visits = [visit for visit in visits if visit.type == type]
         if allowed_statuses is not None:
             visits = [visit for visit in visits if visit.status in allowed_statuses]
         if require_snapshot:

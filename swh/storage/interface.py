@@ -866,6 +866,7 @@ class StorageInterface:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[Dict[str, Any]]:
@@ -875,6 +876,8 @@ class StorageInterface:
 
         Args:
             origin: origin URL
+            type: Optional visit type to filter on (e.g git, tar, dsc, svn,
+            hg, npm, pypi, ...)
             allowed_statuses: list of visit statuses considered
                 to find the latest visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -893,6 +896,7 @@ class StorageInterface:
                 - **metadata**: Data associated to the visit
                 - **snapshot** (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
+
         """
         ...
 
