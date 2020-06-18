@@ -216,7 +216,8 @@ revision = {
         "signed-off-by": "some-dude",
         "extra_headers": [
             ["gpgsig", b"test123"],
-            ["mergetags", [b"foo\\bar", b"\x22\xaf\x89\x80\x01\x00"]],
+            ["mergetag", b"foo\\bar"],
+            ["mergetag", b"\x22\xaf\x89\x80\x01\x00"],
         ],
     },
     "synthetic": True,
