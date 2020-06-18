@@ -1314,22 +1314,21 @@ class TestStorage:
         origin0 = swh_storage.origin_get([data.origin])[0]
         assert origin0 is None
 
-        origin1, origin2 = swh_storage.origin_add([data.origin, data.origin2])
+        stats = swh_storage.origin_add([data.origin, data.origin2])
+        assert stats == {"origin:add": 2}
 
         actual_origin = swh_storage.origin_get([{"url": data.origin["url"],}])[0]
-        assert actual_origin["url"] == origin1["url"]
+        assert actual_origin["url"] == data.origin["url"]
 
         actual_origin2 = swh_storage.origin_get([{"url": data.origin2["url"],}])[0]
-        assert actual_origin2["url"] == origin2["url"]
+        assert actual_origin2["url"] == data.origin2["url"]
 
-        if "id" in actual_origin:
-            del actual_origin["id"]
-            del actual_origin2["id"]
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", Origin.from_dict(actual_origin)),
-            ("origin", Origin.from_dict(actual_origin2)),
-        ]
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [
+                ("origin", Origin.from_dict(actual_origin)),
+                ("origin", Origin.from_dict(actual_origin2)),
+            ]
+        )
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["origin"] == 2
@@ -1339,40 +1338,47 @@ class TestStorage:
             yield data.origin
             yield data.origin2
 
-        origin1, origin2 = swh_storage.origin_add(_ori_gen())
+        stats = swh_storage.origin_add(_ori_gen())
+        assert stats == {"origin:add": 2}
 
         actual_origin = swh_storage.origin_get([{"url": data.origin["url"],}])[0]
-        assert actual_origin["url"] == origin1["url"]
+        assert actual_origin["url"] == data.origin["url"]
 
         actual_origin2 = swh_storage.origin_get([{"url": data.origin2["url"],}])[0]
-        assert actual_origin2["url"] == origin2["url"]
+        assert actual_origin2["url"] == data.origin2["url"]
 
         if "id" in actual_origin:
             del actual_origin["id"]
             del actual_origin2["id"]
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", Origin.from_dict(actual_origin)),
-            ("origin", Origin.from_dict(actual_origin2)),
-        ]
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [
+                ("origin", Origin.from_dict(actual_origin)),
+                ("origin", Origin.from_dict(actual_origin2)),
+            ]
+        )
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["origin"] == 2
 
     def test_origin_add_twice(self, swh_storage):
         add1 = swh_storage.origin_add([data.origin, data.origin2])
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", Origin.from_dict(data.origin)),
-            ("origin", Origin.from_dict(data.origin2)),
-        ]
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [
+                ("origin", Origin.from_dict(data.origin)),
+                ("origin", Origin.from_dict(data.origin2)),
+            ]
+        )
+        assert add1 == {"origin:add": 2}
 
         add2 = swh_storage.origin_add([data.origin, data.origin2])
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("origin", Origin.from_dict(data.origin)),
-            ("origin", Origin.from_dict(data.origin2)),
-        ]
-
-        assert add1 == add2
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [
+                ("origin", Origin.from_dict(data.origin)),
+                ("origin", Origin.from_dict(data.origin2)),
+            ]
+        )
+        assert add2 == {"origin:add": 0}
 
     def test_origin_add_validation(self, swh_storage):
         """Incorrect formatted origin should fail the validation
@@ -1394,11 +1400,17 @@ class TestStorage:
 
     def test_origin_get(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
+        assert swh_storage.origin_get([data.origin]) == [None]
         swh_storage.origin_add_one(data.origin)
 
         actual_origin0 = swh_storage.origin_get([{"url": data.origin["url"]}])
         assert len(actual_origin0) == 1
         assert actual_origin0[0]["url"] == data.origin["url"]
+
+        actual_origins = swh_storage.origin_get(
+            [{"url": data.origin["url"]}, {"url": "not://exists"}]
+        )
+        assert actual_origins == [{"url": data.origin["url"]}, None]
 
     def _generate_random_visits(self, nb_visits=100, start=0, end=7):
         """Generate random visits within the last 2 months (to avoid
@@ -3234,7 +3246,7 @@ class TestStorage:
         origin = data.origin
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        swh_storage.origin_add([origin])[0]
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add(**fetcher)
         swh_storage.metadata_authority_add(**authority)
@@ -3253,7 +3265,7 @@ class TestStorage:
         origin = data.origin
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        swh_storage.origin_add([origin])[0]
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         new_origin_metadata2 = {
             **data.origin_metadata2,
@@ -3278,7 +3290,7 @@ class TestStorage:
         origin = data.origin
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        swh_storage.origin_add([origin])[0]
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add(**fetcher)
         swh_storage.metadata_authority_add(**authority)
@@ -3296,8 +3308,7 @@ class TestStorage:
         fetcher2 = data.metadata_fetcher2
         origin_url1 = data.origin["url"]
         origin_url2 = data.origin2["url"]
-        swh_storage.origin_add([data.origin])
-        swh_storage.origin_add([data.origin2])
+        assert swh_storage.origin_add([data.origin, data.origin2]) == {"origin:add": 2}
 
         origin1_metadata1 = data.origin_metadata
         origin1_metadata2 = data.origin_metadata2
@@ -3334,7 +3345,7 @@ class TestStorage:
         origin = data.origin
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        swh_storage.origin_add([origin])[0]
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add(**fetcher)
         swh_storage.metadata_authority_add(**authority)
@@ -3368,7 +3379,7 @@ class TestStorage:
         origin = data.origin
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        swh_storage.origin_add([origin])[0]
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add(**fetcher)
         swh_storage.metadata_authority_add(**authority)
@@ -3393,7 +3404,7 @@ class TestStorage:
         fetcher1 = data.metadata_fetcher
         fetcher2 = data.metadata_fetcher2
         authority = data.metadata_authority
-        swh_storage.origin_add([origin])[0]
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add(**fetcher1)
         swh_storage.metadata_fetcher_add(**fetcher2)

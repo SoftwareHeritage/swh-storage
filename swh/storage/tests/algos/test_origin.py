@@ -26,7 +26,12 @@ def swh_storage_backend_config():
 
 
 def test_iter_origins(swh_storage):
-    origins = swh_storage.origin_add([{"url": "bar"}, {"url": "qux"}, {"url": "quuz"},])
+    origins = [
+        {"url": "bar"},
+        {"url": "qux"},
+        {"url": "quuz"},
+    ]
+    assert swh_storage.origin_add(origins) == {"origin:add": 3}
     assert_list_eq(iter_origins(swh_storage), origins)
     assert_list_eq(iter_origins(swh_storage, batch_size=1), origins)
     assert_list_eq(iter_origins(swh_storage, batch_size=2), origins)

@@ -1047,7 +1047,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/add_multi")
-    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
+    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
         """Add origins to the storage
 
         Args:
@@ -1058,7 +1058,9 @@ class StorageInterface:
                 - url (bytes): the url the origin points to
 
         Returns:
-            list: given origins as dict updated with their id
+            Summary dict of keys with associated count as values
+
+                origin:add: Count of object actually stored in db
 
         """
         ...

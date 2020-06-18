@@ -753,11 +753,15 @@ class InMemoryStorage:
             )
         )
 
-    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
-        origins = copy.deepcopy(list(origins))
+    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
+        origins = list(origins)
+        added = 0
         for origin in origins:
-            self.origin_add_one(origin)
-        return [origin.to_dict() for origin in origins]
+            if origin.url not in self._origins:
+                self.origin_add_one(origin)
+                added += 1
+
+        return {"origin:add": added}
 
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:

@@ -1093,26 +1093,28 @@ class Storage:
 
     @timed
     @db_transaction()
-    def origin_add(self, origins: Iterable[Origin], db=None, cur=None) -> List[Dict]:
-        origins = list(origins)
-        for origin in origins:
-            self.origin_add_one(origin, db=db, cur=cur)
+    def origin_add(
+        self, origins: Iterable[Origin], db=None, cur=None
+    ) -> Dict[str, int]:
+        urls = [o.url for o in origins]
+        known_origins = set(url for (url,) in db.origin_get_by_url(urls, cur))
+        # use lists here to keep origins sorted; some tests depend on this
+        to_add = [url for url in urls if url not in known_origins]
 
-        return [o.to_dict() for o in origins]
+        self.journal_writer.origin_add([Origin(url=url) for url in to_add])
+        added = 0
+        for url in to_add:
+            if db.origin_add(url, cur):
+                added += 1
+        return {"origin:add": added}
 
     @timed
     @db_transaction()
     def origin_add_one(self, origin: Origin, db=None, cur=None) -> str:
-        origin_row = list(db.origin_get_by_url([origin.url], cur))[0]
-        origin_url = dict(zip(db.origin_cols, origin_row))["url"]
-        if origin_url:
-            return origin_url
-
-        self.journal_writer.origin_add([origin])
-
-        url = db.origin_add(origin.url, cur)
-        send_metric("origin:add", count=1, method_name="origin_add_one")
-        return url
+        stats = self.origin_add([origin])
+        if stats.get("origin:add", 0):
+            send_metric("origin:add", count=1, method_name="origin_add_one")
+        return origin.url
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

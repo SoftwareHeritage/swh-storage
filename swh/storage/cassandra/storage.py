@@ -763,12 +763,17 @@ class CassandraStorage:
 
         return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
 
-    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
-        results = []
-        for origin in origins:
-            self.origin_add_one(origin)
-            results.append(origin.to_dict())
-        return results
+    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
+        known_origins = [
+            Origin.from_dict(d)
+            for d in self.origin_get([origin.to_dict() for origin in origins])
+            if d is not None
+        ]
+        to_add = [origin for origin in origins if origin not in known_origins]
+        self.journal_writer.origin_add(to_add)
+        for origin in to_add:
+            self._cql_runner.origin_add_one(origin)
+        return {"origin:add": len(to_add)}
 
     def origin_add_one(self, origin: Origin) -> str:
         known_origin = self.origin_get_one(origin.to_dict())
