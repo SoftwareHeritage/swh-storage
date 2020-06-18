@@ -583,22 +583,6 @@ class InMemoryStorage:
         else:
             return None
 
-    def snapshot_get_latest(self, origin, allowed_statuses=None):
-        origin_url = self._get_origin_url(origin)
-        if not origin_url:
-            return
-
-        visit = self.origin_visit_get_latest(
-            origin_url, allowed_statuses=allowed_statuses, require_snapshot=True
-        )
-        if visit and visit["snapshot"]:
-            snapshot = self.snapshot_get(visit["snapshot"])
-            if not snapshot:
-                raise StorageArgumentException(
-                    "last origin visit references an unknown snapshot"
-                )
-            return snapshot
-
     def snapshot_count_branches(self, snapshot_id):
         snapshot = self._snapshots[snapshot_id]
         return collections.Counter(

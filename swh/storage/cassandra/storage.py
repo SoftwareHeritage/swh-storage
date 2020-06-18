@@ -583,17 +583,6 @@ class CassandraStorage:
 
         return self.snapshot_get(visit["snapshot"])
 
-    def snapshot_get_latest(self, origin, allowed_statuses=None):
-        visit = self.origin_visit_get_latest(
-            origin, allowed_statuses=allowed_statuses, require_snapshot=True
-        )
-
-        if visit:
-            assert visit["snapshot"]
-            if self._cql_runner.snapshot_missing([visit["snapshot"]]):
-                raise StorageArgumentException("Visit references unknown snapshot")
-            return self.snapshot_get_branches(visit["snapshot"])
-
     def snapshot_count_branches(self, snapshot_id):
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
