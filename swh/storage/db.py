@@ -6,7 +6,7 @@
 import datetime
 import random
 import select
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
@@ -671,13 +671,19 @@ class Db(BaseDb):
         return bool(cur.fetchone())
 
     def origin_visit_get_latest(
-        self, origin_id: str, allowed_statuses=None, require_snapshot=False, cur=None
+        self,
+        origin_id: str,
+        type: Optional[str],
+        allowed_statuses: Optional[Iterable[str]],
+        require_snapshot: bool,
+        cur=None,
     ):
         """Retrieve the most recent origin_visit of the given origin,
         with optional filters.
 
         Args:
             origin_id: the origin concerned
+            type: Optional visit type to filter on
             allowed_statuses: the visit statuses allowed for the returned visit
             require_snapshot (bool): If True, only a visit with a known
                 snapshot will be returned.
@@ -696,6 +702,10 @@ class Db(BaseDb):
         ]
         query_parts.append("WHERE o.url = %s")
         query_params: List[Any] = [origin_id]
+
+        if type is not None:
+            query_parts.append("AND ov.type = %s")
+            query_params.append(type)
 
         if require_snapshot:
             query_parts.append("AND ovs.snapshot is not null")

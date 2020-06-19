@@ -695,37 +695,6 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("snapshot/latest")
-    def snapshot_get_latest(self, origin, allowed_statuses=None):
-        """Get the content, possibly partial, of the latest snapshot for the
-        given origin, optionally only from visits that have one of the given
-        allowed_statuses
-
-        The branches of the snapshot are iterated in the lexicographical
-        order of their names.
-
-        .. warning:: At most 1000 branches contained in the snapshot will be
-            returned for performance reasons. In order to browse the whole
-            set of branches, the method :meth:`snapshot_get_branches`
-            should be used instead.
-
-        Args:
-            origin (str): the origin's URL
-            allowed_statuses (list of str): list of visit statuses considered
-                to find the latest snapshot for the visit. For instance,
-                ``allowed_statuses=['full']`` will only consider visits that
-                have successfully run to completion.
-        Returns:
-            dict: a dict with three keys:
-                * **id**: identifier of the snapshot
-                * **branches**: a dict of branches contained in the snapshot
-                  whose keys are the branches' names.
-                * **next_branch**: the name of the first branch not returned
-                  or :const:`None` if the snapshot has less than 1000
-                  branches.
-        """
-        ...
-
     @remote_api_endpoint("snapshot/count_branches")
     def snapshot_count_branches(self, snapshot_id):
         """Count the number of branches in the snapshot with the given id
@@ -866,6 +835,7 @@ class StorageInterface:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[Dict[str, Any]]:
@@ -875,6 +845,8 @@ class StorageInterface:
 
         Args:
             origin: origin URL
+            type: Optional visit type to filter on (e.g git, tar, dsc, svn,
+            hg, npm, pypi, ...)
             allowed_statuses: list of visit statuses considered
                 to find the latest visit. For instance,
                 ``allowed_statuses=['full']`` will only consider visits that
@@ -893,6 +865,7 @@ class StorageInterface:
                 - **metadata**: Data associated to the visit
                 - **snapshot** (Optional[sha1_git]): identifier of the snapshot
                     associated to the visit
+
         """
         ...
 

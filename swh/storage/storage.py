@@ -736,30 +736,6 @@ class Storage:
         return None
 
     @timed
-    @db_transaction(statement_timeout=4000)
-    def snapshot_get_latest(self, origin, allowed_statuses=None, db=None, cur=None):
-        if isinstance(origin, int):
-            origin = self.origin_get({"id": origin}, db=db, cur=cur)
-            if not origin:
-                return
-            origin = origin["url"]
-
-        origin_visit = self.origin_visit_get_latest(
-            origin,
-            allowed_statuses=allowed_statuses,
-            require_snapshot=True,
-            db=db,
-            cur=cur,
-        )
-        if origin_visit and origin_visit["snapshot"]:
-            snapshot = self.snapshot_get(origin_visit["snapshot"], db=db, cur=cur)
-            if not snapshot:
-                raise StorageArgumentException(
-                    "last origin visit references an unknown snapshot"
-                )
-            return snapshot
-
-    @timed
     @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
         return dict([bc for bc in db.snapshot_count_branches(snapshot_id, cur)])
@@ -984,6 +960,7 @@ class Storage:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
         db=None,
@@ -991,6 +968,7 @@ class Storage:
     ) -> Optional[Dict[str, Any]]:
         row = db.origin_visit_get_latest(
             origin,
+            type=type,
             allowed_statuses=allowed_statuses,
             require_snapshot=require_snapshot,
             cur=cur,
