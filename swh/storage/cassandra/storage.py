@@ -583,17 +583,6 @@ class CassandraStorage:
 
         return self.snapshot_get(visit["snapshot"])
 
-    def snapshot_get_latest(self, origin, allowed_statuses=None):
-        visit = self.origin_visit_get_latest(
-            origin, allowed_statuses=allowed_statuses, require_snapshot=True
-        )
-
-        if visit:
-            assert visit["snapshot"]
-            if self._cql_runner.snapshot_missing([visit["snapshot"]]):
-                raise StorageArgumentException("Visit references unknown snapshot")
-            return self.snapshot_get_branches(visit["snapshot"])
-
     def snapshot_count_branches(self, snapshot_id):
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
@@ -924,6 +913,7 @@ class CassandraStorage:
     def origin_visit_get_latest(
         self,
         origin: str,
+        type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[Dict[str, Any]]:
@@ -933,6 +923,8 @@ class CassandraStorage:
         for row in rows:
             visit = self._format_origin_visit_row(row)
             updated_visit = self._origin_visit_apply_last_status(visit)
+            if type is not None and updated_visit["type"] != type:
+                continue
             if allowed_statuses and updated_visit["status"] not in allowed_statuses:
                 continue
             if require_snapshot and updated_visit["snapshot"] is None:
