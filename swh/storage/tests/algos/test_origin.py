@@ -304,3 +304,27 @@ def test_origin_get_latest_status_filter_snapshot(swh_storage):
     assert actual_ov2.visit == ov2.visit
     assert actual_ov2.type == ov2.type
     assert actual_ovs22 == ovs22
+
+    date_now = now()
+
+    # Add another visit
+    swh_storage.origin_visit_add(
+        [
+            OriginVisit(
+                origin=origin2.url,
+                date=date_now,
+                type=data.type_visit2,
+                status="ongoing",
+                snapshot=None,
+            ),
+        ]
+    )
+
+    # Requiring the latest visit with a snapshot, we still find the previous visit
+    ov2, ovs22 = origin_get_latest_visit_status(
+        swh_storage, origin2.url, require_snapshot=True
+    )
+    assert actual_ov2.origin == ov2.origin
+    assert actual_ov2.visit == ov2.visit
+    assert actual_ov2.type == ov2.type
+    assert actual_ovs22 == ovs22
