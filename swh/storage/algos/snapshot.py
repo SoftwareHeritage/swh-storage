@@ -87,8 +87,9 @@ def snapshot_get_latest(
         snapshot = storage.snapshot_get_branches(
             snapshot_id, branches_count=branches_count
         )
+        if snapshot is None:
+            return None
         snapshot.pop("next_branch")
     else:
         snapshot = snapshot_get_all_branches(storage, snapshot_id)
-
-    return Snapshot.from_dict(snapshot)
+    return Snapshot.from_dict(snapshot) if snapshot else None
