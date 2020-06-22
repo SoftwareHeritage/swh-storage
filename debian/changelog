@@ -1,3 +1,20 @@
+swh-storage (0.7.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.7.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-06-22 15:42:25
+    +0200)
+  * Upstream changes:     - v0.7.0     - test_origin: Rename
+    appropriately tests     - algos: Improve origin visit get latest
+    visit status algorithm     - test_snapshot: Do not use
+    origin_visit_add returned result     - algos.snapshot: Fix edge case
+    when snapshot is not resolved     - Ensure ids are correct in tests'
+    storage_data     - Fix tests' storage_data revisions     - SQL:
+    replace the hash(url) index by a unique btree(url) on the origin
+    table     - Make sure the pagination in swh_snapshot_get_by_id uses
+    the proper indexes
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 22 Jun 2020 14:09:33 +0000
+
 swh-storage (0.6.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.6.0     - (tagged by Antoine R. Dumont
