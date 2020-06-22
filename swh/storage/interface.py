@@ -1065,6 +1065,7 @@ class StorageInterface:
         """
         ...
 
+    @deprecated
     @remote_api_endpoint("origin/add")
     def origin_add_one(self, origin: Origin) -> str:
         """Add origin to the storage

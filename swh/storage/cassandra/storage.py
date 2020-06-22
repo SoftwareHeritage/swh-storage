@@ -11,6 +11,7 @@ import re
 from typing import Any, Dict, List, Iterable, Optional
 
 import attr
+from deprecated import deprecated
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
@@ -775,6 +776,7 @@ class CassandraStorage:
             self._cql_runner.origin_add_one(origin)
         return {"origin:add": len(to_add)}
 
+    @deprecated("Use origin_add([origin]) instead")
     def origin_add_one(self, origin: Origin) -> str:
         known_origin = self.origin_get_one(origin.to_dict())
 

@@ -5,3 +5,4 @@ vcversioner
 aiohttp
 tenacity
 cassandra-driver >= 3.19.0, != 3.21.0
+deprecated

@@ -6,6 +6,8 @@
 import contextlib
 from typing import Dict, Iterable, Iterator, Optional, Tuple, Type, TypeVar, Union
 
+from deprecated import deprecated
+
 from swh.model.model import (
     SkippedContent,
     Content,
@@ -141,6 +143,7 @@ class ValidatingProxyStorage:
     def origin_add(self, origins: Iterable[Union[Dict, Origin]]) -> Dict[str, int]:
         return self.storage.origin_add([dict_converter(Origin, o) for o in origins])
 
+    @deprecated("Use origin_add([origin]) instead")
     def origin_add_one(self, origin: Union[Dict, Origin]) -> int:
         return self.storage.origin_add_one(dict_converter(Origin, origin))
 
