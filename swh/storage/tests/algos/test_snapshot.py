@@ -106,7 +106,9 @@ def test_snapshot_get_latest(swh_storage):
         status="ongoing",
         snapshot=None,
     )
-    ov1 = swh_storage.origin_visit_add([visit1])[0]
+    swh_storage.origin_visit_add([visit1])
+    ov1 = swh_storage.origin_visit_get_latest(origin.url)
+    visit_id = ov1["visit"]
 
     # Add snapshot to visit1, latest snapshot = visit 1 snapshot
     complete_snapshot = Snapshot.from_dict(data.complete_snapshot)
@@ -116,7 +118,7 @@ def test_snapshot_get_latest(swh_storage):
         [
             OriginVisitStatus(
                 origin=origin.url,
-                visit=ov1.visit,
+                visit=visit_id,
                 date=data.date_visit2,
                 status="partial",
                 snapshot=None,
@@ -137,7 +139,7 @@ def test_snapshot_get_latest(swh_storage):
         [
             OriginVisitStatus(
                 origin=origin.url,
-                visit=ov1.visit,
+                visit=visit_id,
                 date=date_now,
                 status="full",
                 snapshot=complete_snapshot.id,
@@ -153,7 +155,7 @@ def test_snapshot_get_latest(swh_storage):
         [
             OriginVisitStatus(
                 origin=origin.url,
-                visit=ov1.visit,
+                visit=visit_id,
                 date=date_now,
                 status="full",
                 snapshot=complete_snapshot.id,
