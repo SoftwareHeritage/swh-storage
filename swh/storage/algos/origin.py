@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Optional, Iterable, Tuple
+from typing import Any, Dict, Optional, Iterable, Tuple
 from swh.model.model import OriginVisit, OriginVisitStatus
 
 
@@ -45,11 +45,12 @@ def origin_get_latest_visit_status(
     allowed_statuses: Optional[Iterable[str]] = None,
     require_snapshot: bool = False,
 ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
-    """Get the latest origin visit and visit status information for a given origin,
-       optionally looking only for those with one of the given allowed_statuses or for
-       those with a snapshot.
+    """Get the latest origin visit (and status) of an origin. Optionally, a combination of
+    criteria can be provided, origin type, allowed statuses or if a visit has a
+    snapshot.
 
-       If nothing matches the criteria, this returns None.
+    If no visit matching the criteria is found, returns None. Otherwise, returns a tuple
+    of origin visit, origin visit status.
 
     Args:
         storage: A storage backend
@@ -65,19 +66,28 @@ def origin_get_latest_visit_status(
 
     Returns:
         a tuple of (visit, visit_status) model object if the visit *and* the visit
-        status exist, None otherwise.
+        status exist (and match the search criteria), None otherwise.
 
     """
-    visit_d = storage.origin_visit_get_latest(origin_url, type=type)
-    if not visit_d:
+    # visits order are from older visit to most recent.
+    visits = list(storage.origin_visit_get(origin_url))
+    visits.reverse()
+    if not visits:
         return None
-    visit = OriginVisit.from_dict(visit_d)
-    visit_status = storage.origin_visit_status_get_latest(
-        origin_url,
-        visit.visit,
-        allowed_statuses=allowed_statuses,
-        require_snapshot=require_snapshot,
-    )
-    if not visit_status:
+    visit_status: Optional[OriginVisitStatus] = None
+    visit: Dict[str, Any]
+    # Iterate over the visits in reverse order, so the most recent match is found first
+    for visit in visits:
+        if type is not None and visit["type"] != type:
+            continue
+        visit_status = storage.origin_visit_status_get_latest(
+            origin_url,
+            visit["visit"],
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+        )
+        if visit_status is not None:
+            break
+    if visit_status is None:
         return None
-    return (visit, visit_status)
+    return (OriginVisit.from_dict(visit), visit_status)
