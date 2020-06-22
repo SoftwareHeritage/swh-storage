@@ -111,8 +111,11 @@ skipped_cont2 = {
     "status": "absent",
 }
 
+skipped_contents = (skipped_cont, skipped_cont2)
+
+
 dir = {
-    "id": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),
+    "id": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),
     "entries": (
         {
             "name": b"foo",
@@ -130,7 +133,7 @@ dir = {
 }
 
 dir2 = {
-    "id": hash_to_bytes("340133423253310030f531e632a733ff37c3a935"),
+    "id": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),
     "entries": (
         {
             "name": b"oof",
@@ -144,7 +147,7 @@ dir2 = {
 }
 
 dir3 = {
-    "id": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8921"),
+    "id": hash_to_bytes("4ea8c6b2f54445e5dd1a9d5bb2afd875d66f3150"),
     "entries": (
         {
             "name": b"foo",
@@ -155,7 +158,7 @@ dir3 = {
         {
             "name": b"subdir",
             "type": "dir",
-            "target": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),  # dir
+            "target": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
             "perms": from_disk.DentryPerms.directory,
         },
         {
@@ -168,25 +171,25 @@ dir3 = {
 }
 
 dir4 = {
-    "id": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8922"),
+    "id": hash_to_bytes("377aa5fcd944fbabf502dbfda55cd14d33c8c3c6"),
     "entries": (
         {
             "name": b"subdir1",
             "type": "dir",
-            "target": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8921"),  # dir3
+            "target": hash_to_bytes("4ea8c6b2f54445e5dd1a9d5bb2afd875d66f3150"),  # dir3
             "perms": from_disk.DentryPerms.directory,
         },
     ),
 }
 
-dierctories = (dir, dir2, dir3, dir4)
+directories = (dir, dir2, dir3, dir4)
 
 
 minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
 plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
 
 revision = {
-    "id": b"56789012345678901234",
+    "id": hash_to_bytes("066b1b62dbfa033362092af468bf6cfabec230e7"),
     "message": b"hello",
     "author": {
         "name": b"Nicolas Dandrimont",
@@ -210,20 +213,21 @@ revision = {
     },
     "parents": (b"01234567890123456789", b"23434512345123456789"),
     "type": "git",
-    "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),  # dir
+    "directory": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
     "metadata": {
         "checksums": {"sha1": "tarball-sha1", "sha256": "tarball-sha256",},
         "signed-off-by": "some-dude",
         "extra_headers": [
             ["gpgsig", b"test123"],
-            ["mergetags", [b"foo\\bar", b"\x22\xaf\x89\x80\x01\x00"]],
+            ["mergetag", b"foo\\bar"],
+            ["mergetag", b"\x22\xaf\x89\x80\x01\x00"],
         ],
     },
     "synthetic": True,
 }
 
 revision2 = {
-    "id": b"87659012345678904321",
+    "id": hash_to_bytes("df7a6f6a99671fb7f7343641aff983a314ef6161"),
     "message": b"hello again",
     "author": {
         "name": b"Roberto Dicosmo",
@@ -247,13 +251,13 @@ revision2 = {
     },
     "parents": (b"01234567890123456789",),
     "type": "git",
-    "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a935"),  # dir2
+    "directory": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),  # dir2
     "metadata": None,
     "synthetic": False,
 }
 
 revision3 = {
-    "id": hash_to_bytes("7026b7c1a2af56521e951c01ed20f255fa054238"),
+    "id": hash_to_bytes("2cbd7bb22c653bbb23a29657852a50a01b591d46"),
     "message": b"a simple revision with no parents this time",
     "author": {
         "name": b"Roberto Dicosmo",
@@ -277,13 +281,13 @@ revision3 = {
     },
     "parents": (),
     "type": "git",
-    "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a935"),  # dir2
+    "directory": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),  # dir2
     "metadata": None,
     "synthetic": True,
 }
 
 revision4 = {
-    "id": hash_to_bytes("368a48fe15b7db2383775f97c6b247011b3f14f4"),
+    "id": hash_to_bytes("88cd5126fc958ed70089d5340441a1c2477bcc20"),
     "message": b"parent of self.revision2",
     "author": {
         "name": b"me",
@@ -306,10 +310,10 @@ revision4 = {
         "negative_utc": False,
     },
     "parents": (
-        hash_to_bytes("7026b7c1a2af56521e951c01ed20f255fa054238"),
+        hash_to_bytes("2cbd7bb22c653bbb23a29657852a50a01b591d46"),
     ),  # revision3
     "type": "git",
-    "directory": hash_to_bytes("340133423253310030f531e632a733ff37c3a930"),  # dir
+    "directory": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
     "metadata": None,
     "synthetic": False,
 }
@@ -360,7 +364,7 @@ date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.u
 type_visit3 = "deb"
 
 release = {
-    "id": b"87659012345678901234",
+    "id": hash_to_bytes("a673e617fcc6234e29b2cad06b8245f96c415c61"),
     "name": b"v0.0.1",
     "author": {
         "name": b"olasd",
@@ -379,7 +383,7 @@ release = {
 }
 
 release2 = {
-    "id": b"56789012348765901234",
+    "id": hash_to_bytes("6902bd4c82b7d19a421d224aedab2b74197e420d"),
     "name": b"v0.0.2",
     "author": {
         "name": b"tony",
@@ -398,7 +402,7 @@ release2 = {
 }
 
 release3 = {
-    "id": b"87659012345678904321",
+    "id": hash_to_bytes("3e9050196aa288264f2a9d279d6abab8b158448b"),
     "name": b"v0.0.2",
     "author": {
         "name": b"tony",
@@ -410,7 +414,7 @@ release3 = {
         "offset": 0,
         "negative_utc": False,
     },
-    "target": b"87659012345678904321",  # revision2
+    "target": hash_to_bytes("df7a6f6a99671fb7f7343641aff983a314ef6161"),
     "target_type": "revision",
     "message": b"yet another synthetic release",
     "synthetic": True,
@@ -420,10 +424,10 @@ releases = (release, release2, release3)
 
 
 snapshot = {
-    "id": hash_to_bytes("2498dbf535f882bc7f9a18fb16c9ad27fda7bab7"),
+    "id": hash_to_bytes("409ee1ff3f10d166714bc90581debfd0446dda57"),
     "branches": {
         b"master": {
-            "target": b"56789012345678901234",  # revision
+            "target": hash_to_bytes("066b1b62dbfa033362092af468bf6cfabec230e7"),
             "target_type": "revision",
         },
     },
@@ -435,7 +439,7 @@ empty_snapshot = {
 }
 
 complete_snapshot = {
-    "id": hash_to_bytes("6e65b86363953b780d92b0a928f3e8fcdd10db36"),
+    "id": hash_to_bytes("a56ce2d81c190023bb99a3a36279307522cb85f6"),
     "branches": {
         b"directory": {
             "target": hash_to_bytes("1bd0e65f7d2ff14ae994de17a1e7fe65111dcad8"),
@@ -465,6 +469,9 @@ complete_snapshot = {
         b"dangling": None,
     },
 }
+
+snapshots = (snapshot, empty_snapshot, complete_snapshot)
+
 
 origin_metadata = {
     "origin_url": origin["url"],
@@ -519,4 +526,14 @@ person = {
     "name": b"John Doe",
     "email": b"john.doe@institute.org",
     "fullname": b"John Doe <john.doe@institute.org>",
+}
+
+objects = {
+    "content": contents,
+    "skipped_content": skipped_contents,
+    "directory": directories,
+    "revision": revisions,
+    "origin": origins,
+    "release": releases,
+    "snapshot": snapshots,
 }

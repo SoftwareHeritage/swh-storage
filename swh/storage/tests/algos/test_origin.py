@@ -77,7 +77,7 @@ def test_iter_origins_batch_size(mock_origin_get_range, swh_storage):
     mock_origin_get_range.assert_called_with(origin_from=1, origin_count=42)
 
 
-def test_origin_get_latest_status_none(swh_storage):
+def test_origin_get_latest_visit_status_none(swh_storage):
     """Looking up unknown objects should return nothing
 
     """
@@ -191,7 +191,7 @@ def init_storage_with_origin_visits(swh_storage):
     }
 
 
-def test_origin_get_latest_status_filter_type(swh_storage):
+def test_origin_get_latest_visit_status_filter_type(swh_storage):
     """Filtering origin visit per types should yield consistent results
 
     """
@@ -235,7 +235,7 @@ def test_origin_get_latest_status_filter_type(swh_storage):
     assert actual_ovs22 == ovs22
 
 
-def test_origin_get_latest_status_filter_status(swh_storage):
+def test_origin_get_latest_visit_status_filter_status(swh_storage):
     objects = init_storage_with_origin_visits(swh_storage)
     origin1, origin2 = objects["origin"]
     ov1, ov2 = objects["origin_visit"]
@@ -284,7 +284,7 @@ def test_origin_get_latest_status_filter_status(swh_storage):
     assert actual_ovs22 == ovs22
 
 
-def test_origin_get_latest_status_filter_snapshot(swh_storage):
+def test_origin_get_latest_visit_status_filter_snapshot(swh_storage):
     objects = init_storage_with_origin_visits(swh_storage)
     origin1, origin2 = objects["origin"]
     _, ov2 = objects["origin_visit"]
@@ -298,6 +298,30 @@ def test_origin_get_latest_status_filter_snapshot(swh_storage):
 
     # visit status with partial status visit elected
     actual_ov2, actual_ovs22 = origin_get_latest_visit_status(
+        swh_storage, origin2.url, require_snapshot=True
+    )
+    assert actual_ov2.origin == ov2.origin
+    assert actual_ov2.visit == ov2.visit
+    assert actual_ov2.type == ov2.type
+    assert actual_ovs22 == ovs22
+
+    date_now = now()
+
+    # Add another visit
+    swh_storage.origin_visit_add(
+        [
+            OriginVisit(
+                origin=origin2.url,
+                date=date_now,
+                type=data.type_visit2,
+                status="ongoing",
+                snapshot=None,
+            ),
+        ]
+    )
+
+    # Requiring the latest visit with a snapshot, we still find the previous visit
+    ov2, ovs22 = origin_get_latest_visit_status(
         swh_storage, origin2.url, require_snapshot=True
     )
     assert actual_ov2.origin == ov2.origin

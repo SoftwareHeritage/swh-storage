@@ -11,12 +11,13 @@ alter table content add primary key using index content_pkey;
 
 
 -- origin
-create unique index concurrently origin_pkey on origin(id);
-alter table origin add primary key using index origin_pkey;
 
+create unique index concurrently origin_pkey on origin(id);
+create unique index concurrently on origin using btree(url);
 create index concurrently on origin using gin (url gin_trgm_ops);
-create index concurrently on origin using hash (url);
 create index concurrently on origin using btree(digest(url, 'sha1'));
+
+alter table origin add primary key using index origin_pkey;
 
 
 -- skipped_content
