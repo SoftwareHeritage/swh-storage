@@ -655,9 +655,6 @@ class CqlRunner:
         "visit",
         "type",
         "date",
-        "status",
-        "metadata",
-        "snapshot",
     ]
 
     @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ? AND visit > ?")

@@ -798,10 +798,6 @@ class InMemoryStorage:
                     while len(self._origin_visits[origin_url]) < visit.visit:
                         self._origin_visits[origin_url].append(None)
                     self._origin_visits[origin_url][visit.visit - 1] = visit
-                    visit_status_dict = visit.to_dict()
-                    visit_status_dict.pop("type")
-                    visit_status = OriginVisitStatus.from_dict(visit_status_dict)
-                    self._origin_visit_status_add_one(visit_status)
                 else:
                     # visit ids are in the range [1, +inf[
                     visit_id = len(self._origin_visits[origin_url]) + 1
@@ -809,13 +805,17 @@ class InMemoryStorage:
                     self.journal_writer.origin_visit_add([visit])
                     self._origin_visits[origin_url].append(visit)
                     visit_key = (origin_url, visit.visit)
-
-                    visit_status_dict = visit.to_dict()
-                    visit_status_dict.pop("type")
-                    visit_status = OriginVisitStatus.from_dict(visit_status_dict)
-                    self._origin_visit_status_add_one(visit_status)
                     self._objects[visit_key].append(("origin_visit", None))
                 assert visit.visit is not None
+                self._origin_visit_status_add_one(
+                    OriginVisitStatus(
+                        origin=visit.origin,
+                        visit=visit.visit,
+                        date=visit.date,
+                        status="created",
+                        snapshot=None,
+                    )
+                )
                 all_visits.append(visit)
 
         return all_visits

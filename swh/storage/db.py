@@ -428,8 +428,7 @@ class Db(BaseDb):
     revision_get_cols = revision_add_cols + ["parents"]
 
     def origin_visit_add(self, origin, ts, type, cur=None):
-        """Add a new origin_visit for origin origin at timestamp ts with
-        status 'ongoing'.
+        """Add a new origin_visit for origin origin at timestamp ts.
 
         Args:
             origin: origin concerned by the visit
@@ -477,6 +476,13 @@ class Db(BaseDb):
             + [jsonize(visit_status.metadata)],
         )
 
+    origin_visit_upsert_cols = [
+        "origin",
+        "visit",
+        "date",
+        "type",
+    ]
+
     def origin_visit_upsert(self, origin_visit: OriginVisit, cur=None) -> None:
         # doing an extra query like this is way simpler than trying to join
         # the origin id in the query below
@@ -487,23 +493,14 @@ class Db(BaseDb):
         query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
                    ON CONFLICT ON CONSTRAINT origin_visit_pkey DO
                    UPDATE SET {updates}""".format(
-            cols=", ".join(self.origin_visit_get_cols),
-            values=", ".join("%s" for col in self.origin_visit_get_cols),
+            cols=", ".join(self.origin_visit_upsert_cols),
+            values=", ".join("%s" for col in self.origin_visit_upsert_cols),
             updates=", ".join(
-                "{0}=excluded.{0}".format(col) for col in self.origin_visit_get_cols
+                "{0}=excluded.{0}".format(col) for col in self.origin_visit_upsert_cols
             ),
         )
         cur.execute(
-            query,
-            (
-                origin_id,
-                ov.visit,
-                ov.date,
-                ov.type,
-                ov.status,
-                ov.metadata,
-                ov.snapshot,
-            ),
+            query, (origin_id, ov.visit, ov.date, ov.type),
         )
 
     origin_visit_get_cols = [

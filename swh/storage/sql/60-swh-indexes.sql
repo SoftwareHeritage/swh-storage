@@ -126,7 +126,7 @@ create unique index concurrently origin_visit_pkey on origin_visit(origin, visit
 alter table origin_visit add primary key using index origin_visit_pkey;
 
 create index concurrently on origin_visit(date);
-create index concurrently on origin_visit(type, status, date);
+create index concurrently on origin_visit(type, date);
 
 alter table origin_visit add constraint origin_visit_origin_fkey foreign key (origin) references origin(id) not valid;
 alter table origin_visit validate constraint origin_visit_origin_fkey;

@@ -809,11 +809,15 @@ class CassandraStorage:
             self._cql_runner.origin_visit_add_one(visit)
             assert visit.visit is not None
             all_visits.append(visit)
-
-            visit_status_dict = visit.to_dict()
-            visit_status_dict.pop("type")
-            visit_status = OriginVisitStatus.from_dict(visit_status_dict)
-            self._origin_visit_status_add(visit_status)
+            self._origin_visit_status_add(
+                OriginVisitStatus(
+                    origin=visit.origin,
+                    visit=visit.visit,
+                    date=visit.date,
+                    status="created",
+                    snapshot=None,
+                )
+            )
 
         return all_visits
 
@@ -881,7 +885,6 @@ class CassandraStorage:
             **visit._asdict(),
             "origin": visit.origin,
             "date": visit.date.replace(tzinfo=datetime.timezone.utc),
-            "metadata": (json.loads(visit.metadata) if visit.metadata else None),
         }
 
     def origin_visit_get(

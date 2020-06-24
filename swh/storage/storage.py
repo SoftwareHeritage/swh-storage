@@ -823,9 +823,13 @@ class Storage:
             all_visits.append(visit)
             # Forced to write after for the case when the visit has no id
             self.journal_writer.origin_visit_add([visit])
-            visit_status_dict = visit.to_dict()
-            visit_status_dict.pop("type")
-            visit_status = OriginVisitStatus.from_dict(visit_status_dict)
+            visit_status = OriginVisitStatus(
+                origin=visit.origin,
+                visit=visit.visit,
+                date=visit.date,
+                status="created",
+                snapshot=None,
+            )
             self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
         send_metric("origin_visit:add", count=nb_visits, method_name="origin_visit")
