@@ -1430,6 +1430,38 @@ class TestStorage:
             visits.append(date_visit)
         return visits
 
+    def test_origin_visit_get_all(self, swh_storage):
+        origin = Origin.from_dict(data.origin)
+        swh_storage.origin_add_one(origin)
+        visits = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+                ),
+                OriginVisit(
+                    origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+                ),
+                OriginVisit(
+                    origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+                ),
+            ]
+        )
+        ov1, ov2, ov3 = [
+            {**v.to_dict(), "status": "created", "snapshot": None, "metadata": None,}
+            for v in visits
+        ]
+
+        all_visits = list(swh_storage.origin_visit_get(origin.url))
+        assert all_visits == [ov1, ov2, ov3]
+
+        all_visits2 = list(swh_storage.origin_visit_get(origin.url, limit=2))
+        assert all_visits2 == [ov1, ov2]
+
+        all_visits3 = list(
+            swh_storage.origin_visit_get(origin.url, last_visit=ov1["visit"], limit=1)
+        )
+        assert all_visits3 == [ov2]
+
     def test_origin_visit_get__unknown_origin(self, swh_storage):
         assert [] == list(swh_storage.origin_visit_get("foo"))
 
