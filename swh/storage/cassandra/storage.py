@@ -888,9 +888,14 @@ class CassandraStorage:
         }
 
     def origin_visit_get(
-        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+        self,
+        origin: str,
+        last_visit: Optional[int] = None,
+        limit: Optional[int] = None,
+        order: str = "asc",
     ) -> Iterable[Dict[str, Any]]:
-        rows = self._cql_runner.origin_visit_get(origin, last_visit, limit)
+        rows = self._cql_runner.origin_visit_get(origin, last_visit, limit, order)
+
         for row in rows:
             visit = self._format_origin_visit_row(row)
             yield self._origin_visit_apply_last_status(visit)

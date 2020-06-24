@@ -1451,16 +1451,51 @@ class TestStorage:
             for v in visits
         ]
 
+        # order asc, no pagination, no limit
         all_visits = list(swh_storage.origin_visit_get(origin.url))
         assert all_visits == [ov1, ov2, ov3]
 
+        # order asc, no pagination, limit
         all_visits2 = list(swh_storage.origin_visit_get(origin.url, limit=2))
         assert all_visits2 == [ov1, ov2]
 
+        # order asc, pagination, no limit
         all_visits3 = list(
-            swh_storage.origin_visit_get(origin.url, last_visit=ov1["visit"], limit=1)
+            swh_storage.origin_visit_get(origin.url, last_visit=ov1["visit"])
         )
-        assert all_visits3 == [ov2]
+        assert all_visits3 == [ov2, ov3]
+
+        # order asc, pagination, limit
+        all_visits4 = list(
+            swh_storage.origin_visit_get(origin.url, last_visit=ov2["visit"], limit=1)
+        )
+        assert all_visits4 == [ov3]
+
+        # order desc, no pagination, no limit
+        all_visits5 = list(swh_storage.origin_visit_get(origin.url, order="desc"))
+        assert all_visits5 == [ov3, ov2, ov1]
+
+        # order desc, no pagination, limit
+        all_visits6 = list(
+            swh_storage.origin_visit_get(origin.url, limit=2, order="desc")
+        )
+        assert all_visits6 == [ov3, ov2]
+
+        # order desc, pagination, no limit
+        all_visits7 = list(
+            swh_storage.origin_visit_get(
+                origin.url, last_visit=ov3["visit"], order="desc"
+            )
+        )
+        assert all_visits7 == [ov2, ov1]
+
+        # order desc, pagination, limit
+        all_visits8 = list(
+            swh_storage.origin_visit_get(
+                origin.url, last_visit=ov3["visit"], order="desc", limit=1
+            )
+        )
+        assert all_visits8 == [ov2]
 
     def test_origin_visit_get__unknown_origin(self, swh_storage):
         assert [] == list(swh_storage.origin_visit_get("foo"))

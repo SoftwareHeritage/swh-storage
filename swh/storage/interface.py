@@ -781,7 +781,11 @@ class StorageInterface:
 
     @remote_api_endpoint("origin/visit/get")
     def origin_visit_get(
-        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+        self,
+        origin: str,
+        last_visit: Optional[int] = None,
+        limit: Optional[int] = None,
+        order: str = "asc",
     ) -> Iterable[Dict[str, Any]]:
         """Retrieve all the origin's visit's information.
 
@@ -791,6 +795,7 @@ class StorageInterface:
                 Default to None
             limit: Number of results to return from the last visit.
                 Default to None
+            order: Order on visit id fields to list origin visits (default to asc)
 
         Yields:
             List of visits.

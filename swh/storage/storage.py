@@ -929,11 +929,13 @@ class Storage:
         origin: str,
         last_visit: Optional[int] = None,
         limit: Optional[int] = None,
+        order: str = "asc",
         db=None,
         cur=None,
     ) -> Iterable[Dict[str, Any]]:
+        assert order in ["asc", "desc"]
         lines = db.origin_visit_get_all(
-            origin, last_visit=last_visit, limit=limit, cur=cur
+            origin, last_visit=last_visit, limit=limit, order=order, cur=cur
         )
         for line in lines:
             visit = dict(zip(db.origin_visit_get_cols, line))

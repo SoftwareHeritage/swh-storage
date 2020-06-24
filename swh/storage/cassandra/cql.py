@@ -657,30 +657,103 @@ class CqlRunner:
         "date",
     ]
 
-    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ? AND visit > ?")
-    def _origin_visit_get_no_limit(
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? AND visit > ? "
+        "ORDER BY visit ASC"
+    )
+    def _origin_visit_get_pagination_asc_no_limit(
         self, origin_url: str, last_visit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, last_visit])
 
     @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? AND visit > ? LIMIT ?"
+        "SELECT * FROM origin_visit WHERE origin = ? AND visit > ? "
+        "ORDER BY visit ASC "
+        "LIMIT ?"
     )
-    def _origin_visit_get_limit(
+    def _origin_visit_get_pagination_asc_limit(
         self, origin_url: str, last_visit: int, limit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, last_visit, limit])
 
-    def origin_visit_get(
-        self, origin_url: str, last_visit: Optional[int], limit: Optional[int]
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? AND visit < ? "
+        "ORDER BY visit DESC"
+    )
+    def _origin_visit_get_pagination_desc_no_limit(
+        self, origin_url: str, last_visit: int, *, statement
     ) -> ResultSet:
-        if last_visit is None:
-            last_visit = -1
+        return self._execute_with_retries(statement, [origin_url, last_visit])
 
-        if limit is None:
-            return self._origin_visit_get_no_limit(origin_url, last_visit)
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? AND visit < ? "
+        "ORDER BY visit DESC "
+        "LIMIT ?"
+    )
+    def _origin_visit_get_pagination_desc_limit(
+        self, origin_url: str, last_visit: int, limit: int, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin_url, last_visit, limit])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit ASC LIMIT ?"
+    )
+    def _origin_visit_get_no_pagination_asc_limit(
+        self, origin_url: str, limit: int, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin_url, limit])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit ASC "
+    )
+    def _origin_visit_get_no_pagination_asc_no_limit(
+        self, origin_url: str, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin_url])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit DESC"
+    )
+    def _origin_visit_get_no_pagination_desc_no_limit(
+        self, origin_url: str, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin_url])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit DESC LIMIT ?"
+    )
+    def _origin_visit_get_no_pagination_desc_limit(
+        self, origin_url: str, limit: int, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin_url, limit])
+
+    def origin_visit_get(
+        self,
+        origin_url: str,
+        last_visit: Optional[int],
+        limit: Optional[int],
+        order: str = "asc",
+    ) -> ResultSet:
+        order = order.lower()
+        assert order in ["asc", "desc"]
+
+        args: List[Any] = [origin_url]
+
+        if last_visit is not None:
+            page_name = "pagination"
+            args.append(last_visit)
         else:
-            return self._origin_visit_get_limit(origin_url, last_visit, limit)
+            page_name = "no_pagination"
+
+        if limit is not None:
+            limit_name = "limit"
+            args.append(limit)
+        else:
+            limit_name = "no_limit"
+
+        method_name = f"_origin_visit_get_{page_name}_{order}_{limit_name}"
+        origin_visit_get_method = getattr(self, method_name)
+        return origin_visit_get_method(*args)
 
     @_prepared_insert_statement("origin_visit", _origin_visit_keys)
     def origin_visit_add_one(self, visit: OriginVisit, *, statement) -> None:

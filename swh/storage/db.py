@@ -578,7 +578,9 @@ class Db(BaseDb):
         row = cur.fetchone()
         return self._make_origin_visit_status(row)
 
-    def origin_visit_get_all(self, origin_id, last_visit=None, limit=None, cur=None):
+    def origin_visit_get_all(
+        self, origin_id, last_visit=None, order="asc", limit=None, cur=None
+    ):
         """Retrieve all visits for origin with id origin_id.
 
         Args:
@@ -589,29 +591,37 @@ class Db(BaseDb):
 
         """
         cur = self._cursor(cur)
+        assert order.lower() in ["asc", "desc"]
 
-        if last_visit:
-            extra_condition = "and ov.visit > %s"
-            args = (origin_id, last_visit, limit)
+        query_parts = [
+            "SELECT DISTINCT ON (ov.visit) %s "
+            % ", ".join(self.origin_visit_select_cols),
+            "FROM origin_visit ov",
+            "INNER JOIN origin o ON o.id = ov.origin",
+            "INNER JOIN origin_visit_status ovs",
+            "ON ov.origin = ovs.origin AND ov.visit = ovs.visit",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin_id]
+
+        if last_visit is not None:
+            op_comparison = ">" if order == "asc" else "<"
+            query_parts.append(f"and ov.visit {op_comparison} %s")
+            query_params.append(last_visit)
+
+        if order == "asc":
+            query_parts.append("ORDER BY ov.visit ASC, ovs.date DESC")
+        elif order == "desc":
+            query_parts.append("ORDER BY ov.visit DESC, ovs.date DESC")
         else:
-            extra_condition = ""
-            args = (origin_id, limit)
+            assert False
 
-        query = """\
-        SELECT DISTINCT ON (ov.visit) %s
-        FROM origin_visit ov
-        INNER JOIN origin o ON o.id = ov.origin
-        INNER JOIN origin_visit_status ovs
-          ON ov.origin = ovs.origin AND ov.visit = ovs.visit
-        WHERE o.url=%%s %s
-        ORDER BY ov.visit ASC, ovs.date DESC
-        LIMIT %%s""" % (
-            ", ".join(self.origin_visit_select_cols),
-            extra_condition,
-        )
+        if limit is not None:
+            query_parts.append("LIMIT %s")
+            query_params.append(limit)
 
-        cur.execute(query, args)
-
+        query = "\n".join(query_parts)
+        cur.execute(query, tuple(query_params))
         yield from cur
 
     def origin_visit_get(self, origin_id, visit_id, cur=None):

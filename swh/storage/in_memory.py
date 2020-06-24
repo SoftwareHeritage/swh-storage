@@ -865,14 +865,23 @@ class InMemoryStorage:
         )
 
     def origin_visit_get(
-        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+        self,
+        origin: str,
+        last_visit: Optional[int] = None,
+        limit: Optional[int] = None,
+        order: str = "asc",
     ) -> Iterable[Dict[str, Any]]:
-
+        order = order.lower()
+        assert order in ["asc", "desc"]
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
+            visits = sorted(visits, key=lambda v: v.visit, reverse=(order == "desc"))
             if last_visit is not None:
-                visits = visits[last_visit:]
+                if order == "asc":
+                    visits = [v for v in visits if v.visit > last_visit]
+                else:
+                    visits = [v for v in visits if v.visit < last_visit]
             if limit is not None:
                 visits = visits[:limit]
             for visit in visits:
