@@ -1682,13 +1682,15 @@ class TestStorage:
         for visit in expected_visits:
             assert visit in actual_origin_visits
 
-        actual_objects = set(swh_storage.journal_writer.journal.objects)
-        # we write to the journal as many times as we call the endpoint
-        assert actual_objects == set(
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = list(
             [("origin", origin1)]
             + [("origin_visit", visit) for visit in [ov1, ov2]] * 2
             + [("origin_visit_status", ovs) for ovs in [ovs1, ovs2]]
         )
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_origin_visit_add_validation(self, swh_storage):
         """Unknown origin when adding visits should raise"""
@@ -2821,6 +2823,7 @@ class TestStorage:
             ("origin_visit_status", ovs3),
             ("origin_visit_status", ovs4),
         ]
+
         for obj in expected_objects:
             assert obj in actual_objects
 
