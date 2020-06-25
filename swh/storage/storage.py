@@ -10,7 +10,7 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from deprecated import deprecated
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import attr
 import psycopg2
@@ -36,6 +36,10 @@ from swh.storage.validate import VALIDATION_EXCEPTIONS
 from swh.storage.utils import now
 
 from . import converters
+from .extrinsic_metadata import (
+    check_extrinsic_metadata_context,
+    CONTEXT_KEYS,
+)
 from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageArgumentException, StorageDBError, HashCollision
@@ -1162,9 +1166,12 @@ class Storage:
         db=None,
         cur=None,
     ) -> None:
+        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
+
         self._object_metadata_add(
             "origin",
             origin_url,
+            context,
             discovery_date,
             authority,
             fetcher,
@@ -1178,6 +1185,7 @@ class Storage:
         self,
         object_type: str,
         id: str,
+        context: Dict[str, Union[str, bytes, int]],
         discovery_date: datetime.datetime,
         authority: Dict[str, Any],
         fetcher: Dict[str, Any],
@@ -1186,6 +1194,8 @@ class Storage:
         db,
         cur,
     ) -> None:
+        check_extrinsic_metadata_context(object_type, context)
+
         authority_id = self._get_authority_id(authority, db, cur)
         fetcher_id = self._get_fetcher_id(fetcher, db, cur)
         if not isinstance(metadata, bytes):
@@ -1196,6 +1206,7 @@ class Storage:
         db.object_metadata_add(
             object_type,
             id,
+            context,
             discovery_date,
             authority_id,
             fetcher_id,
@@ -1270,7 +1281,14 @@ class Storage:
         for row in rows:
             row = row.copy()
             row.pop("metadata_fetcher.id")
+            context = {}
+            for key in CONTEXT_KEYS[object_type]:
+                value = row[key]
+                if value is not None:
+                    context[key] = value
+
             result = {
+                "id": row["id"],
                 "authority": {
                     "type": row.pop("metadata_authority.type"),
                     "url": row.pop("metadata_authority.url"),
@@ -1279,8 +1297,13 @@ class Storage:
                     "name": row.pop("metadata_fetcher.name"),
                     "version": row.pop("metadata_fetcher.version"),
                 },
-                **row,
+                "discovery_date": row["discovery_date"],
+                "format": row["format"],
+                "metadata": row["metadata"],
             }
+
+            if CONTEXT_KEYS[object_type]:
+                result["context"] = context
 
             results.append(result)
 

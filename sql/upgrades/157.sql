@@ -44,3 +44,20 @@ comment on column object_metadata.id is 'the SWHID or origin URL for which the m
 
 create unique index object_metadata_content_authority_date_fetcher
   on object_metadata(id, authority_id, discovery_date, fetcher_id);
+
+
+-- Add context columns
+alter table object_metadata
+  add column origin text;
+alter table object_metadata
+  add column visit bigint;
+alter table object_metadata
+  add column snapshot swhid;
+alter table object_metadata
+  add column release swhid;
+alter table object_metadata
+  add column revision swhid;
+alter table object_metadata
+  add column path bytea;
+alter table object_metadata
+  add column directory swhid;

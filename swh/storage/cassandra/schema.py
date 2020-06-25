@@ -219,6 +219,15 @@ CREATE TABLE IF NOT EXISTS object_metadata (
     format          ascii,
     metadata        blob,
 
+    -- context
+    origin          text,
+    visit           bigint,
+    snapshot        text,
+    release         text,
+    revision        text,
+    path            blob,
+    directory       text,
+
     PRIMARY KEY ((id), authority_type, authority_url, discovery_date,
                        fetcher_name, fetcher_version)
 );

@@ -6,7 +6,7 @@
 import datetime
 import random
 import select
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
@@ -1092,6 +1092,17 @@ class Db(BaseDb):
     def release_get_random(self, cur=None):
         return self._get_random_row_from_table("release", ["id"], "id", cur)
 
+    _object_metadata_context_cols = [
+        "origin",
+        "visit",
+        "snapshot",
+        "release",
+        "revision",
+        "path",
+        "directory",
+    ]
+    """The list of context columns for all artifact types."""
+
     _object_metadata_insert_cols = [
         "type",
         "id",
@@ -1100,6 +1111,7 @@ class Db(BaseDb):
         "discovery_date",
         "format",
         "metadata",
+        *_object_metadata_context_cols,
     ]
     """List of columns of the object_metadata table, used when writing
     metadata."""
@@ -1122,6 +1134,7 @@ class Db(BaseDb):
         "metadata_fetcher.id",
         "metadata_fetcher.name",
         "metadata_fetcher.version",
+        *_object_metadata_context_cols,
         "format",
         "metadata",
     ]
@@ -1144,6 +1157,7 @@ class Db(BaseDb):
         self,
         object_type: str,
         id: str,
+        context: Dict[str, Union[str, bytes, int]],
         discovery_date: datetime.datetime,
         authority_id: int,
         fetcher_id: int,
@@ -1161,6 +1175,9 @@ class Db(BaseDb):
             format=format,
             metadata=metadata,
         )
+        for col in self._object_metadata_context_cols:
+            args[col] = context.get(col)
+
         params = [args[col] for col in self._object_metadata_insert_cols]
 
         cur.execute(query, params)

@@ -18,6 +18,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from cassandra import CoordinationFailure
@@ -880,6 +881,13 @@ class CqlRunner:
         "fetcher_version",
         "format",
         "metadata",
+        "origin",
+        "visit",
+        "snapshot",
+        "release",
+        "revision",
+        "path",
+        "directory",
     ]
 
     @_prepared_statement(
@@ -897,6 +905,7 @@ class CqlRunner:
         fetcher_version,
         format,
         metadata,
+        context: Dict[str, Union[str, bytes, int]],
         *,
         statement,
     ):

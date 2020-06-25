@@ -25,6 +25,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 import attr
@@ -49,9 +50,9 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
-from .exc import StorageArgumentException, HashCollision
-
 from .converters import origin_url_to_sha1
+from .exc import StorageArgumentException, HashCollision
+from .extrinsic_metadata import check_extrinsic_metadata_context, CONTEXT_KEYS
 from .utils import get_partition_bounds_bytes
 from .writer import JournalWriter
 
@@ -1018,6 +1019,7 @@ class InMemoryStorage:
     def content_metadata_add(
         self,
         id: str,
+        context: Dict[str, Union[str, bytes, int]],
         discovery_date: datetime.datetime,
         authority: Dict[str, Any],
         fetcher: Dict[str, Any],
@@ -1025,7 +1027,14 @@ class InMemoryStorage:
         metadata: bytes,
     ) -> None:
         self._object_metadata_add(
-            "content", id, discovery_date, authority, fetcher, format, metadata,
+            "content",
+            id,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
         )
 
     def origin_metadata_add(
@@ -1041,8 +1050,18 @@ class InMemoryStorage:
             raise StorageArgumentException(
                 "origin_url must be str, not %r" % (origin_url,)
             )
+
+        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
+
         self._object_metadata_add(
-            "origin", origin_url, discovery_date, authority, fetcher, format, metadata,
+            "origin",
+            origin_url,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
         )
 
     def _object_metadata_add(
@@ -1054,7 +1073,9 @@ class InMemoryStorage:
         fetcher: Dict[str, Any],
         format: str,
         metadata: bytes,
+        context: Dict[str, Union[str, bytes, int]],
     ) -> None:
+        check_extrinsic_metadata_context(object_type, context)
         if not isinstance(metadata, bytes):
             raise StorageArgumentException(
                 "metadata must be bytes, not %r" % (metadata,)
@@ -1076,6 +1097,9 @@ class InMemoryStorage:
             "format": format,
             "metadata": metadata,
         }
+
+        if CONTEXT_KEYS[object_type]:
+            object_metadata["context"] = context
 
         for existing_object_metadata in object_metadata_list:
             if (

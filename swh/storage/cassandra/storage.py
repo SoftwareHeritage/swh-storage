@@ -8,7 +8,7 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Dict, List, Iterable, Optional
+from typing import Any, Dict, List, Iterable, Optional, Union
 
 import attr
 from deprecated import deprecated
@@ -32,6 +32,7 @@ from swh.storage.writer import JournalWriter
 from swh.storage.utils import now
 
 from ..exc import StorageArgumentException, HashCollision
+from ..extrinsic_metadata import check_extrinsic_metadata_context, CONTEXT_KEYS
 from .common import TOKEN_BEGIN, TOKEN_END
 from .converters import (
     revision_to_db,
@@ -1030,8 +1031,18 @@ class CassandraStorage:
             raise StorageArgumentException(
                 "origin_url must be str, not %r" % (origin_url,)
             )
+
+        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
+
         self._object_metadata_add(
-            "origin", origin_url, discovery_date, authority, fetcher, format, metadata,
+            "origin",
+            origin_url,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
         )
 
     def origin_metadata_get(
@@ -1062,7 +1073,10 @@ class CassandraStorage:
         fetcher: Dict[str, Any],
         format: str,
         metadata: bytes,
+        context: Dict[str, Union[str, bytes, int]],
     ) -> None:
+        check_extrinsic_metadata_context(object_type, context)
+
         if not self._cql_runner.metadata_authority_get(**authority):
             raise StorageArgumentException(f"Unknown authority {authority}")
         if not self._cql_runner.metadata_fetcher_get(**fetcher):
@@ -1079,6 +1093,7 @@ class CassandraStorage:
                 fetcher["version"],
                 format,
                 metadata,
+                context,
             )
         except TypeError as e:
             raise StorageArgumentException(*e.args)
@@ -1138,6 +1153,14 @@ class CassandraStorage:
                 "format": entry.format,
                 "metadata": entry.metadata,
             }
+
+            if CONTEXT_KEYS[object_type]:
+                context = {}
+                for key in CONTEXT_KEYS[object_type]:
+                    value = getattr(entry, key)
+                    if value is not None:
+                        context[key] = value
+                result["context"] = context
 
             results.append(result)
 

@@ -436,7 +436,16 @@ create table object_metadata
 
   -- metadata itself
   format         text          not null,
-  metadata       bytea         not null
+  metadata       bytea         not null,
+
+  -- context
+  origin         text,
+  visit          bigint,
+  snapshot       swhid,
+  release        swhid,
+  revision       swhid,
+  path           bytea,
+  directory      swhid
 );
 
 comment on table object_metadata is 'keeps all metadata found concerning an object';
