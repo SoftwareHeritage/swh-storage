@@ -1028,26 +1028,11 @@ class CassandraStorage:
     ) -> None:
         if not isinstance(origin_url, str):
             raise StorageArgumentException(
-                "origin_id must be str, not %r" % (origin_url,)
+                "origin_url must be str, not %r" % (origin_url,)
             )
-        if not self._cql_runner.metadata_authority_get(**authority):
-            raise StorageArgumentException(f"Unknown authority {authority}")
-        if not self._cql_runner.metadata_fetcher_get(**fetcher):
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
-
-        try:
-            self._cql_runner.origin_metadata_add(
-                origin_url,
-                authority["type"],
-                authority["url"],
-                discovery_date,
-                fetcher["name"],
-                fetcher["version"],
-                format,
-                metadata,
-            )
-        except TypeError as e:
-            raise StorageArgumentException(*e.args)
+        self._object_metadata_add(
+            "origin", origin_url, discovery_date, authority, fetcher, format, metadata,
+        )
 
     def origin_metadata_get(
         self,
@@ -1060,6 +1045,53 @@ class CassandraStorage:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
+        res = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit
+        )
+        for result in res["results"]:
+            result["origin_url"] = result.pop("id")
+
+        return res
+
+    def _object_metadata_add(
+        self,
+        object_type: str,
+        id: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        if not self._cql_runner.metadata_authority_get(**authority):
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        if not self._cql_runner.metadata_fetcher_get(**fetcher):
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+
+        try:
+            self._cql_runner.object_metadata_add(
+                object_type,
+                id,
+                authority["type"],
+                authority["url"],
+                discovery_date,
+                fetcher["name"],
+                fetcher["version"],
+                format,
+                metadata,
+            )
+        except TypeError as e:
+            raise StorageArgumentException(*e.args)
+
+    def _object_metadata_get(
+        self,
+        object_type: str,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         if page_token is not None:
             (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
                 page_token
@@ -1068,8 +1100,8 @@ class CassandraStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._cql_runner.origin_metadata_get_after_date_and_fetcher(
-                origin_url,
+            entries = self._cql_runner.object_metadata_get_after_date_and_fetcher(
+                id,
                 authority["type"],
                 authority["url"],
                 after_date,
@@ -1077,12 +1109,12 @@ class CassandraStorage:
                 after_fetcher_url,
             )
         elif after is not None:
-            entries = self._cql_runner.origin_metadata_get_after_date(
-                origin_url, authority["type"], authority["url"], after
+            entries = self._cql_runner.object_metadata_get_after_date(
+                id, authority["type"], authority["url"], after
             )
         else:
-            entries = self._cql_runner.origin_metadata_get(
-                origin_url, authority["type"], authority["url"]
+            entries = self._cql_runner.object_metadata_get(
+                id, authority["type"], authority["url"]
             )
 
         if limit:
@@ -1091,22 +1123,23 @@ class CassandraStorage:
         results = []
         for entry in entries:
             discovery_date = entry.discovery_date.replace(tzinfo=datetime.timezone.utc)
-            results.append(
-                {
-                    "origin_url": entry.origin,
-                    "authority": {
-                        "type": entry.authority_type,
-                        "url": entry.authority_url,
-                    },
-                    "fetcher": {
-                        "name": entry.fetcher_name,
-                        "version": entry.fetcher_version,
-                    },
-                    "discovery_date": discovery_date,
-                    "format": entry.format,
-                    "metadata": entry.metadata,
-                }
-            )
+
+            result = {
+                "id": entry.id,
+                "authority": {
+                    "type": entry.authority_type,
+                    "url": entry.authority_url,
+                },
+                "fetcher": {
+                    "name": entry.fetcher_name,
+                    "version": entry.fetcher_version,
+                },
+                "discovery_date": discovery_date,
+                "format": entry.format,
+                "metadata": entry.metadata,
+            }
+
+            results.append(result)
 
         if len(results) > limit:
             results.pop()

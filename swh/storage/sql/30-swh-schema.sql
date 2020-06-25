@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(156, now(), 'Work In Progress');
+      values(157, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -36,6 +36,9 @@ create domain unix_path as bytea;
 
 -- a set of UNIX-like access permissions, as manipulated by, e.g., chmod
 create domain file_perms as int;
+
+-- an SWHID
+create domain swhid as text check (value ~ '^swh:[0-9]+:.*');
 
 
 -- Checksums about actual file content. Note that the content itself is not
@@ -420,27 +423,30 @@ comment on column metadata_authority.url is 'Authority''s uri';
 comment on column metadata_authority.metadata is 'Other metadata about authority';
 
 
--- Discovery of metadata during a listing, loading, deposit or external_catalog of an origin
--- also provides a translation to a defined json schema using a translation tool (tool_id)
-create table origin_metadata
+-- Extrinsic metadata on a DAG objects and origins.
+create table object_metadata
 (
-  id             bigserial     not null,  -- PK internal object identifier
-  origin_id      bigint        not null,  -- references origin(id)
-  discovery_date timestamptz   not null,  -- when it was extracted
+  type           text          not null,
+  id             text          not null,
+
+  -- metadata source
   authority_id   bigint        not null,
   fetcher_id     bigint        not null,
-  format         text          not null default 'sword-v2-atom-codemeta-v2-in-json',
+  discovery_date timestamptz   not null,
+
+  -- metadata itself
+  format         text          not null,
   metadata       bytea         not null
 );
 
-comment on table origin_metadata is 'keeps all metadata found concerning an origin';
-comment on column origin_metadata.id is 'the origin_metadata object''s id';
-comment on column origin_metadata.origin_id is 'the origin id for which the metadata was found';
-comment on column origin_metadata.discovery_date is 'the date of retrieval';
-comment on column origin_metadata.authority_id is 'the metadata provider: github, openhub, deposit, etc.';
-comment on column origin_metadata.fetcher_id is 'the tool used for extracting metadata: loaders, crawlers, etc.';
-comment on column origin_metadata.format is 'name of the format of metadata, used by readers to interpret it.';
-comment on column origin_metadata.metadata is 'original metadata in opaque format';
+comment on table object_metadata is 'keeps all metadata found concerning an object';
+comment on column object_metadata.type is 'the type of object (content/directory/revision/release/snapshot/origin) the metadata is on';
+comment on column object_metadata.id is 'the SWHID or origin URL for which the metadata was found';
+comment on column object_metadata.discovery_date is 'the date of retrieval';
+comment on column object_metadata.authority_id is 'the metadata provider: github, openhub, deposit, etc.';
+comment on column object_metadata.fetcher_id is 'the tool used for extracting metadata: loaders, crawlers, etc.';
+comment on column object_metadata.format is 'name of the format of metadata, used by readers to interpret it.';
+comment on column object_metadata.metadata is 'original metadata in opaque format';
 
 
 -- Keep a cache of object counts

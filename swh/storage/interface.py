@@ -1140,7 +1140,7 @@ class StorageInterface:
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> Dict[str, Any]:
-        """Retrieve list of all origin_metadata entries for the origin_id
+        """Retrieve list of all origin_metadata entries for the origin_url
 
         Args:
             origin_url: the origin's URL

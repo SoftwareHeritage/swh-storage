@@ -138,7 +138,7 @@ class InMemoryStorage:
         self._persons = {}
 
         # {origin_url: {authority: [metadata]}}
-        self._origin_metadata: Dict[
+        self._object_metadata: Dict[
             str,
             Dict[
                 Hashable,
@@ -1015,6 +1015,19 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
+    def content_metadata_add(
+        self,
+        id: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        self._object_metadata_add(
+            "content", id, discovery_date, authority, fetcher, format, metadata,
+        )
+
     def origin_metadata_add(
         self,
         origin_url: str,
@@ -1026,8 +1039,22 @@ class InMemoryStorage:
     ) -> None:
         if not isinstance(origin_url, str):
             raise StorageArgumentException(
-                "origin_id must be str, not %r" % (origin_url,)
+                "origin_url must be str, not %r" % (origin_url,)
             )
+        self._object_metadata_add(
+            "origin", origin_url, discovery_date, authority, fetcher, format, metadata,
+        )
+
+    def _object_metadata_add(
+        self,
+        object_type: str,
+        id: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
         if not isinstance(metadata, bytes):
             raise StorageArgumentException(
                 "metadata must be bytes, not %r" % (metadata,)
@@ -1039,10 +1066,10 @@ class InMemoryStorage:
         if fetcher_key not in self._metadata_fetchers:
             raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
-        origin_metadata_list = self._origin_metadata[origin_url][authority_key]
+        object_metadata_list = self._object_metadata[id][authority_key]
 
-        origin_metadata = {
-            "origin_url": origin_url,
+        object_metadata: Dict[str, Any] = {
+            "id": id,
             "discovery_date": discovery_date,
             "authority": authority_key,
             "fetcher": fetcher_key,
@@ -1050,17 +1077,16 @@ class InMemoryStorage:
             "metadata": metadata,
         }
 
-        for existing_origin_metadata in origin_metadata_list:
+        for existing_object_metadata in object_metadata_list:
             if (
-                existing_origin_metadata["fetcher"] == fetcher_key
-                and existing_origin_metadata["discovery_date"] == discovery_date
+                existing_object_metadata["fetcher"] == fetcher_key
+                and existing_object_metadata["discovery_date"] == discovery_date
             ):
                 # Duplicate of an existing one; replace it.
-                existing_origin_metadata.update(origin_metadata)
+                existing_object_metadata.update(object_metadata)
                 break
         else:
-            origin_metadata_list.add(origin_metadata)
-        return None
+            object_metadata_list.add(object_metadata)
 
     def origin_metadata_get(
         self,
@@ -1073,6 +1099,24 @@ class InMemoryStorage:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
+        res = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit
+        )
+        res["results"] = copy.deepcopy(res["results"])
+        for result in res["results"]:
+            result["origin_url"] = result.pop("id")
+
+        return res
+
+    def _object_metadata_get(
+        self,
+        object_type: str,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         authority_key = self._metadata_authority_key(authority)
 
         if page_token is not None:
@@ -1082,16 +1126,14 @@ class InMemoryStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._origin_metadata[origin_url][authority_key].iter_after(
+            entries = self._object_metadata[id][authority_key].iter_after(
                 (after_time, after_fetcher)
             )
         elif after is not None:
-            entries = self._origin_metadata[origin_url][authority_key].iter_from(
-                (after,)
-            )
+            entries = self._object_metadata[id][authority_key].iter_from((after,))
             entries = (entry for entry in entries if entry["discovery_date"] > after)
         else:
-            entries = iter(self._origin_metadata[origin_url][authority_key])
+            entries = iter(self._object_metadata[id][authority_key])
 
         if limit:
             entries = itertools.islice(entries, 0, limit + 1)

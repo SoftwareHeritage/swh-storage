@@ -1162,29 +1162,53 @@ class Storage:
         db=None,
         cur=None,
     ) -> None:
-        authority_id = db.metadata_authority_get_id(
-            authority["type"], authority["url"], cur
+        self._object_metadata_add(
+            "origin",
+            origin_url,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            db,
+            cur,
         )
-        if not authority_id:
-            raise StorageArgumentException(f"Unknown authority {authority}")
-        fetcher_id = db.metadata_fetcher_get_id(
-            fetcher["name"], fetcher["version"], cur
-        )
-        if not fetcher_id:
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
-        try:
-            db.origin_metadata_add(
-                origin_url,
-                discovery_date,
-                authority_id,
-                fetcher_id,
-                format,
-                metadata,
-                cur,
+
+    def _object_metadata_add(
+        self,
+        object_type: str,
+        id: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        db,
+        cur,
+    ) -> None:
+        authority_id = self._get_authority_id(authority, db, cur)
+        fetcher_id = self._get_fetcher_id(fetcher, db, cur)
+        if not isinstance(metadata, bytes):
+            raise StorageArgumentException(
+                "metadata must be bytes, not %r" % (metadata,)
             )
-        except psycopg2.ProgrammingError as e:
-            raise StorageArgumentException(*e.args)
-        send_metric("origin_metadata:add", count=1, method_name="origin_metadata_add")
+
+        db.object_metadata_add(
+            object_type,
+            id,
+            discovery_date,
+            authority_id,
+            fetcher_id,
+            format,
+            metadata,
+            cur,
+        )
+
+        send_metric(
+            f"{object_type}_metadata:add",
+            count=1,
+            method_name=f"{object_type}_metadata_add",
+        )
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1197,6 +1221,27 @@ class Storage:
         limit: int = 1000,
         db=None,
         cur=None,
+    ) -> Dict[str, Any]:
+        result = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit, db, cur
+        )
+
+        for res in result["results"]:
+            res.pop("id")
+            res["origin_url"] = origin_url
+
+        return result
+
+    def _object_metadata_get(
+        self,
+        object_type: str,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime],
+        page_token: Optional[bytes],
+        limit: int,
+        db,
+        cur,
     ) -> Dict[str, Any]:
         if page_token:
             (after_time, after_fetcher) = msgpack_loads(page_token)
@@ -1217,28 +1262,27 @@ class Storage:
                 "results": [],
             }
 
-        rows = db.origin_metadata_get(
-            origin_url, authority_id, after_time, after_fetcher, limit + 1, cur
+        rows = db.object_metadata_get(
+            object_type, id, authority_id, after_time, after_fetcher, limit + 1, cur
         )
-        rows = [dict(zip(db.origin_metadata_get_cols, row)) for row in rows]
+        rows = [dict(zip(db.object_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
             row = row.copy()
             row.pop("metadata_fetcher.id")
-            results.append(
-                {
-                    "origin_url": row.pop("origin.url"),
-                    "authority": {
-                        "type": row.pop("metadata_authority.type"),
-                        "url": row.pop("metadata_authority.url"),
-                    },
-                    "fetcher": {
-                        "name": row.pop("metadata_fetcher.name"),
-                        "version": row.pop("metadata_fetcher.version"),
-                    },
-                    **row,
-                }
-            )
+            result = {
+                "authority": {
+                    "type": row.pop("metadata_authority.type"),
+                    "url": row.pop("metadata_authority.url"),
+                },
+                "fetcher": {
+                    "name": row.pop("metadata_fetcher.name"),
+                    "version": row.pop("metadata_fetcher.version"),
+                },
+                **row,
+            }
+
+            results.append(result)
 
         if len(results) > limit:
             results.pop()
@@ -1314,3 +1358,19 @@ class Storage:
 
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
         return {}
+
+    def _get_authority_id(self, authority: Dict[str, Any], db, cur):
+        authority_id = db.metadata_authority_get_id(
+            authority["type"], authority["url"], cur
+        )
+        if not authority_id:
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        return authority_id
+
+    def _get_fetcher_id(self, fetcher: Dict[str, Any], db, cur):
+        fetcher_id = db.metadata_fetcher_get_id(
+            fetcher["name"], fetcher["version"], cur
+        )
+        if not fetcher_id:
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+        return fetcher_id
