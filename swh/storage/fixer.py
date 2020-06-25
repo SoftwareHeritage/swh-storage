@@ -1,5 +1,12 @@
+# Copyright (C) 2020 The Software Heritage developers
+# See the AUTHORS file at the top-level directory of this distribution
+# License: GNU General Public License version 3, or any later version
+# See top-level LICENSE file for more information
+
 import copy
+import datetime
 import logging
+
 from typing import Any, Dict, List, Optional
 from swh.model.identifiers import normalize_timestamp
 
@@ -231,6 +238,19 @@ def _fix_origin_visit(visit: Dict) -> Dict:
      'status': 'ongoing',
      'type': 'hg'}
 
+    >>> pprint(_fix_origin_visit(
+    ...     {'origin': {'type': 'hg', 'url': 'http://foo'},
+    ...     'date': '2020-02-27 14:39:19+00:00',
+    ...     'status': 'ongoing',
+    ...     'snapshot': None,
+    ... }))
+    {'date': datetime.datetime(2020, 2, 27, 14, 39, 19, tzinfo=datetime.timezone.utc),
+     'metadata': None,
+     'origin': 'http://foo',
+     'snapshot': None,
+     'status': 'ongoing',
+     'type': 'hg'}
+
     Old visit format (origin_visit with no type) raises:
 
     >>> _fix_origin_visit({
@@ -272,6 +292,9 @@ def _fix_origin_visit(visit: Dict) -> Dict:
         visit["origin"] = visit["origin"]["url"]
     if "metadata" not in visit:
         visit["metadata"] = None
+    date = visit["date"]
+    if isinstance(date, str):
+        visit["date"] = datetime.datetime.fromisoformat(date)
     return visit
 
 
