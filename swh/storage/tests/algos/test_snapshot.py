@@ -135,20 +135,8 @@ def test_snapshot_get_latest(swh_storage):
         ]
     )
 
-    actual_snapshot = snapshot_get_latest(swh_storage, origin.url)
-    assert actual_snapshot is not None
-    assert actual_snapshot == complete_snapshot
-
-    swh_storage.origin_visit_status_add(
-        [
-            OriginVisitStatus(
-                origin=origin.url,
-                visit=visit_id,
-                date=date_now,
-                status="full",
-                snapshot=complete_snapshot.id,
-            )
-        ]
+    swh_storage.origin_visit_add(
+        [OriginVisit(origin=origin.url, date=now(), type=data.type_visit1,)]
     )
 
     actual_snapshot = snapshot_get_latest(swh_storage, origin.url)
