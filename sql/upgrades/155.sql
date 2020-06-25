@@ -31,4 +31,4 @@ as $$
 $$;
 
 drop index origin_visit_type_status_date_idx;
-create index concurrently on origin_visit(type, date);
+create index concurrently origin_visit_type_date on origin_visit(type, date);
