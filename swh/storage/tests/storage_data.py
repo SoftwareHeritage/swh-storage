@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import datetime
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model import from_disk
 
 
@@ -472,6 +472,65 @@ complete_snapshot = {
 
 snapshots = (snapshot, empty_snapshot, complete_snapshot)
 
+content_metadata = {
+    "id": f"swh:1:cnt:{cont['sha1_git']}",
+    "context": {"origin": origin["url"]},
+    "discovery_date": datetime.datetime(
+        2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
+    ),
+    "authority": {
+        "type": metadata_authority["type"],
+        "url": metadata_authority["url"],
+    },
+    "fetcher": {
+        "name": metadata_fetcher["name"],
+        "version": metadata_fetcher["version"],
+    },
+    "format": "json",
+    "metadata": b'{"foo": "bar"}',
+}
+content_metadata2 = {
+    "id": f"swh:1:cnt:{cont['sha1_git']}",
+    "context": {"origin": origin2["url"]},
+    "discovery_date": datetime.datetime(
+        2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
+    ),
+    "authority": {
+        "type": metadata_authority["type"],
+        "url": metadata_authority["url"],
+    },
+    "fetcher": {
+        "name": metadata_fetcher["name"],
+        "version": metadata_fetcher["version"],
+    },
+    "format": "yaml",
+    "metadata": b"foo: bar",
+}
+content_metadata3 = {
+    "id": f"swh:1:cnt:{cont['sha1_git']}",
+    "context": {
+        "origin": origin["url"],
+        "visit": 42,
+        "snapshot": f"swh:1:snp:{hash_to_hex(snapshot['id'])}",
+        "release": f"swh:1:rel:{hash_to_hex(release['id'])}",
+        "revision": f"swh:1:rev:{hash_to_hex(revision['id'])}",
+        "directory": f"swh:1:dir:{hash_to_hex(dir['id'])}",
+        "path": b"/foo/bar",
+    },
+    "discovery_date": datetime.datetime(
+        2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
+    ),
+    "authority": {
+        "type": metadata_authority2["type"],
+        "url": metadata_authority2["url"],
+    },
+    "fetcher": {
+        "name": metadata_fetcher2["name"],
+        "version": metadata_fetcher2["version"],
+    },
+    "format": "yaml",
+    "metadata": b"foo: bar",
+}
 
 origin_metadata = {
     "origin_url": origin["url"],

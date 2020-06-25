@@ -366,6 +366,49 @@ class Storage:
 
     @timed
     @db_transaction()
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        db=None,
+        cur=None,
+    ) -> None:
+        self._object_metadata_add(
+            "content",
+            id,
+            context,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            db,
+            cur,
+        )
+
+    @timed
+    @db_transaction()
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit, db, cur
+        )
+
+    @timed
+    @db_transaction()
     def content_get_random(self, db=None, cur=None):
         return db.content_get_random(cur)
 

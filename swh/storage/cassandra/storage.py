@@ -260,6 +260,39 @@ class CassandraStorage:
             [{"sha1_git": c for c in contents}], key_hash="sha1_git"
         )
 
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        self._object_metadata_add(
+            "content",
+            id,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
+        )
+
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit,
+        )
+
     def content_get_random(self):
         return self._cql_runner.content_get_random().sha1_git
 

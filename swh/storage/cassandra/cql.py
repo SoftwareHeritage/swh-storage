@@ -46,6 +46,7 @@ from swh.model.model import (
 
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
+from .. import extrinsic_metadata
 
 
 logger = logging.getLogger(__name__)
@@ -920,6 +921,10 @@ class CqlRunner:
             format,
             metadata,
         ]
+
+        params.extend(
+            context.get(key) for key in extrinsic_metadata.CONTEXT_KEYS[object_type]
+        )
 
         return self._execute_with_retries(statement, params,)
 

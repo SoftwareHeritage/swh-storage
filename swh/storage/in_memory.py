@@ -1112,6 +1112,18 @@ class InMemoryStorage:
         else:
             object_metadata_list.add(object_metadata)
 
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit
+        )
+
     def origin_metadata_get(
         self,
         origin_url: str,
