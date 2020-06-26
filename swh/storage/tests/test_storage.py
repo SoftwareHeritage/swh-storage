@@ -1968,18 +1968,10 @@ class TestStorage:
 
         # Add some other {origin, visit} entries
         visit2 = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit3,
-            type=data.type_visit3,
-            status="ongoing",
-            snapshot=None,
+            origin=origin_url, date=data.date_visit3, type=data.type_visit3,
         )
         visit3 = OriginVisit(
-            origin=origin_url2,
-            date=data.date_visit3,
-            type=data.type_visit3,
-            status="ongoing",
-            snapshot=None,
+            origin=origin_url2, date=data.date_visit3, type=data.type_visit3,
         )
         swh_storage.origin_visit_add([visit2, visit3])
 
@@ -2433,11 +2425,7 @@ class TestStorage:
         origin_url = data.origin["url"]
         origin_url = swh_storage.origin_add_one(data.origin)
         visit = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit1,
-            type=data.type_visit1,
-            status="ongoing",
-            snapshot=None,
+            origin=origin_url, date=data.date_visit1, type=data.type_visit1,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
         visit_id = origin_visit1.visit
@@ -2908,11 +2896,7 @@ class TestStorage:
 
         origin_url = swh_storage.origin_add_one(data.origin2)
         visit = OriginVisit(
-            origin=origin_url,
-            date=data.date_visit2,
-            type=data.type_visit2,
-            status="ongoing",
-            snapshot=None,
+            origin=origin_url, date=data.date_visit2, type=data.type_visit2,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 

@@ -60,15 +60,7 @@ def test_snapshot_get_latest_none(swh_storage):
     origin = Origin.from_dict(data.origin)
     swh_storage.origin_add_one(origin)
     swh_storage.origin_visit_add(
-        [
-            OriginVisit(
-                origin=origin.url,
-                date=data.date_visit1,
-                type=data.type_visit1,
-                status="ongoing",
-                snapshot=None,
-            )
-        ]
+        [OriginVisit(origin=origin.url, date=data.date_visit1, type=data.type_visit1,)]
     )
     assert snapshot_get_latest(swh_storage, origin.url) is None
 
@@ -100,11 +92,7 @@ def test_snapshot_get_latest(swh_storage):
     swh_storage.origin_add_one(origin)
 
     visit1 = OriginVisit(
-        origin=origin.url,
-        date=data.date_visit1,
-        type=data.type_visit1,
-        status="ongoing",
-        snapshot=None,
+        origin=origin.url, date=data.date_visit1, type=data.type_visit1,
     )
     swh_storage.origin_visit_add([visit1])
     ov1 = swh_storage.origin_visit_get_latest(origin.url)

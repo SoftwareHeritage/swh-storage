@@ -356,9 +356,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
     origin = list(swh_storage.origin_visit_get(origin_url))
     assert not origin
 
-    visit = OriginVisit(
-        origin=origin_url, date=date_visit1, type="hg", status="ongoing", snapshot=None
-    )
+    visit = OriginVisit(origin=origin_url, date=date_visit1, type="hg")
     origin_visit = swh_storage.origin_visit_add([visit])[0]
     assert origin_visit.origin == origin_url
     assert isinstance(origin_visit.visit, int)
@@ -378,9 +376,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
     origin_url = swh_storage.origin_add_one(sample_origin)
 
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_visit_add")
-    visit = OriginVisit(
-        origin=origin_url, date=date_visit1, type="git", status="ongoing", snapshot=None
-    )
+    visit = OriginVisit(origin=origin_url, date=date_visit1, type="git")
     mock_memory.side_effect = [
         # first try goes ko
         fake_hash_collision,
@@ -416,13 +412,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     assert not origin
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        visit = OriginVisit(
-            origin=origin_url,
-            date=date_visit1,
-            type="svn",
-            status="ongoing",
-            snapshot=None,
-        )
+        visit = OriginVisit(origin=origin_url, date=date_visit1, type="svn",)
         swh_storage.origin_visit_add([visit])
 
     mock_memory.assert_has_calls(
