@@ -1,3 +1,19 @@
+swh-storage (0.8.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.8.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-06-29 09:33:12
+    +0200)
+  * Upstream changes:     - v0.8.0     - Iterate over paginated visits
+    in batches to retrieve latest visit/snapshot     - storage*: Open
+    order parameter to origin-visit-get endpoint     -
+    tests/replayer/storage*: Drop obsolete origin visit fields     -
+    Relax checks on journal writes regarding origin-visit*     -
+    replayer: Fix isoformat datetime string for origin-visit     -
+    Deprecate the origin_add_one() endpoint     - test_storage: Add
+    missing tests on origin_visit_get method
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 29 Jun 2020 07:44:00 +0000
+
 swh-storage (0.7.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.7.0     - (tagged by Antoine R. Dumont
