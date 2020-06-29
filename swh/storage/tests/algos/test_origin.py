@@ -26,7 +26,12 @@ def swh_storage_backend_config():
 
 
 def test_iter_origins(swh_storage):
-    origins = swh_storage.origin_add([{"url": "bar"}, {"url": "qux"}, {"url": "quuz"},])
+    origins = [
+        {"url": "bar"},
+        {"url": "qux"},
+        {"url": "quuz"},
+    ]
+    assert swh_storage.origin_add(origins) == {"origin:add": 3}
     assert_list_eq(iter_origins(swh_storage), origins)
     assert_list_eq(iter_origins(swh_storage, batch_size=1), origins)
     assert_list_eq(iter_origins(swh_storage, batch_size=2), origins)
@@ -88,15 +93,7 @@ def test_origin_get_latest_visit_status_none(swh_storage):
     origin = Origin.from_dict(data.origin)
     swh_storage.origin_add_one(origin)
     swh_storage.origin_visit_add(
-        [
-            OriginVisit(
-                origin=origin.url,
-                date=data.date_visit1,
-                type="git",
-                status="ongoing",
-                snapshot=None,
-            ),
-        ]
+        [OriginVisit(origin=origin.url, date=data.date_visit1, type="git",),]
     )[0]
     actual_origin_visit = origin_get_latest_visit_status(
         swh_storage, origin.url, type="unknown"
@@ -125,18 +122,10 @@ def init_storage_with_origin_visits(swh_storage):
     ov1, ov2 = swh_storage.origin_visit_add(
         [
             OriginVisit(
-                origin=origin1.url,
-                date=data.date_visit1,
-                type=data.type_visit1,
-                status="ongoing",
-                snapshot=None,
+                origin=origin1.url, date=data.date_visit1, type=data.type_visit1,
             ),
             OriginVisit(
-                origin=origin2.url,
-                date=data.date_visit2,
-                type=data.type_visit2,
-                status="ongoing",
-                snapshot=None,
+                origin=origin2.url, date=data.date_visit2, type=data.type_visit2,
             ),
         ]
     )
@@ -309,15 +298,7 @@ def test_origin_get_latest_visit_status_filter_snapshot(swh_storage):
 
     # Add another visit
     swh_storage.origin_visit_add(
-        [
-            OriginVisit(
-                origin=origin2.url,
-                date=date_now,
-                type=data.type_visit2,
-                status="ongoing",
-                snapshot=None,
-            ),
-        ]
+        [OriginVisit(origin=origin2.url, date=date_now, type=data.type_visit2,),]
     )
 
     # Requiring the latest visit with a snapshot, we still find the previous visit

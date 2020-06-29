@@ -118,15 +118,12 @@ def test_compute_query_origin_visit():
         "type",
         "origin",
         "date",
-        "snapshot",
-        "status",
-        "metadata",
     ]
 
     assert (
         query
         == """
-select visit,type,origin.url as origin,date,snapshot,status,metadata
+select visit,type,origin.url as origin,date
 from origin_visit
 left join origin on origin_visit.origin=origin.id
 where (origin_visit.origin) >= %s and (origin_visit.origin) < %s

@@ -103,15 +103,7 @@ COLUMNS = {
     ],
     "snapshot": ["id", "object_id"],
     "origin": ["url"],
-    "origin_visit": [
-        "visit",
-        "type",
-        ("origin.url", "origin"),
-        "date",
-        "snapshot",
-        "status",
-        "metadata",
-    ],
+    "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
     "origin_visit_status": [
         "visit",
         ("origin.url", "origin"),

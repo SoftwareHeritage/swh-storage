@@ -592,9 +592,9 @@ as $$
     from origin_visit
     where origin = (select id from origin_id)
   )
-  insert into origin_visit (origin, date, type, visit, status)
+  insert into origin_visit (origin, date, type, visit)
   values ((select id from origin_id), date, type,
-          (select visit from last_known_visit) + 1, 'ongoing')
+          (select visit from last_known_visit) + 1)
   returning visit;
 $$;
 
