@@ -523,18 +523,19 @@ class InMemoryStorage:
         return random.choice(list(self._revisions))
 
     def release_add(self, releases: Iterable[Release]) -> Dict:
-        releases = [rel for rel in releases if rel.id not in self._releases]
-        self.journal_writer.release_add(releases)
-
-        count = 0
+        to_add = []
         for rel in releases:
+            if rel.id not in self._releases and rel not in to_add:
+                to_add.append(rel)
+        self.journal_writer.release_add(to_add)
+
+        for rel in to_add:
             if rel.author:
                 self._person_add(rel.author)
             self._objects[rel.id].append(("release", rel.id))
             self._releases[rel.id] = rel
-            count += 1
 
-        return {"release:add": count}
+        return {"release:add": len(to_add)}
 
     def release_missing(self, releases):
         yield from (rel for rel in releases if rel not in self._releases)

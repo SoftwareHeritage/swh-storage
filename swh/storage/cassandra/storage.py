@@ -512,16 +512,20 @@ class CassandraStorage:
         return self._cql_runner.revision_get_random().id
 
     def release_add(self, releases: Iterable[Release]) -> Dict:
-        missing = self.release_missing([rel.id for rel in releases])
-        releases = [rel for rel in releases if rel.id in missing]
+        to_add = []
+        for rel in releases:
+            if rel not in to_add:
+                to_add.append(rel)
+        missing = set(self.release_missing([rel.id for rel in to_add]))
+        to_add = [rel for rel in to_add if rel.id in missing]
 
-        self.journal_writer.release_add(releases)
+        self.journal_writer.release_add(to_add)
 
-        for release in releases:
+        for release in to_add:
             if release:
                 self._cql_runner.release_add_one(release_to_db(release))
 
-        return {"release:add": len(missing)}
+        return {"release:add": len(to_add)}
 
     def release_missing(self, releases):
         return self._cql_runner.release_missing(releases)

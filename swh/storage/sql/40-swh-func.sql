@@ -568,9 +568,10 @@ begin
     perform swh_person_add_from_release();
 
     insert into release (id, target, target_type, date, date_offset, date_neg_utc_offset, name, comment, author, synthetic)
-    select t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.name, t.comment, a.id, t.synthetic
-    from tmp_release t
-    left join person a on a.fullname = t.author_fullname;
+      select distinct t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.name, t.comment, a.id, t.synthetic
+        from tmp_release t
+        left join person a on a.fullname = t.author_fullname
+        where not exists (select 1 from release where t.id = release.id);
     return;
 end
 $$;
