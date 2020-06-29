@@ -11,6 +11,7 @@ import re
 from typing import Any, Dict, List, Iterable, Optional
 
 import attr
+from deprecated import deprecated
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
@@ -763,13 +764,19 @@ class CassandraStorage:
 
         return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
 
-    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
-        results = []
-        for origin in origins:
-            self.origin_add_one(origin)
-            results.append(origin.to_dict())
-        return results
+    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
+        known_origins = [
+            Origin.from_dict(d)
+            for d in self.origin_get([origin.to_dict() for origin in origins])
+            if d is not None
+        ]
+        to_add = [origin for origin in origins if origin not in known_origins]
+        self.journal_writer.origin_add(to_add)
+        for origin in to_add:
+            self._cql_runner.origin_add_one(origin)
+        return {"origin:add": len(to_add)}
 
+    @deprecated("Use origin_add([origin]) instead")
     def origin_add_one(self, origin: Origin) -> str:
         known_origin = self.origin_get_one(origin.to_dict())
 
@@ -802,11 +809,15 @@ class CassandraStorage:
             self._cql_runner.origin_visit_add_one(visit)
             assert visit.visit is not None
             all_visits.append(visit)
-
-            visit_status_dict = visit.to_dict()
-            visit_status_dict.pop("type")
-            visit_status = OriginVisitStatus.from_dict(visit_status_dict)
-            self._origin_visit_status_add(visit_status)
+            self._origin_visit_status_add(
+                OriginVisitStatus(
+                    origin=visit.origin,
+                    visit=visit.visit,
+                    date=visit.date,
+                    status="created",
+                    snapshot=None,
+                )
+            )
 
         return all_visits
 
@@ -874,13 +885,17 @@ class CassandraStorage:
             **visit._asdict(),
             "origin": visit.origin,
             "date": visit.date.replace(tzinfo=datetime.timezone.utc),
-            "metadata": (json.loads(visit.metadata) if visit.metadata else None),
         }
 
     def origin_visit_get(
-        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+        self,
+        origin: str,
+        last_visit: Optional[int] = None,
+        limit: Optional[int] = None,
+        order: str = "asc",
     ) -> Iterable[Dict[str, Any]]:
-        rows = self._cql_runner.origin_visit_get(origin, last_visit, limit)
+        rows = self._cql_runner.origin_visit_get(origin, last_visit, limit, order)
+
         for row in rows:
             visit = self._format_origin_visit_row(row)
             yield self._origin_visit_apply_last_status(visit)

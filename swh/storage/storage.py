@@ -9,6 +9,7 @@ import itertools
 
 from collections import defaultdict
 from contextlib import contextmanager
+from deprecated import deprecated
 from typing import Any, Dict, Iterable, List, Optional
 
 import attr
@@ -822,9 +823,13 @@ class Storage:
             all_visits.append(visit)
             # Forced to write after for the case when the visit has no id
             self.journal_writer.origin_visit_add([visit])
-            visit_status_dict = visit.to_dict()
-            visit_status_dict.pop("type")
-            visit_status = OriginVisitStatus.from_dict(visit_status_dict)
+            visit_status = OriginVisitStatus(
+                origin=visit.origin,
+                visit=visit.visit,
+                date=visit.date,
+                status="created",
+                snapshot=None,
+            )
             self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
         send_metric("origin_visit:add", count=nb_visits, method_name="origin_visit")
@@ -924,11 +929,13 @@ class Storage:
         origin: str,
         last_visit: Optional[int] = None,
         limit: Optional[int] = None,
+        order: str = "asc",
         db=None,
         cur=None,
     ) -> Iterable[Dict[str, Any]]:
+        assert order in ["asc", "desc"]
         lines = db.origin_visit_get_all(
-            origin, last_visit=last_visit, limit=limit, cur=cur
+            origin, last_visit=last_visit, limit=limit, order=order, cur=cur
         )
         for line in lines:
             visit = dict(zip(db.origin_visit_get_cols, line))
@@ -1093,26 +1100,29 @@ class Storage:
 
     @timed
     @db_transaction()
-    def origin_add(self, origins: Iterable[Origin], db=None, cur=None) -> List[Dict]:
-        origins = list(origins)
-        for origin in origins:
-            self.origin_add_one(origin, db=db, cur=cur)
+    def origin_add(
+        self, origins: Iterable[Origin], db=None, cur=None
+    ) -> Dict[str, int]:
+        urls = [o.url for o in origins]
+        known_origins = set(url for (url,) in db.origin_get_by_url(urls, cur))
+        # use lists here to keep origins sorted; some tests depend on this
+        to_add = [url for url in urls if url not in known_origins]
 
-        return [o.to_dict() for o in origins]
+        self.journal_writer.origin_add([Origin(url=url) for url in to_add])
+        added = 0
+        for url in to_add:
+            if db.origin_add(url, cur):
+                added += 1
+        return {"origin:add": added}
 
+    @deprecated("Use origin_add([origin]) instead")
     @timed
     @db_transaction()
     def origin_add_one(self, origin: Origin, db=None, cur=None) -> str:
-        origin_row = list(db.origin_get_by_url([origin.url], cur))[0]
-        origin_url = dict(zip(db.origin_cols, origin_row))["url"]
-        if origin_url:
-            return origin_url
-
-        self.journal_writer.origin_add([origin])
-
-        url = db.origin_add(origin.url, cur)
-        send_metric("origin:add", count=1, method_name="origin_add_one")
-        return url
+        stats = self.origin_add([origin])
+        if stats.get("origin:add", 0):
+            send_metric("origin:add", count=1, method_name="origin_add_one")
+        return origin.url
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

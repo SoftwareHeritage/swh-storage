@@ -67,7 +67,7 @@ def snapshot_get_latest(
 
     """
     visit_and_status = origin_get_latest_visit_status(
-        storage, origin, allowed_statuses=allowed_statuses, require_snapshot=True
+        storage, origin, allowed_statuses=allowed_statuses, require_snapshot=True,
     )
 
     if not visit_and_status:

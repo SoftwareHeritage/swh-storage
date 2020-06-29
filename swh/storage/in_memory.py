@@ -29,6 +29,8 @@ from typing import (
 
 import attr
 
+from deprecated import deprecated
+
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.model import (
     BaseContent,
@@ -753,12 +755,17 @@ class InMemoryStorage:
             )
         )
 
-    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
-        origins = copy.deepcopy(list(origins))
+    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
+        origins = list(origins)
+        added = 0
         for origin in origins:
-            self.origin_add_one(origin)
-        return [origin.to_dict() for origin in origins]
+            if origin.url not in self._origins:
+                self.origin_add_one(origin)
+                added += 1
 
+        return {"origin:add": added}
+
+    @deprecated("Use origin_add([origin]) instead")
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
             self.journal_writer.origin_add([origin])
@@ -791,10 +798,6 @@ class InMemoryStorage:
                     while len(self._origin_visits[origin_url]) < visit.visit:
                         self._origin_visits[origin_url].append(None)
                     self._origin_visits[origin_url][visit.visit - 1] = visit
-                    visit_status_dict = visit.to_dict()
-                    visit_status_dict.pop("type")
-                    visit_status = OriginVisitStatus.from_dict(visit_status_dict)
-                    self._origin_visit_status_add_one(visit_status)
                 else:
                     # visit ids are in the range [1, +inf[
                     visit_id = len(self._origin_visits[origin_url]) + 1
@@ -802,13 +805,17 @@ class InMemoryStorage:
                     self.journal_writer.origin_visit_add([visit])
                     self._origin_visits[origin_url].append(visit)
                     visit_key = (origin_url, visit.visit)
-
-                    visit_status_dict = visit.to_dict()
-                    visit_status_dict.pop("type")
-                    visit_status = OriginVisitStatus.from_dict(visit_status_dict)
-                    self._origin_visit_status_add_one(visit_status)
                     self._objects[visit_key].append(("origin_visit", None))
                 assert visit.visit is not None
+                self._origin_visit_status_add_one(
+                    OriginVisitStatus(
+                        origin=visit.origin,
+                        visit=visit.visit,
+                        date=visit.date,
+                        status="created",
+                        snapshot=None,
+                    )
+                )
                 all_visits.append(visit)
 
         return all_visits
@@ -858,14 +865,23 @@ class InMemoryStorage:
         )
 
     def origin_visit_get(
-        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+        self,
+        origin: str,
+        last_visit: Optional[int] = None,
+        limit: Optional[int] = None,
+        order: str = "asc",
     ) -> Iterable[Dict[str, Any]]:
-
+        order = order.lower()
+        assert order in ["asc", "desc"]
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
+            visits = sorted(visits, key=lambda v: v.visit, reverse=(order == "desc"))
             if last_visit is not None:
-                visits = visits[last_visit:]
+                if order == "asc":
+                    visits = [v for v in visits if v.visit > last_visit]
+                else:
+                    visits = [v for v in visits if v.visit < last_visit]
             if limit is not None:
                 visits = visits[:limit]
             for visit in visits:

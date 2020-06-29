@@ -148,9 +148,6 @@ CREATE TABLE IF NOT EXISTS origin_visit (
     visit           bigint,
     date            timestamp,
     type            text,
-    status          ascii,
-    metadata        text,
-    snapshot        blob,
     PRIMARY KEY ((origin), visit)
 );
 

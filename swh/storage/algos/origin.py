@@ -69,25 +69,27 @@ def origin_get_latest_visit_status(
         status exist (and match the search criteria), None otherwise.
 
     """
-    # visits order are from older visit to most recent.
-    visits = list(storage.origin_visit_get(origin_url))
-    visits.reverse()
-    if not visits:
-        return None
-    visit_status: Optional[OriginVisitStatus] = None
-    visit: Dict[str, Any]
-    # Iterate over the visits in reverse order, so the most recent match is found first
-    for visit in visits:
-        if type is not None and visit["type"] != type:
-            continue
-        visit_status = storage.origin_visit_status_get_latest(
-            origin_url,
-            visit["visit"],
-            allowed_statuses=allowed_statuses,
-            require_snapshot=require_snapshot,
+    last_visit = None
+    while True:
+        visits = list(
+            storage.origin_visit_get(
+                origin_url, last_visit=last_visit, order="desc", limit=10,
+            )
         )
-        if visit_status is not None:
-            break
-    if visit_status is None:
-        return None
-    return (OriginVisit.from_dict(visit), visit_status)
+        if not visits:
+            return None
+        last_visit = visits[-1]["visit"]
+
+        visit_status: Optional[OriginVisitStatus] = None
+        visit: Dict[str, Any]
+        for visit in visits:
+            if type is not None and visit["type"] != type:
+                continue
+            visit_status = storage.origin_visit_status_get_latest(
+                origin_url,
+                visit["visit"],
+                allowed_statuses=allowed_statuses,
+                require_snapshot=require_snapshot,
+            )
+            if visit_status is not None:
+                return (OriginVisit.from_dict(visit), visit_status)
