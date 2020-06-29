@@ -428,8 +428,7 @@ class Db(BaseDb):
     revision_get_cols = revision_add_cols + ["parents"]
 
     def origin_visit_add(self, origin, ts, type, cur=None):
-        """Add a new origin_visit for origin origin at timestamp ts with
-        status 'ongoing'.
+        """Add a new origin_visit for origin origin at timestamp ts.
 
         Args:
             origin: origin concerned by the visit
@@ -477,6 +476,13 @@ class Db(BaseDb):
             + [jsonize(visit_status.metadata)],
         )
 
+    origin_visit_upsert_cols = [
+        "origin",
+        "visit",
+        "date",
+        "type",
+    ]
+
     def origin_visit_upsert(self, origin_visit: OriginVisit, cur=None) -> None:
         # doing an extra query like this is way simpler than trying to join
         # the origin id in the query below
@@ -487,23 +493,14 @@ class Db(BaseDb):
         query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
                    ON CONFLICT ON CONSTRAINT origin_visit_pkey DO
                    UPDATE SET {updates}""".format(
-            cols=", ".join(self.origin_visit_get_cols),
-            values=", ".join("%s" for col in self.origin_visit_get_cols),
+            cols=", ".join(self.origin_visit_upsert_cols),
+            values=", ".join("%s" for col in self.origin_visit_upsert_cols),
             updates=", ".join(
-                "{0}=excluded.{0}".format(col) for col in self.origin_visit_get_cols
+                "{0}=excluded.{0}".format(col) for col in self.origin_visit_upsert_cols
             ),
         )
         cur.execute(
-            query,
-            (
-                origin_id,
-                ov.visit,
-                ov.date,
-                ov.type,
-                ov.status,
-                ov.metadata,
-                ov.snapshot,
-            ),
+            query, (origin_id, ov.visit, ov.date, ov.type),
         )
 
     origin_visit_get_cols = [
@@ -581,7 +578,9 @@ class Db(BaseDb):
         row = cur.fetchone()
         return self._make_origin_visit_status(row)
 
-    def origin_visit_get_all(self, origin_id, last_visit=None, limit=None, cur=None):
+    def origin_visit_get_all(
+        self, origin_id, last_visit=None, order="asc", limit=None, cur=None
+    ):
         """Retrieve all visits for origin with id origin_id.
 
         Args:
@@ -592,29 +591,37 @@ class Db(BaseDb):
 
         """
         cur = self._cursor(cur)
+        assert order.lower() in ["asc", "desc"]
 
-        if last_visit:
-            extra_condition = "and ov.visit > %s"
-            args = (origin_id, last_visit, limit)
+        query_parts = [
+            "SELECT DISTINCT ON (ov.visit) %s "
+            % ", ".join(self.origin_visit_select_cols),
+            "FROM origin_visit ov",
+            "INNER JOIN origin o ON o.id = ov.origin",
+            "INNER JOIN origin_visit_status ovs",
+            "ON ov.origin = ovs.origin AND ov.visit = ovs.visit",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin_id]
+
+        if last_visit is not None:
+            op_comparison = ">" if order == "asc" else "<"
+            query_parts.append(f"and ov.visit {op_comparison} %s")
+            query_params.append(last_visit)
+
+        if order == "asc":
+            query_parts.append("ORDER BY ov.visit ASC, ovs.date DESC")
+        elif order == "desc":
+            query_parts.append("ORDER BY ov.visit DESC, ovs.date DESC")
         else:
-            extra_condition = ""
-            args = (origin_id, limit)
+            assert False
 
-        query = """\
-        SELECT DISTINCT ON (ov.visit) %s
-        FROM origin_visit ov
-        INNER JOIN origin o ON o.id = ov.origin
-        INNER JOIN origin_visit_status ovs
-          ON ov.origin = ovs.origin AND ov.visit = ovs.visit
-        WHERE o.url=%%s %s
-        ORDER BY ov.visit ASC, ovs.date DESC
-        LIMIT %%s""" % (
-            ", ".join(self.origin_visit_select_cols),
-            extra_condition,
-        )
+        if limit is not None:
+            query_parts.append("LIMIT %s")
+            query_params.append(limit)
 
-        cur.execute(query, args)
-
+        query = "\n".join(query_parts)
+        cur.execute(query, tuple(query_params))
         yield from cur
 
     def origin_visit_get(self, origin_id, visit_id, cur=None):

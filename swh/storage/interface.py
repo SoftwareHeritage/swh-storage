@@ -781,7 +781,11 @@ class StorageInterface:
 
     @remote_api_endpoint("origin/visit/get")
     def origin_visit_get(
-        self, origin: str, last_visit: Optional[int] = None, limit: Optional[int] = None
+        self,
+        origin: str,
+        last_visit: Optional[int] = None,
+        limit: Optional[int] = None,
+        order: str = "asc",
     ) -> Iterable[Dict[str, Any]]:
         """Retrieve all the origin's visit's information.
 
@@ -791,6 +795,7 @@ class StorageInterface:
                 Default to None
             limit: Number of results to return from the last visit.
                 Default to None
+            order: Order on visit id fields to list origin visits (default to asc)
 
         Yields:
             List of visits.
@@ -1047,7 +1052,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/add_multi")
-    def origin_add(self, origins: Iterable[Origin]) -> List[Dict]:
+    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
         """Add origins to the storage
 
         Args:
@@ -1058,11 +1063,14 @@ class StorageInterface:
                 - url (bytes): the url the origin points to
 
         Returns:
-            list: given origins as dict updated with their id
+            Summary dict of keys with associated count as values
+
+                origin:add: Count of object actually stored in db
 
         """
         ...
 
+    @deprecated
     @remote_api_endpoint("origin/add")
     def origin_add_one(self, origin: Origin) -> str:
         """Add origin to the storage
