@@ -771,6 +771,10 @@ class StorageInterface:
     ) -> None:
         """Add origin visit statuses.
 
+        If there is already a status for the same origin and visit id at the same
+        date, the new one will be either dropped or will replace the existing one
+        (it is unspecified which one of these two behaviors happens).
+
         Args:
             visit_statuses: origin visit statuses to add
 
@@ -1121,7 +1125,9 @@ class StorageInterface:
         using this endpoint.
 
         If there is already content metadata for the same content, authority,
-        fetcher, and at the same date, it will be replaced by this one.
+        fetcher, and at the same date; the new one will be either dropped or
+        will replace the existing one
+        (it is unspecified which one of these two behaviors happens).
 
         Args:
             discovery_date: when the metadata was fetched.
@@ -1187,7 +1193,9 @@ class StorageInterface:
         using this endpoint.
 
         If there is already origin metadata for the same origin, authority,
-        fetcher, and at the same date, it will be replaced by this one.
+        fetcher, and at the same date; the new one will be either dropped or
+        will replace the existing one
+        (it is unspecified which one of these two behaviors happens).
 
         Args:
             discovery_date: when the metadata was fetched.
