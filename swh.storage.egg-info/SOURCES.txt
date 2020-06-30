@@ -181,6 +181,7 @@ sql/upgrades/152.sql
 sql/upgrades/153.sql
 sql/upgrades/154.sql
 sql/upgrades/155.sql
+sql/upgrades/156.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
