@@ -1227,13 +1227,17 @@ class TestStorage:
             ("release", Release.from_dict(data.release))
         ]
 
-        actual_result = swh_storage.release_add([data.release, data.release2])
+        actual_result = swh_storage.release_add(
+            [data.release, data.release2, data.release, data.release2]
+        )
         assert actual_result == {"release:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", Release.from_dict(data.release)),
-            ("release", Release.from_dict(data.release2)),
-        ]
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [
+                ("release", Release.from_dict(data.release)),
+                ("release", Release.from_dict(data.release2)),
+            ]
+        )
 
     def test_release_add_name_clash(self, swh_storage):
         release1 = data.release.copy()
