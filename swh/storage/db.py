@@ -1121,9 +1121,7 @@ class Db(BaseDb):
             ({', '.join(_object_metadata_insert_cols)})
         VALUES ({', '.join('%s' for _ in _object_metadata_insert_cols)})
         ON CONFLICT (id, authority_id, discovery_date, fetcher_id)
-        DO UPDATE SET
-            format=EXCLUDED.format,
-            metadata=EXCLUDED.metadata
+        DO NOTHING
     """
 
     object_metadata_get_cols = [

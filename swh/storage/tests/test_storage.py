@@ -3227,8 +3227,13 @@ class TestStorage:
 
         result = swh_storage.content_metadata_get(content_swhid, authority)
         assert result["next_page_token"] is None
-        assert [data.content_metadata, new_content_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+
+        expected_results1 = (data.content_metadata, new_content_metadata2)
+        expected_results2 = (data.content_metadata, data.content_metadata2)
+
+        assert tuple(sorted(result["results"], key=lambda x: x["discovery_date"],)) in (
+            expected_results1,  # cassandra
+            expected_results2,  # postgresql
         )
 
     def test_content_metadata_add_dict(self, swh_storage):
@@ -3473,8 +3478,14 @@ class TestStorage:
 
         result = swh_storage.origin_metadata_get(origin["url"], authority)
         assert result["next_page_token"] is None
-        assert [data.origin_metadata, new_origin_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+
+        # which of the two behavior happens is backend-specific.
+        expected_results1 = (data.origin_metadata, new_origin_metadata2)
+        expected_results2 = (data.origin_metadata, data.origin_metadata2)
+
+        assert tuple(sorted(result["results"], key=lambda x: x["discovery_date"],)) in (
+            expected_results1,  # cassandra
+            expected_results2,  # postgresql
         )
 
     def test_origin_metadata_add_dict(self, swh_storage):
