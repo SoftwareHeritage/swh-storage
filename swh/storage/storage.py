@@ -881,19 +881,6 @@ class Storage:
             return None
         return OriginVisitStatus.from_dict(row)
 
-    def _origin_visit_get_updated(
-        self, origin: str, visit_id: int, db, cur
-    ) -> Optional[Dict[str, Any]]:
-        """Retrieve origin visit and latest origin visit status and merge them
-        into an origin visit.
-
-        """
-        row_visit = db.origin_visit_get(origin, visit_id)
-        if row_visit is None:
-            return None
-        visit = dict(zip(db.origin_visit_get_cols, row_visit))
-        return self._origin_visit_apply_update(visit, db=db, cur=cur)
-
     def _origin_visit_apply_update(
         self, visit: Dict[str, Any], db, cur=None
     ) -> Dict[str, Any]:
@@ -904,27 +891,17 @@ class Storage:
         visit_status = db.origin_visit_status_get_latest(
             visit["origin"], visit["visit"], cur=cur
         )
-        return self._origin_visit_merge(visit, visit_status)
-
-    def _origin_visit_merge(
-        self, visit: Dict[str, Any], visit_status: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Merge origin_visit and origin_visit_status together.
-
-        """
-        return OriginVisit.from_dict(
-            {
-                # default to the values in visit
-                **visit,
-                # override with the last update
-                **visit_status,
-                # visit['origin'] is the URL (via a join), while
-                # visit_status['origin'] is only an id.
-                "origin": visit["origin"],
-                # but keep the date of the creation of the origin visit
-                "date": visit["date"],
-            }
-        ).to_dict()
+        return {
+            # default to the values in visit
+            **visit,
+            # override with the last update
+            **visit_status,
+            # visit['origin'] is the URL (via a join), while
+            # visit_status['origin'] is only an id.
+            "origin": visit["origin"],
+            # but keep the date of the creation of the origin visit
+            "date": visit["date"],
+        }
 
     @timed
     @db_transaction_generator(statement_timeout=500)

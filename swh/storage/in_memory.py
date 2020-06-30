@@ -581,7 +581,7 @@ class InMemoryStorage:
             return None
 
         visit = self._origin_visit_get_updated(origin_url, visit)
-        snapshot_id = visit.snapshot
+        snapshot_id = visit["snapshot"]
         if snapshot_id:
             return self.snapshot_get(snapshot_id)
         else:
@@ -739,7 +739,8 @@ class InMemoryStorage:
                     for ov in self._origin_visits[orig["url"]]
                 )
                 for ov in visits:
-                    if ov.snapshot and ov.snapshot in self._snapshots:
+                    snapshot = ov["snapshot"]
+                    if snapshot and snapshot in self._snapshots:
                         filtered_origins.append(orig)
                         break
         else:
@@ -845,7 +846,7 @@ class InMemoryStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add_one(visit_status)
 
-    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> OriginVisit:
+    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
         """Merge origin visit and latest origin visit status
 
         """
@@ -855,16 +856,14 @@ class InMemoryStorage:
         visit_key = (origin, visit_id)
 
         visit_update = max(self._origin_visit_statuses[visit_key], key=lambda v: v.date)
-        return OriginVisit.from_dict(
-            {
-                # default to the values in visit
-                **visit.to_dict(),
-                # override with the last update
-                **visit_update.to_dict(),
-                # but keep the date of the creation of the origin visit
-                "date": visit.date,
-            }
-        )
+        return {
+            # default to the values in visit
+            **visit.to_dict(),
+            # override with the last update
+            **visit_update.to_dict(),
+            # but keep the date of the creation of the origin visit
+            "date": visit.date,
+        }
 
     def origin_visit_get(
         self,
@@ -893,7 +892,7 @@ class InMemoryStorage:
 
                 visit_update = self._origin_visit_get_updated(origin_url, visit_id)
                 assert visit_update is not None
-                yield visit_update.to_dict()
+                yield visit_update
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
@@ -904,7 +903,7 @@ class InMemoryStorage:
             visit = min(visits, key=lambda v: (abs(v.date - visit_date), -v.visit))
             visit_update = self._origin_visit_get_updated(origin, visit.visit)
             assert visit_update is not None
-            return visit_update.to_dict()
+            return visit_update
         return None
 
     def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
@@ -914,7 +913,7 @@ class InMemoryStorage:
         ):
             visit_update = self._origin_visit_get_updated(origin_url, visit)
             assert visit_update is not None
-            return visit_update.to_dict()
+            return visit_update
         return None
 
     def origin_visit_get_latest(
@@ -936,16 +935,16 @@ class InMemoryStorage:
         ]
 
         if type is not None:
-            visits = [visit for visit in visits if visit.type == type]
+            visits = [visit for visit in visits if visit["type"] == type]
         if allowed_statuses is not None:
-            visits = [visit for visit in visits if visit.status in allowed_statuses]
+            visits = [visit for visit in visits if visit["status"] in allowed_statuses]
         if require_snapshot:
-            visits = [visit for visit in visits if visit.snapshot]
+            visits = [visit for visit in visits if visit["snapshot"]]
 
-        visit = max(visits, key=lambda v: (v.date, v.visit), default=None)
+        visit = max(visits, key=lambda v: (v["date"], v["visit"]), default=None)
         if visit is None:
             return None
-        return visit.to_dict()
+        return visit
 
     def origin_visit_status_get_latest(
         self,
@@ -987,8 +986,11 @@ class InMemoryStorage:
         for visit in random_origin_visits:
             updated_visit = self._origin_visit_get_updated(url, visit.visit)
             assert updated_visit is not None
-            if updated_visit.date > back_in_the_day and updated_visit.status == "full":
-                return updated_visit.to_dict()
+            if (
+                updated_visit["date"] > back_in_the_day
+                and updated_visit["status"] == "full"
+            ):
+                return updated_visit
         else:
             return None
 

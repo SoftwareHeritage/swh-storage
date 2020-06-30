@@ -843,26 +843,6 @@ class CassandraStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
 
-    def _origin_visit_merge(
-        self, visit: Dict[str, Any], visit_status: OriginVisitStatus,
-    ) -> Dict[str, Any]:
-        """Merge origin_visit and visit_status together.
-
-        """
-        return OriginVisit.from_dict(
-            {
-                # default to the values in visit
-                **visit,
-                # override with the last update
-                **visit_status.to_dict(),
-                # visit['origin'] is the URL (via a join), while
-                # visit_status['origin'] is only an id.
-                "origin": visit["origin"],
-                # but keep the date of the creation of the origin visit
-                "date": visit["date"],
-            }
-        ).to_dict()
-
     def _origin_visit_apply_last_status(self, visit: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve the latest visit status information for the origin visit.
         Then merge it with the visit and return it.
@@ -872,7 +852,18 @@ class CassandraStorage:
             visit["origin"], visit["visit"]
         )
         assert row is not None
-        return self._origin_visit_merge(visit, row_to_visit_status(row))
+        visit_status = row_to_visit_status(row)
+        return {
+            # default to the values in visit
+            **visit,
+            # override with the last update
+            **visit_status.to_dict(),
+            # visit['origin'] is the URL (via a join), while
+            # visit_status['origin'] is only an id.
+            "origin": visit["origin"],
+            # but keep the date of the creation of the origin visit
+            "date": visit["date"],
+        }
 
     def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
         """Retrieve origin visit and latest origin visit status and merge them
