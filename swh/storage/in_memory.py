@@ -1037,6 +1037,18 @@ class InMemoryStorage:
             context,
         )
 
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit
+        )
+
     def origin_metadata_add(
         self,
         origin_url: str,
@@ -1063,6 +1075,26 @@ class InMemoryStorage:
             metadata,
             context,
         )
+
+    def origin_metadata_get(
+        self,
+        origin_url: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        if not isinstance(origin_url, str):
+            raise TypeError("origin_url must be str, not %r" % (origin_url,))
+
+        res = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit
+        )
+        res["results"] = copy.deepcopy(res["results"])
+        for result in res["results"]:
+            result["origin_url"] = result.pop("id")
+
+        return res
 
     def _object_metadata_add(
         self,
@@ -1111,38 +1143,6 @@ class InMemoryStorage:
                 break
         else:
             object_metadata_list.add(object_metadata)
-
-    def content_metadata_get(
-        self,
-        id: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-    ) -> Dict[str, Any]:
-        return self._object_metadata_get(
-            "content", id, authority, after, page_token, limit
-        )
-
-    def origin_metadata_get(
-        self,
-        origin_url: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-    ) -> Dict[str, Any]:
-        if not isinstance(origin_url, str):
-            raise TypeError("origin_url must be str, not %r" % (origin_url,))
-
-        res = self._object_metadata_get(
-            "origin", origin_url, authority, after, page_token, limit
-        )
-        res["results"] = copy.deepcopy(res["results"])
-        for result in res["results"]:
-            result["origin_url"] = result.pop("id")
-
-        return res
 
     def _object_metadata_get(
         self,

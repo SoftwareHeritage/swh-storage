@@ -366,49 +366,6 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_metadata_add(
-        self,
-        id: str,
-        context: Dict[str, Union[str, bytes, int]],
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-        db=None,
-        cur=None,
-    ) -> None:
-        self._object_metadata_add(
-            "content",
-            id,
-            context,
-            discovery_date,
-            authority,
-            fetcher,
-            format,
-            metadata,
-            db,
-            cur,
-        )
-
-    @timed
-    @db_transaction()
-    def content_metadata_get(
-        self,
-        id: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-        db=None,
-        cur=None,
-    ) -> Dict[str, Any]:
-        return self._object_metadata_get(
-            "content", id, authority, after, page_token, limit, db, cur
-        )
-
-    @timed
-    @db_transaction()
     def content_get_random(self, db=None, cur=None):
         return db.content_get_random(cur)
 
@@ -1198,6 +1155,49 @@ class Storage:
 
     @timed
     @db_transaction()
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        db=None,
+        cur=None,
+    ) -> None:
+        self._object_metadata_add(
+            "content",
+            id,
+            context,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            db,
+            cur,
+        )
+
+    @timed
+    @db_transaction()
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit, db, cur
+        )
+
+    @timed
+    @db_transaction()
     def origin_metadata_add(
         self,
         origin_url: str,
@@ -1223,6 +1223,28 @@ class Storage:
             db,
             cur,
         )
+
+    @timed
+    @db_transaction(statement_timeout=500)
+    def origin_metadata_get(
+        self,
+        origin_url: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Dict[str, Any]:
+        result = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit, db, cur
+        )
+
+        for res in result["results"]:
+            res.pop("id")
+            res["origin_url"] = origin_url
+
+        return result
 
     def _object_metadata_add(
         self,
@@ -1263,28 +1285,6 @@ class Storage:
             count=1,
             method_name=f"{object_type}_metadata_add",
         )
-
-    @timed
-    @db_transaction(statement_timeout=500)
-    def origin_metadata_get(
-        self,
-        origin_url: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-        db=None,
-        cur=None,
-    ) -> Dict[str, Any]:
-        result = self._object_metadata_get(
-            "origin", origin_url, authority, after, page_token, limit, db, cur
-        )
-
-        for res in result["results"]:
-            res.pop("id")
-            res["origin_url"] = origin_url
-
-        return result
 
     def _object_metadata_get(
         self,
