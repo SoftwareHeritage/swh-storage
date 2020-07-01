@@ -1,3 +1,20 @@
+swh-storage (0.9.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.9.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-01 09:53:34
+    +0200)
+  * Upstream changes:     - v0.9.0     - storage*: Drop intermediary
+    conversion step into OriginVisit     - pg: use 'on conflict do
+    nothing' strategy for duplicate metadata rows.     - Make the code
+    location of metadata endpoints consistent across backends.     - Add
+    content_metadata_{add,get}.     - Add context columns to
+    object_metadata table and object_metadata_{add,get}.     -
+    Generalize origin_metadata to allow support for other object types
+    in the future.     - Work around the segmentation faults caused by
+    pytest-coverage + multiprocessing.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 01 Jul 2020 08:02:08 +0000
+
 swh-storage (0.8.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.8.1     - (tagged by David Douard
