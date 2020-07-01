@@ -182,6 +182,7 @@ sql/upgrades/153.sql
 sql/upgrades/154.sql
 sql/upgrades/155.sql
 sql/upgrades/156.sql
+sql/upgrades/157.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -197,6 +198,7 @@ swh/storage/common.py
 swh/storage/converters.py
 swh/storage/db.py
 swh/storage/exc.py
+swh/storage/extrinsic_metadata.py
 swh/storage/filter.py
 swh/storage/fixer.py
 swh/storage/in_memory.py
