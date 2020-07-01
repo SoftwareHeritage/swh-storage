@@ -25,6 +25,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 import attr
@@ -49,9 +50,9 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
-from .exc import StorageArgumentException, HashCollision
-
 from .converters import origin_url_to_sha1
+from .exc import StorageArgumentException, HashCollision
+from .extrinsic_metadata import check_extrinsic_metadata_context, CONTEXT_KEYS
 from .utils import get_partition_bounds_bytes
 from .writer import JournalWriter
 
@@ -138,7 +139,7 @@ class InMemoryStorage:
         self._persons = {}
 
         # {origin_url: {authority: [metadata]}}
-        self._origin_metadata: Dict[
+        self._object_metadata: Dict[
             str,
             Dict[
                 Hashable,
@@ -580,7 +581,7 @@ class InMemoryStorage:
             return None
 
         visit = self._origin_visit_get_updated(origin_url, visit)
-        snapshot_id = visit.snapshot
+        snapshot_id = visit["snapshot"]
         if snapshot_id:
             return self.snapshot_get(snapshot_id)
         else:
@@ -738,7 +739,8 @@ class InMemoryStorage:
                     for ov in self._origin_visits[orig["url"]]
                 )
                 for ov in visits:
-                    if ov.snapshot and ov.snapshot in self._snapshots:
+                    snapshot = ov["snapshot"]
+                    if snapshot and snapshot in self._snapshots:
                         filtered_origins.append(orig)
                         break
         else:
@@ -844,7 +846,7 @@ class InMemoryStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add_one(visit_status)
 
-    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> OriginVisit:
+    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
         """Merge origin visit and latest origin visit status
 
         """
@@ -854,16 +856,14 @@ class InMemoryStorage:
         visit_key = (origin, visit_id)
 
         visit_update = max(self._origin_visit_statuses[visit_key], key=lambda v: v.date)
-        return OriginVisit.from_dict(
-            {
-                # default to the values in visit
-                **visit.to_dict(),
-                # override with the last update
-                **visit_update.to_dict(),
-                # but keep the date of the creation of the origin visit
-                "date": visit.date,
-            }
-        )
+        return {
+            # default to the values in visit
+            **visit.to_dict(),
+            # override with the last update
+            **visit_update.to_dict(),
+            # but keep the date of the creation of the origin visit
+            "date": visit.date,
+        }
 
     def origin_visit_get(
         self,
@@ -892,7 +892,7 @@ class InMemoryStorage:
 
                 visit_update = self._origin_visit_get_updated(origin_url, visit_id)
                 assert visit_update is not None
-                yield visit_update.to_dict()
+                yield visit_update
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
@@ -903,7 +903,7 @@ class InMemoryStorage:
             visit = min(visits, key=lambda v: (abs(v.date - visit_date), -v.visit))
             visit_update = self._origin_visit_get_updated(origin, visit.visit)
             assert visit_update is not None
-            return visit_update.to_dict()
+            return visit_update
         return None
 
     def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
@@ -913,7 +913,7 @@ class InMemoryStorage:
         ):
             visit_update = self._origin_visit_get_updated(origin_url, visit)
             assert visit_update is not None
-            return visit_update.to_dict()
+            return visit_update
         return None
 
     def origin_visit_get_latest(
@@ -935,16 +935,16 @@ class InMemoryStorage:
         ]
 
         if type is not None:
-            visits = [visit for visit in visits if visit.type == type]
+            visits = [visit for visit in visits if visit["type"] == type]
         if allowed_statuses is not None:
-            visits = [visit for visit in visits if visit.status in allowed_statuses]
+            visits = [visit for visit in visits if visit["status"] in allowed_statuses]
         if require_snapshot:
-            visits = [visit for visit in visits if visit.snapshot]
+            visits = [visit for visit in visits if visit["snapshot"]]
 
-        visit = max(visits, key=lambda v: (v.date, v.visit), default=None)
+        visit = max(visits, key=lambda v: (v["date"], v["visit"]), default=None)
         if visit is None:
             return None
-        return visit.to_dict()
+        return visit
 
     def origin_visit_status_get_latest(
         self,
@@ -986,8 +986,11 @@ class InMemoryStorage:
         for visit in random_origin_visits:
             updated_visit = self._origin_visit_get_updated(url, visit.visit)
             assert updated_visit is not None
-            if updated_visit.date > back_in_the_day and updated_visit.status == "full":
-                return updated_visit.to_dict()
+            if (
+                updated_visit["date"] > back_in_the_day
+                and updated_visit["status"] == "full"
+            ):
+                return updated_visit
         else:
             return None
 
@@ -1015,6 +1018,39 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        self._object_metadata_add(
+            "content",
+            id,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
+        )
+
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit
+        )
+
     def origin_metadata_add(
         self,
         origin_url: str,
@@ -1026,41 +1062,21 @@ class InMemoryStorage:
     ) -> None:
         if not isinstance(origin_url, str):
             raise StorageArgumentException(
-                "origin_id must be str, not %r" % (origin_url,)
+                "origin_url must be str, not %r" % (origin_url,)
             )
-        if not isinstance(metadata, bytes):
-            raise StorageArgumentException(
-                "metadata must be bytes, not %r" % (metadata,)
-            )
-        authority_key = self._metadata_authority_key(authority)
-        if authority_key not in self._metadata_authorities:
-            raise StorageArgumentException(f"Unknown authority {authority}")
-        fetcher_key = self._metadata_fetcher_key(fetcher)
-        if fetcher_key not in self._metadata_fetchers:
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
-        origin_metadata_list = self._origin_metadata[origin_url][authority_key]
+        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
 
-        origin_metadata = {
-            "origin_url": origin_url,
-            "discovery_date": discovery_date,
-            "authority": authority_key,
-            "fetcher": fetcher_key,
-            "format": format,
-            "metadata": metadata,
-        }
-
-        for existing_origin_metadata in origin_metadata_list:
-            if (
-                existing_origin_metadata["fetcher"] == fetcher_key
-                and existing_origin_metadata["discovery_date"] == discovery_date
-            ):
-                # Duplicate of an existing one; replace it.
-                existing_origin_metadata.update(origin_metadata)
-                break
-        else:
-            origin_metadata_list.add(origin_metadata)
-        return None
+        self._object_metadata_add(
+            "origin",
+            origin_url,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
+        )
 
     def origin_metadata_get(
         self,
@@ -1073,6 +1089,72 @@ class InMemoryStorage:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
+        res = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit
+        )
+        res["results"] = copy.deepcopy(res["results"])
+        for result in res["results"]:
+            result["origin_url"] = result.pop("id")
+
+        return res
+
+    def _object_metadata_add(
+        self,
+        object_type: str,
+        id: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        context: Dict[str, Union[str, bytes, int]],
+    ) -> None:
+        check_extrinsic_metadata_context(object_type, context)
+        if not isinstance(metadata, bytes):
+            raise StorageArgumentException(
+                "metadata must be bytes, not %r" % (metadata,)
+            )
+        authority_key = self._metadata_authority_key(authority)
+        if authority_key not in self._metadata_authorities:
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        fetcher_key = self._metadata_fetcher_key(fetcher)
+        if fetcher_key not in self._metadata_fetchers:
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+
+        object_metadata_list = self._object_metadata[id][authority_key]
+
+        object_metadata: Dict[str, Any] = {
+            "id": id,
+            "discovery_date": discovery_date,
+            "authority": authority_key,
+            "fetcher": fetcher_key,
+            "format": format,
+            "metadata": metadata,
+        }
+
+        if CONTEXT_KEYS[object_type]:
+            object_metadata["context"] = context
+
+        for existing_object_metadata in object_metadata_list:
+            if (
+                existing_object_metadata["fetcher"] == fetcher_key
+                and existing_object_metadata["discovery_date"] == discovery_date
+            ):
+                # Duplicate of an existing one; replace it.
+                existing_object_metadata.update(object_metadata)
+                break
+        else:
+            object_metadata_list.add(object_metadata)
+
+    def _object_metadata_get(
+        self,
+        object_type: str,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         authority_key = self._metadata_authority_key(authority)
 
         if page_token is not None:
@@ -1082,16 +1164,14 @@ class InMemoryStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._origin_metadata[origin_url][authority_key].iter_after(
+            entries = self._object_metadata[id][authority_key].iter_after(
                 (after_time, after_fetcher)
             )
         elif after is not None:
-            entries = self._origin_metadata[origin_url][authority_key].iter_from(
-                (after,)
-            )
+            entries = self._object_metadata[id][authority_key].iter_from((after,))
             entries = (entry for entry in entries if entry["discovery_date"] > after)
         else:
-            entries = iter(self._origin_metadata[origin_url][authority_key])
+            entries = iter(self._object_metadata[id][authority_key])
 
         if limit:
             entries = itertools.islice(entries, 0, limit + 1)

@@ -5,15 +5,20 @@
 
 import glob
 import pytest
-
+import multiprocessing.util
 from typing import Union
-
-from pytest_postgresql import factories
-from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
 
 from os import path, environ
 from hypothesis import settings
 from typing import Dict
+
+try:
+    import pytest_cov.embed
+except ImportError:
+    pytest_cov = None
+
+from pytest_postgresql import factories
+from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
 
 import swh.storage
 
@@ -52,6 +57,21 @@ DUMP_FILES = path.join(SQL_DIR, "*.sql")
 # https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
 settings.register_profile("fast", max_examples=5, deadline=5000)
 settings.register_profile("slow", max_examples=20, deadline=5000)
+
+
+if pytest_cov is not None:
+    # pytest_cov + multiprocessing can cause a segmentation fault when starting
+    # the child process <https://forge.softwareheritage.org/P706>; so we're
+    # removing pytest-coverage's hook that runs when a child process starts.
+    # This means code run in child processes won't be counted in the coverage
+    # report, but this is not an issue because the only code that runs only in
+    # child processes is the RPC server.
+    for (key, value) in multiprocessing.util._afterfork_registry.items():
+        if value is pytest_cov.embed.multiprocessing_start:
+            del multiprocessing.util._afterfork_registry[key]
+            break
+    else:
+        assert False, "missing pytest_cov.embed.multiprocessing_start?"
 
 
 @pytest.fixture

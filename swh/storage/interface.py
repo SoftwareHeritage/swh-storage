@@ -5,7 +5,7 @@
 
 import datetime
 
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from swh.core.api import remote_api_endpoint
 from swh.model.model import (
@@ -771,6 +771,10 @@ class StorageInterface:
     ) -> None:
         """Add origin visit statuses.
 
+        If there is already a status for the same origin and visit id at the same
+        date, the new one will be either dropped or will replace the existing one
+        (it is unspecified which one of these two behaviors happens).
+
         Args:
             visit_statuses: origin visit statuses to add
 
@@ -1103,6 +1107,75 @@ class StorageInterface:
         """Recomputes the statistics for `stat_counters`."""
         ...
 
+    @remote_api_endpoint("content/metadata/add")
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        """Add a content_metadata for the content at discovery_date,
+        obtained using the `fetcher` from the `authority`.
+
+        The authority and fetcher must be known to the storage before
+        using this endpoint.
+
+        If there is already content metadata for the same content, authority,
+        fetcher, and at the same date; the new one will be either dropped or
+        will replace the existing one
+        (it is unspecified which one of these two behaviors happens).
+
+        Args:
+            discovery_date: when the metadata was fetched.
+            authority: a dict containing keys `type` and `url`.
+            fetcher: a dict containing keys `name` and `version`.
+            format: text field indicating the format of the content of the
+            metadata: blob of raw metadata
+        """
+        ...
+
+    @remote_api_endpoint("content/metadata/get")
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        """Retrieve list of all content_metadata entries for the id
+
+        Args:
+            id: the content's SWHID
+            authority: a dict containing keys `type` and `url`.
+            after: minimum discovery_date for a result to be returned
+            page_token: opaque token, used to get the next page of results
+            limit: maximum number of results to be returned
+
+        Returns:
+            dict with keys `next_page_token` and `results`.
+            `next_page_token` is an opaque token that is used to get the
+            next page of results, or `None` if there are no more results.
+            `results` is a list of dicts in the format:
+
+            .. code-block: python
+
+                {
+                    'authority': {'type': ..., 'url': ...},
+                    'fetcher': {'name': ..., 'version': ...},
+                    'discovery_date': ...,
+                    'format': '...',
+                    'metadata': b'...',
+                    'context': { ... },
+                }
+
+        """
+        ...
+
     @remote_api_endpoint("origin/metadata/add")
     def origin_metadata_add(
         self,
@@ -1120,7 +1193,9 @@ class StorageInterface:
         using this endpoint.
 
         If there is already origin metadata for the same origin, authority,
-        fetcher, and at the same date, it will be replaced by this one.
+        fetcher, and at the same date; the new one will be either dropped or
+        will replace the existing one
+        (it is unspecified which one of these two behaviors happens).
 
         Args:
             discovery_date: when the metadata was fetched.
@@ -1140,7 +1215,7 @@ class StorageInterface:
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> Dict[str, Any]:
-        """Retrieve list of all origin_metadata entries for the origin_id
+        """Retrieve list of all origin_metadata entries for the origin_url
 
         Args:
             origin_url: the origin's URL

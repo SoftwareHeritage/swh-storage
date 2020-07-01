@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import functools
 import json
 import logging
@@ -17,6 +18,7 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
+    Union,
 )
 
 from cassandra import CoordinationFailure
@@ -44,6 +46,7 @@ from swh.model.model import (
 
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
+from .. import extrinsic_metadata
 
 
 logger = logging.getLogger(__name__)
@@ -865,12 +868,13 @@ class CqlRunner:
     def metadata_fetcher_get(self, name, version, *, statement) -> Optional[Row]:
         return next(iter(self._execute_with_retries(statement, [name, version])), None)
 
-    ##########################
-    # 'origin_metadata' table
-    ##########################
+    #########################
+    # 'object_metadata' table
+    #########################
 
-    _origin_metadata_keys = [
-        "origin",
+    _object_metadata_keys = [
+        "type",
+        "id",
         "authority_type",
         "authority_url",
         "discovery_date",
@@ -878,12 +882,23 @@ class CqlRunner:
         "fetcher_version",
         "format",
         "metadata",
+        "origin",
+        "visit",
+        "snapshot",
+        "release",
+        "revision",
+        "path",
+        "directory",
     ]
 
-    @_prepared_insert_statement("origin_metadata", _origin_metadata_keys)
-    def origin_metadata_add(
+    @_prepared_statement(
+        f"INSERT INTO object_metadata ({', '.join(_object_metadata_keys)}) "
+        f"VALUES ({', '.join('?' for _ in _object_metadata_keys)})"
+    )
+    def object_metadata_add(
         self,
-        origin,
+        object_type: str,
+        id: str,
         authority_type,
         authority_url,
         discovery_date,
@@ -891,55 +906,65 @@ class CqlRunner:
         fetcher_version,
         format,
         metadata,
+        context: Dict[str, Union[str, bytes, int]],
+        *,
+        statement,
+    ):
+        params = [
+            object_type,
+            id,
+            authority_type,
+            authority_url,
+            discovery_date,
+            fetcher_name,
+            fetcher_version,
+            format,
+            metadata,
+        ]
+
+        params.extend(
+            context.get(key) for key in extrinsic_metadata.CONTEXT_KEYS[object_type]
+        )
+
+        return self._execute_with_retries(statement, params,)
+
+    @_prepared_statement(
+        "SELECT * from object_metadata "
+        "WHERE id=? AND authority_url=? AND discovery_date>? AND authority_type=?"
+    )
+    def object_metadata_get_after_date(
+        self,
+        id: str,
+        authority_type: str,
+        authority_url: str,
+        after: datetime.datetime,
         *,
         statement,
     ):
         return self._execute_with_retries(
-            statement,
-            [
-                origin,
-                authority_type,
-                authority_url,
-                discovery_date,
-                fetcher_name,
-                fetcher_version,
-                format,
-                metadata,
-            ],
+            statement, [id, authority_url, after, authority_type]
         )
 
     @_prepared_statement(
-        "SELECT * from origin_metadata "
-        "WHERE origin=? AND authority_url=? AND discovery_date>? "
-        "AND authority_type=?"
-    )
-    def origin_metadata_get_after_date(
-        self, origin, authority_type, authority_url, after, *, statement
-    ):
-        return self._execute_with_retries(
-            statement, [origin, authority_url, after, authority_type]
-        )
-
-    @_prepared_statement(
-        "SELECT * from origin_metadata "
-        "WHERE origin=? AND authority_type=? AND authority_url=? "
+        "SELECT * from object_metadata "
+        "WHERE id=? AND authority_type=? AND authority_url=? "
         "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)"
     )
-    def origin_metadata_get_after_date_and_fetcher(
+    def object_metadata_get_after_date_and_fetcher(
         self,
-        origin,
-        authority_type,
-        authority_url,
-        after_date,
-        after_fetcher_name,
-        after_fetcher_version,
+        id: str,
+        authority_type: str,
+        authority_url: str,
+        after_date: datetime.datetime,
+        after_fetcher_name: str,
+        after_fetcher_version: str,
         *,
         statement,
     ):
         return self._execute_with_retries(
             statement,
             [
-                origin,
+                id,
                 authority_type,
                 authority_url,
                 after_date,
@@ -949,14 +974,14 @@ class CqlRunner:
         )
 
     @_prepared_statement(
-        "SELECT * from origin_metadata "
-        "WHERE origin=? AND authority_url=? AND authority_type=?"
+        "SELECT * from object_metadata "
+        "WHERE id=? AND authority_url=? AND authority_type=?"
     )
-    def origin_metadata_get(
-        self, origin, authority_type, authority_url, *, statement
+    def object_metadata_get(
+        self, id: str, authority_type: str, authority_url: str, *, statement
     ) -> Iterable[Row]:
         return self._execute_with_retries(
-            statement, [origin, authority_url, authority_type]
+            statement, [id, authority_url, authority_type]
         )
 
     ##########################

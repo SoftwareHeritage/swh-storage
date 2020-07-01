@@ -30,16 +30,19 @@ $$
 $$
 ;
 
+
 CREATE OR REPLACE AGGREGATE ascii_bins_count ( ascii )
 SFUNC ascii_bins_count_sfunc
 STYPE tuple<int, map<ascii, int>>
 INITCOND (0, {})
 ;
 
+
 CREATE TYPE IF NOT EXISTS microtimestamp (
     seconds             bigint,
     microseconds        int
 );
+
 
 CREATE TYPE IF NOT EXISTS microtimestamp_with_timezone (
     timestamp           frozen<microtimestamp>,
@@ -47,11 +50,13 @@ CREATE TYPE IF NOT EXISTS microtimestamp_with_timezone (
     negative_utc        boolean
 );
 
+
 CREATE TYPE IF NOT EXISTS person (
     fullname    blob,
     name        blob,
     email       blob
 );
+
 
 CREATE TABLE IF NOT EXISTS content (
     sha1          blob,
@@ -64,6 +69,7 @@ CREATE TABLE IF NOT EXISTS content (
     status        ascii,
     PRIMARY KEY ((sha1, sha1_git, sha256, blake2s256))
 );
+
 
 CREATE TABLE IF NOT EXISTS skipped_content (
     sha1          blob,
@@ -78,6 +84,7 @@ CREATE TABLE IF NOT EXISTS skipped_content (
     origin        text,
     PRIMARY KEY ((sha1, sha1_git, sha256, blake2s256))
 );
+
 
 CREATE TABLE IF NOT EXISTS revision (
     id                              blob PRIMARY KEY,
@@ -95,6 +102,7 @@ CREATE TABLE IF NOT EXISTS revision (
         -- extra commit information, etc...)
 );
 
+
 CREATE TABLE IF NOT EXISTS revision_parent (
     id                     blob,
     parent_rank                     int,
@@ -102,6 +110,7 @@ CREATE TABLE IF NOT EXISTS revision_parent (
     parent_id                       blob,
     PRIMARY KEY ((id), parent_rank)
 );
+
 
 CREATE TABLE IF NOT EXISTS release
 (
@@ -116,9 +125,11 @@ CREATE TABLE IF NOT EXISTS release
         -- true iff release has been created by Software Heritage
 );
 
+
 CREATE TABLE IF NOT EXISTS directory (
     id              blob PRIMARY KEY,
 );
+
 
 CREATE TABLE IF NOT EXISTS directory_entry (
     directory_id    blob,
@@ -129,9 +140,11 @@ CREATE TABLE IF NOT EXISTS directory_entry (
     PRIMARY KEY ((directory_id), name)
 );
 
+
 CREATE TABLE IF NOT EXISTS snapshot (
     id              blob PRIMARY KEY,
 );
+
 
 -- For a given snapshot_id, branches are sorted by their name,
 -- allowing easy pagination.
@@ -143,6 +156,7 @@ CREATE TABLE IF NOT EXISTS snapshot_branch (
     PRIMARY KEY ((snapshot_id), name)
 );
 
+
 CREATE TABLE IF NOT EXISTS origin_visit (
     origin          text,
     visit           bigint,
@@ -150,6 +164,7 @@ CREATE TABLE IF NOT EXISTS origin_visit (
     type            text,
     PRIMARY KEY ((origin), visit)
 );
+
 
 CREATE TABLE IF NOT EXISTS origin_visit_status (
     origin          text,
@@ -160,6 +175,7 @@ CREATE TABLE IF NOT EXISTS origin_visit_status (
     snapshot        blob,
     PRIMARY KEY ((origin), visit, date)
 );
+
 
 CREATE TABLE IF NOT EXISTS origin (
     sha1            blob PRIMARY KEY,
@@ -188,20 +204,32 @@ CREATE TABLE IF NOT EXISTS metadata_fetcher (
 );
 
 
-CREATE TABLE IF NOT EXISTS origin_metadata (
-    origin          text,
+CREATE TABLE IF NOT EXISTS object_metadata (
+    type            text,
+    id              text,
+
+    -- metadata source
     authority_type  text,
     authority_url   text,
     discovery_date  timestamp,
     fetcher_name    ascii,
     fetcher_version ascii,
+
+    -- metadata itself
     format          ascii,
     metadata        blob,
-    PRIMARY KEY ((origin), authority_type, authority_url, discovery_date,
-                           fetcher_name, fetcher_version),
-    -- for now, authority_url could be in the partition key; but leaving
-    -- in the partition key allows listing authorities with metadata on an
-    -- origin if we ever need to do it.
+
+    -- context
+    origin          text,
+    visit           bigint,
+    snapshot        text,
+    release         text,
+    revision        text,
+    path            blob,
+    directory       text,
+
+    PRIMARY KEY ((id), authority_type, authority_url, discovery_date,
+                       fetcher_name, fetcher_version)
 );
 
 
@@ -212,7 +240,7 @@ CREATE TABLE IF NOT EXISTS object_count (
     PRIMARY KEY ((partition_key), object_type)
 );
 """.split(
-    "\n\n"
+    "\n\n\n"
 )
 
 CONTENT_INDEX_TEMPLATE = """
@@ -233,7 +261,7 @@ CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
 TABLES = (
     "skipped_content content revision revision_parent release "
     "directory directory_entry snapshot snapshot_branch "
-    "origin_visit origin origin_metadata object_count "
+    "origin_visit origin object_metadata object_count "
     "origin_visit_status metadata_authority "
     "metadata_fetcher"
 ).split()
