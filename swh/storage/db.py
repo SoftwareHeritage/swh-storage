@@ -6,7 +6,7 @@
 import datetime
 import random
 import select
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize
@@ -1092,74 +1092,106 @@ class Db(BaseDb):
     def release_get_random(self, cur=None):
         return self._get_random_row_from_table("release", ["id"], "id", cur)
 
-    origin_metadata_get_cols = [
-        "origin.url",
+    _object_metadata_context_cols = [
+        "origin",
+        "visit",
+        "snapshot",
+        "release",
+        "revision",
+        "path",
+        "directory",
+    ]
+    """The list of context columns for all artifact types."""
+
+    _object_metadata_insert_cols = [
+        "type",
+        "id",
+        "authority_id",
+        "fetcher_id",
+        "discovery_date",
+        "format",
+        "metadata",
+        *_object_metadata_context_cols,
+    ]
+    """List of columns of the object_metadata table, used when writing
+    metadata."""
+
+    _object_metadata_insert_query = f"""
+        INSERT INTO object_metadata
+            ({', '.join(_object_metadata_insert_cols)})
+        VALUES ({', '.join('%s' for _ in _object_metadata_insert_cols)})
+        ON CONFLICT (id, authority_id, discovery_date, fetcher_id)
+        DO NOTHING
+    """
+
+    object_metadata_get_cols = [
+        "id",
         "discovery_date",
         "metadata_authority.type",
         "metadata_authority.url",
         "metadata_fetcher.id",
         "metadata_fetcher.name",
         "metadata_fetcher.version",
+        *_object_metadata_context_cols,
         "format",
         "metadata",
     ]
+    """List of columns of the object_metadata, metadata_authority,
+    and metadata_fetcher tables, used when reading object metadata."""
 
-    def origin_metadata_add(
+    _object_metadata_select_query = f"""
+        SELECT
+            object_metadata.id AS id,
+            {', '.join(object_metadata_get_cols[1:-1])},
+            object_metadata.metadata AS metadata
+        FROM object_metadata
+        INNER JOIN metadata_authority
+            ON (metadata_authority.id=authority_id)
+        INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id)
+        WHERE object_metadata.id=%s AND authority_id=%s
+    """
+
+    def object_metadata_add(
         self,
-        origin: str,
+        object_type: str,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
         discovery_date: datetime.datetime,
-        authority: int,
-        fetcher: int,
+        authority_id: int,
+        fetcher_id: int,
         format: str,
         metadata: bytes,
-        cur=None,
-    ) -> None:
-        """ Add an origin_metadata for the origin at ts with provider, tool and
-        metadata.
-
-        Args:
-            origin: the origin's id for which the metadata is added
-            discovery_date: time when the metadata was found
-            authority: the metadata provider identifier
-            fetcher: the tool's identifier used to extract metadata
-            format: the format of the metadata
-            metadata: the metadata retrieved at the time and location
-        """
-        cur = self._cursor(cur)
-        insert = """INSERT INTO origin_metadata (origin_id, discovery_date,
-                    authority_id, fetcher_id, format, metadata)
-                    SELECT id, %s, %s, %s, %s, %s FROM origin WHERE url = %s
-                    ON CONFLICT (origin_id, authority_id, discovery_date, fetcher_id)
-                    DO UPDATE SET
-                        format=EXCLUDED.format,
-                        metadata=EXCLUDED.metadata
-                 """
-        cur.execute(
-            insert, (discovery_date, authority, fetcher, format, metadata, origin),
+        cur,
+    ):
+        query = self._object_metadata_insert_query
+        args: Dict[str, Any] = dict(
+            type=object_type,
+            id=id,
+            authority_id=authority_id,
+            fetcher_id=fetcher_id,
+            discovery_date=discovery_date,
+            format=format,
+            metadata=metadata,
         )
+        for col in self._object_metadata_context_cols:
+            args[col] = context.get(col)
 
-    def origin_metadata_get(
+        params = [args[col] for col in self._object_metadata_insert_cols]
+
+        cur.execute(query, params)
+
+    def object_metadata_get(
         self,
-        origin_url: str,
-        authority: int,
+        object_type: str,
+        id: str,
+        authority_id: int,
         after_time: Optional[datetime.datetime],
         after_fetcher: Optional[int],
-        limit: Optional[int],
-        cur=None,
+        limit: int,
+        cur,
     ):
-        cur = self._cursor(cur)
-        assert self.origin_metadata_get_cols[-1] == "metadata"
-        query_parts = [
-            f"SELECT {', '.join(self.origin_metadata_get_cols[0:-1])}, "
-            f"  origin_metadata.metadata AS metadata "
-            f"FROM origin_metadata "
-            f"INNER JOIN metadata_authority "
-            f"  ON (metadata_authority.id=authority_id) "
-            f"INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id) "
-            f"INNER JOIN origin ON (origin.id=origin_metadata.origin_id) "
-            f"WHERE origin.url=%s AND authority_id=%s "
-        ]
-        args = [origin_url, authority]
+        query_parts = [self._object_metadata_select_query]
+        args = [id, authority_id]
 
         if after_fetcher is not None:
             assert after_time

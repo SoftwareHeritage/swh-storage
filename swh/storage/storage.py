@@ -10,7 +10,7 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from deprecated import deprecated
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 import attr
 import psycopg2
@@ -36,6 +36,10 @@ from swh.storage.validate import VALIDATION_EXCEPTIONS
 from swh.storage.utils import now
 
 from . import converters
+from .extrinsic_metadata import (
+    check_extrinsic_metadata_context,
+    CONTEXT_KEYS,
+)
 from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageArgumentException, StorageDBError, HashCollision
@@ -877,19 +881,6 @@ class Storage:
             return None
         return OriginVisitStatus.from_dict(row)
 
-    def _origin_visit_get_updated(
-        self, origin: str, visit_id: int, db, cur
-    ) -> Optional[Dict[str, Any]]:
-        """Retrieve origin visit and latest origin visit status and merge them
-        into an origin visit.
-
-        """
-        row_visit = db.origin_visit_get(origin, visit_id)
-        if row_visit is None:
-            return None
-        visit = dict(zip(db.origin_visit_get_cols, row_visit))
-        return self._origin_visit_apply_update(visit, db=db, cur=cur)
-
     def _origin_visit_apply_update(
         self, visit: Dict[str, Any], db, cur=None
     ) -> Dict[str, Any]:
@@ -900,27 +891,17 @@ class Storage:
         visit_status = db.origin_visit_status_get_latest(
             visit["origin"], visit["visit"], cur=cur
         )
-        return self._origin_visit_merge(visit, visit_status)
-
-    def _origin_visit_merge(
-        self, visit: Dict[str, Any], visit_status: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Merge origin_visit and origin_visit_status together.
-
-        """
-        return OriginVisit.from_dict(
-            {
-                # default to the values in visit
-                **visit,
-                # override with the last update
-                **visit_status,
-                # visit['origin'] is the URL (via a join), while
-                # visit_status['origin'] is only an id.
-                "origin": visit["origin"],
-                # but keep the date of the creation of the origin visit
-                "date": visit["date"],
-            }
-        ).to_dict()
+        return {
+            # default to the values in visit
+            **visit,
+            # override with the last update
+            **visit_status,
+            # visit['origin'] is the URL (via a join), while
+            # visit_status['origin'] is only an id.
+            "origin": visit["origin"],
+            # but keep the date of the creation of the origin visit
+            "date": visit["date"],
+        }
 
     @timed
     @db_transaction_generator(statement_timeout=500)
@@ -1151,6 +1132,49 @@ class Storage:
 
     @timed
     @db_transaction()
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        db=None,
+        cur=None,
+    ) -> None:
+        self._object_metadata_add(
+            "content",
+            id,
+            context,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            db,
+            cur,
+        )
+
+    @timed
+    @db_transaction()
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit, db, cur
+        )
+
+    @timed
+    @db_transaction()
     def origin_metadata_add(
         self,
         origin_url: str,
@@ -1162,29 +1186,20 @@ class Storage:
         db=None,
         cur=None,
     ) -> None:
-        authority_id = db.metadata_authority_get_id(
-            authority["type"], authority["url"], cur
+        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
+
+        self._object_metadata_add(
+            "origin",
+            origin_url,
+            context,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            db,
+            cur,
         )
-        if not authority_id:
-            raise StorageArgumentException(f"Unknown authority {authority}")
-        fetcher_id = db.metadata_fetcher_get_id(
-            fetcher["name"], fetcher["version"], cur
-        )
-        if not fetcher_id:
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
-        try:
-            db.origin_metadata_add(
-                origin_url,
-                discovery_date,
-                authority_id,
-                fetcher_id,
-                format,
-                metadata,
-                cur,
-            )
-        except psycopg2.ProgrammingError as e:
-            raise StorageArgumentException(*e.args)
-        send_metric("origin_metadata:add", count=1, method_name="origin_metadata_add")
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1197,6 +1212,67 @@ class Storage:
         limit: int = 1000,
         db=None,
         cur=None,
+    ) -> Dict[str, Any]:
+        result = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit, db, cur
+        )
+
+        for res in result["results"]:
+            res.pop("id")
+            res["origin_url"] = origin_url
+
+        return result
+
+    def _object_metadata_add(
+        self,
+        object_type: str,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        db,
+        cur,
+    ) -> None:
+        check_extrinsic_metadata_context(object_type, context)
+
+        authority_id = self._get_authority_id(authority, db, cur)
+        fetcher_id = self._get_fetcher_id(fetcher, db, cur)
+        if not isinstance(metadata, bytes):
+            raise StorageArgumentException(
+                "metadata must be bytes, not %r" % (metadata,)
+            )
+
+        db.object_metadata_add(
+            object_type,
+            id,
+            context,
+            discovery_date,
+            authority_id,
+            fetcher_id,
+            format,
+            metadata,
+            cur,
+        )
+
+        send_metric(
+            f"{object_type}_metadata:add",
+            count=1,
+            method_name=f"{object_type}_metadata_add",
+        )
+
+    def _object_metadata_get(
+        self,
+        object_type: str,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime],
+        page_token: Optional[bytes],
+        limit: int,
+        db,
+        cur,
     ) -> Dict[str, Any]:
         if page_token:
             (after_time, after_fetcher) = msgpack_loads(page_token)
@@ -1217,28 +1293,39 @@ class Storage:
                 "results": [],
             }
 
-        rows = db.origin_metadata_get(
-            origin_url, authority_id, after_time, after_fetcher, limit + 1, cur
+        rows = db.object_metadata_get(
+            object_type, id, authority_id, after_time, after_fetcher, limit + 1, cur
         )
-        rows = [dict(zip(db.origin_metadata_get_cols, row)) for row in rows]
+        rows = [dict(zip(db.object_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
             row = row.copy()
             row.pop("metadata_fetcher.id")
-            results.append(
-                {
-                    "origin_url": row.pop("origin.url"),
-                    "authority": {
-                        "type": row.pop("metadata_authority.type"),
-                        "url": row.pop("metadata_authority.url"),
-                    },
-                    "fetcher": {
-                        "name": row.pop("metadata_fetcher.name"),
-                        "version": row.pop("metadata_fetcher.version"),
-                    },
-                    **row,
-                }
-            )
+            context = {}
+            for key in CONTEXT_KEYS[object_type]:
+                value = row[key]
+                if value is not None:
+                    context[key] = value
+
+            result = {
+                "id": row["id"],
+                "authority": {
+                    "type": row.pop("metadata_authority.type"),
+                    "url": row.pop("metadata_authority.url"),
+                },
+                "fetcher": {
+                    "name": row.pop("metadata_fetcher.name"),
+                    "version": row.pop("metadata_fetcher.version"),
+                },
+                "discovery_date": row["discovery_date"],
+                "format": row["format"],
+                "metadata": row["metadata"],
+            }
+
+            if CONTEXT_KEYS[object_type]:
+                result["context"] = context
+
+            results.append(result)
 
         if len(results) > limit:
             results.pop()
@@ -1314,3 +1401,19 @@ class Storage:
 
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
         return {}
+
+    def _get_authority_id(self, authority: Dict[str, Any], db, cur):
+        authority_id = db.metadata_authority_get_id(
+            authority["type"], authority["url"], cur
+        )
+        if not authority_id:
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        return authority_id
+
+    def _get_fetcher_id(self, fetcher: Dict[str, Any], db, cur):
+        fetcher_id = db.metadata_fetcher_get_id(
+            fetcher["name"], fetcher["version"], cur
+        )
+        if not fetcher_id:
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+        return fetcher_id

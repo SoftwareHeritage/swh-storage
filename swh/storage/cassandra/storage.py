@@ -8,7 +8,7 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Dict, List, Iterable, Optional
+from typing import Any, Dict, List, Iterable, Optional, Union
 
 import attr
 from deprecated import deprecated
@@ -32,6 +32,7 @@ from swh.storage.writer import JournalWriter
 from swh.storage.utils import now
 
 from ..exc import StorageArgumentException, HashCollision
+from ..extrinsic_metadata import check_extrinsic_metadata_context, CONTEXT_KEYS
 from .common import TOKEN_BEGIN, TOKEN_END
 from .converters import (
     revision_to_db,
@@ -842,26 +843,6 @@ class CassandraStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
 
-    def _origin_visit_merge(
-        self, visit: Dict[str, Any], visit_status: OriginVisitStatus,
-    ) -> Dict[str, Any]:
-        """Merge origin_visit and visit_status together.
-
-        """
-        return OriginVisit.from_dict(
-            {
-                # default to the values in visit
-                **visit,
-                # override with the last update
-                **visit_status.to_dict(),
-                # visit['origin'] is the URL (via a join), while
-                # visit_status['origin'] is only an id.
-                "origin": visit["origin"],
-                # but keep the date of the creation of the origin visit
-                "date": visit["date"],
-            }
-        ).to_dict()
-
     def _origin_visit_apply_last_status(self, visit: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve the latest visit status information for the origin visit.
         Then merge it with the visit and return it.
@@ -871,7 +852,18 @@ class CassandraStorage:
             visit["origin"], visit["visit"]
         )
         assert row is not None
-        return self._origin_visit_merge(visit, row_to_visit_status(row))
+        visit_status = row_to_visit_status(row)
+        return {
+            # default to the values in visit
+            **visit,
+            # override with the last update
+            **visit_status.to_dict(),
+            # visit['origin'] is the URL (via a join), while
+            # visit_status['origin'] is only an id.
+            "origin": visit["origin"],
+            # but keep the date of the creation of the origin visit
+            "date": visit["date"],
+        }
 
     def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
         """Retrieve origin visit and latest origin visit status and merge them
@@ -1017,6 +1009,39 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
+    def content_metadata_add(
+        self,
+        id: str,
+        context: Dict[str, Union[str, bytes, int]],
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+    ) -> None:
+        self._object_metadata_add(
+            "content",
+            id,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
+        )
+
+    def content_metadata_get(
+        self,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
+        return self._object_metadata_get(
+            "content", id, authority, after, page_token, limit,
+        )
+
     def origin_metadata_add(
         self,
         origin_url: str,
@@ -1028,26 +1053,21 @@ class CassandraStorage:
     ) -> None:
         if not isinstance(origin_url, str):
             raise StorageArgumentException(
-                "origin_id must be str, not %r" % (origin_url,)
+                "origin_url must be str, not %r" % (origin_url,)
             )
-        if not self._cql_runner.metadata_authority_get(**authority):
-            raise StorageArgumentException(f"Unknown authority {authority}")
-        if not self._cql_runner.metadata_fetcher_get(**fetcher):
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
-        try:
-            self._cql_runner.origin_metadata_add(
-                origin_url,
-                authority["type"],
-                authority["url"],
-                discovery_date,
-                fetcher["name"],
-                fetcher["version"],
-                format,
-                metadata,
-            )
-        except TypeError as e:
-            raise StorageArgumentException(*e.args)
+        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
+
+        self._object_metadata_add(
+            "origin",
+            origin_url,
+            discovery_date,
+            authority,
+            fetcher,
+            format,
+            metadata,
+            context,
+        )
 
     def origin_metadata_get(
         self,
@@ -1060,6 +1080,57 @@ class CassandraStorage:
         if not isinstance(origin_url, str):
             raise TypeError("origin_url must be str, not %r" % (origin_url,))
 
+        res = self._object_metadata_get(
+            "origin", origin_url, authority, after, page_token, limit
+        )
+        for result in res["results"]:
+            result["origin_url"] = result.pop("id")
+
+        return res
+
+    def _object_metadata_add(
+        self,
+        object_type: str,
+        id: str,
+        discovery_date: datetime.datetime,
+        authority: Dict[str, Any],
+        fetcher: Dict[str, Any],
+        format: str,
+        metadata: bytes,
+        context: Dict[str, Union[str, bytes, int]],
+    ) -> None:
+        check_extrinsic_metadata_context(object_type, context)
+
+        if not self._cql_runner.metadata_authority_get(**authority):
+            raise StorageArgumentException(f"Unknown authority {authority}")
+        if not self._cql_runner.metadata_fetcher_get(**fetcher):
+            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+
+        try:
+            self._cql_runner.object_metadata_add(
+                object_type,
+                id,
+                authority["type"],
+                authority["url"],
+                discovery_date,
+                fetcher["name"],
+                fetcher["version"],
+                format,
+                metadata,
+                context,
+            )
+        except TypeError as e:
+            raise StorageArgumentException(*e.args)
+
+    def _object_metadata_get(
+        self,
+        object_type: str,
+        id: str,
+        authority: Dict[str, str],
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Dict[str, Any]:
         if page_token is not None:
             (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
                 page_token
@@ -1068,8 +1139,8 @@ class CassandraStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._cql_runner.origin_metadata_get_after_date_and_fetcher(
-                origin_url,
+            entries = self._cql_runner.object_metadata_get_after_date_and_fetcher(
+                id,
                 authority["type"],
                 authority["url"],
                 after_date,
@@ -1077,12 +1148,12 @@ class CassandraStorage:
                 after_fetcher_url,
             )
         elif after is not None:
-            entries = self._cql_runner.origin_metadata_get_after_date(
-                origin_url, authority["type"], authority["url"], after
+            entries = self._cql_runner.object_metadata_get_after_date(
+                id, authority["type"], authority["url"], after
             )
         else:
-            entries = self._cql_runner.origin_metadata_get(
-                origin_url, authority["type"], authority["url"]
+            entries = self._cql_runner.object_metadata_get(
+                id, authority["type"], authority["url"]
             )
 
         if limit:
@@ -1091,22 +1162,31 @@ class CassandraStorage:
         results = []
         for entry in entries:
             discovery_date = entry.discovery_date.replace(tzinfo=datetime.timezone.utc)
-            results.append(
-                {
-                    "origin_url": entry.origin,
-                    "authority": {
-                        "type": entry.authority_type,
-                        "url": entry.authority_url,
-                    },
-                    "fetcher": {
-                        "name": entry.fetcher_name,
-                        "version": entry.fetcher_version,
-                    },
-                    "discovery_date": discovery_date,
-                    "format": entry.format,
-                    "metadata": entry.metadata,
-                }
-            )
+
+            result = {
+                "id": entry.id,
+                "authority": {
+                    "type": entry.authority_type,
+                    "url": entry.authority_url,
+                },
+                "fetcher": {
+                    "name": entry.fetcher_name,
+                    "version": entry.fetcher_version,
+                },
+                "discovery_date": discovery_date,
+                "format": entry.format,
+                "metadata": entry.metadata,
+            }
+
+            if CONTEXT_KEYS[object_type]:
+                context = {}
+                for key in CONTEXT_KEYS[object_type]:
+                    value = getattr(entry, key)
+                    if value is not None:
+                        context[key] = value
+                result["context"] = context
+
+            results.append(result)
 
         if len(results) > limit:
             results.pop()

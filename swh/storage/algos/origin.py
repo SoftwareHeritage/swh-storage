@@ -92,4 +92,8 @@ def origin_get_latest_visit_status(
                 require_snapshot=require_snapshot,
             )
             if visit_status is not None:
+                # storage api gives us too many data which no longer map to an
+                # origin-visit, so we drop those
+                for key in ["metadata", "status", "snapshot"]:
+                    visit.pop(key, None)
                 return (OriginVisit.from_dict(visit), visit_status)
