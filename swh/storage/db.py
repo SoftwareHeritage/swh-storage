@@ -476,28 +476,22 @@ class Db(BaseDb):
             + [jsonize(visit_status.metadata)],
         )
 
-    origin_visit_upsert_cols = [
-        "origin",
-        "visit",
-        "date",
-        "type",
-    ]
+    def origin_visit_add_with_id(self, origin_visit: OriginVisit, cur=None) -> None:
+        """Insert origin visit when id are already set
 
-    def origin_visit_upsert(self, origin_visit: OriginVisit, cur=None) -> None:
+        """
+        ov = origin_visit
+        assert ov.visit is not None
         # doing an extra query like this is way simpler than trying to join
         # the origin id in the query below
-        ov = origin_visit
         origin_id = next(self.origin_id_get_by_url([ov.origin]))
+        origin_visit_cols = ["origin", "visit", "date", "type"]
 
         cur = self._cursor(cur)
         query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
-                   ON CONFLICT ON CONSTRAINT origin_visit_pkey DO
-                   UPDATE SET {updates}""".format(
-            cols=", ".join(self.origin_visit_upsert_cols),
-            values=", ".join("%s" for col in self.origin_visit_upsert_cols),
-            updates=", ".join(
-                "{0}=excluded.{0}".format(col) for col in self.origin_visit_upsert_cols
-            ),
+                   ON CONFLICT (origin, visit) DO NOTHING""".format(
+            cols=", ".join(origin_visit_cols),
+            values=", ".join("%s" for col in origin_visit_cols),
         )
         cur.execute(
             query, (origin_id, ov.visit, ov.date, ov.type),
