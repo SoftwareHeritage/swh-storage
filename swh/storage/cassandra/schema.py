@@ -97,9 +97,10 @@ CREATE TABLE IF NOT EXISTS revision (
     committer                       person,
     synthetic                       boolean,
         -- true iff revision has been created by Software Heritage
-    metadata                        text
-        -- extra metadata as JSON(tarball checksums,
-        -- extra commit information, etc...)
+    metadata                        text,
+        -- extra metadata as JSON(tarball checksums, etc...)
+    extra_headers                   frozen<list <list<blob>> >
+        -- extra commit information as (tuple(key, value), ...)
 );
 
 

@@ -85,6 +85,7 @@ def test_db_to_revision():
             "committer_email": b"comm-email",
             "metadata": {},
             "synthetic": False,
+            "extra_headers": (),
             "parents": [123, 456],
         }
     )
@@ -109,6 +110,7 @@ def test_db_to_revision():
         "message": b"commit message",
         "metadata": {},
         "synthetic": False,
+        "extra_headers": (),
         "parents": [123, 456],
     }
 
@@ -147,14 +149,3 @@ def test_db_to_release():
         "target": b"revision-id",
         "target_type": "revision",
     }
-
-
-def test_db_to_git_headers():
-    raw_data = [
-        ["gpgsig", b"garbage\x89a\x43b\x14"],
-        ["extra", [b"foo\\\\\\o", b"bar\\", b"inval\\\\\x99id"]],
-    ]
-
-    db_data = converters.git_headers_to_db(raw_data)
-    loop = converters.db_to_git_headers(db_data)
-    assert raw_data == loop

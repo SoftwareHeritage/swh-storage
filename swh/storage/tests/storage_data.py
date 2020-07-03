@@ -217,12 +217,12 @@ revision = {
     "metadata": {
         "checksums": {"sha1": "tarball-sha1", "sha256": "tarball-sha256",},
         "signed-off-by": "some-dude",
-        "extra_headers": [
-            ["gpgsig", b"test123"],
-            ["mergetag", b"foo\\bar"],
-            ["mergetag", b"\x22\xaf\x89\x80\x01\x00"],
-        ],
     },
+    "extra_headers": (
+        (b"gpgsig", b"test123"),
+        (b"mergetag", b"foo\\bar"),
+        (b"mergetag", b"\x22\xaf\x89\x80\x01\x00"),
+    ),
     "synthetic": True,
 }
 
@@ -253,6 +253,7 @@ revision2 = {
     "type": "git",
     "directory": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),  # dir2
     "metadata": None,
+    "extra_headers": (),
     "synthetic": False,
 }
 
@@ -283,6 +284,7 @@ revision3 = {
     "type": "git",
     "directory": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),  # dir2
     "metadata": None,
+    "extra_headers": (),
     "synthetic": True,
 }
 
@@ -315,6 +317,7 @@ revision4 = {
     "type": "git",
     "directory": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
     "metadata": None,
+    "extra_headers": (),
     "synthetic": False,
 }
 

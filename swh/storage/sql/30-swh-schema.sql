@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(157, now(), 'Work In Progress');
+      values(158, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -239,7 +239,8 @@ create table revision
   metadata              jsonb,  -- extra metadata (tarball checksums, extra commit information, etc...)
   object_id             bigserial,
   date_neg_utc_offset   boolean,
-  committer_date_neg_utc_offset boolean
+  committer_date_neg_utc_offset boolean,
+  extra_headers         bytea[][]  -- extra headers (used in hash computation)
 );
 
 comment on table revision is 'A revision represents the state of a source code tree at a specific point in time';
@@ -258,6 +259,7 @@ comment on column revision.committer is 'Committer identity';
 comment on column revision.synthetic is 'True iff revision has been synthesized by Software Heritage';
 comment on column revision.metadata is 'Extra revision metadata';
 comment on column revision.object_id is 'Non-intrinsic, sequential object identifier';
+comment on column revision.extra_headers is 'Extra revision headers; used in revision hash computation';
 
 
 -- either this table or the sha1_git[] column on the revision table
