@@ -482,20 +482,15 @@ class Db(BaseDb):
         """
         ov = origin_visit
         assert ov.visit is not None
-        # doing an extra query like this is way simpler than trying to join
-        # the origin id in the query below
-        origin_id = next(self.origin_id_get_by_url([ov.origin]))
-        origin_visit_cols = ["origin", "visit", "date", "type"]
-
         cur = self._cursor(cur)
-        query = """INSERT INTO origin_visit ({cols}) VALUES ({values})
+        origin_visit_cols = ["origin", "visit", "date", "type"]
+        query = """INSERT INTO origin_visit ({cols})
+                   VALUES ((select id from origin where url=%s), {values})
                    ON CONFLICT (origin, visit) DO NOTHING""".format(
             cols=", ".join(origin_visit_cols),
-            values=", ".join("%s" for col in origin_visit_cols),
+            values=", ".join("%s" for col in origin_visit_cols[1:]),
         )
-        cur.execute(
-            query, (origin_id, ov.visit, ov.date, ov.type),
-        )
+        cur.execute(query, (ov.origin, ov.visit, ov.date, ov.type))
 
     origin_visit_get_cols = [
         "origin",
