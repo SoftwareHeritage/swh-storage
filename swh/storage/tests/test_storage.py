@@ -3187,6 +3187,68 @@ class TestStorage:
         with pytest.raises(StorageArgumentException):
             swh_storage.content_find({"unknown-sha1": "something"})  # not the right key
 
+    def test_object_find_by_sha1_git(self, swh_storage):
+        sha1_gits = [b"00000000000000000000"]
+        expected = {
+            b"00000000000000000000": [],
+        }
+
+        swh_storage.content_add([data.cont])
+        sha1_gits.append(data.cont["sha1_git"])
+        expected[data.cont["sha1_git"]] = [
+            {"sha1_git": data.cont["sha1_git"], "type": "content",}
+        ]
+
+        swh_storage.directory_add([data.dir])
+        sha1_gits.append(data.dir["id"])
+        expected[data.dir["id"]] = [{"sha1_git": data.dir["id"], "type": "directory",}]
+
+        swh_storage.revision_add([data.revision])
+        sha1_gits.append(data.revision["id"])
+        expected[data.revision["id"]] = [
+            {"sha1_git": data.revision["id"], "type": "revision",}
+        ]
+
+        swh_storage.release_add([data.release])
+        sha1_gits.append(data.release["id"])
+        expected[data.release["id"]] = [
+            {"sha1_git": data.release["id"], "type": "release",}
+        ]
+
+        ret = swh_storage.object_find_by_sha1_git(sha1_gits)
+
+        assert expected == ret
+
+    def test_metadata_fetcher_add_get(self, swh_storage):
+        actual_fetcher = swh_storage.metadata_fetcher_get(
+            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
+        )
+        assert actual_fetcher is None  # does not exist
+
+        swh_storage.metadata_fetcher_add(**data.metadata_fetcher)
+
+        res = swh_storage.metadata_fetcher_get(
+            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
+        )
+
+        assert res is not data.metadata_fetcher
+        assert res == data.metadata_fetcher
+
+    def test_metadata_authority_add_get(self, swh_storage):
+        actual_authority = swh_storage.metadata_authority_get(
+            data.metadata_authority["type"], data.metadata_authority["url"]
+        )
+        assert actual_authority is None  # does not exist
+
+        swh_storage.metadata_authority_add(**data.metadata_authority)
+
+        res = swh_storage.metadata_authority_get(
+            data.metadata_authority["type"], data.metadata_authority["url"]
+        )
+
+        assert res is not data.metadata_authority
+        assert res == data.metadata_authority
+
     def test_content_metadata_add(self, swh_storage):
         content = data.cont
         fetcher = data.metadata_fetcher
@@ -3375,68 +3437,6 @@ class TestStorage:
         )
         assert result["next_page_token"] is None
         assert [content_metadata2] == result["results"]
-
-    def test_object_find_by_sha1_git(self, swh_storage):
-        sha1_gits = [b"00000000000000000000"]
-        expected = {
-            b"00000000000000000000": [],
-        }
-
-        swh_storage.content_add([data.cont])
-        sha1_gits.append(data.cont["sha1_git"])
-        expected[data.cont["sha1_git"]] = [
-            {"sha1_git": data.cont["sha1_git"], "type": "content",}
-        ]
-
-        swh_storage.directory_add([data.dir])
-        sha1_gits.append(data.dir["id"])
-        expected[data.dir["id"]] = [{"sha1_git": data.dir["id"], "type": "directory",}]
-
-        swh_storage.revision_add([data.revision])
-        sha1_gits.append(data.revision["id"])
-        expected[data.revision["id"]] = [
-            {"sha1_git": data.revision["id"], "type": "revision",}
-        ]
-
-        swh_storage.release_add([data.release])
-        sha1_gits.append(data.release["id"])
-        expected[data.release["id"]] = [
-            {"sha1_git": data.release["id"], "type": "release",}
-        ]
-
-        ret = swh_storage.object_find_by_sha1_git(sha1_gits)
-
-        assert expected == ret
-
-    def test_metadata_fetcher_add_get(self, swh_storage):
-        actual_fetcher = swh_storage.metadata_fetcher_get(
-            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
-        )
-        assert actual_fetcher is None  # does not exist
-
-        swh_storage.metadata_fetcher_add(**data.metadata_fetcher)
-
-        res = swh_storage.metadata_fetcher_get(
-            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
-        )
-
-        assert res is not data.metadata_fetcher
-        assert res == data.metadata_fetcher
-
-    def test_metadata_authority_add_get(self, swh_storage):
-        actual_authority = swh_storage.metadata_authority_get(
-            data.metadata_authority["type"], data.metadata_authority["url"]
-        )
-        assert actual_authority is None  # does not exist
-
-        swh_storage.metadata_authority_add(**data.metadata_authority)
-
-        res = swh_storage.metadata_authority_get(
-            data.metadata_authority["type"], data.metadata_authority["url"]
-        )
-
-        assert res is not data.metadata_authority
-        assert res == data.metadata_authority
 
     def test_origin_metadata_add(self, swh_storage):
         origin = data.origin
