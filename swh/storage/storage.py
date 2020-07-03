@@ -822,7 +822,7 @@ class Storage:
                     )
                 visit = attr.evolve(visit, visit=visit_id)
             else:
-                db.origin_visit_add_with_id(visit)
+                db.origin_visit_add_with_id(visit, cur=cur)
             assert visit.visit is not None
             all_visits.append(visit)
             # Forced to write after for the case when the visit has no id
