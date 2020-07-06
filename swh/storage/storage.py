@@ -1080,6 +1080,7 @@ class Storage:
         return db.origin_count(url_pattern, regexp, with_visit, cur)
 
     @timed
+    @process_metrics
     @db_transaction()
     def origin_add(
         self, origins: Iterable[Origin], db=None, cur=None
@@ -1100,9 +1101,7 @@ class Storage:
     @timed
     @db_transaction()
     def origin_add_one(self, origin: Origin, db=None, cur=None) -> str:
-        stats = self.origin_add([origin])
-        if stats.get("origin:add", 0):
-            send_metric("origin:add", count=1, method_name="origin_add_one")
+        self.origin_add([origin])
         return origin.url
 
     @db_transaction(statement_timeout=500)
