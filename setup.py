@@ -44,7 +44,9 @@ setup(
     author="Software Heritage developers",
     author_email="swh-devel@inria.fr",
     url="https://forge.softwareheritage.org/diffusion/DSTO/",
+    setup_requires=["setuptools-scm"],
     packages=find_packages(),
+    use_scm_version=True,
     scripts=["bin/swh-storage-add-dir",],
     entry_points="""
         [console_scripts]
@@ -52,14 +54,12 @@ setup(
         [swh.cli.subcommands]
         storage=swh.storage.cli:storage
     """,
-    setup_requires=["vcversioner"],
     install_requires=parse_requirements() + parse_requirements("swh"),
     extras_require={
         "testing": (parse_requirements("test") + parse_requirements("swh-journal")),
         "schemata": ["SQLAlchemy"],
         "journal": parse_requirements("swh-journal"),
     },
-    vcversioner={},
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
