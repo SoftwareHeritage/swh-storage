@@ -20,9 +20,12 @@ from swh.model.model import (
     BaseModel,
     Content,
     Directory,
+    MetadataAuthority,
+    MetadataFetcher,
     Origin,
     OriginVisit,
     Person,
+    RawExtrinsicMetadata,
     Release,
     Revision,
     SkippedContent,
@@ -218,9 +221,12 @@ def sample_data() -> Dict:
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
         "origin": [data.origin, data.origin2],
         "origin_visit": [data.origin_visit, data.origin_visit2, data.origin_visit3],
-        "fetcher": [data.metadata_fetcher],
-        "authority": [data.metadata_authority],
-        "origin_metadata": [data.origin_metadata, data.origin_metadata2],
+        "fetcher": [data.metadata_fetcher.to_dict()],
+        "authority": [data.metadata_authority.to_dict()],
+        "origin_metadata": [
+            data.origin_metadata.to_dict(),
+            data.origin_metadata2.to_dict(),
+        ],
     }
 
 
@@ -237,6 +243,9 @@ OBJECT_FACTORY = {
     "snapshot": Snapshot.from_dict,
     "origin": Origin.from_dict,
     "origin_visit": OriginVisit.from_dict,
+    "fetcher": MetadataFetcher.from_dict,
+    "authority": MetadataAuthority.from_dict,
+    "origin_metadata": RawExtrinsicMetadata.from_dict,
 }
 
 

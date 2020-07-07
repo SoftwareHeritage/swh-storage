@@ -50,6 +50,9 @@ def test_sample_data_model(sample_data, sample_data_model):
             "snapshot",
             "origin",
             "origin_visit",
+            "fetcher",
+            "authority",
+            "origin_metadata",
         ]
     )
 

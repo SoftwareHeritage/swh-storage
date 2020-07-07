@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import attr
 import copy
 import datetime
 import inspect
@@ -18,6 +17,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import Mock
 
+import attr
 import psycopg2
 import pytest
 
@@ -27,6 +27,7 @@ from typing import ClassVar, Optional
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
+from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -36,6 +37,7 @@ from swh.model.model import (
     Release,
     Revision,
     Snapshot,
+    MetadataTargetType,
 )
 from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
@@ -3245,50 +3247,51 @@ class TestStorage:
 
     def test_metadata_fetcher_add_get(self, swh_storage):
         actual_fetcher = swh_storage.metadata_fetcher_get(
-            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
+            data.metadata_fetcher.name, data.metadata_fetcher.version
         )
         assert actual_fetcher is None  # does not exist
 
-        swh_storage.metadata_fetcher_add(**data.metadata_fetcher)
+        swh_storage.metadata_fetcher_add([data.metadata_fetcher])
 
         res = swh_storage.metadata_fetcher_get(
-            data.metadata_fetcher["name"], data.metadata_fetcher["version"]
+            data.metadata_fetcher.name, data.metadata_fetcher.version
         )
 
-        assert res is not data.metadata_fetcher
         assert res == data.metadata_fetcher
 
     def test_metadata_authority_add_get(self, swh_storage):
         actual_authority = swh_storage.metadata_authority_get(
-            data.metadata_authority["type"], data.metadata_authority["url"]
+            data.metadata_authority.type, data.metadata_authority.url
         )
         assert actual_authority is None  # does not exist
 
-        swh_storage.metadata_authority_add(**data.metadata_authority)
+        swh_storage.metadata_authority_add([data.metadata_authority])
 
         res = swh_storage.metadata_authority_get(
-            data.metadata_authority["type"], data.metadata_authority["url"]
+            data.metadata_authority.type, data.metadata_authority.url
         )
 
-        assert res is not data.metadata_authority
         assert res == data.metadata_authority
 
     def test_content_metadata_add(self, swh_storage):
         content = data.cont
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        content_swhid = f"swh:1:cnt:{content['sha1_git']}"
+        content_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+        )
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.content_metadata_add(**data.content_metadata)
-        swh_storage.content_metadata_add(**data.content_metadata2)
+        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
 
-        result = swh_storage.content_metadata_get(content_swhid, authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content_swhid, authority
+        )
         assert result["next_page_token"] is None
         assert [data.content_metadata, data.content_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
     def test_content_metadata_add_duplicate(self, swh_storage):
@@ -3296,81 +3299,81 @@ class TestStorage:
         content = data.cont
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        content_swhid = f"swh:1:cnt:{content['sha1_git']}"
+        content_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+        )
 
-        new_content_metadata2 = {
-            **data.content_metadata2,
-            "format": "new-format",
-            "metadata": b"new-metadata",
-        }
+        new_content_metadata2 = attr.evolve(
+            data.content_metadata2, format="new-format", metadata=b"new-metadata",
+        )
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.content_metadata_add(**data.content_metadata)
-        swh_storage.content_metadata_add(**data.content_metadata2)
-        swh_storage.content_metadata_add(**new_content_metadata2)
+        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
+        swh_storage.object_metadata_add([new_content_metadata2])
 
-        result = swh_storage.content_metadata_get(content_swhid, authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content_swhid, authority
+        )
         assert result["next_page_token"] is None
 
         expected_results1 = (data.content_metadata, new_content_metadata2)
         expected_results2 = (data.content_metadata, data.content_metadata2)
 
-        assert tuple(sorted(result["results"], key=lambda x: x["discovery_date"],)) in (
+        assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
-
-    def test_content_metadata_add_dict(self, swh_storage):
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
-
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
-
-        kwargs = data.content_metadata.copy()
-        kwargs["metadata"] = {"foo": "bar"}
-
-        with pytest.raises(StorageArgumentException):
-            swh_storage.content_metadata_add(**kwargs)
 
     def test_content_metadata_get(self, swh_storage):
         authority = data.metadata_authority
         fetcher = data.metadata_fetcher
         authority2 = data.metadata_authority2
         fetcher2 = data.metadata_fetcher2
-        content1_swhid = f"swh:1:cnt:{data.cont['sha1_git']}"
-        content2_swhid = f"swh:1:cnt:{data.cont2['sha1_git']}"
+        content1_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(data.cont["sha1_git"])
+        )
+        content2_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(data.cont2["sha1_git"])
+        )
 
         content1_metadata1 = data.content_metadata
         content1_metadata2 = data.content_metadata2
         content1_metadata3 = data.content_metadata3
-        content2_metadata = {**data.content_metadata2, "id": content2_swhid}
+        content2_metadata = attr.evolve(data.content_metadata2, id=content2_swhid)
 
-        swh_storage.metadata_authority_add(**authority)
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority2)
-        swh_storage.metadata_fetcher_add(**fetcher2)
+        swh_storage.metadata_authority_add([authority, authority2])
+        swh_storage.metadata_fetcher_add([fetcher, fetcher2])
 
-        swh_storage.content_metadata_add(**content1_metadata1)
-        swh_storage.content_metadata_add(**content1_metadata2)
-        swh_storage.content_metadata_add(**content1_metadata3)
-        swh_storage.content_metadata_add(**content2_metadata)
+        swh_storage.object_metadata_add(
+            [
+                content1_metadata1,
+                content1_metadata2,
+                content1_metadata3,
+                content2_metadata,
+            ]
+        )
 
-        result = swh_storage.content_metadata_get(content1_swhid, authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content1_swhid, authority
+        )
         assert result["next_page_token"] is None
         assert [content1_metadata1, content1_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.content_metadata_get(content1_swhid, authority2)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content1_swhid, authority2
+        )
         assert result["next_page_token"] is None
         assert [content1_metadata3] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.content_metadata_get(content2_swhid, authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content2_swhid, authority
+        )
         assert result["next_page_token"] is None
         assert [content2_metadata] == list(result["results"],)
 
@@ -3378,32 +3381,40 @@ class TestStorage:
         content = data.cont
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        content_swhid = f"swh:1:cnt:{content['sha1_git']}"
+        content_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+        )
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.content_metadata_add(**data.content_metadata)
-        swh_storage.content_metadata_add(**data.content_metadata2)
+        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
 
-        result = swh_storage.content_metadata_get(
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT,
             content_swhid,
             authority,
-            after=data.content_metadata["discovery_date"] - timedelta(seconds=1),
+            after=data.content_metadata.discovery_date - timedelta(seconds=1),
         )
         assert result["next_page_token"] is None
         assert [data.content_metadata, data.content_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.content_metadata_get(
-            content_swhid, authority, after=data.content_metadata["discovery_date"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT,
+            content_swhid,
+            authority,
+            after=data.content_metadata.discovery_date,
         )
         assert result["next_page_token"] is None
         assert [data.content_metadata2] == result["results"]
 
-        result = swh_storage.content_metadata_get(
-            content_swhid, authority, after=data.content_metadata2["discovery_date"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT,
+            content_swhid,
+            authority,
+            after=data.content_metadata2.discovery_date,
         )
         assert result["next_page_token"] is None
         assert [] == result["results"]
@@ -3412,22 +3423,31 @@ class TestStorage:
         content = data.cont
         fetcher = data.metadata_fetcher
         authority = data.metadata_authority
-        content_swhid = f"swh:1:cnt:{content['sha1_git']}"
+        content_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+        )
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.content_metadata_add(**data.content_metadata)
-        swh_storage.content_metadata_add(**data.content_metadata2)
+        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
 
-        swh_storage.content_metadata_get(content_swhid, authority)
+        swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content_swhid, authority
+        )
 
-        result = swh_storage.content_metadata_get(content_swhid, authority, limit=1)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content_swhid, authority, limit=1
+        )
         assert result["next_page_token"] is not None
         assert [data.content_metadata] == result["results"]
 
-        result = swh_storage.content_metadata_get(
-            content_swhid, authority, limit=1, page_token=result["next_page_token"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT,
+            content_swhid,
+            authority,
+            limit=1,
+            page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
         assert [data.content_metadata2] == result["results"]
@@ -3437,30 +3457,50 @@ class TestStorage:
         fetcher1 = data.metadata_fetcher
         fetcher2 = data.metadata_fetcher2
         authority = data.metadata_authority
-        content_swhid = f"swh:1:cnt:{content['sha1_git']}"
+        content_swhid = SWHID(
+            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+        )
 
-        swh_storage.metadata_fetcher_add(**fetcher1)
-        swh_storage.metadata_fetcher_add(**fetcher2)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
+        swh_storage.metadata_authority_add([authority])
 
-        content_metadata2 = {
-            **data.content_metadata2,
-            "discovery_date": data.content_metadata2["discovery_date"],
-            "fetcher": {"name": fetcher2["name"], "version": fetcher2["version"],},
-        }
+        content_metadata2 = attr.evolve(
+            data.content_metadata2,
+            discovery_date=data.content_metadata2.discovery_date,
+            fetcher=attr.evolve(fetcher2, metadata=None),
+        )
 
-        swh_storage.content_metadata_add(**data.content_metadata)
-        swh_storage.content_metadata_add(**content_metadata2)
+        swh_storage.object_metadata_add([data.content_metadata, content_metadata2])
 
-        result = swh_storage.content_metadata_get(content_swhid, authority, limit=1)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT, content_swhid, authority, limit=1
+        )
         assert result["next_page_token"] is not None
         assert [data.content_metadata] == result["results"]
 
-        result = swh_storage.content_metadata_get(
-            content_swhid, authority, limit=1, page_token=result["next_page_token"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.CONTENT,
+            content_swhid,
+            authority,
+            limit=1,
+            page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
         assert [content_metadata2] == result["results"]
+
+    def test_content_metadata_get__invalid_id(self, swh_storage):
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
+
+        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
+
+        with pytest.raises(StorageArgumentException, match="SWHID"):
+            swh_storage.object_metadata_get(
+                MetadataTargetType.CONTENT, data.origin["url"], authority
+            )
 
     def test_origin_metadata_add(self, swh_storage):
         origin = data.origin
@@ -3468,16 +3508,17 @@ class TestStorage:
         authority = data.metadata_authority
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.origin_metadata_add(**data.origin_metadata)
-        swh_storage.origin_metadata_add(**data.origin_metadata2)
+        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
 
-        result = swh_storage.origin_metadata_get(origin["url"], authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin["url"], authority
+        )
         assert result["next_page_token"] is None
         assert [data.origin_metadata, data.origin_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date)
         )
 
     def test_origin_metadata_add_duplicate(self, swh_storage):
@@ -3487,45 +3528,29 @@ class TestStorage:
         authority = data.metadata_authority
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        new_origin_metadata2 = {
-            **data.origin_metadata2,
-            "format": "new-format",
-            "metadata": b"new-metadata",
-        }
+        new_origin_metadata2 = attr.evolve(
+            data.origin_metadata2, format="new-format", metadata=b"new-metadata",
+        )
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.origin_metadata_add(**data.origin_metadata)
-        swh_storage.origin_metadata_add(**data.origin_metadata2)
-        swh_storage.origin_metadata_add(**new_origin_metadata2)
+        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
+        swh_storage.object_metadata_add([new_origin_metadata2])
 
-        result = swh_storage.origin_metadata_get(origin["url"], authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin["url"], authority
+        )
         assert result["next_page_token"] is None
 
         # which of the two behavior happens is backend-specific.
         expected_results1 = (data.origin_metadata, new_origin_metadata2)
         expected_results2 = (data.origin_metadata, data.origin_metadata2)
 
-        assert tuple(sorted(result["results"], key=lambda x: x["discovery_date"],)) in (
+        assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
-
-    def test_origin_metadata_add_dict(self, swh_storage):
-        origin = data.origin
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
-        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
-
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
-
-        kwargs = data.origin_metadata.copy()
-        kwargs["metadata"] = {"foo": "bar"}
-
-        with pytest.raises(StorageArgumentException):
-            swh_storage.origin_metadata_add(**kwargs)
 
     def test_origin_metadata_get(self, swh_storage):
         authority = data.metadata_authority
@@ -3539,31 +3564,34 @@ class TestStorage:
         origin1_metadata1 = data.origin_metadata
         origin1_metadata2 = data.origin_metadata2
         origin1_metadata3 = data.origin_metadata3
-        origin2_metadata = {**data.origin_metadata2, "origin_url": origin_url2}
+        origin2_metadata = attr.evolve(data.origin_metadata2, id=origin_url2)
 
-        swh_storage.metadata_authority_add(**authority)
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority2)
-        swh_storage.metadata_fetcher_add(**fetcher2)
+        swh_storage.metadata_authority_add([authority, authority2])
+        swh_storage.metadata_fetcher_add([fetcher, fetcher2])
 
-        swh_storage.origin_metadata_add(**origin1_metadata1)
-        swh_storage.origin_metadata_add(**origin1_metadata2)
-        swh_storage.origin_metadata_add(**origin1_metadata3)
-        swh_storage.origin_metadata_add(**origin2_metadata)
+        swh_storage.object_metadata_add(
+            [origin1_metadata1, origin1_metadata2, origin1_metadata3, origin2_metadata]
+        )
 
-        result = swh_storage.origin_metadata_get(origin_url1, authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin_url1, authority
+        )
         assert result["next_page_token"] is None
         assert [origin1_metadata1, origin1_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.origin_metadata_get(origin_url1, authority2)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin_url1, authority2
+        )
         assert result["next_page_token"] is None
         assert [origin1_metadata3] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.origin_metadata_get(origin_url2, authority)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin_url2, authority
+        )
         assert result["next_page_token"] is None
         assert [origin2_metadata] == list(result["results"],)
 
@@ -3573,30 +3601,36 @@ class TestStorage:
         authority = data.metadata_authority
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.origin_metadata_add(**data.origin_metadata)
-        swh_storage.origin_metadata_add(**data.origin_metadata2)
+        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
 
-        result = swh_storage.origin_metadata_get(
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
             origin["url"],
             authority,
-            after=data.origin_metadata["discovery_date"] - timedelta(seconds=1),
+            after=data.origin_metadata.discovery_date - timedelta(seconds=1),
         )
         assert result["next_page_token"] is None
         assert [data.origin_metadata, data.origin_metadata2] == list(
-            sorted(result["results"], key=lambda x: x["discovery_date"],)
+            sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.origin_metadata_get(
-            origin["url"], authority, after=data.origin_metadata["discovery_date"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin["url"],
+            authority,
+            after=data.origin_metadata.discovery_date,
         )
         assert result["next_page_token"] is None
         assert [data.origin_metadata2] == result["results"]
 
-        result = swh_storage.origin_metadata_get(
-            origin["url"], authority, after=data.origin_metadata2["discovery_date"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin["url"],
+            authority,
+            after=data.origin_metadata2.discovery_date,
         )
         assert result["next_page_token"] is None
         assert [] == result["results"]
@@ -3607,20 +3641,27 @@ class TestStorage:
         authority = data.metadata_authority
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        swh_storage.metadata_fetcher_add(**fetcher)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
 
-        swh_storage.origin_metadata_add(**data.origin_metadata)
-        swh_storage.origin_metadata_add(**data.origin_metadata2)
+        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
 
-        swh_storage.origin_metadata_get(origin["url"], authority)
+        swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin["url"], authority
+        )
 
-        result = swh_storage.origin_metadata_get(origin["url"], authority, limit=1)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin["url"], authority, limit=1
+        )
         assert result["next_page_token"] is not None
         assert [data.origin_metadata] == result["results"]
 
-        result = swh_storage.origin_metadata_get(
-            origin["url"], authority, limit=1, page_token=result["next_page_token"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin["url"],
+            authority,
+            limit=1,
+            page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
         assert [data.origin_metadata2] == result["results"]
@@ -3632,28 +3673,73 @@ class TestStorage:
         authority = data.metadata_authority
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        swh_storage.metadata_fetcher_add(**fetcher1)
-        swh_storage.metadata_fetcher_add(**fetcher2)
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage.metadata_fetcher_add([fetcher1])
+        swh_storage.metadata_fetcher_add([fetcher2])
+        swh_storage.metadata_authority_add([authority])
 
-        origin_metadata2 = {
-            **data.origin_metadata2,
-            "discovery_date": data.origin_metadata2["discovery_date"],
-            "fetcher": {"name": fetcher2["name"], "version": fetcher2["version"],},
-        }
+        origin_metadata2 = attr.evolve(
+            data.origin_metadata2,
+            discovery_date=data.origin_metadata2.discovery_date,
+            fetcher=attr.evolve(fetcher2, metadata=None),
+        )
 
-        swh_storage.origin_metadata_add(**data.origin_metadata)
-        swh_storage.origin_metadata_add(**origin_metadata2)
+        swh_storage.object_metadata_add([data.origin_metadata, origin_metadata2])
 
-        result = swh_storage.origin_metadata_get(origin["url"], authority, limit=1)
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN, origin["url"], authority, limit=1
+        )
         assert result["next_page_token"] is not None
         assert [data.origin_metadata] == result["results"]
 
-        result = swh_storage.origin_metadata_get(
-            origin["url"], authority, limit=1, page_token=result["next_page_token"]
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin["url"],
+            authority,
+            limit=1,
+            page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
         assert [origin_metadata2] == result["results"]
+
+    def test_origin_metadata_add_missing_authority(self, swh_storage):
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
+
+        swh_storage.metadata_fetcher_add([fetcher])
+
+        with pytest.raises(StorageArgumentException, match="authority"):
+            swh_storage.object_metadata_add(
+                [data.origin_metadata, data.origin_metadata2]
+            )
+
+    def test_origin_metadata_add_missing_fetcher(self, swh_storage):
+        origin = data.origin
+        authority = data.metadata_authority
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
+
+        swh_storage.metadata_authority_add([authority])
+
+        with pytest.raises(StorageArgumentException, match="fetcher"):
+            swh_storage.object_metadata_add(
+                [data.origin_metadata, data.origin_metadata2]
+            )
+
+    def test_origin_metadata_get__invalid_id_type(self, swh_storage):
+        origin = data.origin
+        fetcher = data.metadata_fetcher
+        authority = data.metadata_authority
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
+
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
+
+        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
+
+        with pytest.raises(StorageArgumentException, match="SWHID"):
+            swh_storage.object_metadata_get(
+                MetadataTargetType.ORIGIN, data.content_metadata.id, authority,
+            )
 
 
 class TestStorageGeneratedData:

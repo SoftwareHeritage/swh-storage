@@ -6,8 +6,7 @@
 import logging
 import traceback
 
-from datetime import datetime
-from typing import Any, Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional
 
 from tenacity import (
     retry,
@@ -24,6 +23,9 @@ from swh.model.model import (
     Snapshot,
     Origin,
     OriginVisit,
+    MetadataAuthority,
+    MetadataFetcher,
+    RawExtrinsicMetadata,
 )
 
 from swh.storage import get_storage
@@ -112,30 +114,16 @@ class RetryingProxyStorage:
         return self.storage.origin_visit_add(visits)
 
     @swh_retry
-    def metadata_fetcher_add(
-        self, name: str, version: str, metadata: Dict[str, Any]
-    ) -> None:
-        return self.storage.metadata_fetcher_add(name, version, metadata)
+    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher],) -> None:
+        return self.storage.metadata_fetcher_add(fetchers)
 
     @swh_retry
-    def metadata_authority_add(
-        self, type: str, url: str, metadata: Dict[str, Any]
-    ) -> None:
-        return self.storage.metadata_authority_add(type, url, metadata)
+    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+        return self.storage.metadata_authority_add(authorities)
 
     @swh_retry
-    def origin_metadata_add(
-        self,
-        origin_url: str,
-        discovery_date: datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-    ) -> None:
-        return self.storage.origin_metadata_add(
-            origin_url, discovery_date, authority, fetcher, format, metadata
-        )
+    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+        return self.storage.object_metadata_add(metadata)
 
     @swh_retry
     def directory_add(self, directories: Iterable[Directory]) -> Dict:
