@@ -454,6 +454,7 @@ create type revision_entry as
   committer_email                bytea,
   metadata                       jsonb,
   synthetic                      boolean,
+  extra_headers                  bytea[][],
   parents                        bytea[],
   object_id                      bigint
 );
@@ -471,7 +472,7 @@ as $$
            r.type, r.directory, r.message,
            a.id, a.fullname, a.name, a.email,
            c.id, c.fullname, c.name, c.email,
-           r.metadata, r.synthetic, t.parents, r.object_id
+           r.metadata, r.synthetic, r.extra_headers, t.parents, r.object_id
     from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
@@ -528,8 +529,8 @@ as $$
 begin
     perform swh_person_add_from_revision();
 
-    insert into revision (id, date, date_offset, date_neg_utc_offset, committer_date, committer_date_offset, committer_date_neg_utc_offset, type, directory, message, author, committer, metadata, synthetic)
-    select t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic
+    insert into revision (id, date, date_offset, date_neg_utc_offset, committer_date, committer_date_offset, committer_date_neg_utc_offset, type, directory, message, author, committer, metadata, synthetic, extra_headers)
+    select t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic, t.extra_headers
     from tmp_revision t
     left join person a on a.fullname = t.author_fullname
     left join person c on c.fullname = t.committer_fullname;
@@ -791,7 +792,7 @@ as $$
     select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
            r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
            r.type, r.directory, r.message,
-           a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
+           a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic, r.extra_headers,
            array(select rh.parent_id::bytea from revision_history rh where rh.id = r.id order by rh.parent_rank)
                as parents, r.object_id
     from revs r
