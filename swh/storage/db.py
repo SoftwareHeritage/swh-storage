@@ -423,6 +423,7 @@ class Db(BaseDb):
         "committer_email",
         "metadata",
         "synthetic",
+        "extra_headers",
     ]
 
     revision_get_cols = revision_add_cols + ["parents"]

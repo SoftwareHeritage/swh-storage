@@ -7,7 +7,7 @@ import datetime
 
 from typing import Optional, Dict
 
-from swh.core.utils import decode_with_escape, encode_with_unescape
+from swh.core.utils import encode_with_unescape
 from swh.model import identifiers
 from swh.model.hashutil import MultiHash
 
@@ -64,31 +64,10 @@ def db_to_author(
     }
 
 
-def git_headers_to_db(git_headers):
-    """Convert git headers to their database representation.
-
-    We convert the bytes to unicode by decoding them into utf-8 and replacing
-    invalid utf-8 sequences with backslash escapes.
-
-    """
-    ret = []
-    for key, values in git_headers:
-        if isinstance(values, list):
-            ret.append([key, [decode_with_escape(value) for value in values]])
-        else:
-            ret.append([key, decode_with_escape(values)])
-
-    return ret
-
-
 def db_to_git_headers(db_git_headers):
     ret = []
-    for key, values in db_git_headers:
-        if isinstance(values, list):
-            ret.append([key, [encode_with_unescape(value) for value in values]])
-        else:
-            ret.append([key, encode_with_unescape(values)])
-
+    for key, value in db_git_headers:
+        ret.append([key.encode("utf-8"), encode_with_unescape(value)])
     return ret
 
 
@@ -168,13 +147,6 @@ def revision_to_db(rev):
     committer = author_to_db(revision["committer"])
     committer_date = date_to_db(revision["committer_date"])
 
-    metadata = revision["metadata"]
-
-    if metadata and "extra_headers" in metadata:
-        metadata = metadata.copy()
-        extra_headers = git_headers_to_db(metadata["extra_headers"])
-        metadata["extra_headers"] = extra_headers
-
     return {
         "id": revision["id"],
         "author_fullname": author["fullname"],
@@ -192,8 +164,9 @@ def revision_to_db(rev):
         "type": revision["type"],
         "directory": revision["directory"],
         "message": revision["message"],
-        "metadata": metadata,
+        "metadata": revision["metadata"],
         "synthetic": revision["synthetic"],
+        "extra_headers": revision["extra_headers"],
         "parents": [
             {"id": revision["id"], "parent_id": parent, "parent_rank": i,}
             for i, parent in enumerate(revision["parents"])
@@ -227,17 +200,16 @@ def db_to_revision(db_revision):
         db_revision["committer_date_neg_utc_offset"],
     )
 
-    metadata = db_revision["metadata"]
-
-    if metadata and "extra_headers" in metadata:
-        extra_headers = db_to_git_headers(metadata["extra_headers"])
-        metadata["extra_headers"] = extra_headers
-
     parents = []
     if "parents" in db_revision:
         for parent in db_revision["parents"]:
             if parent:
                 parents.append(parent)
+
+    metadata = db_revision["metadata"]
+    extra_headers = db_revision.get("extra_headers", ())
+    if not extra_headers and metadata and "extra_headers" in metadata:
+        extra_headers = db_to_git_headers(metadata.pop("extra_headers"))
 
     ret = {
         "id": db_revision["id"],
@@ -250,6 +222,7 @@ def db_to_revision(db_revision):
         "message": db_revision["message"],
         "metadata": metadata,
         "synthetic": db_revision["synthetic"],
+        "extra_headers": extra_headers,
         "parents": parents,
     }
 

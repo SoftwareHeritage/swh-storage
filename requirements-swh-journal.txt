@@ -1,1 +1,1 @@
-swh.journal >= 0.3.2
+swh.journal >= 0.4

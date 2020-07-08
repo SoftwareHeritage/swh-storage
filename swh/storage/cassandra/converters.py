@@ -22,7 +22,6 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 
-from ..converters import git_headers_to_db, db_to_git_headers
 from .common import Row
 
 
@@ -33,11 +32,11 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
     # non-recursively convert it as a dict but make a deep copy.
     db_revision = deepcopy(attr.asdict(revision, recurse=False))
     metadata = revision.metadata
-    if metadata and "extra_headers" in metadata:
-        db_revision["metadata"]["extra_headers"] = git_headers_to_db(
-            metadata["extra_headers"]
-        )
+    extra_headers = revision.extra_headers
+    if not extra_headers and metadata and "extra_headers" in metadata:
+        extra_headers = db_revision["metadata"].pop("extra_headers")
     db_revision["metadata"] = json.dumps(db_revision["metadata"])
+    db_revision["extra_headers"] = extra_headers
     db_revision["type"] = db_revision["type"].value
     return db_revision
 
@@ -45,13 +44,16 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
 def revision_from_db(db_revision: Row, parents: Tuple[Sha1Git]) -> Revision:
     revision = db_revision._asdict()  # type: ignore
     metadata = json.loads(revision.pop("metadata", None))
-    if metadata and "extra_headers" in metadata:
-        extra_headers = db_to_git_headers(metadata["extra_headers"])
-        metadata["extra_headers"] = extra_headers
+    extra_headers = revision.pop("extra_headers", ())
+    if not extra_headers and metadata and "extra_headers" in metadata:
+        extra_headers = metadata.pop("extra_headers")
+    if extra_headers is None:
+        extra_headers = ()
     return Revision(
         parents=parents,
         type=RevisionType(revision.pop("type")),
         metadata=metadata,
+        extra_headers=extra_headers,
         **revision,
     )
 
