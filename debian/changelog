@@ -1,3 +1,14 @@
+swh-storage (0.10.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.10.1     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-08 14:32:52
+    +0200)
+  * Upstream changes:     - v0.10.1     - extract-pytest-fixture Move
+    sharable fixtures out of conftest into a dedicated pytest plugin
+    - Migrate from vcversioner to setuptools-scm
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Jul 2020 12:39:15 +0000
+
 swh-storage (0.10.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.10.0     - (tagged by David Douard
