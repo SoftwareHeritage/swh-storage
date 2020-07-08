@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2015-2018  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -44,22 +44,24 @@ setup(
     author="Software Heritage developers",
     author_email="swh-devel@inria.fr",
     url="https://forge.softwareheritage.org/diffusion/DSTO/",
+    setup_requires=["setuptools-scm"],
     packages=find_packages(),
+    use_scm_version=True,
     scripts=["bin/swh-storage-add-dir",],
     entry_points="""
         [console_scripts]
         swh-storage=swh.storage.cli:main
         [swh.cli.subcommands]
         storage=swh.storage.cli:storage
+        [pytest11]
+        pytest_swh_storage=swh.storage.pytest_plugin
     """,
-    setup_requires=["vcversioner"],
     install_requires=parse_requirements() + parse_requirements("swh"),
     extras_require={
         "testing": (parse_requirements("test") + parse_requirements("swh-journal")),
         "schemata": ["SQLAlchemy"],
         "journal": parse_requirements("swh-journal"),
     },
-    vcversioner={},
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
