@@ -425,6 +425,7 @@ class CqlRunner:
         "committer",
         "synthetic",
         "metadata",
+        "extra_headers",
     ]
 
     @_prepared_exists_statement("revision")

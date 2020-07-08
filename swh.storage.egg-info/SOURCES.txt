@@ -183,6 +183,7 @@ sql/upgrades/154.sql
 sql/upgrades/155.sql
 sql/upgrades/156.sql
 sql/upgrades/157.sql
+sql/upgrades/158.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -253,6 +254,7 @@ swh/storage/tests/test_kafka_writer.py
 swh/storage/tests/test_metrics.py
 swh/storage/tests/test_replay.py
 swh/storage/tests/test_retry.py
+swh/storage/tests/test_revision_bw_compat.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/test_utils.py

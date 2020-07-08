@@ -6,12 +6,12 @@ aiohttp
 tenacity
 cassandra-driver!=3.21.0,>=3.19.0
 deprecated
-swh.core[db,http]>=0.0.94
-swh.model>=0.3.4
+swh.core[db,http]>=0.1.0
+swh.model>=0.4.0
 swh.objstorage>=0.0.40
 
 [journal]
-swh.journal>=0.3.2
+swh.journal>=0.4
 
 [schemata]
 SQLAlchemy
@@ -25,4 +25,4 @@ sqlalchemy-stubs
 swh.model[testing]>=0.0.50
 pytz
 pytest-xdist
-swh.journal>=0.3.2
+swh.journal>=0.4
