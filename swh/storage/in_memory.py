@@ -605,22 +605,23 @@ class InMemoryStorage:
         if target_types:
             next_branch = None
             branches = {}
-            for branch_name in sorted_branch_names[from_index:]:
-                branch = snapshot.branches[branch_name]
-                if branch and branch.target_type.value in target_types:
-                    if len(branches) < branches_count:
-                        branches[branch_name] = branch
-                    else:
-                        next_branch = branch_name
-                        break
+            for (branch_name, branch) in snapshot.branches.items():
+                if branch_name in sorted_branch_names[from_index:]:
+                    if branch and branch.target_type.value in target_types:
+                        if len(branches) < branches_count:
+                            branches[branch_name] = branch
+                        else:
+                            next_branch = branch_name
+                            break
         else:
             # As there is no 'target_types', we can do that much faster
             to_index = from_index + branches_count
-            returned_branch_names = sorted_branch_names[from_index:to_index]
-            branches = {
-                branch_name: snapshot.branches[branch_name]
-                for branch_name in returned_branch_names
-            }
+            returned_branch_names = frozenset(sorted_branch_names[from_index:to_index])
+            branches = dict(
+                (branch_name, branch)
+                for (branch_name, branch) in snapshot.branches.items()
+                if branch_name in returned_branch_names
+            )
             if to_index >= len(sorted_branch_names):
                 next_branch = None
             else:
