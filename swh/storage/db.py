@@ -9,9 +9,13 @@ import select
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from swh.core.db import BaseDb
-from swh.core.db.db_utils import stored_procedure, jsonize
+from swh.core.db.db_utils import stored_procedure, jsonize as _jsonize
 from swh.core.db.db_utils import execute_values_generator
 from swh.model.model import OriginVisit, OriginVisitStatus, SHA1_SIZE
+
+
+def jsonize(d):
+    return _jsonize(dict(d) if d is not None else None)
 
 
 class Db(BaseDb):

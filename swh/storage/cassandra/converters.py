@@ -35,7 +35,9 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
     extra_headers = revision.extra_headers
     if not extra_headers and metadata and "extra_headers" in metadata:
         extra_headers = db_revision["metadata"].pop("extra_headers")
-    db_revision["metadata"] = json.dumps(db_revision["metadata"])
+    db_revision["metadata"] = json.dumps(
+        dict(db_revision["metadata"] if db_revision["metadata"] is not None else None)
+    )
     db_revision["extra_headers"] = extra_headers
     db_revision["type"] = db_revision["type"].value
     return db_revision
