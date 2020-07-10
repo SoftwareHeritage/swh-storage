@@ -1,3 +1,15 @@
+swh-storage (0.10.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.10.2     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-10 08:30:37
+    +0200)
+  * Upstream changes:     - v0.10.2     - tests: Do no expose the pytest-
+    plugin through setuptools entry     - Convert ImmutableDict to dict
+    before passing it to json.dumps     - docs: Rework dia -> pdf
+    pipeline for inkscape 1.0
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 10 Jul 2020 06:52:42 +0000
+
 swh-storage (0.10.1-1~swh2) unstable-swh; urgency=medium
 
   * Update runtime dependencies
