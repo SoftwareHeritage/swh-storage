@@ -53,8 +53,6 @@ setup(
         swh-storage=swh.storage.cli:main
         [swh.cli.subcommands]
         storage=swh.storage.cli:storage
-        [pytest11]
-        pytest_swh_storage=swh.storage.pytest_plugin
     """,
     install_requires=parse_requirements() + parse_requirements("swh"),
     extras_require={

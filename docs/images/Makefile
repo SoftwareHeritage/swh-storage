@@ -4,13 +4,15 @@ BUILD_TARGETS += swh-archive-copies.pdf swh-archive-copies.svg
 
 all: $(BUILD_TARGETS)
 
-
 %.svg: %.dia
-	inkscape -l $@ $<
+	dia -e $@ $<
 
-%.pdf: %.dia
-	inkscape -A $@ $<
-
+%.pdf: %.svg
+	set -e; if [ $$(inkscape --version 2>/dev/null | grep -Eo '[0-9]+' | head -1) -gt 0 ]; then \
+	  inkscape -o $@ $< ; \
+	else \
+	  inkscape -A $@ $< ; \
+	fi
 
 clean:
 	-rm -f $(BUILD_TARGETS)
