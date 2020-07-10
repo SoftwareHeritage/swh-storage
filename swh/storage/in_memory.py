@@ -600,12 +600,13 @@ class InMemoryStorage:
         snapshot = self._snapshots.get(snapshot_id)
         if snapshot is None:
             return None
-        sorted_branch_names = sorted(snapshot.branches)
+        sorted_branches = sorted(snapshot.branches.items())
+        sorted_branch_names = [k for (k, v) in sorted_branches]
         from_index = bisect.bisect_left(sorted_branch_names, branches_from)
         if target_types:
             next_branch = None
             branches = {}
-            for (branch_name, branch) in snapshot.branches.items():
+            for (branch_name, branch) in sorted_branches:
                 if branch_name in sorted_branch_names[from_index:]:
                     if branch and branch.target_type.value in target_types:
                         if len(branches) < branches_count:

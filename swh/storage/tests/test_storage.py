@@ -2749,6 +2749,36 @@ class TestStorage:
 
         assert snapshot == expected_snapshot
 
+    def test_snapshot_add_get_branch_by_type(self, swh_storage):
+        snapshot = copy.deepcopy(data.complete_snapshot)
+
+        alias1 = b"alias1"
+        alias2 = b"alias2"
+        target1 = random.choice(list(snapshot["branches"].keys()))
+        target2 = random.choice(list(snapshot["branches"].keys()))
+
+        snapshot["branches"][alias2] = {
+            "target": target2,
+            "target_type": "alias",
+        }
+
+        snapshot["branches"][alias1] = {
+            "target": target1,
+            "target_type": "alias",
+        }
+
+        swh_storage.snapshot_add([snapshot])
+
+        branches = swh_storage.snapshot_get_branches(
+            snapshot["id"],
+            target_types=["alias"],
+            branches_from=alias1,
+            branches_count=1,
+        )["branches"]
+
+        assert len(branches) == 1
+        assert alias1 in branches
+
     def test_snapshot_add_get(self, swh_storage):
         origin_url = swh_storage.origin_add_one(data.origin)
         visit = OriginVisit(
