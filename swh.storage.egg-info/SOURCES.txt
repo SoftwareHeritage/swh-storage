@@ -8,6 +8,7 @@ MANIFEST.in
 Makefile
 Makefile.local
 README.md
+conftest.py
 mypy.ini
 pyproject.toml
 pytest.ini

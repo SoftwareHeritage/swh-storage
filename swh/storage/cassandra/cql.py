@@ -779,7 +779,9 @@ class CqlRunner:
         assert self._origin_visit_status_keys[-1] == "metadata"
         keys = self._origin_visit_status_keys
 
-        metadata = json.dumps(visit_update.metadata)
+        metadata = json.dumps(
+            dict(visit_update.metadata) if visit_update.metadata is not None else None
+        )
         self._execute_with_retries(
             statement, [getattr(visit_update, key) for key in keys[:-1]] + [metadata]
         )

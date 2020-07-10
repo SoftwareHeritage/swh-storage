@@ -24,7 +24,6 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
 )
-from swh.storage.pytest_plugin import *  # noqa  # for retro compatibility
 
 
 OBJECT_FACTORY = {
