@@ -1,3 +1,9 @@
+swh-storage (0.10.2-1~swh2) unstable-swh; urgency=medium
+
+  * Fix debian rules to avoid double pytest-plugin loading clash
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Fri, 10 Jul 2020 09:21:14 +0200
+
 swh-storage (0.10.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.10.2     - (tagged by Antoine R. Dumont
