@@ -6,8 +6,8 @@
 from hypothesis import given
 import pytest
 
+from swh.model.collections import ImmutableDict
 from swh.model.hypothesis_strategies import snapshots, branch_names, branch_targets
-from swh.model.identifiers import snapshot_identifier, identifier_to_bytes
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus, Snapshot
 
 from swh.storage.algos.snapshot import snapshot_get_all_branches, snapshot_get_latest
@@ -35,17 +35,16 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
 
 @given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
 def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
-    branch_target = branch_target.to_dict()
-
-    snapshot = {
-        "branches": {b"%s%05d" % (branch_name, i): branch_target for i in range(10000)}
-    }
-    snapshot["id"] = identifier_to_bytes(snapshot_identifier(snapshot))
+    snapshot = Snapshot(
+        branches=ImmutableDict(
+            (b"%s%05d" % (branch_name, i), branch_target) for i in range(10000)
+        ),
+    )
 
     swh_storage.snapshot_add([snapshot])
 
-    returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot["id"])
-    assert snapshot == returned_snapshot
+    returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot.id)
+    assert snapshot.to_dict() == returned_snapshot
 
 
 def test_snapshot_get_latest_none(swh_storage):
