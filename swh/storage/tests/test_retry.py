@@ -36,12 +36,21 @@ def fake_hash_collision(sample_data):
 
 
 @pytest.fixture
-def swh_storage():
-    storage_config = {
+def swh_storage_backend_config():
+    yield {
         "cls": "pipeline",
-        "steps": [{"cls": "validate"}, {"cls": "retry"}, {"cls": "memory"},],
+        "steps": [{"cls": "retry"}, {"cls": "memory"},],
     }
-    return get_storage(**storage_config)
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend_config):
+    return get_storage(**swh_storage_backend_config)
+
+
+@pytest.fixture
+def swh_storage_validate(swh_storage_backend_config):
+    return get_storage(cls="validate", storage=swh_storage_backend_config)
 
 
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data_model):
@@ -399,27 +408,27 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     )
 
 
-def test_retrying_proxy_storage_metadata_fetcher_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_metadata_fetcher_add(swh_storage_validate, sample_data):
     """Standard metadata_fetcher_add works as before
 
     """
     fetcher = sample_data["fetcher"][0]
 
-    metadata_fetcher = swh_storage.metadata_fetcher_get(
+    metadata_fetcher = swh_storage_validate.metadata_fetcher_get(
         fetcher["name"], fetcher["version"]
     )
     assert not metadata_fetcher
 
-    swh_storage.metadata_fetcher_add(**fetcher)
+    swh_storage_validate.metadata_fetcher_add(**fetcher)
 
-    actual_fetcher = swh_storage.metadata_fetcher_get(
+    actual_fetcher = swh_storage_validate.metadata_fetcher_get(
         fetcher["name"], fetcher["version"]
     )
     assert actual_fetcher == fetcher
 
 
 def test_retrying_proxy_storage_metadata_fetcher_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage_validate, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -437,12 +446,12 @@ def test_retrying_proxy_storage_metadata_fetcher_add_with_retry(
         [fetcher],
     ]
 
-    actual_fetcher = swh_storage.metadata_fetcher_get(
+    actual_fetcher = swh_storage_validate.metadata_fetcher_get(
         fetcher["name"], fetcher["version"]
     )
     assert not actual_fetcher
 
-    swh_storage.metadata_fetcher_add(**fetcher)
+    swh_storage_validate.metadata_fetcher_add(**fetcher)
 
     mock_memory.assert_has_calls(
         [
@@ -454,7 +463,7 @@ def test_retrying_proxy_storage_metadata_fetcher_add_with_retry(
 
 
 def test_retrying_proxy_swh_storage_metadata_fetcher_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage_validate, sample_data, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -468,35 +477,39 @@ def test_retrying_proxy_swh_storage_metadata_fetcher_add_failure(
 
     fetcher = sample_data["fetcher"][0]
 
-    actual_fetcher = swh_storage.metadata_fetcher_get(
+    actual_fetcher = swh_storage_validate.metadata_fetcher_get(
         fetcher["name"], fetcher["version"]
     )
     assert not actual_fetcher
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.metadata_fetcher_add(**fetcher)
+        swh_storage_validate.metadata_fetcher_add(**fetcher)
 
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_metadata_authority_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_metadata_authority_add(
+    swh_storage_validate, sample_data
+):
     """Standard metadata_authority_add works as before
 
     """
     authority = sample_data["authority"][0]
 
-    assert not swh_storage.metadata_authority_get(authority["type"], authority["url"])
+    assert not swh_storage_validate.metadata_authority_get(
+        authority["type"], authority["url"]
+    )
 
-    swh_storage.metadata_authority_add(**authority)
+    swh_storage_validate.metadata_authority_add(**authority)
 
-    actual_authority = swh_storage.metadata_authority_get(
+    actual_authority = swh_storage_validate.metadata_authority_get(
         authority["type"], authority["url"]
     )
     assert actual_authority == authority
 
 
 def test_retrying_proxy_storage_metadata_authority_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage_validate, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -515,9 +528,11 @@ def test_retrying_proxy_storage_metadata_authority_add_with_retry(
         None,
     ]
 
-    assert not swh_storage.metadata_authority_get(authority["type"], authority["url"])
+    assert not swh_storage_validate.metadata_authority_get(
+        authority["type"], authority["url"]
+    )
 
-    swh_storage.metadata_authority_add(**authority)
+    swh_storage_validate.metadata_authority_add(**authority)
 
     authority_arg_names = ("type", "url", "metadata")
     authority_args = [authority[key] for key in authority_arg_names]
@@ -527,7 +542,7 @@ def test_retrying_proxy_storage_metadata_authority_add_with_retry(
 
 
 def test_retrying_proxy_swh_storage_metadata_authority_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage_validate, sample_data, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -541,47 +556,47 @@ def test_retrying_proxy_swh_storage_metadata_authority_add_failure(
 
     authority = sample_data["authority"][0]
 
-    swh_storage.metadata_authority_get(authority["type"], authority["url"])
+    swh_storage_validate.metadata_authority_get(authority["type"], authority["url"])
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.metadata_authority_add(**authority)
+        swh_storage_validate.metadata_authority_add(**authority)
 
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_origin_metadata_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_origin_metadata_add(swh_storage_validate, sample_data):
     """Standard origin_metadata_add works as before
 
     """
     ori_meta = sample_data["origin_metadata"][0]
-    swh_storage.origin_add_one({"url": ori_meta["origin_url"]})
-    swh_storage.metadata_authority_add(**sample_data["authority"][0])
-    swh_storage.metadata_fetcher_add(**sample_data["fetcher"][0])
+    swh_storage_validate.origin_add_one({"url": ori_meta["origin_url"]})
+    swh_storage_validate.metadata_authority_add(**sample_data["authority"][0])
+    swh_storage_validate.metadata_fetcher_add(**sample_data["fetcher"][0])
 
-    origin_metadata = swh_storage.origin_metadata_get(
+    origin_metadata = swh_storage_validate.origin_metadata_get(
         ori_meta["origin_url"], ori_meta["authority"]
     )
     assert origin_metadata["next_page_token"] is None
     assert not origin_metadata["results"]
 
-    swh_storage.origin_metadata_add(**ori_meta)
+    swh_storage_validate.origin_metadata_add(**ori_meta)
 
-    origin_metadata = swh_storage.origin_metadata_get(
+    origin_metadata = swh_storage_validate.origin_metadata_get(
         ori_meta["origin_url"], ori_meta["authority"]
     )
     assert origin_metadata
 
 
 def test_retrying_proxy_storage_origin_metadata_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage_validate, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
     ori_meta = sample_data["origin_metadata"][0]
-    swh_storage.origin_add_one({"url": ori_meta["origin_url"]})
-    swh_storage.metadata_authority_add(**sample_data["authority"][0])
-    swh_storage.metadata_fetcher_add(**sample_data["fetcher"][0])
+    swh_storage_validate.origin_add_one({"url": ori_meta["origin_url"]})
+    swh_storage_validate.metadata_authority_add(**sample_data["authority"][0])
+    swh_storage_validate.metadata_fetcher_add(**sample_data["fetcher"][0])
     mock_memory = mocker.patch(
         "swh.storage.in_memory.InMemoryStorage.origin_metadata_add"
     )
@@ -596,7 +611,7 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
     ]
 
     # No exception raised as insertion finally came through
-    swh_storage.origin_metadata_add(**ori_meta)
+    swh_storage_validate.origin_metadata_add(**ori_meta)
 
     mock_memory.assert_has_calls(
         [  # 3 calls, as long as error raised
@@ -629,7 +644,7 @@ def test_retrying_proxy_storage_origin_metadata_add_with_retry(
 
 
 def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage_validate, sample_data, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -640,10 +655,10 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
     mock_memory.side_effect = StorageArgumentException("Refuse to add always!")
 
     ori_meta = sample_data["origin_metadata"][0]
-    swh_storage.origin_add_one({"url": ori_meta["origin_url"]})
+    swh_storage_validate.origin_add_one({"url": ori_meta["origin_url"]})
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.origin_metadata_add(**ori_meta)
+        swh_storage_validate.origin_metadata_add(**ori_meta)
 
     assert mock_memory.call_count == 1
 
