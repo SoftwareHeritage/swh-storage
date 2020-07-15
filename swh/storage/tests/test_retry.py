@@ -8,16 +8,7 @@ from unittest.mock import call
 import psycopg2
 import pytest
 
-from swh.model.model import (
-    Content,
-    Directory,
-    Release,
-    Revision,
-    Snapshot,
-    SkippedContent,
-    Origin,
-    OriginVisit,
-)
+from swh.model.model import OriginVisit
 
 from swh.storage import get_storage
 from swh.storage.exc import HashCollision, StorageArgumentException
@@ -53,27 +44,27 @@ def swh_storage():
     return get_storage(**storage_config)
 
 
-def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_content_add(swh_storage, sample_data_model):
     """Standard content_add works as before
 
     """
-    sample_content = sample_data["content"][0]
+    sample_content = sample_data_model["content"][0]
 
-    content = next(swh_storage.content_get([sample_content["sha1"]]))
+    content = next(swh_storage.content_get([sample_content.sha1]))
     assert not content
 
     s = swh_storage.content_add([sample_content])
     assert s == {
         "content:add": 1,
-        "content:add:bytes": sample_content["length"],
+        "content:add:bytes": sample_content.length,
     }
 
-    content = next(swh_storage.content_get([sample_content["sha1"]]))
-    assert content["sha1"] == sample_content["sha1"]
+    content = next(swh_storage.content_get([sample_content.sha1]))
+    assert content["sha1"] == sample_content.sha1
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision,
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision,
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -88,25 +79,21 @@ def test_retrying_proxy_storage_content_add_with_retry(
         {"content:add": 1},
     ]
 
-    sample_content = sample_data["content"][0]
+    sample_content = sample_data_model["content"][0]
 
-    content = next(swh_storage.content_get([sample_content["sha1"]]))
+    content = next(swh_storage.content_get([sample_content.sha1]))
     assert not content
 
     s = swh_storage.content_add([sample_content])
     assert s == {"content:add": 1}
 
     mock_memory.assert_has_calls(
-        [
-            call([Content.from_dict(sample_content)]),
-            call([Content.from_dict(sample_content)]),
-            call([Content.from_dict(sample_content)]),
-        ]
+        [call([sample_content]), call([sample_content]), call([sample_content]),]
     )
 
 
 def test_retrying_proxy_swh_storage_content_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -114,9 +101,9 @@ def test_retrying_proxy_swh_storage_content_add_failure(
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = StorageArgumentException("Refuse to add content always!")
 
-    sample_content = sample_data["content"][0]
+    sample_content = sample_data_model["content"][0]
 
-    content = next(swh_storage.content_get([sample_content["sha1"]]))
+    content = next(swh_storage.content_get([sample_content.sha1]))
     assert not content
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
@@ -125,13 +112,13 @@ def test_retrying_proxy_swh_storage_content_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
+def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data_model):
     """Standard content_add_metadata works as before
 
     """
-    sample_content = sample_data["content_metadata"][0]
+    sample_content = sample_data_model["content_metadata"][0]
 
-    pk = sample_content["sha1"]
+    pk = sample_content.sha1
     content_metadata = swh_storage.content_get_metadata([pk])
     assert not content_metadata[pk]
 
@@ -146,7 +133,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -163,22 +150,18 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         {"content:add": 1},
     ]
 
-    sample_content = sample_data["content_metadata"][0]
+    sample_content = sample_data_model["content_metadata"][0]
 
     s = swh_storage.content_add_metadata([sample_content])
     assert s == {"content:add": 1}
 
     mock_memory.assert_has_calls(
-        [
-            call([Content.from_dict(sample_content)]),
-            call([Content.from_dict(sample_content)]),
-            call([Content.from_dict(sample_content)]),
-        ]
+        [call([sample_content]), call([sample_content]), call([sample_content]),]
     )
 
 
 def test_retrying_proxy_swh_storage_content_add_metadata_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -190,8 +173,8 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
         "Refuse to add content_metadata!"
     )
 
-    sample_content = sample_data["content_metadata"][0]
-    pk = sample_content["sha1"]
+    sample_content = sample_data_model["content_metadata"][0]
+    pk = sample_content.sha1
 
     content_metadata = swh_storage.content_get_metadata([pk])
     assert not content_metadata[pk]
@@ -202,13 +185,14 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_skipped_content_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_skipped_content_add(swh_storage, sample_data_model):
     """Standard skipped_content_add works as before
 
     """
-    sample_content = sample_data["skipped_content"][0]
+    sample_content = sample_data_model["skipped_content"][0]
+    sample_content_dict = sample_content.to_dict()
 
-    skipped_contents = list(swh_storage.skipped_content_missing([sample_content]))
+    skipped_contents = list(swh_storage.skipped_content_missing([sample_content_dict]))
     assert len(skipped_contents) == 1
 
     s = swh_storage.skipped_content_add([sample_content])
@@ -216,12 +200,12 @@ def test_retrying_proxy_storage_skipped_content_add(swh_storage, sample_data):
         "skipped_content:add": 1,
     }
 
-    skipped_content = list(swh_storage.skipped_content_missing([sample_content]))
+    skipped_content = list(swh_storage.skipped_content_missing([sample_content_dict]))
     assert len(skipped_content) == 0
 
 
 def test_retrying_proxy_storage_skipped_content_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -237,22 +221,18 @@ def test_retrying_proxy_storage_skipped_content_add_with_retry(
         {"skipped_content:add": 1},
     ]
 
-    sample_content = sample_data["skipped_content"][0]
+    sample_content = sample_data_model["skipped_content"][0]
 
     s = swh_storage.skipped_content_add([sample_content])
     assert s == {"skipped_content:add": 1}
 
     mock_memory.assert_has_calls(
-        [
-            call([SkippedContent.from_dict(sample_content)]),
-            call([SkippedContent.from_dict(sample_content)]),
-            call([SkippedContent.from_dict(sample_content)]),
-        ]
+        [call([sample_content]), call([sample_content]), call([sample_content]),]
     )
 
 
 def test_retrying_proxy_swh_storage_skipped_content_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -264,43 +244,44 @@ def test_retrying_proxy_swh_storage_skipped_content_add_failure(
         "Refuse to add content_metadata!"
     )
 
-    sample_content = sample_data["skipped_content"][0]
+    sample_content = sample_data_model["skipped_content"][0]
+    sample_content_dict = sample_content.to_dict()
 
-    skipped_contents = list(swh_storage.skipped_content_missing([sample_content]))
+    skipped_contents = list(swh_storage.skipped_content_missing([sample_content_dict]))
     assert len(skipped_contents) == 1
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.skipped_content_add([sample_content])
 
-    skipped_contents = list(swh_storage.skipped_content_missing([sample_content]))
+    skipped_contents = list(swh_storage.skipped_content_missing([sample_content_dict]))
     assert len(skipped_contents) == 1
 
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data):
+def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data_model):
     """Standard origin_add_one works as before
 
     """
-    sample_origin = sample_data["origin"][0]
+    sample_origin = sample_data_model["origin"][0]
+    sample_origin_dict = sample_origin.to_dict()
 
-    origin = swh_storage.origin_get(sample_origin)
+    origin = swh_storage.origin_get(sample_origin_dict)
     assert not origin
 
-    r = swh_storage.origin_add_one(sample_origin)
-    assert r == sample_origin["url"]
+    swh_storage.origin_add_one(sample_origin)
 
-    origin = swh_storage.origin_get(sample_origin)
-    assert origin["url"] == sample_origin["url"]
+    origin = swh_storage.origin_get(sample_origin_dict)
+    assert origin["url"] == sample_origin.url
 
 
 def test_retrying_proxy_swh_storage_origin_add_one_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    sample_origin = sample_data["origin"][1]
+    sample_origin = sample_data_model["origin"][1]
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_add_one")
     mock_memory.side_effect = [
         # first try goes ko
@@ -308,26 +289,22 @@ def test_retrying_proxy_swh_storage_origin_add_one_retry(
         # second try goes ko
         psycopg2.IntegrityError("origin already inserted"),
         # ok then!
-        sample_origin["url"],
+        sample_origin.url,
     ]
+    sample_origin_dict = sample_origin.to_dict()
 
-    origin = swh_storage.origin_get(sample_origin)
+    origin = swh_storage.origin_get(sample_origin_dict)
     assert not origin
 
-    r = swh_storage.origin_add_one(sample_origin)
-    assert r == sample_origin["url"]
+    swh_storage.origin_add_one(sample_origin)
 
     mock_memory.assert_has_calls(
-        [
-            call(Origin.from_dict(sample_origin)),
-            call(Origin.from_dict(sample_origin)),
-            call(Origin.from_dict(sample_origin)),
-        ]
+        [call(sample_origin), call(sample_origin), call(sample_origin),]
     )
 
 
 def test_retrying_proxy_swh_storage_origin_add_one_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -335,9 +312,10 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_add_one")
     mock_memory.side_effect = StorageArgumentException("Refuse to add origin always!")
 
-    sample_origin = sample_data["origin"][0]
+    sample_origin = sample_data_model["origin"][0]
+    sample_origin_dict = sample_origin.to_dict()
 
-    origin = swh_storage.origin_get(sample_origin)
+    origin = swh_storage.origin_get(sample_origin_dict)
     assert not origin
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
@@ -346,37 +324,38 @@ def test_retrying_proxy_swh_storage_origin_add_one_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
+def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data_model):
     """Standard origin_visit_add works as before
 
     """
-    sample_origin = sample_data["origin"][0]
-    origin_url = swh_storage.origin_add_one(sample_origin)
+    origin = sample_data_model["origin"][0]
 
-    origin = list(swh_storage.origin_visit_get(origin_url))
-    assert not origin
+    swh_storage.origin_add_one(origin)
 
-    visit = OriginVisit(origin=origin_url, date=date_visit1, type="hg")
+    origins = list(swh_storage.origin_visit_get(origin.url))
+    assert not origins
+
+    visit = OriginVisit(origin=origin.url, date=date_visit1, type="hg")
     origin_visit = swh_storage.origin_visit_add([visit])[0]
-    assert origin_visit.origin == origin_url
+    assert origin_visit.origin == origin.url
     assert isinstance(origin_visit.visit, int)
 
-    origin_visit = next(swh_storage.origin_visit_get(origin_url))
-    assert origin_visit["origin"] == origin_url
+    origin_visit = next(swh_storage.origin_visit_get(origin.url))
+    assert origin_visit["origin"] == origin.url
     assert isinstance(origin_visit["visit"], int)
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
-    sample_origin = sample_data["origin"][1]
-    origin_url = swh_storage.origin_add_one(sample_origin)
+    origin = sample_data_model["origin"][1]
+    swh_storage.origin_add_one(origin)
 
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_visit_add")
-    visit = OriginVisit(origin=origin_url, date=date_visit1, type="git")
+    visit = OriginVisit(origin=origin.url, date=date_visit1, type="git")
     mock_memory.side_effect = [
         # first try goes ko
         fake_hash_collision,
@@ -386,8 +365,8 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
         [visit],
     ]
 
-    origin = list(swh_storage.origin_visit_get(origin_url))
-    assert not origin
+    origins = list(swh_storage.origin_visit_get(origin.url))
+    assert not origins
 
     r = swh_storage.origin_visit_add([visit])
     assert r == [visit]
@@ -398,7 +377,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -406,13 +385,13 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_visit_add")
     mock_memory.side_effect = StorageArgumentException("Refuse to add origin always!")
 
-    origin_url = sample_data["origin"][0]["url"]
+    origin = sample_data_model["origin"][0]
 
-    origin = list(swh_storage.origin_visit_get(origin_url))
-    assert not origin
+    origins = list(swh_storage.origin_visit_get(origin.url))
+    assert not origins
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        visit = OriginVisit(origin=origin_url, date=date_visit1, type="svn",)
+        visit = OriginVisit(origin=origin.url, date=date_visit1, type="svn",)
         swh_storage.origin_visit_add([visit])
 
     mock_memory.assert_has_calls(
@@ -669,11 +648,11 @@ def test_retrying_proxy_swh_storage_origin_metadata_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_directory_add(swh_storage, sample_data_model):
     """Standard directory_add works as before
 
     """
-    sample_dir = sample_data["directory"][0]
+    sample_dir = sample_data_model["directory"][0]
 
     directory = swh_storage.directory_get_random()  # no directory
     assert not directory
@@ -684,11 +663,11 @@ def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
     }
 
     directory_id = swh_storage.directory_get_random()  # only 1
-    assert directory_id == sample_dir["id"]
+    assert directory_id == sample_dir.id
 
 
 def test_retrying_proxy_storage_directory_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -703,7 +682,7 @@ def test_retrying_proxy_storage_directory_add_with_retry(
         {"directory:add": 1},
     ]
 
-    sample_dir = sample_data["directory"][1]
+    sample_dir = sample_data_model["directory"][1]
 
     directory_id = swh_storage.directory_get_random()  # no directory
     assert not directory_id
@@ -714,16 +693,12 @@ def test_retrying_proxy_storage_directory_add_with_retry(
     }
 
     mock_memory.assert_has_calls(
-        [
-            call([Directory.from_dict(sample_dir)]),
-            call([Directory.from_dict(sample_dir)]),
-            call([Directory.from_dict(sample_dir)]),
-        ]
+        [call([sample_dir]), call([sample_dir]), call([sample_dir]),]
     )
 
 
 def test_retrying_proxy_swh_storage_directory_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -733,7 +708,7 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
         "Refuse to add directory always!"
     )
 
-    sample_dir = sample_data["directory"][0]
+    sample_dir = sample_data_model["directory"][0]
 
     directory_id = swh_storage.directory_get_random()  # no directory
     assert not directory_id
@@ -744,13 +719,13 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_revision_add(swh_storage, sample_data_model):
     """Standard revision_add works as before
 
     """
-    sample_rev = sample_data["revision"][0]
+    sample_rev = sample_data_model["revision"][0]
 
-    revision = next(swh_storage.revision_get([sample_rev["id"]]))
+    revision = next(swh_storage.revision_get([sample_rev.id]))
     assert not revision
 
     s = swh_storage.revision_add([sample_rev])
@@ -758,12 +733,12 @@ def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
         "revision:add": 1,
     }
 
-    revision = next(swh_storage.revision_get([sample_rev["id"]]))
-    assert revision["id"] == sample_rev["id"]
+    revision = next(swh_storage.revision_get([sample_rev.id]))
+    assert revision["id"] == sample_rev.id
 
 
 def test_retrying_proxy_storage_revision_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -778,9 +753,9 @@ def test_retrying_proxy_storage_revision_add_with_retry(
         {"revision:add": 1},
     ]
 
-    sample_rev = sample_data["revision"][0]
+    sample_rev = sample_data_model["revision"][0]
 
-    revision = next(swh_storage.revision_get([sample_rev["id"]]))
+    revision = next(swh_storage.revision_get([sample_rev.id]))
     assert not revision
 
     s = swh_storage.revision_add([sample_rev])
@@ -789,16 +764,12 @@ def test_retrying_proxy_storage_revision_add_with_retry(
     }
 
     mock_memory.assert_has_calls(
-        [
-            call([Revision.from_dict(sample_rev)]),
-            call([Revision.from_dict(sample_rev)]),
-            call([Revision.from_dict(sample_rev)]),
-        ]
+        [call([sample_rev]), call([sample_rev]), call([sample_rev]),]
     )
 
 
 def test_retrying_proxy_swh_storage_revision_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -806,9 +777,9 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.revision_add")
     mock_memory.side_effect = StorageArgumentException("Refuse to add revision always!")
 
-    sample_rev = sample_data["revision"][0]
+    sample_rev = sample_data_model["revision"][0]
 
-    revision = next(swh_storage.revision_get([sample_rev["id"]]))
+    revision = next(swh_storage.revision_get([sample_rev.id]))
     assert not revision
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
@@ -817,13 +788,13 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_release_add(swh_storage, sample_data_model):
     """Standard release_add works as before
 
     """
-    sample_rel = sample_data["release"][0]
+    sample_rel = sample_data_model["release"][0]
 
-    release = next(swh_storage.release_get([sample_rel["id"]]))
+    release = next(swh_storage.release_get([sample_rel.id]))
     assert not release
 
     s = swh_storage.release_add([sample_rel])
@@ -831,12 +802,12 @@ def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
         "release:add": 1,
     }
 
-    release = next(swh_storage.release_get([sample_rel["id"]]))
-    assert release["id"] == sample_rel["id"]
+    release = next(swh_storage.release_get([sample_rel.id]))
+    assert release["id"] == sample_rel.id
 
 
 def test_retrying_proxy_storage_release_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -851,9 +822,9 @@ def test_retrying_proxy_storage_release_add_with_retry(
         {"release:add": 1},
     ]
 
-    sample_rel = sample_data["release"][0]
+    sample_rel = sample_data_model["release"][0]
 
-    release = next(swh_storage.release_get([sample_rel["id"]]))
+    release = next(swh_storage.release_get([sample_rel.id]))
     assert not release
 
     s = swh_storage.release_add([sample_rel])
@@ -862,16 +833,12 @@ def test_retrying_proxy_storage_release_add_with_retry(
     }
 
     mock_memory.assert_has_calls(
-        [
-            call([Release.from_dict(sample_rel)]),
-            call([Release.from_dict(sample_rel)]),
-            call([Release.from_dict(sample_rel)]),
-        ]
+        [call([sample_rel]), call([sample_rel]), call([sample_rel]),]
     )
 
 
 def test_retrying_proxy_swh_storage_release_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -879,9 +846,9 @@ def test_retrying_proxy_swh_storage_release_add_failure(
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.release_add")
     mock_memory.side_effect = StorageArgumentException("Refuse to add release always!")
 
-    sample_rel = sample_data["release"][0]
+    sample_rel = sample_data_model["release"][0]
 
-    release = next(swh_storage.release_get([sample_rel["id"]]))
+    release = next(swh_storage.release_get([sample_rel.id]))
     assert not release
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
@@ -890,13 +857,13 @@ def test_retrying_proxy_swh_storage_release_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data):
+def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data_model):
     """Standard snapshot_add works as before
 
     """
-    sample_snap = sample_data["snapshot"][0]
+    sample_snap = sample_data_model["snapshot"][0]
 
-    snapshot = swh_storage.snapshot_get(sample_snap["id"])
+    snapshot = swh_storage.snapshot_get(sample_snap.id)
     assert not snapshot
 
     s = swh_storage.snapshot_add([sample_snap])
@@ -904,12 +871,12 @@ def test_retrying_proxy_storage_snapshot_add(swh_storage, sample_data):
         "snapshot:add": 1,
     }
 
-    snapshot = swh_storage.snapshot_get(sample_snap["id"])
-    assert snapshot["id"] == sample_snap["id"]
+    snapshot = swh_storage.snapshot_get(sample_snap.id)
+    assert snapshot["id"] == sample_snap.id
 
 
 def test_retrying_proxy_storage_snapshot_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
@@ -924,9 +891,9 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
         {"snapshot:add": 1},
     ]
 
-    sample_snap = sample_data["snapshot"][0]
+    sample_snap = sample_data_model["snapshot"][0]
 
-    snapshot = swh_storage.snapshot_get(sample_snap["id"])
+    snapshot = swh_storage.snapshot_get(sample_snap.id)
     assert not snapshot
 
     s = swh_storage.snapshot_add([sample_snap])
@@ -935,16 +902,12 @@ def test_retrying_proxy_storage_snapshot_add_with_retry(
     }
 
     mock_memory.assert_has_calls(
-        [
-            call([Snapshot.from_dict(sample_snap)]),
-            call([Snapshot.from_dict(sample_snap)]),
-            call([Snapshot.from_dict(sample_snap)]),
-        ]
+        [call([sample_snap]), call([sample_snap]), call([sample_snap]),]
     )
 
 
 def test_retrying_proxy_swh_storage_snapshot_add_failure(
-    swh_storage, sample_data, mocker
+    swh_storage, sample_data_model, mocker
 ):
     """Unfiltered errors are raising without retry
 
@@ -952,9 +915,9 @@ def test_retrying_proxy_swh_storage_snapshot_add_failure(
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.snapshot_add")
     mock_memory.side_effect = StorageArgumentException("Refuse to add snapshot always!")
 
-    sample_snap = sample_data["snapshot"][0]
+    sample_snap = sample_data_model["snapshot"][0]
 
-    snapshot = swh_storage.snapshot_get(sample_snap["id"])
+    snapshot = swh_storage.snapshot_get(sample_snap.id)
     assert not snapshot
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
