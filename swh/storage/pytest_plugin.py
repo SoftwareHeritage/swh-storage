@@ -6,7 +6,7 @@
 import glob
 
 from os import path, environ
-from typing import Dict, Union
+from typing import Dict, Iterable, Union
 
 import pytest
 
@@ -16,6 +16,17 @@ from pytest_postgresql import factories
 from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
 
 from swh.core.utils import numfile_sortkey as sortkey
+from swh.model.model import (
+    BaseModel,
+    Content,
+    Directory,
+    Origin,
+    Person,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
+)
 from swh.storage import get_storage
 from swh.storage.tests.storage_data import data
 
@@ -208,4 +219,34 @@ def sample_data() -> Dict:
         "fetcher": [data.metadata_fetcher],
         "authority": [data.metadata_authority],
         "origin_metadata": [data.origin_metadata, data.origin_metadata2],
+    }
+
+
+# FIXME: Add the metadata keys when we can (right now, we cannot as the data model
+# changed but not the endpoints yet)
+OBJECT_FACTORY = {
+    "content": Content.from_dict,
+    "content_metadata": Content.from_dict,
+    "skipped_content": SkippedContent.from_dict,
+    "person": Person.from_dict,
+    "directory": Directory.from_dict,
+    "revision": Revision.from_dict,
+    "release": Release.from_dict,
+    "snapshot": Snapshot.from_dict,
+    "origin": Origin.from_dict,
+}
+
+
+@pytest.fixture
+def sample_data_model(sample_data) -> Dict[str, Iterable[BaseModel]]:
+    """Pre-defined sample storage object model to manipulate
+
+    Returns:
+        Dict of data (keys: content, directory, revision, release, person, origin, ...)
+        values list of object data model with the corresponding types
+
+    """
+    return {
+        object_type: [convert_fn(obj) for obj in sample_data[object_type]]
+        for object_type, convert_fn in OBJECT_FACTORY.items()
     }

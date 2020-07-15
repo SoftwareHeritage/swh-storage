@@ -14,29 +14,6 @@ except ImportError:
     pytest_cov = None
 
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
-from swh.model.model import (
-    Content,
-    Directory,
-    Origin,
-    OriginVisit,
-    Release,
-    Revision,
-    SkippedContent,
-    Snapshot,
-)
-
-
-OBJECT_FACTORY = {
-    "content": Content.from_dict,
-    "directory": Directory.from_dict,
-    "origin": Origin.from_dict,
-    "origin_visit": OriginVisit.from_dict,
-    "release": Release.from_dict,
-    "revision": Revision.from_dict,
-    "skipped_content": SkippedContent.from_dict,
-    "snapshot": Snapshot.from_dict,
-}
-
 
 # define tests profile. Full documentation is at:
 # https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
