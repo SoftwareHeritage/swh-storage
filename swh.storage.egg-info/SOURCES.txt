@@ -279,6 +279,7 @@ swh/storage/tests/test_in_memory.py
 swh/storage/tests/test_init.py
 swh/storage/tests/test_kafka_writer.py
 swh/storage/tests/test_metrics.py
+swh/storage/tests/test_pytest_plugin.py
 swh/storage/tests/test_replay.py
 swh/storage/tests/test_retry.py
 swh/storage/tests/test_revision_bw_compat.py
