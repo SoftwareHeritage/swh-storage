@@ -1,8 +1,14 @@
-swh-storage (0.10.3-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.10.4-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.10.4     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-16 11:25:25
+    +0200)
+  * Upstream changes:     - v0.10.4     - pytest_plugin: Avoid fixture
+    client to declare optional dependency     - Allow cassandra binary
+    path to be configured through env variable     - 158: Make schema
+    and migration converge so the migration works
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 10 Jul 2020 14:46:24 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Jul 2020 09:37:24 +0000
 
 swh-storage (0.10.3-1~swh1) unstable-swh; urgency=medium
 

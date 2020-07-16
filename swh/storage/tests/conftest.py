@@ -72,3 +72,11 @@ def swh_origins(swh_storage):
     origins = gen_origins(n=100)
     swh_storage.origin_add(origins)
     return origins
+
+
+@pytest.fixture
+def swh_storage_backend_config(swh_storage_backend_config):
+    """storage should test with its journal writer collaborator on
+
+    """
+    yield {**swh_storage_backend_config, "journal_writer": {"cls": "memory",}}
