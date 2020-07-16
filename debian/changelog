@@ -1,3 +1,13 @@
+swh-storage (0.10.6-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.10.6     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-16 15:31:19
+    +0200)
+  * Upstream changes:     - v0.10.6     - pytest_plugin: Ensure fixture
+    instantiates correctly
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Jul 2020 13:36:34 +0000
+
 swh-storage (0.10.5-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.10.5     - (tagged by Antoine R. Dumont
