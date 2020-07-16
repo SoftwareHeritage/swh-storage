@@ -58,7 +58,7 @@ def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
 
 @pytest.fixture
 def swh_storage(swh_storage_backend_config):
-    return get_storage(cls="validate", storage=swh_storage_backend_config)
+    return get_storage(swh_storage_backend_config)
 
 
 # the postgres_fact factory fixture below is mostly a copy of the code

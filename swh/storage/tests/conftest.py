@@ -14,6 +14,7 @@ except ImportError:
     pytest_cov = None
 
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
+from swh.storage import get_storage
 
 # define tests profile. Full documentation is at:
 # https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
@@ -37,6 +38,19 @@ if pytest_cov is not None:
 
 
 @pytest.fixture
+def swh_storage_backend_config(swh_storage_backend_config):
+    """storage should test with its journal writer collaborator on
+
+    """
+    yield {**swh_storage_backend_config, "journal_writer": {"cls": "memory",}}
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend_config):
+    return get_storage(cls="validate", storage=swh_storage_backend_config)
+
+
+@pytest.fixture
 def swh_contents(swh_storage):
     contents = gen_contents(n=20)
     swh_storage.content_add([c for c in contents if c["status"] != "absent"])
@@ -49,11 +63,3 @@ def swh_origins(swh_storage):
     origins = gen_origins(n=100)
     swh_storage.origin_add(origins)
     return origins
-
-
-@pytest.fixture
-def swh_storage_backend_config(swh_storage_backend_config):
-    """storage should test with its journal writer collaborator on
-
-    """
-    yield {**swh_storage_backend_config, "journal_writer": {"cls": "memory",}}
