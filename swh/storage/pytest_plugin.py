@@ -29,6 +29,10 @@ DUMP_FILES = path.join(SQL_DIR, "*.sql")
 
 @pytest.fixture
 def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
+    """Basic pg storage configuration with no journal collaborator
+    (to avoid pulling optional dependency on clients of this fixture)
+
+    """
     yield {
         "cls": "local",
         "db": "postgresql://{user}@{host}:{port}/{dbname}".format(
@@ -38,7 +42,6 @@ def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
             dbname="tests",
         ),
         "objstorage": {"cls": "memory", "args": {}},
-        "journal_writer": {"cls": "memory",},
     }
 
 
