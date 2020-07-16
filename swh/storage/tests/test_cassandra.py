@@ -96,13 +96,15 @@ def cassandra_cluster(tmpdir_factory):
             )
         )
 
-    if os.environ.get("LOG_CASSANDRA"):
+    if os.environ.get("SWH_CASSANDRA_LOG"):
         stdout = stderr = None
     else:
         stdout = stderr = subprocess.DEVNULL
+
+    cassandra_bin = os.environ.get("SWH_CASSANDRA_BIN", "/usr/sbin/cassandra")
     proc = subprocess.Popen(
         [
-            "/usr/sbin/cassandra",
+            cassandra_bin,
             "-Dcassandra.config=file://%s/cassandra.yaml" % cassandra_conf,
             "-Dcassandra.logdir=%s" % cassandra_log,
             "-Dcassandra.jmx.local.port=%d" % jmx_port,
@@ -123,9 +125,11 @@ def cassandra_cluster(tmpdir_factory):
     if running:
         yield (["127.0.0.1"], native_transport_port)
 
-    if not running or os.environ.get("LOG_CASSANDRA"):
-        with open(str(cassandra_log.join("debug.log"))) as fd:
-            print(fd.read())
+    if not running or os.environ.get("SWH_CASSANDRA_LOG"):
+        debug_log_path = str(cassandra_log.join("debug.log"))
+        if os.path.exists(debug_log_path):
+            with open(debug_log_path) as fd:
+                print(fd.read())
 
     if not running:
         raise Exception("cassandra process stopped unexpectedly.")

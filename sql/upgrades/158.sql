@@ -8,10 +8,10 @@ insert into dbversion(version, release, description)
       values(158, now(), 'Work Still In Progress');
 
 -- Adapt the revision table for the new extra_headers column
-alter table revision add column (extra_headers bytea[][]);
+alter table revision add column extra_headers bytea[][];
 
 -- Adapt the revision_entry type for the new extra_headers attribute
-alter type revision_entry add attribute (extra_headers bytea[][]);
+alter type revision_entry add attribute extra_headers bytea[][];
 
 -- Create entries in revision from tmp_revision
 create or replace function swh_revision_add()
@@ -42,7 +42,7 @@ as $$
            r.type, r.directory, r.message,
            a.id, a.fullname, a.name, a.email,
            c.id, c.fullname, c.name, c.email,
-           r.metadata, r.synthetic, r.extra_headers, t.parents, r.object_id
+           r.metadata, r.synthetic, t.parents, r.object_id, r.extra_headers
     from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
@@ -64,9 +64,9 @@ as $$
     select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
            r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
            r.type, r.directory, r.message,
-           a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic, r.extra_headers,
+           a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
            array(select rh.parent_id::bytea from revision_history rh where rh.id = r.id order by rh.parent_rank)
-               as parents, r.object_id
+               as parents, r.object_id, r.extra_headers
     from revs r
     left join person a on a.id = r.author
     left join person c on c.id = r.committer
