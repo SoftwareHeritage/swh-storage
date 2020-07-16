@@ -21,6 +21,7 @@ from swh.model.model import (
     Content,
     Directory,
     Origin,
+    OriginVisit,
     Person,
     Release,
     Revision,
@@ -214,8 +215,9 @@ def sample_data() -> Dict:
         "directory": [data.dir2, data.dir],
         "revision": [data.revision, data.revision2, data.revision3],
         "release": [data.release, data.release2, data.release3],
-        "snapshot": [data.snapshot],
+        "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
         "origin": [data.origin, data.origin2],
+        "origin_visit": [data.origin_visit, data.origin_visit2, data.origin_visit3],
         "fetcher": [data.metadata_fetcher],
         "authority": [data.metadata_authority],
         "origin_metadata": [data.origin_metadata, data.origin_metadata2],
@@ -234,6 +236,7 @@ OBJECT_FACTORY = {
     "release": Release.from_dict,
     "snapshot": Snapshot.from_dict,
     "origin": Origin.from_dict,
+    "origin_visit": OriginVisit.from_dict,
 }
 
 

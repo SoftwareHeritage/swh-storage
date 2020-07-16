@@ -22,6 +22,7 @@ def test_sample_data(sample_data, sample_data_model):
             "release",
             "snapshot",
             "origin",
+            "origin_visit",
             "fetcher",
             "authority",
             "origin_metadata",
@@ -48,6 +49,7 @@ def test_sample_data_model(sample_data, sample_data_model):
             "release",
             "snapshot",
             "origin",
+            "origin_visit",
         ]
     )
 
