@@ -8,7 +8,6 @@ import attr
 from swh.core.utils import decode_with_escape
 from swh.model.model import Revision
 from swh.storage import get_storage
-from swh.storage.tests.storage_data import data
 from swh.storage.tests.test_storage import db_transaction
 
 
@@ -16,9 +15,11 @@ def headers_to_db(git_headers):
     return [[key, decode_with_escape(value)] for key, value in git_headers]
 
 
-def test_revision_extra_header_in_metadata(swh_storage_backend_config):
+def test_revision_extra_header_in_metadata(
+    swh_storage_backend_config, sample_data_model
+):
     storage = get_storage(**swh_storage_backend_config)
-    rev = Revision.from_dict(data.revision)
+    rev = sample_data_model["revision"][0]
 
     md_w_extra = dict(
         rev.metadata.items(),
