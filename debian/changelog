@@ -1,8 +1,14 @@
-swh-storage (0.10.4-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.10.5-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.10.5     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-16 14:24:50
+    +0200)
+  * Upstream changes:     - v0.10.5     - pytest_plugin: Do not expose
+    the validate proxy storage     - pytest-plugin: Expose a
+    sample_data_model fixture     - tests: Start using model objects and
+    drop validate proxy when possible
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Jul 2020 09:42:50 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Jul 2020 12:34:44 +0000
 
 swh-storage (0.10.4-1~swh1) unstable-swh; urgency=medium
 
