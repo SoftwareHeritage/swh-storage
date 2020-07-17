@@ -3,8 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import attr
 import copy
-from contextlib import contextmanager
 import datetime
 import inspect
 import itertools
@@ -14,6 +14,7 @@ import random
 import threading
 
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import Mock
 
@@ -169,8 +170,8 @@ class TestStorage:
         assert swh_storage.check_config(check_write=True)
         assert swh_storage.check_config(check_write=False)
 
-    def test_content_add(self, swh_storage):
-        cont = data.cont
+    def test_content_add(self, swh_storage, sample_data_model):
+        cont = sample_data_model["content"][0]
 
         insertion_start_time = now()
         actual_result = swh_storage.content_add([cont])
@@ -178,15 +179,15 @@ class TestStorage:
 
         assert actual_result == {
             "content:add": 1,
-            "content:add:bytes": cont["length"],
+            "content:add:bytes": cont.length,
         }
 
-        assert list(swh_storage.content_get([cont["sha1"]])) == [
-            {"sha1": cont["sha1"], "data": cont["data"]}
+        assert list(swh_storage.content_get([cont.sha1])) == [
+            {"sha1": cont.sha1, "data": cont.data}
         ]
 
-        expected_cont = data.cont
-        del expected_cont["data"]
+        expected_cont = attr.evolve(cont, data=None)
+
         contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
@@ -196,30 +197,30 @@ class TestStorage:
         for obj in contents:
             assert insertion_start_time <= obj.ctime
             assert obj.ctime <= insertion_end_time
-            obj_d = obj.to_dict()
-            del obj_d["ctime"]
-            assert obj_d == expected_cont
+            assert obj == expected_cont
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
 
-    def test_content_add_from_generator(self, swh_storage):
+    def test_content_add_from_generator(self, swh_storage, sample_data_model):
+        cont = sample_data_model["content"][0]
+
         def _cnt_gen():
-            yield data.cont
+            yield cont
 
         actual_result = swh_storage.content_add(_cnt_gen())
 
         assert actual_result == {
             "content:add": 1,
-            "content:add:bytes": data.cont["length"],
+            "content:add:bytes": cont.length,
         }
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
 
-    def test_content_add_from_lazy_content(self, swh_storage):
-
-        lazy_content = LazyContent.from_dict({**data.cont, "data": b"nope",})
+    def test_content_add_from_lazy_content(self, swh_storage, sample_data_model):
+        cont = sample_data_model["content"][0]
+        lazy_content = LazyContent.from_dict(cont.to_dict())
 
         insertion_start_time = now()
 
@@ -230,17 +231,16 @@ class TestStorage:
 
         assert actual_result == {
             "content:add": 1,
-            "content:add:bytes": data.cont["length"],
+            "content:add:bytes": cont.length,
         }
 
         # the fact that we retrieve the content object from the storage with
         # the correct 'data' field ensures it has been 'called'
-        assert list(swh_storage.content_get([data.cont["sha1"]])) == [
-            {"sha1": data.cont["sha1"], "data": data.cont["data"]}
+        assert list(swh_storage.content_get([cont.sha1])) == [
+            {"sha1": cont.sha1, "data": cont.data}
         ]
 
-        expected_cont = data.cont
-        del expected_cont["data"]
+        expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
         contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
@@ -250,15 +250,13 @@ class TestStorage:
         for obj in contents:
             assert insertion_start_time <= obj.ctime
             assert obj.ctime <= insertion_end_time
-            obj_d = obj.to_dict()
-            del obj_d["ctime"]
-            assert obj_d == expected_cont
+            assert attr.evolve(obj, ctime=None).to_dict() == expected_cont.to_dict()
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
 
-    def test_content_add_validation(self, swh_storage):
-        cont = data.cont
+    def test_content_add_validation(self, swh_storage, sample_data_model):
+        cont = sample_data_model["content"][0].to_dict()
 
         with pytest.raises(StorageArgumentException, match="status"):
             swh_storage.content_add([{**cont, "status": "absent"}])
@@ -272,9 +270,8 @@ class TestStorage:
         with pytest.raises(StorageArgumentException, match="reason"):
             swh_storage.content_add([{**cont, "reason": "foobar"}])
 
-    def test_skipped_content_add_validation(self, swh_storage):
-        cont = data.cont.copy()
-        del cont["data"]
+    def test_skipped_content_add_validation(self, swh_storage, sample_data_model):
+        cont = attr.evolve(sample_data_model["content"][0], data=None).to_dict()
 
         with pytest.raises(StorageArgumentException, match="status"):
             swh_storage.skipped_content_add([{**cont, "status": "visible"}])
