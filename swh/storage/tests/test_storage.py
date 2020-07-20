@@ -36,6 +36,7 @@ from swh.model.model import (
     OriginVisitStatus,
     Release,
     Revision,
+    SkippedContent,
     Snapshot,
     MetadataTargetType,
 )
@@ -447,44 +448,33 @@ class TestStorage:
             cont1b.hashes(),
         ]
 
-    def test_skipped_content_add(self, swh_storage):
-        cont = data.skipped_cont
-        cont2 = data.skipped_cont2
-        cont2["blake2s256"] = None
+    def test_skipped_content_add(self, swh_storage, sample_data_model):
+        contents = sample_data_model["skipped_content"][:2]
+        cont = contents[0]
+        cont2 = attr.evolve(contents[1], blake2s256=None)
 
-        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
+        contents_dict = [c.to_dict() for c in [cont, cont2]]
 
-        assert missing == [
-            {
-                "sha1": cont["sha1"],
-                "sha1_git": cont["sha1_git"],
-                "blake2s256": cont["blake2s256"],
-                "sha256": cont["sha256"],
-            },
-            {
-                "sha1": cont2["sha1"],
-                "sha1_git": cont2["sha1_git"],
-                "blake2s256": cont2["blake2s256"],
-                "sha256": cont2["sha256"],
-            },
-        ]
+        missing = list(swh_storage.skipped_content_missing(contents_dict))
+
+        assert missing == [cont.hashes(), cont2.hashes()]
 
         actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
 
         assert 2 <= actual_result.pop("skipped_content:add") <= 3
         assert actual_result == {}
 
-        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
-
+        missing = list(swh_storage.skipped_content_missing(contents_dict))
         assert missing == []
 
-    def test_skipped_content_add_missing_hashes(self, swh_storage):
-        cont = data.skipped_cont
-        cont2 = data.skipped_cont2
-        cont["sha1_git"] = cont2["sha1_git"] = None
+    def test_skipped_content_add_missing_hashes(self, swh_storage, sample_data_model):
+        cont, cont2 = [
+            attr.evolve(c, sha1_git=None)
+            for c in sample_data_model["skipped_content"][:2]
+        ]
+        contents_dict = [c.to_dict() for c in [cont, cont2]]
 
-        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
-
+        missing = list(swh_storage.skipped_content_missing(contents_dict))
         assert len(missing) == 2
 
         actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
@@ -492,17 +482,15 @@ class TestStorage:
         assert 2 <= actual_result.pop("skipped_content:add") <= 3
         assert actual_result == {}
 
-        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
-
+        missing = list(swh_storage.skipped_content_missing(contents_dict))
         assert missing == []
 
-    def test_skipped_content_missing_partial_hash(self, swh_storage):
-        cont = data.skipped_cont
-        cont2 = cont.copy()
-        cont2["sha1_git"] = None
+    def test_skipped_content_missing_partial_hash(self, swh_storage, sample_data_model):
+        cont = sample_data_model["skipped_content"][0]
+        cont2 = attr.evolve(cont, sha1_git=None)
+        contents_dict = [c.to_dict() for c in [cont, cont2]]
 
-        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
-
+        missing = list(swh_storage.skipped_content_missing(contents_dict))
         assert len(missing) == 2
 
         actual_result = swh_storage.skipped_content_add([cont])
@@ -510,16 +498,8 @@ class TestStorage:
         assert actual_result.pop("skipped_content:add") == 1
         assert actual_result == {}
 
-        missing = list(swh_storage.skipped_content_missing([cont, cont2]))
-
-        assert missing == [
-            {
-                "sha1": cont2["sha1"],
-                "sha1_git": cont2["sha1_git"],
-                "blake2s256": cont2["blake2s256"],
-                "sha256": cont2["sha256"],
-            }
-        ]
+        missing = list(swh_storage.skipped_content_missing(contents_dict))
+        assert missing == [cont2.hashes()]
 
     @pytest.mark.property_based
     @settings(deadline=None)  # this test is very slow
@@ -531,13 +511,14 @@ class TestStorage:
     )
     def test_content_missing(self, swh_storage, algos):
         algos |= {"sha1"}
-        cont2 = data.cont2
-        missing_cont = data.missing_cont
-        swh_storage.content_add([cont2])
-        test_contents = [cont2]
+        cont = Content.from_dict(data.cont2)
+        missing_cont = SkippedContent.from_dict(data.missing_cont)
+        swh_storage.content_add([cont])
+
+        test_contents = [cont.to_dict()]
         missing_per_hash = defaultdict(list)
         for i in range(256):
-            test_content = missing_cont.copy()
+            test_content = missing_cont.to_dict()
             for hash in algos:
                 test_content[hash] = bytes([i]) + test_content[hash][1:]
                 missing_per_hash[hash].append(test_content[hash])
@@ -561,13 +542,14 @@ class TestStorage:
     )
     def test_content_missing_unknown_algo(self, swh_storage, algos):
         algos |= {"sha1"}
-        cont2 = data.cont2
-        missing_cont = data.missing_cont
-        swh_storage.content_add([cont2])
-        test_contents = [cont2]
+        cont = Content.from_dict(data.cont2)
+        missing_cont = SkippedContent.from_dict(data.missing_cont)
+        swh_storage.content_add([cont])
+
+        test_contents = [cont.to_dict()]
         missing_per_hash = defaultdict(list)
         for i in range(16):
-            test_content = missing_cont.copy()
+            test_content = missing_cont.to_dict()
             for hash in algos:
                 test_content[hash] = bytes([i]) + test_content[hash][1:]
                 missing_per_hash[hash].append(test_content[hash])
@@ -583,29 +565,27 @@ class TestStorage:
                 swh_storage.content_missing(test_contents, key_hash=hash)
             ) == set(missing_per_hash[hash])
 
-    def test_content_missing_per_sha1(self, swh_storage):
+    def test_content_missing_per_sha1(self, swh_storage, sample_data_model):
         # given
-        cont2 = data.cont2
-        missing_cont = data.missing_cont
-        swh_storage.content_add([cont2])
-        # when
-        gen = swh_storage.content_missing_per_sha1(
-            [cont2["sha1"], missing_cont["sha1"]]
-        )
-        # then
-        assert list(gen) == [missing_cont["sha1"]]
+        cont = sample_data_model["content"][0]
+        missing_cont = sample_data_model["skipped_content"][0]
+        swh_storage.content_add([cont])
 
-    def test_content_missing_per_sha1_git(self, swh_storage):
-        cont = data.cont
-        cont2 = data.cont2
-        missing_cont = data.missing_cont
+        # when
+        gen = swh_storage.content_missing_per_sha1([cont.sha1, missing_cont.sha1])
+        # then
+        assert list(gen) == [missing_cont.sha1]
+
+    def test_content_missing_per_sha1_git(self, swh_storage, sample_data_model):
+        cont, cont2 = sample_data_model["content"][:2]
+        missing_cont = sample_data_model["skipped_content"][0]
 
         swh_storage.content_add([cont, cont2])
 
-        contents = [cont["sha1_git"], cont2["sha1_git"], missing_cont["sha1_git"]]
+        contents = [cont.sha1_git, cont2.sha1_git, missing_cont.sha1_git]
 
         missing_contents = swh_storage.content_missing_per_sha1_git(contents)
-        assert list(missing_contents) == [missing_cont["sha1_git"]]
+        assert list(missing_contents) == [missing_cont.sha1_git]
 
     def test_content_get_partition(self, swh_storage, swh_contents):
         """content_get_partition paginates results if limit exceeded"""

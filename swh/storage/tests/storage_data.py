@@ -80,7 +80,6 @@ contents = (cont, cont2, cont3)
 
 
 missing_cont = {
-    "data": b"missing\n",
     "length": 8,
     "sha1": hash_to_bytes("f9c24e2abb82063a3ba2c44efd2d3c797f28ac90"),
     "sha1_git": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8919"),
@@ -90,6 +89,7 @@ missing_cont = {
     "blake2s256": hash_to_bytes(
         "306856b8fd879edb7b6f1aeaaf8db9bbecc993cd7f776c333ac3a782fa5c6eba"
     ),
+    "reason": "Content too long",
     "status": "absent",
 }
 
