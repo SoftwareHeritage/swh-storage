@@ -23,7 +23,7 @@ import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
 
-from typing import ClassVar, Optional
+from typing import ClassVar, Dict, Optional, Union
 
 from swh.model import from_disk, identifiers
 from swh.model.hashutil import hash_to_bytes
@@ -34,6 +34,7 @@ from swh.model.model import (
     Origin,
     OriginVisit,
     OriginVisitStatus,
+    Person,
     Release,
     Revision,
     SkippedContent,
@@ -57,8 +58,12 @@ def db_transaction(storage):
             yield db, cur
 
 
-def normalize_entity(entity):
-    entity = copy.deepcopy(entity)
+def normalize_entity(obj: Union[Dict, Revision]) -> Dict:
+    """Normalize entity model object (revision, release)"""
+    if isinstance(obj, Revision):
+        entity = obj.to_dict()
+    else:
+        entity = obj
     for key in ("date", "committer_date"):
         if key in entity:
             entity[key] = identifiers.normalize_timestamp(entity[key])
@@ -83,10 +88,6 @@ def transform_entries(dir_, *, prefix=b""):
 
 def cmpdir(directory):
     return (directory["type"], directory["dir_id"])
-
-
-def short_revision(revision):
-    return [revision["id"], revision["parents"]]
 
 
 def assert_contents_ok(
@@ -925,30 +926,33 @@ class TestStorage:
             dir3.id,
         }
 
-    def test_revision_add(self, swh_storage):
-        init_missing = swh_storage.revision_missing([data.revision["id"]])
-        assert list(init_missing) == [data.revision["id"]]
+    def test_revision_add(self, swh_storage, sample_data_model):
+        revision = sample_data_model["revision"][0]
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
 
-        actual_result = swh_storage.revision_add([data.revision])
+        actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 1}
 
-        end_missing = swh_storage.revision_missing([data.revision["id"]])
+        end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", Revision.from_dict(data.revision))
+            ("revision", revision)
         ]
 
         # already there so nothing added
-        actual_result = swh_storage.revision_add([data.revision])
+        actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 0}
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["revision"] == 1
 
-    def test_revision_add_from_generator(self, swh_storage):
+    def test_revision_add_from_generator(self, swh_storage, sample_data_model):
+        revision = sample_data_model["revision"][0]
+
         def _rev_gen():
-            yield data.revision
+            yield revision
 
         actual_result = swh_storage.revision_add(_rev_gen())
         assert actual_result == {"revision:add": 1}
@@ -956,8 +960,10 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["revision"] == 1
 
-    def test_revision_add_validation(self, swh_storage):
-        rev = copy.deepcopy(data.revision)
+    def test_revision_add_validation(self, swh_storage, sample_data_model):
+        revision = sample_data_model["revision"][0]
+
+        rev = revision.to_dict()
         rev["date"]["offset"] = 2 ** 16
 
         with pytest.raises(StorageArgumentException, match="offset") as cm:
@@ -966,7 +972,7 @@ class TestStorage:
         if type(cm.value) == psycopg2.DataError:
             assert cm.value.pgcode == psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE
 
-        rev = copy.deepcopy(data.revision)
+        rev = revision.to_dict()
         rev["committer_date"]["offset"] = 2 ** 16
 
         with pytest.raises(StorageArgumentException, match="offset") as cm:
@@ -975,7 +981,7 @@ class TestStorage:
         if type(cm.value) == psycopg2.DataError:
             assert cm.value.pgcode == psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE
 
-        rev = copy.deepcopy(data.revision)
+        rev = revision.to_dict()
         rev["type"] = "foobar"
 
         with pytest.raises(StorageArgumentException, match="(?i)type") as cm:
@@ -984,58 +990,68 @@ class TestStorage:
         if type(cm.value) == psycopg2.DataError:
             assert cm.value.pgcode == psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION
 
-    def test_revision_add_twice(self, swh_storage):
-        actual_result = swh_storage.revision_add([data.revision])
+    def test_revision_add_twice(self, swh_storage, sample_data_model):
+        revision, revision2 = sample_data_model["revision"][:2]
+
+        actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", Revision.from_dict(data.revision))
+            ("revision", revision)
         ]
 
-        actual_result = swh_storage.revision_add([data.revision, data.revision2])
+        actual_result = swh_storage.revision_add([revision, revision2])
         assert actual_result == {"revision:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", Revision.from_dict(data.revision)),
-            ("revision", Revision.from_dict(data.revision2)),
+            ("revision", revision),
+            ("revision", revision2),
         ]
 
-    def test_revision_add_name_clash(self, swh_storage):
-        revision1 = data.revision
-        revision2 = data.revision2
+    def test_revision_add_name_clash(self, swh_storage, sample_data_model):
+        revision, revision2 = sample_data_model["revision"][:2]
 
-        revision1["author"] = {
-            "fullname": b"John Doe <john.doe@example.com>",
-            "name": b"John Doe",
-            "email": b"john.doe@example.com",
-        }
-        revision2["author"] = {
-            "fullname": b"John Doe <john.doe@example.com>",
-            "name": b"John Doe ",
-            "email": b"john.doe@example.com ",
-        }
+        revision1 = attr.evolve(
+            revision,
+            author=Person(
+                fullname=b"John Doe <john.doe@example.com>",
+                name=b"John Doe",
+                email=b"john.doe@example.com",
+            ),
+        )
+        revision2 = attr.evolve(
+            revision2,
+            author=Person(
+                fullname=b"John Doe <john.doe@example.com>",
+                name=b"John Doe ",
+                email=b"john.doe@example.com ",
+            ),
+        )
         actual_result = swh_storage.revision_add([revision1, revision2])
         assert actual_result == {"revision:add": 2}
 
-    def test_revision_get_order(self, swh_storage):
-        add_result = swh_storage.revision_add([data.revision, data.revision2])
+    def test_revision_get_order(self, swh_storage, sample_data_model):
+        revision, revision2 = sample_data_model["revision"][:2]
+
+        add_result = swh_storage.revision_add([revision, revision2])
         assert add_result == {"revision:add": 2}
 
         # order 1
-        res1 = swh_storage.revision_get([data.revision["id"], data.revision2["id"]])
-        assert list(res1) == [data.revision, data.revision2]
+        res1 = swh_storage.revision_get([revision.id, revision2.id])
+        assert list(res1) == [revision.to_dict(), revision2.to_dict()]
 
         # order 2
-        res2 = swh_storage.revision_get([data.revision2["id"], data.revision["id"]])
-        assert list(res2) == [data.revision2, data.revision]
+        res2 = swh_storage.revision_get([revision2.id, revision.id])
+        assert list(res2) == [revision2.to_dict(), revision.to_dict()]
 
-    def test_revision_log(self, swh_storage):
-        # given
+    def test_revision_log(self, swh_storage, sample_data_model):
+        revision3, revision4 = sample_data_model["revision"][2:4]
+
         # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([data.revision3, data.revision4])
+        swh_storage.revision_add([revision3, revision4])
 
         # when
-        actual_results = list(swh_storage.revision_log([data.revision4["id"]]))
+        actual_results = list(swh_storage.revision_log([revision4.id]))
 
         # hack: ids generated
         for actual_result in actual_results:
@@ -1045,19 +1061,20 @@ class TestStorage:
                 del actual_result["committer"]["id"]
 
         assert len(actual_results) == 2  # rev4 -child-> rev3
-        assert actual_results[0] == normalize_entity(data.revision4)
-        assert actual_results[1] == normalize_entity(data.revision3)
+        assert actual_results[0] == normalize_entity(revision4)
+        assert actual_results[1] == normalize_entity(revision3)
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", Revision.from_dict(data.revision3)),
-            ("revision", Revision.from_dict(data.revision4)),
+            ("revision", revision3),
+            ("revision", revision4),
         ]
 
-    def test_revision_log_with_limit(self, swh_storage):
-        # given
+    def test_revision_log_with_limit(self, swh_storage, sample_data_model):
+        revision3, revision4 = sample_data_model["revision"][2:4]
+
         # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([data.revision3, data.revision4])
-        actual_results = list(swh_storage.revision_log([data.revision4["id"]], 1))
+        swh_storage.revision_add([revision3, revision4])
+        actual_results = list(swh_storage.revision_log([revision4.id], 1))
 
         # hack: ids generated
         for actual_result in actual_results:
@@ -1067,39 +1084,42 @@ class TestStorage:
                 del actual_result["committer"]["id"]
 
         assert len(actual_results) == 1
-        assert actual_results[0] == data.revision4
+        assert actual_results[0] == normalize_entity(revision4)
 
-    def test_revision_log_unknown_revision(self, swh_storage):
-        rev_log = list(swh_storage.revision_log([data.revision["id"]]))
+    def test_revision_log_unknown_revision(self, swh_storage, sample_data_model):
+        revision = sample_data_model["revision"][0]
+        rev_log = list(swh_storage.revision_log([revision.id]))
         assert rev_log == []
 
-    def test_revision_shortlog(self, swh_storage):
-        # given
+    def test_revision_shortlog(self, swh_storage, sample_data_model):
+        revision3, revision4 = sample_data_model["revision"][2:4]
+
         # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([data.revision3, data.revision4])
+        swh_storage.revision_add([revision3, revision4])
 
         # when
-        actual_results = list(swh_storage.revision_shortlog([data.revision4["id"]]))
+        actual_results = list(swh_storage.revision_shortlog([revision4.id]))
 
         assert len(actual_results) == 2  # rev4 -child-> rev3
-        assert list(actual_results[0]) == short_revision(data.revision4)
-        assert list(actual_results[1]) == short_revision(data.revision3)
+        assert list(actual_results[0]) == [revision4.id, revision4.parents]
+        assert list(actual_results[1]) == [revision3.id, revision3.parents]
 
-    def test_revision_shortlog_with_limit(self, swh_storage):
-        # given
+    def test_revision_shortlog_with_limit(self, swh_storage, sample_data_model):
+        revision3, revision4 = sample_data_model["revision"][2:4]
+
         # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([data.revision3, data.revision4])
-        actual_results = list(swh_storage.revision_shortlog([data.revision4["id"]], 1))
+        swh_storage.revision_add([revision3, revision4])
+        actual_results = list(swh_storage.revision_shortlog([revision4.id], 1))
 
         assert len(actual_results) == 1
-        assert list(actual_results[0]) == short_revision(data.revision4)
+        assert list(actual_results[0]) == [revision4.id, revision4.parents]
 
-    def test_revision_get(self, swh_storage):
-        swh_storage.revision_add([data.revision])
+    def test_revision_get(self, swh_storage, sample_data_model):
+        revision, revision2 = sample_data_model["revision"][:2]
 
-        actual_revisions = list(
-            swh_storage.revision_get([data.revision["id"], data.revision2["id"]])
-        )
+        swh_storage.revision_add([revision])
+
+        actual_revisions = list(swh_storage.revision_get([revision.id, revision2.id]))
 
         # when
         if "id" in actual_revisions[0]["author"]:
@@ -1108,24 +1128,27 @@ class TestStorage:
             del actual_revisions[0]["committer"]["id"]
 
         assert len(actual_revisions) == 2
-        assert actual_revisions[0] == normalize_entity(data.revision)
+        assert actual_revisions[0] == normalize_entity(revision)
         assert actual_revisions[1] is None
 
-    def test_revision_get_no_parents(self, swh_storage):
-        swh_storage.revision_add([data.revision3])
+    def test_revision_get_no_parents(self, swh_storage, sample_data_model):
+        revision = sample_data_model["revision"][2]
+        swh_storage.revision_add([revision])
 
-        get = list(swh_storage.revision_get([data.revision3["id"]]))
+        get = list(swh_storage.revision_get([revision.id]))
 
         assert len(get) == 1
         assert get[0]["parents"] == ()  # no parents on this one
 
-    def test_revision_get_random(self, swh_storage):
-        swh_storage.revision_add([data.revision, data.revision2, data.revision3])
+    def test_revision_get_random(self, swh_storage, sample_data_model):
+        revision1, revision2, revision3 = sample_data_model["revision"][:3]
+
+        swh_storage.revision_add([revision1, revision2, revision3])
 
         assert swh_storage.revision_get_random() in {
-            data.revision["id"],
-            data.revision2["id"],
-            data.revision3["id"],
+            revision1.id,
+            revision2.id,
+            revision3.id,
         }
 
     def test_release_add(self, swh_storage):
