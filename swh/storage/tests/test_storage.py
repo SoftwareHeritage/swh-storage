@@ -2939,7 +2939,14 @@ class TestStorage:
 
         assert list(missing_snapshots) == [missing_snapshot.id]
 
-    def test_stat_counters(self, swh_storage):
+    def test_stat_counters(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        snapshot = sample_data_model["snapshot"][0]
+        revision = sample_data_model["revision"][0]
+        release = sample_data_model["release"][0]
+        directory = sample_data_model["directory"][0]
+        content = sample_data_model["content"][0]
+
         expected_keys = ["content", "directory", "origin", "revision"]
 
         # Initially, all counters are 0
@@ -2952,7 +2959,7 @@ class TestStorage:
 
         # Add a content. Only the content counter should increase.
 
-        swh_storage.content_add([data.cont])
+        swh_storage.content_add([content])
 
         swh_storage.refresh_stat_counters()
         counters = swh_storage.stat_counters()
@@ -2965,28 +2972,27 @@ class TestStorage:
 
         # Add other objects. Check their counter increased as well.
 
-        swh_storage.origin_add([data.origin2])
-        origin_url = data.origin2["url"]
+        swh_storage.origin_add([origin])
         visit = OriginVisit(
-            origin=origin_url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin.url, date=data.date_visit2, type=data.type_visit2,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
-        swh_storage.snapshot_add([data.snapshot])
+        swh_storage.snapshot_add([snapshot])
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
-                    origin=origin_url,
+                    origin=origin.url,
                     visit=origin_visit1.visit,
                     date=now(),
                     status="ongoing",
-                    snapshot=data.snapshot["id"],
+                    snapshot=snapshot.id,
                 )
             ]
         )
-        swh_storage.directory_add([data.dir])
-        swh_storage.revision_add([data.revision])
-        swh_storage.release_add([data.release])
+        swh_storage.directory_add([directory])
+        swh_storage.revision_add([revision])
+        swh_storage.release_add([release])
 
         swh_storage.refresh_stat_counters()
         counters = swh_storage.stat_counters()
