@@ -228,7 +228,12 @@ def sample_data() -> Dict:
             m.to_dict() for m in [data.metadata_authority, data.metadata_authority2]
         ],
         "origin_metadata": [
-            m.to_dict() for m in [data.origin_metadata, data.origin_metadata2,]
+            m.to_dict()
+            for m in [
+                data.origin_metadata,
+                data.origin_metadata2,
+                data.origin_metadata3,
+            ]
         ],
         "content_metadata": [
             m.to_dict()

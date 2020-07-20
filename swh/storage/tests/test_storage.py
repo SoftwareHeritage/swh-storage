@@ -3269,7 +3269,7 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
 
         res = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
-        assert res == data.metadata_fetcher
+        assert res == fetcher
 
     def test_metadata_authority_add_get(self, swh_storage, sample_data_model):
         authority = sample_data_model["authority"][0]
@@ -3282,7 +3282,7 @@ class TestStorage:
         swh_storage.metadata_authority_add([authority])
 
         res = swh_storage.metadata_authority_get(authority.type, authority.url)
-        assert res == data.metadata_authority
+        assert res == authority
 
     def test_content_metadata_add(self, swh_storage, sample_data_model):
         content = sample_data_model["content"][0]
@@ -3512,69 +3512,71 @@ class TestStorage:
                 MetadataTargetType.CONTENT, origin.url, authority
             )
 
-    def test_origin_metadata_add(self, swh_storage):
-        origin = data.origin
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+    def test_origin_metadata_add(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
+
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
+        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin["url"], authority
+            MetadataTargetType.ORIGIN, origin.url, authority
         )
         assert result["next_page_token"] is None
-        assert [data.origin_metadata, data.origin_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date)
-        )
+        assert list(sorted(result["results"], key=lambda x: x.discovery_date)) == [
+            origin_metadata,
+            origin_metadata2,
+        ]
 
-    def test_origin_metadata_add_duplicate(self, swh_storage):
+    def test_origin_metadata_add_duplicate(self, swh_storage, sample_data_model):
         """Duplicates should be silently updated."""
-        origin = data.origin
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+        origin = sample_data_model["origin"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         new_origin_metadata2 = attr.evolve(
-            data.origin_metadata2, format="new-format", metadata=b"new-metadata",
+            origin_metadata2, format="new-format", metadata=b"new-metadata",
         )
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
+        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
         swh_storage.object_metadata_add([new_origin_metadata2])
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin["url"], authority
+            MetadataTargetType.ORIGIN, origin.url, authority
         )
         assert result["next_page_token"] is None
 
         # which of the two behavior happens is backend-specific.
-        expected_results1 = (data.origin_metadata, new_origin_metadata2)
-        expected_results2 = (data.origin_metadata, data.origin_metadata2)
+        expected_results1 = (origin_metadata, new_origin_metadata2)
+        expected_results2 = (origin_metadata, origin_metadata2)
 
         assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
 
-    def test_origin_metadata_get(self, swh_storage):
-        authority = data.metadata_authority
-        fetcher = data.metadata_fetcher
-        authority2 = data.metadata_authority2
-        fetcher2 = data.metadata_fetcher2
-        origin_url1 = data.origin["url"]
-        origin_url2 = data.origin2["url"]
-        assert swh_storage.origin_add([data.origin, data.origin2]) == {"origin:add": 2}
+    def test_origin_metadata_get(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        fetcher, fetcher2 = sample_data_model["fetcher"][:2]
+        authority, authority2 = sample_data_model["authority"][:2]
+        origin1_metadata1, origin1_metadata2, origin1_metadata3 = sample_data_model[
+            "origin_metadata"
+        ][:3]
 
-        origin1_metadata1 = data.origin_metadata
-        origin1_metadata2 = data.origin_metadata2
-        origin1_metadata3 = data.origin_metadata3
-        origin2_metadata = attr.evolve(data.origin_metadata2, id=origin_url2)
+        assert swh_storage.origin_add([origin, origin2]) == {"origin:add": 2}
+
+        origin2_metadata = attr.evolve(origin1_metadata2, id=origin2.url)
 
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
@@ -3584,7 +3586,7 @@ class TestStorage:
         )
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin_url1, authority
+            MetadataTargetType.ORIGIN, origin.url, authority
         )
         assert result["next_page_token"] is None
         assert [origin1_metadata1, origin1_metadata2] == list(
@@ -3592,7 +3594,7 @@ class TestStorage:
         )
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin_url1, authority2
+            MetadataTargetType.ORIGIN, origin.url, authority2
         )
         assert result["next_page_token"] is None
         assert [origin1_metadata3] == list(
@@ -3600,155 +3602,161 @@ class TestStorage:
         )
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin_url2, authority
+            MetadataTargetType.ORIGIN, origin2.url, authority
         )
         assert result["next_page_token"] is None
         assert [origin2_metadata] == list(result["results"],)
 
-    def test_origin_metadata_get_after(self, swh_storage):
-        origin = data.origin
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+    def test_origin_metadata_get_after(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
+
+        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
+
+        swh_storage.metadata_fetcher_add([fetcher])
+        swh_storage.metadata_authority_add([authority])
+        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin.url,
+            authority,
+            after=origin_metadata.discovery_date - timedelta(seconds=1),
+        )
+        assert result["next_page_token"] is None
+        assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == [
+            origin_metadata,
+            origin_metadata2,
+        ]
+
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin.url,
+            authority,
+            after=origin_metadata.discovery_date,
+        )
+        assert result["next_page_token"] is None
+        assert result["results"] == [origin_metadata2]
+
+        result = swh_storage.object_metadata_get(
+            MetadataTargetType.ORIGIN,
+            origin.url,
+            authority,
+            after=origin_metadata2.discovery_date,
+        )
+        assert result["next_page_token"] is None
+        assert result["results"] == []
+
+    def test_origin_metadata_get_paginate(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
-
-        result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin["url"],
-            authority,
-            after=data.origin_metadata.discovery_date - timedelta(seconds=1),
-        )
-        assert result["next_page_token"] is None
-        assert [data.origin_metadata, data.origin_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
-        )
-
-        result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin["url"],
-            authority,
-            after=data.origin_metadata.discovery_date,
-        )
-        assert result["next_page_token"] is None
-        assert [data.origin_metadata2] == result["results"]
-
-        result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin["url"],
-            authority,
-            after=data.origin_metadata2.discovery_date,
-        )
-        assert result["next_page_token"] is None
-        assert [] == result["results"]
-
-    def test_origin_metadata_get_paginate(self, swh_storage):
-        origin = data.origin
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
-        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
-
-        swh_storage.metadata_fetcher_add([fetcher])
-        swh_storage.metadata_authority_add([authority])
-
-        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
+        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
         swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin["url"], authority
+            MetadataTargetType.ORIGIN, origin.url, authority
         )
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin["url"], authority, limit=1
+            MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
         assert result["next_page_token"] is not None
-        assert [data.origin_metadata] == result["results"]
+        assert result["results"] == [origin_metadata]
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.ORIGIN,
-            origin["url"],
+            origin.url,
             authority,
             limit=1,
             page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
-        assert [data.origin_metadata2] == result["results"]
+        assert result["results"] == [origin_metadata2]
 
-    def test_origin_metadata_get_paginate_same_date(self, swh_storage):
-        origin = data.origin
-        fetcher1 = data.metadata_fetcher
-        fetcher2 = data.metadata_fetcher2
-        authority = data.metadata_authority
+    def test_origin_metadata_get_paginate_same_date(
+        self, swh_storage, sample_data_model
+    ):
+        origin = sample_data_model["origin"][0]
+        fetcher1, fetcher2 = sample_data_model["fetcher"][:2]
+        authority = sample_data_model["authority"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        swh_storage.metadata_fetcher_add([fetcher1])
-        swh_storage.metadata_fetcher_add([fetcher2])
+        swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
         swh_storage.metadata_authority_add([authority])
 
-        origin_metadata2 = attr.evolve(
-            data.origin_metadata2,
-            discovery_date=data.origin_metadata2.discovery_date,
+        new_origin_metadata2 = attr.evolve(
+            origin_metadata2,
+            discovery_date=origin_metadata2.discovery_date,
             fetcher=attr.evolve(fetcher2, metadata=None),
         )
 
-        swh_storage.object_metadata_add([data.origin_metadata, origin_metadata2])
+        swh_storage.object_metadata_add([origin_metadata, new_origin_metadata2])
 
         result = swh_storage.object_metadata_get(
-            MetadataTargetType.ORIGIN, origin["url"], authority, limit=1
+            MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
         assert result["next_page_token"] is not None
-        assert [data.origin_metadata] == result["results"]
+        assert result["results"] == [origin_metadata]
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.ORIGIN,
-            origin["url"],
+            origin.url,
             authority,
             limit=1,
             page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
-        assert [origin_metadata2] == result["results"]
+        assert result["results"] == [new_origin_metadata2]
 
-    def test_origin_metadata_add_missing_authority(self, swh_storage):
-        origin = data.origin
-        fetcher = data.metadata_fetcher
+    def test_origin_metadata_add_missing_authority(
+        self, swh_storage, sample_data_model
+    ):
+        origin = sample_data_model["origin"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
 
         with pytest.raises(StorageArgumentException, match="authority"):
-            swh_storage.object_metadata_add(
-                [data.origin_metadata, data.origin_metadata2]
-            )
+            swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
-    def test_origin_metadata_add_missing_fetcher(self, swh_storage):
-        origin = data.origin
-        authority = data.metadata_authority
+    def test_origin_metadata_add_missing_fetcher(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        authority = sample_data_model["authority"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_authority_add([authority])
 
         with pytest.raises(StorageArgumentException, match="fetcher"):
-            swh_storage.object_metadata_add(
-                [data.origin_metadata, data.origin_metadata2]
-            )
+            swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
-    def test_origin_metadata_get__invalid_id_type(self, swh_storage):
-        origin = data.origin
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+    def test_origin_metadata_get__invalid_id_type(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        authority = sample_data_model["authority"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        origin_metadata, origin_metadata2 = sample_data_model["origin_metadata"][:2]
+        content_metadata = sample_data_model["content_metadata"][0]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.origin_metadata, data.origin_metadata2])
+        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
         with pytest.raises(StorageArgumentException, match="SWHID"):
             swh_storage.object_metadata_get(
-                MetadataTargetType.ORIGIN, data.content_metadata.id, authority,
+                MetadataTargetType.ORIGIN, content_metadata.id, authority,
             )
 
 
