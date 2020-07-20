@@ -347,7 +347,7 @@ origins = (origin, origin2)
 
 
 metadata_authority = MetadataAuthority(
-    type=MetadataAuthorityType.DEPOSIT,
+    type=MetadataAuthorityType.DEPOSIT_CLIENT,
     url="http://hal.inria.example.com/",
     metadata={"location": "France"},
 )
