@@ -13,8 +13,12 @@ try:
 except ImportError:
     pytest_cov = None
 
+from typing import Iterable
+
+from swh.model.model import BaseContent
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
 from swh.storage import get_storage
+from swh.storage.interface import StorageInterface
 
 # define tests profile. Full documentation is at:
 # https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
@@ -51,10 +55,10 @@ def swh_storage(swh_storage_backend_config):
 
 
 @pytest.fixture
-def swh_contents(swh_storage):
-    contents = gen_contents(n=20)
-    swh_storage.content_add([c for c in contents if c["status"] != "absent"])
-    swh_storage.skipped_content_add([c for c in contents if c["status"] == "absent"])
+def swh_contents(swh_storage: StorageInterface) -> Iterable[BaseContent]:
+    contents = [BaseContent.from_dict(c) for c in gen_contents(n=20)]
+    swh_storage.content_add([c for c in contents if c.status != "absent"])
+    swh_storage.skipped_content_add([c for c in contents if c.status == "absent"])
     return contents
 
 
