@@ -691,7 +691,7 @@ class TestStorage:
 
     def test_content_get_random(self, swh_storage, sample_data_model):
         cont, cont2 = sample_data_model["content"][:2]
-        cont3 = sample_data_model["content_metadata"][0]
+        cont3 = sample_data_model["content_no_data"][0]
         swh_storage.content_add([cont, cont2, cont3])
 
         assert swh_storage.content_get_random() in {
@@ -3051,7 +3051,7 @@ class TestStorage:
     def test_content_find_with_non_present_content(
         self, swh_storage, sample_data_model
     ):
-        missing_content = sample_data_model["content_metadata"][0]
+        missing_content = sample_data_model["content_no_data"][0]
         # 1. with something that does not exist
         actually_present = swh_storage.content_find({"sha1": missing_content.sha1})
 
@@ -3261,72 +3261,71 @@ class TestStorage:
 
         assert expected == ret
 
-    def test_metadata_fetcher_add_get(self, swh_storage):
-        actual_fetcher = swh_storage.metadata_fetcher_get(
-            data.metadata_fetcher.name, data.metadata_fetcher.version
-        )
+    def test_metadata_fetcher_add_get(self, swh_storage, sample_data_model):
+        fetcher = sample_data_model["fetcher"][0]
+        actual_fetcher = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert actual_fetcher is None  # does not exist
 
-        swh_storage.metadata_fetcher_add([data.metadata_fetcher])
+        swh_storage.metadata_fetcher_add([fetcher])
 
-        res = swh_storage.metadata_fetcher_get(
-            data.metadata_fetcher.name, data.metadata_fetcher.version
-        )
-
+        res = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert res == data.metadata_fetcher
 
-    def test_metadata_authority_add_get(self, swh_storage):
+    def test_metadata_authority_add_get(self, swh_storage, sample_data_model):
+        authority = sample_data_model["authority"][0]
+
         actual_authority = swh_storage.metadata_authority_get(
-            data.metadata_authority.type, data.metadata_authority.url
+            authority.type, authority.url
         )
         assert actual_authority is None  # does not exist
 
-        swh_storage.metadata_authority_add([data.metadata_authority])
+        swh_storage.metadata_authority_add([authority])
 
-        res = swh_storage.metadata_authority_get(
-            data.metadata_authority.type, data.metadata_authority.url
-        )
-
+        res = swh_storage.metadata_authority_get(authority.type, authority.url)
         assert res == data.metadata_authority
 
-    def test_content_metadata_add(self, swh_storage):
-        content = data.cont
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+    def test_content_metadata_add(self, swh_storage, sample_data_model):
+        content = sample_data_model["content"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        content_metadata = sample_data_model["content_metadata"][:2]
+
         content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+            object_type="content", object_id=hash_to_bytes(content.sha1_git)
         )
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
+        swh_storage.object_metadata_add(content_metadata)
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
         assert result["next_page_token"] is None
-        assert [data.content_metadata, data.content_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+        assert (
+            list(sorted(result["results"], key=lambda x: x.discovery_date,))
+            == content_metadata
         )
 
-    def test_content_metadata_add_duplicate(self, swh_storage):
+    def test_content_metadata_add_duplicate(self, swh_storage, sample_data_model):
         """Duplicates should be silently updated."""
-        content = data.cont
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+        content = sample_data_model["content"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        content_metadata, content_metadata2 = sample_data_model["content_metadata"][:2]
         content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
+            object_type="content", object_id=hash_to_bytes(content.sha1_git)
         )
 
         new_content_metadata2 = attr.evolve(
-            data.content_metadata2, format="new-format", metadata=b"new-metadata",
+            content_metadata2, format="new-format", metadata=b"new-metadata",
         )
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
+        swh_storage.object_metadata_add([content_metadata, content_metadata2])
         swh_storage.object_metadata_add([new_content_metadata2])
 
         result = swh_storage.object_metadata_get(
@@ -3334,30 +3333,25 @@ class TestStorage:
         )
         assert result["next_page_token"] is None
 
-        expected_results1 = (data.content_metadata, new_content_metadata2)
-        expected_results2 = (data.content_metadata, data.content_metadata2)
+        expected_results1 = (content_metadata, new_content_metadata2)
+        expected_results2 = (content_metadata, content_metadata2)
 
         assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
 
-    def test_content_metadata_get(self, swh_storage):
-        authority = data.metadata_authority
-        fetcher = data.metadata_fetcher
-        authority2 = data.metadata_authority2
-        fetcher2 = data.metadata_fetcher2
-        content1_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(data.cont["sha1_git"])
-        )
-        content2_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(data.cont2["sha1_git"])
-        )
+    def test_content_metadata_get(self, swh_storage, sample_data_model):
+        content, content2 = sample_data_model["content"][:2]
+        fetcher, fetcher2 = sample_data_model["fetcher"][:2]
+        authority, authority2 = sample_data_model["authority"][:2]
+        content1_metadata1, content1_metadata2, content1_metadata3 = sample_data_model[
+            "content_metadata"
+        ][:3]
 
-        content1_metadata1 = data.content_metadata
-        content1_metadata2 = data.content_metadata2
-        content1_metadata3 = data.content_metadata3
-        content2_metadata = attr.evolve(data.content_metadata2, id=content2_swhid)
+        content1_swhid = SWHID(object_type="content", object_id=content.sha1_git)
+        content2_swhid = SWHID(object_type="content", object_id=content2.sha1_git)
+        content2_metadata = attr.evolve(content1_metadata2, id=content2_swhid)
 
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
@@ -3393,27 +3387,27 @@ class TestStorage:
         assert result["next_page_token"] is None
         assert [content2_metadata] == list(result["results"],)
 
-    def test_content_metadata_get_after(self, swh_storage):
-        content = data.cont
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
-        content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
-        )
+    def test_content_metadata_get_after(self, swh_storage, sample_data_model):
+        content = sample_data_model["content"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        content_metadata, content_metadata2 = sample_data_model["content_metadata"][:2]
+
+        content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
+        swh_storage.object_metadata_add([content_metadata, content_metadata2])
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
-            after=data.content_metadata.discovery_date - timedelta(seconds=1),
+            after=content_metadata.discovery_date - timedelta(seconds=1),
         )
         assert result["next_page_token"] is None
-        assert [data.content_metadata, data.content_metadata2] == list(
+        assert [content_metadata, content_metadata2] == list(
             sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
@@ -3421,33 +3415,31 @@ class TestStorage:
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
-            after=data.content_metadata.discovery_date,
+            after=content_metadata.discovery_date,
         )
         assert result["next_page_token"] is None
-        assert [data.content_metadata2] == result["results"]
+        assert result["results"] == [content_metadata2]
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
-            after=data.content_metadata2.discovery_date,
+            after=content_metadata2.discovery_date,
         )
         assert result["next_page_token"] is None
-        assert [] == result["results"]
+        assert result["results"] == []
 
-    def test_content_metadata_get_paginate(self, swh_storage):
-        content = data.cont
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
-        content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
-        )
+    def test_content_metadata_get_paginate(self, swh_storage, sample_data_model):
+        content = sample_data_model["content"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        content_metadata, content_metadata2 = sample_data_model["content_metadata"][:2]
+
+        content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
-
-        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
-
+        swh_storage.object_metadata_add([content_metadata, content_metadata2])
         swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
@@ -3456,7 +3448,7 @@ class TestStorage:
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
         assert result["next_page_token"] is not None
-        assert [data.content_metadata] == result["results"]
+        assert result["results"] == [content_metadata]
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT,
@@ -3466,33 +3458,34 @@ class TestStorage:
             page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
-        assert [data.content_metadata2] == result["results"]
+        assert result["results"] == [content_metadata2]
 
-    def test_content_metadata_get_paginate_same_date(self, swh_storage):
-        content = data.cont
-        fetcher1 = data.metadata_fetcher
-        fetcher2 = data.metadata_fetcher2
-        authority = data.metadata_authority
-        content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content["sha1_git"])
-        )
+    def test_content_metadata_get_paginate_same_date(
+        self, swh_storage, sample_data_model
+    ):
+        content = sample_data_model["content"][0]
+        fetcher1, fetcher2 = sample_data_model["fetcher"][:2]
+        authority = sample_data_model["authority"][0]
+        content_metadata, content_metadata2 = sample_data_model["content_metadata"][:2]
+
+        content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
         swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
         swh_storage.metadata_authority_add([authority])
 
-        content_metadata2 = attr.evolve(
-            data.content_metadata2,
-            discovery_date=data.content_metadata2.discovery_date,
+        new_content_metadata2 = attr.evolve(
+            content_metadata2,
+            discovery_date=content_metadata2.discovery_date,
             fetcher=attr.evolve(fetcher2, metadata=None),
         )
 
-        swh_storage.object_metadata_add([data.content_metadata, content_metadata2])
+        swh_storage.object_metadata_add([content_metadata, new_content_metadata2])
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
         assert result["next_page_token"] is not None
-        assert [data.content_metadata] == result["results"]
+        assert result["results"] == [content_metadata]
 
         result = swh_storage.object_metadata_get(
             MetadataTargetType.CONTENT,
@@ -3502,20 +3495,21 @@ class TestStorage:
             page_token=result["next_page_token"],
         )
         assert result["next_page_token"] is None
-        assert [content_metadata2] == result["results"]
+        assert result["results"] == [new_content_metadata2]
 
-    def test_content_metadata_get__invalid_id(self, swh_storage):
-        fetcher = data.metadata_fetcher
-        authority = data.metadata_authority
+    def test_content_metadata_get__invalid_id(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        fetcher = sample_data_model["fetcher"][0]
+        authority = sample_data_model["authority"][0]
+        content_metadata, content_metadata2 = sample_data_model["content_metadata"][:2]
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
-
-        swh_storage.object_metadata_add([data.content_metadata, data.content_metadata2])
+        swh_storage.object_metadata_add([content_metadata, content_metadata2])
 
         with pytest.raises(StorageArgumentException, match="SWHID"):
             swh_storage.object_metadata_get(
-                MetadataTargetType.CONTENT, data.origin["url"], authority
+                MetadataTargetType.CONTENT, origin.url, authority
             )
 
     def test_origin_metadata_add(self, swh_storage):

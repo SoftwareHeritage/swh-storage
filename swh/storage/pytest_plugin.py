@@ -212,7 +212,7 @@ def sample_data() -> Dict:
     """
     return {
         "content": [data.cont, data.cont2],
-        "content_metadata": [data.cont3],
+        "content_no_data": [data.cont3],
         "skipped_content": [data.skipped_cont, data.skipped_cont2],
         "person": [data.person],
         "directory": [data.dir2, data.dir, data.dir3, data.dir4],
@@ -221,11 +221,22 @@ def sample_data() -> Dict:
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
         "origin": [data.origin, data.origin2],
         "origin_visit": [data.origin_visit, data.origin_visit2, data.origin_visit3],
-        "fetcher": [data.metadata_fetcher.to_dict()],
-        "authority": [data.metadata_authority.to_dict()],
+        "fetcher": [
+            m.to_dict() for m in [data.metadata_fetcher, data.metadata_fetcher2]
+        ],
+        "authority": [
+            m.to_dict() for m in [data.metadata_authority, data.metadata_authority2]
+        ],
         "origin_metadata": [
-            data.origin_metadata.to_dict(),
-            data.origin_metadata2.to_dict(),
+            m.to_dict() for m in [data.origin_metadata, data.origin_metadata2,]
+        ],
+        "content_metadata": [
+            m.to_dict()
+            for m in [
+                data.content_metadata,
+                data.content_metadata2,
+                data.content_metadata3,
+            ]
         ],
     }
 
@@ -234,7 +245,7 @@ def sample_data() -> Dict:
 # changed but not the endpoints yet)
 OBJECT_FACTORY = {
     "content": Content.from_dict,
-    "content_metadata": Content.from_dict,
+    "content_no_data": Content.from_dict,
     "skipped_content": SkippedContent.from_dict,
     "person": Person.from_dict,
     "directory": Directory.from_dict,
@@ -246,6 +257,7 @@ OBJECT_FACTORY = {
     "fetcher": MetadataFetcher.from_dict,
     "authority": MetadataAuthority.from_dict,
     "origin_metadata": RawExtrinsicMetadata.from_dict,
+    "content_metadata": RawExtrinsicMetadata.from_dict,
 }
 
 

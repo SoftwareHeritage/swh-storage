@@ -128,7 +128,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data_mo
     """Standard content_add_metadata works as before
 
     """
-    sample_content = sample_data_model["content_metadata"][0]
+    sample_content = sample_data_model["content_no_data"][0]
 
     pk = sample_content.sha1
     content_metadata = swh_storage.content_get_metadata([pk])
@@ -162,7 +162,7 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         {"content:add": 1},
     ]
 
-    sample_content = sample_data_model["content_metadata"][0]
+    sample_content = sample_data_model["content_no_data"][0]
 
     s = swh_storage.content_add_metadata([sample_content])
     assert s == {"content:add": 1}
@@ -185,7 +185,7 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
         "Refuse to add content_metadata!"
     )
 
-    sample_content = sample_data_model["content_metadata"][0]
+    sample_content = sample_data_model["content_no_data"][0]
     pk = sample_content.sha1
 
     content_metadata = swh_storage.content_get_metadata([pk])

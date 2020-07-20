@@ -14,7 +14,7 @@ def test_sample_data(sample_data, sample_data_model):
     assert set(sample_data.keys()) == set(
         [
             "content",
-            "content_metadata",
+            "content_no_data",
             "skipped_content",
             "person",
             "directory",
@@ -26,6 +26,7 @@ def test_sample_data(sample_data, sample_data_model):
             "fetcher",
             "authority",
             "origin_metadata",
+            "content_metadata",
         ]
     )
     for object_type, objs in sample_data.items():
@@ -41,7 +42,7 @@ def test_sample_data_model(sample_data, sample_data_model):
     assert set(sample_data_model.keys()) == set(
         [
             "content",
-            "content_metadata",
+            "content_no_data",
             "skipped_content",
             "person",
             "directory",
@@ -53,6 +54,7 @@ def test_sample_data_model(sample_data, sample_data_model):
             "fetcher",
             "authority",
             "origin_metadata",
+            "content_metadata",
         ]
     )
 
