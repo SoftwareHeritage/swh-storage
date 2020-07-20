@@ -3227,33 +3227,35 @@ class TestStorage:
         with pytest.raises(StorageArgumentException):
             swh_storage.content_find({"unknown-sha1": "something"})  # not the right key
 
-    def test_object_find_by_sha1_git(self, swh_storage):
+    def test_object_find_by_sha1_git(self, swh_storage, sample_data_model):
+        content = sample_data_model["content"][0]
+        directory = sample_data_model["directory"][0]
+        revision = sample_data_model["revision"][0]
+        release = sample_data_model["release"][0]
+
         sha1_gits = [b"00000000000000000000"]
         expected = {
             b"00000000000000000000": [],
         }
 
-        swh_storage.content_add([data.cont])
-        sha1_gits.append(data.cont["sha1_git"])
-        expected[data.cont["sha1_git"]] = [
-            {"sha1_git": data.cont["sha1_git"], "type": "content",}
+        swh_storage.content_add([content])
+        sha1_gits.append(content.sha1_git)
+
+        expected[content.sha1_git] = [
+            {"sha1_git": content.sha1_git, "type": "content",}
         ]
 
-        swh_storage.directory_add([data.dir])
-        sha1_gits.append(data.dir["id"])
-        expected[data.dir["id"]] = [{"sha1_git": data.dir["id"], "type": "directory",}]
+        swh_storage.directory_add([directory])
+        sha1_gits.append(directory.id)
+        expected[directory.id] = [{"sha1_git": directory.id, "type": "directory",}]
 
-        swh_storage.revision_add([data.revision])
-        sha1_gits.append(data.revision["id"])
-        expected[data.revision["id"]] = [
-            {"sha1_git": data.revision["id"], "type": "revision",}
-        ]
+        swh_storage.revision_add([revision])
+        sha1_gits.append(revision.id)
+        expected[revision.id] = [{"sha1_git": revision.id, "type": "revision",}]
 
-        swh_storage.release_add([data.release])
-        sha1_gits.append(data.release["id"])
-        expected[data.release["id"]] = [
-            {"sha1_git": data.release["id"], "type": "release",}
-        ]
+        swh_storage.release_add([release])
+        sha1_gits.append(release.id)
+        expected[release.id] = [{"sha1_git": release.id, "type": "release",}]
 
         ret = swh_storage.object_find_by_sha1_git(sha1_gits)
 
