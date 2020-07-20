@@ -1312,73 +1312,65 @@ class TestStorage:
             release3.id,
         }
 
-    def test_origin_add(self, swh_storage):
-        origin0 = swh_storage.origin_get([data.origin])[0]
-        assert origin0 is None
+    def test_origin_add(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
-        stats = swh_storage.origin_add([data.origin, data.origin2])
+        assert swh_storage.origin_get([origin_dict])[0] is None
+
+        stats = swh_storage.origin_add([origin, origin2])
         assert stats == {"origin:add": 2}
 
-        actual_origin = swh_storage.origin_get([{"url": data.origin["url"],}])[0]
-        assert actual_origin["url"] == data.origin["url"]
+        actual_origin = swh_storage.origin_get([origin_dict])[0]
+        assert actual_origin["url"] == origin.url
 
-        actual_origin2 = swh_storage.origin_get([{"url": data.origin2["url"],}])[0]
-        assert actual_origin2["url"] == data.origin2["url"]
+        actual_origin2 = swh_storage.origin_get([origin2_dict])[0]
+        assert actual_origin2["url"] == origin2.url
 
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [
-                ("origin", Origin.from_dict(actual_origin)),
-                ("origin", Origin.from_dict(actual_origin2)),
-            ]
+            [("origin", origin), ("origin", origin2),]
         )
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["origin"] == 2
 
-    def test_origin_add_from_generator(self, swh_storage):
+    def test_origin_add_from_generator(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
+
         def _ori_gen():
-            yield data.origin
-            yield data.origin2
+            yield origin
+            yield origin2
 
         stats = swh_storage.origin_add(_ori_gen())
         assert stats == {"origin:add": 2}
 
-        actual_origin = swh_storage.origin_get([{"url": data.origin["url"],}])[0]
-        assert actual_origin["url"] == data.origin["url"]
+        actual_origin = swh_storage.origin_get([origin_dict])[0]
+        assert actual_origin["url"] == origin.url
 
-        actual_origin2 = swh_storage.origin_get([{"url": data.origin2["url"],}])[0]
-        assert actual_origin2["url"] == data.origin2["url"]
-
-        if "id" in actual_origin:
-            del actual_origin["id"]
-            del actual_origin2["id"]
+        actual_origin2 = swh_storage.origin_get([origin2_dict])[0]
+        assert actual_origin2["url"] == origin2.url
 
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [
-                ("origin", Origin.from_dict(actual_origin)),
-                ("origin", Origin.from_dict(actual_origin2)),
-            ]
+            [("origin", origin), ("origin", origin2),]
         )
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["origin"] == 2
 
-    def test_origin_add_twice(self, swh_storage):
-        add1 = swh_storage.origin_add([data.origin, data.origin2])
+    def test_origin_add_twice(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
+
+        add1 = swh_storage.origin_add([origin, origin2])
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [
-                ("origin", Origin.from_dict(data.origin)),
-                ("origin", Origin.from_dict(data.origin2)),
-            ]
+            [("origin", origin), ("origin", origin2),]
         )
         assert add1 == {"origin:add": 2}
 
-        add2 = swh_storage.origin_add([data.origin, data.origin2])
+        add2 = swh_storage.origin_add([origin, origin2])
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [
-                ("origin", Origin.from_dict(data.origin)),
-                ("origin", Origin.from_dict(data.origin2)),
-            ]
+            [("origin", origin), ("origin", origin2),]
         )
         assert add2 == {"origin:add": 0}
 
@@ -1393,26 +1385,33 @@ class TestStorage:
         ):
             swh_storage.origin_add([{"ul": "mistyped url key"}])
 
-    def test_origin_get_legacy(self, swh_storage):
-        assert swh_storage.origin_get(data.origin) is None
-        swh_storage.origin_add([data.origin])
+    def test_origin_get_legacy(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
-        actual_origin0 = swh_storage.origin_get({"url": data.origin["url"]})
-        assert actual_origin0["url"] == data.origin["url"]
+        assert swh_storage.origin_get(origin_dict) is None
+        swh_storage.origin_add([origin])
 
-    def test_origin_get(self, swh_storage):
-        assert swh_storage.origin_get(data.origin) is None
-        assert swh_storage.origin_get([data.origin]) == [None]
-        swh_storage.origin_add([data.origin])
+        actual_origin0 = swh_storage.origin_get(origin_dict)
+        assert actual_origin0["url"] == origin.url
 
-        actual_origin0 = swh_storage.origin_get([{"url": data.origin["url"]}])
-        assert len(actual_origin0) == 1
-        assert actual_origin0[0]["url"] == data.origin["url"]
+    def test_origin_get(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
-        actual_origins = swh_storage.origin_get(
-            [{"url": data.origin["url"]}, {"url": "not://exists"}]
-        )
-        assert actual_origins == [{"url": data.origin["url"]}, None]
+        assert swh_storage.origin_get(origin_dict) is None
+        assert swh_storage.origin_get([origin_dict]) == [None]
+        swh_storage.origin_add([origin])
+
+        actual_origins = swh_storage.origin_get([origin_dict])
+        assert len(actual_origins) == 1
+
+        actual_origin0 = swh_storage.origin_get(origin_dict)
+        assert actual_origin0 == actual_origins[0]
+        assert actual_origin0["url"] == origin.url
+
+        actual_origins = swh_storage.origin_get([origin_dict, {"url": "not://exists"}])
+        assert actual_origins == [origin_dict, None]
 
     def _generate_random_visits(self, nb_visits=100, start=0, end=7):
         """Generate random visits within the last 2 months (to avoid
@@ -1433,8 +1432,8 @@ class TestStorage:
             visits.append(date_visit)
         return visits
 
-    def test_origin_visit_get_all(self, swh_storage):
-        origin = Origin.from_dict(data.origin)
+    def test_origin_visit_get_all(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
         swh_storage.origin_add([origin])
         visits = swh_storage.origin_visit_add(
             [
@@ -1503,23 +1502,24 @@ class TestStorage:
     def test_origin_visit_get__unknown_origin(self, swh_storage):
         assert [] == list(swh_storage.origin_visit_get("foo"))
 
-    def test_origin_visit_get_random(self, swh_storage):
-        swh_storage.origin_add(data.origins)
+    def test_origin_visit_get_random(self, swh_storage, sample_data_model):
+        origins = sample_data_model["origin"][:2]
+        swh_storage.origin_add(origins)
+
         # Add some random visits within the selection range
         visits = self._generate_random_visits()
         visit_type = "git"
 
         # Add visits to those origins
-        for origin in data.origins:
-            origin_url = origin["url"]
+        for origin in origins:
             for date_visit in visits:
                 visit = swh_storage.origin_visit_add(
-                    [OriginVisit(origin=origin_url, date=date_visit, type=visit_type,)]
+                    [OriginVisit(origin=origin.url, date=date_visit, type=visit_type,)]
                 )[0]
                 swh_storage.origin_visit_status_add(
                     [
                         OriginVisitStatus(
-                            origin=origin_url,
+                            origin=origin.url,
                             visit=visit.visit,
                             date=now(),
                             status="full",
@@ -1531,31 +1531,32 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
 
         stats = swh_storage.stat_counters()
-        assert stats["origin"] == len(data.origins)
-        assert stats["origin_visit"] == len(data.origins) * len(visits)
+        assert stats["origin"] == len(origins)
+        assert stats["origin_visit"] == len(origins) * len(visits)
 
         random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
         assert random_origin_visit
         assert random_origin_visit["origin"] is not None
-        original_urls = [o["url"] for o in data.origins]
-        assert random_origin_visit["origin"] in original_urls
+        assert random_origin_visit["origin"] in [o.url for o in origins]
 
-    def test_origin_visit_get_random_nothing_found(self, swh_storage):
-        swh_storage.origin_add(data.origins)
+    def test_origin_visit_get_random_nothing_found(
+        self, swh_storage, sample_data_model
+    ):
+        origins = sample_data_model["origin"]
+        swh_storage.origin_add(origins)
         visit_type = "hg"
         # Add some visits outside of the random generation selection so nothing
         # will be found by the random selection
         visits = self._generate_random_visits(nb_visits=3, start=13, end=24)
-        for origin in data.origins:
-            origin_url = origin["url"]
+        for origin in origins:
             for date_visit in visits:
                 visit = swh_storage.origin_visit_add(
-                    [OriginVisit(origin=origin_url, date=date_visit, type=visit_type,)]
+                    [OriginVisit(origin=origin.url, date=date_visit, type=visit_type,)]
                 )[0]
                 swh_storage.origin_visit_status_add(
                     [
                         OriginVisitStatus(
-                            origin=origin_url,
+                            origin=origin.url,
                             visit=visit.visit,
                             date=now(),
                             status="full",
@@ -1567,89 +1568,84 @@ class TestStorage:
         random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
         assert random_origin_visit is None
 
-    def test_origin_get_by_sha1(self, swh_storage):
-        assert swh_storage.origin_get(data.origin) is None
-        swh_storage.origin_add([data.origin])
+    def test_origin_get_by_sha1(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        assert swh_storage.origin_get(origin.to_dict()) is None
+        swh_storage.origin_add([origin])
 
-        origins = list(swh_storage.origin_get_by_sha1([sha1(data.origin["url"])]))
+        origins = list(swh_storage.origin_get_by_sha1([sha1(origin.url)]))
         assert len(origins) == 1
-        assert origins[0]["url"] == data.origin["url"]
+        assert origins[0]["url"] == origin.url
 
-    def test_origin_get_by_sha1_not_found(self, swh_storage):
-        assert swh_storage.origin_get(data.origin) is None
-        origins = list(swh_storage.origin_get_by_sha1([sha1(data.origin["url"])]))
+    def test_origin_get_by_sha1_not_found(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        assert swh_storage.origin_get(origin.to_dict()) is None
+        origins = list(swh_storage.origin_get_by_sha1([sha1(origin.url)]))
         assert len(origins) == 1
         assert origins[0] is None
 
-    def test_origin_search_single_result(self, swh_storage):
-        found_origins = list(swh_storage.origin_search(data.origin["url"]))
+    def test_origin_search_single_result(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+
+        found_origins = list(swh_storage.origin_search(origin.url))
         assert len(found_origins) == 0
 
-        found_origins = list(swh_storage.origin_search(data.origin["url"], regexp=True))
+        found_origins = list(swh_storage.origin_search(origin.url, regexp=True))
         assert len(found_origins) == 0
 
-        swh_storage.origin_add([data.origin])
-        origin_data = {"url": data.origin["url"]}
-        found_origins = list(swh_storage.origin_search(data.origin["url"]))
+        swh_storage.origin_add([origin])
+        origin_data = origin.to_dict()
+        found_origins = list(swh_storage.origin_search(origin.url))
+
         assert len(found_origins) == 1
-        if "id" in found_origins[0]:
-            del found_origins[0]["id"]
         assert found_origins[0] == origin_data
 
         found_origins = list(
-            swh_storage.origin_search("." + data.origin["url"][1:-1] + ".", regexp=True)
+            swh_storage.origin_search(f".{origin.url[1:-1]}.", regexp=True)
         )
         assert len(found_origins) == 1
-        if "id" in found_origins[0]:
-            del found_origins[0]["id"]
         assert found_origins[0] == origin_data
 
-        swh_storage.origin_add([data.origin2])
-        origin2_data = {"url": data.origin2["url"]}
-        found_origins = list(swh_storage.origin_search(data.origin2["url"]))
+        swh_storage.origin_add([origin2])
+        origin2_data = origin2.to_dict()
+        found_origins = list(swh_storage.origin_search(origin2.url))
         assert len(found_origins) == 1
-        if "id" in found_origins[0]:
-            del found_origins[0]["id"]
         assert found_origins[0] == origin2_data
 
         found_origins = list(
-            swh_storage.origin_search(
-                "." + data.origin2["url"][1:-1] + ".", regexp=True
-            )
+            swh_storage.origin_search(f".{origin2.url[1:-1]}.", regexp=True)
         )
         assert len(found_origins) == 1
-        if "id" in found_origins[0]:
-            del found_origins[0]["id"]
         assert found_origins[0] == origin2_data
 
-    def test_origin_search_no_regexp(self, swh_storage):
-        swh_storage.origin_add([data.origin, data.origin2])
+    def test_origin_search_no_regexp(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
-        origin = swh_storage.origin_get({"url": data.origin["url"]})
-        origin2 = swh_storage.origin_get({"url": data.origin2["url"]})
+        swh_storage.origin_add([origin, origin2])
 
         # no pagination
         found_origins = list(swh_storage.origin_search("/"))
         assert len(found_origins) == 2
 
         # offset=0
-        found_origins0 = list(swh_storage.origin_search("/", offset=0, limit=1))  # noqa
+        found_origins0 = list(swh_storage.origin_search("/", offset=0, limit=1))
         assert len(found_origins0) == 1
-        assert found_origins0[0] in [origin, origin2]
+        assert found_origins0[0] in origin_dicts
 
         # offset=1
-        found_origins1 = list(swh_storage.origin_search("/", offset=1, limit=1))  # noqa
+        found_origins1 = list(swh_storage.origin_search("/", offset=1, limit=1))
         assert len(found_origins1) == 1
-        assert found_origins1[0] in [origin, origin2]
+        assert found_origins1[0] in origin_dicts
 
         # check both origins were returned
         assert found_origins0 != found_origins1
 
-    def test_origin_search_regexp_substring(self, swh_storage):
-        swh_storage.origin_add([data.origin, data.origin2])
+    def test_origin_search_regexp_substring(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
-        origin = swh_storage.origin_get({"url": data.origin["url"]})
-        origin2 = swh_storage.origin_get({"url": data.origin2["url"]})
+        swh_storage.origin_add([origin, origin2])
 
         # no pagination
         found_origins = list(swh_storage.origin_search("/", regexp=True))
@@ -1658,25 +1654,25 @@ class TestStorage:
         # offset=0
         found_origins0 = list(
             swh_storage.origin_search("/", offset=0, limit=1, regexp=True)
-        )  # noqa
+        )
         assert len(found_origins0) == 1
-        assert found_origins0[0] in [origin, origin2]
+        assert found_origins0[0] in origin_dicts
 
         # offset=1
         found_origins1 = list(
             swh_storage.origin_search("/", offset=1, limit=1, regexp=True)
-        )  # noqa
+        )
         assert len(found_origins1) == 1
-        assert found_origins1[0] in [origin, origin2]
+        assert found_origins1[0] in origin_dicts
 
         # check both origins were returned
         assert found_origins0 != found_origins1
 
-    def test_origin_search_regexp_fullstring(self, swh_storage):
-        swh_storage.origin_add([data.origin, data.origin2])
+    def test_origin_search_regexp_fullstring(self, swh_storage, sample_data_model):
+        origin, origin2 = sample_data_model["origin"][:2]
+        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
-        origin = swh_storage.origin_get({"url": data.origin["url"]})
-        origin2 = swh_storage.origin_get({"url": data.origin2["url"]})
+        swh_storage.origin_add([origin, origin2])
 
         # no pagination
         found_origins = list(swh_storage.origin_search(".*/.*", regexp=True))
@@ -1685,16 +1681,16 @@ class TestStorage:
         # offset=0
         found_origins0 = list(
             swh_storage.origin_search(".*/.*", offset=0, limit=1, regexp=True)
-        )  # noqa
+        )
         assert len(found_origins0) == 1
-        assert found_origins0[0] in [origin, origin2]
+        assert found_origins0[0] in origin_dicts
 
         # offset=1
         found_origins1 = list(
             swh_storage.origin_search(".*/.*", offset=1, limit=1, regexp=True)
-        )  # noqa
+        )
         assert len(found_origins1) == 1
-        assert found_origins1[0] in [origin, origin2]
+        assert found_origins1[0] in origin_dicts
 
         # check both origins were returned
         assert found_origins0 != found_origins1
