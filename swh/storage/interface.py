@@ -1212,7 +1212,7 @@ class StorageInterface:
         """Retrieve information about an authority
 
         Args:
-            type: one of "deposit", "forge", or "registry"
+            type: one of "deposit_client", "forge", or "registry"
             url: unique URI identifying the authority
 
         Returns:
