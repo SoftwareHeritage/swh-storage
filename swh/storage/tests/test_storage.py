@@ -3896,7 +3896,7 @@ class TestStorageGeneratedData:
         )
         assert len(actual_origins) == 1
         assert actual_origins[0]["id"] == 1
-        assert actual_origins[0]["url"] == swh_origins[0]["url"]
+        assert actual_origins[0]["url"] == swh_origins[0].url
 
     @pytest.mark.parametrize(
         "origin_from,origin_count",
@@ -3913,7 +3913,7 @@ class TestStorageGeneratedData:
 
         origins_with_id = list(enumerate(swh_origins, start=1))
         expected_origins = [
-            {"url": origin["url"], "id": origin_id,}
+            {"url": origin.url, "id": origin_id,}
             for (origin_id, origin) in origins_with_id[
                 origin_from - 1 : origin_from + origin_count - 1
             ]
@@ -3942,20 +3942,20 @@ class TestStorageGeneratedData:
             else:
                 assert len(result["origins"]) == limit
 
-        expected_origins = [origin["url"] for origin in swh_origins]
+        expected_origins = [origin.url for origin in swh_origins]
         assert sorted(returned_origins) == sorted(expected_origins)
 
     ORIGINS = [
-        "https://github.com/user1/repo1",
-        "https://github.com/user2/repo1",
-        "https://github.com/user3/repo1",
-        "https://gitlab.com/user1/repo1",
-        "https://gitlab.com/user2/repo1",
-        "https://forge.softwareheritage.org/source/repo1",
+        Origin(url="https://github.com/user1/repo1"),
+        Origin(url="https://github.com/user2/repo1"),
+        Origin(url="https://github.com/user3/repo1"),
+        Origin(url="https://gitlab.com/user1/repo1"),
+        Origin(url="https://gitlab.com/user2/repo1"),
+        Origin(url="https://forge.softwareheritage.org/source/repo1"),
     ]
 
     def test_origin_count(self, swh_storage):
-        swh_storage.origin_add([{"url": url} for url in self.ORIGINS])
+        swh_storage.origin_add(self.ORIGINS)
 
         assert swh_storage.origin_count("github") == 3
         assert swh_storage.origin_count("gitlab") == 2
@@ -3965,7 +3965,7 @@ class TestStorageGeneratedData:
         assert swh_storage.origin_count(".*user1.*", regexp=False) == 0
 
     def test_origin_count_with_visit_no_visits(self, swh_storage):
-        swh_storage.origin_add([{"url": url} for url in self.ORIGINS])
+        swh_storage.origin_add(self.ORIGINS)
 
         # none of them have visits, so with_visit=True => 0
         assert swh_storage.origin_count("github", with_visit=True) == 0
@@ -3976,7 +3976,7 @@ class TestStorageGeneratedData:
         assert swh_storage.origin_count(".*user1.*", regexp=False, with_visit=True) == 0
 
     def test_origin_count_with_visit_with_visits_no_snapshot(self, swh_storage):
-        swh_storage.origin_add([{"url": url} for url in self.ORIGINS])
+        swh_storage.origin_add(self.ORIGINS)
 
         origin_url = "https://github.com/user1/repo1"
         visit = OriginVisit(origin=origin_url, date=now(), type="git",)
@@ -3999,10 +3999,13 @@ class TestStorageGeneratedData:
         )
         assert swh_storage.origin_count("github", regexp=True, with_visit=True) == 0
 
-    def test_origin_count_with_visit_with_visits_and_snapshot(self, swh_storage):
-        swh_storage.origin_add([{"url": url} for url in self.ORIGINS])
+    def test_origin_count_with_visit_with_visits_and_snapshot(
+        self, swh_storage, sample_data_model
+    ):
+        snapshot = sample_data_model["snapshot"][0]
+        swh_storage.origin_add(self.ORIGINS)
 
-        swh_storage.snapshot_add([data.snapshot])
+        swh_storage.snapshot_add([snapshot])
         origin_url = "https://github.com/user1/repo1"
         visit = OriginVisit(origin=origin_url, date=now(), type="git",)
         visit = swh_storage.origin_visit_add([visit])[0]
@@ -4013,7 +4016,7 @@ class TestStorageGeneratedData:
                     visit=visit.visit,
                     date=now(),
                     status="ongoing",
-                    snapshot=data.snapshot["id"],
+                    snapshot=snapshot.id,
                 )
             ]
         )
