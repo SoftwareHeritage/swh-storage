@@ -54,7 +54,7 @@ def test_snapshot_get_latest_none(swh_storage, sample_data_model):
 
     # no snapshot on origin visit so None
     origin = sample_data_model["origin"][0]
-    swh_storage.origin_add_one(origin)
+    swh_storage.origin_add([origin])
     origin_visit, origin_visit2 = sample_data_model["origin_visit"][:2]
     assert origin_visit.origin == origin.url
 
@@ -86,7 +86,7 @@ def test_snapshot_get_latest_none(swh_storage, sample_data_model):
 
 def test_snapshot_get_latest(swh_storage, sample_data_model):
     origin = sample_data_model["origin"][0]
-    swh_storage.origin_add_one(origin)
+    swh_storage.origin_add([origin])
 
     visit1, visit2 = sample_data_model["origin_visit"][:2]
     assert visit1.origin == origin.url

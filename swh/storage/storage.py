@@ -9,7 +9,6 @@ import itertools
 
 from collections import defaultdict
 from contextlib import contextmanager
-from deprecated import deprecated
 from typing import (
     Any,
     Counter,
@@ -1106,13 +1105,6 @@ class Storage:
             if db.origin_add(url, cur):
                 added += 1
         return {"origin:add": added}
-
-    @deprecated("Use origin_add([origin]) instead")
-    @timed
-    @db_transaction()
-    def origin_add_one(self, origin: Origin, db=None, cur=None) -> str:
-        self.origin_add([origin])
-        return origin.url
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

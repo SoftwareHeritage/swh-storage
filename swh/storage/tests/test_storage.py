@@ -1312,19 +1312,6 @@ class TestStorage:
             release3.id,
         }
 
-    def test_origin_add_one(self, swh_storage):
-        origin0 = swh_storage.origin_get(data.origin)
-        assert origin0 is None
-
-        id = swh_storage.origin_add_one(data.origin)
-
-        actual_origin = swh_storage.origin_get({"url": data.origin["url"]})
-        assert actual_origin["url"] == data.origin["url"]
-
-        id2 = swh_storage.origin_add_one(data.origin)
-
-        assert id == id2
-
     def test_origin_add(self, swh_storage):
         origin0 = swh_storage.origin_get([data.origin])[0]
         assert origin0 is None
@@ -1408,7 +1395,7 @@ class TestStorage:
 
     def test_origin_get_legacy(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
-        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
 
         actual_origin0 = swh_storage.origin_get({"url": data.origin["url"]})
         assert actual_origin0["url"] == data.origin["url"]
@@ -1416,7 +1403,7 @@ class TestStorage:
     def test_origin_get(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
         assert swh_storage.origin_get([data.origin]) == [None]
-        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
 
         actual_origin0 = swh_storage.origin_get([{"url": data.origin["url"]}])
         assert len(actual_origin0) == 1
@@ -1448,7 +1435,7 @@ class TestStorage:
 
     def test_origin_visit_get_all(self, swh_storage):
         origin = Origin.from_dict(data.origin)
-        swh_storage.origin_add_one(origin)
+        swh_storage.origin_add([origin])
         visits = swh_storage.origin_visit_add(
             [
                 OriginVisit(
@@ -1582,7 +1569,7 @@ class TestStorage:
 
     def test_origin_get_by_sha1(self, swh_storage):
         assert swh_storage.origin_get(data.origin) is None
-        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
 
         origins = list(swh_storage.origin_get_by_sha1([sha1(data.origin["url"])]))
         assert len(origins) == 1
@@ -1601,7 +1588,7 @@ class TestStorage:
         found_origins = list(swh_storage.origin_search(data.origin["url"], regexp=True))
         assert len(found_origins) == 0
 
-        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
         origin_data = {"url": data.origin["url"]}
         found_origins = list(swh_storage.origin_search(data.origin["url"]))
         assert len(found_origins) == 1
@@ -1617,7 +1604,7 @@ class TestStorage:
             del found_origins[0]["id"]
         assert found_origins[0] == origin_data
 
-        swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add([data.origin2])
         origin2_data = {"url": data.origin2["url"]}
         found_origins = list(swh_storage.origin_search(data.origin2["url"]))
         assert len(found_origins) == 1
@@ -1636,8 +1623,7 @@ class TestStorage:
         assert found_origins[0] == origin2_data
 
     def test_origin_search_no_regexp(self, swh_storage):
-        swh_storage.origin_add_one(data.origin)
-        swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add([data.origin, data.origin2])
 
         origin = swh_storage.origin_get({"url": data.origin["url"]})
         origin2 = swh_storage.origin_get({"url": data.origin2["url"]})
@@ -1660,8 +1646,7 @@ class TestStorage:
         assert found_origins0 != found_origins1
 
     def test_origin_search_regexp_substring(self, swh_storage):
-        swh_storage.origin_add_one(data.origin)
-        swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add([data.origin, data.origin2])
 
         origin = swh_storage.origin_get({"url": data.origin["url"]})
         origin2 = swh_storage.origin_get({"url": data.origin2["url"]})
@@ -1688,8 +1673,7 @@ class TestStorage:
         assert found_origins0 != found_origins1
 
     def test_origin_search_regexp_fullstring(self, swh_storage):
-        swh_storage.origin_add_one(data.origin)
-        swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add([data.origin, data.origin2])
 
         origin = swh_storage.origin_get({"url": data.origin["url"]})
         origin2 = swh_storage.origin_get({"url": data.origin2["url"]})
@@ -1717,7 +1701,7 @@ class TestStorage:
 
     def test_origin_visit_add(self, swh_storage):
         origin1 = Origin.from_dict(data.origin2)
-        swh_storage.origin_add_one(origin1)
+        swh_storage.origin_add([origin1])
 
         date_visit = now()
         date_visit2 = date_visit + datetime.timedelta(minutes=1)
@@ -1950,7 +1934,7 @@ class TestStorage:
     def test_origin_visit_find_by_date(self, swh_storage):
         # given
         origin = Origin.from_dict(data.origin)
-        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
         visit1 = OriginVisit(
             origin=origin.url, date=data.date_visit2, type=data.type_visit1,
         )
@@ -1997,8 +1981,10 @@ class TestStorage:
         swh_storage.origin_visit_find_by_date("foo", data.date_visit2)
 
     def test_origin_visit_get_by(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
-        origin_url2 = swh_storage.origin_add_one(data.origin2)
+        origins = [data.origin, data.origin2]
+        swh_storage.origin_add(origins)
+        origin_url, origin_url2 = [o["url"] for o in origins]
+
         visit = OriginVisit(
             origin=origin_url, date=data.date_visit2, type=data.type_visit2,
         )
@@ -2083,7 +2069,7 @@ class TestStorage:
 
         # unknown type
         origin = Origin.from_dict(data.origin)
-        swh_storage.origin_add_one(origin)
+        swh_storage.origin_add([origin])
         assert swh_storage.origin_visit_get_latest(origin.url, type="unknown") is None
 
     def test_origin_visit_get_latest_filter_type(self, swh_storage):
@@ -2091,7 +2077,7 @@ class TestStorage:
 
         """
         origin = Origin.from_dict(data.origin)
-        swh_storage.origin_add_one(origin)
+        swh_storage.origin_add([origin])
         visit1 = OriginVisit(
             origin=origin.url, date=data.date_visit1, type=data.type_visit1,
         )
@@ -2135,7 +2121,7 @@ class TestStorage:
 
     def test_origin_visit_get_latest(self, swh_storage):
         origin = Origin.from_dict(data.origin)
-        swh_storage.origin_add_one(origin)
+        swh_storage.origin_add([origin])
         visit1 = OriginVisit(
             origin=origin.url, date=data.date_visit1, type=data.type_visit1,
         )
@@ -2281,7 +2267,7 @@ class TestStorage:
 
     def test_origin_visit_status_get_latest(self, swh_storage):
         origin1 = Origin.from_dict(data.origin)
-        swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
 
         # to have some reference visits
 
@@ -2408,7 +2394,8 @@ class TestStorage:
         assert revisions[0]["committer"] == revisions[1]["committer"]
 
     def test_snapshot_add_get_empty(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
+        origin_url = data.origin["url"]
         ov1 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
@@ -2474,7 +2461,7 @@ class TestStorage:
 
     def test_snapshot_add_get_complete(self, swh_storage):
         origin_url = data.origin["url"]
-        origin_url = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
         visit = OriginVisit(
             origin=origin_url, date=data.date_visit1, type=data.type_visit1,
         )
@@ -2642,7 +2629,8 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get_filtered(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
+        origin_url = data.origin["url"]
         visit = OriginVisit(
             origin=origin_url, date=data.date_visit1, type=data.type_visit1,
         )
@@ -2792,7 +2780,8 @@ class TestStorage:
         assert alias1 in branches
 
     def test_snapshot_add_get(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
+        origin_url = data.origin["url"]
         visit = OriginVisit(
             origin=origin_url, date=data.date_visit1, type=data.type_visit1,
         )
@@ -2822,7 +2811,8 @@ class TestStorage:
         assert origin_visit_info["snapshot"] == data.snapshot["id"]
 
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage):
-        origin_url = swh_storage.origin_add_one(data.origin)
+        swh_storage.origin_add([data.origin])
+        origin_url = data.origin["url"]
         ov1 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
@@ -2975,7 +2965,8 @@ class TestStorage:
 
         # Add other objects. Check their counter increased as well.
 
-        origin_url = swh_storage.origin_add_one(data.origin2)
+        swh_storage.origin_add([data.origin2])
+        origin_url = data.origin2["url"]
         visit = OriginVisit(
             origin=origin_url, date=data.date_visit2, type=data.type_visit2,
         )
@@ -4036,7 +4027,7 @@ class TestStorageGeneratedData:
             obj = obj.to_dict()
             if obj_type == "origin_visit":
                 origin_url = obj.pop("origin")
-                swh_storage.origin_add_one({"url": origin_url})
+                swh_storage.origin_add([{"url": origin_url}])
                 if "visit" in obj:
                     del obj["visit"]
                 visit = OriginVisit(

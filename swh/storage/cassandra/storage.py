@@ -11,7 +11,6 @@ import re
 from typing import Any, Dict, List, Iterable, Optional, Union
 
 import attr
-from deprecated import deprecated
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.identifiers import parse_swhid, SWHID
@@ -785,20 +784,6 @@ class CassandraStorage:
         for origin in to_add:
             self._cql_runner.origin_add_one(origin)
         return {"origin:add": len(to_add)}
-
-    @deprecated("Use origin_add([origin]) instead")
-    def origin_add_one(self, origin: Origin) -> str:
-        known_origin = self.origin_get_one(origin.to_dict())
-
-        if known_origin:
-            origin_url = known_origin["url"]
-        else:
-            self.journal_writer.origin_add([origin])
-
-            self._cql_runner.origin_add_one(origin)
-            origin_url = origin.url
-
-        return origin_url
 
     def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:

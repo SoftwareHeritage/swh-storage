@@ -271,78 +271,13 @@ def test_retrying_proxy_swh_storage_skipped_content_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_swh_storage_origin_add_one(swh_storage, sample_data_model):
-    """Standard origin_add_one works as before
-
-    """
-    sample_origin = sample_data_model["origin"][0]
-    sample_origin_dict = sample_origin.to_dict()
-
-    origin = swh_storage.origin_get(sample_origin_dict)
-    assert not origin
-
-    swh_storage.origin_add_one(sample_origin)
-
-    origin = swh_storage.origin_get(sample_origin_dict)
-    assert origin["url"] == sample_origin.url
-
-
-def test_retrying_proxy_swh_storage_origin_add_one_retry(
-    monkeypatch_sleep, swh_storage, sample_data_model, mocker, fake_hash_collision
-):
-    """Multiple retries for hash collision and psycopg2 error but finally ok
-
-    """
-    sample_origin = sample_data_model["origin"][1]
-    mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_add_one")
-    mock_memory.side_effect = [
-        # first try goes ko
-        fake_hash_collision,
-        # second try goes ko
-        psycopg2.IntegrityError("origin already inserted"),
-        # ok then!
-        sample_origin.url,
-    ]
-    sample_origin_dict = sample_origin.to_dict()
-
-    origin = swh_storage.origin_get(sample_origin_dict)
-    assert not origin
-
-    swh_storage.origin_add_one(sample_origin)
-
-    mock_memory.assert_has_calls(
-        [call(sample_origin), call(sample_origin), call(sample_origin),]
-    )
-
-
-def test_retrying_proxy_swh_storage_origin_add_one_failure(
-    swh_storage, sample_data_model, mocker
-):
-    """Unfiltered errors are raising without retry
-
-    """
-    mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_add_one")
-    mock_memory.side_effect = StorageArgumentException("Refuse to add origin always!")
-
-    sample_origin = sample_data_model["origin"][0]
-    sample_origin_dict = sample_origin.to_dict()
-
-    origin = swh_storage.origin_get(sample_origin_dict)
-    assert not origin
-
-    with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.origin_add_one(sample_origin)
-
-    assert mock_memory.call_count == 1
-
-
 def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data_model):
     """Standard origin_visit_add works as before
 
     """
     origin = sample_data_model["origin"][0]
 
-    swh_storage.origin_add_one(origin)
+    swh_storage.origin_add([origin])
 
     origins = list(swh_storage.origin_visit_get(origin.url))
     assert not origins
@@ -364,7 +299,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
 
     """
     origin = sample_data_model["origin"][1]
-    swh_storage.origin_add_one(origin)
+    swh_storage.origin_add([origin])
 
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.origin_visit_add")
     visit = OriginVisit(origin=origin.url, date=date_visit1, type="git")
@@ -578,7 +513,7 @@ def test_retrying_proxy_storage_object_metadata_add(
 
     """
     ori_meta = sample_data_model["origin_metadata"][0]
-    swh_storage_validate.origin_add_one({"url": ori_meta.id})
+    swh_storage_validate.origin_add([{"url": ori_meta.id}])
     swh_storage_validate.metadata_authority_add([sample_data_model["authority"][0]])
     swh_storage_validate.metadata_fetcher_add([sample_data_model["fetcher"][0]])
 
@@ -607,7 +542,7 @@ def test_retrying_proxy_storage_object_metadata_add_with_retry(
 
     """
     ori_meta = sample_data_model["origin_metadata"][0]
-    swh_storage_validate.origin_add_one({"url": ori_meta.id})
+    swh_storage_validate.origin_add([{"url": ori_meta.id}])
     swh_storage_validate.metadata_authority_add([sample_data_model["authority"][0]])
     swh_storage_validate.metadata_fetcher_add([sample_data_model["fetcher"][0]])
     mock_memory = mocker.patch(
@@ -647,7 +582,7 @@ def test_retrying_proxy_swh_storage_object_metadata_add_failure(
     mock_memory.side_effect = StorageArgumentException("Refuse to add always!")
 
     ori_meta = sample_data_model["origin_metadata"][0]
-    swh_storage_validate.origin_add_one({"url": ori_meta.id})
+    swh_storage_validate.origin_add([{"url": ori_meta.id}])
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage_validate.object_metadata_add([ori_meta])

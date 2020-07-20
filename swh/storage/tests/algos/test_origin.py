@@ -96,7 +96,7 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
     origin_visit = sample_data_model["origin_visit"][0]
     assert origin_visit.origin == origin.url
 
-    swh_storage.origin_add_one(origin)
+    swh_storage.origin_add([origin])
     swh_storage.origin_visit_add([origin_visit])[0]
     assert origin_visit.type != "unknown"
     actual_origin_visit = origin_get_latest_visit_status(
