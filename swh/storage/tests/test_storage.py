@@ -1671,8 +1671,8 @@ class TestStorage:
         # check both origins were returned
         assert found_origins0 != found_origins1
 
-    def test_origin_visit_add(self, swh_storage):
-        origin1 = Origin.from_dict(data.origin2)
+    def test_origin_visit_add(self, swh_storage, sample_data_model):
+        origin1 = sample_data_model["origin"][1]
         swh_storage.origin_add([origin1])
 
         date_visit = now()
@@ -1758,11 +1758,12 @@ class TestStorage:
         objects = list(swh_storage.journal_writer.journal.objects)
         assert not objects
 
-    def test_origin_visit_status_add(self, swh_storage):
+    def test_origin_visit_status_add(self, swh_storage, sample_data_model):
         """Correct origin visit statuses should add a new visit status
 
         """
-        origin1 = Origin.from_dict(data.origin2)
+        snapshot = sample_data_model["snapshot"][0]
+        origin1 = sample_data_model["origin"][1]
         origin2 = Origin(url="new-origin")
         swh_storage.origin_add([origin1, origin2])
 
@@ -1792,14 +1793,13 @@ class TestStorage:
             snapshot=None,
         )
 
-        snapshot_id = data.snapshot["id"]
         date_visit_now = now()
         visit_status1 = OriginVisitStatus(
             origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit_now,
             status="full",
-            snapshot=snapshot_id,
+            snapshot=snapshot.id,
         )
 
         date_visit_now = now()
@@ -1818,7 +1818,7 @@ class TestStorage:
         )
         assert origin_visit1
         assert origin_visit1["status"] == "full"
-        assert origin_visit1["snapshot"] == snapshot_id
+        assert origin_visit1["snapshot"] == snapshot.id
 
         origin_visit2 = swh_storage.origin_visit_get_latest(
             origin2.url, require_snapshot=False
@@ -1844,11 +1844,12 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_status_add_twice(self, swh_storage):
+    def test_origin_visit_status_add_twice(self, swh_storage, sample_data_model):
         """Correct origin visit statuses should add a new visit status
 
         """
-        origin1 = Origin.from_dict(data.origin2)
+        snapshot = sample_data_model["snapshot"][0]
+        origin1 = sample_data_model["origin"][1]
         swh_storage.origin_add([origin1])
         ov1 = swh_storage.origin_visit_add(
             [
@@ -1865,14 +1866,13 @@ class TestStorage:
             status="created",
             snapshot=None,
         )
-        snapshot_id = data.snapshot["id"]
         date_visit_now = now()
         visit_status1 = OriginVisitStatus(
             origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit_now,
             status="full",
-            snapshot=snapshot_id,
+            snapshot=snapshot.id,
         )
 
         swh_storage.origin_visit_status_add([visit_status1])
@@ -1885,7 +1885,7 @@ class TestStorage:
         origin_visit1 = origin_visits[0]
         assert origin_visit1
         assert origin_visit1["status"] == "full"
-        assert origin_visit1["snapshot"] == snapshot_id
+        assert origin_visit1["snapshot"] == snapshot.id
 
         actual_objects = list(swh_storage.journal_writer.journal.objects)
 
@@ -1903,10 +1903,9 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_find_by_date(self, swh_storage):
-        # given
-        origin = Origin.from_dict(data.origin)
-        swh_storage.origin_add([data.origin])
+    def test_origin_visit_find_by_date(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        swh_storage.origin_add([origin])
         visit1 = OriginVisit(
             origin=origin.url, date=data.date_visit2, type=data.type_visit1,
         )
@@ -1952,17 +1951,18 @@ class TestStorage:
     def test_origin_visit_find_by_date__unknown_origin(self, swh_storage):
         swh_storage.origin_visit_find_by_date("foo", data.date_visit2)
 
-    def test_origin_visit_get_by(self, swh_storage):
-        origins = [data.origin, data.origin2]
+    def test_origin_visit_get_by(self, swh_storage, sample_data_model):
+        snapshot = sample_data_model["snapshot"][0]
+        origins = sample_data_model["origin"][:2]
         swh_storage.origin_add(origins)
-        origin_url, origin_url2 = [o["url"] for o in origins]
+        origin_url, origin_url2 = [o.url for o in origins]
 
         visit = OriginVisit(
             origin=origin_url, date=data.date_visit2, type=data.type_visit2,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
-        swh_storage.snapshot_add([data.snapshot])
+        swh_storage.snapshot_add([snapshot])
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
@@ -1970,7 +1970,7 @@ class TestStorage:
                     visit=origin_visit1.visit,
                     date=now(),
                     status="ongoing",
-                    snapshot=data.snapshot["id"],
+                    snapshot=snapshot.id,
                 )
             ]
         )
@@ -1997,7 +1997,7 @@ class TestStorage:
                     visit=origin_visit1.visit,
                     date=now(),
                     status="full",
-                    snapshot=data.snapshot["id"],
+                    snapshot=snapshot.id,
                     metadata=visit1_metadata,
                 )
             ]
@@ -2012,7 +2012,7 @@ class TestStorage:
                 "type": data.type_visit2,
                 "metadata": visit1_metadata,
                 "status": "full",
-                "snapshot": data.snapshot["id"],
+                "snapshot": snapshot.id,
             }
         )
 
@@ -2027,12 +2027,13 @@ class TestStorage:
     def test_origin_visit_get_by__unknown_origin(self, swh_storage):
         assert swh_storage.origin_visit_get_by("foo", 10) is None
 
-    def test_origin_visit_get_by_no_result(self, swh_storage):
-        swh_storage.origin_add([data.origin])
-        actual_origin_visit = swh_storage.origin_visit_get_by(data.origin["url"], 999)
+    def test_origin_visit_get_by_no_result(self, swh_storage, sample_data_model):
+        origin = sample_data_model["origin"][0]
+        swh_storage.origin_add([origin])
+        actual_origin_visit = swh_storage.origin_visit_get_by(origin.url, 999)
         assert actual_origin_visit is None
 
-    def test_origin_visit_get_latest_none(self, swh_storage):
+    def test_origin_visit_get_latest_none(self, swh_storage, sample_data_model):
         """Origin visit get latest on unknown objects should return nothing
 
         """
@@ -2040,15 +2041,15 @@ class TestStorage:
         assert swh_storage.origin_visit_get_latest("unknown-origin") is None
 
         # unknown type
-        origin = Origin.from_dict(data.origin)
+        origin = sample_data_model["origin"][0]
         swh_storage.origin_add([origin])
         assert swh_storage.origin_visit_get_latest(origin.url, type="unknown") is None
 
-    def test_origin_visit_get_latest_filter_type(self, swh_storage):
+    def test_origin_visit_get_latest_filter_type(self, swh_storage, sample_data_model):
         """Filtering origin visit get latest with filter type should be ok
 
         """
-        origin = Origin.from_dict(data.origin)
+        origin = sample_data_model["origin"][0]
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
             origin=origin.url, date=data.date_visit1, type=data.type_visit1,
@@ -2091,8 +2092,10 @@ class TestStorage:
             is None
         )
 
-    def test_origin_visit_get_latest(self, swh_storage):
-        origin = Origin.from_dict(data.origin)
+    def test_origin_visit_get_latest(self, swh_storage, sample_data_model):
+        empty_snapshot, complete_snapshot = sample_data_model["snapshot"][1:3]
+        origin = sample_data_model["origin"][0]
+
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
             origin=origin.url, date=data.date_visit1, type=data.type_visit1,
@@ -2119,7 +2122,7 @@ class TestStorage:
 
         # Add snapshot to visit1; require_snapshot=True makes it return
         # visit1 and require_snapshot=False still returns visit2
-        complete_snapshot = Snapshot.from_dict(data.complete_snapshot)
+
         swh_storage.snapshot_add([complete_snapshot])
         swh_storage.origin_visit_status_add(
             [
@@ -2172,7 +2175,6 @@ class TestStorage:
         assert origin_visit3 == swh_storage.origin_visit_get_latest(origin.url)
 
         # Add snapshot to visit2 and check that the new snapshot is returned
-        empty_snapshot = Snapshot.from_dict(data.empty_snapshot)
         swh_storage.snapshot_add([empty_snapshot])
 
         swh_storage.origin_visit_status_add(
@@ -2237,9 +2239,10 @@ class TestStorage:
             "status": "ongoing",
         } == swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
 
-    def test_origin_visit_status_get_latest(self, swh_storage):
-        origin1 = Origin.from_dict(data.origin)
-        swh_storage.origin_add([data.origin])
+    def test_origin_visit_status_get_latest(self, swh_storage, sample_data_model):
+        snapshot = sample_data_model["snapshot"][2]
+        origin1 = sample_data_model["origin"][0]
+        swh_storage.origin_add([origin1])
 
         # to have some reference visits
 
@@ -2253,8 +2256,6 @@ class TestStorage:
                 ),
             ]
         )
-
-        snapshot = Snapshot.from_dict(data.complete_snapshot)
         swh_storage.snapshot_add([snapshot])
 
         date_now = now()
