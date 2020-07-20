@@ -420,7 +420,7 @@ create table metadata_authority
 
 comment on table metadata_authority is 'Metadata authority information';
 comment on column metadata_authority.id is 'Internal identifier of the authority';
-comment on column metadata_authority.type is 'Type of authority (deposit/forge/registry)';
+comment on column metadata_authority.type is 'Type of authority (deposit_client/forge/registry)';
 comment on column metadata_authority.url is 'Authority''s uri';
 comment on column metadata_authority.metadata is 'Other metadata about authority';
 

@@ -32,7 +32,7 @@ Metadata authorities are entities that provide metadata about an
 An authority is uniquely defined by these properties:
 
   * its type, representing the kind of authority, which is one of these values:
-    * `deposit`, for metadata pushed to Software Heritage at the same time
+    * `deposit_client`, for metadata pushed to Software Heritage at the same time
       as a software artifact
     * `forge`, for metadata pulled from the same source as the one hosting
       the software artifacts (which includes package managers)
@@ -44,9 +44,9 @@ Examples:
 =============== =================================
 type            url
 =============== =================================
-deposit         https://hal.archives-ouvertes.fr/
-deposit         https://hal.inria.fr/
-deposit         https://software.intel.com/
+deposit_client  https://hal.archives-ouvertes.fr/
+deposit_client  https://hal.inria.fr/
+deposit_client  https://software.intel.com/
 forge           https://gitlab.com/
 forge           https://gitlab.inria.fr/
 forge           https://0xacab.org/
