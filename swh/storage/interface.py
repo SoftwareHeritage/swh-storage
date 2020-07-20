@@ -8,6 +8,7 @@ import datetime
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 from swh.core.api import remote_api_endpoint
+from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -18,6 +19,11 @@ from swh.model.model import (
     Release,
     Snapshot,
     SkippedContent,
+    MetadataAuthority,
+    MetadataAuthorityType,
+    MetadataFetcher,
+    MetadataTargetType,
+    RawExtrinsicMetadata,
 )
 
 
@@ -1107,50 +1113,38 @@ class StorageInterface:
         """Recomputes the statistics for `stat_counters`."""
         ...
 
-    @remote_api_endpoint("content/metadata/add")
-    def content_metadata_add(
-        self,
-        id: str,
-        context: Dict[str, Union[str, bytes, int]],
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-    ) -> None:
-        """Add a content_metadata for the content at discovery_date,
-        obtained using the `fetcher` from the `authority`.
+    @remote_api_endpoint("object_metadata/add")
+    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+        """Add extrinsic metadata on objects (contents, directories, ...).
 
         The authority and fetcher must be known to the storage before
         using this endpoint.
 
-        If there is already content metadata for the same content, authority,
+        If there is already metadata for the same object, authority,
         fetcher, and at the same date; the new one will be either dropped or
         will replace the existing one
         (it is unspecified which one of these two behaviors happens).
 
         Args:
-            discovery_date: when the metadata was fetched.
-            authority: a dict containing keys `type` and `url`.
-            fetcher: a dict containing keys `name` and `version`.
-            format: text field indicating the format of the content of the
-            metadata: blob of raw metadata
+            metadata: iterable of RawExtrinsicMetadata objects to be inserted.
         """
         ...
 
-    @remote_api_endpoint("content/metadata/get")
-    def content_metadata_get(
+    @remote_api_endpoint("object_metadata/get")
+    def object_metadata_get(
         self,
-        id: str,
-        authority: Dict[str, str],
+        object_type: MetadataTargetType,
+        id: Union[str, SWHID],
+        authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Any]:
-        """Retrieve list of all content_metadata entries for the id
+    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+        """Retrieve list of all object_metadata entries for the id
 
         Args:
-            id: the content's SWHID
+            object_type: one of the values of swh.model.model.MetadataTargetType
+            id: an URL if object_type is 'origin', else a core SWHID
             authority: a dict containing keys `type` and `url`.
             after: minimum discovery_date for a result to be returned
             page_token: opaque token, used to get the next page of results
@@ -1160,108 +1154,30 @@ class StorageInterface:
             dict with keys `next_page_token` and `results`.
             `next_page_token` is an opaque token that is used to get the
             next page of results, or `None` if there are no more results.
-            `results` is a list of dicts in the format:
-
-            .. code-block: python
-
-                {
-                    'authority': {'type': ..., 'url': ...},
-                    'fetcher': {'name': ..., 'version': ...},
-                    'discovery_date': ...,
-                    'format': '...',
-                    'metadata': b'...',
-                    'context': { ... },
-                }
+            `results` is a list of RawExtrinsicMetadata objects:
 
         """
         ...
 
-    @remote_api_endpoint("origin/metadata/add")
-    def origin_metadata_add(
-        self,
-        origin_url: str,
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-    ) -> None:
-        """Add an origin_metadata for the origin at discovery_date,
-        obtained using the `fetcher` from the `authority`.
+    @remote_api_endpoint("metadata_fetcher/add")
+    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher],) -> None:
+        """Add new metadata fetchers to the storage.
 
-        The authority and fetcher must be known to the storage before
-        using this endpoint.
-
-        If there is already origin metadata for the same origin, authority,
-        fetcher, and at the same date; the new one will be either dropped or
-        will replace the existing one
-        (it is unspecified which one of these two behaviors happens).
-
-        Args:
-            discovery_date: when the metadata was fetched.
-            authority: a dict containing keys `type` and `url`.
-            fetcher: a dict containing keys `name` and `version`.
-            format: text field indicating the format of the content of the
-            metadata: blob of raw metadata
-        """
-        ...
-
-    @remote_api_endpoint("origin/metadata/get")
-    def origin_metadata_get(
-        self,
-        origin_url: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-    ) -> Dict[str, Any]:
-        """Retrieve list of all origin_metadata entries for the origin_url
-
-        Args:
-            origin_url: the origin's URL
-            authority: a dict containing keys `type` and `url`.
-            after: minimum discovery_date for a result to be returned
-            page_token: opaque token, used to get the next page of results
-            limit: maximum number of results to be returned
-
-        Returns:
-            dict with keys `next_page_token` and `results`.
-            `next_page_token` is an opaque token that is used to get the
-            next page of results, or `None` if there are no more results.
-            `results` is a list of dicts in the format:
-
-            .. code-block: python
-
-                {
-                    'authority': {'type': ..., 'url': ...},
-                    'fetcher': {'name': ..., 'version': ...},
-                    'discovery_date': ...,
-                    'format': '...',
-                    'metadata': b'...'
-                }
-
-        """
-        ...
-
-    @remote_api_endpoint("fetcher/add")
-    def metadata_fetcher_add(
-        self, name: str, version: str, metadata: Dict[str, Any]
-    ) -> None:
-        """Add a new metadata fetcher to the storage.
-
-        `name` and `version` together are a unique identifier of this
+        Their `name` and `version` together are unique identifiers of this
         fetcher; and `metadata` is an arbitrary dict of JSONable data
-        with information about this fetcher.
+        with information about this fetcher, which must not be `None`
+        (but may be empty).
 
         Args:
-            name: the name of the fetcher
-            version: version of the fetcher
+            fetchers: iterable of MetadataFetcher to be inserted
 
         """
         ...
 
-    @remote_api_endpoint("fetcher/get")
-    def metadata_fetcher_get(self, name: str, version: str) -> Optional[Dict[str, Any]]:
+    @remote_api_endpoint("metadata_fetcher/get")
+    def metadata_fetcher_get(
+        self, name: str, version: str
+    ) -> Optional[MetadataFetcher]:
         """Retrieve information about a fetcher
 
         Args:
@@ -1269,27 +1185,30 @@ class StorageInterface:
             version: version of the fetcher
 
         Returns:
-            dictionary with keys `name`, `version`, and `metadata`; or None
-            if the fetcher is not known
+            a MetadataFetcher object (with a non-None metadata field) if it is known,
+            else None.
 
         """
         ...
 
-    @remote_api_endpoint("authority/add")
-    def metadata_authority_add(
-        self, type: str, url: str, metadata: Dict[str, Any]
-    ) -> None:
-        """Add a metadata authority
+    @remote_api_endpoint("metadata_authority/add")
+    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+        """Add new metadata authorities to the storage.
+
+        Their `type` and `url` together are unique identifiers of this
+        authority; and `metadata` is an arbitrary dict of JSONable data
+        with information about this authority, which must not be `None`
+        (but may be empty).
 
         Args:
-            type: one of "deposit", "forge", or "registry"
-            url: unique URI identifying the authority
-            metadata: JSON-encodable object
+            authorities: iterable of MetadataAuthority to be inserted
         """
         ...
 
-    @remote_api_endpoint("authority/get")
-    def metadata_authority_get(self, type: str, url: str) -> Optional[Dict[str, Any]]:
+    @remote_api_endpoint("metadata_authority/get")
+    def metadata_authority_get(
+        self, type: MetadataAuthorityType, url: str
+    ) -> Optional[MetadataAuthority]:
         """Retrieve information about an authority
 
         Args:
@@ -1297,8 +1216,8 @@ class StorageInterface:
             url: unique URI identifying the authority
 
         Returns:
-            dictionary with keys `type`, `url`, and `metadata`; or None
-            if the authority is not known
+            a MetadataAuthority object (with a non-None metadata field) if it is known,
+            else None.
         """
         ...
 

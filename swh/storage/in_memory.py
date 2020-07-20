@@ -33,6 +33,7 @@ import attr
 from deprecated import deprecated
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
+from swh.model.identifiers import SWHID
 from swh.model.model import (
     BaseContent,
     Content,
@@ -45,6 +46,11 @@ from swh.model.model import (
     OriginVisitStatus,
     Origin,
     SHA1_SIZE,
+    MetadataAuthority,
+    MetadataAuthorityType,
+    MetadataFetcher,
+    MetadataTargetType,
+    RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
@@ -52,7 +58,6 @@ from swh.storage.utils import now
 
 from .converters import origin_url_to_sha1
 from .exc import StorageArgumentException, HashCollision
-from .extrinsic_metadata import check_extrinsic_metadata_context, CONTEXT_KEYS
 from .utils import get_partition_bounds_bytes
 from .writer import JournalWriter
 
@@ -138,21 +143,33 @@ class InMemoryStorage:
         self._origin_visit_statuses: Dict[Tuple[str, int], List[OriginVisitStatus]] = {}
         self._persons = {}
 
-        # {origin_url: {authority: [metadata]}}
+        # {object_type: {id: {authority: [metadata]}}}
         self._object_metadata: Dict[
-            str,
+            MetadataTargetType,
             Dict[
-                Hashable,
-                SortedList[Tuple[datetime.datetime, FetcherKey], Dict[str, Any]],
+                Union[str, SWHID],
+                Dict[
+                    Hashable,
+                    SortedList[
+                        Tuple[datetime.datetime, FetcherKey], RawExtrinsicMetadata
+                    ],
+                ],
             ],
         ] = defaultdict(
             lambda: defaultdict(
-                lambda: SortedList(key=lambda x: (x["discovery_date"], x["fetcher"]))
+                lambda: defaultdict(
+                    lambda: SortedList(
+                        key=lambda x: (
+                            x.discovery_date,
+                            self._metadata_fetcher_key(x.fetcher),
+                        )
+                    )
+                )
             )
         )  # noqa
 
-        self._metadata_fetchers: Dict[FetcherKey, Dict[str, Any]] = {}
-        self._metadata_authorities: Dict[Hashable, Dict[str, Any]] = {}
+        self._metadata_fetchers: Dict[FetcherKey, MetadataFetcher] = {}
+        self._metadata_authorities: Dict[Hashable, MetadataAuthority] = {}
         self._objects = defaultdict(list)
         self._sorted_sha1s = SortedList[bytes, bytes]()
 
@@ -1020,144 +1037,58 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
-    def content_metadata_add(
-        self,
-        id: str,
-        context: Dict[str, Union[str, bytes, int]],
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-    ) -> None:
-        self._object_metadata_add(
-            "content",
-            id,
-            discovery_date,
-            authority,
-            fetcher,
-            format,
-            metadata,
-            context,
-        )
+    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+        for metadata_entry in metadata:
+            authority_key = self._metadata_authority_key(metadata_entry.authority)
+            if authority_key not in self._metadata_authorities:
+                raise StorageArgumentException(
+                    f"Unknown authority {metadata_entry.authority}"
+                )
+            fetcher_key = self._metadata_fetcher_key(metadata_entry.fetcher)
+            if fetcher_key not in self._metadata_fetchers:
+                raise StorageArgumentException(
+                    f"Unknown fetcher {metadata_entry.fetcher}"
+                )
 
-    def content_metadata_get(
+            object_metadata_list = self._object_metadata[metadata_entry.type][
+                metadata_entry.id
+            ][authority_key]
+
+            for existing_object_metadata in object_metadata_list:
+                if (
+                    self._metadata_fetcher_key(existing_object_metadata.fetcher)
+                    == fetcher_key
+                    and existing_object_metadata.discovery_date
+                    == metadata_entry.discovery_date
+                ):
+                    # Duplicate of an existing one; ignore it.
+                    break
+            else:
+                object_metadata_list.add(metadata_entry)
+
+    def object_metadata_get(
         self,
-        id: str,
-        authority: Dict[str, str],
+        object_type: MetadataTargetType,
+        id: Union[str, SWHID],
+        authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Any]:
-        return self._object_metadata_get(
-            "content", id, authority, after, page_token, limit
-        )
-
-    def origin_metadata_add(
-        self,
-        origin_url: str,
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-    ) -> None:
-        if not isinstance(origin_url, str):
-            raise StorageArgumentException(
-                "origin_url must be str, not %r" % (origin_url,)
-            )
-
-        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
-
-        self._object_metadata_add(
-            "origin",
-            origin_url,
-            discovery_date,
-            authority,
-            fetcher,
-            format,
-            metadata,
-            context,
-        )
-
-    def origin_metadata_get(
-        self,
-        origin_url: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-    ) -> Dict[str, Any]:
-        if not isinstance(origin_url, str):
-            raise TypeError("origin_url must be str, not %r" % (origin_url,))
-
-        res = self._object_metadata_get(
-            "origin", origin_url, authority, after, page_token, limit
-        )
-        res["results"] = copy.deepcopy(res["results"])
-        for result in res["results"]:
-            result["origin_url"] = result.pop("id")
-
-        return res
-
-    def _object_metadata_add(
-        self,
-        object_type: str,
-        id: str,
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-        context: Dict[str, Union[str, bytes, int]],
-    ) -> None:
-        check_extrinsic_metadata_context(object_type, context)
-        if not isinstance(metadata, bytes):
-            raise StorageArgumentException(
-                "metadata must be bytes, not %r" % (metadata,)
-            )
+    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
         authority_key = self._metadata_authority_key(authority)
-        if authority_key not in self._metadata_authorities:
-            raise StorageArgumentException(f"Unknown authority {authority}")
-        fetcher_key = self._metadata_fetcher_key(fetcher)
-        if fetcher_key not in self._metadata_fetchers:
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
 
-        object_metadata_list = self._object_metadata[id][authority_key]
-
-        object_metadata: Dict[str, Any] = {
-            "id": id,
-            "discovery_date": discovery_date,
-            "authority": authority_key,
-            "fetcher": fetcher_key,
-            "format": format,
-            "metadata": metadata,
-        }
-
-        if CONTEXT_KEYS[object_type]:
-            object_metadata["context"] = context
-
-        for existing_object_metadata in object_metadata_list:
-            if (
-                existing_object_metadata["fetcher"] == fetcher_key
-                and existing_object_metadata["discovery_date"] == discovery_date
-            ):
-                # Duplicate of an existing one; replace it.
-                existing_object_metadata.update(object_metadata)
-                break
+        if object_type == MetadataTargetType.ORIGIN:
+            if isinstance(id, SWHID):
+                raise StorageArgumentException(
+                    f"object_metadata_get called with object_type='origin', but "
+                    f"provided id is an SWHID: {id!r}"
+                )
         else:
-            object_metadata_list.add(object_metadata)
-
-    def _object_metadata_get(
-        self,
-        object_type: str,
-        id: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-    ) -> Dict[str, Any]:
-        authority_key = self._metadata_authority_key(authority)
+            if not isinstance(id, SWHID):
+                raise StorageArgumentException(
+                    f"object_metadata_get called with object_type!='origin', but "
+                    f"provided id is not an SWHID: {id!r}"
+                )
 
         if page_token is not None:
             (after_time, after_fetcher) = msgpack_loads(page_token)
@@ -1166,33 +1097,36 @@ class InMemoryStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._object_metadata[id][authority_key].iter_after(
+            entries = self._object_metadata[object_type][id][authority_key].iter_after(
                 (after_time, after_fetcher)
             )
         elif after is not None:
-            entries = self._object_metadata[id][authority_key].iter_from((after,))
-            entries = (entry for entry in entries if entry["discovery_date"] > after)
+            entries = self._object_metadata[object_type][id][authority_key].iter_from(
+                (after,)
+            )
+            entries = (entry for entry in entries if entry.discovery_date > after)
         else:
-            entries = iter(self._object_metadata[id][authority_key])
+            entries = iter(self._object_metadata[object_type][id][authority_key])
 
         if limit:
             entries = itertools.islice(entries, 0, limit + 1)
 
         results = []
         for entry in entries:
-            authority = self._metadata_authorities[entry["authority"]]
-            fetcher = self._metadata_fetchers[entry["fetcher"]]
+            entry_authority = self._metadata_authorities[
+                self._metadata_authority_key(entry.authority)
+            ]
+            entry_fetcher = self._metadata_fetchers[
+                self._metadata_fetcher_key(entry.fetcher)
+            ]
             if after:
-                assert entry["discovery_date"] > after
+                assert entry.discovery_date > after
             results.append(
-                {
-                    **entry,
-                    "authority": {"type": authority["type"], "url": authority["url"],},
-                    "fetcher": {
-                        "name": fetcher["name"],
-                        "version": fetcher["version"],
-                    },
-                }
+                attr.evolve(
+                    entry,
+                    authority=attr.evolve(entry_authority, metadata=None),
+                    fetcher=attr.evolve(entry_fetcher, metadata=None),
+                )
             )
 
         if len(results) > limit:
@@ -1201,8 +1135,8 @@ class InMemoryStorage:
             last_result = results[-1]
             next_page_token: Optional[bytes] = msgpack_dumps(
                 (
-                    last_result["discovery_date"],
-                    self._metadata_fetcher_key(last_result["fetcher"]),
+                    last_result.discovery_date,
+                    self._metadata_fetcher_key(last_result.fetcher),
                 )
             )
         else:
@@ -1213,37 +1147,38 @@ class InMemoryStorage:
             "results": results,
         }
 
-    def metadata_fetcher_add(
-        self, name: str, version: str, metadata: Dict[str, Any]
-    ) -> None:
-        fetcher = {
-            "name": name,
-            "version": version,
-            "metadata": metadata,
-        }
-        key = self._metadata_fetcher_key(fetcher)
-        if key not in self._metadata_fetchers:
-            self._metadata_fetchers[key] = fetcher
+    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
+        for fetcher in fetchers:
+            if fetcher.metadata is None:
+                raise StorageArgumentException(
+                    "MetadataFetcher.metadata may not be None in metadata_fetcher_add."
+                )
+            key = self._metadata_fetcher_key(fetcher)
+            if key not in self._metadata_fetchers:
+                self._metadata_fetchers[key] = fetcher
 
-    def metadata_fetcher_get(self, name: str, version: str) -> Optional[Dict[str, Any]]:
+    def metadata_fetcher_get(
+        self, name: str, version: str
+    ) -> Optional[MetadataFetcher]:
         return self._metadata_fetchers.get(
-            self._metadata_fetcher_key({"name": name, "version": version})
+            self._metadata_fetcher_key(MetadataFetcher(name=name, version=version))
         )
 
-    def metadata_authority_add(
-        self, type: str, url: str, metadata: Dict[str, Any]
-    ) -> None:
-        authority = {
-            "type": type,
-            "url": url,
-            "metadata": metadata,
-        }
-        key = self._metadata_authority_key(authority)
-        self._metadata_authorities[key] = authority
+    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+        for authority in authorities:
+            if authority.metadata is None:
+                raise StorageArgumentException(
+                    "MetadataAuthority.metadata may not be None in "
+                    "metadata_authority_add."
+                )
+            key = self._metadata_authority_key(authority)
+            self._metadata_authorities[key] = authority
 
-    def metadata_authority_get(self, type: str, url: str) -> Optional[Dict[str, Any]]:
+    def metadata_authority_get(
+        self, type: MetadataAuthorityType, url: str
+    ) -> Optional[MetadataAuthority]:
         return self._metadata_authorities.get(
-            self._metadata_authority_key({"type": type, "url": url})
+            self._metadata_authority_key(MetadataAuthority(type=type, url=url))
         )
 
     def _get_origin_url(self, origin):
@@ -1268,12 +1203,12 @@ class InMemoryStorage:
         return tuple((key, content.get(key)) for key in sorted(DEFAULT_ALGORITHMS))
 
     @staticmethod
-    def _metadata_fetcher_key(fetcher: Dict) -> FetcherKey:
-        return (fetcher["name"], fetcher["version"])
+    def _metadata_fetcher_key(fetcher: MetadataFetcher) -> FetcherKey:
+        return (fetcher.name, fetcher.version)
 
     @staticmethod
-    def _metadata_authority_key(authority: Dict) -> Hashable:
-        return (authority["type"], authority["url"])
+    def _metadata_authority_key(authority: MetadataAuthority) -> Hashable:
+        return (authority.type, authority.url)
 
     def diff_directories(self, from_dir, to_dir, track_renaming=False):
         raise NotImplementedError("InMemoryStorage.diff_directories")

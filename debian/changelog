@@ -1,8 +1,13 @@
-swh-storage (0.10.6-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.11.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.11.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-07-20 11:01:10 +0200)
+  * Upstream changes:     - v0.11.0     - * Make metadata-related
+    endpoints consistent with other endpoints by using Iterables of swh-
+    model objects instead of a dict.     - * Update tests to use model
+    objects
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Jul 2020 13:41:58 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 20 Jul 2020 09:12:25 +0000
 
 swh-storage (0.10.6-1~swh1) unstable-swh; urgency=medium
 
