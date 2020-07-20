@@ -225,7 +225,6 @@ swh/storage/common.py
 swh/storage/converters.py
 swh/storage/db.py
 swh/storage/exc.py
-swh/storage/extrinsic_metadata.py
 swh/storage/filter.py
 swh/storage/fixer.py
 swh/storage/in_memory.py
@@ -272,7 +271,6 @@ swh/storage/tests/test_cassandra.py
 swh/storage/tests/test_cassandra_converters.py
 swh/storage/tests/test_cli.py
 swh/storage/tests/test_converters.py
-swh/storage/tests/test_db.py
 swh/storage/tests/test_exception.py
 swh/storage/tests/test_filter.py
 swh/storage/tests/test_in_memory.py

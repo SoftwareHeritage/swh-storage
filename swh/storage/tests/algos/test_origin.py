@@ -22,14 +22,16 @@ def assert_list_eq(left, right, msg=None):
 
 @pytest.fixture
 def swh_storage_backend_config():
-    yield {"cls": "validate", "storage": {"cls": "memory",}}
+    yield {
+        "cls": "memory",
+    }
 
 
 def test_iter_origins(swh_storage):
     origins = [
-        {"url": "bar"},
-        {"url": "qux"},
-        {"url": "quuz"},
+        Origin(url="bar"),
+        Origin(url="qux"),
+        Origin(url="quuz"),
     ]
     assert swh_storage.origin_add(origins) == {"origin:add": 3}
     assert_list_eq(iter_origins(swh_storage), origins)
@@ -82,7 +84,7 @@ def test_iter_origins_batch_size(mock_origin_get_range, swh_storage):
     mock_origin_get_range.assert_called_with(origin_from=1, origin_count=42)
 
 
-def test_origin_get_latest_visit_status_none(swh_storage):
+def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
     """Looking up unknown objects should return nothing
 
     """
@@ -90,11 +92,13 @@ def test_origin_get_latest_visit_status_none(swh_storage):
     assert origin_get_latest_visit_status(swh_storage, "unknown-origin") is None
 
     # unknown type so no result
-    origin = Origin.from_dict(data.origin)
+    origin = sample_data_model["origin"][0]
+    origin_visit = sample_data_model["origin_visit"][0]
+    assert origin_visit.origin == origin.url
+
     swh_storage.origin_add_one(origin)
-    swh_storage.origin_visit_add(
-        [OriginVisit(origin=origin.url, date=data.date_visit1, type="git",),]
-    )[0]
+    swh_storage.origin_visit_add([origin_visit])[0]
+    assert origin_visit.type != "unknown"
     actual_origin_visit = origin_get_latest_visit_status(
         swh_storage, origin.url, type="unknown"
     )

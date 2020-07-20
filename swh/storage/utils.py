@@ -6,13 +6,24 @@
 import re
 
 from datetime import datetime, timezone
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, TypeVar
 
 from swh.model.hashutil import hash_to_bytes, hash_to_hex, DEFAULT_ALGORITHMS
 
 
 def now() -> datetime:
     return datetime.now(tz=timezone.utc)
+
+
+T1 = TypeVar("T1")
+T2 = TypeVar("T2")
+
+
+def map_optional(f: Callable[[T1], T2], x: Optional[T1]) -> Optional[T2]:
+    if x is None:
+        return None
+    else:
+        return f(x)
 
 
 def _is_power_of_two(n: int) -> bool:

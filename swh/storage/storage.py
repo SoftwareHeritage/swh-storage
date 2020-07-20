@@ -10,7 +10,15 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from deprecated import deprecated
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import (
+    Any,
+    Counter,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Union,
+)
 
 import attr
 import psycopg2
@@ -18,6 +26,7 @@ import psycopg2.pool
 import psycopg2.errors
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
+from swh.model.identifiers import parse_swhid, SWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -29,6 +38,11 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SHA1_SIZE,
+    MetadataAuthority,
+    MetadataAuthorityType,
+    MetadataFetcher,
+    MetadataTargetType,
+    RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
@@ -36,16 +50,12 @@ from swh.storage.validate import VALIDATION_EXCEPTIONS
 from swh.storage.utils import now
 
 from . import converters
-from .extrinsic_metadata import (
-    check_extrinsic_metadata_context,
-    CONTEXT_KEYS,
-)
 from .common import db_transaction_generator, db_transaction
 from .db import Db
 from .exc import StorageArgumentException, StorageDBError, HashCollision
 from .algos import diff
 from .metrics import timed, send_metric, process_metrics
-from .utils import get_partition_bounds_bytes, extract_collision_hash
+from .utils import get_partition_bounds_bytes, extract_collision_hash, map_optional
 from .writer import JournalWriter
 
 
@@ -1129,150 +1139,66 @@ class Storage:
         for key in keys:
             cur.execute("select * from swh_update_counter(%s)", (key,))
 
-    @timed
     @db_transaction()
-    def content_metadata_add(
-        self,
-        id: str,
-        context: Dict[str, Union[str, bytes, int]],
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-        db=None,
-        cur=None,
+    def object_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata], db, cur,
     ) -> None:
-        self._object_metadata_add(
-            "content",
-            id,
-            context,
-            discovery_date,
-            authority,
-            fetcher,
-            format,
-            metadata,
-            db,
-            cur,
-        )
+        counter = Counter[MetadataTargetType]()
+        for metadata_entry in metadata:
+            authority_id = self._get_authority_id(metadata_entry.authority, db, cur)
+            fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
-    @timed
-    @db_transaction()
-    def content_metadata_get(
-        self,
-        id: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-        db=None,
-        cur=None,
-    ) -> Dict[str, Any]:
-        return self._object_metadata_get(
-            "content", id, authority, after, page_token, limit, db, cur
-        )
+            db.object_metadata_add(
+                object_type=metadata_entry.type.value,
+                id=str(metadata_entry.id),
+                discovery_date=metadata_entry.discovery_date,
+                authority_id=authority_id,
+                fetcher_id=fetcher_id,
+                format=metadata_entry.format,
+                metadata=metadata_entry.metadata,
+                origin=metadata_entry.origin,
+                visit=metadata_entry.visit,
+                snapshot=map_optional(str, metadata_entry.snapshot),
+                release=map_optional(str, metadata_entry.release),
+                revision=map_optional(str, metadata_entry.revision),
+                path=metadata_entry.path,
+                directory=map_optional(str, metadata_entry.directory),
+                cur=cur,
+            )
+            counter[metadata_entry.type] += 1
 
-    @timed
-    @db_transaction()
-    def origin_metadata_add(
-        self,
-        origin_url: str,
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-        db=None,
-        cur=None,
-    ) -> None:
-        context: Dict[str, Union[str, bytes, int]] = {}  # origins have no context
-
-        self._object_metadata_add(
-            "origin",
-            origin_url,
-            context,
-            discovery_date,
-            authority,
-            fetcher,
-            format,
-            metadata,
-            db,
-            cur,
-        )
-
-    @timed
-    @db_transaction(statement_timeout=500)
-    def origin_metadata_get(
-        self,
-        origin_url: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime] = None,
-        page_token: Optional[bytes] = None,
-        limit: int = 1000,
-        db=None,
-        cur=None,
-    ) -> Dict[str, Any]:
-        result = self._object_metadata_get(
-            "origin", origin_url, authority, after, page_token, limit, db, cur
-        )
-
-        for res in result["results"]:
-            res.pop("id")
-            res["origin_url"] = origin_url
-
-        return result
-
-    def _object_metadata_add(
-        self,
-        object_type: str,
-        id: str,
-        context: Dict[str, Union[str, bytes, int]],
-        discovery_date: datetime.datetime,
-        authority: Dict[str, Any],
-        fetcher: Dict[str, Any],
-        format: str,
-        metadata: bytes,
-        db,
-        cur,
-    ) -> None:
-        check_extrinsic_metadata_context(object_type, context)
-
-        authority_id = self._get_authority_id(authority, db, cur)
-        fetcher_id = self._get_fetcher_id(fetcher, db, cur)
-        if not isinstance(metadata, bytes):
-            raise StorageArgumentException(
-                "metadata must be bytes, not %r" % (metadata,)
+        for (object_type, count) in counter.items():
+            send_metric(
+                f"{object_type.value}_metadata:add",
+                count=count,
+                method_name=f"{object_type.value}_metadata_add",
             )
 
-        db.object_metadata_add(
-            object_type,
-            id,
-            context,
-            discovery_date,
-            authority_id,
-            fetcher_id,
-            format,
-            metadata,
-            cur,
-        )
-
-        send_metric(
-            f"{object_type}_metadata:add",
-            count=1,
-            method_name=f"{object_type}_metadata_add",
-        )
-
-    def _object_metadata_get(
+    @db_transaction()
+    def object_metadata_get(
         self,
-        object_type: str,
-        id: str,
-        authority: Dict[str, str],
-        after: Optional[datetime.datetime],
-        page_token: Optional[bytes],
-        limit: int,
-        db,
-        cur,
-    ) -> Dict[str, Any]:
+        object_type: MetadataTargetType,
+        id: Union[str, SWHID],
+        authority: MetadataAuthority,
+        after: Optional[datetime.datetime] = None,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+        if object_type == MetadataTargetType.ORIGIN:
+            if isinstance(id, SWHID):
+                raise StorageArgumentException(
+                    f"object_metadata_get called with object_type='origin', but "
+                    f"provided id is an SWHID: {id!r}"
+                )
+        else:
+            if not isinstance(id, SWHID):
+                raise StorageArgumentException(
+                    f"object_metadata_get called with object_type!='origin', but "
+                    f"provided id is not an SWHID: {id!r}"
+                )
+
         if page_token:
             (after_time, after_fetcher) = msgpack_loads(page_token)
             if after and after_time < after:
@@ -1283,9 +1209,7 @@ class Storage:
             after_time = after
             after_fetcher = None
 
-        authority_id = db.metadata_authority_get_id(
-            authority["type"], authority["url"], cur
-        )
+        authority_id = self._get_authority_id(authority, db, cur)
         if not authority_id:
             return {
                 "next_page_token": None,
@@ -1293,36 +1217,44 @@ class Storage:
             }
 
         rows = db.object_metadata_get(
-            object_type, id, authority_id, after_time, after_fetcher, limit + 1, cur
+            object_type,
+            str(id),
+            authority_id,
+            after_time,
+            after_fetcher,
+            limit + 1,
+            cur,
         )
         rows = [dict(zip(db.object_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
             row = row.copy()
             row.pop("metadata_fetcher.id")
-            context = {}
-            for key in CONTEXT_KEYS[object_type]:
-                value = row[key]
-                if value is not None:
-                    context[key] = value
 
-            result = {
-                "id": row["id"],
-                "authority": {
-                    "type": row.pop("metadata_authority.type"),
-                    "url": row.pop("metadata_authority.url"),
-                },
-                "fetcher": {
-                    "name": row.pop("metadata_fetcher.name"),
-                    "version": row.pop("metadata_fetcher.version"),
-                },
-                "discovery_date": row["discovery_date"],
-                "format": row["format"],
-                "metadata": row["metadata"],
-            }
+            assert str(id) == row["object_metadata.id"]
 
-            if CONTEXT_KEYS[object_type]:
-                result["context"] = context
+            result = RawExtrinsicMetadata(
+                type=MetadataTargetType(row["object_metadata.type"]),
+                id=id,
+                authority=MetadataAuthority(
+                    type=MetadataAuthorityType(row["metadata_authority.type"]),
+                    url=row["metadata_authority.url"],
+                ),
+                fetcher=MetadataFetcher(
+                    name=row["metadata_fetcher.name"],
+                    version=row["metadata_fetcher.version"],
+                ),
+                discovery_date=row["discovery_date"],
+                format=row["format"],
+                metadata=row["object_metadata.metadata"],
+                origin=row["origin"],
+                visit=row["visit"],
+                snapshot=map_optional(parse_swhid, row["snapshot"]),
+                release=map_optional(parse_swhid, row["release"]),
+                revision=map_optional(parse_swhid, row["revision"]),
+                path=row["path"],
+                directory=map_optional(parse_swhid, row["directory"]),
+            )
 
             results.append(result)
 
@@ -1347,38 +1279,55 @@ class Storage:
     @timed
     @db_transaction()
     def metadata_fetcher_add(
-        self, name: str, version: str, metadata: Dict[str, Any], db=None, cur=None
+        self, fetchers: Iterable[MetadataFetcher], db=None, cur=None
     ) -> None:
-        db.metadata_fetcher_add(name, version, metadata)
-        send_metric("metadata_fetcher:add", count=1, method_name="metadata_fetcher")
+        for (i, fetcher) in enumerate(fetchers):
+            if fetcher.metadata is None:
+                raise StorageArgumentException(
+                    "MetadataFetcher.metadata may not be None in metadata_fetcher_add."
+                )
+            db.metadata_fetcher_add(
+                fetcher.name, fetcher.version, dict(fetcher.metadata), cur=cur
+            )
+        send_metric("metadata_fetcher:add", count=i + 1, method_name="metadata_fetcher")
 
     @timed
     @db_transaction(statement_timeout=500)
     def metadata_fetcher_get(
         self, name: str, version: str, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[MetadataFetcher]:
         row = db.metadata_fetcher_get(name, version, cur=cur)
         if not row:
             return None
-        return dict(zip(db.metadata_fetcher_cols, row))
+        return MetadataFetcher.from_dict(dict(zip(db.metadata_fetcher_cols, row)))
 
     @timed
     @db_transaction()
     def metadata_authority_add(
-        self, type: str, url: str, metadata: Dict[str, Any], db=None, cur=None
+        self, authorities: Iterable[MetadataAuthority], db=None, cur=None
     ) -> None:
-        db.metadata_authority_add(type, url, metadata, cur)
-        send_metric("metadata_authority:add", count=1, method_name="metadata_authority")
+        for (i, authority) in enumerate(authorities):
+            if authority.metadata is None:
+                raise StorageArgumentException(
+                    "MetadataAuthority.metadata may not be None in "
+                    "metadata_authority_add."
+                )
+            db.metadata_authority_add(
+                authority.type.value, authority.url, dict(authority.metadata), cur=cur
+            )
+        send_metric(
+            "metadata_authority:add", count=i + 1, method_name="metadata_authority"
+        )
 
     @timed
     @db_transaction()
     def metadata_authority_get(
-        self, type: str, url: str, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
-        row = db.metadata_authority_get(type, url, cur=cur)
+        self, type: MetadataAuthorityType, url: str, db=None, cur=None
+    ) -> Optional[MetadataAuthority]:
+        row = db.metadata_authority_get(type.value, url, cur=cur)
         if not row:
             return None
-        return dict(zip(db.metadata_authority_cols, row))
+        return MetadataAuthority.from_dict(dict(zip(db.metadata_authority_cols, row)))
 
     @timed
     def diff_directories(self, from_dir, to_dir, track_renaming=False):
@@ -1401,18 +1350,16 @@ class Storage:
     def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
         return {}
 
-    def _get_authority_id(self, authority: Dict[str, Any], db, cur):
+    def _get_authority_id(self, authority: MetadataAuthority, db, cur):
         authority_id = db.metadata_authority_get_id(
-            authority["type"], authority["url"], cur
+            authority.type.value, authority.url, cur
         )
         if not authority_id:
             raise StorageArgumentException(f"Unknown authority {authority}")
         return authority_id
 
-    def _get_fetcher_id(self, fetcher: Dict[str, Any], db, cur):
-        fetcher_id = db.metadata_fetcher_get_id(
-            fetcher["name"], fetcher["version"], cur
-        )
+    def _get_fetcher_id(self, fetcher: MetadataFetcher, db, cur):
+        fetcher_id = db.metadata_fetcher_get_id(fetcher.name, fetcher.version, cur)
         if not fetcher_id:
             raise StorageArgumentException(f"Unknown fetcher {fetcher}")
         return fetcher_id

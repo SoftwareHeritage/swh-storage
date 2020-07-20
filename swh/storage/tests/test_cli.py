@@ -9,7 +9,6 @@ import re
 import tempfile
 import yaml
 
-from typing import Any, Dict
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +16,7 @@ import pytest
 from click.testing import CliRunner
 from confluent_kafka import Producer
 
+from swh.model.model import Snapshot, SnapshotBranch, TargetType
 from swh.journal.serializers import key_to_kafka, value_to_kafka
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
@@ -31,10 +31,9 @@ CLI_CONFIG = {
 
 
 @pytest.fixture
-def storage():
+def swh_storage():
     """An swh-storage object that gets injected into the CLI functions."""
-    storage_config = {"cls": "pipeline", "steps": [{"cls": "memory"},]}
-    storage = get_storage(**storage_config)
+    storage = get_storage(**CLI_CONFIG["storage"])
     with patch("swh.storage.cli.get_storage") as get_storage_mock:
         get_storage_mock.return_value = storage
         yield storage
@@ -64,7 +63,7 @@ def invoke(*args, env=None, journal_config=None):
 
 
 def test_replay(
-    storage, kafka_prefix: str, kafka_consumer_group: str, kafka_server: str,
+    swh_storage, kafka_prefix: str, kafka_consumer_group: str, kafka_server: str,
 ):
     kafka_prefix += ".swh.journal.objects"
 
@@ -76,14 +75,19 @@ def test_replay(
         }
     )
 
-    snapshot = {
-        "id": b"foo",
-        "branches": {b"HEAD": {"target_type": "revision", "target": b"\x01" * 20,}},
-    }  # type: Dict[str, Any]
+    snapshot = Snapshot(
+        branches={
+            b"HEAD": SnapshotBranch(
+                target_type=TargetType.REVISION, target=b"\x01" * 20,
+            )
+        },
+    )
+    snapshot_dict = snapshot.to_dict()
+
     producer.produce(
         topic=kafka_prefix + ".snapshot",
-        key=key_to_kafka(snapshot["id"]),
-        value=value_to_kafka(snapshot),
+        key=key_to_kafka(snapshot.id),
+        value=value_to_kafka(snapshot_dict),
     )
     producer.flush()
 
@@ -104,4 +108,7 @@ def test_replay(
     assert result.exit_code == 0, result.output
     assert re.fullmatch(expected, result.output, re.MULTILINE), result.output
 
-    assert storage.snapshot_get(snapshot["id"]) == {**snapshot, "next_branch": None}
+    assert swh_storage.snapshot_get(snapshot.id) == {
+        **snapshot_dict,
+        "next_branch": None,
+    }

@@ -8,12 +8,10 @@ import pytest
 
 from swh.model.collections import ImmutableDict
 from swh.model.hypothesis_strategies import snapshots, branch_names, branch_targets
-from swh.model.model import Origin, OriginVisit, OriginVisitStatus, Snapshot
+from swh.model.model import OriginVisit, OriginVisitStatus, Snapshot
 
 from swh.storage.algos.snapshot import snapshot_get_all_branches, snapshot_get_latest
 from swh.storage.utils import now
-
-from swh.storage.tests.storage_data import data
 
 
 @pytest.fixture
@@ -26,11 +24,10 @@ def swh_storage_backend_config():
 
 @given(snapshot=snapshots(min_size=0, max_size=10, only_objects=False))
 def test_snapshot_small(swh_storage, snapshot):  # noqa
-    snapshot = snapshot.to_dict()
     swh_storage.snapshot_add([snapshot])
 
-    returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot["id"])
-    assert snapshot == returned_snapshot
+    returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot.id)
+    assert snapshot.to_dict() == returned_snapshot
 
 
 @given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
@@ -47,7 +44,7 @@ def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
     assert snapshot.to_dict() == returned_snapshot
 
 
-def test_snapshot_get_latest_none(swh_storage):
+def test_snapshot_get_latest_none(swh_storage, sample_data_model):
     """Retrieve latest snapshot on unknown origin or origin without snapshot should
     yield no result
 
@@ -56,11 +53,12 @@ def test_snapshot_get_latest_none(swh_storage):
     assert snapshot_get_latest(swh_storage, "unknown-origin") is None
 
     # no snapshot on origin visit so None
-    origin = Origin.from_dict(data.origin)
+    origin = sample_data_model["origin"][0]
     swh_storage.origin_add_one(origin)
-    swh_storage.origin_visit_add(
-        [OriginVisit(origin=origin.url, date=data.date_visit1, type=data.type_visit1,)]
-    )
+    origin_visit, origin_visit2 = sample_data_model["origin_visit"][:2]
+    assert origin_visit.origin == origin.url
+
+    swh_storage.origin_visit_add([origin_visit])
     assert snapshot_get_latest(swh_storage, origin.url) is None
 
     ov1 = swh_storage.origin_visit_get_latest(origin.url)
@@ -69,13 +67,13 @@ def test_snapshot_get_latest_none(swh_storage):
 
     # visit references a snapshot but the snapshot does not exist in backend for some
     # reason
-    complete_snapshot = Snapshot.from_dict(data.complete_snapshot)
+    complete_snapshot = sample_data_model["snapshot"][2]
     swh_storage.origin_visit_status_add(
         [
             OriginVisitStatus(
                 origin=origin.url,
                 visit=visit_id,
-                date=data.date_visit2,
+                date=origin_visit2.date,
                 status="partial",
                 snapshot=complete_snapshot.id,
             )
@@ -86,19 +84,19 @@ def test_snapshot_get_latest_none(swh_storage):
     assert snapshot_get_latest(swh_storage, origin.url, branches_count=1) is None
 
 
-def test_snapshot_get_latest(swh_storage):
-    origin = Origin.from_dict(data.origin)
+def test_snapshot_get_latest(swh_storage, sample_data_model):
+    origin = sample_data_model["origin"][0]
     swh_storage.origin_add_one(origin)
 
-    visit1 = OriginVisit(
-        origin=origin.url, date=data.date_visit1, type=data.type_visit1,
-    )
+    visit1, visit2 = sample_data_model["origin_visit"][:2]
+    assert visit1.origin == origin.url
+
     swh_storage.origin_visit_add([visit1])
     ov1 = swh_storage.origin_visit_get_latest(origin.url)
     visit_id = ov1["visit"]
 
     # Add snapshot to visit1, latest snapshot = visit 1 snapshot
-    complete_snapshot = Snapshot.from_dict(data.complete_snapshot)
+    complete_snapshot = sample_data_model["snapshot"][2]
     swh_storage.snapshot_add([complete_snapshot])
 
     swh_storage.origin_visit_status_add(
@@ -106,13 +104,13 @@ def test_snapshot_get_latest(swh_storage):
             OriginVisitStatus(
                 origin=origin.url,
                 visit=visit_id,
-                date=data.date_visit2,
+                date=visit2.date,
                 status="partial",
                 snapshot=None,
             )
         ]
     )
-    assert data.date_visit1 < data.date_visit2
+    assert visit1.date < visit2.date
 
     # no snapshot associated to the visit, so None
     actual_snapshot = snapshot_get_latest(
@@ -121,7 +119,7 @@ def test_snapshot_get_latest(swh_storage):
     assert actual_snapshot is None
 
     date_now = now()
-    assert data.date_visit2 < date_now
+    assert visit2.date < date_now
     swh_storage.origin_visit_status_add(
         [
             OriginVisitStatus(
@@ -135,7 +133,7 @@ def test_snapshot_get_latest(swh_storage):
     )
 
     swh_storage.origin_visit_add(
-        [OriginVisit(origin=origin.url, date=now(), type=data.type_visit1,)]
+        [OriginVisit(origin=origin.url, date=now(), type=visit1.type,)]
     )
 
     actual_snapshot = snapshot_get_latest(swh_storage, origin.url)
