@@ -1050,13 +1050,6 @@ class TestStorage:
         # when
         actual_results = list(swh_storage.revision_log([revision4.id]))
 
-        # hack: ids generated
-        for actual_result in actual_results:
-            if "id" in actual_result["author"]:
-                del actual_result["author"]["id"]
-            if "id" in actual_result["committer"]:
-                del actual_result["committer"]["id"]
-
         assert len(actual_results) == 2  # rev4 -child-> rev3
         assert actual_results[0] == normalize_entity(revision4)
         assert actual_results[1] == normalize_entity(revision3)
@@ -1072,13 +1065,6 @@ class TestStorage:
         # data.revision4 -is-child-of-> data.revision3
         swh_storage.revision_add([revision3, revision4])
         actual_results = list(swh_storage.revision_log([revision4.id], 1))
-
-        # hack: ids generated
-        for actual_result in actual_results:
-            if "id" in actual_result["author"]:
-                del actual_result["author"]["id"]
-            if "id" in actual_result["committer"]:
-                del actual_result["committer"]["id"]
 
         assert len(actual_results) == 1
         assert actual_results[0] == normalize_entity(revision4)
@@ -1117,12 +1103,6 @@ class TestStorage:
         swh_storage.revision_add([revision])
 
         actual_revisions = list(swh_storage.revision_get([revision.id, revision2.id]))
-
-        # when
-        if "id" in actual_revisions[0]["author"]:
-            del actual_revisions[0]["author"]["id"]  # hack: ids are generated
-        if "id" in actual_revisions[0]["committer"]:
-            del actual_revisions[0]["committer"]["id"]
 
         assert len(actual_revisions) == 2
         assert actual_revisions[0] == normalize_entity(revision)
@@ -1275,10 +1255,6 @@ class TestStorage:
         actual_releases = list(swh_storage.release_get([release.id, release2.id]))
 
         # then
-        for actual_release in actual_releases:
-            if "id" in actual_release["author"]:
-                del actual_release["author"]["id"]  # hack: ids are generated
-
         assert [actual_releases[0], actual_releases[1],] == [
             normalize_entity(release),
             normalize_entity(release2),
