@@ -215,7 +215,7 @@ def sample_data() -> Dict:
         "content_metadata": [data.cont3],
         "skipped_content": [data.skipped_cont, data.skipped_cont2],
         "person": [data.person],
-        "directory": [data.dir2, data.dir],
+        "directory": [data.dir2, data.dir, data.dir3, data.dir4],
         "revision": [data.revision, data.revision2, data.revision3],
         "release": [data.release, data.release2, data.release3],
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
