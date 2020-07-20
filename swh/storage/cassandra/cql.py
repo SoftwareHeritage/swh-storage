@@ -18,7 +18,6 @@ from typing import (
     Optional,
     Tuple,
     TypeVar,
-    Union,
 )
 
 from cassandra import CoordinationFailure
@@ -46,7 +45,6 @@ from swh.model.model import (
 
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
-from .. import extrinsic_metadata
 
 
 logger = logging.getLogger(__name__)
@@ -899,36 +897,12 @@ class CqlRunner:
         f"VALUES ({', '.join('?' for _ in _object_metadata_keys)})"
     )
     def object_metadata_add(
-        self,
-        object_type: str,
-        id: str,
-        authority_type,
-        authority_url,
-        discovery_date,
-        fetcher_name,
-        fetcher_version,
-        format,
-        metadata,
-        context: Dict[str, Union[str, bytes, int]],
-        *,
-        statement,
+        self, statement, **kwargs,
     ):
-        params = [
-            object_type,
-            id,
-            authority_type,
-            authority_url,
-            discovery_date,
-            fetcher_name,
-            fetcher_version,
-            format,
-            metadata,
-        ]
-
-        params.extend(
-            context.get(key) for key in extrinsic_metadata.CONTEXT_KEYS[object_type]
-        )
-
+        assert set(kwargs) == set(
+            self._object_metadata_keys
+        ), f"Bad kwargs: {set(kwargs)}"
+        params = [kwargs[key] for key in self._object_metadata_keys]
         return self._execute_with_retries(statement, params,)
 
     @_prepared_statement(

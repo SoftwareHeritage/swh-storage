@@ -6,7 +6,7 @@
 import datetime
 import random
 import select
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize as _jsonize
@@ -1119,7 +1119,8 @@ class Db(BaseDb):
     """
 
     object_metadata_get_cols = [
-        "id",
+        "object_metadata.id",
+        "object_metadata.type",
         "discovery_date",
         "metadata_authority.type",
         "metadata_authority.url",
@@ -1128,16 +1129,14 @@ class Db(BaseDb):
         "metadata_fetcher.version",
         *_object_metadata_context_cols,
         "format",
-        "metadata",
+        "object_metadata.metadata",
     ]
     """List of columns of the object_metadata, metadata_authority,
     and metadata_fetcher tables, used when reading object metadata."""
 
     _object_metadata_select_query = f"""
         SELECT
-            object_metadata.id AS id,
-            {', '.join(object_metadata_get_cols[1:-1])},
-            object_metadata.metadata AS metadata
+            {', '.join(object_metadata_get_cols)}
         FROM object_metadata
         INNER JOIN metadata_authority
             ON (metadata_authority.id=authority_id)
@@ -1149,12 +1148,18 @@ class Db(BaseDb):
         self,
         object_type: str,
         id: str,
-        context: Dict[str, Union[str, bytes, int]],
         discovery_date: datetime.datetime,
         authority_id: int,
         fetcher_id: int,
         format: str,
         metadata: bytes,
+        origin: Optional[str],
+        visit: Optional[int],
+        snapshot: Optional[str],
+        release: Optional[str],
+        revision: Optional[str],
+        path: Optional[bytes],
+        directory: Optional[str],
         cur,
     ):
         query = self._object_metadata_insert_query
@@ -1166,9 +1171,14 @@ class Db(BaseDb):
             discovery_date=discovery_date,
             format=format,
             metadata=metadata,
+            origin=origin,
+            visit=visit,
+            snapshot=snapshot,
+            release=release,
+            revision=revision,
+            path=path,
+            directory=directory,
         )
-        for col in self._object_metadata_context_cols:
-            args[col] = context.get(col)
 
         params = [args[col] for col in self._object_metadata_insert_cols]
 

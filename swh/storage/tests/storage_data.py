@@ -4,8 +4,19 @@
 # See top-level LICENSE file for more information
 
 import datetime
+
+import attr
+
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model import from_disk
+from swh.model.identifiers import parse_swhid
+from swh.model.model import (
+    MetadataAuthority,
+    MetadataAuthorityType,
+    MetadataFetcher,
+    RawExtrinsicMetadata,
+    MetadataTargetType,
+)
 
 
 class StorageData:
@@ -335,27 +346,21 @@ origin2 = {
 origins = (origin, origin2)
 
 
-metadata_authority = {
-    "type": "deposit",
-    "url": "http://hal.inria.example.com/",
-    "metadata": {"location": "France"},
-}
-metadata_authority2 = {
-    "type": "registry",
-    "url": "http://wikidata.example.com/",
-    "metadata": {},
-}
+metadata_authority = MetadataAuthority(
+    type=MetadataAuthorityType.DEPOSIT,
+    url="http://hal.inria.example.com/",
+    metadata={"location": "France"},
+)
+metadata_authority2 = MetadataAuthority(
+    type=MetadataAuthorityType.REGISTRY,
+    url="http://wikidata.example.com/",
+    metadata={},
+)
 
-metadata_fetcher = {
-    "name": "swh-deposit",
-    "version": "0.0.1",
-    "metadata": {"sword_version": "2"},
-}
-metadata_fetcher2 = {
-    "name": "swh-example",
-    "version": "0.0.1",
-    "metadata": {},
-}
+metadata_fetcher = MetadataFetcher(
+    name="swh-deposit", version="0.0.1", metadata={"sword_version": "2"},
+)
+metadata_fetcher2 = MetadataFetcher(name="swh-example", version="0.0.1", metadata={},)
 
 date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
 type_visit1 = "git"
@@ -365,6 +370,29 @@ type_visit2 = "hg"
 
 date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
 type_visit3 = "deb"
+
+origin_visit = {
+    "origin": origin["url"],
+    "visit": 1,
+    "date": date_visit1,
+    "type": type_visit1,
+}
+
+origin_visit2 = {
+    "origin": origin["url"],
+    "visit": 2,
+    "date": date_visit2,
+    "type": type_visit1,
+}
+
+origin_visit3 = {
+    "origin": origin2["url"],
+    "visit": 1,
+    "date": date_visit1,
+    "type": type_visit2,
+}
+
+origin_visits = [origin_visit, origin_visit2, origin_visit3]
 
 release = {
     "id": hash_to_bytes("a673e617fcc6234e29b2cad06b8245f96c415c61"),
@@ -475,114 +503,82 @@ complete_snapshot = {
 
 snapshots = (snapshot, empty_snapshot, complete_snapshot)
 
-content_metadata = {
-    "id": f"swh:1:cnt:{cont['sha1_git']}",
-    "context": {"origin": origin["url"]},
-    "discovery_date": datetime.datetime(
+content_metadata = RawExtrinsicMetadata(
+    type=MetadataTargetType.CONTENT,
+    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(cont['sha1_git'])}"),
+    origin=origin["url"],
+    discovery_date=datetime.datetime(
         2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "authority": {
-        "type": metadata_authority["type"],
-        "url": metadata_authority["url"],
-    },
-    "fetcher": {
-        "name": metadata_fetcher["name"],
-        "version": metadata_fetcher["version"],
-    },
-    "format": "json",
-    "metadata": b'{"foo": "bar"}',
-}
-content_metadata2 = {
-    "id": f"swh:1:cnt:{cont['sha1_git']}",
-    "context": {"origin": origin2["url"]},
-    "discovery_date": datetime.datetime(
+    authority=attr.evolve(metadata_authority, metadata=None),
+    fetcher=attr.evolve(metadata_fetcher, metadata=None),
+    format="json",
+    metadata=b'{"foo": "bar"}',
+)
+content_metadata2 = RawExtrinsicMetadata(
+    type=MetadataTargetType.CONTENT,
+    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(cont['sha1_git'])}"),
+    origin=origin2["url"],
+    discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "authority": {
-        "type": metadata_authority["type"],
-        "url": metadata_authority["url"],
-    },
-    "fetcher": {
-        "name": metadata_fetcher["name"],
-        "version": metadata_fetcher["version"],
-    },
-    "format": "yaml",
-    "metadata": b"foo: bar",
-}
-content_metadata3 = {
-    "id": f"swh:1:cnt:{cont['sha1_git']}",
-    "context": {
-        "origin": origin["url"],
-        "visit": 42,
-        "snapshot": f"swh:1:snp:{hash_to_hex(snapshot['id'])}",
-        "release": f"swh:1:rel:{hash_to_hex(release['id'])}",
-        "revision": f"swh:1:rev:{hash_to_hex(revision['id'])}",
-        "directory": f"swh:1:dir:{hash_to_hex(dir['id'])}",
-        "path": b"/foo/bar",
-    },
-    "discovery_date": datetime.datetime(
+    authority=attr.evolve(metadata_authority, metadata=None),
+    fetcher=attr.evolve(metadata_fetcher, metadata=None),
+    format="yaml",
+    metadata=b"foo: bar",
+)
+content_metadata3 = RawExtrinsicMetadata(
+    type=MetadataTargetType.CONTENT,
+    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(cont['sha1_git'])}"),
+    discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "authority": {
-        "type": metadata_authority2["type"],
-        "url": metadata_authority2["url"],
-    },
-    "fetcher": {
-        "name": metadata_fetcher2["name"],
-        "version": metadata_fetcher2["version"],
-    },
-    "format": "yaml",
-    "metadata": b"foo: bar",
-}
+    authority=attr.evolve(metadata_authority2, metadata=None),
+    fetcher=attr.evolve(metadata_fetcher2, metadata=None),
+    format="yaml",
+    metadata=b"foo: bar",
+    origin=origin["url"],
+    visit=42,
+    snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot['id'])}"),
+    release=parse_swhid(f"swh:1:rel:{hash_to_hex(release['id'])}"),
+    revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision['id'])}"),
+    directory=parse_swhid(f"swh:1:dir:{hash_to_hex(dir['id'])}"),
+    path=b"/foo/bar",
+)
 
-origin_metadata = {
-    "origin_url": origin["url"],
-    "discovery_date": datetime.datetime(
+origin_metadata = RawExtrinsicMetadata(
+    type=MetadataTargetType.ORIGIN,
+    id=origin["url"],
+    discovery_date=datetime.datetime(
         2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "authority": {
-        "type": metadata_authority["type"],
-        "url": metadata_authority["url"],
-    },
-    "fetcher": {
-        "name": metadata_fetcher["name"],
-        "version": metadata_fetcher["version"],
-    },
-    "format": "json",
-    "metadata": b'{"foo": "bar"}',
-}
-origin_metadata2 = {
-    "origin_url": origin["url"],
-    "discovery_date": datetime.datetime(
+    authority=attr.evolve(metadata_authority, metadata=None),
+    fetcher=attr.evolve(metadata_fetcher, metadata=None),
+    format="json",
+    metadata=b'{"foo": "bar"}',
+)
+origin_metadata2 = RawExtrinsicMetadata(
+    type=MetadataTargetType.ORIGIN,
+    id=origin["url"],
+    discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "authority": {
-        "type": metadata_authority["type"],
-        "url": metadata_authority["url"],
-    },
-    "fetcher": {
-        "name": metadata_fetcher["name"],
-        "version": metadata_fetcher["version"],
-    },
-    "format": "yaml",
-    "metadata": b"foo: bar",
-}
-origin_metadata3 = {
-    "origin_url": origin["url"],
-    "discovery_date": datetime.datetime(
+    authority=attr.evolve(metadata_authority, metadata=None),
+    fetcher=attr.evolve(metadata_fetcher, metadata=None),
+    format="yaml",
+    metadata=b"foo: bar",
+)
+origin_metadata3 = RawExtrinsicMetadata(
+    type=MetadataTargetType.ORIGIN,
+    id=origin["url"],
+    discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
-    "authority": {
-        "type": metadata_authority2["type"],
-        "url": metadata_authority2["url"],
-    },
-    "fetcher": {
-        "name": metadata_fetcher2["name"],
-        "version": metadata_fetcher2["version"],
-    },
-    "format": "yaml",
-    "metadata": b"foo: bar",
-}
+    authority=attr.evolve(metadata_authority2, metadata=None),
+    fetcher=attr.evolve(metadata_fetcher2, metadata=None),
+    format="yaml",
+    metadata=b"foo: bar",
+)
 
 person = {
     "name": b"John Doe",

@@ -3,21 +3,29 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Optional, Iterable, Tuple
-from swh.model.model import OriginVisit, OriginVisitStatus
+from typing import Any, Dict, Optional, Iterable, Iterator, Tuple
+
+from swh.model.model import Origin, OriginVisit, OriginVisitStatus
+from swh.storage.interface import StorageInterface
 
 
-def iter_origins(storage, origin_from=1, origin_to=None, batch_size=10000):
+def iter_origins(
+    storage: StorageInterface,
+    origin_from: int = 1,
+    origin_to: Optional[int] = None,
+    batch_size: int = 10000,
+) -> Iterator[Origin]:
     """Iterates over all origins in the storage.
 
     Args:
         storage: the storage object used for queries.
+        origin_from: lower interval boundary
+        origin_to: upper interval boundary
         batch_size: number of origins per query
-    Yields:
-        dict: the origin dictionary with the keys:
 
-        - type: origin's type
-        - url: origin's url
+    Yields:
+        origin within the boundary [origin_to, origin_from] in batch_size
+
     """
     start = origin_from
     while True:
@@ -33,7 +41,7 @@ def iter_origins(storage, origin_from=1, origin_to=None, batch_size=10000):
         start = origins[-1]["id"] + 1
         for origin in origins:
             del origin["id"]
-            yield origin
+            yield Origin.from_dict(origin)
         if origin_to and start > origin_to:
             break
 
