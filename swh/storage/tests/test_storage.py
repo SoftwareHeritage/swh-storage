@@ -66,13 +66,13 @@ def normalize_entity(entity):
 
 
 def transform_entries(dir_, *, prefix=b""):
-    for ent in dir_["entries"]:
+    for ent in dir_.entries:
         yield {
-            "dir_id": dir_["id"],
-            "type": ent["type"],
-            "target": ent["target"],
-            "name": prefix + ent["name"],
-            "perms": ent["perms"],
+            "dir_id": dir_.id,
+            "type": ent.type,
+            "target": ent.target,
+            "name": prefix + ent.name,
+            "perms": ent.perms,
             "status": None,
             "sha1": None,
             "sha1_git": None,
@@ -662,87 +662,95 @@ class TestStorage:
 
         assert_contents_ok(expected_contents, actual_contents, ["sha1"])
 
-    def test_content_get_metadata(self, swh_storage):
-        cont1 = data.cont
-        cont2 = data.cont2
+    def test_content_get_metadata(self, swh_storage, sample_data_model):
+        cont1, cont2 = sample_data_model["content"][:2]
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_md = swh_storage.content_get_metadata([cont1["sha1"], cont2["sha1"]])
+        actual_md = swh_storage.content_get_metadata([cont1.sha1, cont2.sha1])
 
-        # we only retrieve the metadata
-        cont1.pop("data")
-        cont2.pop("data")
+        # we only retrieve the metadata so no data nor ctime within
+        expected_cont1, expected_cont2 = [
+            attr.evolve(c, data=None).to_dict() for c in [cont1, cont2]
+        ]
+        expected_cont1.pop("ctime")
+        expected_cont2.pop("ctime")
 
-        assert tuple(actual_md[cont1["sha1"]]) == (cont1,)
-        assert tuple(actual_md[cont2["sha1"]]) == (cont2,)
+        assert tuple(actual_md[cont1.sha1]) == (expected_cont1,)
+        assert tuple(actual_md[cont2.sha1]) == (expected_cont2,)
         assert len(actual_md.keys()) == 2
 
-    def test_content_get_metadata_missing_sha1(self, swh_storage):
-        cont1 = data.cont
-        cont2 = data.cont2
-        missing_cont = data.missing_cont
+    def test_content_get_metadata_missing_sha1(self, swh_storage, sample_data_model):
+        cont1, cont2 = sample_data_model["content"][:2]
+        missing_cont = sample_data_model["skipped_content"][0]
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_contents = swh_storage.content_get_metadata([missing_cont["sha1"]])
+        actual_contents = swh_storage.content_get_metadata([missing_cont.sha1])
 
         assert len(actual_contents) == 1
-        assert tuple(actual_contents[missing_cont["sha1"]]) == ()
+        assert tuple(actual_contents[missing_cont.sha1]) == ()
 
-    def test_content_get_random(self, swh_storage):
-        swh_storage.content_add([data.cont, data.cont2, data.cont3])
+    def test_content_get_random(self, swh_storage, sample_data_model):
+        cont, cont2 = sample_data_model["content"][:2]
+        cont3 = sample_data_model["content_metadata"][0]
+        swh_storage.content_add([cont, cont2, cont3])
 
         assert swh_storage.content_get_random() in {
-            data.cont["sha1_git"],
-            data.cont2["sha1_git"],
-            data.cont3["sha1_git"],
+            cont.sha1_git,
+            cont2.sha1_git,
+            cont3.sha1_git,
         }
 
-    def test_directory_add(self, swh_storage):
-        init_missing = list(swh_storage.directory_missing([data.dir["id"]]))
-        assert [data.dir["id"]] == init_missing
+    def test_directory_add(self, swh_storage, sample_data_model):
+        directory = sample_data_model["directory"][1]
 
-        actual_result = swh_storage.directory_add([data.dir])
+        init_missing = list(swh_storage.directory_missing([directory.id]))
+        assert [directory.id] == init_missing
+
+        actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
             ("directory", Directory.from_dict(data.dir))
         ]
 
-        actual_data = list(swh_storage.directory_ls(data.dir["id"]))
-        expected_data = list(transform_entries(data.dir))
+        actual_data = list(swh_storage.directory_ls(directory.id))
+        expected_data = list(transform_entries(directory))
 
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
-        after_missing = list(swh_storage.directory_missing([data.dir["id"]]))
+        after_missing = list(swh_storage.directory_missing([directory.id]))
         assert after_missing == []
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["directory"] == 1
 
-    def test_directory_add_from_generator(self, swh_storage):
+    def test_directory_add_from_generator(self, swh_storage, sample_data_model):
+        directory = sample_data_model["directory"][1]
+
         def _dir_gen():
-            yield data.dir
+            yield directory
 
         actual_result = swh_storage.directory_add(directories=_dir_gen())
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", Directory.from_dict(data.dir))
+            ("directory", directory)
         ]
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["directory"] == 1
 
-    def test_directory_add_validation(self, swh_storage):
-        dir_ = copy.deepcopy(data.dir)
+    def test_directory_add_validation(self, swh_storage, sample_data_model):
+        directory = sample_data_model["directory"][1]
+        dir_ = directory.to_dict()
         dir_["entries"][0]["type"] = "foobar"
 
         with pytest.raises(StorageArgumentException, match="type.*foobar"):
             swh_storage.directory_add([dir_])
 
-        dir_ = copy.deepcopy(data.dir)
+        dir_ = directory.to_dict()
         del dir_["entries"][0]["target"]
 
         with pytest.raises(StorageArgumentException, match="target") as cm:
@@ -751,98 +759,106 @@ class TestStorage:
         if type(cm.value) == psycopg2.IntegrityError:
             assert cm.value.pgcode == psycopg2.errorcodes.NOT_NULL_VIOLATION
 
-    def test_directory_add_twice(self, swh_storage):
-        actual_result = swh_storage.directory_add([data.dir])
+    def test_directory_add_twice(self, swh_storage, sample_data_model):
+        directory = sample_data_model["directory"][1]
+
+        actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", Directory.from_dict(data.dir))
+            ("directory", directory)
         ]
 
-        actual_result = swh_storage.directory_add([data.dir])
+        actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 0}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", Directory.from_dict(data.dir))
+            ("directory", directory)
         ]
 
-    def test_directory_get_recursive(self, swh_storage):
-        init_missing = list(swh_storage.directory_missing([data.dir["id"]]))
-        assert init_missing == [data.dir["id"]]
+    def test_directory_get_recursive(self, swh_storage, sample_data_model):
+        dir1, dir2, dir3 = sample_data_model["directory"][:3]
 
-        actual_result = swh_storage.directory_add([data.dir, data.dir2, data.dir3])
+        init_missing = list(swh_storage.directory_missing([dir1.id]))
+        assert init_missing == [dir1.id]
+
+        actual_result = swh_storage.directory_add([dir1, dir2, dir3])
         assert actual_result == {"directory:add": 3}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", Directory.from_dict(data.dir)),
-            ("directory", Directory.from_dict(data.dir2)),
-            ("directory", Directory.from_dict(data.dir3)),
+            ("directory", dir1),
+            ("directory", dir2),
+            ("directory", dir3),
         ]
 
         # List directory containing a file and an unknown subdirectory
-        actual_data = list(swh_storage.directory_ls(data.dir["id"], recursive=True))
-        expected_data = list(transform_entries(data.dir))
+        actual_data = list(swh_storage.directory_ls(dir1.id, recursive=True))
+        expected_data = list(transform_entries(dir1))
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
         # List directory containing a file and an unknown subdirectory
-        actual_data = list(swh_storage.directory_ls(data.dir2["id"], recursive=True))
-        expected_data = list(transform_entries(data.dir2))
+        actual_data = list(swh_storage.directory_ls(dir2.id, recursive=True))
+        expected_data = list(transform_entries(dir2))
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
         # List directory containing a known subdirectory, entries should
         # be both those of the directory and of the subdir
-        actual_data = list(swh_storage.directory_ls(data.dir3["id"], recursive=True))
+        actual_data = list(swh_storage.directory_ls(dir3.id, recursive=True))
         expected_data = list(
             itertools.chain(
-                transform_entries(data.dir3),
-                transform_entries(data.dir, prefix=b"subdir/"),
+                transform_entries(dir3), transform_entries(dir2, prefix=b"subdir/"),
             )
         )
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
-    def test_directory_get_non_recursive(self, swh_storage):
-        init_missing = list(swh_storage.directory_missing([data.dir["id"]]))
-        assert init_missing == [data.dir["id"]]
+    def test_directory_get_non_recursive(self, swh_storage, sample_data_model):
+        dir1, dir2, dir3 = sample_data_model["directory"][:3]
 
-        actual_result = swh_storage.directory_add([data.dir, data.dir2, data.dir3])
+        init_missing = list(swh_storage.directory_missing([dir1.id]))
+        assert init_missing == [dir1.id]
+
+        actual_result = swh_storage.directory_add([dir1, dir2, dir3])
         assert actual_result == {"directory:add": 3}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", Directory.from_dict(data.dir)),
-            ("directory", Directory.from_dict(data.dir2)),
-            ("directory", Directory.from_dict(data.dir3)),
+            ("directory", dir1),
+            ("directory", dir2),
+            ("directory", dir3),
         ]
 
         # List directory containing a file and an unknown subdirectory
-        actual_data = list(swh_storage.directory_ls(data.dir["id"]))
-        expected_data = list(transform_entries(data.dir))
+        actual_data = list(swh_storage.directory_ls(dir1.id))
+        expected_data = list(transform_entries(dir1))
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
         # List directory contaiining a single file
-        actual_data = list(swh_storage.directory_ls(data.dir2["id"]))
-        expected_data = list(transform_entries(data.dir2))
+        actual_data = list(swh_storage.directory_ls(dir2.id))
+        expected_data = list(transform_entries(dir2))
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
         # List directory containing a known subdirectory, entries should
         # only be those of the parent directory, not of the subdir
-        actual_data = list(swh_storage.directory_ls(data.dir3["id"]))
-        expected_data = list(transform_entries(data.dir3))
+        actual_data = list(swh_storage.directory_ls(dir3.id))
+        expected_data = list(transform_entries(dir3))
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
-    def test_directory_entry_get_by_path(self, swh_storage):
-        # given
-        init_missing = list(swh_storage.directory_missing([data.dir3["id"]]))
-        assert [data.dir3["id"]] == init_missing
+    def test_directory_entry_get_by_path(self, swh_storage, sample_data_model):
+        cont = sample_data_model["content"][0]
+        dir1, dir2, dir3, dir4 = sample_data_model["directory"][:4]
 
-        actual_result = swh_storage.directory_add([data.dir3, data.dir4])
+        # given
+        init_missing = list(swh_storage.directory_missing([dir3.id]))
+        assert init_missing == [dir3.id]
+
+        actual_result = swh_storage.directory_add([dir3, dir4])
         assert actual_result == {"directory:add": 2}
 
         expected_entries = [
             {
-                "dir_id": data.dir3["id"],
+                "dir_id": dir3.id,
                 "name": b"foo",
                 "type": "file",
-                "target": data.cont["sha1_git"],
+                "target": cont.sha1_git,
                 "sha1": None,
                 "sha1_git": None,
                 "sha256": None,
@@ -851,10 +867,10 @@ class TestStorage:
                 "length": None,
             },
             {
-                "dir_id": data.dir3["id"],
+                "dir_id": dir3.id,
                 "name": b"subdir",
                 "type": "dir",
-                "target": data.dir["id"],
+                "target": dir2.id,
                 "sha1": None,
                 "sha1_git": None,
                 "sha256": None,
@@ -863,7 +879,7 @@ class TestStorage:
                 "length": None,
             },
             {
-                "dir_id": data.dir3["id"],
+                "dir_id": dir3.id,
                 "name": b"hello",
                 "type": "file",
                 "target": b"12345678901234567890",
@@ -877,35 +893,36 @@ class TestStorage:
         ]
 
         # when (all must be found here)
-        for entry, expected_entry in zip(data.dir3["entries"], expected_entries):
+        for entry, expected_entry in zip(dir3.entries, expected_entries):
             actual_entry = swh_storage.directory_entry_get_by_path(
-                data.dir3["id"], [entry["name"]]
+                dir3.id, [entry.name]
             )
             assert actual_entry == expected_entry
 
         # same, but deeper
-        for entry, expected_entry in zip(data.dir3["entries"], expected_entries):
+        for entry, expected_entry in zip(dir3.entries, expected_entries):
             actual_entry = swh_storage.directory_entry_get_by_path(
-                data.dir4["id"], [b"subdir1", entry["name"]]
+                dir4.id, [b"subdir1", entry.name]
             )
             expected_entry = expected_entry.copy()
             expected_entry["name"] = b"subdir1/" + expected_entry["name"]
             assert actual_entry == expected_entry
 
         # when (nothing should be found here since data.dir is not persisted.)
-        for entry in data.dir["entries"]:
+        for entry in dir2.entries:
             actual_entry = swh_storage.directory_entry_get_by_path(
-                data.dir["id"], [entry["name"]]
+                dir2.id, [entry.name]
             )
             assert actual_entry is None
 
-    def test_directory_get_random(self, swh_storage):
-        swh_storage.directory_add([data.dir, data.dir2, data.dir3])
+    def test_directory_get_random(self, swh_storage, sample_data_model):
+        dir1, dir2, dir3 = sample_data_model["directory"][:3]
+        swh_storage.directory_add([dir1, dir2, dir3])
 
         assert swh_storage.directory_get_random() in {
-            data.dir["id"],
-            data.dir2["id"],
-            data.dir3["id"],
+            dir1.id,
+            dir2.id,
+            dir3.id,
         }
 
     def test_revision_add(self, swh_storage):
