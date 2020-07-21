@@ -4,36 +4,11 @@
 # See top-level LICENSE file for more information
 
 
-from swh.storage.pytest_plugin import OBJECT_FACTORY
-
-
 from swh.model.model import BaseModel
 from swh.storage.interface import StorageInterface
 
 
-def test_sample_data(sample_data, sample_data_model):
-    assert set(sample_data.keys()) == set(
-        [
-            "content",
-            "skipped_content",
-            "directory",
-            "revision",
-            "release",
-            "snapshot",
-            "origin",
-            "origin_visit",
-            "fetcher",
-            "authority",
-            "origin_metadata",
-            "content_metadata",
-        ]
-    )
-    for object_type, objs in sample_data.items():
-        for obj in objs:
-            assert isinstance(obj, BaseModel)
-
-
-def test_sample_data_model(sample_data, sample_data_model):
+def test_sample_data(sample_data_model):
     assert set(sample_data_model.keys()) == set(
         [
             "content",
@@ -50,14 +25,9 @@ def test_sample_data_model(sample_data, sample_data_model):
             "content_metadata",
         ]
     )
-
     for object_type, objs in sample_data_model.items():
-        assert object_type in OBJECT_FACTORY
-
         for obj in objs:
             assert isinstance(obj, BaseModel)
-
-        assert len(objs) == len(sample_data[object_type])
 
 
 def test_swh_storage(swh_storage: StorageInterface):

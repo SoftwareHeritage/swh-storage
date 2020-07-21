@@ -92,20 +92,8 @@ content3 = Content(
     ctime=datetime.datetime(2019, 12, 1, tzinfo=datetime.timezone.utc),
 )
 
+contents = (content, content2, content3)
 
-missing_content = Content(
-    data=b"something missing",
-    length=8,
-    sha1=hash_to_bytes("f9c24e2abb82063a3ba2c44efd2d3c797f28ac90"),
-    sha1_git=hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8919"),
-    sha256=hash_to_bytes(
-        "6bbd052ab054ef222c1c87be60cd191addedd24cc882d1f5f7f7be61dc61bb3a"
-    ),
-    blake2s256=hash_to_bytes(
-        "306856b8fd879edb7b6f1aeaaf8db9bbecc993cd7f776c333ac3a782fa5c6eba"
-    ),
-    status="visible",
-)
 
 skipped_content = SkippedContent(
     length=1024 * 1024 * 200,
@@ -136,6 +124,7 @@ skipped_content2 = SkippedContent(
     status="absent",
 )
 
+skipped_contents = (skipped_content, skipped_content2)
 
 directory5 = Directory(entries=())
 
@@ -212,6 +201,8 @@ directory4 = Directory(
         ],
     ),
 )
+
+directories = (directory2, directory, directory3, directory4, directory5)
 
 minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
 plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
@@ -339,14 +330,16 @@ revision4 = Revision(
     synthetic=False,
 )
 
-origins = [
+revisions = (revision, revision2, revision3, revision4)
+
+origins = (
     Origin(url="https://github.com/user1/repo1"),
     Origin(url="https://github.com/user2/repo1"),
     Origin(url="https://github.com/user3/repo1"),
     Origin(url="https://gitlab.com/user1/repo1"),
     Origin(url="https://gitlab.com/user2/repo1"),
     Origin(url="https://forge.softwareheritage.org/source/repo1"),
-]
+)
 
 origin, origin2 = origins[:2]
 
@@ -361,10 +354,14 @@ metadata_authority2 = MetadataAuthority(
     metadata={},
 )
 
+authorities = (metadata_authority, metadata_authority2)
+
 metadata_fetcher = MetadataFetcher(
     name="swh-deposit", version="0.0.1", metadata={"sword_version": "2"},
 )
 metadata_fetcher2 = MetadataFetcher(name="swh-example", version="0.0.1", metadata={},)
+
+fetchers = (metadata_fetcher, metadata_fetcher2)
 
 date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
 type_visit1 = "git"
@@ -387,7 +384,7 @@ origin_visit3 = OriginVisit(
     origin=origin2.url, visit=1, date=date_visit1, type=type_visit2,
 )
 
-origin_visits = [origin_visit, origin_visit2, origin_visit3]
+origin_visits = (origin_visit, origin_visit2, origin_visit3)
 
 release = Release(
     id=hash_to_bytes("a673e617fcc6234e29b2cad06b8245f96c415c61"),
@@ -440,7 +437,7 @@ release3 = Release(
     synthetic=True,
 )
 
-releases = [release, release2, release3]
+releases = (release, release2, release3)
 
 snapshot = Snapshot(
     id=hash_to_bytes("409ee1ff3f10d166714bc90581debfd0446dda57"),
@@ -477,9 +474,9 @@ complete_snapshot = Snapshot(
     },
 )
 
-snapshots = [snapshot, empty_snapshot, complete_snapshot]
+snapshots = (snapshot, empty_snapshot, complete_snapshot)
 
-content_metadata = RawExtrinsicMetadata(
+content_metadata1 = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
     id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
     origin=origin.url,
@@ -522,7 +519,13 @@ content_metadata3 = RawExtrinsicMetadata(
     path=b"/foo/bar",
 )
 
-origin_metadata = RawExtrinsicMetadata(
+content_metadata = (
+    content_metadata1,
+    content_metadata2,
+    content_metadata3,
+)
+
+origin_metadata1 = RawExtrinsicMetadata(
     type=MetadataTargetType.ORIGIN,
     id=origin.url,
     discovery_date=datetime.datetime(
@@ -554,4 +557,10 @@ origin_metadata3 = RawExtrinsicMetadata(
     fetcher=attr.evolve(metadata_fetcher2, metadata=None),
     format="yaml",
     metadata=b"foo: bar",
+)
+
+origin_metadata = (
+    origin_metadata1,
+    origin_metadata2,
+    origin_metadata3,
 )

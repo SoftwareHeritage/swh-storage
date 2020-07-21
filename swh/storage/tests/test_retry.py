@@ -35,7 +35,7 @@ def monkeypatch_sleep(monkeypatch, swh_storage):
 
 
 @pytest.fixture
-def fake_hash_collision(sample_data):
+def fake_hash_collision(sample_data_model):
     return HashCollision("sha1", "38762cf7f55934b34d179ae6a4c80cadccbb7f0a", [])
 
 

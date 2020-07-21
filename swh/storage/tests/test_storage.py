@@ -469,7 +469,7 @@ class TestStorage:
     )
     def test_content_missing(self, swh_storage, algos):
         algos |= {"sha1"}
-        content, missing_content = [data.content2, data.missing_content]
+        content, missing_content = [data.content2, data.skipped_content]
         swh_storage.content_add([content])
 
         test_contents = [content.to_dict()]
@@ -499,7 +499,7 @@ class TestStorage:
     )
     def test_content_missing_unknown_algo(self, swh_storage, algos):
         algos |= {"sha1"}
-        content, missing_content = [data.content2, data.missing_content]
+        content, missing_content = [data.content2, data.skipped_content]
         swh_storage.content_add([content])
 
         test_contents = [content.to_dict()]
@@ -3161,9 +3161,8 @@ class TestStorage:
             MetadataTargetType.CONTENT, content_swhid, authority
         )
         assert result["next_page_token"] is None
-        assert (
-            list(sorted(result["results"], key=lambda x: x.discovery_date,))
-            == content_metadata
+        assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == list(
+            content_metadata
         )
 
     def test_content_metadata_add_duplicate(self, swh_storage, sample_data_model):

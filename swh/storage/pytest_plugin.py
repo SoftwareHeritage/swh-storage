@@ -6,7 +6,7 @@
 import glob
 
 from os import path, environ
-from typing import Dict, Iterable, Union
+from typing import Dict, Tuple, Union
 
 import pytest
 
@@ -16,20 +16,7 @@ from pytest_postgresql import factories
 from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
 
 from swh.core.utils import numfile_sortkey as sortkey
-from swh.model.model import (
-    BaseModel,
-    Content,
-    Directory,
-    MetadataAuthority,
-    MetadataFetcher,
-    Origin,
-    OriginVisit,
-    RawExtrinsicMetadata,
-    Release,
-    Revision,
-    SkippedContent,
-    Snapshot,
-)
+from swh.model.model import BaseModel
 from swh.storage import get_storage
 from swh.storage.tests.storage_data import data
 
@@ -201,75 +188,25 @@ class SwhDatabaseJanitor(DatabaseJanitor):
 
 
 @pytest.fixture
-def sample_data() -> Dict:
+def sample_data_model() -> Dict[str, Tuple[BaseModel, ...]]:
     """Pre-defined sample storage object data to manipulate
 
     Returns:
-        Dict of data (keys: content, directory, revision, release, person,
+        Dict of data model objects (keys: content, directory, revision, release, person,
         origin)
 
     """
     return {
-        "content": [data.content, data.content2, data.content3],
-        "skipped_content": [data.skipped_content, data.skipped_content2],
-        "directory": [
-            data.directory2,
-            data.directory,
-            data.directory3,
-            data.directory4,
-            data.directory5,
-        ],
-        "revision": [data.revision, data.revision2, data.revision3, data.revision4],
+        "content": data.contents,
+        "skipped_content": data.skipped_contents,
+        "directory": data.directories,
+        "revision": data.revisions,
         "release": data.releases,
         "snapshot": data.snapshots,
         "origin": data.origins,
         "origin_visit": data.origin_visits,
-        "fetcher": [data.metadata_fetcher, data.metadata_fetcher2],
-        "authority": [data.metadata_authority, data.metadata_authority2],
-        "origin_metadata": [
-            data.origin_metadata,
-            data.origin_metadata2,
-            data.origin_metadata3,
-        ],
-        "content_metadata": [
-            data.content_metadata,
-            data.content_metadata2,
-            data.content_metadata3,
-        ],
-    }
-
-
-# FIXME: Add the metadata keys when we can (right now, we cannot as the data model
-# changed but not the endpoints yet)
-OBJECT_FACTORY = {
-    "content": Content.from_dict,
-    "skipped_content": SkippedContent.from_dict,
-    "directory": Directory.from_dict,
-    "revision": Revision.from_dict,
-    "release": Release.from_dict,
-    "snapshot": Snapshot.from_dict,
-    "origin": Origin.from_dict,
-    "origin_visit": OriginVisit.from_dict,
-    "fetcher": MetadataFetcher.from_dict,
-    "authority": MetadataAuthority.from_dict,
-    "origin_metadata": RawExtrinsicMetadata.from_dict,
-    "content_metadata": RawExtrinsicMetadata.from_dict,
-}
-
-
-@pytest.fixture
-def sample_data_model(sample_data) -> Dict[str, Iterable[BaseModel]]:
-    """Pre-defined sample storage object model to manipulate
-
-    Returns:
-        Dict of data (keys: content, directory, revision, release, person, origin, ...)
-        values list of object data model with the corresponding types
-
-    """
-    return {
-        object_type: [
-            convert_fn(obj) if isinstance(obj, dict) else obj
-            for obj in sample_data[object_type]
-        ]
-        for object_type, convert_fn in OBJECT_FACTORY.items()
+        "fetcher": data.fetchers,
+        "authority": data.authorities,
+        "origin_metadata": data.origin_metadata,
+        "content_metadata": data.content_metadata,
     }
