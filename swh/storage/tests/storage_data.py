@@ -18,6 +18,7 @@ from swh.model.model import (
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    Origin,
     Person,
     RawExtrinsicMetadata,
     Revision,
@@ -332,16 +333,16 @@ revision4 = Revision(
     synthetic=False,
 )
 
-origin = {
-    "url": "file:///dev/null",
-}
+origins = [
+    Origin(url="https://github.com/user1/repo1"),
+    Origin(url="https://github.com/user2/repo1"),
+    Origin(url="https://github.com/user3/repo1"),
+    Origin(url="https://gitlab.com/user1/repo1"),
+    Origin(url="https://gitlab.com/user2/repo1"),
+    Origin(url="https://forge.softwareheritage.org/source/repo1"),
+]
 
-origin2 = {
-    "url": "file:///dev/zero",
-}
-
-origins = (origin, origin2)
-
+origin, origin2 = origins[:2]
 
 metadata_authority = MetadataAuthority(
     type=MetadataAuthorityType.DEPOSIT_CLIENT,
@@ -369,21 +370,21 @@ date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.u
 type_visit3 = "deb"
 
 origin_visit = {
-    "origin": origin["url"],
+    "origin": origin.url,
     "visit": 1,
     "date": date_visit1,
     "type": type_visit1,
 }
 
 origin_visit2 = {
-    "origin": origin["url"],
+    "origin": origin.url,
     "visit": 2,
     "date": date_visit2,
     "type": type_visit1,
 }
 
 origin_visit3 = {
-    "origin": origin2["url"],
+    "origin": origin2.url,
     "visit": 1,
     "date": date_visit1,
     "type": type_visit2,
@@ -503,7 +504,7 @@ snapshots = (snapshot, empty_snapshot, complete_snapshot)
 content_metadata = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
     id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
-    origin=origin["url"],
+    origin=origin.url,
     discovery_date=datetime.datetime(
         2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
     ),
@@ -515,7 +516,7 @@ content_metadata = RawExtrinsicMetadata(
 content_metadata2 = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
     id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
-    origin=origin2["url"],
+    origin=origin2.url,
     discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
@@ -534,7 +535,7 @@ content_metadata3 = RawExtrinsicMetadata(
     fetcher=attr.evolve(metadata_fetcher2, metadata=None),
     format="yaml",
     metadata=b"foo: bar",
-    origin=origin["url"],
+    origin=origin.url,
     visit=42,
     snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot['id'])}"),
     release=parse_swhid(f"swh:1:rel:{hash_to_hex(release['id'])}"),
@@ -545,7 +546,7 @@ content_metadata3 = RawExtrinsicMetadata(
 
 origin_metadata = RawExtrinsicMetadata(
     type=MetadataTargetType.ORIGIN,
-    id=origin["url"],
+    id=origin.url,
     discovery_date=datetime.datetime(
         2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
     ),
@@ -556,7 +557,7 @@ origin_metadata = RawExtrinsicMetadata(
 )
 origin_metadata2 = RawExtrinsicMetadata(
     type=MetadataTargetType.ORIGIN,
-    id=origin["url"],
+    id=origin.url,
     discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
@@ -567,7 +568,7 @@ origin_metadata2 = RawExtrinsicMetadata(
 )
 origin_metadata3 = RawExtrinsicMetadata(
     type=MetadataTargetType.ORIGIN,
-    id=origin["url"],
+    id=origin.url,
     discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),

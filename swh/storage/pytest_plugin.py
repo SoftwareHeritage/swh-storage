@@ -222,7 +222,7 @@ def sample_data() -> Dict:
         "revision": [data.revision, data.revision2, data.revision3, data.revision4],
         "release": [data.release, data.release2, data.release3],
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
-        "origin": [data.origin, data.origin2],
+        "origin": data.origins,
         "origin_visit": [data.origin_visit, data.origin_visit2, data.origin_visit3],
         "fetcher": [data.metadata_fetcher, data.metadata_fetcher2],
         "authority": [data.metadata_authority, data.metadata_authority2],

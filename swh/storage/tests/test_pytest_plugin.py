@@ -34,6 +34,7 @@ def test_sample_data(sample_data, sample_data_model):
             "skipped_content",
             "directory",
             "revision",
+            "origin",
             "fetcher",
             "authority",
             "origin_metadata",
