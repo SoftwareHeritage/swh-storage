@@ -31,12 +31,18 @@ def test_sample_data(sample_data, sample_data_model):
         ]
     )
     for object_type, objs in sample_data.items():
-        for obj in objs:
-            assert isinstance(obj, dict)
+        if object_type in [
+            "fetcher",
+            "authority",
+            "origin_metadata",
+            "content_metadata",
+        ]:
+            type_ = BaseModel
+        else:
+            type_ = dict
 
-        if sample_data_model.get(object_type):
-            # metadata keys are missing because conversion is not possible yet
-            assert len(objs) == len(sample_data_model[object_type])
+        for obj in objs:
+            assert isinstance(obj, type_)
 
 
 def test_sample_data_model(sample_data, sample_data_model):

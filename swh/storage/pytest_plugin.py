@@ -221,27 +221,17 @@ def sample_data() -> Dict:
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
         "origin": [data.origin, data.origin2],
         "origin_visit": [data.origin_visit, data.origin_visit2, data.origin_visit3],
-        "fetcher": [
-            m.to_dict() for m in [data.metadata_fetcher, data.metadata_fetcher2]
-        ],
-        "authority": [
-            m.to_dict() for m in [data.metadata_authority, data.metadata_authority2]
-        ],
+        "fetcher": [data.metadata_fetcher, data.metadata_fetcher2],
+        "authority": [data.metadata_authority, data.metadata_authority2],
         "origin_metadata": [
-            m.to_dict()
-            for m in [
-                data.origin_metadata,
-                data.origin_metadata2,
-                data.origin_metadata3,
-            ]
+            data.origin_metadata,
+            data.origin_metadata2,
+            data.origin_metadata3,
         ],
         "content_metadata": [
-            m.to_dict()
-            for m in [
-                data.content_metadata,
-                data.content_metadata2,
-                data.content_metadata3,
-            ]
+            data.content_metadata,
+            data.content_metadata2,
+            data.content_metadata3,
         ],
     }
 
@@ -276,6 +266,9 @@ def sample_data_model(sample_data) -> Dict[str, Iterable[BaseModel]]:
 
     """
     return {
-        object_type: [convert_fn(obj) for obj in sample_data[object_type]]
+        object_type: [
+            convert_fn(obj) if isinstance(obj, dict) else obj
+            for obj in sample_data[object_type]
+        ]
         for object_type, convert_fn in OBJECT_FACTORY.items()
     }
