@@ -45,7 +45,6 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
-from swh.storage.validate import VALIDATION_EXCEPTIONS
 from swh.storage.utils import now
 
 from . import converters
@@ -65,14 +64,17 @@ EMPTY_SNAPSHOT_ID = hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e")
 """Identifier for the empty snapshot"""
 
 
-VALIDATION_EXCEPTIONS = VALIDATION_EXCEPTIONS + [
+VALIDATION_EXCEPTIONS = (
+    KeyError,
+    TypeError,
+    ValueError,
     psycopg2.errors.CheckViolation,
     psycopg2.errors.IntegrityError,
     psycopg2.errors.InvalidTextRepresentation,
     psycopg2.errors.NotNullViolation,
     psycopg2.errors.NumericValueOutOfRange,
     psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
-]
+)
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
 
@@ -389,23 +391,6 @@ class Storage:
             d["length"] = -1
 
         return d
-
-    @staticmethod
-    def _skipped_content_validate(d):
-        """Sanity checks on status / reason / length, that postgresql
-        doesn't enforce."""
-        if d["status"] != "absent":
-            raise StorageArgumentException(
-                "Invalid content status: {}".format(d["status"])
-            )
-
-        if d.get("reason") is None:
-            raise StorageArgumentException(
-                "Must provide a reason if content is absent."
-            )
-
-        if d["length"] < -1:
-            raise StorageArgumentException("Content length must be positive or -1.")
 
     def _skipped_content_add_metadata(self, db, cur, content: Iterable[SkippedContent]):
         origin_ids = db.origin_id_get_by_url([cont.origin for cont in content], cur=cur)

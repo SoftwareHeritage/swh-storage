@@ -549,6 +549,7 @@ class CassandraStorage:
         return self._cql_runner.release_get_random().id
 
     def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
+        snapshots = list(snapshots)
         missing = self._cql_runner.snapshot_missing([snp.id for snp in snapshots])
         snapshots = [snp for snp in snapshots if snp.id in missing]
 
@@ -774,6 +775,7 @@ class CassandraStorage:
         return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
 
     def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
+        origins = list(origins)
         known_origins = [
             Origin.from_dict(d)
             for d in self.origin_get([origin.to_dict() for origin in origins])

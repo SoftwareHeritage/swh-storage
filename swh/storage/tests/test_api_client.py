@@ -34,7 +34,10 @@ def app(app_server):
 @pytest.fixture
 def swh_rpc_client_class():
     def storage_factory(**kwargs):
-        storage_config = {"cls": "validate", "storage": {"cls": "remote", **kwargs,}}
+        storage_config = {
+            "cls": "remote",
+            **kwargs,
+        }
         return get_storage(**storage_config)
 
     return storage_factory

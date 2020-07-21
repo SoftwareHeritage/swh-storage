@@ -17,14 +17,13 @@ from datetime import timedelta
 from unittest.mock import Mock
 
 import attr
-import psycopg2
 import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
 
-from typing import ClassVar, Dict, Optional, Union
+from typing import ClassVar, Optional
 
-from swh.model import from_disk, identifiers
+from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import SWHID
 from swh.model.model import (
@@ -55,15 +54,6 @@ def db_transaction(storage):
     with storage.db() as db:
         with db.transaction() as cur:
             yield db, cur
-
-
-def normalize_entity(obj: Union[Revision, Release]) -> Dict:
-    """Normalize entity model object (revision, release)"""
-    entity = obj.to_dict()
-    for key in ("date", "committer_date"):
-        if key in entity:
-            entity[key] = identifiers.normalize_timestamp(entity[key])
-    return entity
 
 
 def transform_entries(dir_, *, prefix=b""):
@@ -223,8 +213,7 @@ class TestStorage:
 
         insertion_start_time = now()
 
-        # bypass the validation proxy for now, to directly put a dict
-        actual_result = swh_storage.storage.content_add([lazy_content])
+        actual_result = swh_storage.content_add([lazy_content])
 
         insertion_end_time = now()
 
@@ -253,33 +242,6 @@ class TestStorage:
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
-
-    def test_content_add_validation(self, swh_storage, sample_data_model):
-        cont = sample_data_model["content"][0].to_dict()
-
-        with pytest.raises(StorageArgumentException, match="status"):
-            swh_storage.content_add([{**cont, "status": "absent"}])
-
-        with pytest.raises(StorageArgumentException, match="status"):
-            swh_storage.content_add([{**cont, "status": "foobar"}])
-
-        with pytest.raises(StorageArgumentException, match="(?i)length"):
-            swh_storage.content_add([{**cont, "length": -2}])
-
-        with pytest.raises(StorageArgumentException, match="reason"):
-            swh_storage.content_add([{**cont, "reason": "foobar"}])
-
-    def test_skipped_content_add_validation(self, swh_storage, sample_data_model):
-        cont = attr.evolve(sample_data_model["content"][0], data=None).to_dict()
-
-        with pytest.raises(StorageArgumentException, match="status"):
-            swh_storage.skipped_content_add([{**cont, "status": "visible"}])
-
-        with pytest.raises(StorageArgumentException, match="reason") as cm:
-            swh_storage.skipped_content_add([{**cont, "status": "absent"}])
-
-        if type(cm.value) == psycopg2.IntegrityError:
-            assert cm.exception.pgcode == psycopg2.errorcodes.NOT_NULL_VIOLATION
 
     def test_content_get_missing(self, swh_storage, sample_data_model):
         cont, cont2 = sample_data_model["content"][:2]
@@ -366,7 +328,7 @@ class TestStorage:
     def test_content_update(self, swh_storage, sample_data_model):
         cont1 = sample_data_model["content"][0]
 
-        if hasattr(swh_storage, "storage"):
+        if hasattr(swh_storage, "journal_writer"):
             swh_storage.journal_writer.journal = None  # TODO, not supported
 
         swh_storage.content_add([cont1])
@@ -739,23 +701,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["directory"] == 1
 
-    def test_directory_add_validation(self, swh_storage, sample_data_model):
-        directory = sample_data_model["directory"][1]
-        dir_ = directory.to_dict()
-        dir_["entries"][0]["type"] = "foobar"
-
-        with pytest.raises(StorageArgumentException, match="type.*foobar"):
-            swh_storage.directory_add([dir_])
-
-        dir_ = directory.to_dict()
-        del dir_["entries"][0]["target"]
-
-        with pytest.raises(StorageArgumentException, match="target") as cm:
-            swh_storage.directory_add([dir_])
-
-        if type(cm.value) == psycopg2.IntegrityError:
-            assert cm.value.pgcode == psycopg2.errorcodes.NOT_NULL_VIOLATION
-
     def test_directory_add_twice(self, swh_storage, sample_data_model):
         directory = sample_data_model["directory"][1]
 
@@ -956,36 +901,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["revision"] == 1
 
-    def test_revision_add_validation(self, swh_storage, sample_data_model):
-        revision = sample_data_model["revision"][0]
-
-        rev = revision.to_dict()
-        rev["date"]["offset"] = 2 ** 16
-
-        with pytest.raises(StorageArgumentException, match="offset") as cm:
-            swh_storage.revision_add([rev])
-
-        if type(cm.value) == psycopg2.DataError:
-            assert cm.value.pgcode == psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE
-
-        rev = revision.to_dict()
-        rev["committer_date"]["offset"] = 2 ** 16
-
-        with pytest.raises(StorageArgumentException, match="offset") as cm:
-            swh_storage.revision_add([rev])
-
-        if type(cm.value) == psycopg2.DataError:
-            assert cm.value.pgcode == psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE
-
-        rev = revision.to_dict()
-        rev["type"] = "foobar"
-
-        with pytest.raises(StorageArgumentException, match="(?i)type") as cm:
-            swh_storage.revision_add([rev])
-
-        if type(cm.value) == psycopg2.DataError:
-            assert cm.value.pgcode == psycopg2.errorcodes.INVALID_TEXT_REPRESENTATION
-
     def test_revision_add_twice(self, swh_storage, sample_data_model):
         revision, revision2 = sample_data_model["revision"][:2]
 
@@ -1034,11 +949,12 @@ class TestStorage:
 
         # order 1
         res1 = swh_storage.revision_get([revision.id, revision2.id])
-        assert list(res1) == [revision.to_dict(), revision2.to_dict()]
+
+        assert [Revision.from_dict(r) for r in res1] == [revision, revision2]
 
         # order 2
         res2 = swh_storage.revision_get([revision2.id, revision.id])
-        assert list(res2) == [revision2.to_dict(), revision.to_dict()]
+        assert [Revision.from_dict(r) for r in res2] == [revision2, revision]
 
     def test_revision_log(self, swh_storage, sample_data_model):
         revision3, revision4 = sample_data_model["revision"][2:4]
@@ -1047,11 +963,12 @@ class TestStorage:
         swh_storage.revision_add([revision3, revision4])
 
         # when
-        actual_results = list(swh_storage.revision_log([revision4.id]))
+        results = list(swh_storage.revision_log([revision4.id]))
 
+        # for comparison purposes
+        actual_results = [Revision.from_dict(r) for r in results]
         assert len(actual_results) == 2  # rev4 -child-> rev3
-        assert actual_results[0] == normalize_entity(revision4)
-        assert actual_results[1] == normalize_entity(revision3)
+        assert actual_results == [revision4, revision3]
 
         assert list(swh_storage.journal_writer.journal.objects) == [
             ("revision", revision3),
@@ -1063,10 +980,11 @@ class TestStorage:
 
         # data.revision4 -is-child-of-> data.revision3
         swh_storage.revision_add([revision3, revision4])
-        actual_results = list(swh_storage.revision_log([revision4.id], 1))
+        results = list(swh_storage.revision_log([revision4.id], 1))
 
+        actual_results = [Revision.from_dict(r) for r in results]
         assert len(actual_results) == 1
-        assert actual_results[0] == normalize_entity(revision4)
+        assert actual_results[0] == revision4
 
     def test_revision_log_unknown_revision(self, swh_storage, sample_data_model):
         revision = sample_data_model["revision"][0]
@@ -1080,7 +998,9 @@ class TestStorage:
         swh_storage.revision_add([revision3, revision4])
 
         # when
-        actual_results = list(swh_storage.revision_shortlog([revision4.id]))
+        results = list(swh_storage.revision_shortlog([revision4.id]))
+
+        actual_results = [[id, tuple(parents)] for (id, parents) in results]
 
         assert len(actual_results) == 2  # rev4 -child-> rev3
         assert list(actual_results[0]) == [revision4.id, revision4.parents]
@@ -1091,7 +1011,8 @@ class TestStorage:
 
         # data.revision4 -is-child-of-> data.revision3
         swh_storage.revision_add([revision3, revision4])
-        actual_results = list(swh_storage.revision_shortlog([revision4.id], 1))
+        results = list(swh_storage.revision_shortlog([revision4.id], 1))
+        actual_results = [[id, tuple(parents)] for (id, parents) in results]
 
         assert len(actual_results) == 1
         assert list(actual_results[0]) == [revision4.id, revision4.parents]
@@ -1104,7 +1025,7 @@ class TestStorage:
         actual_revisions = list(swh_storage.revision_get([revision.id, revision2.id]))
 
         assert len(actual_revisions) == 2
-        assert actual_revisions[0] == normalize_entity(revision)
+        assert Revision.from_dict(actual_revisions[0]) == revision
         assert actual_revisions[1] is None
 
     def test_revision_get_no_parents(self, swh_storage, sample_data_model):
@@ -1114,7 +1035,7 @@ class TestStorage:
         get = list(swh_storage.revision_get([revision.id]))
 
         assert len(get) == 1
-        assert get[0]["parents"] == ()  # no parents on this one
+        assert tuple(get[0]["parents"]) == ()  # no parents on this one
 
     def test_revision_get_random(self, swh_storage, sample_data_model):
         revision1, revision2, revision3 = sample_data_model["revision"][:3]
@@ -1183,34 +1104,6 @@ class TestStorage:
             ("release", release)
         ]
 
-    def test_release_add_validation(self, swh_storage, sample_data_model):
-        release = sample_data_model["release"][0]
-
-        rel = release.to_dict()
-        rel["date"]["offset"] = 2 ** 16
-
-        with pytest.raises(StorageArgumentException, match="offset") as cm:
-            swh_storage.release_add([rel])
-
-        if type(cm.value) == psycopg2.DataError:
-            assert cm.value.pgcode == psycopg2.errorcodes.NUMERIC_VALUE_OUT_OF_RANGE
-
-        rel = release.to_dict()
-        rel["author"] = None
-
-        with pytest.raises(StorageArgumentException, match="date") as cm:
-            swh_storage.release_add([rel])
-
-        if type(cm.value) == psycopg2.IntegrityError:
-            assert cm.value.pgcode == psycopg2.errorcodes.CHECK_VIOLATION
-
-    def test_release_add_validation_type(self, swh_storage, sample_data_model):
-        release = sample_data_model["release"][0]
-        rel = release.to_dict()
-        rel["date"]["offset"] = "toto"
-        with pytest.raises(StorageArgumentException):
-            swh_storage.release_add([rel])
-
     def test_release_add_twice(self, swh_storage, sample_data_model):
         release, release2 = sample_data_model["release"][:2]
 
@@ -1251,13 +1144,11 @@ class TestStorage:
         swh_storage.release_add([release, release2])
 
         # when
-        actual_releases = list(swh_storage.release_get([release.id, release2.id]))
+        releases = list(swh_storage.release_get([release.id, release2.id]))
+        actual_releases = [Release.from_dict(r) for r in releases]
 
         # then
-        assert [actual_releases[0], actual_releases[1],] == [
-            normalize_entity(release),
-            normalize_entity(release2),
-        ]
+        assert actual_releases == [release, release2]
 
         unknown_releases = list(swh_storage.release_get([release3.id]))
         assert unknown_releases[0] is None
@@ -1348,17 +1239,6 @@ class TestStorage:
             [("origin", origin), ("origin", origin2),]
         )
         assert add2 == {"origin:add": 0}
-
-    def test_origin_add_validation(self, swh_storage):
-        """Incorrect formatted origin should fail the validation
-
-        """
-        with pytest.raises(StorageArgumentException, match="url"):
-            swh_storage.origin_add([{}])
-        with pytest.raises(
-            StorageArgumentException, match="unexpected keyword argument"
-        ):
-            swh_storage.origin_add([{"ul": "mistyped url key"}])
 
     def test_origin_get_legacy(self, swh_storage, sample_data_model):
         origin, origin2 = sample_data_model["origin"][:2]
@@ -2531,21 +2411,6 @@ class TestStorage:
             ("snapshot", empty_snapshot),
             ("snapshot", snapshot),
         ]
-
-    def test_snapshot_add_validation(self, swh_storage, sample_data_model):
-        snapshot = sample_data_model["snapshot"][0]
-
-        snap = snapshot.to_dict()
-        snap["branches"][b"foo"] = {"target_type": "revision"}
-
-        with pytest.raises(StorageArgumentException, match="target"):
-            swh_storage.snapshot_add([snap])
-
-        snap = snapshot.to_dict()
-        snap["branches"][b"foo"] = {"target": b"\x42" * 20}
-
-        with pytest.raises(StorageArgumentException, match="target_type"):
-            swh_storage.snapshot_add([snap])
 
     def test_snapshot_add_count_branches(self, swh_storage, sample_data_model):
         complete_snapshot = sample_data_model["snapshot"][2]

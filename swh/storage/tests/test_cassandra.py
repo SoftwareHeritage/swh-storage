@@ -205,9 +205,7 @@ class TestCassandraStorage(_TestStorage):
             return [123456]
 
         mocker.patch.object(
-            swh_storage.storage._cql_runner,
-            "content_get_tokens_from_single_hash",
-            mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
         )
 
         # For all tokens, always return cont
@@ -219,7 +217,7 @@ class TestCassandraStorage(_TestStorage):
             return [Row(**{algo: getattr(cont, algo) for algo in HASH_ALGORITHMS})]
 
         mocker.patch.object(
-            swh_storage.storage._cql_runner, "content_get_from_token", mock_cgft
+            swh_storage._cql_runner, "content_get_from_token", mock_cgft
         )
 
         actual_result = swh_storage.content_add([cont2])
@@ -252,9 +250,7 @@ class TestCassandraStorage(_TestStorage):
             return [123456]
 
         mocker.patch.object(
-            swh_storage.storage._cql_runner,
-            "content_get_tokens_from_single_hash",
-            mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
         )
 
         # For all tokens, always return cont and cont2
@@ -270,7 +266,7 @@ class TestCassandraStorage(_TestStorage):
             ]
 
         mocker.patch.object(
-            swh_storage.storage._cql_runner, "content_get_from_token", mock_cgft
+            swh_storage._cql_runner, "content_get_from_token", mock_cgft
         )
 
         actual_result = swh_storage.content_get_metadata([cont.sha1])
@@ -306,9 +302,7 @@ class TestCassandraStorage(_TestStorage):
             return [123456]
 
         mocker.patch.object(
-            swh_storage.storage._cql_runner,
-            "content_get_tokens_from_single_hash",
-            mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
         )
 
         # For all tokens, always return cont and cont2
@@ -324,7 +318,7 @@ class TestCassandraStorage(_TestStorage):
             ]
 
         mocker.patch.object(
-            swh_storage.storage._cql_runner, "content_get_from_token", mock_cgft
+            swh_storage._cql_runner, "content_get_from_token", mock_cgft
         )
 
         expected_cont = attr.evolve(cont, data=None).to_dict()

@@ -17,7 +17,6 @@ from typing import Iterable
 
 from swh.model.model import BaseContent, Origin
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
-from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
 # define tests profile. Full documentation is at:
@@ -47,11 +46,6 @@ def swh_storage_backend_config(swh_storage_backend_config):
 
     """
     yield {**swh_storage_backend_config, "journal_writer": {"cls": "memory",}}
-
-
-@pytest.fixture
-def swh_storage(swh_storage_backend_config):
-    return get_storage(cls="validate", storage=swh_storage_backend_config)
 
 
 @pytest.fixture

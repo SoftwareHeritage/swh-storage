@@ -8,6 +8,7 @@ from swh.storage.pytest_plugin import OBJECT_FACTORY
 
 
 from swh.model.model import BaseModel
+from swh.storage.interface import StorageInterface
 
 
 def test_sample_data(sample_data, sample_data_model):
@@ -67,10 +68,8 @@ def test_sample_data_model(sample_data, sample_data_model):
         assert len(objs) == len(sample_data[object_type])
 
 
-def test_swh_storage(swh_storage):
-    # Cannot check yet that it's an instance of StorageInterface (due to validate proxy
-    # again). That ensures though that it's instantiable
-    assert swh_storage is not None
+def test_swh_storage(swh_storage: StorageInterface):
+    assert isinstance(swh_storage, StorageInterface) is not None
 
 
 def test_swh_storage_backend_config(swh_storage_backend_config):
