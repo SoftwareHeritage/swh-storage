@@ -32,6 +32,7 @@ def test_sample_data(sample_data, sample_data_model):
         if object_type in [
             "content",
             "skipped_content",
+            "directory",
             "fetcher",
             "authority",
             "origin_metadata",

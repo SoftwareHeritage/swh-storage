@@ -28,7 +28,6 @@ from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
-    Directory,
     MetadataTargetType,
     Origin,
     OriginVisit,
@@ -668,7 +667,7 @@ class TestStorage:
         assert actual_result == {"directory:add": 1}
 
         assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", Directory.from_dict(data.dir))
+            ("directory", directory)
         ]
 
         actual_data = list(swh_storage.directory_ls(directory.id))
@@ -783,7 +782,7 @@ class TestStorage:
 
     def test_directory_entry_get_by_path(self, swh_storage, sample_data_model):
         cont = sample_data_model["content"][0]
-        dir1, dir2, dir3, dir4 = sample_data_model["directory"][:4]
+        dir1, dir2, dir3, dir4, dir5 = sample_data_model["directory"][:5]
 
         # given
         init_missing = list(swh_storage.directory_missing([dir3.id]))
@@ -821,7 +820,7 @@ class TestStorage:
                 "dir_id": dir3.id,
                 "name": b"hello",
                 "type": "file",
-                "target": b"12345678901234567890",
+                "target": dir5.id,
                 "sha1": None,
                 "sha1_git": None,
                 "sha256": None,
@@ -847,7 +846,7 @@ class TestStorage:
             expected_entry["name"] = b"subdir1/" + expected_entry["name"]
             assert actual_entry == expected_entry
 
-        # when (nothing should be found here since data.dir is not persisted.)
+        # when (nothing should be found here since `dir` is not persisted.)
         for entry in dir2.entries:
             actual_entry = swh_storage.directory_entry_get_by_path(
                 dir2.id, [entry.name]

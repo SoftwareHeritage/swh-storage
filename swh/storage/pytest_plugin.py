@@ -212,7 +212,13 @@ def sample_data() -> Dict:
     return {
         "content": [data.content, data.content2, data.content3],
         "skipped_content": [data.skipped_content, data.skipped_content2],
-        "directory": [data.dir2, data.dir, data.dir3, data.dir4],
+        "directory": [
+            data.directory2,
+            data.directory,
+            data.directory3,
+            data.directory4,
+            data.directory5,
+        ],
         "revision": [data.revision, data.revision2, data.revision3, data.revision4],
         "release": [data.release, data.release2, data.release3],
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],

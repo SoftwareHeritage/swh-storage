@@ -12,6 +12,8 @@ from swh.model import from_disk
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
     Content,
+    Directory,
+    DirectoryEntry,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -123,74 +125,81 @@ skipped_content2 = SkippedContent(
 )
 
 
-dir = {
-    "id": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),
-    "entries": (
-        {
-            "name": b"foo",
-            "type": "file",
-            "target": content.sha1_git,
-            "perms": from_disk.DentryPerms.content,
-        },
-        {
-            "name": b"bar\xc3",
-            "type": "dir",
-            "target": b"12345678901234567890",
-            "perms": from_disk.DentryPerms.directory,
-        },
+directory5 = Directory(entries=())
+
+directory = Directory(
+    id=hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),
+    entries=tuple(
+        [
+            DirectoryEntry(
+                name=b"foo",
+                type="file",
+                target=content.sha1_git,
+                perms=from_disk.DentryPerms.content,
+            ),
+            DirectoryEntry(
+                name=b"bar\xc3",
+                type="dir",
+                target=directory5.id,
+                perms=from_disk.DentryPerms.directory,
+            ),
+        ],
     ),
-}
+)
 
-dir2 = {
-    "id": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),
-    "entries": (
-        {
-            "name": b"oof",
-            "type": "file",
-            "target": content2.sha1_git,
-            "perms": from_disk.DentryPerms.content,
-        },
+directory2 = Directory(
+    id=hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),
+    entries=tuple(
+        [
+            DirectoryEntry(
+                name=b"oof",
+                type="file",
+                target=content2.sha1_git,
+                perms=from_disk.DentryPerms.content,
+            )
+        ],
     ),
-}
+)
 
-dir3 = {
-    "id": hash_to_bytes("4ea8c6b2f54445e5dd1a9d5bb2afd875d66f3150"),
-    "entries": (
-        {
-            "name": b"foo",
-            "type": "file",
-            "target": content.sha1_git,
-            "perms": from_disk.DentryPerms.content,
-        },
-        {
-            "name": b"subdir",
-            "type": "dir",
-            "target": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
-            "perms": from_disk.DentryPerms.directory,
-        },
-        {
-            "name": b"hello",
-            "type": "file",
-            "target": b"12345678901234567890",
-            "perms": from_disk.DentryPerms.content,
-        },
+directory3 = Directory(
+    id=hash_to_bytes("4ea8c6b2f54445e5dd1a9d5bb2afd875d66f3150"),
+    entries=tuple(
+        [
+            DirectoryEntry(
+                name=b"foo",
+                type="file",
+                target=content.sha1_git,
+                perms=from_disk.DentryPerms.content,
+            ),
+            DirectoryEntry(
+                name=b"subdir",
+                type="dir",
+                target=directory.id,
+                perms=from_disk.DentryPerms.directory,
+            ),
+            DirectoryEntry(
+                name=b"hello",
+                type="file",
+                target=directory5.id,
+                perms=from_disk.DentryPerms.content,
+            ),
+        ],
     ),
-}
+)
 
-dir4 = {
-    "id": hash_to_bytes("377aa5fcd944fbabf502dbfda55cd14d33c8c3c6"),
-    "entries": (
-        {
-            "name": b"subdir1",
-            "type": "dir",
-            "target": hash_to_bytes("4ea8c6b2f54445e5dd1a9d5bb2afd875d66f3150"),  # dir3
-            "perms": from_disk.DentryPerms.directory,
-        },
+directory4 = Directory(
+    id=hash_to_bytes("377aa5fcd944fbabf502dbfda55cd14d33c8c3c6"),
+    entries=tuple(
+        [
+            DirectoryEntry(
+                name=b"subdir1",
+                type="dir",
+                target=directory3.id,
+                perms=from_disk.DentryPerms.directory,
+            )
+        ],
     ),
-}
-
-directories = (dir, dir2, dir3, dir4)
-
+)
 
 minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
 plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
@@ -538,7 +547,7 @@ content_metadata3 = RawExtrinsicMetadata(
     snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot['id'])}"),
     release=parse_swhid(f"swh:1:rel:{hash_to_hex(release['id'])}"),
     revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision['id'])}"),
-    directory=parse_swhid(f"swh:1:dir:{hash_to_hex(dir['id'])}"),
+    directory=parse_swhid(f"swh:1:dir:{hash_to_hex(directory.id)}"),
     path=b"/foo/bar",
 )
 
