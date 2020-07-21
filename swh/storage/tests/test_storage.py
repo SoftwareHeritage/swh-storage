@@ -953,28 +953,23 @@ class TestStorage:
         assert [Revision.from_dict(r) for r in res2] == [revision2, revision]
 
     def test_revision_log(self, swh_storage, sample_data_model):
-        revision3, revision4 = sample_data_model["revision"][2:4]
+        revision1, revision2, revision3, revision4 = sample_data_model["revision"][:4]
 
-        # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([revision3, revision4])
+        # rev4 -is-child-of-> rev3 -> rev1, (rev2 -> rev1)
+        swh_storage.revision_add([revision1, revision2, revision3, revision4])
 
         # when
         results = list(swh_storage.revision_log([revision4.id]))
 
         # for comparison purposes
         actual_results = [Revision.from_dict(r) for r in results]
-        assert len(actual_results) == 2  # rev4 -child-> rev3
-        assert actual_results == [revision4, revision3]
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("revision", revision3),
-            ("revision", revision4),
-        ]
+        assert len(actual_results) == 4  # rev4 -child-> rev3 -> rev1, (rev2 -> rev1)
+        assert actual_results == [revision4, revision3, revision1, revision2]
 
     def test_revision_log_with_limit(self, swh_storage, sample_data_model):
-        revision3, revision4 = sample_data_model["revision"][2:4]
+        revision1, revision2, revision3, revision4 = sample_data_model["revision"][:4]
 
-        # data.revision4 -is-child-of-> data.revision3
+        # revision4 -is-child-of-> revision3
         swh_storage.revision_add([revision3, revision4])
         results = list(swh_storage.revision_log([revision4.id], 1))
 
@@ -988,25 +983,27 @@ class TestStorage:
         assert rev_log == []
 
     def test_revision_shortlog(self, swh_storage, sample_data_model):
-        revision3, revision4 = sample_data_model["revision"][2:4]
+        revision1, revision2, revision3, revision4 = sample_data_model["revision"][:4]
 
-        # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([revision3, revision4])
+        # rev4 -is-child-of-> rev3 -> (rev1, rev2); rev2 -> rev1
+        swh_storage.revision_add([revision1, revision2, revision3, revision4])
 
-        # when
         results = list(swh_storage.revision_shortlog([revision4.id]))
-
         actual_results = [[id, tuple(parents)] for (id, parents) in results]
 
-        assert len(actual_results) == 2  # rev4 -child-> rev3
-        assert list(actual_results[0]) == [revision4.id, revision4.parents]
-        assert list(actual_results[1]) == [revision3.id, revision3.parents]
+        assert len(actual_results) == 4
+        assert actual_results == [
+            [revision4.id, revision4.parents],
+            [revision3.id, revision3.parents],
+            [revision1.id, revision1.parents],
+            [revision2.id, revision2.parents],
+        ]
 
     def test_revision_shortlog_with_limit(self, swh_storage, sample_data_model):
-        revision3, revision4 = sample_data_model["revision"][2:4]
+        revision1, revision2, revision3, revision4 = sample_data_model["revision"][:4]
 
-        # data.revision4 -is-child-of-> data.revision3
-        swh_storage.revision_add([revision3, revision4])
+        # revision4 -is-child-of-> revision3
+        swh_storage.revision_add([revision1, revision2, revision3, revision4])
         results = list(swh_storage.revision_shortlog([revision4.id], 1))
         actual_results = [[id, tuple(parents)] for (id, parents) in results]
 
@@ -1025,12 +1022,13 @@ class TestStorage:
         assert actual_revisions[1] is None
 
     def test_revision_get_no_parents(self, swh_storage, sample_data_model):
-        revision = sample_data_model["revision"][2]
+        revision = sample_data_model["revision"][0]
         swh_storage.revision_add([revision])
 
         get = list(swh_storage.revision_get([revision.id]))
 
         assert len(get) == 1
+        assert revision.parents == ()
         assert tuple(get[0]["parents"]) == ()  # no parents on this one
 
     def test_revision_get_random(self, swh_storage, sample_data_model):

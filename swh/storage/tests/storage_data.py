@@ -18,8 +18,13 @@ from swh.model.model import (
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    Person,
     RawExtrinsicMetadata,
+    Revision,
+    RevisionType,
     SkippedContent,
+    Timestamp,
+    TimestampWithTimezone,
 )
 
 
@@ -204,141 +209,128 @@ directory4 = Directory(
 minus_offset = datetime.timezone(datetime.timedelta(minutes=-120))
 plus_offset = datetime.timezone(datetime.timedelta(minutes=120))
 
-revision = {
-    "id": hash_to_bytes("066b1b62dbfa033362092af468bf6cfabec230e7"),
-    "message": b"hello",
-    "author": {
-        "name": b"Nicolas Dandrimont",
-        "email": b"nicolas@example.com",
-        "fullname": b"Nicolas Dandrimont <nicolas@example.com> ",
-    },
-    "date": {
-        "timestamp": {"seconds": 1234567890, "microseconds": 0},
-        "offset": 120,
-        "negative_utc": False,
-    },
-    "committer": {
-        "name": b"St\xc3fano Zacchiroli",
-        "email": b"stefano@example.com",
-        "fullname": b"St\xc3fano Zacchiroli <stefano@example.com>",
-    },
-    "committer_date": {
-        "timestamp": {"seconds": 1123456789, "microseconds": 0},
-        "offset": 0,
-        "negative_utc": True,
-    },
-    "parents": (b"01234567890123456789", b"23434512345123456789"),
-    "type": "git",
-    "directory": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
-    "metadata": {
+revision = Revision(
+    id=hash_to_bytes("066b1b62dbfa033362092af468bf6cfabec230e7"),
+    message=b"hello",
+    author=Person(
+        name=b"Nicolas Dandrimont",
+        email=b"nicolas@example.com",
+        fullname=b"Nicolas Dandrimont <nicolas@example.com> ",
+    ),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1234567890, microseconds=0),
+        offset=120,
+        negative_utc=False,
+    ),
+    committer=Person(
+        name=b"St\xc3fano Zacchiroli",
+        email=b"stefano@example.com",
+        fullname=b"St\xc3fano Zacchiroli <stefano@example.com>",
+    ),
+    committer_date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1123456789, microseconds=0),
+        offset=120,
+        negative_utc=False,
+    ),
+    parents=(),
+    type=RevisionType.GIT,
+    directory=directory.id,
+    metadata={
         "checksums": {"sha1": "tarball-sha1", "sha256": "tarball-sha256",},
         "signed-off-by": "some-dude",
     },
-    "extra_headers": (
+    extra_headers=(
         (b"gpgsig", b"test123"),
         (b"mergetag", b"foo\\bar"),
         (b"mergetag", b"\x22\xaf\x89\x80\x01\x00"),
     ),
-    "synthetic": True,
-}
+    synthetic=True,
+)
 
-revision2 = {
-    "id": hash_to_bytes("df7a6f6a99671fb7f7343641aff983a314ef6161"),
-    "message": b"hello again",
-    "author": {
-        "name": b"Roberto Dicosmo",
-        "email": b"roberto@example.com",
-        "fullname": b"Roberto Dicosmo <roberto@example.com>",
-    },
-    "date": {
-        "timestamp": {"seconds": 1234567843, "microseconds": 220000,},
-        "offset": -720,
-        "negative_utc": False,
-    },
-    "committer": {
-        "name": b"tony",
-        "email": b"ar@dumont.fr",
-        "fullname": b"tony <ar@dumont.fr>",
-    },
-    "committer_date": {
-        "timestamp": {"seconds": 1123456789, "microseconds": 0},
-        "offset": 0,
-        "negative_utc": False,
-    },
-    "parents": (b"01234567890123456789",),
-    "type": "git",
-    "directory": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),  # dir2
-    "metadata": None,
-    "extra_headers": (),
-    "synthetic": False,
-}
+revision2 = Revision(
+    id=hash_to_bytes("df7a6f6a99671fb7f7343641aff983a314ef6161"),
+    message=b"hello again",
+    author=Person(
+        name=b"Roberto Dicosmo",
+        email=b"roberto@example.com",
+        fullname=b"Roberto Dicosmo <roberto@example.com>",
+    ),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+        offset=-720,
+        negative_utc=False,
+    ),
+    committer=Person(
+        name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+    ),
+    committer_date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1123456789, microseconds=220000,),
+        offset=0,
+        negative_utc=False,
+    ),
+    parents=tuple([revision.id]),
+    type=RevisionType.GIT,
+    directory=directory2.id,
+    metadata=None,
+    extra_headers=(),
+    synthetic=False,
+)
 
-revision3 = {
-    "id": hash_to_bytes("2cbd7bb22c653bbb23a29657852a50a01b591d46"),
-    "message": b"a simple revision with no parents this time",
-    "author": {
-        "name": b"Roberto Dicosmo",
-        "email": b"roberto@example.com",
-        "fullname": b"Roberto Dicosmo <roberto@example.com>",
-    },
-    "date": {
-        "timestamp": {"seconds": 1234567843, "microseconds": 220000,},
-        "offset": -720,
-        "negative_utc": False,
-    },
-    "committer": {
-        "name": b"tony",
-        "email": b"ar@dumont.fr",
-        "fullname": b"tony <ar@dumont.fr>",
-    },
-    "committer_date": {
-        "timestamp": {"seconds": 1127351742, "microseconds": 0},
-        "offset": 0,
-        "negative_utc": False,
-    },
-    "parents": (),
-    "type": "git",
-    "directory": hash_to_bytes("8505808532953da7d2581741f01b29c04b1cb9ab"),  # dir2
-    "metadata": None,
-    "extra_headers": (),
-    "synthetic": True,
-}
+revision3 = Revision(
+    id=hash_to_bytes("2cbd7bb22c653bbb23a29657852a50a01b591d46"),
+    message=b"a simple revision with no parents this time",
+    author=Person(
+        name=b"Roberto Dicosmo",
+        email=b"roberto@example.com",
+        fullname=b"Roberto Dicosmo <roberto@example.com>",
+    ),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+        offset=-720,
+        negative_utc=False,
+    ),
+    committer=Person(
+        name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+    ),
+    committer_date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1127351742, microseconds=220000,),
+        offset=0,
+        negative_utc=False,
+    ),
+    parents=tuple([revision.id, revision2.id]),
+    type=RevisionType.GIT,
+    directory=directory2.id,
+    metadata=None,
+    extra_headers=(),
+    synthetic=True,
+)
 
-revision4 = {
-    "id": hash_to_bytes("88cd5126fc958ed70089d5340441a1c2477bcc20"),
-    "message": b"parent of self.revision2",
-    "author": {
-        "name": b"me",
-        "email": b"me@soft.heri",
-        "fullname": b"me <me@soft.heri>",
-    },
-    "date": {
-        "timestamp": {"seconds": 1244567843, "microseconds": 220000,},
-        "offset": -720,
-        "negative_utc": False,
-    },
-    "committer": {
-        "name": b"committer-dude",
-        "email": b"committer@dude.com",
-        "fullname": b"committer-dude <committer@dude.com>",
-    },
-    "committer_date": {
-        "timestamp": {"seconds": 1244567843, "microseconds": 220000,},
-        "offset": -720,
-        "negative_utc": False,
-    },
-    "parents": (
-        hash_to_bytes("2cbd7bb22c653bbb23a29657852a50a01b591d46"),
-    ),  # revision3
-    "type": "git",
-    "directory": hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),  # dir
-    "metadata": None,
-    "extra_headers": (),
-    "synthetic": False,
-}
-
-revisions = (revision, revision2, revision3, revision4)
-
+revision4 = Revision(
+    id=hash_to_bytes("88cd5126fc958ed70089d5340441a1c2477bcc20"),
+    message=b"parent of self.revision2",
+    author=Person(name=b"me", email=b"me@soft.heri", fullname=b"me <me@soft.heri>",),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+        offset=-720,
+        negative_utc=False,
+    ),
+    committer=Person(
+        name=b"committer-dude",
+        email=b"committer@dude.com",
+        fullname=b"committer-dude <committer@dude.com>",
+    ),
+    committer_date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1244567843, microseconds=220000,),
+        offset=-720,
+        negative_utc=False,
+    ),
+    parents=tuple([revision3.id]),
+    type=RevisionType.GIT,
+    directory=directory.id,
+    metadata=None,
+    extra_headers=(),
+    synthetic=False,
+)
 
 origin = {
     "url": "file:///dev/null",
@@ -546,7 +538,7 @@ content_metadata3 = RawExtrinsicMetadata(
     visit=42,
     snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot['id'])}"),
     release=parse_swhid(f"swh:1:rel:{hash_to_hex(release['id'])}"),
-    revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision['id'])}"),
+    revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision.id)}"),
     directory=parse_swhid(f"swh:1:dir:{hash_to_hex(directory.id)}"),
     path=b"/foo/bar",
 )
