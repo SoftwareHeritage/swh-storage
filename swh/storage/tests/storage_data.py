@@ -18,10 +18,12 @@ from swh.model.model import (
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    ObjectType,
     Origin,
     OriginVisit,
     Person,
     RawExtrinsicMetadata,
+    Release,
     Revision,
     RevisionType,
     SkippedContent,
@@ -384,65 +386,58 @@ origin_visit3 = OriginVisit(
 
 origin_visits = [origin_visit, origin_visit2, origin_visit3]
 
-release = {
-    "id": hash_to_bytes("a673e617fcc6234e29b2cad06b8245f96c415c61"),
-    "name": b"v0.0.1",
-    "author": {
-        "name": b"olasd",
-        "email": b"nic@olasd.fr",
-        "fullname": b"olasd <nic@olasd.fr>",
-    },
-    "date": {
-        "timestamp": {"seconds": 1234567890, "microseconds": 0},
-        "offset": 42,
-        "negative_utc": False,
-    },
-    "target": b"43210987654321098765",
-    "target_type": "revision",
-    "message": b"synthetic release",
-    "synthetic": True,
-}
+release = Release(
+    id=hash_to_bytes("a673e617fcc6234e29b2cad06b8245f96c415c61"),
+    name=b"v0.0.1",
+    author=Person(
+        name=b"olasd", email=b"nic@olasd.fr", fullname=b"olasd <nic@olasd.fr>",
+    ),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1234567890, microseconds=0),
+        offset=42,
+        negative_utc=False,
+    ),
+    target=revision.id,
+    target_type=ObjectType.REVISION,
+    message=b"synthetic release",
+    synthetic=True,
+)
 
-release2 = {
-    "id": hash_to_bytes("6902bd4c82b7d19a421d224aedab2b74197e420d"),
-    "name": b"v0.0.2",
-    "author": {
-        "name": b"tony",
-        "email": b"ar@dumont.fr",
-        "fullname": b"tony <ar@dumont.fr>",
-    },
-    "date": {
-        "timestamp": {"seconds": 1634366813, "microseconds": 0},
-        "offset": -120,
-        "negative_utc": False,
-    },
-    "target": b"432109\xa9765432\xc309\x00765",
-    "target_type": "revision",
-    "message": b"v0.0.2\nMisc performance improvements + bug fixes",
-    "synthetic": False,
-}
+release2 = Release(
+    id=hash_to_bytes("6902bd4c82b7d19a421d224aedab2b74197e420d"),
+    name=b"v0.0.2",
+    author=Person(
+        name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+    ),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1634366813, microseconds=0),
+        offset=-120,
+        negative_utc=False,
+    ),
+    target=revision2.id,
+    target_type=ObjectType.REVISION,
+    message=b"v0.0.2\nMisc performance improvements + bug fixes",
+    synthetic=False,
+)
 
-release3 = {
-    "id": hash_to_bytes("3e9050196aa288264f2a9d279d6abab8b158448b"),
-    "name": b"v0.0.2",
-    "author": {
-        "name": b"tony",
-        "email": b"tony@ardumont.fr",
-        "fullname": b"tony <tony@ardumont.fr>",
-    },
-    "date": {
-        "timestamp": {"seconds": 1634336813, "microseconds": 0},
-        "offset": 0,
-        "negative_utc": False,
-    },
-    "target": hash_to_bytes("df7a6f6a99671fb7f7343641aff983a314ef6161"),
-    "target_type": "revision",
-    "message": b"yet another synthetic release",
-    "synthetic": True,
-}
+release3 = Release(
+    id=hash_to_bytes("3e9050196aa288264f2a9d279d6abab8b158448b"),
+    name=b"v0.0.2",
+    author=Person(
+        name=b"tony", email=b"tony@ardumont.fr", fullname=b"tony <tony@ardumont.fr>",
+    ),
+    date=TimestampWithTimezone(
+        timestamp=Timestamp(seconds=1634366813, microseconds=0),
+        offset=-120,
+        negative_utc=False,
+    ),
+    target=revision3.id,
+    target_type=ObjectType.REVISION,
+    message=b"yet another synthetic release",
+    synthetic=True,
+)
 
-releases = (release, release2, release3)
-
+releases = [release, release2, release3]
 
 snapshot = {
     "id": hash_to_bytes("409ee1ff3f10d166714bc90581debfd0446dda57"),
@@ -530,7 +525,7 @@ content_metadata3 = RawExtrinsicMetadata(
     origin=origin.url,
     visit=42,
     snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot['id'])}"),
-    release=parse_swhid(f"swh:1:rel:{hash_to_hex(release['id'])}"),
+    release=parse_swhid(f"swh:1:rel:{hash_to_hex(release.id)}"),
     revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision.id)}"),
     directory=parse_swhid(f"swh:1:dir:{hash_to_hex(directory.id)}"),
     path=b"/foo/bar",

@@ -40,6 +40,7 @@ def test_sample_data(sample_data, sample_data_model):
             "authority",
             "origin_metadata",
             "content_metadata",
+            "release",
         ]:
             type_ = BaseModel
         else:

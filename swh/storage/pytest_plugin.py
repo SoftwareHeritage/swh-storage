@@ -220,7 +220,7 @@ def sample_data() -> Dict:
             data.directory5,
         ],
         "revision": [data.revision, data.revision2, data.revision3, data.revision4],
-        "release": [data.release, data.release2, data.release3],
+        "release": data.releases,
         "snapshot": [data.snapshot, data.empty_snapshot, data.complete_snapshot],
         "origin": data.origins,
         "origin_visit": data.origin_visits,
