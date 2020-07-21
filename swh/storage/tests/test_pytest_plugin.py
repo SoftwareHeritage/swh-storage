@@ -35,6 +35,7 @@ def test_sample_data(sample_data, sample_data_model):
             "directory",
             "revision",
             "origin",
+            "origin_visit",
             "fetcher",
             "authority",
             "origin_metadata",

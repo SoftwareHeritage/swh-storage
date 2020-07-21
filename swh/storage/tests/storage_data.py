@@ -19,6 +19,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     Origin,
+    OriginVisit,
     Person,
     RawExtrinsicMetadata,
     Revision,
@@ -369,26 +370,17 @@ type_visit2 = "hg"
 date_visit3 = datetime.datetime(2018, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
 type_visit3 = "deb"
 
-origin_visit = {
-    "origin": origin.url,
-    "visit": 1,
-    "date": date_visit1,
-    "type": type_visit1,
-}
+origin_visit = OriginVisit(
+    origin=origin.url, visit=1, date=date_visit1, type=type_visit1,
+)
 
-origin_visit2 = {
-    "origin": origin.url,
-    "visit": 2,
-    "date": date_visit2,
-    "type": type_visit1,
-}
+origin_visit2 = OriginVisit(
+    origin=origin.url, visit=2, date=date_visit2, type=type_visit1,
+)
 
-origin_visit3 = {
-    "origin": origin2.url,
-    "visit": 1,
-    "date": date_visit1,
-    "type": type_visit2,
-}
+origin_visit3 = OriginVisit(
+    origin=origin2.url, visit=1, date=date_visit1, type=type_visit2,
+)
 
 origin_visits = [origin_visit, origin_visit2, origin_visit3]
 
