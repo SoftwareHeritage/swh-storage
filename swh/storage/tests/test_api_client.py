@@ -63,8 +63,8 @@ def swh_storage(swh_rpc_client, app_server):
 
 
 class TestStorage(_TestStorage):
-    def test_content_update(self, swh_storage, app_server, sample_data_model):
+    def test_content_update(self, swh_storage, app_server, sample_data):
         # TODO, journal_writer not supported
         swh_storage.journal_writer.journal = None
         with patch.object(server.storage.journal_writer, "journal", None):
-            super().test_content_update(swh_storage, sample_data_model)
+            super().test_content_update(swh_storage, sample_data)

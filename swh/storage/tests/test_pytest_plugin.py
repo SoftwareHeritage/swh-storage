@@ -8,8 +8,8 @@ from swh.model.model import BaseModel
 from swh.storage.interface import StorageInterface
 
 
-def test_sample_data(sample_data_model):
-    assert set(sample_data_model.keys()) == set(
+def test_sample_data(sample_data):
+    assert set(sample_data.keys()) == set(
         [
             "content",
             "skipped_content",
@@ -25,7 +25,7 @@ def test_sample_data(sample_data_model):
             "content_metadata",
         ]
     )
-    for object_type, objs in sample_data_model.items():
+    for object_type, objs in sample_data.items():
         for obj in objs:
             assert isinstance(obj, BaseModel)
 

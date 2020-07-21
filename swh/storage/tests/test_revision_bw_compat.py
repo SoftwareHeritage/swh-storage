@@ -15,11 +15,9 @@ def headers_to_db(git_headers):
     return [[key, decode_with_escape(value)] for key, value in git_headers]
 
 
-def test_revision_extra_header_in_metadata(
-    swh_storage_backend_config, sample_data_model
-):
+def test_revision_extra_header_in_metadata(swh_storage_backend_config, sample_data):
     storage = get_storage(**swh_storage_backend_config)
-    rev = sample_data_model["revision"][0]
+    rev = sample_data["revision"][0]
 
     md_w_extra = dict(
         rev.metadata.items(),

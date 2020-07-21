@@ -188,7 +188,7 @@ class SwhDatabaseJanitor(DatabaseJanitor):
 
 
 @pytest.fixture
-def sample_data_model() -> Dict[str, Tuple[BaseModel, ...]]:
+def sample_data() -> Dict[str, Tuple[BaseModel, ...]]:
     """Pre-defined sample storage object data to manipulate
 
     Returns:

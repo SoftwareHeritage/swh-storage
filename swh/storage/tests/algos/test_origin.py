@@ -84,7 +84,7 @@ def test_iter_origins_batch_size(mock_origin_get_range, swh_storage):
     mock_origin_get_range.assert_called_with(origin_from=1, origin_count=42)
 
 
-def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
+def test_origin_get_latest_visit_status_none(swh_storage, sample_data):
     """Looking up unknown objects should return nothing
 
     """
@@ -92,8 +92,8 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
     assert origin_get_latest_visit_status(swh_storage, "unknown-origin") is None
 
     # unknown type so no result
-    origin = sample_data_model["origin"][0]
-    origin_visit = sample_data_model["origin_visit"][0]
+    origin = sample_data["origin"][0]
+    origin_visit = sample_data["origin_visit"][0]
     assert origin_visit.origin == origin.url
 
     swh_storage.origin_add([origin])
@@ -115,12 +115,12 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
     assert actual_origin_visit is None
 
 
-def init_storage_with_origin_visits(swh_storage, sample_data_model):
+def init_storage_with_origin_visits(swh_storage, sample_data):
     """Initialize storage with origin/origin-visit/origin-visit-status
 
     """
-    snapshot = sample_data_model["snapshot"][2]
-    origin1, origin2 = sample_data_model["origin"][:2]
+    snapshot = sample_data["snapshot"][2]
+    origin1, origin2 = sample_data["origin"][:2]
     swh_storage.origin_add([origin1, origin2])
 
     ov1, ov2 = swh_storage.origin_visit_add(
@@ -183,11 +183,11 @@ def init_storage_with_origin_visits(swh_storage, sample_data_model):
     }
 
 
-def test_origin_get_latest_visit_status_filter_type(swh_storage, sample_data_model):
+def test_origin_get_latest_visit_status_filter_type(swh_storage, sample_data):
     """Filtering origin visit per types should yield consistent results
 
     """
-    objects = init_storage_with_origin_visits(swh_storage, sample_data_model)
+    objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     ov1, ov2 = objects["origin_visit"]
     ovs11, ovs12, _, ovs22 = objects["origin_visit_status"]
@@ -227,8 +227,8 @@ def test_origin_get_latest_visit_status_filter_type(swh_storage, sample_data_mod
     assert actual_ovs22 == ovs22
 
 
-def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data_model):
-    objects = init_storage_with_origin_visits(swh_storage, sample_data_model)
+def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data):
+    objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     ov1, ov2 = objects["origin_visit"]
     ovs11, ovs12, _, ovs22 = objects["origin_visit_status"]
@@ -276,8 +276,8 @@ def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data_m
     assert actual_ovs22 == ovs22
 
 
-def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data_model):
-    objects = init_storage_with_origin_visits(swh_storage, sample_data_model)
+def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data):
+    objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     _, ov2 = objects["origin_visit"]
     _, _, _, ovs22 = objects["origin_visit_status"]

@@ -185,9 +185,7 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
 
 @pytest.mark.cassandra
 class TestCassandraStorage(_TestStorage):
-    def test_content_add_murmur3_collision(
-        self, swh_storage, mocker, sample_data_model
-    ):
+    def test_content_add_murmur3_collision(self, swh_storage, mocker, sample_data):
         """The Murmur3 token is used as link from index tables to the main
         table; and non-matching contents with colliding murmur3-hash
         are filtered-out when reading the main table.
@@ -195,7 +193,7 @@ class TestCassandraStorage(_TestStorage):
         """
         called = 0
 
-        cont, cont2 = sample_data_model["content"][:2]
+        cont, cont2 = sample_data["content"][:2]
 
         # always return a token
         def mock_cgtfsh(algo, hash_):
@@ -229,7 +227,7 @@ class TestCassandraStorage(_TestStorage):
         }
 
     def test_content_get_metadata_murmur3_collision(
-        self, swh_storage, mocker, sample_data_model
+        self, swh_storage, mocker, sample_data
     ):
         """The Murmur3 token is used as link from index tables to the main
         table; and non-matching contents with colliding murmur3-hash
@@ -238,9 +236,7 @@ class TestCassandraStorage(_TestStorage):
         """
         called = 0
 
-        cont, cont2 = [
-            attr.evolve(c, ctime=now()) for c in sample_data_model["content"][:2]
-        ]
+        cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data["content"][:2]]
 
         # always return a token
         def mock_cgtfsh(algo, hash_):
@@ -280,9 +276,7 @@ class TestCassandraStorage(_TestStorage):
         # but cont2 should be filtered out
         assert actual_result == {cont.sha1: [expected_cont]}
 
-    def test_content_find_murmur3_collision(
-        self, swh_storage, mocker, sample_data_model
-    ):
+    def test_content_find_murmur3_collision(self, swh_storage, mocker, sample_data):
         """The Murmur3 token is used as link from index tables to the main
         table; and non-matching contents with colliding murmur3-hash
         are filtered-out when reading the main table.
@@ -290,9 +284,7 @@ class TestCassandraStorage(_TestStorage):
         """
         called = 0
 
-        cont, cont2 = [
-            attr.evolve(c, ctime=now()) for c in sample_data_model["content"][:2]
-        ]
+        cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data["content"][:2]]
 
         # always return a token
         def mock_cgtfsh(algo, hash_):
