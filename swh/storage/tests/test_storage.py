@@ -2784,7 +2784,7 @@ class TestStorage:
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
         visit_id = origin_visit1.visit
 
-        swh_storage.snapshot_add([data.snapshot])
+        swh_storage.snapshot_add([snapshot])
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(

@@ -512,8 +512,10 @@ def test_retrying_proxy_storage_object_metadata_add(
     """Standard object_metadata_add works as before
 
     """
+    origin = sample_data_model["origin"][0]
     ori_meta = sample_data_model["origin_metadata"][0]
-    swh_storage_validate.origin_add([{"url": ori_meta.id}])
+    assert origin.url == ori_meta.id
+    swh_storage_validate.origin_add([origin])
     swh_storage_validate.metadata_authority_add([sample_data_model["authority"][0]])
     swh_storage_validate.metadata_fetcher_add([sample_data_model["fetcher"][0]])
 
@@ -541,8 +543,10 @@ def test_retrying_proxy_storage_object_metadata_add_with_retry(
     """Multiple retries for hash collision and psycopg2 error but finally ok
 
     """
+    origin = sample_data_model["origin"][0]
     ori_meta = sample_data_model["origin_metadata"][0]
-    swh_storage_validate.origin_add([{"url": ori_meta.id}])
+    assert origin.url == ori_meta.id
+    swh_storage_validate.origin_add([origin])
     swh_storage_validate.metadata_authority_add([sample_data_model["authority"][0]])
     swh_storage_validate.metadata_fetcher_add([sample_data_model["fetcher"][0]])
     mock_memory = mocker.patch(
@@ -581,8 +585,10 @@ def test_retrying_proxy_swh_storage_object_metadata_add_failure(
     )
     mock_memory.side_effect = StorageArgumentException("Refuse to add always!")
 
+    origin = sample_data_model["origin"][0]
     ori_meta = sample_data_model["origin_metadata"][0]
-    swh_storage_validate.origin_add([{"url": ori_meta.id}])
+    assert origin.url == ori_meta.id
+    swh_storage_validate.origin_add([origin])
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage_validate.object_metadata_add([ori_meta])
