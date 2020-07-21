@@ -24,7 +24,6 @@ from swh.model.model import (
     MetadataFetcher,
     Origin,
     OriginVisit,
-    Person,
     RawExtrinsicMetadata,
     Release,
     Revision,
@@ -213,7 +212,6 @@ def sample_data() -> Dict:
     return {
         "content": [data.content, data.content2, data.content3],
         "skipped_content": [data.skipped_content, data.skipped_content2],
-        "person": [data.person],
         "directory": [data.dir2, data.dir, data.dir3, data.dir4],
         "revision": [data.revision, data.revision2, data.revision3, data.revision4],
         "release": [data.release, data.release2, data.release3],
@@ -240,7 +238,6 @@ def sample_data() -> Dict:
 OBJECT_FACTORY = {
     "content": Content.from_dict,
     "skipped_content": SkippedContent.from_dict,
-    "person": Person.from_dict,
     "directory": Directory.from_dict,
     "revision": Revision.from_dict,
     "release": Release.from_dict,

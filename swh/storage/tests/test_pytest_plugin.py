@@ -16,7 +16,6 @@ def test_sample_data(sample_data, sample_data_model):
         [
             "content",
             "skipped_content",
-            "person",
             "directory",
             "revision",
             "release",
@@ -51,7 +50,6 @@ def test_sample_data_model(sample_data, sample_data_model):
         [
             "content",
             "skipped_content",
-            "person",
             "directory",
             "revision",
             "release",

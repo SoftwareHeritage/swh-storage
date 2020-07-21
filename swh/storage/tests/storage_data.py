@@ -575,9 +575,3 @@ origin_metadata3 = RawExtrinsicMetadata(
     format="yaml",
     metadata=b"foo: bar",
 )
-
-person = {
-    "name": b"John Doe",
-    "email": b"john.doe@institute.org",
-    "fullname": b"John Doe <john.doe@institute.org>",
-}
