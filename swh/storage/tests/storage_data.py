@@ -27,6 +27,9 @@ from swh.model.model import (
     Revision,
     RevisionType,
     SkippedContent,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
     Timestamp,
     TimestampWithTimezone,
 )
@@ -439,54 +442,42 @@ release3 = Release(
 
 releases = [release, release2, release3]
 
-snapshot = {
-    "id": hash_to_bytes("409ee1ff3f10d166714bc90581debfd0446dda57"),
-    "branches": {
-        b"master": {
-            "target": hash_to_bytes("066b1b62dbfa033362092af468bf6cfabec230e7"),
-            "target_type": "revision",
-        },
+snapshot = Snapshot(
+    id=hash_to_bytes("409ee1ff3f10d166714bc90581debfd0446dda57"),
+    branches={
+        b"master": SnapshotBranch(target=revision.id, target_type=TargetType.REVISION,),
     },
-}
+)
 
-empty_snapshot = {
-    "id": hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e"),
-    "branches": {},
-}
+empty_snapshot = Snapshot(
+    id=hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e"), branches={},
+)
 
-complete_snapshot = {
-    "id": hash_to_bytes("a56ce2d81c190023bb99a3a36279307522cb85f6"),
-    "branches": {
-        b"directory": {
-            "target": hash_to_bytes("1bd0e65f7d2ff14ae994de17a1e7fe65111dcad8"),
-            "target_type": "directory",
-        },
-        b"directory2": {
-            "target": hash_to_bytes("1bd0e65f7d2ff14ae994de17a1e7fe65111dcad8"),
-            "target_type": "directory",
-        },
-        b"content": {
-            "target": hash_to_bytes("fe95a46679d128ff167b7c55df5d02356c5a1ae1"),
-            "target_type": "content",
-        },
-        b"alias": {"target": b"revision", "target_type": "alias",},
-        b"revision": {
-            "target": hash_to_bytes("aafb16d69fd30ff58afdd69036a26047f3aebdc6"),
-            "target_type": "revision",
-        },
-        b"release": {
-            "target": hash_to_bytes("7045404f3d1c54e6473c71bbb716529fbad4be24"),
-            "target_type": "release",
-        },
-        b"snapshot": {
-            "target": hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e"),
-            "target_type": "snapshot",
-        },
+complete_snapshot = Snapshot(
+    id=hash_to_bytes("a56ce2d81c190023bb99a3a36279307522cb85f6"),
+    branches={
+        b"directory": SnapshotBranch(
+            target=directory.id, target_type=TargetType.DIRECTORY,
+        ),
+        b"directory2": SnapshotBranch(
+            target=directory2.id, target_type=TargetType.DIRECTORY,
+        ),
+        b"content": SnapshotBranch(
+            target=content.sha1_git, target_type=TargetType.CONTENT,
+        ),
+        b"alias": SnapshotBranch(target=b"revision", target_type=TargetType.ALIAS,),
+        b"revision": SnapshotBranch(
+            target=revision.id, target_type=TargetType.REVISION,
+        ),
+        b"release": SnapshotBranch(target=release.id, target_type=TargetType.RELEASE,),
+        b"snapshot": SnapshotBranch(
+            target=empty_snapshot.id, target_type=TargetType.SNAPSHOT,
+        ),
         b"dangling": None,
     },
-}
+)
 
-snapshots = (snapshot, empty_snapshot, complete_snapshot)
+snapshots = [snapshot, empty_snapshot, complete_snapshot]
 
 content_metadata = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
@@ -524,7 +515,7 @@ content_metadata3 = RawExtrinsicMetadata(
     metadata=b"foo: bar",
     origin=origin.url,
     visit=42,
-    snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot['id'])}"),
+    snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot.id)}"),
     release=parse_swhid(f"swh:1:rel:{hash_to_hex(release.id)}"),
     revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision.id)}"),
     directory=parse_swhid(f"swh:1:dir:{hash_to_hex(directory.id)}"),

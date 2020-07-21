@@ -29,25 +29,8 @@ def test_sample_data(sample_data, sample_data_model):
         ]
     )
     for object_type, objs in sample_data.items():
-        if object_type in [
-            "content",
-            "skipped_content",
-            "directory",
-            "revision",
-            "origin",
-            "origin_visit",
-            "fetcher",
-            "authority",
-            "origin_metadata",
-            "content_metadata",
-            "release",
-        ]:
-            type_ = BaseModel
-        else:
-            type_ = dict
-
         for obj in objs:
-            assert isinstance(obj, type_)
+            assert isinstance(obj, BaseModel)
 
 
 def test_sample_data_model(sample_data, sample_data_model):
