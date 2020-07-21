@@ -16,11 +16,11 @@ def get_storage_with_buffer_config(**buffer_config):
 
 
 def test_buffering_proxy_storage_content_threshold_not_hit(sample_data_model):
-    contents = sample_data_model["content"]
+    contents = sample_data_model["content"][:2]
     contents_dict = [c.to_dict() for c in contents]
 
     storage = get_storage_with_buffer_config(min_batch_size={"content": 10,})
-    s = storage.content_add([contents[0], contents[1]])
+    s = storage.content_add(contents)
     assert s == {}
 
     # contents have not been written to storage
@@ -57,7 +57,7 @@ def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data_model):
 
 
 def test_buffering_proxy_storage_content_deduplicate(sample_data_model):
-    contents = sample_data_model["content"]
+    contents = sample_data_model["content"][:2]
     storage = get_storage_with_buffer_config(min_batch_size={"content": 2,})
 
     s = storage.content_add([contents[0], contents[0]])
@@ -80,7 +80,7 @@ def test_buffering_proxy_storage_content_deduplicate(sample_data_model):
 
 
 def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data_model):
-    contents = sample_data_model["content"]
+    contents = sample_data_model["content"][:2]
     content_bytes_min_batch_size = 2
     storage = get_storage_with_buffer_config(
         min_batch_size={"content": 10, "content_bytes": content_bytes_min_batch_size,}

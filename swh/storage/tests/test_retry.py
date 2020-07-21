@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import attr
+
 from unittest.mock import call
 
 import psycopg2
@@ -117,13 +119,14 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data_mo
     """Standard content_add_metadata works as before
 
     """
-    sample_content = sample_data_model["content_no_data"][0]
+    sample_content = sample_data_model["content"][0]
+    content = attr.evolve(sample_content, data=None)
 
-    pk = sample_content.sha1
+    pk = content.sha1
     content_metadata = swh_storage.content_get_metadata([pk])
     assert not content_metadata[pk]
 
-    s = swh_storage.content_add_metadata([sample_content])
+    s = swh_storage.content_add_metadata([content])
     assert s == {
         "content:add": 1,
     }
@@ -151,13 +154,14 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         {"content:add": 1},
     ]
 
-    sample_content = sample_data_model["content_no_data"][0]
+    sample_content = sample_data_model["content"][0]
+    content = attr.evolve(sample_content, data=None)
 
-    s = swh_storage.content_add_metadata([sample_content])
+    s = swh_storage.content_add_metadata([content])
     assert s == {"content:add": 1}
 
     mock_memory.assert_has_calls(
-        [call([sample_content]), call([sample_content]), call([sample_content]),]
+        [call([content]), call([content]), call([content]),]
     )
 
 
@@ -174,14 +178,15 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
         "Refuse to add content_metadata!"
     )
 
-    sample_content = sample_data_model["content_no_data"][0]
-    pk = sample_content.sha1
+    sample_content = sample_data_model["content"][0]
+    content = attr.evolve(sample_content, data=None)
 
+    pk = content.sha1
     content_metadata = swh_storage.content_get_metadata([pk])
     assert not content_metadata[pk]
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.content_add_metadata([sample_content])
+        swh_storage.content_add_metadata([content])
 
     assert mock_memory.call_count == 1
 

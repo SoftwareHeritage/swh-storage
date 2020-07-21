@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,11 +11,13 @@ from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model import from_disk
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
+    Content,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    RawExtrinsicMetadata,
     MetadataTargetType,
+    RawExtrinsicMetadata,
+    SkippedContent,
 )
 
 
@@ -33,96 +35,92 @@ class StorageData:
 data = StorageData()
 
 
-cont = {
-    "data": b"42\n",
-    "length": 3,
-    "sha1": hash_to_bytes("34973274ccef6ab4dfaaf86599792fa9c3fe4689"),
-    "sha1_git": hash_to_bytes("d81cc0710eb6cf9efd5b920a8453e1e07157b6cd"),
-    "sha256": hash_to_bytes(
+content = Content(
+    data=b"42\n",
+    length=3,
+    sha1=hash_to_bytes("34973274ccef6ab4dfaaf86599792fa9c3fe4689"),
+    sha1_git=hash_to_bytes("d81cc0710eb6cf9efd5b920a8453e1e07157b6cd"),
+    sha256=hash_to_bytes(
         "673650f936cb3b0a2f93ce09d81be10748b1b203c19e8176b4eefc1964a0cf3a"
     ),
-    "blake2s256": hash_to_bytes(
+    blake2s256=hash_to_bytes(
         "d5fe1939576527e42cfd76a9455a2432fe7f56669564577dd93c4280e76d661d"
     ),
-    "status": "visible",
-}
+    status="visible",
+)
 
-cont2 = {
-    "data": b"4242\n",
-    "length": 5,
-    "sha1": hash_to_bytes("61c2b3a30496d329e21af70dd2d7e097046d07b7"),
-    "sha1_git": hash_to_bytes("36fade77193cb6d2bd826161a0979d64c28ab4fa"),
-    "sha256": hash_to_bytes(
+content2 = Content(
+    data=b"4242\n",
+    length=5,
+    sha1=hash_to_bytes("61c2b3a30496d329e21af70dd2d7e097046d07b7"),
+    sha1_git=hash_to_bytes("36fade77193cb6d2bd826161a0979d64c28ab4fa"),
+    sha256=hash_to_bytes(
         "859f0b154fdb2d630f45e1ecae4a862915435e663248bb8461d914696fc047cd"
     ),
-    "blake2s256": hash_to_bytes(
+    blake2s256=hash_to_bytes(
         "849c20fad132b7c2d62c15de310adfe87be94a379941bed295e8141c6219810d"
     ),
-    "status": "visible",
-}
+    status="visible",
+)
 
-cont3 = {
-    "data": b"424242\n",
-    "length": 7,
-    "sha1": hash_to_bytes("3e21cc4942a4234c9e5edd8a9cacd1670fe59f13"),
-    "sha1_git": hash_to_bytes("c932c7649c6dfa4b82327d121215116909eb3bea"),
-    "sha256": hash_to_bytes(
+content3 = Content(
+    data=b"424242\n",
+    length=7,
+    sha1=hash_to_bytes("3e21cc4942a4234c9e5edd8a9cacd1670fe59f13"),
+    sha1_git=hash_to_bytes("c932c7649c6dfa4b82327d121215116909eb3bea"),
+    sha256=hash_to_bytes(
         "92fb72daf8c6818288a35137b72155f507e5de8d892712ab96277aaed8cf8a36"
     ),
-    "blake2s256": hash_to_bytes(
+    blake2s256=hash_to_bytes(
         "76d0346f44e5a27f6bafdd9c2befd304aff83780f93121d801ab6a1d4769db11"
     ),
-    "status": "visible",
-    "ctime": "2019-12-01 00:00:00Z",
-}
-
-contents = (cont, cont2, cont3)
+    status="visible",
+    ctime=datetime.datetime(2019, 12, 1, tzinfo=datetime.timezone.utc),
+)
 
 
-missing_cont = {
-    "length": 8,
-    "sha1": hash_to_bytes("f9c24e2abb82063a3ba2c44efd2d3c797f28ac90"),
-    "sha1_git": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8919"),
-    "sha256": hash_to_bytes(
+missing_content = Content(
+    data=b"something missing",
+    length=8,
+    sha1=hash_to_bytes("f9c24e2abb82063a3ba2c44efd2d3c797f28ac90"),
+    sha1_git=hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8919"),
+    sha256=hash_to_bytes(
         "6bbd052ab054ef222c1c87be60cd191addedd24cc882d1f5f7f7be61dc61bb3a"
     ),
-    "blake2s256": hash_to_bytes(
+    blake2s256=hash_to_bytes(
         "306856b8fd879edb7b6f1aeaaf8db9bbecc993cd7f776c333ac3a782fa5c6eba"
     ),
-    "reason": "Content too long",
-    "status": "absent",
-}
+    status="visible",
+)
 
-skipped_cont = {
-    "length": 1024 * 1024 * 200,
-    "sha1_git": hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8920"),
-    "sha1": hash_to_bytes("43e45d56f88993aae6a0198013efa80716fd8920"),
-    "sha256": hash_to_bytes(
+skipped_content = SkippedContent(
+    length=1024 * 1024 * 200,
+    sha1_git=hash_to_bytes("33e45d56f88993aae6a0198013efa80716fd8920"),
+    sha1=hash_to_bytes("43e45d56f88993aae6a0198013efa80716fd8920"),
+    sha256=hash_to_bytes(
         "7bbd052ab054ef222c1c87be60cd191addedd24cc882d1f5f7f7be61dc61bb3a"
     ),
-    "blake2s256": hash_to_bytes(
+    blake2s256=hash_to_bytes(
         "ade18b1adecb33f891ca36664da676e12c772cc193778aac9a137b8dc5834b9b"
     ),
-    "reason": "Content too long",
-    "status": "absent",
-    "origin": "file:///dev/zero",
-}
+    reason="Content too long",
+    status="absent",
+    origin="file:///dev/zero",
+)
 
-skipped_cont2 = {
-    "length": 1024 * 1024 * 300,
-    "sha1_git": hash_to_bytes("44e45d56f88993aae6a0198013efa80716fd8921"),
-    "sha1": hash_to_bytes("54e45d56f88993aae6a0198013efa80716fd8920"),
-    "sha256": hash_to_bytes(
+skipped_content2 = SkippedContent(
+    length=1024 * 1024 * 300,
+    sha1_git=hash_to_bytes("44e45d56f88993aae6a0198013efa80716fd8921"),
+    sha1=hash_to_bytes("54e45d56f88993aae6a0198013efa80716fd8920"),
+    sha256=hash_to_bytes(
         "8cbd052ab054ef222c1c87be60cd191addedd24cc882d1f5f7f7be61dc61bb3a"
     ),
-    "blake2s256": hash_to_bytes(
+    blake2s256=hash_to_bytes(
         "9ce18b1adecb33f891ca36664da676e12c772cc193778aac9a137b8dc5834b9b"
     ),
-    "reason": "Content too long",
-    "status": "absent",
-}
-
-skipped_contents = (skipped_cont, skipped_cont2)
+    reason="Content too long",
+    status="absent",
+)
 
 
 dir = {
@@ -131,7 +129,7 @@ dir = {
         {
             "name": b"foo",
             "type": "file",
-            "target": hash_to_bytes("d81cc0710eb6cf9efd5b920a8453e1e07157b6cd"),  # cont
+            "target": content.sha1_git,
             "perms": from_disk.DentryPerms.content,
         },
         {
@@ -149,9 +147,7 @@ dir2 = {
         {
             "name": b"oof",
             "type": "file",
-            "target": hash_to_bytes(  # cont2
-                "36fade77193cb6d2bd826161a0979d64c28ab4fa"
-            ),
+            "target": content2.sha1_git,
             "perms": from_disk.DentryPerms.content,
         },
     ),
@@ -163,7 +159,7 @@ dir3 = {
         {
             "name": b"foo",
             "type": "file",
-            "target": hash_to_bytes("d81cc0710eb6cf9efd5b920a8453e1e07157b6cd"),  # cont
+            "target": content.sha1_git,
             "perms": from_disk.DentryPerms.content,
         },
         {
@@ -505,7 +501,7 @@ snapshots = (snapshot, empty_snapshot, complete_snapshot)
 
 content_metadata = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
-    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(cont['sha1_git'])}"),
+    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
     origin=origin["url"],
     discovery_date=datetime.datetime(
         2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
@@ -517,7 +513,7 @@ content_metadata = RawExtrinsicMetadata(
 )
 content_metadata2 = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
-    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(cont['sha1_git'])}"),
+    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
     origin=origin2["url"],
     discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
@@ -529,7 +525,7 @@ content_metadata2 = RawExtrinsicMetadata(
 )
 content_metadata3 = RawExtrinsicMetadata(
     type=MetadataTargetType.CONTENT,
-    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(cont['sha1_git'])}"),
+    id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
     discovery_date=datetime.datetime(
         2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
     ),
@@ -584,14 +580,4 @@ person = {
     "name": b"John Doe",
     "email": b"john.doe@institute.org",
     "fullname": b"John Doe <john.doe@institute.org>",
-}
-
-objects = {
-    "content": contents,
-    "skipped_content": skipped_contents,
-    "directory": directories,
-    "revision": revisions,
-    "origin": origins,
-    "release": releases,
-    "snapshot": snapshots,
 }

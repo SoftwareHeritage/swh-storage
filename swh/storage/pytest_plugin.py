@@ -211,9 +211,8 @@ def sample_data() -> Dict:
 
     """
     return {
-        "content": [data.cont, data.cont2],
-        "content_no_data": [data.cont3],
-        "skipped_content": [data.skipped_cont, data.skipped_cont2],
+        "content": [data.content, data.content2, data.content3],
+        "skipped_content": [data.skipped_content, data.skipped_content2],
         "person": [data.person],
         "directory": [data.dir2, data.dir, data.dir3, data.dir4],
         "revision": [data.revision, data.revision2, data.revision3, data.revision4],
@@ -240,7 +239,6 @@ def sample_data() -> Dict:
 # changed but not the endpoints yet)
 OBJECT_FACTORY = {
     "content": Content.from_dict,
-    "content_no_data": Content.from_dict,
     "skipped_content": SkippedContent.from_dict,
     "person": Person.from_dict,
     "directory": Directory.from_dict,

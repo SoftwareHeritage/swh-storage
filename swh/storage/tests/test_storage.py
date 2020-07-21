@@ -36,7 +36,6 @@ from swh.model.model import (
     Person,
     Release,
     Revision,
-    SkippedContent,
     Snapshot,
 )
 from swh.model.hypothesis_strategies import objects
@@ -107,7 +106,8 @@ def test_round_to_milliseconds():
 
 class LazyContent(Content):
     def with_data(self):
-        return Content.from_dict({**self.to_dict(), "data": data.cont["data"]})
+        raw_data = data.content.data
+        return Content.from_dict({**self.to_dict(), "data": raw_data})
 
 
 class TestStorage:
@@ -470,14 +470,13 @@ class TestStorage:
     )
     def test_content_missing(self, swh_storage, algos):
         algos |= {"sha1"}
-        cont = Content.from_dict(data.cont2)
-        missing_cont = SkippedContent.from_dict(data.missing_cont)
-        swh_storage.content_add([cont])
+        content, missing_content = [data.content2, data.missing_content]
+        swh_storage.content_add([content])
 
-        test_contents = [cont.to_dict()]
+        test_contents = [content.to_dict()]
         missing_per_hash = defaultdict(list)
         for i in range(256):
-            test_content = missing_cont.to_dict()
+            test_content = missing_content.to_dict()
             for hash in algos:
                 test_content[hash] = bytes([i]) + test_content[hash][1:]
                 missing_per_hash[hash].append(test_content[hash])
@@ -501,14 +500,13 @@ class TestStorage:
     )
     def test_content_missing_unknown_algo(self, swh_storage, algos):
         algos |= {"sha1"}
-        cont = Content.from_dict(data.cont2)
-        missing_cont = SkippedContent.from_dict(data.missing_cont)
-        swh_storage.content_add([cont])
+        content, missing_content = [data.content2, data.missing_content]
+        swh_storage.content_add([content])
 
-        test_contents = [cont.to_dict()]
+        test_contents = [content.to_dict()]
         missing_per_hash = defaultdict(list)
         for i in range(16):
-            test_content = missing_cont.to_dict()
+            test_content = missing_content.to_dict()
             for hash in algos:
                 test_content[hash] = bytes([i]) + test_content[hash][1:]
                 missing_per_hash[hash].append(test_content[hash])
@@ -651,8 +649,7 @@ class TestStorage:
         assert tuple(actual_contents[missing_cont.sha1]) == ()
 
     def test_content_get_random(self, swh_storage, sample_data_model):
-        cont, cont2 = sample_data_model["content"][:2]
-        cont3 = sample_data_model["content_no_data"][0]
+        cont, cont2, cont3 = sample_data_model["content"][:3]
         swh_storage.content_add([cont, cont2, cont3])
 
         assert swh_storage.content_get_random() in {
@@ -2915,7 +2912,7 @@ class TestStorage:
     def test_content_find_with_non_present_content(
         self, swh_storage, sample_data_model
     ):
-        missing_content = sample_data_model["content_no_data"][0]
+        missing_content = sample_data_model["skipped_content"][0]
         # 1. with something that does not exist
         actually_present = swh_storage.content_find({"sha1": missing_content.sha1})
 
