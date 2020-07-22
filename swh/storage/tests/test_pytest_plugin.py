@@ -3,31 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-
-from swh.model.model import BaseModel
 from swh.storage.interface import StorageInterface
+from swh.storage.tests.storage_data import StorageData
 
 
 def test_sample_data(sample_data):
-    assert set(sample_data.keys()) == set(
-        [
-            "content",
-            "skipped_content",
-            "directory",
-            "revision",
-            "release",
-            "snapshot",
-            "origin",
-            "origin_visit",
-            "fetcher",
-            "authority",
-            "origin_metadata",
-            "content_metadata",
-        ]
-    )
-    for object_type, objs in sample_data.items():
-        for obj in objs:
-            assert isinstance(obj, BaseModel)
+    assert isinstance(sample_data, StorageData)
 
 
 def test_swh_storage(swh_storage: StorageInterface):

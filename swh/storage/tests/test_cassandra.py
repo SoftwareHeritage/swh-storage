@@ -193,7 +193,7 @@ class TestCassandraStorage(_TestStorage):
         """
         called = 0
 
-        cont, cont2 = sample_data["content"][:2]
+        cont, cont2 = sample_data.contents[:2]
 
         # always return a token
         def mock_cgtfsh(algo, hash_):
@@ -236,7 +236,7 @@ class TestCassandraStorage(_TestStorage):
         """
         called = 0
 
-        cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data["content"][:2]]
+        cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
         def mock_cgtfsh(algo, hash_):
@@ -284,7 +284,7 @@ class TestCassandraStorage(_TestStorage):
         """
         called = 0
 
-        cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data["content"][:2]]
+        cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
         def mock_cgtfsh(algo, hash_):

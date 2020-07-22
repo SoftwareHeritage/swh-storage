@@ -21,7 +21,7 @@ def swh_storage():
 
 
 def test_filtering_proxy_storage_content(swh_storage, sample_data):
-    sample_content = sample_data["content"][0]
+    sample_content = sample_data.content
 
     content = next(swh_storage.content_get([sample_content.sha1]))
     assert not content
@@ -43,7 +43,7 @@ def test_filtering_proxy_storage_content(swh_storage, sample_data):
 
 
 def test_filtering_proxy_storage_skipped_content(swh_storage, sample_data):
-    sample_content = sample_data["skipped_content"][0]
+    sample_content = sample_data.skipped_content
     sample_content_dict = sample_content.to_dict()
 
     content = next(swh_storage.skipped_content_missing([sample_content_dict]))
@@ -67,7 +67,7 @@ def test_filtering_proxy_storage_skipped_content_missing_sha1_git(
     swh_storage, sample_data
 ):
     sample_contents = [
-        attr.evolve(c, sha1_git=None) for c in sample_data["skipped_content"]
+        attr.evolve(c, sha1_git=None) for c in sample_data.skipped_contents
     ]
     sample_content, sample_content2 = [c.to_dict() for c in sample_contents[:2]]
 
@@ -92,7 +92,7 @@ def test_filtering_proxy_storage_skipped_content_missing_sha1_git(
 
 
 def test_filtering_proxy_storage_revision(swh_storage, sample_data):
-    sample_revision = sample_data["revision"][0]
+    sample_revision = sample_data.revision
 
     revision = next(swh_storage.revision_get([sample_revision.id]))
     assert not revision
@@ -112,7 +112,7 @@ def test_filtering_proxy_storage_revision(swh_storage, sample_data):
 
 
 def test_filtering_proxy_storage_directory(swh_storage, sample_data):
-    sample_directory = sample_data["directory"][0]
+    sample_directory = sample_data.directory
 
     directory = next(swh_storage.directory_missing([sample_directory.id]))
     assert directory

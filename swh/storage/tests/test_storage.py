@@ -44,8 +44,6 @@ from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
 from swh.storage.utils import content_hex_hashes, now
 
-from .storage_data import data
-
 
 @contextmanager
 def db_transaction(storage):
@@ -105,8 +103,7 @@ def test_round_to_milliseconds():
 
 class LazyContent(Content):
     def with_data(self):
-        raw_data = data.content.data
-        return Content.from_dict({**self.to_dict(), "data": raw_data})
+        return Content.from_dict({**self.to_dict(), "data": b"42\n"})
 
 
 class TestStorage:
@@ -159,7 +156,7 @@ class TestStorage:
         assert swh_storage.check_config(check_write=False)
 
     def test_content_add(self, swh_storage, sample_data):
-        cont = sample_data["content"][0]
+        cont = sample_data.content
 
         insertion_start_time = now()
         actual_result = swh_storage.content_add([cont])
@@ -191,7 +188,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["content"] == 1
 
     def test_content_add_from_generator(self, swh_storage, sample_data):
-        cont = sample_data["content"][0]
+        cont = sample_data.content
 
         def _cnt_gen():
             yield cont
@@ -207,7 +204,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["content"] == 1
 
     def test_content_add_from_lazy_content(self, swh_storage, sample_data):
-        cont = sample_data["content"][0]
+        cont = sample_data.content
         lazy_content = LazyContent.from_dict(cont.to_dict())
 
         insertion_start_time = now()
@@ -243,7 +240,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["content"] == 1
 
     def test_content_get_missing(self, swh_storage, sample_data):
-        cont, cont2 = sample_data["content"][:2]
+        cont, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont])
 
@@ -261,7 +258,7 @@ class TestStorage:
         assert results == [None, {"sha1": cont.sha1, "data": cont.data}]
 
     def test_content_add_different_input(self, swh_storage, sample_data):
-        cont, cont2 = sample_data["content"][:2]
+        cont, cont2 = sample_data.contents[:2]
 
         actual_result = swh_storage.content_add([cont, cont2])
         assert actual_result == {
@@ -270,7 +267,7 @@ class TestStorage:
         }
 
     def test_content_add_twice(self, swh_storage, sample_data):
-        cont, cont2 = sample_data["content"][:2]
+        cont, cont2 = sample_data.contents[:2]
 
         actual_result = swh_storage.content_add([cont])
         assert actual_result == {
@@ -290,7 +287,7 @@ class TestStorage:
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
 
     def test_content_add_collision(self, swh_storage, sample_data):
-        cont1 = sample_data["content"][0]
+        cont1 = sample_data.content
 
         # create (corrupted) content with same sha1{,_git} but != sha256
         sha256_array = bytearray(cont1.sha256)
@@ -317,7 +314,7 @@ class TestStorage:
         ]
 
     def test_content_add_duplicate(self, swh_storage, sample_data):
-        cont = sample_data["content"][0]
+        cont = sample_data.content
         swh_storage.content_add([cont, cont])
 
         assert list(swh_storage.content_get([cont.sha1])) == [
@@ -325,7 +322,7 @@ class TestStorage:
         ]
 
     def test_content_update(self, swh_storage, sample_data):
-        cont1 = sample_data["content"][0]
+        cont1 = sample_data.content
 
         if hasattr(swh_storage, "journal_writer"):
             swh_storage.journal_writer.journal = None  # TODO, not supported
@@ -346,7 +343,7 @@ class TestStorage:
         assert tuple(results[cont1.sha1]) == (expected_content,)
 
     def test_content_add_metadata(self, swh_storage, sample_data):
-        cont = attr.evolve(sample_data["content"][0], data=None, ctime=now())
+        cont = attr.evolve(sample_data.content, data=None, ctime=now())
 
         actual_result = swh_storage.content_add_metadata([cont])
         assert actual_result == {
@@ -370,7 +367,7 @@ class TestStorage:
             assert obj == cont
 
     def test_content_add_metadata_different_input(self, swh_storage, sample_data):
-        contents = sample_data["content"][:2]
+        contents = sample_data.contents[:2]
         cont = attr.evolve(contents[0], data=None, ctime=now())
         cont2 = attr.evolve(contents[1], data=None, ctime=now())
 
@@ -380,7 +377,7 @@ class TestStorage:
         }
 
     def test_content_add_metadata_collision(self, swh_storage, sample_data):
-        cont1 = attr.evolve(sample_data["content"][0], data=None, ctime=now())
+        cont1 = attr.evolve(sample_data.content, data=None, ctime=now())
 
         # create (corrupted) content with same sha1{,_git} but != sha256
         sha1_git_array = bytearray(cont1.sha256)
@@ -407,7 +404,7 @@ class TestStorage:
         ]
 
     def test_skipped_content_add(self, swh_storage, sample_data):
-        contents = sample_data["skipped_content"][:2]
+        contents = sample_data.skipped_contents[:2]
         cont = contents[0]
         cont2 = attr.evolve(contents[1], blake2s256=None)
 
@@ -427,7 +424,7 @@ class TestStorage:
 
     def test_skipped_content_add_missing_hashes(self, swh_storage, sample_data):
         cont, cont2 = [
-            attr.evolve(c, sha1_git=None) for c in sample_data["skipped_content"][:2]
+            attr.evolve(c, sha1_git=None) for c in sample_data.skipped_contents[:2]
         ]
         contents_dict = [c.to_dict() for c in [cont, cont2]]
 
@@ -443,7 +440,7 @@ class TestStorage:
         assert missing == []
 
     def test_skipped_content_missing_partial_hash(self, swh_storage, sample_data):
-        cont = sample_data["skipped_content"][0]
+        cont = sample_data.skipped_content
         cont2 = attr.evolve(cont, sha1_git=None)
         contents_dict = [c.to_dict() for c in [cont, cont2]]
 
@@ -466,9 +463,9 @@ class TestStorage:
             min_size=0,
         )
     )
-    def test_content_missing(self, swh_storage, algos):
+    def test_content_missing(self, swh_storage, sample_data, algos):
         algos |= {"sha1"}
-        content, missing_content = [data.content2, data.skipped_content]
+        content, missing_content = [sample_data.content2, sample_data.skipped_content]
         swh_storage.content_add([content])
 
         test_contents = [content.to_dict()]
@@ -496,9 +493,9 @@ class TestStorage:
             min_size=0,
         )
     )
-    def test_content_missing_unknown_algo(self, swh_storage, algos):
+    def test_content_missing_unknown_algo(self, swh_storage, sample_data, algos):
         algos |= {"sha1"}
-        content, missing_content = [data.content2, data.skipped_content]
+        content, missing_content = [sample_data.content2, sample_data.skipped_content]
         swh_storage.content_add([content])
 
         test_contents = [content.to_dict()]
@@ -522,8 +519,8 @@ class TestStorage:
 
     def test_content_missing_per_sha1(self, swh_storage, sample_data):
         # given
-        cont = sample_data["content"][0]
-        missing_cont = sample_data["skipped_content"][0]
+        cont = sample_data.content
+        missing_cont = sample_data.skipped_content
         swh_storage.content_add([cont])
 
         # when
@@ -532,8 +529,8 @@ class TestStorage:
         assert list(gen) == [missing_cont.sha1]
 
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
-        cont, cont2 = sample_data["content"][:2]
-        missing_cont = sample_data["skipped_content"][0]
+        cont, cont2 = sample_data.contents[:2]
+        missing_cont = sample_data.skipped_content
 
         swh_storage.content_add([cont, cont2])
 
@@ -618,7 +615,7 @@ class TestStorage:
         assert_contents_ok(expected_contents, actual_contents, ["sha1"])
 
     def test_content_get_metadata(self, swh_storage, sample_data):
-        cont1, cont2 = sample_data["content"][:2]
+        cont1, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont1, cont2])
 
@@ -636,8 +633,8 @@ class TestStorage:
         assert len(actual_md.keys()) == 2
 
     def test_content_get_metadata_missing_sha1(self, swh_storage, sample_data):
-        cont1, cont2 = sample_data["content"][:2]
-        missing_cont = sample_data["skipped_content"][0]
+        cont1, cont2 = sample_data.contents[:2]
+        missing_cont = sample_data.skipped_content
 
         swh_storage.content_add([cont1, cont2])
 
@@ -647,7 +644,7 @@ class TestStorage:
         assert tuple(actual_contents[missing_cont.sha1]) == ()
 
     def test_content_get_random(self, swh_storage, sample_data):
-        cont, cont2, cont3 = sample_data["content"][:3]
+        cont, cont2, cont3 = sample_data.contents[:3]
         swh_storage.content_add([cont, cont2, cont3])
 
         assert swh_storage.content_get_random() in {
@@ -657,7 +654,7 @@ class TestStorage:
         }
 
     def test_directory_add(self, swh_storage, sample_data):
-        directory = sample_data["directory"][1]
+        directory = sample_data.directories[1]
 
         init_missing = list(swh_storage.directory_missing([directory.id]))
         assert [directory.id] == init_missing
@@ -681,7 +678,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["directory"] == 1
 
     def test_directory_add_from_generator(self, swh_storage, sample_data):
-        directory = sample_data["directory"][1]
+        directory = sample_data.directories[1]
 
         def _dir_gen():
             yield directory
@@ -697,7 +694,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["directory"] == 1
 
     def test_directory_add_twice(self, swh_storage, sample_data):
-        directory = sample_data["directory"][1]
+        directory = sample_data.directories[1]
 
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
@@ -714,7 +711,7 @@ class TestStorage:
         ]
 
     def test_directory_get_recursive(self, swh_storage, sample_data):
-        dir1, dir2, dir3 = sample_data["directory"][:3]
+        dir1, dir2, dir3 = sample_data.directories[:3]
 
         init_missing = list(swh_storage.directory_missing([dir1.id]))
         assert init_missing == [dir1.id]
@@ -749,7 +746,7 @@ class TestStorage:
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
     def test_directory_get_non_recursive(self, swh_storage, sample_data):
-        dir1, dir2, dir3 = sample_data["directory"][:3]
+        dir1, dir2, dir3 = sample_data.directories[:3]
 
         init_missing = list(swh_storage.directory_missing([dir1.id]))
         assert init_missing == [dir1.id]
@@ -780,8 +777,8 @@ class TestStorage:
         assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
     def test_directory_entry_get_by_path(self, swh_storage, sample_data):
-        cont = sample_data["content"][0]
-        dir1, dir2, dir3, dir4, dir5 = sample_data["directory"][:5]
+        cont = sample_data.content
+        dir1, dir2, dir3, dir4, dir5 = sample_data.directories[:5]
 
         # given
         init_missing = list(swh_storage.directory_missing([dir3.id]))
@@ -853,7 +850,7 @@ class TestStorage:
             assert actual_entry is None
 
     def test_directory_get_random(self, swh_storage, sample_data):
-        dir1, dir2, dir3 = sample_data["directory"][:3]
+        dir1, dir2, dir3 = sample_data.directories[:3]
         swh_storage.directory_add([dir1, dir2, dir3])
 
         assert swh_storage.directory_get_random() in {
@@ -863,7 +860,7 @@ class TestStorage:
         }
 
     def test_revision_add(self, swh_storage, sample_data):
-        revision = sample_data["revision"][0]
+        revision = sample_data.revision
         init_missing = swh_storage.revision_missing([revision.id])
         assert list(init_missing) == [revision.id]
 
@@ -885,7 +882,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["revision"] == 1
 
     def test_revision_add_from_generator(self, swh_storage, sample_data):
-        revision = sample_data["revision"][0]
+        revision = sample_data.revision
 
         def _rev_gen():
             yield revision
@@ -897,7 +894,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["revision"] == 1
 
     def test_revision_add_twice(self, swh_storage, sample_data):
-        revision, revision2 = sample_data["revision"][:2]
+        revision, revision2 = sample_data.revisions[:2]
 
         actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 1}
@@ -915,7 +912,7 @@ class TestStorage:
         ]
 
     def test_revision_add_name_clash(self, swh_storage, sample_data):
-        revision, revision2 = sample_data["revision"][:2]
+        revision, revision2 = sample_data.revisions[:2]
 
         revision1 = attr.evolve(
             revision,
@@ -937,7 +934,7 @@ class TestStorage:
         assert actual_result == {"revision:add": 2}
 
     def test_revision_get_order(self, swh_storage, sample_data):
-        revision, revision2 = sample_data["revision"][:2]
+        revision, revision2 = sample_data.revisions[:2]
 
         add_result = swh_storage.revision_add([revision, revision2])
         assert add_result == {"revision:add": 2}
@@ -952,7 +949,7 @@ class TestStorage:
         assert [Revision.from_dict(r) for r in res2] == [revision2, revision]
 
     def test_revision_log(self, swh_storage, sample_data):
-        revision1, revision2, revision3, revision4 = sample_data["revision"][:4]
+        revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
 
         # rev4 -is-child-of-> rev3 -> rev1, (rev2 -> rev1)
         swh_storage.revision_add([revision1, revision2, revision3, revision4])
@@ -966,7 +963,7 @@ class TestStorage:
         assert actual_results == [revision4, revision3, revision1, revision2]
 
     def test_revision_log_with_limit(self, swh_storage, sample_data):
-        revision1, revision2, revision3, revision4 = sample_data["revision"][:4]
+        revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
 
         # revision4 -is-child-of-> revision3
         swh_storage.revision_add([revision3, revision4])
@@ -977,12 +974,12 @@ class TestStorage:
         assert actual_results[0] == revision4
 
     def test_revision_log_unknown_revision(self, swh_storage, sample_data):
-        revision = sample_data["revision"][0]
+        revision = sample_data.revision
         rev_log = list(swh_storage.revision_log([revision.id]))
         assert rev_log == []
 
     def test_revision_shortlog(self, swh_storage, sample_data):
-        revision1, revision2, revision3, revision4 = sample_data["revision"][:4]
+        revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
 
         # rev4 -is-child-of-> rev3 -> (rev1, rev2); rev2 -> rev1
         swh_storage.revision_add([revision1, revision2, revision3, revision4])
@@ -999,7 +996,7 @@ class TestStorage:
         ]
 
     def test_revision_shortlog_with_limit(self, swh_storage, sample_data):
-        revision1, revision2, revision3, revision4 = sample_data["revision"][:4]
+        revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
 
         # revision4 -is-child-of-> revision3
         swh_storage.revision_add([revision1, revision2, revision3, revision4])
@@ -1010,7 +1007,7 @@ class TestStorage:
         assert list(actual_results[0]) == [revision4.id, revision4.parents]
 
     def test_revision_get(self, swh_storage, sample_data):
-        revision, revision2 = sample_data["revision"][:2]
+        revision, revision2 = sample_data.revisions[:2]
 
         swh_storage.revision_add([revision])
 
@@ -1021,7 +1018,7 @@ class TestStorage:
         assert actual_revisions[1] is None
 
     def test_revision_get_no_parents(self, swh_storage, sample_data):
-        revision = sample_data["revision"][0]
+        revision = sample_data.revision
         swh_storage.revision_add([revision])
 
         get = list(swh_storage.revision_get([revision.id]))
@@ -1031,7 +1028,7 @@ class TestStorage:
         assert tuple(get[0]["parents"]) == ()  # no parents on this one
 
     def test_revision_get_random(self, swh_storage, sample_data):
-        revision1, revision2, revision3 = sample_data["revision"][:3]
+        revision1, revision2, revision3 = sample_data.revisions[:3]
 
         swh_storage.revision_add([revision1, revision2, revision3])
 
@@ -1042,7 +1039,7 @@ class TestStorage:
         }
 
     def test_release_add(self, swh_storage, sample_data):
-        release, release2 = sample_data["release"][:2]
+        release, release2 = sample_data.releases[:2]
 
         init_missing = swh_storage.release_missing([release.id, release2.id])
         assert list(init_missing) == [release.id, release2.id]
@@ -1066,7 +1063,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["release"] == 2
 
     def test_release_add_from_generator(self, swh_storage, sample_data):
-        release, release2 = sample_data["release"][:2]
+        release, release2 = sample_data.releases[:2]
 
         def _rel_gen():
             yield release
@@ -1084,7 +1081,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["release"] == 2
 
     def test_release_add_no_author_date(self, swh_storage, sample_data):
-        full_release = sample_data["release"][0]
+        full_release = sample_data.release
 
         release = attr.evolve(full_release, author=None, date=None)
         actual_result = swh_storage.release_add([release])
@@ -1098,7 +1095,7 @@ class TestStorage:
         ]
 
     def test_release_add_twice(self, swh_storage, sample_data):
-        release, release2 = sample_data["release"][:2]
+        release, release2 = sample_data.releases[:2]
 
         actual_result = swh_storage.release_add([release])
         assert actual_result == {"release:add": 1}
@@ -1124,14 +1121,14 @@ class TestStorage:
                     email=b"john.doe@example.com",
                 ),
             )
-            for c in sample_data["release"][:2]
+            for c in sample_data.releases[:2]
         ]
 
         actual_result = swh_storage.release_add([release, release2])
         assert actual_result == {"release:add": 2}
 
     def test_release_get(self, swh_storage, sample_data):
-        release, release2, release3 = sample_data["release"][:3]
+        release, release2, release3 = sample_data.releases[:3]
 
         # given
         swh_storage.release_add([release, release2])
@@ -1147,7 +1144,7 @@ class TestStorage:
         assert unknown_releases[0] is None
 
     def test_release_get_order(self, swh_storage, sample_data):
-        release, release2 = sample_data["release"][:2]
+        release, release2 = sample_data.releases[:2]
 
         add_result = swh_storage.release_add([release, release2])
         assert add_result == {"release:add": 2}
@@ -1161,7 +1158,7 @@ class TestStorage:
         assert list(res2) == [release2.to_dict(), release.to_dict()]
 
     def test_release_get_random(self, swh_storage, sample_data):
-        release, release2, release3 = sample_data["release"][:3]
+        release, release2, release3 = sample_data.releases[:3]
 
         swh_storage.release_add([release, release2, release3])
 
@@ -1172,7 +1169,7 @@ class TestStorage:
         }
 
     def test_origin_add(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
         assert swh_storage.origin_get([origin_dict])[0] is None
@@ -1194,7 +1191,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["origin"] == 2
 
     def test_origin_add_from_generator(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
         def _ori_gen():
@@ -1218,7 +1215,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["origin"] == 2
 
     def test_origin_add_twice(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
         add1 = swh_storage.origin_add([origin, origin2])
@@ -1234,7 +1231,7 @@ class TestStorage:
         assert add2 == {"origin:add": 0}
 
     def test_origin_get_legacy(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
         assert swh_storage.origin_get(origin_dict) is None
@@ -1244,7 +1241,7 @@ class TestStorage:
         assert actual_origin0["url"] == origin.url
 
     def test_origin_get(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dict, origin2_dict = [o.to_dict() for o in [origin, origin2]]
 
         assert swh_storage.origin_get(origin_dict) is None
@@ -1281,18 +1278,24 @@ class TestStorage:
         return visits
 
     def test_origin_visit_get_all(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         swh_storage.origin_add([origin])
         visits = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
                 ),
                 OriginVisit(
-                    origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
                 ),
                 OriginVisit(
-                    origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
                 ),
             ]
         )
@@ -1351,7 +1354,7 @@ class TestStorage:
         assert [] == list(swh_storage.origin_visit_get("foo"))
 
     def test_origin_visit_get_random(self, swh_storage, sample_data):
-        origins = sample_data["origin"][:2]
+        origins = sample_data.origins[:2]
         swh_storage.origin_add(origins)
 
         # Add some random visits within the selection range
@@ -1388,7 +1391,7 @@ class TestStorage:
         assert random_origin_visit["origin"] in [o.url for o in origins]
 
     def test_origin_visit_get_random_nothing_found(self, swh_storage, sample_data):
-        origins = sample_data["origin"]
+        origins = sample_data.origins
         swh_storage.origin_add(origins)
         visit_type = "hg"
         # Add some visits outside of the random generation selection so nothing
@@ -1415,7 +1418,7 @@ class TestStorage:
         assert random_origin_visit is None
 
     def test_origin_get_by_sha1(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         assert swh_storage.origin_get(origin.to_dict()) is None
         swh_storage.origin_add([origin])
 
@@ -1424,14 +1427,14 @@ class TestStorage:
         assert origins[0]["url"] == origin.url
 
     def test_origin_get_by_sha1_not_found(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         assert swh_storage.origin_get(origin.to_dict()) is None
         origins = list(swh_storage.origin_get_by_sha1([sha1(origin.url)]))
         assert len(origins) == 1
         assert origins[0] is None
 
     def test_origin_search_single_result(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
 
         found_origins = list(swh_storage.origin_search(origin.url))
         assert len(found_origins) == 0
@@ -1465,7 +1468,7 @@ class TestStorage:
         assert found_origins[0] == origin2_data
 
     def test_origin_search_no_regexp(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
@@ -1488,7 +1491,7 @@ class TestStorage:
         assert found_origins0 != found_origins1
 
     def test_origin_search_regexp_substring(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
@@ -1515,7 +1518,7 @@ class TestStorage:
         assert found_origins0 != found_origins1
 
     def test_origin_search_regexp_fullstring(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
+        origin, origin2 = sample_data.origins[:2]
         origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
@@ -1542,7 +1545,7 @@ class TestStorage:
         assert found_origins0 != found_origins1
 
     def test_origin_visit_add(self, swh_storage, sample_data):
-        origin1 = sample_data["origin"][1]
+        origin1 = sample_data.origins[1]
         swh_storage.origin_add([origin1])
 
         date_visit = now()
@@ -1552,10 +1555,10 @@ class TestStorage:
         date_visit2 = round_to_milliseconds(date_visit2)
 
         visit1 = OriginVisit(
-            origin=origin1.url, date=date_visit, type=data.type_visit1,
+            origin=origin1.url, date=date_visit, type=sample_data.type_visit1,
         )
         visit2 = OriginVisit(
-            origin=origin1.url, date=date_visit2, type=data.type_visit2,
+            origin=origin1.url, date=date_visit2, type=sample_data.type_visit2,
         )
 
         # add once
@@ -1601,11 +1604,9 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_add_validation(self, swh_storage):
+    def test_origin_visit_add_validation(self, swh_storage, sample_data):
         """Unknown origin when adding visits should raise"""
-        visit = OriginVisit(
-            origin="something-unknown", date=now(), type=data.type_visit1,
-        )
+        visit = attr.evolve(sample_data.origin_visit, origin="something-unknonw")
         with pytest.raises(StorageArgumentException, match="Unknown origin"):
             swh_storage.origin_visit_add([visit])
 
@@ -1632,18 +1633,22 @@ class TestStorage:
         """Correct origin visit statuses should add a new visit status
 
         """
-        snapshot = sample_data["snapshot"][0]
-        origin1 = sample_data["origin"][1]
+        snapshot = sample_data.snapshot
+        origin1 = sample_data.origins[1]
         origin2 = Origin(url="new-origin")
         swh_storage.origin_add([origin1, origin2])
 
         ov1, ov2 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin1.url, date=data.date_visit1, type=data.type_visit1,
+                    origin=origin1.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
                 ),
                 OriginVisit(
-                    origin=origin2.url, date=data.date_visit2, type=data.type_visit2,
+                    origin=origin2.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
                 ),
             ]
         )
@@ -1651,14 +1656,14 @@ class TestStorage:
         ovs1 = OriginVisitStatus(
             origin=origin1.url,
             visit=ov1.visit,
-            date=data.date_visit1,
+            date=sample_data.date_visit1,
             status="created",
             snapshot=None,
         )
         ovs2 = OriginVisitStatus(
             origin=origin2.url,
             visit=ov2.visit,
-            date=data.date_visit2,
+            date=sample_data.date_visit2,
             status="created",
             snapshot=None,
         )
@@ -1718,13 +1723,15 @@ class TestStorage:
         """Correct origin visit statuses should add a new visit status
 
         """
-        snapshot = sample_data["snapshot"][0]
-        origin1 = sample_data["origin"][1]
+        snapshot = sample_data.snapshot
+        origin1 = sample_data.origins[1]
         swh_storage.origin_add([origin1])
         ov1 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin1.url, date=data.date_visit1, type=data.type_visit1,
+                    origin=origin1.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
                 ),
             ]
         )[0]
@@ -1732,7 +1739,7 @@ class TestStorage:
         ovs1 = OriginVisitStatus(
             origin=origin1.url,
             visit=ov1.visit,
-            date=data.date_visit1,
+            date=sample_data.date_visit1,
             status="created",
             snapshot=None,
         )
@@ -1774,61 +1781,73 @@ class TestStorage:
             assert obj in actual_objects
 
     def test_origin_visit_find_by_date(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit1,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit1,
         )
         visit2 = OriginVisit(
-            origin=origin.url, date=data.date_visit3, type=data.type_visit2,
+            origin=origin.url,
+            date=sample_data.date_visit3,
+            type=sample_data.type_visit2,
         )
         visit3 = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit3,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit3,
         )
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
 
         ovs1 = OriginVisitStatus(
             origin=origin.url,
             visit=ov1.visit,
-            date=data.date_visit2,
+            date=sample_data.date_visit2,
             status="ongoing",
             snapshot=None,
         )
         ovs2 = OriginVisitStatus(
             origin=origin.url,
             visit=ov2.visit,
-            date=data.date_visit3,
+            date=sample_data.date_visit3,
             status="ongoing",
             snapshot=None,
         )
         ovs3 = OriginVisitStatus(
             origin=origin.url,
             visit=ov3.visit,
-            date=data.date_visit2,
+            date=sample_data.date_visit2,
             status="ongoing",
             snapshot=None,
         )
         swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3])
 
         # Simple case
-        visit = swh_storage.origin_visit_find_by_date(origin.url, data.date_visit3)
+        visit = swh_storage.origin_visit_find_by_date(
+            origin.url, sample_data.date_visit3
+        )
         assert visit["visit"] == ov2.visit
 
         # There are two visits at the same date, the latest must be returned
-        visit = swh_storage.origin_visit_find_by_date(origin.url, data.date_visit2)
+        visit = swh_storage.origin_visit_find_by_date(
+            origin.url, sample_data.date_visit2
+        )
         assert visit["visit"] == ov3.visit
 
-    def test_origin_visit_find_by_date__unknown_origin(self, swh_storage):
-        swh_storage.origin_visit_find_by_date("foo", data.date_visit2)
+    def test_origin_visit_find_by_date__unknown_origin(self, swh_storage, sample_data):
+        swh_storage.origin_visit_find_by_date("foo", sample_data.date_visit2)
 
     def test_origin_visit_get_by(self, swh_storage, sample_data):
-        snapshot = sample_data["snapshot"][0]
-        origins = sample_data["origin"][:2]
+        snapshot = sample_data.snapshot
+        origins = sample_data.origins[:2]
         swh_storage.origin_add(origins)
         origin_url, origin_url2 = [o.url for o in origins]
 
         visit = OriginVisit(
-            origin=origin_url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin_url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit2,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
@@ -1847,10 +1866,14 @@ class TestStorage:
 
         # Add some other {origin, visit} entries
         visit2 = OriginVisit(
-            origin=origin_url, date=data.date_visit3, type=data.type_visit3,
+            origin=origin_url,
+            date=sample_data.date_visit3,
+            type=sample_data.type_visit3,
         )
         visit3 = OriginVisit(
-            origin=origin_url2, date=data.date_visit3, type=data.type_visit3,
+            origin=origin_url2,
+            date=sample_data.date_visit3,
+            type=sample_data.type_visit3,
         )
         swh_storage.origin_visit_add([visit2, visit3])
 
@@ -1878,8 +1901,8 @@ class TestStorage:
             {
                 "origin": origin_url,
                 "visit": origin_visit1.visit,
-                "date": data.date_visit2,
-                "type": data.type_visit2,
+                "date": sample_data.date_visit2,
+                "type": sample_data.type_visit2,
                 "metadata": visit1_metadata,
                 "status": "full",
                 "snapshot": snapshot.id,
@@ -1898,7 +1921,7 @@ class TestStorage:
         assert swh_storage.origin_visit_get_by("foo", 10) is None
 
     def test_origin_visit_get_by_no_result(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         swh_storage.origin_add([origin])
         actual_origin_visit = swh_storage.origin_visit_get_by(origin.url, 999)
         assert actual_origin_visit is None
@@ -1911,7 +1934,7 @@ class TestStorage:
         assert swh_storage.origin_visit_get_latest("unknown-origin") is None
 
         # unknown type
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         swh_storage.origin_add([origin])
         assert swh_storage.origin_visit_get_latest(origin.url, type="unknown") is None
 
@@ -1919,41 +1942,47 @@ class TestStorage:
         """Filtering origin visit get latest with filter type should be ok
 
         """
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type=sample_data.type_visit1,
         )
         visit2 = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit2,
         )
         # Add a visit with the same date as the previous one
         visit3 = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit2,
         )
-        assert data.type_visit1 != data.type_visit2
-        assert data.date_visit1 < data.date_visit2
+        assert sample_data.type_visit1 != sample_data.type_visit2
+        assert sample_data.date_visit1 < sample_data.date_visit2
 
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
 
         origin_visit1 = swh_storage.origin_visit_get_by(origin.url, ov1.visit)
         origin_visit3 = swh_storage.origin_visit_get_by(origin.url, ov3.visit)
 
-        assert data.type_visit1 != data.type_visit2
+        assert sample_data.type_visit1 != sample_data.type_visit2
 
         # Check type filter is ok
         actual_ov1 = swh_storage.origin_visit_get_latest(
-            origin.url, type=data.type_visit1,
+            origin.url, type=sample_data.type_visit1,
         )
         assert actual_ov1 == origin_visit1
 
         actual_ov3 = swh_storage.origin_visit_get_latest(
-            origin.url, type=data.type_visit2,
+            origin.url, type=sample_data.type_visit2,
         )
         assert actual_ov3 == origin_visit3
 
         new_type = "npm"
-        assert new_type not in [data.type_visit1, data.type_visit2]
+        assert new_type not in [sample_data.type_visit1, sample_data.type_visit2]
 
         assert (
             swh_storage.origin_visit_get_latest(
@@ -1963,19 +1992,25 @@ class TestStorage:
         )
 
     def test_origin_visit_get_latest(self, swh_storage, sample_data):
-        empty_snapshot, complete_snapshot = sample_data["snapshot"][1:3]
-        origin = sample_data["origin"][0]
+        empty_snapshot, complete_snapshot = sample_data.snapshots[1:3]
+        origin = sample_data.origin
 
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type=sample_data.type_visit1,
         )
         visit2 = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit2,
         )
         # Add a visit with the same date as the previous one
         visit3 = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit2,
         )
 
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
@@ -2110,8 +2145,8 @@ class TestStorage:
         } == swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
 
     def test_origin_visit_status_get_latest(self, swh_storage, sample_data):
-        snapshot = sample_data["snapshot"][2]
-        origin1 = sample_data["origin"][0]
+        snapshot = sample_data.snapshots[2]
+        origin1 = sample_data.origin
         swh_storage.origin_add([origin1])
 
         # to have some reference visits
@@ -2119,10 +2154,14 @@ class TestStorage:
         ov1, ov2 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin1.url, date=data.date_visit1, type=data.type_visit1,
+                    origin=origin1.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
                 ),
                 OriginVisit(
-                    origin=origin1.url, date=data.date_visit2, type=data.type_visit2,
+                    origin=origin1.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
                 ),
             ]
         )
@@ -2130,27 +2169,28 @@ class TestStorage:
 
         date_now = now()
         date_now = round_to_milliseconds(date_now)
-        assert data.date_visit1 < data.date_visit2
-        assert data.date_visit2 < date_now
+        assert sample_data.date_visit1 < sample_data.date_visit2
+        assert sample_data.date_visit2 < date_now
 
         ovs1 = OriginVisitStatus(
             origin=origin1.url,
             visit=ov1.visit,
-            date=data.date_visit1,
+            date=sample_data.date_visit1,
             status="partial",
             snapshot=None,
         )
         ovs2 = OriginVisitStatus(
             origin=origin1.url,
             visit=ov1.visit,
-            date=data.date_visit2,
+            date=sample_data.date_visit2,
             status="ongoing",
             snapshot=None,
         )
         ovs3 = OriginVisitStatus(
             origin=origin1.url,
             visit=ov2.visit,
-            date=data.date_visit2 + datetime.timedelta(minutes=1),  # to not be ignored
+            date=sample_data.date_visit2
+            + datetime.timedelta(minutes=1),  # to not be ignored
             status="ongoing",
             snapshot=None,
         )
@@ -2217,7 +2257,7 @@ class TestStorage:
         assert actual_origin_visit3 == ovs3
 
     def test_person_fullname_unicity(self, swh_storage, sample_data):
-        revision, rev2 = sample_data["revision"][0:2]
+        revision, rev2 = sample_data.revisions[0:2]
         # create a revision with same committer fullname but wo name and email
         revision2 = attr.evolve(
             rev2,
@@ -2235,15 +2275,17 @@ class TestStorage:
         assert revisions[0]["committer"] == revisions[1]["committer"]
 
     def test_snapshot_add_get_empty(self, swh_storage, sample_data):
-        empty_snapshot = sample_data["snapshot"][1]
+        empty_snapshot = sample_data.snapshots[1]
         empty_snapshot_dict = empty_snapshot.to_dict()
 
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
         swh_storage.origin_add([origin])
         ov1 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
                 )
             ]
         )[0]
@@ -2274,7 +2316,7 @@ class TestStorage:
         ovs1 = OriginVisitStatus.from_dict(
             {
                 "origin": origin.url,
-                "date": data.date_visit1,
+                "date": sample_data.date_visit1,
                 "visit": ov1.visit,
                 "status": "created",
                 "snapshot": None,
@@ -2304,13 +2346,15 @@ class TestStorage:
             assert obj in actual_objects
 
     def test_snapshot_add_get_complete(self, swh_storage, sample_data):
-        complete_snapshot = sample_data["snapshot"][2]
+        complete_snapshot = sample_data.snapshots[2]
         complete_snapshot_dict = complete_snapshot.to_dict()
-        origin = sample_data["origin"][0]
+        origin = sample_data.origin
 
         swh_storage.origin_add([origin])
         visit = OriginVisit(
-            origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type=sample_data.type_visit1,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
         visit_id = origin_visit1.visit
@@ -2336,7 +2380,7 @@ class TestStorage:
         assert by_ov == {**complete_snapshot_dict, "next_branch": None}
 
     def test_snapshot_add_many(self, swh_storage, sample_data):
-        snapshot, _, complete_snapshot = sample_data["snapshot"][:3]
+        snapshot, _, complete_snapshot = sample_data.snapshots[:3]
 
         actual_result = swh_storage.snapshot_add([snapshot, complete_snapshot])
         assert actual_result == {"snapshot:add": 2}
@@ -2355,7 +2399,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["snapshot"] == 2
 
     def test_snapshot_add_many_from_generator(self, swh_storage, sample_data):
-        snapshot, _, complete_snapshot = sample_data["snapshot"][:3]
+        snapshot, _, complete_snapshot = sample_data.snapshots[:3]
 
         def _snp_gen():
             yield from [snapshot, complete_snapshot]
@@ -2367,7 +2411,7 @@ class TestStorage:
         assert swh_storage.stat_counters()["snapshot"] == 2
 
     def test_snapshot_add_many_incremental(self, swh_storage, sample_data):
-        snapshot, _, complete_snapshot = sample_data["snapshot"][:3]
+        snapshot, _, complete_snapshot = sample_data.snapshots[:3]
 
         actual_result = swh_storage.snapshot_add([complete_snapshot])
         assert actual_result == {"snapshot:add": 1}
@@ -2386,7 +2430,7 @@ class TestStorage:
         }
 
     def test_snapshot_add_twice(self, swh_storage, sample_data):
-        snapshot, empty_snapshot = sample_data["snapshot"][:2]
+        snapshot, empty_snapshot = sample_data.snapshots[:2]
 
         actual_result = swh_storage.snapshot_add([empty_snapshot])
         assert actual_result == {"snapshot:add": 1}
@@ -2404,7 +2448,7 @@ class TestStorage:
         ]
 
     def test_snapshot_add_count_branches(self, swh_storage, sample_data):
-        complete_snapshot = sample_data["snapshot"][2]
+        complete_snapshot = sample_data.snapshots[2]
 
         actual_result = swh_storage.snapshot_add([complete_snapshot])
         assert actual_result == {"snapshot:add": 1}
@@ -2423,7 +2467,7 @@ class TestStorage:
         assert snp_size == expected_snp_size
 
     def test_snapshot_add_get_paginated(self, swh_storage, sample_data):
-        complete_snapshot = sample_data["snapshot"][2]
+        complete_snapshot = sample_data.snapshots[2]
 
         swh_storage.snapshot_add([complete_snapshot])
 
@@ -2471,12 +2515,14 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get_filtered(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        complete_snapshot = sample_data["snapshot"][2]
+        origin = sample_data.origin
+        complete_snapshot = sample_data.snapshots[2]
 
         swh_storage.origin_add([origin])
         visit = OriginVisit(
-            origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type=sample_data.type_visit1,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
@@ -2527,7 +2573,7 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get_filtered_and_paginated(self, swh_storage, sample_data):
-        complete_snapshot = sample_data["snapshot"][2]
+        complete_snapshot = sample_data.snapshots[2]
 
         swh_storage.snapshot_add([complete_snapshot])
 
@@ -2596,7 +2642,7 @@ class TestStorage:
         assert snapshot == expected_snapshot
 
     def test_snapshot_add_get_branch_by_type(self, swh_storage, sample_data):
-        complete_snapshot = sample_data["snapshot"][2]
+        complete_snapshot = sample_data.snapshots[2]
         snapshot = complete_snapshot.to_dict()
 
         alias1 = b"alias1"
@@ -2628,12 +2674,14 @@ class TestStorage:
         assert alias1 in branches
 
     def test_snapshot_add_get(self, swh_storage, sample_data):
-        snapshot = sample_data["snapshot"][0]
-        origin = sample_data["origin"][0]
+        snapshot = sample_data.snapshot
+        origin = sample_data.origin
 
         swh_storage.origin_add([origin])
         visit = OriginVisit(
-            origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type=sample_data.type_visit1,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
         visit_id = origin_visit1.visit
@@ -2663,14 +2711,16 @@ class TestStorage:
         assert origin_visit_info["snapshot"] == snapshot.id
 
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage, sample_data):
-        snapshot = sample_data["snapshot"][0]
-        origin = sample_data["origin"][0]
+        snapshot = sample_data.snapshot
+        origin = sample_data.origin
 
         swh_storage.origin_add([origin])
         ov1 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin.url, date=data.date_visit1, type=data.type_visit1,
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
                 )
             ]
         )[0]
@@ -2697,7 +2747,9 @@ class TestStorage:
         ov2 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
                 )
             ]
         )[0]
@@ -2721,7 +2773,7 @@ class TestStorage:
         ovs1 = OriginVisitStatus.from_dict(
             {
                 "origin": origin.url,
-                "date": data.date_visit1,
+                "date": sample_data.date_visit1,
                 "visit": ov1.visit,
                 "status": "created",
                 "metadata": None,
@@ -2741,7 +2793,7 @@ class TestStorage:
         ovs3 = OriginVisitStatus.from_dict(
             {
                 "origin": origin.url,
-                "date": data.date_visit2,
+                "date": sample_data.date_visit2,
                 "visit": ov2.visit,
                 "status": "created",
                 "metadata": None,
@@ -2774,7 +2826,7 @@ class TestStorage:
             assert obj in actual_objects
 
     def test_snapshot_get_random(self, swh_storage, sample_data):
-        snapshot, empty_snapshot, complete_snapshot = sample_data["snapshot"][:3]
+        snapshot, empty_snapshot, complete_snapshot = sample_data.snapshots[:3]
         swh_storage.snapshot_add([snapshot, empty_snapshot, complete_snapshot])
 
         assert swh_storage.snapshot_get_random() in {
@@ -2784,7 +2836,7 @@ class TestStorage:
         }
 
     def test_snapshot_missing(self, swh_storage, sample_data):
-        snapshot, missing_snapshot = sample_data["snapshot"][:2]
+        snapshot, missing_snapshot = sample_data.snapshots[:2]
         snapshots = [snapshot.id, missing_snapshot.id]
         swh_storage.snapshot_add([snapshot])
 
@@ -2793,12 +2845,12 @@ class TestStorage:
         assert list(missing_snapshots) == [missing_snapshot.id]
 
     def test_stat_counters(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        snapshot = sample_data["snapshot"][0]
-        revision = sample_data["revision"][0]
-        release = sample_data["release"][0]
-        directory = sample_data["directory"][0]
-        content = sample_data["content"][0]
+        origin = sample_data.origin
+        snapshot = sample_data.snapshot
+        revision = sample_data.revision
+        release = sample_data.release
+        directory = sample_data.directory
+        content = sample_data.content
 
         expected_keys = ["content", "directory", "origin", "revision"]
 
@@ -2827,7 +2879,9 @@ class TestStorage:
 
         swh_storage.origin_add([origin])
         visit = OriginVisit(
-            origin=origin.url, date=data.date_visit2, type=data.type_visit2,
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type=sample_data.type_visit2,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
 
@@ -2861,7 +2915,7 @@ class TestStorage:
             assert counters["person"] == 3
 
     def test_content_find_ctime(self, swh_storage, sample_data):
-        origin_content = sample_data["content"][0]
+        origin_content = sample_data.content
         ctime = round_to_milliseconds(now())
         content = attr.evolve(origin_content, data=None, ctime=ctime)
         swh_storage.content_add_metadata([content])
@@ -2870,7 +2924,7 @@ class TestStorage:
         assert actually_present[0] == content.to_dict()
 
     def test_content_find_with_present_content(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
         expected_content = content.to_dict()
         del expected_content["data"]
         del expected_content["ctime"]
@@ -2902,7 +2956,7 @@ class TestStorage:
         assert actually_present[0] == expected_content
 
     def test_content_find_with_non_present_content(self, swh_storage, sample_data):
-        missing_content = sample_data["skipped_content"][0]
+        missing_content = sample_data.skipped_content
         # 1. with something that does not exist
         actually_present = swh_storage.content_find({"sha1": missing_content.sha1})
 
@@ -2919,7 +2973,7 @@ class TestStorage:
         assert actually_present == []
 
     def test_content_find_with_duplicate_input(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
 
         # Create fake data with colliding sha256 and blake2s256
         sha1_array = bytearray(content.sha1)
@@ -2959,7 +3013,7 @@ class TestStorage:
             assert result in actual_result
 
     def test_content_find_with_duplicate_sha256(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
 
         hashes = {}
         # Create fake data with colliding sha256
@@ -3015,7 +3069,7 @@ class TestStorage:
         assert actual_result == [expected_duplicated_content]
 
     def test_content_find_with_duplicate_blake2s256(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
 
         # Create fake data with colliding sha256 and blake2s256
         sha1_array = bytearray(content.sha1)
@@ -3077,10 +3131,10 @@ class TestStorage:
             swh_storage.content_find({"unknown-sha1": "something"})  # not the right key
 
     def test_object_find_by_sha1_git(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
-        directory = sample_data["directory"][0]
-        revision = sample_data["revision"][0]
-        release = sample_data["release"][0]
+        content = sample_data.content
+        directory = sample_data.directory
+        revision = sample_data.revision
+        release = sample_data.release
 
         sha1_gits = [b"00000000000000000000"]
         expected = {
@@ -3111,7 +3165,7 @@ class TestStorage:
         assert expected == ret
 
     def test_metadata_fetcher_add_get(self, swh_storage, sample_data):
-        fetcher = sample_data["fetcher"][0]
+        fetcher = sample_data.metadata_fetcher
         actual_fetcher = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert actual_fetcher is None  # does not exist
 
@@ -3121,7 +3175,7 @@ class TestStorage:
         assert res == fetcher
 
     def test_metadata_authority_add_get(self, swh_storage, sample_data):
-        authority = sample_data["authority"][0]
+        authority = sample_data.metadata_authority
 
         actual_authority = swh_storage.metadata_authority_get(
             authority.type, authority.url
@@ -3134,10 +3188,10 @@ class TestStorage:
         assert res == authority
 
     def test_content_metadata_add(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        content_metadata = sample_data["content_metadata"][:2]
+        content = sample_data.content
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        content_metadata = sample_data.content_metadata[:2]
 
         content_swhid = SWHID(
             object_type="content", object_id=hash_to_bytes(content.sha1_git)
@@ -3158,10 +3212,10 @@ class TestStorage:
 
     def test_content_metadata_add_duplicate(self, swh_storage, sample_data):
         """Duplicates should be silently updated."""
-        content = sample_data["content"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        content_metadata, content_metadata2 = sample_data["content_metadata"][:2]
+        content = sample_data.content
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        content_metadata, content_metadata2 = sample_data.content_metadata[:2]
         content_swhid = SWHID(
             object_type="content", object_id=hash_to_bytes(content.sha1_git)
         )
@@ -3190,12 +3244,14 @@ class TestStorage:
         )
 
     def test_content_metadata_get(self, swh_storage, sample_data):
-        content, content2 = sample_data["content"][:2]
-        fetcher, fetcher2 = sample_data["fetcher"][:2]
-        authority, authority2 = sample_data["authority"][:2]
-        content1_metadata1, content1_metadata2, content1_metadata3 = sample_data[
-            "content_metadata"
-        ][:3]
+        content, content2 = sample_data.contents[:2]
+        fetcher, fetcher2 = sample_data.fetchers[:2]
+        authority, authority2 = sample_data.authorities[:2]
+        (
+            content1_metadata1,
+            content1_metadata2,
+            content1_metadata3,
+        ) = sample_data.content_metadata[:3]
 
         content1_swhid = SWHID(object_type="content", object_id=content.sha1_git)
         content2_swhid = SWHID(object_type="content", object_id=content2.sha1_git)
@@ -3236,10 +3292,10 @@ class TestStorage:
         assert [content2_metadata] == list(result["results"],)
 
     def test_content_metadata_get_after(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        content_metadata, content_metadata2 = sample_data["content_metadata"][:2]
+        content = sample_data.content
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
         content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
@@ -3278,10 +3334,10 @@ class TestStorage:
         assert result["results"] == []
 
     def test_content_metadata_get_paginate(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        content_metadata, content_metadata2 = sample_data["content_metadata"][:2]
+        content = sample_data.content
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
         content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
@@ -3309,10 +3365,10 @@ class TestStorage:
         assert result["results"] == [content_metadata2]
 
     def test_content_metadata_get_paginate_same_date(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
-        fetcher1, fetcher2 = sample_data["fetcher"][:2]
-        authority = sample_data["authority"][0]
-        content_metadata, content_metadata2 = sample_data["content_metadata"][:2]
+        content = sample_data.content
+        fetcher1, fetcher2 = sample_data.fetchers[:2]
+        authority = sample_data.metadata_authority
+        content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
         content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
@@ -3344,10 +3400,10 @@ class TestStorage:
         assert result["results"] == [new_content_metadata2]
 
     def test_content_metadata_get__invalid_id(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        content_metadata, content_metadata2 = sample_data["content_metadata"][:2]
+        origin = sample_data.origin
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
@@ -3359,10 +3415,10 @@ class TestStorage:
             )
 
     def test_origin_metadata_add(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
 
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
@@ -3382,10 +3438,10 @@ class TestStorage:
 
     def test_origin_metadata_add_duplicate(self, swh_storage, sample_data):
         """Duplicates should be silently updated."""
-        origin = sample_data["origin"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         new_origin_metadata2 = attr.evolve(
@@ -3413,12 +3469,14 @@ class TestStorage:
         )
 
     def test_origin_metadata_get(self, swh_storage, sample_data):
-        origin, origin2 = sample_data["origin"][:2]
-        fetcher, fetcher2 = sample_data["fetcher"][:2]
-        authority, authority2 = sample_data["authority"][:2]
-        origin1_metadata1, origin1_metadata2, origin1_metadata3 = sample_data[
-            "origin_metadata"
-        ][:3]
+        origin, origin2 = sample_data.origins[:2]
+        fetcher, fetcher2 = sample_data.fetchers[:2]
+        authority, authority2 = sample_data.authorities[:2]
+        (
+            origin1_metadata1,
+            origin1_metadata2,
+            origin1_metadata3,
+        ) = sample_data.origin_metadata[:3]
 
         assert swh_storage.origin_add([origin, origin2]) == {"origin:add": 2}
 
@@ -3454,10 +3512,10 @@ class TestStorage:
         assert [origin2_metadata] == list(result["results"],)
 
     def test_origin_metadata_get_after(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
 
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
@@ -3496,10 +3554,10 @@ class TestStorage:
         assert result["results"] == []
 
     def test_origin_metadata_get_paginate(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        fetcher = sample_data["fetcher"][0]
-        authority = sample_data["authority"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        fetcher = sample_data.metadata_fetcher
+        authority = sample_data.metadata_authority
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
@@ -3528,10 +3586,10 @@ class TestStorage:
         assert result["results"] == [origin_metadata2]
 
     def test_origin_metadata_get_paginate_same_date(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        fetcher1, fetcher2 = sample_data["fetcher"][:2]
-        authority = sample_data["authority"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        fetcher1, fetcher2 = sample_data.fetchers[:2]
+        authority = sample_data.metadata_authority
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
@@ -3562,9 +3620,9 @@ class TestStorage:
         assert result["results"] == [new_origin_metadata2]
 
     def test_origin_metadata_add_missing_authority(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        fetcher = sample_data["fetcher"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        fetcher = sample_data.metadata_fetcher
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
@@ -3573,9 +3631,9 @@ class TestStorage:
             swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
     def test_origin_metadata_add_missing_fetcher(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        authority = sample_data["authority"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
+        origin = sample_data.origin
+        authority = sample_data.metadata_authority
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_authority_add([authority])
@@ -3584,11 +3642,11 @@ class TestStorage:
             swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
 
     def test_origin_metadata_get__invalid_id_type(self, swh_storage, sample_data):
-        origin = sample_data["origin"][0]
-        authority = sample_data["authority"][0]
-        fetcher = sample_data["fetcher"][0]
-        origin_metadata, origin_metadata2 = sample_data["origin_metadata"][:2]
-        content_metadata = sample_data["content_metadata"][0]
+        origin = sample_data.origin
+        authority = sample_data.metadata_authority
+        fetcher = sample_data.metadata_fetcher
+        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
+        content_metadata = sample_data.content_metadata[0]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
         swh_storage.metadata_fetcher_add([fetcher])
@@ -3788,7 +3846,7 @@ class TestStorageGeneratedData:
         assert sorted(returned_origins) == sorted(expected_origins)
 
     def test_origin_count(self, swh_storage, sample_data):
-        swh_storage.origin_add(sample_data["origin"])
+        swh_storage.origin_add(sample_data.origins)
 
         assert swh_storage.origin_count("github") == 3
         assert swh_storage.origin_count("gitlab") == 2
@@ -3798,7 +3856,7 @@ class TestStorageGeneratedData:
         assert swh_storage.origin_count(".*user1.*", regexp=False) == 0
 
     def test_origin_count_with_visit_no_visits(self, swh_storage, sample_data):
-        swh_storage.origin_add(sample_data["origin"])
+        swh_storage.origin_add(sample_data.origins)
 
         # none of them have visits, so with_visit=True => 0
         assert swh_storage.origin_count("github", with_visit=True) == 0
@@ -3811,7 +3869,7 @@ class TestStorageGeneratedData:
     def test_origin_count_with_visit_with_visits_no_snapshot(
         self, swh_storage, sample_data
     ):
-        swh_storage.origin_add(sample_data["origin"])
+        swh_storage.origin_add(sample_data.origins)
 
         origin_url = "https://github.com/user1/repo1"
         visit = OriginVisit(origin=origin_url, date=now(), type="git",)
@@ -3837,8 +3895,8 @@ class TestStorageGeneratedData:
     def test_origin_count_with_visit_with_visits_and_snapshot(
         self, swh_storage, sample_data
     ):
-        snapshot = sample_data["snapshot"][0]
-        swh_storage.origin_add(sample_data["origin"])
+        snapshot = sample_data.snapshot
+        swh_storage.origin_add(sample_data.origins)
 
         swh_storage.snapshot_add([snapshot])
         origin_url = "https://github.com/user1/repo1"
@@ -3892,7 +3950,7 @@ class TestLocalStorage:
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception
     def test_content_add_objstorage_exception(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
 
         swh_storage.objstorage.content_add = Mock(
             side_effect=Exception("mocked broken objstorage")
@@ -3909,7 +3967,7 @@ class TestLocalStorage:
 class TestStorageRaceConditions:
     @pytest.mark.xfail
     def test_content_add_race(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
 
         results = queue.Queue()
 
@@ -3951,7 +4009,7 @@ class TestPgStorage:
     """
 
     def test_content_update_with_new_cols(self, swh_storage, sample_data):
-        content, content2 = sample_data["content"][:2]
+        content, content2 = sample_data.contents[:2]
 
         swh_storage.journal_writer.journal = None  # TODO, not supported
 
@@ -3996,7 +4054,7 @@ class TestPgStorage:
             )
 
     def test_content_add_db(self, swh_storage, sample_data):
-        content = sample_data["content"][0]
+        content = sample_data.content
 
         actual_result = swh_storage.content_add([content])
 
@@ -4033,7 +4091,7 @@ class TestPgStorage:
         assert contents[0] == attr.evolve(content, data=None)
 
     def test_content_add_metadata_db(self, swh_storage, sample_data):
-        content = attr.evolve(sample_data["content"][0], data=None, ctime=now())
+        content = attr.evolve(sample_data.content, data=None, ctime=now())
 
         actual_result = swh_storage.content_add_metadata([content])
 
@@ -4067,7 +4125,7 @@ class TestPgStorage:
         assert contents[0] == content
 
     def test_skipped_content_add_db(self, swh_storage, sample_data):
-        content, cont2 = sample_data["skipped_content"][:2]
+        content, cont2 = sample_data.skipped_contents[:2]
         content2 = attr.evolve(cont2, blake2s256=None)
 
         actual_result = swh_storage.skipped_content_add([content, content, content2])

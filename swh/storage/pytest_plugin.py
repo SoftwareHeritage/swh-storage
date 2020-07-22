@@ -6,7 +6,7 @@
 import glob
 
 from os import path, environ
-from typing import Dict, Tuple, Union
+from typing import Union
 
 import pytest
 
@@ -16,9 +16,9 @@ from pytest_postgresql import factories
 from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
 
 from swh.core.utils import numfile_sortkey as sortkey
-from swh.model.model import BaseModel
 from swh.storage import get_storage
-from swh.storage.tests.storage_data import data
+
+from swh.storage.tests.storage_data import StorageData
 
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), "sql")
@@ -188,25 +188,13 @@ class SwhDatabaseJanitor(DatabaseJanitor):
 
 
 @pytest.fixture
-def sample_data() -> Dict[str, Tuple[BaseModel, ...]]:
+def sample_data() -> StorageData:
     """Pre-defined sample storage object data to manipulate
 
     Returns:
-        Dict of data model objects (keys: content, directory, revision, release, person,
-        origin)
+        StorageData whose attribute keys are data model objects. Either multiple
+        objects: contents, directories, revisions, releases, ... or simple ones:
+        content, directory, revision, release, ...
 
     """
-    return {
-        "content": data.contents,
-        "skipped_content": data.skipped_contents,
-        "directory": data.directories,
-        "revision": data.revisions,
-        "release": data.releases,
-        "snapshot": data.snapshots,
-        "origin": data.origins,
-        "origin_visit": data.origin_visits,
-        "fetcher": data.fetchers,
-        "authority": data.authorities,
-        "origin_metadata": data.origin_metadata,
-        "content_metadata": data.content_metadata,
-    }
+    return StorageData()
