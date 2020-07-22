@@ -862,8 +862,10 @@ class InMemoryStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add_one(visit_status)
 
-    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
-        """Merge origin visit and latest origin visit status
+    def _origin_visit_status_get_latest(
+        self, origin: str, visit_id: int
+    ) -> Tuple[OriginVisit, OriginVisitStatus]:
+        """Return a tuple of OriginVisit, latest associated OriginVisitStatus.
 
         """
         assert visit_id >= 1
@@ -872,6 +874,14 @@ class InMemoryStorage:
         visit_key = (origin, visit_id)
 
         visit_update = max(self._origin_visit_statuses[visit_key], key=lambda v: v.date)
+        return visit, visit_update
+
+    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
+        """Merge origin visit and latest origin visit status
+
+        """
+        visit, visit_update = self._origin_visit_status_get_latest(origin, visit_id)
+        assert visit is not None and visit_update is not None
         return {
             # default to the values in visit
             **visit.to_dict(),
@@ -993,20 +1003,25 @@ class InMemoryStorage:
             if random_origin_visits[0].type == type:
                 return url
 
-    def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
+    def origin_visit_status_get_random(
+        self, type: str
+    ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
+
         url = self._select_random_origin_visit_by_type(type)
         random_origin_visits = copy.deepcopy(self._origin_visits[url])
         random_origin_visits.reverse()
         back_in_the_day = now() - timedelta(weeks=12)  # 3 months back
         # This should be enough for tests
         for visit in random_origin_visits:
-            updated_visit = self._origin_visit_get_updated(url, visit.visit)
-            assert updated_visit is not None
+            origin_visit, latest_visit_status = self._origin_visit_status_get_latest(
+                url, visit.visit
+            )
+            assert latest_visit_status is not None
             if (
-                updated_visit["date"] > back_in_the_day
-                and updated_visit["status"] == "full"
+                origin_visit.date > back_in_the_day
+                and latest_visit_status.status == "full"
             ):
-                return updated_visit
+                return origin_visit, latest_visit_status
         else:
             return None
 

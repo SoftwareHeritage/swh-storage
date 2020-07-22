@@ -1353,7 +1353,7 @@ class TestStorage:
     def test_origin_visit_get__unknown_origin(self, swh_storage):
         assert [] == list(swh_storage.origin_visit_get("foo"))
 
-    def test_origin_visit_get_random(self, swh_storage, sample_data):
+    def test_origin_visit_status_get_random(self, swh_storage, sample_data):
         origins = sample_data.origins[:2]
         swh_storage.origin_add(origins)
 
@@ -1385,12 +1385,15 @@ class TestStorage:
         assert stats["origin"] == len(origins)
         assert stats["origin_visit"] == len(origins) * len(visits)
 
-        random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
-        assert random_origin_visit
-        assert random_origin_visit["origin"] is not None
-        assert random_origin_visit["origin"] in [o.url for o in origins]
+        random_ov, random_ovs = swh_storage.origin_visit_status_get_random(visit_type)
+        assert random_ov and random_ovs
+        assert random_ov.origin is not None
+        assert random_ov.origin == random_ovs.origin
+        assert random_ov.origin in [o.url for o in origins]
 
-    def test_origin_visit_get_random_nothing_found(self, swh_storage, sample_data):
+    def test_origin_visit_status_get_random_nothing_found(
+        self, swh_storage, sample_data
+    ):
         origins = sample_data.origins
         swh_storage.origin_add(origins)
         visit_type = "hg"
@@ -1414,7 +1417,7 @@ class TestStorage:
                     ]
                 )
 
-        random_origin_visit = swh_storage.origin_visit_get_random(visit_type)
+        random_origin_visit = swh_storage.origin_visit_status_get_random(visit_type)
         assert random_origin_visit is None
 
     def test_origin_get_by_sha1(self, swh_storage, sample_data):

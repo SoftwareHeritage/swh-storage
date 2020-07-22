@@ -8,7 +8,7 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Dict, List, Iterable, Optional, Union
+from typing import Any, Dict, List, Iterable, Optional, Tuple, Union
 
 import attr
 
@@ -38,13 +38,7 @@ from swh.storage.utils import map_optional, now
 
 from ..exc import StorageArgumentException, HashCollision
 from .common import TOKEN_BEGIN, TOKEN_END
-from .converters import (
-    revision_to_db,
-    revision_from_db,
-    release_to_db,
-    release_from_db,
-    row_to_visit_status,
-)
+from . import converters
 from .cql import CqlRunner
 from .schema import HASH_ALGORITHMS
 
@@ -434,7 +428,7 @@ class CassandraStorage:
         self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
-            revobject = revision_to_db(revision)
+            revobject = converters.revision_to_db(revision)
             if revobject:
                 # Add parents first
                 for (rank, parent) in enumerate(revobject["parents"]):
@@ -465,7 +459,7 @@ class CassandraStorage:
             # parent_rank is the clustering key, so results are already
             # sorted by rank.
             parents = tuple(row.parent_id for row in parent_rows)
-            rev = revision_from_db(row, parents=parents)
+            rev = converters.revision_from_db(row, parents=parents)
             revs[rev.id] = rev.to_dict()
 
         for rev_id in revisions:
@@ -501,7 +495,7 @@ class CassandraStorage:
             if short:
                 yield (row.id, parents)
             else:
-                rev = revision_from_db(row, parents=parents)
+                rev = converters.revision_from_db(row, parents=parents)
                 yield rev.to_dict()
             yield from self._get_parent_revs(parents, seen, limit, short)
 
@@ -528,7 +522,7 @@ class CassandraStorage:
 
         for release in to_add:
             if release:
-                self._cql_runner.release_add_one(release_to_db(release))
+                self._cql_runner.release_add_one(converters.release_to_db(release))
 
         return {"release:add": len(to_add)}
 
@@ -539,7 +533,7 @@ class CassandraStorage:
         rows = self._cql_runner.release_get(releases)
         rels = {}
         for row in rows:
-            release = release_from_db(row)
+            release = converters.release_from_db(row)
             rels[row.id] = release.to_dict()
 
         for rel_id in releases:
@@ -844,7 +838,7 @@ class CassandraStorage:
             visit["origin"], visit["visit"]
         )
         assert row is not None
-        visit_status = row_to_visit_status(row)
+        visit_status = converters.row_to_visit_status(row)
         return {
             # default to the values in visit
             **visit,
@@ -857,15 +851,14 @@ class CassandraStorage:
             "date": visit["date"],
         }
 
-    def _origin_visit_get_updated(self, origin: str, visit_id: int) -> Dict[str, Any]:
-        """Retrieve origin visit and latest origin visit status and merge them
-        into an origin visit.
+    def _origin_visit_get_latest_status(self, visit: OriginVisit) -> OriginVisitStatus:
+        """Retrieve the latest visit status information for the origin visit object.
 
         """
-        row_visit = self._cql_runner.origin_visit_get_one(origin, visit_id)
-        assert row_visit is not None
-        visit = self._format_origin_visit_row(row_visit)
-        return self._origin_visit_apply_last_status(visit)
+        row = self._cql_runner.origin_visit_status_get_latest(visit.origin, visit.visit)
+        assert row is not None
+        visit_status = converters.row_to_visit_status(row)
+        return attr.evolve(visit_status, origin=visit.origin)
 
     @staticmethod
     def _format_origin_visit_row(visit):
@@ -961,9 +954,11 @@ class CassandraStorage:
             rows = [row for row in rows if row.snapshot is not None]
         if not rows:
             return None
-        return row_to_visit_status(rows[0])
+        return converters.row_to_visit_status(rows[0])
 
-    def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
+    def origin_visit_status_get_random(
+        self, type: str
+    ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
         back_in_the_day = now() - datetime.timedelta(weeks=12)  # 3 months back
 
         # Random position to start iteration at
@@ -972,15 +967,11 @@ class CassandraStorage:
         # Iterator over all visits, ordered by token(origins) then visit_id
         rows = self._cql_runner.origin_visit_iter(start_token)
         for row in rows:
-            visit = self._format_origin_visit_row(row)
-            visit_status = self._origin_visit_apply_last_status(visit)
-            if (
-                visit_status["date"] > back_in_the_day
-                and visit_status["status"] == "full"
-            ):
-                return visit_status
-        else:
-            return None
+            visit = converters.row_to_visit(row)
+            visit_status = self._origin_visit_get_latest_status(visit)
+            if visit.date > back_in_the_day and visit_status.status == "full":
+                return visit, visit_status
+        return None
 
     def stat_counters(self):
         rows = self._cql_runner.stat_counters()
