@@ -30,8 +30,6 @@ from typing import (
 
 import attr
 
-from deprecated import deprecated
-
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
 from swh.model.identifiers import SWHID
 from swh.model.model import (
@@ -787,7 +785,6 @@ class InMemoryStorage:
 
         return {"origin:add": added}
 
-    @deprecated("Use origin_add([origin]) instead")
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
             self.journal_writer.origin_add([origin])

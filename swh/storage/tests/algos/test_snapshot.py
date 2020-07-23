@@ -44,7 +44,7 @@ def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
     assert snapshot.to_dict() == returned_snapshot
 
 
-def test_snapshot_get_latest_none(swh_storage, sample_data_model):
+def test_snapshot_get_latest_none(swh_storage, sample_data):
     """Retrieve latest snapshot on unknown origin or origin without snapshot should
     yield no result
 
@@ -53,9 +53,9 @@ def test_snapshot_get_latest_none(swh_storage, sample_data_model):
     assert snapshot_get_latest(swh_storage, "unknown-origin") is None
 
     # no snapshot on origin visit so None
-    origin = sample_data_model["origin"][0]
-    swh_storage.origin_add_one(origin)
-    origin_visit, origin_visit2 = sample_data_model["origin_visit"][:2]
+    origin = sample_data.origin
+    swh_storage.origin_add([origin])
+    origin_visit, origin_visit2 = sample_data.origin_visits[:2]
     assert origin_visit.origin == origin.url
 
     swh_storage.origin_visit_add([origin_visit])
@@ -67,7 +67,7 @@ def test_snapshot_get_latest_none(swh_storage, sample_data_model):
 
     # visit references a snapshot but the snapshot does not exist in backend for some
     # reason
-    complete_snapshot = sample_data_model["snapshot"][2]
+    complete_snapshot = sample_data.snapshots[2]
     swh_storage.origin_visit_status_add(
         [
             OriginVisitStatus(
@@ -84,11 +84,11 @@ def test_snapshot_get_latest_none(swh_storage, sample_data_model):
     assert snapshot_get_latest(swh_storage, origin.url, branches_count=1) is None
 
 
-def test_snapshot_get_latest(swh_storage, sample_data_model):
-    origin = sample_data_model["origin"][0]
-    swh_storage.origin_add_one(origin)
+def test_snapshot_get_latest(swh_storage, sample_data):
+    origin = sample_data.origin
+    swh_storage.origin_add([origin])
 
-    visit1, visit2 = sample_data_model["origin_visit"][:2]
+    visit1, visit2 = sample_data.origin_visits[:2]
     assert visit1.origin == origin.url
 
     swh_storage.origin_visit_add([visit1])
@@ -96,7 +96,7 @@ def test_snapshot_get_latest(swh_storage, sample_data_model):
     visit_id = ov1["visit"]
 
     # Add snapshot to visit1, latest snapshot = visit 1 snapshot
-    complete_snapshot = sample_data_model["snapshot"][2]
+    complete_snapshot = sample_data.snapshots[2]
     swh_storage.snapshot_add([complete_snapshot])
 
     swh_storage.origin_visit_status_add(
