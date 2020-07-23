@@ -21,7 +21,6 @@ from swh.model.model import (
     Revision,
     Release,
     Snapshot,
-    Origin,
     OriginVisit,
     MetadataAuthority,
     MetadataFetcher,
@@ -104,10 +103,6 @@ class RetryingProxyStorage:
     @swh_retry
     def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
         return self.storage.skipped_content_add(content)
-
-    @swh_retry
-    def origin_add_one(self, origin: Origin) -> str:
-        return self.storage.origin_add_one(origin)
 
     @swh_retry
     def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:

@@ -7,13 +7,12 @@ import pytest
 
 from unittest.mock import patch
 
-from swh.model.model import Origin, OriginVisit, OriginVisitStatus, Snapshot
+from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 
 from swh.storage.algos.origin import iter_origins, origin_get_latest_visit_status
 from swh.storage.utils import now
 
 from swh.storage.tests.test_storage import round_to_milliseconds
-from swh.storage.tests.storage_data import data
 
 
 def assert_list_eq(left, right, msg=None):
@@ -84,7 +83,7 @@ def test_iter_origins_batch_size(mock_origin_get_range, swh_storage):
     mock_origin_get_range.assert_called_with(origin_from=1, origin_count=42)
 
 
-def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
+def test_origin_get_latest_visit_status_none(swh_storage, sample_data):
     """Looking up unknown objects should return nothing
 
     """
@@ -92,11 +91,11 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
     assert origin_get_latest_visit_status(swh_storage, "unknown-origin") is None
 
     # unknown type so no result
-    origin = sample_data_model["origin"][0]
-    origin_visit = sample_data_model["origin_visit"][0]
+    origin = sample_data.origin
+    origin_visit = sample_data.origin_visit
     assert origin_visit.origin == origin.url
 
-    swh_storage.origin_add_one(origin)
+    swh_storage.origin_add([origin])
     swh_storage.origin_visit_add([origin_visit])[0]
     assert origin_visit.type != "unknown"
     actual_origin_visit = origin_get_latest_visit_status(
@@ -115,38 +114,41 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data_model):
     assert actual_origin_visit is None
 
 
-def init_storage_with_origin_visits(swh_storage):
+def init_storage_with_origin_visits(swh_storage, sample_data):
     """Initialize storage with origin/origin-visit/origin-visit-status
 
     """
-    origin1 = Origin.from_dict(data.origin)
-    origin2 = Origin.from_dict(data.origin2)
+    snapshot = sample_data.snapshots[2]
+    origin1, origin2 = sample_data.origins[:2]
     swh_storage.origin_add([origin1, origin2])
 
     ov1, ov2 = swh_storage.origin_visit_add(
         [
             OriginVisit(
-                origin=origin1.url, date=data.date_visit1, type=data.type_visit1,
+                origin=origin1.url,
+                date=sample_data.date_visit1,
+                type=sample_data.type_visit1,
             ),
             OriginVisit(
-                origin=origin2.url, date=data.date_visit2, type=data.type_visit2,
+                origin=origin2.url,
+                date=sample_data.date_visit2,
+                type=sample_data.type_visit2,
             ),
         ]
     )
 
-    snapshot = Snapshot.from_dict(data.complete_snapshot)
     swh_storage.snapshot_add([snapshot])
 
     date_now = now()
     date_now = round_to_milliseconds(date_now)
-    assert data.date_visit1 < data.date_visit2
-    assert data.date_visit2 < date_now
+    assert sample_data.date_visit1 < sample_data.date_visit2
+    assert sample_data.date_visit2 < date_now
 
     # origin visit status 1 for origin visit 1
     ovs11 = OriginVisitStatus(
         origin=origin1.url,
         visit=ov1.visit,
-        date=data.date_visit1,
+        date=sample_data.date_visit1,
         status="partial",
         snapshot=None,
     )
@@ -154,7 +156,7 @@ def init_storage_with_origin_visits(swh_storage):
     ovs12 = OriginVisitStatus(
         origin=origin1.url,
         visit=ov1.visit,
-        date=data.date_visit2,
+        date=sample_data.date_visit2,
         status="ongoing",
         snapshot=None,
     )
@@ -162,7 +164,7 @@ def init_storage_with_origin_visits(swh_storage):
     ovs21 = OriginVisitStatus(
         origin=origin2.url,
         visit=ov2.visit,
-        date=data.date_visit2,
+        date=sample_data.date_visit2,
         status="ongoing",
         snapshot=None,
     )
@@ -184,52 +186,56 @@ def init_storage_with_origin_visits(swh_storage):
     }
 
 
-def test_origin_get_latest_visit_status_filter_type(swh_storage):
+def test_origin_get_latest_visit_status_filter_type(swh_storage, sample_data):
     """Filtering origin visit per types should yield consistent results
 
     """
-    objects = init_storage_with_origin_visits(swh_storage)
+    objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     ov1, ov2 = objects["origin_visit"]
     ovs11, ovs12, _, ovs22 = objects["origin_visit_status"]
 
     # no visit for origin1 url with type_visit2
     assert (
-        origin_get_latest_visit_status(swh_storage, origin1.url, type=data.type_visit2)
+        origin_get_latest_visit_status(
+            swh_storage, origin1.url, type=sample_data.type_visit2
+        )
         is None
     )
 
     # no visit for origin2 url with type_visit1
     assert (
-        origin_get_latest_visit_status(swh_storage, origin2.url, type=data.type_visit1)
+        origin_get_latest_visit_status(
+            swh_storage, origin2.url, type=sample_data.type_visit1
+        )
         is None
     )
 
     # Two visits, both with no snapshot, take the most recent
     actual_ov1, actual_ovs12 = origin_get_latest_visit_status(
-        swh_storage, origin1.url, type=data.type_visit1
+        swh_storage, origin1.url, type=sample_data.type_visit1
     )
     assert isinstance(actual_ov1, OriginVisit)
     assert isinstance(actual_ovs12, OriginVisitStatus)
     assert actual_ov1.origin == ov1.origin
     assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == data.type_visit1
+    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs12 == ovs12
 
     # take the most recent visit with type_visit2
     actual_ov2, actual_ovs22 = origin_get_latest_visit_status(
-        swh_storage, origin2.url, type=data.type_visit2
+        swh_storage, origin2.url, type=sample_data.type_visit2
     )
     assert isinstance(actual_ov2, OriginVisit)
     assert isinstance(actual_ovs22, OriginVisitStatus)
     assert actual_ov2.origin == ov2.origin
     assert actual_ov2.visit == ov2.visit
-    assert actual_ov2.type == data.type_visit2
+    assert actual_ov2.type == sample_data.type_visit2
     assert actual_ovs22 == ovs22
 
 
-def test_origin_get_latest_visit_status_filter_status(swh_storage):
-    objects = init_storage_with_origin_visits(swh_storage)
+def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data):
+    objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     ov1, ov2 = objects["origin_visit"]
     ovs11, ovs12, _, ovs22 = objects["origin_visit_status"]
@@ -248,7 +254,7 @@ def test_origin_get_latest_visit_status_filter_status(swh_storage):
     )
     assert actual_ov1.origin == ov1.origin
     assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == data.type_visit1
+    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs11 == ovs11
 
     # both status exist, take the latest one
@@ -257,14 +263,14 @@ def test_origin_get_latest_visit_status_filter_status(swh_storage):
     )
     assert actual_ov1.origin == ov1.origin
     assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == data.type_visit1
+    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs12 == ovs12
 
     assert isinstance(actual_ov1, OriginVisit)
     assert isinstance(actual_ovs12, OriginVisitStatus)
     assert actual_ov1.origin == ov1.origin
     assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == data.type_visit1
+    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs12 == ovs12
 
     # take the most recent visit with type_visit2
@@ -273,12 +279,12 @@ def test_origin_get_latest_visit_status_filter_status(swh_storage):
     )
     assert actual_ov2.origin == ov2.origin
     assert actual_ov2.visit == ov2.visit
-    assert actual_ov2.type == data.type_visit2
+    assert actual_ov2.type == sample_data.type_visit2
     assert actual_ovs22 == ovs22
 
 
-def test_origin_get_latest_visit_status_filter_snapshot(swh_storage):
-    objects = init_storage_with_origin_visits(swh_storage)
+def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data):
+    objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     _, ov2 = objects["origin_visit"]
     _, _, _, ovs22 = objects["origin_visit_status"]
@@ -302,7 +308,7 @@ def test_origin_get_latest_visit_status_filter_snapshot(swh_storage):
 
     # Add another visit
     swh_storage.origin_visit_add(
-        [OriginVisit(origin=origin2.url, date=date_now, type=data.type_visit2,),]
+        [OriginVisit(origin=origin2.url, date=date_now, type=sample_data.type_visit2,),]
     )
 
     # Requiring the latest visit with a snapshot, we still find the previous visit

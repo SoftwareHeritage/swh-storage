@@ -1080,25 +1080,6 @@ class StorageInterface:
         """
         ...
 
-    @deprecated
-    @remote_api_endpoint("origin/add")
-    def origin_add_one(self, origin: Origin) -> str:
-        """Add origin to the storage
-
-        Args:
-            origin: dictionary representing the individual origin to add. This
-                dict has the following keys:
-
-                - type (FIXME: enum TBD): the origin type ('git', 'wget', ...)
-                - url (bytes): the url the origin points to
-
-        Returns:
-            the id of the added origin, or of the identical one that already
-            exists.
-
-        """
-        ...
-
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
 
