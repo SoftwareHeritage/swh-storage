@@ -237,7 +237,6 @@ swh/storage/replay.py
 swh/storage/retry.py
 swh/storage/storage.py
 swh/storage/utils.py
-swh/storage/validate.py
 swh/storage/writer.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py
@@ -282,6 +281,7 @@ swh/storage/tests/test_retry.py
 swh/storage/tests/test_revision_bw_compat.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
+swh/storage/tests/test_storage_data.py
 swh/storage/tests/test_utils.py
 swh/storage/tests/algos/__init__.py
 swh/storage/tests/algos/test_diff.py

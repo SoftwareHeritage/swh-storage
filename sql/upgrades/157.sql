@@ -44,11 +44,9 @@ comment on column object_metadata.format is 'name of the format of metadata, use
 comment on column object_metadata.metadata is 'original metadata in opaque format';
 
 -- migrate data from origin_metadata
-insert into object_metadata(type, id, authority_id, fetcher_id, discovery_date, format, metadata,
-                            origin)
-select 'origin', id, authority_id, fetcher_id, discovery_date, format, metadata,
-       (select url from origin o where o.id = om.origin_id)
-from origin_metadata om;
+insert into object_metadata(type, id, authority_id, fetcher_id, discovery_date, format, metadata)
+	select 'origin', (select url from origin o where o.id = om.origin_id), authority_id, fetcher_id, discovery_date, format, metadata,
+	from origin_metadata om;
 
 create unique index object_metadata_content_authority_date_fetcher
   on object_metadata(id, authority_id, discovery_date, fetcher_id);

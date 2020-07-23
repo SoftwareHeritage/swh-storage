@@ -9,7 +9,6 @@ import itertools
 
 from collections import defaultdict
 from contextlib import contextmanager
-from deprecated import deprecated
 from typing import (
     Any,
     Counter,
@@ -46,7 +45,6 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.objstorage import ObjStorage
-from swh.storage.validate import VALIDATION_EXCEPTIONS
 from swh.storage.utils import now
 
 from . import converters
@@ -66,14 +64,17 @@ EMPTY_SNAPSHOT_ID = hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e")
 """Identifier for the empty snapshot"""
 
 
-VALIDATION_EXCEPTIONS = VALIDATION_EXCEPTIONS + [
+VALIDATION_EXCEPTIONS = (
+    KeyError,
+    TypeError,
+    ValueError,
     psycopg2.errors.CheckViolation,
     psycopg2.errors.IntegrityError,
     psycopg2.errors.InvalidTextRepresentation,
     psycopg2.errors.NotNullViolation,
     psycopg2.errors.NumericValueOutOfRange,
     psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
-]
+)
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
 
@@ -390,23 +391,6 @@ class Storage:
             d["length"] = -1
 
         return d
-
-    @staticmethod
-    def _skipped_content_validate(d):
-        """Sanity checks on status / reason / length, that postgresql
-        doesn't enforce."""
-        if d["status"] != "absent":
-            raise StorageArgumentException(
-                "Invalid content status: {}".format(d["status"])
-            )
-
-        if d.get("reason") is None:
-            raise StorageArgumentException(
-                "Must provide a reason if content is absent."
-            )
-
-        if d["length"] < -1:
-            raise StorageArgumentException("Content length must be positive or -1.")
 
     def _skipped_content_add_metadata(self, db, cur, content: Iterable[SkippedContent]):
         origin_ids = db.origin_id_get_by_url([cont.origin for cont in content], cur=cur)
@@ -891,28 +875,6 @@ class Storage:
             return None
         return OriginVisitStatus.from_dict(row)
 
-    def _origin_visit_apply_update(
-        self, visit: Dict[str, Any], db, cur=None
-    ) -> Dict[str, Any]:
-        """Retrieve the latest visit status information for the origin visit.
-        Then merge it with the visit and return it.
-
-        """
-        visit_status = db.origin_visit_status_get_latest(
-            visit["origin"], visit["visit"], cur=cur
-        )
-        return {
-            # default to the values in visit
-            **visit,
-            # override with the last update
-            **visit_status,
-            # visit['origin'] is the URL (via a join), while
-            # visit_status['origin'] is only an id.
-            "origin": visit["origin"],
-            # but keep the date of the creation of the origin visit
-            "date": visit["date"],
-        }
-
     @timed
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(
@@ -929,18 +891,14 @@ class Storage:
             origin, last_visit=last_visit, limit=limit, order=order, cur=cur
         )
         for line in lines:
-            visit = dict(zip(db.origin_visit_get_cols, line))
-            yield self._origin_visit_apply_update(visit, db)
+            yield dict(zip(db.origin_visit_get_cols, line))
 
     @timed
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
-        visit = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
-        if visit:
-            return self._origin_visit_apply_update(visit, db)
-        return None
+        return db.origin_visit_find_by_date(origin, visit_date, cur=cur)
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -949,8 +907,7 @@ class Storage:
     ) -> Optional[Dict[str, Any]]:
         row = db.origin_visit_get(origin, visit, cur)
         if row:
-            visit_dict = dict(zip(db.origin_visit_get_cols, row))
-            return self._origin_visit_apply_update(visit_dict, db)
+            return dict(zip(db.origin_visit_get_cols, row))
         return None
 
     @timed
@@ -972,8 +929,7 @@ class Storage:
             cur=cur,
         )
         if row:
-            visit = dict(zip(db.origin_visit_get_cols, row))
-            return self._origin_visit_apply_update(visit, db)
+            return dict(zip(db.origin_visit_get_cols, row))
         return None
 
     @timed
@@ -983,8 +939,7 @@ class Storage:
     ) -> Optional[Dict[str, Any]]:
         row = db.origin_visit_get_random(type, cur)
         if row:
-            visit = dict(zip(db.origin_visit_get_cols, row))
-            return self._origin_visit_apply_update(visit, db)
+            return dict(zip(db.origin_visit_get_cols, row))
         return None
 
     @timed
@@ -1106,13 +1061,6 @@ class Storage:
             if db.origin_add(url, cur):
                 added += 1
         return {"origin:add": added}
-
-    @deprecated("Use origin_add([origin]) instead")
-    @timed
-    @db_transaction()
-    def origin_add_one(self, origin: Origin, db=None, cur=None) -> str:
-        self.origin_add([origin])
-        return origin.url
 
     @db_transaction(statement_timeout=500)
     def stat_counters(self, db=None, cur=None):

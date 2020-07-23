@@ -15,9 +15,8 @@ except ImportError:
 
 from typing import Iterable
 
-from swh.model.model import BaseContent
+from swh.model.model import BaseContent, Origin
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
-from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
 # define tests profile. Full documentation is at:
@@ -50,11 +49,6 @@ def swh_storage_backend_config(swh_storage_backend_config):
 
 
 @pytest.fixture
-def swh_storage(swh_storage_backend_config):
-    return get_storage(cls="validate", storage=swh_storage_backend_config)
-
-
-@pytest.fixture
 def swh_contents(swh_storage: StorageInterface) -> Iterable[BaseContent]:
     contents = [BaseContent.from_dict(c) for c in gen_contents(n=20)]
     swh_storage.content_add([c for c in contents if c.status != "absent"])
@@ -63,7 +57,7 @@ def swh_contents(swh_storage: StorageInterface) -> Iterable[BaseContent]:
 
 
 @pytest.fixture
-def swh_origins(swh_storage):
-    origins = gen_origins(n=100)
+def swh_origins(swh_storage: StorageInterface) -> Iterable[Origin]:
+    origins = [Origin.from_dict(o) for o in gen_origins(n=100)]
     swh_storage.origin_add(origins)
     return origins
