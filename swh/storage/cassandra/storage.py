@@ -685,39 +685,17 @@ class CassandraStorage:
 
         return results
 
-    def origin_get(self, origins):
-        if isinstance(origins, dict):
-            # Old API
-            return_single = True
-            origins = [origins]
-        else:
-            return_single = False
+    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+        return [self.origin_get_one(origin) for origin in origins]
 
-        if any("id" in origin for origin in origins):
-            raise StorageArgumentException("Origin ids are not supported.")
+    def origin_get_one(self, origin_url: str) -> Optional[Origin]:
+        """Given an origin url, return the origin if it exists, None otherwise
 
-        results = [self.origin_get_one(origin) for origin in origins]
-
-        if return_single:
-            assert len(results) == 1
-            return results[0]
-        else:
-            return results
-
-    def origin_get_one(self, origin: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if "id" in origin:
-            raise StorageArgumentException("Origin ids are not supported.")
-        if "url" not in origin:
-            raise StorageArgumentException("Missing origin url")
-        rows = self._cql_runner.origin_get_by_url(origin["url"])
-
-        rows = list(rows)
+        """
+        rows = list(self._cql_runner.origin_get_by_url(origin_url))
         if rows:
             assert len(rows) == 1
-            result = rows[0]._asdict()
-            return {
-                "url": result["url"],
-            }
+            return Origin(url=rows[0].url)
         else:
             return None
 
@@ -770,12 +748,7 @@ class CassandraStorage:
 
     def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
         origins = list(origins)
-        known_origins = [
-            Origin.from_dict(d)
-            for d in self.origin_get([origin.to_dict() for origin in origins])
-            if d is not None
-        ]
-        to_add = [origin for origin in origins if origin not in known_origins]
+        to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
         self.journal_writer.origin_add(to_add)
         for origin in to_add:
             self._cql_runner.origin_add_one(origin)
@@ -783,7 +756,7 @@ class CassandraStorage:
 
     def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
-            origin = self.origin_get({"url": visit.origin})
+            origin = self.origin_get_one(visit.origin)
             if not origin:  # Cannot add a visit without an origin
                 raise StorageArgumentException("Unknown origin %s", visit.origin)
 
@@ -822,7 +795,7 @@ class CassandraStorage:
     ) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
-            origin_url = self.origin_get({"url": visit_status.origin})
+            origin_url = self.origin_get_one(visit_status.origin)
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 

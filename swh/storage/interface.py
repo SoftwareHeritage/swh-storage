@@ -944,28 +944,15 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/get")
-    def origin_get(self, origins):
-        """Return origins, either all identified by their ids or all
-        identified by tuples (type, url).
-
-        If the url is given and the type is omitted, one of the origins with
-        that url is returned.
+    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+        """Return origins.
 
         Args:
-            origin: a list of dictionaries representing the individual
-                origins to find.
-                These dicts have the key url:
-
-                - url (bytes): the url the origin points to
+            origin: a list of urls to find
 
         Returns:
-            dict: the origin dictionary with the keys:
-
-            - id: origin's id
-            - url: origin's url
-
-        Raises:
-            ValueError: if the url or the id don't exist.
+            the list of associated existing origin model objects. The unknown origins
+            will be returned as None at the same index as the input.
 
         """
         ...

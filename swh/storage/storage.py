@@ -802,7 +802,7 @@ class Storage:
         self, visits: Iterable[OriginVisit], db=None, cur=None
     ) -> Iterable[OriginVisit]:
         for visit in visits:
-            origin = self.origin_get({"url": visit.origin}, db=db, cur=cur)
+            origin = self.origin_get([visit.origin], db=db, cur=cur)[0]
             if not origin:  # Cannot add a visit without an origin
                 raise StorageArgumentException("Unknown origin %s", visit.origin)
 
@@ -851,7 +851,7 @@ class Storage:
     ) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
-            origin_url = self.origin_get({"url": visit_status.origin}, db=db, cur=cur)
+            origin_url = self.origin_get([visit_status.origin], db=db, cur=cur)[0]
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 
@@ -973,28 +973,17 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=500)
-    def origin_get(self, origins, db=None, cur=None):
-        if isinstance(origins, dict):
-            # Old API
-            return_single = True
-            origins = [origins]
-        elif len(origins) == 0:
-            return []
-        else:
-            return_single = False
-
-        origin_urls = [origin["url"] for origin in origins]
-        results = db.origin_get_by_url(origin_urls, cur)
-
-        results = [dict(zip(db.origin_cols, result)) for result in results]
-        if return_single:
-            assert len(results) == 1
-            if results[0]["url"] is not None:
-                return results[0]
-            else:
-                return None
-        else:
-            return [None if res["url"] is None else res for res in results]
+    def origin_get(
+        self, origins: Iterable[str], db=None, cur=None
+    ) -> Iterable[Optional[Origin]]:
+        origin_urls = list(origins)
+        rows = db.origin_get_by_url(origin_urls, cur)
+        result: List[Optional[Origin]] = []
+        for row in rows:
+            origin_d = dict(zip(db.origin_cols, row))
+            url = origin_d["url"]
+            result.append(None if url is None else Origin(url=url))
+        return result
 
     @timed
     @db_transaction_generator(statement_timeout=500)

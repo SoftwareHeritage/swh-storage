@@ -670,43 +670,11 @@ class InMemoryStorage:
 
         return t.to_dict()
 
-    def origin_get(self, origins):
-        if isinstance(origins, dict):
-            # Old API
-            return_single = True
-            origins = [origins]
-        else:
-            return_single = False
+    def origin_get_one(self, origin_url: str) -> Optional[Origin]:
+        return self._origins.get(origin_url)
 
-        # Sanity check to be error-compatible with the pgsql backend
-        if any("id" in origin for origin in origins) and not all(
-            "id" in origin for origin in origins
-        ):
-            raise StorageArgumentException(
-                'Either all origins or none at all should have an "id".'
-            )
-        if any("url" in origin for origin in origins) and not all(
-            "url" in origin for origin in origins
-        ):
-            raise StorageArgumentException(
-                "Either all origins or none at all should have " 'an "url" key.'
-            )
-
-        results = []
-        for origin in origins:
-            result = None
-            if "url" in origin:
-                if origin["url"] in self._origins:
-                    result = self._origins[origin["url"]]
-            else:
-                raise StorageArgumentException("Origin must have an url.")
-            results.append(self._convert_origin(result))
-
-        if return_single:
-            assert len(results) == 1
-            return results[0]
-        else:
-            return results
+    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+        return [self.origin_get_one(origin_url) for origin_url in origins]
 
     def origin_get_by_sha1(self, sha1s):
         return [self._convert_origin(self._origins_by_sha1.get(sha1)) for sha1 in sha1s]
@@ -803,7 +771,7 @@ class InMemoryStorage:
 
     def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
-            origin = self.origin_get({"url": visit.origin})
+            origin = self.origin_get_one(visit.origin)
             if not origin:  # Cannot add a visit without an origin
                 raise StorageArgumentException("Unknown origin %s", visit.origin)
 
@@ -855,7 +823,7 @@ class InMemoryStorage:
     ) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
-            origin_url = self.origin_get({"url": visit_status.origin})
+            origin_url = self.origin_get_one(visit_status.origin)
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 
