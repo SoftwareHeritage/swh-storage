@@ -1,3 +1,15 @@
+swh-storage (0.11.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.11.2     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-23 12:09:51
+    +0200)
+  * Upstream changes:     - v0.11.2     - pgstorage: Drop unnecessary
+    indirection from reading origin_visit     - pytest-plugin: Make
+    sample_data return data model objects     - tests: Use only model
+    objects for testing     - Drop validate storage proxy
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 23 Jul 2020 10:18:15 +0000
+
 swh-storage (0.11.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.11.1     - (tagged by Valentin Lorentz
