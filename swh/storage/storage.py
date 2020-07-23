@@ -875,28 +875,6 @@ class Storage:
             return None
         return OriginVisitStatus.from_dict(row)
 
-    def _origin_visit_apply_update(
-        self, visit: Dict[str, Any], db, cur=None
-    ) -> Dict[str, Any]:
-        """Retrieve the latest visit status information for the origin visit.
-        Then merge it with the visit and return it.
-
-        """
-        visit_status = db.origin_visit_status_get_latest(
-            visit["origin"], visit["visit"], cur=cur
-        )
-        return {
-            # default to the values in visit
-            **visit,
-            # override with the last update
-            **visit_status,
-            # visit['origin'] is the URL (via a join), while
-            # visit_status['origin'] is only an id.
-            "origin": visit["origin"],
-            # but keep the date of the creation of the origin visit
-            "date": visit["date"],
-        }
-
     @timed
     @db_transaction_generator(statement_timeout=500)
     def origin_visit_get(
@@ -913,18 +891,14 @@ class Storage:
             origin, last_visit=last_visit, limit=limit, order=order, cur=cur
         )
         for line in lines:
-            visit = dict(zip(db.origin_visit_get_cols, line))
-            yield self._origin_visit_apply_update(visit, db)
+            yield dict(zip(db.origin_visit_get_cols, line))
 
     @timed
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
-        visit = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
-        if visit:
-            return self._origin_visit_apply_update(visit, db)
-        return None
+        return db.origin_visit_find_by_date(origin, visit_date, cur=cur)
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -933,8 +907,7 @@ class Storage:
     ) -> Optional[Dict[str, Any]]:
         row = db.origin_visit_get(origin, visit, cur)
         if row:
-            visit_dict = dict(zip(db.origin_visit_get_cols, row))
-            return self._origin_visit_apply_update(visit_dict, db)
+            return dict(zip(db.origin_visit_get_cols, row))
         return None
 
     @timed
@@ -956,8 +929,7 @@ class Storage:
             cur=cur,
         )
         if row:
-            visit = dict(zip(db.origin_visit_get_cols, row))
-            return self._origin_visit_apply_update(visit, db)
+            return dict(zip(db.origin_visit_get_cols, row))
         return None
 
     @timed
@@ -967,8 +939,7 @@ class Storage:
     ) -> Optional[Dict[str, Any]]:
         row = db.origin_visit_get_random(type, cur)
         if row:
-            visit = dict(zip(db.origin_visit_get_cols, row))
-            return self._origin_visit_apply_update(visit, db)
+            return dict(zip(db.origin_visit_get_cols, row))
         return None
 
     @timed
