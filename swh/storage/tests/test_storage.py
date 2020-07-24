@@ -3153,6 +3153,13 @@ class TestStorage:
         res = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert res == fetcher
 
+    def test_metadata_fetcher_add_zero(self, swh_storage, sample_data):
+        fetcher = sample_data.metadata_fetcher
+        actual_fetcher = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
+        assert actual_fetcher is None  # does not exist
+
+        swh_storage.metadata_fetcher_add([])
+
     def test_metadata_authority_add_get(self, swh_storage, sample_data):
         authority = sample_data.metadata_authority
 
@@ -3165,6 +3172,16 @@ class TestStorage:
 
         res = swh_storage.metadata_authority_get(authority.type, authority.url)
         assert res == authority
+
+    def test_metadata_authority_add_zero(self, swh_storage, sample_data):
+        authority = sample_data.metadata_authority
+
+        actual_authority = swh_storage.metadata_authority_get(
+            authority.type, authority.url
+        )
+        assert actual_authority is None  # does not exist
+
+        swh_storage.metadata_authority_add([])
 
     def test_content_metadata_add(self, swh_storage, sample_data):
         content = sample_data.content

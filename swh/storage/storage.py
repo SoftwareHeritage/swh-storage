@@ -1234,7 +1234,8 @@ class Storage:
     def metadata_fetcher_add(
         self, fetchers: Iterable[MetadataFetcher], db=None, cur=None
     ) -> None:
-        for (i, fetcher) in enumerate(fetchers):
+        count = 0
+        for fetcher in fetchers:
             if fetcher.metadata is None:
                 raise StorageArgumentException(
                     "MetadataFetcher.metadata may not be None in metadata_fetcher_add."
@@ -1242,7 +1243,8 @@ class Storage:
             db.metadata_fetcher_add(
                 fetcher.name, fetcher.version, dict(fetcher.metadata), cur=cur
             )
-        send_metric("metadata_fetcher:add", count=i + 1, method_name="metadata_fetcher")
+            count += 1
+        send_metric("metadata_fetcher:add", count=count, method_name="metadata_fetcher")
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1259,7 +1261,8 @@ class Storage:
     def metadata_authority_add(
         self, authorities: Iterable[MetadataAuthority], db=None, cur=None
     ) -> None:
-        for (i, authority) in enumerate(authorities):
+        count = 0
+        for authority in authorities:
             if authority.metadata is None:
                 raise StorageArgumentException(
                     "MetadataAuthority.metadata may not be None in "
@@ -1268,8 +1271,9 @@ class Storage:
             db.metadata_authority_add(
                 authority.type.value, authority.url, dict(authority.metadata), cur=cur
             )
+            count += 1
         send_metric(
-            "metadata_authority:add", count=i + 1, method_name="metadata_authority"
+            "metadata_authority:add", count=count, method_name="metadata_authority"
         )
 
     @timed
