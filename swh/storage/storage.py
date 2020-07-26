@@ -921,7 +921,7 @@ class Storage:
         require_snapshot: bool = False,
         db=None,
         cur=None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         row = db.origin_visit_get_latest(
             origin,
             type=type,
@@ -930,7 +930,14 @@ class Storage:
             cur=cur,
         )
         if row:
-            return dict(zip(db.origin_visit_get_cols, row))
+            row_d = dict(zip(db.origin_visit_get_cols, row))
+            visit = OriginVisit(
+                origin=row_d["origin"],
+                visit=row_d["visit"],
+                date=row_d["date"],
+                type=row_d["type"],
+            )
+            return visit
         return None
 
     @timed

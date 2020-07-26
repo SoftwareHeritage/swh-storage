@@ -885,7 +885,7 @@ class CassandraStorage:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         # TODO: Do not fetch all visits
         rows = self._cql_runner.origin_visit_get_all(origin)
         latest_visit = None
@@ -908,7 +908,14 @@ class CassandraStorage:
 
             latest_visit = updated_visit
 
-        return latest_visit
+        if latest_visit is None:
+            return None
+        return OriginVisit(
+            origin=latest_visit["origin"],
+            visit=latest_visit["visit"],
+            date=latest_visit["date"],
+            type=latest_visit["type"],
+        )
 
     def origin_visit_status_get_latest(
         self,

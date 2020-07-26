@@ -916,29 +916,33 @@ class InMemoryStorage:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         ori = self._origins.get(origin)
         if not ori:
             return None
-        visits = self._origin_visits[ori.url]
 
-        visits = [
-            self._origin_visit_get_updated(visit.origin, visit.visit)
-            for visit in visits
-            if visit is not None
-        ]
+        visits = sorted(
+            self._origin_visits[ori.url], key=lambda v: v.date, reverse=True,
+        )
+        for visit in visits:
+            if type is not None and visit.type != type:
+                continue
+            visit_statuses = self._origin_visit_statuses[origin, visit.visit]
 
-        if type is not None:
-            visits = [visit for visit in visits if visit["type"] == type]
-        if allowed_statuses is not None:
-            visits = [visit for visit in visits if visit["status"] in allowed_statuses]
-        if require_snapshot:
-            visits = [visit for visit in visits if visit["snapshot"]]
+            if allowed_statuses is not None:
+                visit_statuses = [
+                    vs for vs in visit_statuses if vs.status in allowed_statuses
+                ]
+            if require_snapshot:
+                visit_statuses = [vs for vs in visit_statuses if vs.snapshot]
 
-        visit = max(visits, key=lambda v: (v["date"], v["visit"]), default=None)
-        if visit is None:
-            return None
-        return visit
+            if visit_statuses:  # we found visit statuses matching criteria
+                visit_status = max(visit_statuses, key=lambda vs: (vs.date, vs.visit))
+                assert visit.origin == visit_status.origin
+                assert visit.visit == visit_status.visit
+                return visit
+
+        return None
 
     def origin_visit_status_get_latest(
         self,

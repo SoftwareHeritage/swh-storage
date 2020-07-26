@@ -853,7 +853,7 @@ class StorageInterface:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         """Get the latest origin visit for the given origin, optionally
         looking only for those with one of the given allowed_statuses
         or for those with a snapshot.
@@ -870,16 +870,9 @@ class StorageInterface:
                 will be returned.
 
         Returns:
-            dict: a dict with the following keys:
-
-                - **origin**: the URL of the origin
-                - **visit**: origin visit id
-                - **type**: type of loader used for the visit
-                - **date**: timestamp of such visit
-                - **status**: Visit's new status
-                - **metadata**: Data associated to the visit
-                - **snapshot** (Optional[sha1_git]): identifier of the snapshot
-                    associated to the visit
+            OriginVisit matching the criteria if found, None otherwise. Note that as
+            OriginVisit no longer held reference on the visit status or snapshot, you
+            may want to use origin_visit_status_get_latest for those information.
 
         """
         ...

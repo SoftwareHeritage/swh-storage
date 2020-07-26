@@ -63,7 +63,6 @@ def test_snapshot_get_latest_none(swh_storage, sample_data):
 
     ov1 = swh_storage.origin_visit_get_latest(origin.url)
     assert ov1 is not None
-    visit_id = ov1["visit"]
 
     # visit references a snapshot but the snapshot does not exist in backend for some
     # reason
@@ -72,7 +71,7 @@ def test_snapshot_get_latest_none(swh_storage, sample_data):
         [
             OriginVisitStatus(
                 origin=origin.url,
-                visit=visit_id,
+                visit=ov1.visit,
                 date=origin_visit2.date,
                 status="partial",
                 snapshot=complete_snapshot.id,
@@ -93,7 +92,6 @@ def test_snapshot_get_latest(swh_storage, sample_data):
 
     swh_storage.origin_visit_add([visit1])
     ov1 = swh_storage.origin_visit_get_latest(origin.url)
-    visit_id = ov1["visit"]
 
     # Add snapshot to visit1, latest snapshot = visit 1 snapshot
     complete_snapshot = sample_data.snapshots[2]
@@ -103,7 +101,7 @@ def test_snapshot_get_latest(swh_storage, sample_data):
         [
             OriginVisitStatus(
                 origin=origin.url,
-                visit=visit_id,
+                visit=ov1.visit,
                 date=visit2.date,
                 status="partial",
                 snapshot=None,
@@ -124,7 +122,7 @@ def test_snapshot_get_latest(swh_storage, sample_data):
         [
             OriginVisitStatus(
                 origin=origin.url,
-                visit=visit_id,
+                visit=ov1.visit,
                 date=date_now,
                 status="full",
                 snapshot=complete_snapshot.id,
