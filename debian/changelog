@@ -1,8 +1,13 @@
-swh-storage (0.11.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.11.3-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.11.3     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-27 08:01:03
+    +0200)
+  * Upstream changes:     - v0.11.3     - storage*:
+    origin_get(Iterable[str]) -> Iterable[Optional[Origin]]     -
+    storage*.origin_visit_get_random: Read model objects
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 23 Jul 2020 10:30:14 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 27 Jul 2020 06:08:55 +0000
 
 swh-storage (0.11.2-1~swh1) unstable-swh; urgency=medium
 

@@ -5,7 +5,7 @@
 
 import datetime
 
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from swh.core.api import remote_api_endpoint
 from swh.model.identifiers import SWHID
@@ -912,14 +912,16 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("origin/visit/get_random")
-    def origin_visit_get_random(self, type: str) -> Optional[Dict[str, Any]]:
+    @remote_api_endpoint("origin/visit_status/get_random")
+    def origin_visit_status_get_random(
+        self, type: str
+    ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
         Returns:
-            dict representing an origin visit, in the same format as
-            :py:meth:`origin_visit_get`.
+            One random tuple of (OriginVisit, OriginVisitStatus) matching the
+            selection criteria
 
         """
         ...
@@ -942,28 +944,15 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/get")
-    def origin_get(self, origins):
-        """Return origins, either all identified by their ids or all
-        identified by tuples (type, url).
-
-        If the url is given and the type is omitted, one of the origins with
-        that url is returned.
+    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+        """Return origins.
 
         Args:
-            origin: a list of dictionaries representing the individual
-                origins to find.
-                These dicts have the key url:
-
-                - url (bytes): the url the origin points to
+            origin: a list of urls to find
 
         Returns:
-            dict: the origin dictionary with the keys:
-
-            - id: origin's id
-            - url: origin's url
-
-        Raises:
-            ValueError: if the url or the id don't exist.
+            the list of associated existing origin model objects. The unknown origins
+            will be returned as None at the same index as the input.
 
         """
         ...
