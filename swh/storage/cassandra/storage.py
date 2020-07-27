@@ -581,12 +581,12 @@ class CassandraStorage:
         return self.snapshot_get_branches(snapshot_id)
 
     def snapshot_get_by_origin_visit(self, origin, visit):
-        try:
-            visit = self.origin_visit_get_by(origin, visit)
-        except IndexError:
+        visit_status = self.origin_visit_status_get_latest(
+            origin, visit, require_snapshot=True
+        )
+        if not visit_status:
             return None
-
-        return self.snapshot_get(visit["snapshot"])
+        return self.snapshot_get(visit_status.snapshot)
 
     def snapshot_count_branches(self, snapshot_id):
         if self._cql_runner.snapshot_missing([snapshot_id]):
@@ -856,7 +856,7 @@ class CassandraStorage:
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         # Iterator over all the visits of the origin
         # This should be ok for now, as there aren't too many visits
         # per origin.
@@ -867,16 +867,13 @@ class CassandraStorage:
             return (abs(dt), -visit.visit)
 
         if rows:
-            row = min(rows, key=key)
-            visit = self._format_origin_visit_row(row)
-            return self._origin_visit_apply_last_status(visit)
+            return converters.row_to_visit(min(rows, key=key))
         return None
 
-    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[OriginVisit]:
         row = self._cql_runner.origin_visit_get_one(origin, visit)
         if row:
-            visit_ = self._format_origin_visit_row(row)
-            return self._origin_visit_apply_last_status(visit_)
+            return converters.row_to_visit(row)
         return None
 
     def origin_visit_get_latest(
@@ -885,7 +882,7 @@ class CassandraStorage:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         # TODO: Do not fetch all visits
         rows = self._cql_runner.origin_visit_get_all(origin)
         latest_visit = None
@@ -908,7 +905,14 @@ class CassandraStorage:
 
             latest_visit = updated_visit
 
-        return latest_visit
+        if latest_visit is None:
+            return None
+        return OriginVisit(
+            origin=latest_visit["origin"],
+            visit=latest_visit["visit"],
+            date=latest_visit["date"],
+            type=latest_visit["type"],
+        )
 
     def origin_visit_status_get_latest(
         self,
@@ -965,7 +969,9 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata]) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata]
+    ) -> None:
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
@@ -981,7 +987,7 @@ class CassandraStorage:
                 )
 
             try:
-                self._cql_runner.object_metadata_add(
+                self._cql_runner.raw_extrinsic_metadata_add(
                     type=metadata_entry.type.value,
                     id=str(metadata_entry.id),
                     authority_type=metadata_entry.authority.type.value,
@@ -1002,7 +1008,7 @@ class CassandraStorage:
             except TypeError as e:
                 raise StorageArgumentException(*e.args)
 
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1014,14 +1020,14 @@ class CassandraStorage:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type='origin', but "
-                    f"provided id is an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type!='origin', but "
-                    f"provided id is not an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token is not None:
@@ -1032,7 +1038,7 @@ class CassandraStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._cql_runner.object_metadata_get_after_date_and_fetcher(
+            entries = self._cql_runner.raw_extrinsic_metadata_get_after_date_and_fetcher(  # noqa
                 str(id),
                 authority.type.value,
                 authority.url,
@@ -1041,11 +1047,11 @@ class CassandraStorage:
                 after_fetcher_url,
             )
         elif after is not None:
-            entries = self._cql_runner.object_metadata_get_after_date(
+            entries = self._cql_runner.raw_extrinsic_metadata_get_after_date(
                 str(id), authority.type.value, authority.url, after
             )
         else:
-            entries = self._cql_runner.object_metadata_get(
+            entries = self._cql_runner.raw_extrinsic_metadata_get(
                 str(id), authority.type.value, authority.url
             )
 
