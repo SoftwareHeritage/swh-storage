@@ -890,14 +890,12 @@ class InMemoryStorage:
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
             visit = min(visits, key=lambda v: (abs(v.date - visit_date), -v.visit))
-            visit_update = self._origin_visit_get_updated(origin, visit.visit)
-            assert visit_update is not None
-            return visit_update
+            return visit
         return None
 
     def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:

@@ -816,7 +816,7 @@ class StorageInterface:
     @remote_api_endpoint("origin/visit/find_by_date")
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         """Retrieves the origin visit whose date is closest to the provided
         timestamp.
         In case of a tie, the visit with largest id is selected.
@@ -826,7 +826,7 @@ class StorageInterface:
             visit_date: expected visit date
 
         Returns:
-            A visit
+            A visit if found, None otherwise
 
         """
         ...

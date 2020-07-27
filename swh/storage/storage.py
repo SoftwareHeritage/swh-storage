@@ -898,8 +898,16 @@ class Storage:
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
-        return db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+    ) -> Optional[OriginVisit]:
+        row_d = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        if not row_d:
+            return None
+        return OriginVisit(
+            origin=row_d["origin"],
+            visit=row_d["visit"],
+            date=row_d["date"],
+            type=row_d["type"],
+        )
 
     @timed
     @db_transaction(statement_timeout=500)

@@ -1800,19 +1800,22 @@ class TestStorage:
         swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3])
 
         # Simple case
-        visit = swh_storage.origin_visit_find_by_date(
+        actual_visit = swh_storage.origin_visit_find_by_date(
             origin.url, sample_data.date_visit3
         )
-        assert visit["visit"] == ov2.visit
+        assert actual_visit == ov2
 
         # There are two visits at the same date, the latest must be returned
-        visit = swh_storage.origin_visit_find_by_date(
+        actual_visit = swh_storage.origin_visit_find_by_date(
             origin.url, sample_data.date_visit2
         )
-        assert visit["visit"] == ov3.visit
+        assert actual_visit == ov3
 
     def test_origin_visit_find_by_date__unknown_origin(self, swh_storage, sample_data):
-        swh_storage.origin_visit_find_by_date("foo", sample_data.date_visit2)
+        actual_visit = swh_storage.origin_visit_find_by_date(
+            "foo", sample_data.date_visit2
+        )
+        assert actual_visit is None
 
     def test_origin_visit_get_by(self, swh_storage, sample_data):
         snapshot = sample_data.snapshot

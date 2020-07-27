@@ -856,7 +856,7 @@ class CassandraStorage:
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         # Iterator over all the visits of the origin
         # This should be ok for now, as there aren't too many visits
         # per origin.
@@ -867,9 +867,7 @@ class CassandraStorage:
             return (abs(dt), -visit.visit)
 
         if rows:
-            row = min(rows, key=key)
-            visit = self._format_origin_visit_row(row)
-            return self._origin_visit_apply_last_status(visit)
+            return converters.row_to_visit(min(rows, key=key))
         return None
 
     def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
