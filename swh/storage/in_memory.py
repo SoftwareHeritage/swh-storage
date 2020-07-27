@@ -51,6 +51,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
+from swh.storage.interface import PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -862,31 +863,47 @@ class InMemoryStorage:
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
+        page_token: Optional[str] = None,
         order: str = "asc",
-    ) -> Iterable[Dict[str, Any]]:
+        limit: int = 10,
+    ) -> PagedResult[OriginVisit]:
+        next_page_token = None
+        page_token = page_token or "0"
         order = order.lower()
-        assert order in ["asc", "desc"]
-        origin_url = self._get_origin_url(origin)
-        if origin_url in self._origin_visits:
-            visits = self._origin_visits[origin_url]
-            visits = sorted(visits, key=lambda v: v.visit, reverse=(order == "desc"))
-            if last_visit is not None:
-                if order == "asc":
-                    visits = [v for v in visits if v.visit > last_visit]
-                else:
-                    visits = [v for v in visits if v.visit < last_visit]
-            if limit is not None:
-                visits = visits[:limit]
-            for visit in visits:
-                if not visit:
-                    continue
-                visit_id = visit.visit
+        allowed_orders = ["asc", "desc"]
+        if order not in allowed_orders:
+            raise StorageArgumentException(
+                f"order must be one of {', '.join(allowed_orders)}."
+            )
+        if not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
 
-                visit_update = self._origin_visit_get_updated(origin_url, visit_id)
-                assert visit_update is not None
-                yield visit_update
+        visit_from = int(page_token)
+        origin_url = self._get_origin_url(origin)
+        extra_limit = limit + 1
+        visits = sorted(
+            self._origin_visits.get(origin_url, []),
+            key=lambda v: v.visit,
+            reverse=(order == "desc"),
+        )
+
+        if visit_from > 0 and order == "asc":
+            visits = [v for v in visits if v.visit > visit_from]
+        elif visit_from > 0 and order == "desc":
+            visits = [v for v in visits if v.visit < visit_from]
+        visits = visits[:extra_limit]
+
+        assert len(visits) <= extra_limit
+        if len(visits) == extra_limit:
+            last_visit = visits[limit]
+            visits = visits[:limit]
+            assert last_visit is not None and last_visit.visit is not None
+            if order == "asc":
+                next_page_token = str(last_visit.visit - 1)
+            else:
+                next_page_token = str(last_visit.visit + 1)
+
+        return PagedResult(results=visits, next_page_token=next_page_token)
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime

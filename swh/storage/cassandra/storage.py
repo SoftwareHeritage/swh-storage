@@ -32,6 +32,7 @@ from swh.model.model import (
     MetadataTargetType,
     RawExtrinsicMetadata,
 )
+from swh.storage.interface import PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -844,15 +845,39 @@ class CassandraStorage:
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
+        page_token: Optional[str] = None,
         order: str = "asc",
-    ) -> Iterable[Dict[str, Any]]:
-        rows = self._cql_runner.origin_visit_get(origin, last_visit, limit, order)
+        limit: int = 10,
+    ) -> PagedResult[OriginVisit]:
+        order = order.lower()
+        allowed_orders = ["asc", "desc"]
+        if order not in allowed_orders:
+            raise StorageArgumentException(
+                f"order must be one of {', '.join(allowed_orders)}."
+            )
+        if page_token and not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
 
+        next_page_token = None
+        visit_from = page_token and int(page_token)
+        visits: List[OriginVisit] = []
+        extra_limit = limit + 1
+
+        rows = self._cql_runner.origin_visit_get(origin, visit_from, extra_limit, order)
         for row in rows:
-            visit = self._format_origin_visit_row(row)
-            yield self._origin_visit_apply_last_status(visit)
+            visits.append(converters.row_to_visit(row))
+
+        assert len(visits) <= extra_limit
+        if len(visits) == extra_limit:
+            last_visit = visits[limit]
+            visits = visits[:limit]
+            assert last_visit is not None and last_visit.visit is not None
+            if order == "asc":
+                next_page_token = str(last_visit.visit - 1)
+            else:
+                next_page_token = str(last_visit.visit + 1)
+
+        return PagedResult(results=visits, next_page_token=next_page_token)
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime

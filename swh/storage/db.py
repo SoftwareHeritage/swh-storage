@@ -481,6 +481,8 @@ class Db(BaseDb):
             + [jsonize(visit_status.metadata)],
         )
 
+    origin_visit_cols = ["origin", "visit", "date", "type"]
+
     def origin_visit_add_with_id(self, origin_visit: OriginVisit, cur=None) -> None:
         """Insert origin visit when id are already set
 
@@ -488,12 +490,11 @@ class Db(BaseDb):
         ov = origin_visit
         assert ov.visit is not None
         cur = self._cursor(cur)
-        origin_visit_cols = ["origin", "visit", "date", "type"]
         query = """INSERT INTO origin_visit ({cols})
                    VALUES ((select id from origin where url=%s), {values})
                    ON CONFLICT (origin, visit) DO NOTHING""".format(
-            cols=", ".join(origin_visit_cols),
-            values=", ".join("%s" for col in origin_visit_cols[1:]),
+            cols=", ".join(self.origin_visit_cols),
+            values=", ".join("%s" for col in self.origin_visit_cols[1:]),
         )
         cur.execute(query, (ov.origin, ov.visit, ov.date, ov.type))
 
@@ -613,6 +614,37 @@ class Db(BaseDb):
         if limit is not None:
             query_parts.append("LIMIT %s")
             query_params.append(limit)
+
+        query = "\n".join(query_parts)
+        cur.execute(query, tuple(query_params))
+        yield from cur
+
+    def origin_visit_get_range(
+        self, origin: str, visit_from: int, order: str, limit: int, cur=None,
+    ):
+        assert order in ["asc", "desc"]
+        cur = self._cursor(cur)
+
+        origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
+        query_parts = [
+            f"SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov ",
+            "INNER JOIN origin o ON o.id = ov.origin ",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin]
+
+        if visit_from > 0:
+            op_comparison = ">" if order == "asc" else "<"
+            query_parts.append(f"and ov.visit {op_comparison} %s")
+            query_params.append(visit_from)
+
+        if order == "asc":
+            query_parts.append("ORDER BY ov.visit ASC")
+        elif order == "desc":
+            query_parts.append("ORDER BY ov.visit DESC")
+
+        query_parts.append("LIMIT %s")
+        query_params.append(limit)
 
         query = "\n".join(query_parts)
         cur.execute(query, tuple(query_params))

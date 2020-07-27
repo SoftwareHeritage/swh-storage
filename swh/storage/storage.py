@@ -45,6 +45,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
+from swh.storage.interface import PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -877,22 +878,55 @@ class Storage:
         return OriginVisitStatus.from_dict(row)
 
     @timed
-    @db_transaction_generator(statement_timeout=500)
+    @db_transaction(statement_timeout=500)
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
+        page_token: Optional[str] = None,
         order: str = "asc",
+        limit: int = 10,
         db=None,
         cur=None,
-    ) -> Iterable[Dict[str, Any]]:
-        assert order in ["asc", "desc"]
-        lines = db.origin_visit_get_all(
-            origin, last_visit=last_visit, limit=limit, order=order, cur=cur
-        )
-        for line in lines:
-            yield dict(zip(db.origin_visit_get_cols, line))
+    ) -> PagedResult[OriginVisit]:
+        page_token = page_token or "0"
+        order = order.lower()
+        allowed_orders = ["asc", "desc"]
+        if order not in allowed_orders:
+            raise StorageArgumentException(
+                f"order must be one of {', '.join(allowed_orders)}."
+            )
+        if not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
+
+        next_page_token = None
+        visit_from = int(page_token)
+        visits: List[OriginVisit] = []
+        extra_limit = limit + 1
+        for row in db.origin_visit_get_range(
+            origin, visit_from=visit_from, order=order, limit=extra_limit, cur=cur
+        ):
+            row_d = dict(zip(db.origin_visit_cols, row))
+            visits.append(
+                OriginVisit(
+                    origin=row_d["origin"],
+                    visit=row_d["visit"],
+                    date=row_d["date"],
+                    type=row_d["type"],
+                )
+            )
+
+        assert len(visits) <= extra_limit
+
+        if len(visits) == extra_limit:
+            last_visit = visits[limit]
+            visits = visits[:limit]
+            assert last_visit is not None and last_visit.visit is not None
+            if order == "asc":
+                next_page_token = str(last_visit.visit - 1)
+            else:
+                next_page_token = str(last_visit.visit + 1)
+
+        return PagedResult(results=visits, next_page_token=next_page_token)
 
     @timed
     @db_transaction(statement_timeout=500)

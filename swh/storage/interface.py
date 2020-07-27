@@ -5,9 +5,10 @@
 
 import datetime
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 from swh.core.api import remote_api_endpoint
+from swh.core.api.classes import PagedResult as CorePagedResult
 from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
@@ -30,6 +31,10 @@ from swh.model.model import (
 def deprecated(f):
     f.deprecated_endpoint = True
     return f
+
+
+TResult = TypeVar("TResult")
+PagedResult = CorePagedResult[TResult, str]
 
 
 class StorageInterface:
@@ -793,22 +798,24 @@ class StorageInterface:
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
+        page_token: Optional[str] = None,
         order: str = "asc",
-    ) -> Iterable[Dict[str, Any]]:
-        """Retrieve all the origin's visit's information.
+        limit: int = 10,
+    ) -> PagedResult[OriginVisit]:
+        """Retrieve page of OriginVisit information.
 
         Args:
             origin: The visited origin
-            last_visit: Starting point from which listing the next visits
-                Default to None
-            limit: Number of results to return from the last visit.
-                Default to None
+            page_token: opaque string used to get the next results of a search
             order: Order on visit id fields to list origin visits (default to asc)
+            limit: Number of visits to return
 
-        Yields:
-            List of visits.
+        Raises:
+            StorageArgumentException if the order is wrong or the page_token type is
+            mistyped.
+
+        Returns: Page of OriginVisit data model objects. if next_page_token is None,
+            there is no longer data to retrieve.
 
         """
         ...
