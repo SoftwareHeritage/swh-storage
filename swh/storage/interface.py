@@ -832,7 +832,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/visit/getby")
-    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[OriginVisit]:
         """Retrieve origin visit's information.
 
         Args:
@@ -840,7 +840,7 @@ class StorageInterface:
             visit: visit id
 
         Returns:
-            The information on that particular (origin, visit) or None if
+            The information on that particular OriginVisit or None if
             it does not exist
 
         """

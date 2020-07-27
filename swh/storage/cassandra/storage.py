@@ -581,12 +581,12 @@ class CassandraStorage:
         return self.snapshot_get_branches(snapshot_id)
 
     def snapshot_get_by_origin_visit(self, origin, visit):
-        try:
-            visit = self.origin_visit_get_by(origin, visit)
-        except IndexError:
+        visit_status = self.origin_visit_status_get_latest(
+            origin, visit, require_snapshot=True
+        )
+        if not visit_status:
             return None
-
-        return self.snapshot_get(visit["snapshot"])
+        return self.snapshot_get(visit_status.snapshot)
 
     def snapshot_count_branches(self, snapshot_id):
         if self._cql_runner.snapshot_missing([snapshot_id]):
@@ -870,11 +870,10 @@ class CassandraStorage:
             return converters.row_to_visit(min(rows, key=key))
         return None
 
-    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[OriginVisit]:
         row = self._cql_runner.origin_visit_get_one(origin, visit)
         if row:
-            visit_ = self._format_origin_visit_row(row)
-            return self._origin_visit_apply_last_status(visit_)
+            return converters.row_to_visit(row)
         return None
 
     def origin_visit_get_latest(

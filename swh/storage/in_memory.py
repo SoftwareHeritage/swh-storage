@@ -898,14 +898,13 @@ class InMemoryStorage:
             return visit
         return None
 
-    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[OriginVisit]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits and visit <= len(
             self._origin_visits[origin_url]
         ):
-            visit_update = self._origin_visit_get_updated(origin_url, visit)
-            assert visit_update is not None
-            return visit_update
+            found_visit, _ = self._origin_visit_status_get_latest(origin, visit)
+            return found_visit
         return None
 
     def origin_visit_get_latest(

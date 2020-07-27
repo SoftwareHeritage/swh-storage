@@ -1875,35 +1875,17 @@ class TestStorage:
             ]
         )
 
-        expected_origin_visit = origin_visit1.to_dict()
-        expected_origin_visit.update(
-            {
-                "origin": origin_url,
-                "visit": origin_visit1.visit,
-                "date": sample_data.date_visit2,
-                "type": sample_data.type_visit2,
-                "metadata": visit1_metadata,
-                "status": "full",
-                "snapshot": snapshot.id,
-            }
-        )
+        actual_visit = swh_storage.origin_visit_get_by(origin_url, origin_visit1.visit)
+        assert actual_visit == origin_visit1
 
-        # when
-        actual_origin_visit1 = swh_storage.origin_visit_get_by(
-            origin_url, origin_visit1.visit
-        )
+    def test_origin_visit_get_by__no_result(self, swh_storage, sample_data):
+        actual_visit = swh_storage.origin_visit_get_by("unknown", 10)  # unknown origin
+        assert actual_visit is None
 
-        # then
-        assert actual_origin_visit1 == expected_origin_visit
-
-    def test_origin_visit_get_by__unknown_origin(self, swh_storage):
-        assert swh_storage.origin_visit_get_by("foo", 10) is None
-
-    def test_origin_visit_get_by_no_result(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
-        actual_origin_visit = swh_storage.origin_visit_get_by(origin.url, 999)
-        assert actual_origin_visit is None
+        actual_visit = swh_storage.origin_visit_get_by(origin.url, 999)  # unknown visit
+        assert actual_visit is None
 
     def test_origin_visit_get_latest_none(self, swh_storage, sample_data):
         """Origin visit get latest on unknown objects should return nothing
@@ -2662,15 +2644,14 @@ class TestStorage:
             date=sample_data.date_visit1,
             type=sample_data.type_visit1,
         )
-        origin_visit1 = swh_storage.origin_visit_add([visit])[0]
-        visit_id = origin_visit1.visit
+        ov1 = swh_storage.origin_visit_add([visit])[0]
 
         swh_storage.snapshot_add([snapshot])
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
                     origin=origin.url,
-                    visit=origin_visit1.visit,
+                    visit=ov1.visit,
                     date=now(),
                     status="ongoing",
                     snapshot=snapshot.id,
@@ -2683,11 +2664,16 @@ class TestStorage:
         by_id = swh_storage.snapshot_get(snapshot.id)
         assert by_id == expected_snapshot
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin.url, visit_id)
+        by_ov = swh_storage.snapshot_get_by_origin_visit(origin.url, ov1.visit)
         assert by_ov == expected_snapshot
 
-        origin_visit_info = swh_storage.origin_visit_get_by(origin.url, visit_id)
-        assert origin_visit_info["snapshot"] == snapshot.id
+        actual_visit = swh_storage.origin_visit_get_by(origin.url, ov1.visit)
+        assert actual_visit == ov1
+
+        visit_status = swh_storage.origin_visit_status_get_latest(
+            origin.url, ov1.visit, require_snapshot=True
+        )
+        assert visit_status.snapshot == snapshot.id
 
     def test_snapshot_add_twice__by_origin_visit(self, swh_storage, sample_data):
         snapshot = sample_data.snapshot

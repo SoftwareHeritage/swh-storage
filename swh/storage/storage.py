@@ -913,10 +913,16 @@ class Storage:
     @db_transaction(statement_timeout=500)
     def origin_visit_get_by(
         self, origin: str, visit: int, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         row = db.origin_visit_get(origin, visit, cur)
         if row:
-            return dict(zip(db.origin_visit_get_cols, row))
+            row_d = dict(zip(db.origin_visit_get_cols, row))
+            return OriginVisit(
+                origin=row_d["origin"],
+                visit=row_d["visit"],
+                date=row_d["date"],
+                type=row_d["type"],
+            )
         return None
 
     @timed
