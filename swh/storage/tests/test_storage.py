@@ -41,7 +41,7 @@ from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
-from swh.storage.interface import StorageInterface, PagedResult  # noqa
+from swh.storage.interface import ListOrder, PagedResult, StorageInterface
 from swh.storage.utils import content_hex_hashes, now
 
 
@@ -1268,7 +1268,7 @@ class TestStorage:
             swh_storage.origin_visit_get(origin.url, page_token=10)  # not bytes
 
         with pytest.raises(
-            StorageArgumentException, match="order must be one of asc, desc"
+            StorageArgumentException, match="order must be a ListOrder value"
         ):
             swh_storage.origin_visit_get(origin.url, order="foobar")  # wrong order
 
@@ -1337,18 +1337,20 @@ class TestStorage:
         assert actual_page == PagedResult(results=[ov3])
 
         # order desc, no pagination, no limit
-        actual_page = swh_storage.origin_visit_get(origin.url, order="desc")
+        actual_page = swh_storage.origin_visit_get(origin.url, order=ListOrder.DESC)
         assert actual_page.next_page_token is None
         assert actual_page == PagedResult(results=[ov3, ov2, ov1])
 
         # order desc, no pagination, limit
-        actual_page = swh_storage.origin_visit_get(origin.url, limit=2, order="desc")
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, limit=2, order=ListOrder.DESC
+        )
         next_page_token = actual_page.next_page_token
         assert next_page_token is not None
         assert actual_page.results == [ov3, ov2]
 
         actual_page = swh_storage.origin_visit_get(
-            origin.url, page_token=next_page_token, order="desc"
+            origin.url, page_token=next_page_token, order=ListOrder.DESC
         )
         assert actual_page.next_page_token is None
         assert actual_page.results == [ov1]
@@ -1357,21 +1359,21 @@ class TestStorage:
         # order desc, pagination, no limit
         next_page_token = str(ov3.visit)
         actual_page = swh_storage.origin_visit_get(
-            origin.url, page_token=next_page_token, order="desc"
+            origin.url, page_token=next_page_token, order=ListOrder.DESC
         )
         assert actual_page.next_page_token is None
         assert actual_page == PagedResult(results=[ov2, ov1])
 
         # order desc, pagination, limit
         actual_page = swh_storage.origin_visit_get(
-            origin.url, page_token=next_page_token, order="desc", limit=1
+            origin.url, page_token=next_page_token, order=ListOrder.DESC, limit=1
         )
         next_page_token = actual_page.next_page_token
         assert next_page_token is not None
         assert actual_page.results == [ov2]
 
         actual_page = swh_storage.origin_visit_get(
-            origin.url, page_token=next_page_token, order="desc"
+            origin.url, page_token=next_page_token, order=ListOrder.DESC
         )
         assert actual_page == PagedResult(results=[ov1])
 

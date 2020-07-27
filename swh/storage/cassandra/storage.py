@@ -32,7 +32,7 @@ from swh.model.model import (
     MetadataTargetType,
     RawExtrinsicMetadata,
 )
-from swh.storage.interface import PagedResult
+from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -846,15 +846,11 @@ class CassandraStorage:
         self,
         origin: str,
         page_token: Optional[str] = None,
-        order: str = "asc",
+        order: ListOrder = ListOrder.ASC,
         limit: int = 10,
     ) -> PagedResult[OriginVisit]:
-        order = order.lower()
-        allowed_orders = ["asc", "desc"]
-        if order not in allowed_orders:
-            raise StorageArgumentException(
-                f"order must be one of {', '.join(allowed_orders)}."
-            )
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
         if page_token and not isinstance(page_token, str):
             raise StorageArgumentException("page_token must be a string.")
 
@@ -872,7 +868,7 @@ class CassandraStorage:
             last_visit = visits[limit]
             visits = visits[:limit]
             assert last_visit is not None and last_visit.visit is not None
-            if order == "asc":
+            if order == ListOrder.ASC:
                 next_page_token = str(last_visit.visit - 1)
             else:
                 next_page_token = str(last_visit.visit + 1)

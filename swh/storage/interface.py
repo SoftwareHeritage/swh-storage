@@ -5,7 +5,9 @@
 
 import datetime
 
+from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
@@ -28,13 +30,20 @@ from swh.model.model import (
 )
 
 
-def deprecated(f):
-    f.deprecated_endpoint = True
-    return f
+class ListOrder(Enum):
+    """Specifies the order for paginated endpoints returning sorted results."""
+
+    ASC = "asc"
+    DESC = "desc"
 
 
 TResult = TypeVar("TResult")
 PagedResult = CorePagedResult[TResult, str]
+
+
+def deprecated(f):
+    f.deprecated_endpoint = True
+    return f
 
 
 class StorageInterface:
@@ -799,7 +808,7 @@ class StorageInterface:
         self,
         origin: str,
         page_token: Optional[str] = None,
-        order: str = "asc",
+        order: ListOrder = ListOrder.ASC,
         limit: int = 10,
     ) -> PagedResult[OriginVisit]:
         """Retrieve page of OriginVisit information.

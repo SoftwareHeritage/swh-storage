@@ -43,6 +43,8 @@ from swh.model.model import (
     Origin,
 )
 
+from swh.storage.interface import ListOrder
+
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
 
@@ -734,11 +736,8 @@ class CqlRunner:
         origin_url: str,
         last_visit: Optional[int],
         limit: Optional[int],
-        order: str = "asc",
+        order: ListOrder,
     ) -> ResultSet:
-        order = order.lower()
-        assert order in ["asc", "desc"]
-
         args: List[Any] = [origin_url]
 
         if last_visit is not None:
@@ -753,7 +752,7 @@ class CqlRunner:
         else:
             limit_name = "no_limit"
 
-        method_name = f"_origin_visit_get_{page_name}_{order}_{limit_name}"
+        method_name = f"_origin_visit_get_{page_name}_{order.value}_{limit_name}"
         origin_visit_get_method = getattr(self, method_name)
         return origin_visit_get_method(*args)
 

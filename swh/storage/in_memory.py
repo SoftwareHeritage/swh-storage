@@ -51,7 +51,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.interface import PagedResult
+from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -864,17 +864,13 @@ class InMemoryStorage:
         self,
         origin: str,
         page_token: Optional[str] = None,
-        order: str = "asc",
+        order: ListOrder = ListOrder.ASC,
         limit: int = 10,
     ) -> PagedResult[OriginVisit]:
         next_page_token = None
         page_token = page_token or "0"
-        order = order.lower()
-        allowed_orders = ["asc", "desc"]
-        if order not in allowed_orders:
-            raise StorageArgumentException(
-                f"order must be one of {', '.join(allowed_orders)}."
-            )
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
         if not isinstance(page_token, str):
             raise StorageArgumentException("page_token must be a string.")
 
@@ -884,12 +880,12 @@ class InMemoryStorage:
         visits = sorted(
             self._origin_visits.get(origin_url, []),
             key=lambda v: v.visit,
-            reverse=(order == "desc"),
+            reverse=(order == ListOrder.DESC),
         )
 
-        if visit_from > 0 and order == "asc":
+        if visit_from > 0 and order == ListOrder.ASC:
             visits = [v for v in visits if v.visit > visit_from]
-        elif visit_from > 0 and order == "desc":
+        elif visit_from > 0 and order == ListOrder.DESC:
             visits = [v for v in visits if v.visit < visit_from]
         visits = visits[:extra_limit]
 
@@ -898,7 +894,7 @@ class InMemoryStorage:
             last_visit = visits[limit]
             visits = visits[:limit]
             assert last_visit is not None and last_visit.visit is not None
-            if order == "asc":
+            if order == ListOrder.ASC:
                 next_page_token = str(last_visit.visit - 1)
             else:
                 next_page_token = str(last_visit.visit + 1)

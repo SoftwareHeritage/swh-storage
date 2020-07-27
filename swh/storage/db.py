@@ -12,6 +12,7 @@ from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize as _jsonize
 from swh.core.db.db_utils import execute_values_generator
 from swh.model.model import OriginVisit, OriginVisitStatus, SHA1_SIZE
+from swh.storage.interface import ListOrder
 
 
 def jsonize(d):
@@ -620,9 +621,8 @@ class Db(BaseDb):
         yield from cur
 
     def origin_visit_get_range(
-        self, origin: str, visit_from: int, order: str, limit: int, cur=None,
+        self, origin: str, visit_from: int, order: ListOrder, limit: int, cur=None,
     ):
-        assert order in ["asc", "desc"]
         cur = self._cursor(cur)
 
         origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
@@ -634,13 +634,13 @@ class Db(BaseDb):
         query_params: List[Any] = [origin]
 
         if visit_from > 0:
-            op_comparison = ">" if order == "asc" else "<"
+            op_comparison = ">" if order == ListOrder.ASC else "<"
             query_parts.append(f"and ov.visit {op_comparison} %s")
             query_params.append(visit_from)
 
-        if order == "asc":
+        if order == ListOrder.ASC:
             query_parts.append("ORDER BY ov.visit ASC")
-        elif order == "desc":
+        elif order == ListOrder.DESC:
             query_parts.append("ORDER BY ov.visit DESC")
 
         query_parts.append("LIMIT %s")
