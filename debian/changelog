@@ -1,3 +1,18 @@
+swh-storage (0.11.4-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.11.4     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-27 16:08:42
+    +0200)
+  * Upstream changes:     - v0.11.4     - Rename object_metadata to
+    raw_extrinsic_metadata     - metadata_{authority,fetcher}_add: Fix
+    crash when the iterable argument is empty     - storage*:
+    origin_visit_get_by -> Optional[OriginVisit]     - storage*:
+    origin_visit_find_by_date -> Optional[OriginVisit]     - storage*:
+    type origin_visit_get_latest endpoint result     - algos.origin:
+    Simplify origin_get_latest_visit_status function
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 27 Jul 2020 14:16:18 +0000
+
 swh-storage (0.11.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.11.3     - (tagged by Antoine R. Dumont
