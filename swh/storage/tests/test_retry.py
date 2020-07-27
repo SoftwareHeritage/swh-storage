@@ -472,8 +472,8 @@ def test_retrying_proxy_swh_storage_metadata_authority_add_failure(
     assert mock_memory.call_count == 1
 
 
-def test_retrying_proxy_storage_object_metadata_add(swh_storage, sample_data):
-    """Standard object_metadata_add works as before
+def test_retrying_proxy_storage_raw_extrinsic_metadata_add(swh_storage, sample_data):
+    """Standard raw_extrinsic_metadata_add works as before
 
     """
     origin = sample_data.origin
@@ -483,21 +483,21 @@ def test_retrying_proxy_storage_object_metadata_add(swh_storage, sample_data):
     swh_storage.metadata_authority_add([sample_data.metadata_authority])
     swh_storage.metadata_fetcher_add([sample_data.metadata_fetcher])
 
-    origin_metadata = swh_storage.object_metadata_get(
+    origin_metadata = swh_storage.raw_extrinsic_metadata_get(
         MetadataTargetType.ORIGIN, ori_meta.id, ori_meta.authority
     )
     assert origin_metadata["next_page_token"] is None
     assert not origin_metadata["results"]
 
-    swh_storage.object_metadata_add([ori_meta])
+    swh_storage.raw_extrinsic_metadata_add([ori_meta])
 
-    origin_metadata = swh_storage.object_metadata_get(
+    origin_metadata = swh_storage.raw_extrinsic_metadata_get(
         MetadataTargetType.ORIGIN, ori_meta.id, ori_meta.authority
     )
     assert origin_metadata
 
 
-def test_retrying_proxy_storage_object_metadata_add_with_retry(
+def test_retrying_proxy_storage_raw_extrinsic_metadata_add_with_retry(
     monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision,
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok
@@ -510,7 +510,7 @@ def test_retrying_proxy_storage_object_metadata_add_with_retry(
     swh_storage.metadata_authority_add([sample_data.metadata_authority])
     swh_storage.metadata_fetcher_add([sample_data.metadata_fetcher])
     mock_memory = mocker.patch(
-        "swh.storage.in_memory.InMemoryStorage.object_metadata_add"
+        "swh.storage.in_memory.InMemoryStorage.raw_extrinsic_metadata_add"
     )
 
     mock_memory.side_effect = [
@@ -523,7 +523,7 @@ def test_retrying_proxy_storage_object_metadata_add_with_retry(
     ]
 
     # No exception raised as insertion finally came through
-    swh_storage.object_metadata_add([ori_meta])
+    swh_storage.raw_extrinsic_metadata_add([ori_meta])
 
     mock_memory.assert_has_calls(
         [  # 3 calls, as long as error raised
@@ -534,14 +534,14 @@ def test_retrying_proxy_storage_object_metadata_add_with_retry(
     )
 
 
-def test_retrying_proxy_swh_storage_object_metadata_add_failure(
+def test_retrying_proxy_swh_storage_raw_extrinsic_metadata_add_failure(
     swh_storage, sample_data, mocker
 ):
     """Unfiltered errors are raising without retry
 
     """
     mock_memory = mocker.patch(
-        "swh.storage.in_memory.InMemoryStorage.object_metadata_add"
+        "swh.storage.in_memory.InMemoryStorage.raw_extrinsic_metadata_add"
     )
     mock_memory.side_effect = StorageArgumentException("Refuse to add always!")
 
@@ -551,7 +551,7 @@ def test_retrying_proxy_swh_storage_object_metadata_add_failure(
     swh_storage.origin_add([origin])
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
-        swh_storage.object_metadata_add([ori_meta])
+        swh_storage.raw_extrinsic_metadata_add([ori_meta])
 
     assert mock_memory.call_count == 1
 

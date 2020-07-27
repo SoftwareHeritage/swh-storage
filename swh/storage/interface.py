@@ -816,7 +816,7 @@ class StorageInterface:
     @remote_api_endpoint("origin/visit/find_by_date")
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         """Retrieves the origin visit whose date is closest to the provided
         timestamp.
         In case of a tie, the visit with largest id is selected.
@@ -826,13 +826,13 @@ class StorageInterface:
             visit_date: expected visit date
 
         Returns:
-            A visit
+            A visit if found, None otherwise
 
         """
         ...
 
     @remote_api_endpoint("origin/visit/getby")
-    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[OriginVisit]:
         """Retrieve origin visit's information.
 
         Args:
@@ -840,7 +840,7 @@ class StorageInterface:
             visit: visit id
 
         Returns:
-            The information on that particular (origin, visit) or None if
+            The information on that particular OriginVisit or None if
             it does not exist
 
         """
@@ -853,7 +853,7 @@ class StorageInterface:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         """Get the latest origin visit for the given origin, optionally
         looking only for those with one of the given allowed_statuses
         or for those with a snapshot.
@@ -870,16 +870,9 @@ class StorageInterface:
                 will be returned.
 
         Returns:
-            dict: a dict with the following keys:
-
-                - **origin**: the URL of the origin
-                - **visit**: origin visit id
-                - **type**: type of loader used for the visit
-                - **date**: timestamp of such visit
-                - **status**: Visit's new status
-                - **metadata**: Data associated to the visit
-                - **snapshot** (Optional[sha1_git]): identifier of the snapshot
-                    associated to the visit
+            OriginVisit matching the criteria if found, None otherwise. Note that as
+            OriginVisit no longer held reference on the visit status or snapshot, you
+            may want to use origin_visit_status_get_latest for those information.
 
         """
         ...
@@ -1083,8 +1076,10 @@ class StorageInterface:
         """Recomputes the statistics for `stat_counters`."""
         ...
 
-    @remote_api_endpoint("object_metadata/add")
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+    @remote_api_endpoint("raw_extrinsic_metadata/add")
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata],
+    ) -> None:
         """Add extrinsic metadata on objects (contents, directories, ...).
 
         The authority and fetcher must be known to the storage before
@@ -1100,8 +1095,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("object_metadata/get")
-    def object_metadata_get(
+    @remote_api_endpoint("raw_extrinsic_metadata/get")
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1110,7 +1105,7 @@ class StorageInterface:
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
-        """Retrieve list of all object_metadata entries for the id
+        """Retrieve list of all raw_extrinsic_metadata entries for the id
 
         Args:
             object_type: one of the values of swh.model.model.MetadataTargetType

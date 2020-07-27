@@ -898,17 +898,31 @@ class Storage:
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
-        return db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+    ) -> Optional[OriginVisit]:
+        row_d = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        if not row_d:
+            return None
+        return OriginVisit(
+            origin=row_d["origin"],
+            visit=row_d["visit"],
+            date=row_d["date"],
+            type=row_d["type"],
+        )
 
     @timed
     @db_transaction(statement_timeout=500)
     def origin_visit_get_by(
         self, origin: str, visit: int, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         row = db.origin_visit_get(origin, visit, cur)
         if row:
-            return dict(zip(db.origin_visit_get_cols, row))
+            row_d = dict(zip(db.origin_visit_get_cols, row))
+            return OriginVisit(
+                origin=row_d["origin"],
+                visit=row_d["visit"],
+                date=row_d["date"],
+                type=row_d["type"],
+            )
         return None
 
     @timed
@@ -921,7 +935,7 @@ class Storage:
         require_snapshot: bool = False,
         db=None,
         cur=None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         row = db.origin_visit_get_latest(
             origin,
             type=type,
@@ -930,7 +944,14 @@ class Storage:
             cur=cur,
         )
         if row:
-            return dict(zip(db.origin_visit_get_cols, row))
+            row_d = dict(zip(db.origin_visit_get_cols, row))
+            visit = OriginVisit(
+                origin=row_d["origin"],
+                visit=row_d["visit"],
+                date=row_d["date"],
+                type=row_d["type"],
+            )
+            return visit
         return None
 
     @timed
@@ -1093,7 +1114,7 @@ class Storage:
             cur.execute("select * from swh_update_counter(%s)", (key,))
 
     @db_transaction()
-    def object_metadata_add(
+    def raw_extrinsic_metadata_add(
         self, metadata: Iterable[RawExtrinsicMetadata], db, cur,
     ) -> None:
         counter = Counter[MetadataTargetType]()
@@ -1101,7 +1122,7 @@ class Storage:
             authority_id = self._get_authority_id(metadata_entry.authority, db, cur)
             fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
-            db.object_metadata_add(
+            db.raw_extrinsic_metadata_add(
                 object_type=metadata_entry.type.value,
                 id=str(metadata_entry.id),
                 discovery_date=metadata_entry.discovery_date,
@@ -1128,7 +1149,7 @@ class Storage:
             )
 
     @db_transaction()
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1142,14 +1163,14 @@ class Storage:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type='origin', but "
-                    f"provided id is an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type!='origin', but "
-                    f"provided id is not an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token:
@@ -1169,7 +1190,7 @@ class Storage:
                 "results": [],
             }
 
-        rows = db.object_metadata_get(
+        rows = db.raw_extrinsic_metadata_get(
             object_type,
             str(id),
             authority_id,
@@ -1178,16 +1199,16 @@ class Storage:
             limit + 1,
             cur,
         )
-        rows = [dict(zip(db.object_metadata_get_cols, row)) for row in rows]
+        rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
             row = row.copy()
             row.pop("metadata_fetcher.id")
 
-            assert str(id) == row["object_metadata.id"]
+            assert str(id) == row["raw_extrinsic_metadata.id"]
 
             result = RawExtrinsicMetadata(
-                type=MetadataTargetType(row["object_metadata.type"]),
+                type=MetadataTargetType(row["raw_extrinsic_metadata.type"]),
                 id=id,
                 authority=MetadataAuthority(
                     type=MetadataAuthorityType(row["metadata_authority.type"]),
@@ -1199,7 +1220,7 @@ class Storage:
                 ),
                 discovery_date=row["discovery_date"],
                 format=row["format"],
-                metadata=row["object_metadata.metadata"],
+                metadata=row["raw_extrinsic_metadata.metadata"],
                 origin=row["origin"],
                 visit=row["visit"],
                 snapshot=map_optional(parse_swhid, row["snapshot"]),
@@ -1234,7 +1255,8 @@ class Storage:
     def metadata_fetcher_add(
         self, fetchers: Iterable[MetadataFetcher], db=None, cur=None
     ) -> None:
-        for (i, fetcher) in enumerate(fetchers):
+        count = 0
+        for fetcher in fetchers:
             if fetcher.metadata is None:
                 raise StorageArgumentException(
                     "MetadataFetcher.metadata may not be None in metadata_fetcher_add."
@@ -1242,7 +1264,8 @@ class Storage:
             db.metadata_fetcher_add(
                 fetcher.name, fetcher.version, dict(fetcher.metadata), cur=cur
             )
-        send_metric("metadata_fetcher:add", count=i + 1, method_name="metadata_fetcher")
+            count += 1
+        send_metric("metadata_fetcher:add", count=count, method_name="metadata_fetcher")
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1259,7 +1282,8 @@ class Storage:
     def metadata_authority_add(
         self, authorities: Iterable[MetadataAuthority], db=None, cur=None
     ) -> None:
-        for (i, authority) in enumerate(authorities):
+        count = 0
+        for authority in authorities:
             if authority.metadata is None:
                 raise StorageArgumentException(
                     "MetadataAuthority.metadata may not be None in "
@@ -1268,8 +1292,9 @@ class Storage:
             db.metadata_authority_add(
                 authority.type.value, authority.url, dict(authority.metadata), cur=cur
             )
+            count += 1
         send_metric(
-            "metadata_authority:add", count=i + 1, method_name="metadata_authority"
+            "metadata_authority:add", count=count, method_name="metadata_authority"
         )
 
     @timed

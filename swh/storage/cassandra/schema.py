@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS metadata_fetcher (
 );
 
 
-CREATE TABLE IF NOT EXISTS object_metadata (
+CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
     type            text,
     id              text,
 
@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
 TABLES = (
     "skipped_content content revision revision_parent release "
     "directory directory_entry snapshot snapshot_branch "
-    "origin_visit origin object_metadata object_count "
+    "origin_visit origin raw_extrinsic_metadata object_count "
     "origin_visit_status metadata_authority "
     "metadata_fetcher"
 ).split()

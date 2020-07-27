@@ -168,14 +168,14 @@ alter table metadata_authority add primary key using index metadata_authority_pk
 
 create unique index metadata_authority_type_url on metadata_authority(type, url);
 
--- object_metadata
-create unique index concurrently object_metadata_content_authority_date_fetcher on object_metadata(id, authority_id, discovery_date, fetcher_id);
+-- raw_extrinsic_metadata
+create unique index concurrently raw_extrinsic_metadata_content_authority_date_fetcher on raw_extrinsic_metadata(id, authority_id, discovery_date, fetcher_id);
 
-alter table object_metadata add constraint object_metadata_authority_fkey foreign key (authority_id) references metadata_authority(id) not valid;
-alter table object_metadata validate constraint object_metadata_authority_fkey;
+alter table raw_extrinsic_metadata add constraint raw_extrinsic_metadata_authority_fkey foreign key (authority_id) references metadata_authority(id) not valid;
+alter table raw_extrinsic_metadata validate constraint raw_extrinsic_metadata_authority_fkey;
 
-alter table object_metadata add constraint object_metadata_fetcher_fkey foreign key (fetcher_id) references metadata_fetcher(id) not valid;
-alter table object_metadata validate constraint object_metadata_fetcher_fkey;
+alter table raw_extrinsic_metadata add constraint raw_extrinsic_metadata_fetcher_fkey foreign key (fetcher_id) references metadata_fetcher(id) not valid;
+alter table raw_extrinsic_metadata validate constraint raw_extrinsic_metadata_fetcher_fkey;
 
 -- object_counts
 create unique index concurrently object_counts_pkey on object_counts(object_type);
