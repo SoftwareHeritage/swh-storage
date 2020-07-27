@@ -970,7 +970,9 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata]) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata]
+    ) -> None:
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
@@ -986,7 +988,7 @@ class CassandraStorage:
                 )
 
             try:
-                self._cql_runner.object_metadata_add(
+                self._cql_runner.raw_extrinsic_metadata_add(
                     type=metadata_entry.type.value,
                     id=str(metadata_entry.id),
                     authority_type=metadata_entry.authority.type.value,
@@ -1007,7 +1009,7 @@ class CassandraStorage:
             except TypeError as e:
                 raise StorageArgumentException(*e.args)
 
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1019,14 +1021,14 @@ class CassandraStorage:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type='origin', but "
-                    f"provided id is an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type!='origin', but "
-                    f"provided id is not an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token is not None:
@@ -1037,7 +1039,7 @@ class CassandraStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._cql_runner.object_metadata_get_after_date_and_fetcher(
+            entries = self._cql_runner.raw_extrinsic_metadata_get_after_date_and_fetcher(  # noqa
                 str(id),
                 authority.type.value,
                 authority.url,
@@ -1046,11 +1048,11 @@ class CassandraStorage:
                 after_fetcher_url,
             )
         elif after is not None:
-            entries = self._cql_runner.object_metadata_get_after_date(
+            entries = self._cql_runner.raw_extrinsic_metadata_get_after_date(
                 str(id), authority.type.value, authority.url, after
             )
         else:
-            entries = self._cql_runner.object_metadata_get(
+            entries = self._cql_runner.raw_extrinsic_metadata_get(
                 str(id), authority.type.value, authority.url
             )
 

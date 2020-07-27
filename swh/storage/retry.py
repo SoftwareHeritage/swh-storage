@@ -117,8 +117,10 @@ class RetryingProxyStorage:
         return self.storage.metadata_authority_add(authorities)
 
     @swh_retry
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
-        return self.storage.object_metadata_add(metadata)
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata],
+    ) -> None:
+        return self.storage.raw_extrinsic_metadata_add(metadata)
 
     @swh_retry
     def directory_add(self, directories: Iterable[Directory]) -> Dict:

@@ -870,10 +870,10 @@ class CqlRunner:
         return next(iter(self._execute_with_retries(statement, [name, version])), None)
 
     #########################
-    # 'object_metadata' table
+    # 'raw_extrinsic_metadata' table
     #########################
 
-    _object_metadata_keys = [
+    _raw_extrinsic_metadata_keys = [
         "type",
         "id",
         "authority_type",
@@ -893,23 +893,24 @@ class CqlRunner:
     ]
 
     @_prepared_statement(
-        f"INSERT INTO object_metadata ({', '.join(_object_metadata_keys)}) "
-        f"VALUES ({', '.join('?' for _ in _object_metadata_keys)})"
+        f"INSERT INTO raw_extrinsic_metadata "
+        f"  ({', '.join(_raw_extrinsic_metadata_keys)}) "
+        f"VALUES ({', '.join('?' for _ in _raw_extrinsic_metadata_keys)})"
     )
-    def object_metadata_add(
+    def raw_extrinsic_metadata_add(
         self, statement, **kwargs,
     ):
         assert set(kwargs) == set(
-            self._object_metadata_keys
+            self._raw_extrinsic_metadata_keys
         ), f"Bad kwargs: {set(kwargs)}"
-        params = [kwargs[key] for key in self._object_metadata_keys]
+        params = [kwargs[key] for key in self._raw_extrinsic_metadata_keys]
         return self._execute_with_retries(statement, params,)
 
     @_prepared_statement(
-        "SELECT * from object_metadata "
+        "SELECT * from raw_extrinsic_metadata "
         "WHERE id=? AND authority_url=? AND discovery_date>? AND authority_type=?"
     )
-    def object_metadata_get_after_date(
+    def raw_extrinsic_metadata_get_after_date(
         self,
         id: str,
         authority_type: str,
@@ -923,11 +924,11 @@ class CqlRunner:
         )
 
     @_prepared_statement(
-        "SELECT * from object_metadata "
+        "SELECT * from raw_extrinsic_metadata "
         "WHERE id=? AND authority_type=? AND authority_url=? "
         "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)"
     )
-    def object_metadata_get_after_date_and_fetcher(
+    def raw_extrinsic_metadata_get_after_date_and_fetcher(
         self,
         id: str,
         authority_type: str,
@@ -951,10 +952,10 @@ class CqlRunner:
         )
 
     @_prepared_statement(
-        "SELECT * from object_metadata "
+        "SELECT * from raw_extrinsic_metadata "
         "WHERE id=? AND authority_url=? AND authority_type=?"
     )
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self, id: str, authority_type: str, authority_url: str, *, statement
     ) -> Iterable[Row]:
         return self._execute_with_retries(

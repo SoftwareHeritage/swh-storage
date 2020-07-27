@@ -3196,9 +3196,9 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add(content_metadata)
+        swh_storage.raw_extrinsic_metadata_add(content_metadata)
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
         assert result["next_page_token"] is None
@@ -3223,10 +3223,10 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([content_metadata, content_metadata2])
-        swh_storage.object_metadata_add([new_content_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([new_content_metadata2])
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
         assert result["next_page_token"] is None
@@ -3256,7 +3256,7 @@ class TestStorage:
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
 
-        swh_storage.object_metadata_add(
+        swh_storage.raw_extrinsic_metadata_add(
             [
                 content1_metadata1,
                 content1_metadata2,
@@ -3265,7 +3265,7 @@ class TestStorage:
             ]
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content1_swhid, authority
         )
         assert result["next_page_token"] is None
@@ -3273,7 +3273,7 @@ class TestStorage:
             sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content1_swhid, authority2
         )
         assert result["next_page_token"] is None
@@ -3281,7 +3281,7 @@ class TestStorage:
             sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content2_swhid, authority
         )
         assert result["next_page_token"] is None
@@ -3298,9 +3298,9 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([content_metadata, content_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
@@ -3311,7 +3311,7 @@ class TestStorage:
             sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
@@ -3320,7 +3320,7 @@ class TestStorage:
         assert result["next_page_token"] is None
         assert result["results"] == [content_metadata2]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
@@ -3339,18 +3339,18 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
-        swh_storage.object_metadata_add([content_metadata, content_metadata2])
-        swh_storage.object_metadata_get(
+        swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
+        swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
         assert result["next_page_token"] is not None
         assert result["results"] == [content_metadata]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
@@ -3377,15 +3377,17 @@ class TestStorage:
             fetcher=attr.evolve(fetcher2, metadata=None),
         )
 
-        swh_storage.object_metadata_add([content_metadata, new_content_metadata2])
+        swh_storage.raw_extrinsic_metadata_add(
+            [content_metadata, new_content_metadata2]
+        )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
         assert result["next_page_token"] is not None
         assert result["results"] == [content_metadata]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
@@ -3403,10 +3405,10 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
-        swh_storage.object_metadata_add([content_metadata, content_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
 
         with pytest.raises(StorageArgumentException, match="SWHID"):
-            swh_storage.object_metadata_get(
+            swh_storage.raw_extrinsic_metadata_get(
                 MetadataTargetType.CONTENT, origin.url, authority
             )
 
@@ -3421,9 +3423,9 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
         assert result["next_page_token"] is None
@@ -3447,10 +3449,10 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
-        swh_storage.object_metadata_add([new_origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([new_origin_metadata2])
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
         assert result["next_page_token"] is None
@@ -3481,11 +3483,11 @@ class TestStorage:
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
 
-        swh_storage.object_metadata_add(
+        swh_storage.raw_extrinsic_metadata_add(
             [origin1_metadata1, origin1_metadata2, origin1_metadata3, origin2_metadata]
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
         assert result["next_page_token"] is None
@@ -3493,7 +3495,7 @@ class TestStorage:
             sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority2
         )
         assert result["next_page_token"] is None
@@ -3501,7 +3503,7 @@ class TestStorage:
             sorted(result["results"], key=lambda x: x.discovery_date,)
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin2.url, authority
         )
         assert result["next_page_token"] is None
@@ -3517,9 +3519,9 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
-        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
@@ -3531,7 +3533,7 @@ class TestStorage:
             origin_metadata2,
         ]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
@@ -3540,7 +3542,7 @@ class TestStorage:
         assert result["next_page_token"] is None
         assert result["results"] == [origin_metadata2]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
@@ -3559,19 +3561,19 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-        swh_storage.object_metadata_get(
+        swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
         assert result["next_page_token"] is not None
         assert result["results"] == [origin_metadata]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
@@ -3597,15 +3599,15 @@ class TestStorage:
             fetcher=attr.evolve(fetcher2, metadata=None),
         )
 
-        swh_storage.object_metadata_add([origin_metadata, new_origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata, new_origin_metadata2])
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
         assert result["next_page_token"] is not None
         assert result["results"] == [origin_metadata]
 
-        result = swh_storage.object_metadata_get(
+        result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
@@ -3624,7 +3626,7 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
 
         with pytest.raises(StorageArgumentException, match="authority"):
-            swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+            swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
     def test_origin_metadata_add_missing_fetcher(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3635,7 +3637,7 @@ class TestStorage:
         swh_storage.metadata_authority_add([authority])
 
         with pytest.raises(StorageArgumentException, match="fetcher"):
-            swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+            swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
     def test_origin_metadata_get__invalid_id_type(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3648,10 +3650,10 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
-        swh_storage.object_metadata_add([origin_metadata, origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
         with pytest.raises(StorageArgumentException, match="SWHID"):
-            swh_storage.object_metadata_get(
+            swh_storage.raw_extrinsic_metadata_get(
                 MetadataTargetType.ORIGIN, content_metadata.id, authority,
             )
 

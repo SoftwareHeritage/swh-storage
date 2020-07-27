@@ -1076,8 +1076,10 @@ class StorageInterface:
         """Recomputes the statistics for `stat_counters`."""
         ...
 
-    @remote_api_endpoint("object_metadata/add")
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+    @remote_api_endpoint("raw_extrinsic_metadata/add")
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata],
+    ) -> None:
         """Add extrinsic metadata on objects (contents, directories, ...).
 
         The authority and fetcher must be known to the storage before
@@ -1093,8 +1095,8 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("object_metadata/get")
-    def object_metadata_get(
+    @remote_api_endpoint("raw_extrinsic_metadata/get")
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1103,7 +1105,7 @@ class StorageInterface:
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
-        """Retrieve list of all object_metadata entries for the id
+        """Retrieve list of all raw_extrinsic_metadata entries for the id
 
         Args:
             object_type: one of the values of swh.model.model.MetadataTargetType

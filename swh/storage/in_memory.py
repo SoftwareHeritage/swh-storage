@@ -142,7 +142,7 @@ class InMemoryStorage:
         self._persons = {}
 
         # {object_type: {id: {authority: [metadata]}}}
-        self._object_metadata: Dict[
+        self._raw_extrinsic_metadata: Dict[
             MetadataTargetType,
             Dict[
                 Union[str, SWHID],
@@ -1019,7 +1019,9 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata],
+    ) -> None:
         for metadata_entry in metadata:
             authority_key = self._metadata_authority_key(metadata_entry.authority)
             if authority_key not in self._metadata_authorities:
@@ -1032,23 +1034,23 @@ class InMemoryStorage:
                     f"Unknown fetcher {metadata_entry.fetcher}"
                 )
 
-            object_metadata_list = self._object_metadata[metadata_entry.type][
-                metadata_entry.id
-            ][authority_key]
+            raw_extrinsic_metadata_list = self._raw_extrinsic_metadata[
+                metadata_entry.type
+            ][metadata_entry.id][authority_key]
 
-            for existing_object_metadata in object_metadata_list:
+            for existing_raw_extrinsic_metadata in raw_extrinsic_metadata_list:
                 if (
-                    self._metadata_fetcher_key(existing_object_metadata.fetcher)
+                    self._metadata_fetcher_key(existing_raw_extrinsic_metadata.fetcher)
                     == fetcher_key
-                    and existing_object_metadata.discovery_date
+                    and existing_raw_extrinsic_metadata.discovery_date
                     == metadata_entry.discovery_date
                 ):
                     # Duplicate of an existing one; ignore it.
                     break
             else:
-                object_metadata_list.add(metadata_entry)
+                raw_extrinsic_metadata_list.add(metadata_entry)
 
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1062,14 +1064,14 @@ class InMemoryStorage:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type='origin', but "
-                    f"provided id is an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type!='origin', but "
-                    f"provided id is not an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token is not None:
@@ -1079,16 +1081,16 @@ class InMemoryStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._object_metadata[object_type][id][authority_key].iter_after(
-                (after_time, after_fetcher)
-            )
+            entries = self._raw_extrinsic_metadata[object_type][id][
+                authority_key
+            ].iter_after((after_time, after_fetcher))
         elif after is not None:
-            entries = self._object_metadata[object_type][id][authority_key].iter_from(
-                (after,)
-            )
+            entries = self._raw_extrinsic_metadata[object_type][id][
+                authority_key
+            ].iter_from((after,))
             entries = (entry for entry in entries if entry.discovery_date > after)
         else:
-            entries = iter(self._object_metadata[object_type][id][authority_key])
+            entries = iter(self._raw_extrinsic_metadata[object_type][id][authority_key])
 
         if limit:
             entries = itertools.islice(entries, 0, limit + 1)

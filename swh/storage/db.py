@@ -1086,7 +1086,7 @@ class Db(BaseDb):
     def release_get_random(self, cur=None):
         return self._get_random_row_from_table("release", ["id"], "id", cur)
 
-    _object_metadata_context_cols = [
+    _raw_extrinsic_metadata_context_cols = [
         "origin",
         "visit",
         "snapshot",
@@ -1097,7 +1097,7 @@ class Db(BaseDb):
     ]
     """The list of context columns for all artifact types."""
 
-    _object_metadata_insert_cols = [
+    _raw_extrinsic_metadata_insert_cols = [
         "type",
         "id",
         "authority_id",
@@ -1105,46 +1105,46 @@ class Db(BaseDb):
         "discovery_date",
         "format",
         "metadata",
-        *_object_metadata_context_cols,
+        *_raw_extrinsic_metadata_context_cols,
     ]
-    """List of columns of the object_metadata table, used when writing
+    """List of columns of the raw_extrinsic_metadata table, used when writing
     metadata."""
 
-    _object_metadata_insert_query = f"""
-        INSERT INTO object_metadata
-            ({', '.join(_object_metadata_insert_cols)})
-        VALUES ({', '.join('%s' for _ in _object_metadata_insert_cols)})
+    _raw_extrinsic_metadata_insert_query = f"""
+        INSERT INTO raw_extrinsic_metadata
+            ({', '.join(_raw_extrinsic_metadata_insert_cols)})
+        VALUES ({', '.join('%s' for _ in _raw_extrinsic_metadata_insert_cols)})
         ON CONFLICT (id, authority_id, discovery_date, fetcher_id)
         DO NOTHING
     """
 
-    object_metadata_get_cols = [
-        "object_metadata.id",
-        "object_metadata.type",
+    raw_extrinsic_metadata_get_cols = [
+        "raw_extrinsic_metadata.id",
+        "raw_extrinsic_metadata.type",
         "discovery_date",
         "metadata_authority.type",
         "metadata_authority.url",
         "metadata_fetcher.id",
         "metadata_fetcher.name",
         "metadata_fetcher.version",
-        *_object_metadata_context_cols,
+        *_raw_extrinsic_metadata_context_cols,
         "format",
-        "object_metadata.metadata",
+        "raw_extrinsic_metadata.metadata",
     ]
-    """List of columns of the object_metadata, metadata_authority,
+    """List of columns of the raw_extrinsic_metadata, metadata_authority,
     and metadata_fetcher tables, used when reading object metadata."""
 
-    _object_metadata_select_query = f"""
+    _raw_extrinsic_metadata_select_query = f"""
         SELECT
-            {', '.join(object_metadata_get_cols)}
-        FROM object_metadata
+            {', '.join(raw_extrinsic_metadata_get_cols)}
+        FROM raw_extrinsic_metadata
         INNER JOIN metadata_authority
             ON (metadata_authority.id=authority_id)
         INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id)
-        WHERE object_metadata.id=%s AND authority_id=%s
+        WHERE raw_extrinsic_metadata.id=%s AND authority_id=%s
     """
 
-    def object_metadata_add(
+    def raw_extrinsic_metadata_add(
         self,
         object_type: str,
         id: str,
@@ -1162,7 +1162,7 @@ class Db(BaseDb):
         directory: Optional[str],
         cur,
     ):
-        query = self._object_metadata_insert_query
+        query = self._raw_extrinsic_metadata_insert_query
         args: Dict[str, Any] = dict(
             type=object_type,
             id=id,
@@ -1180,11 +1180,11 @@ class Db(BaseDb):
             directory=directory,
         )
 
-        params = [args[col] for col in self._object_metadata_insert_cols]
+        params = [args[col] for col in self._raw_extrinsic_metadata_insert_cols]
 
         cur.execute(query, params)
 
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: str,
         id: str,
@@ -1194,7 +1194,7 @@ class Db(BaseDb):
         limit: int,
         cur,
     ):
-        query_parts = [self._object_metadata_select_query]
+        query_parts = [self._raw_extrinsic_metadata_select_query]
         args = [id, authority_id]
 
         if after_fetcher is not None:

@@ -122,9 +122,11 @@ The storage API offers three endpoints to manipulate origin metadata:
 
 * Adding metadata::
 
-      origin_metadata_add(origin_url, discovery_date,
-                          authority, fetcher,
-                          format, metadata)
+      raw_extrinsic_metadata_add(
+         "origin", origin_url, discovery_date,
+         authority, fetcher,
+         format, metadata
+      )
 
   which adds a new `metadata` byte string obtained from a given authority
   and associated to the origin.
@@ -138,7 +140,9 @@ The storage API offers three endpoints to manipulate origin metadata:
 
 * Getting latest metadata::
 
-      origin_metadata_get_latest(origin_url, authority)
+      raw_extrinsic_metadata_get_latest(
+         "origin", origin_url, authority
+      )
 
   where `authority` must be a dict containing keys `type` and `url`,
   which returns a dictionary corresponding to the latest metadata entry
@@ -156,9 +160,11 @@ The storage API offers three endpoints to manipulate origin metadata:
 
 * Getting all metadata::
 
-      origin_metadata_get(origin_url,
-                          authority,
-                          page_token, limit)
+      raw_extrinsic_metadata_get(
+         "origin", origin_url,
+         authority,
+         page_token, limit
+      )
 
   where `authority` must be a dict containing keys `type` and `url`
   which returns a dictionary with keys:
@@ -208,29 +214,33 @@ about the same artifact in a different context.
 This is why it is important to qualify the metadata with the complete
 context for which it is intended, if any.
 
-for each artifact type ``<X>``, there are two endpoints
-to manipulate metadata associated with artifacts of that type:
+The same two endpoints as for origin can be used, but with a different
+value for the first argument:
 
 * Adding metadata::
 
-      <X>_metadata_add(id, context, discovery_date,
-                       authority, fetcher,
-                       format, metadata)
+      raw_extrinsic_metadata_add(
+         type, id, context, discovery_date,
+         authority, fetcher,
+         format, metadata
+      )
 
 
 * Getting all metadata::
 
-      <X>_metadata_get(id,
-                       authority,
-                       after,
-                       page_token, limit)
+      raw_extrinsic_metadata_get(
+         type, id,
+         authority,
+         after,
+         page_token, limit
+      )
 
 
 definited similarly to ``origin_metadata_add`` and ``origin_metadata_get``,
 but where ``id`` is a core SWHID (with type matching ``<X>``),
 and with an extra ``context`` (argument when adding metadata, and dictionary
 key when getting them) that is a dictionary with keys
-depending on the artifact type ``<X>``:
+depending on the artifact ``type``:
 
 * for ``snapshot``: ``origin`` (a URL) and ``visit`` (an integer)
 * for ``release``: those above, plus ``snapshot``

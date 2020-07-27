@@ -1108,7 +1108,7 @@ class Storage:
             cur.execute("select * from swh_update_counter(%s)", (key,))
 
     @db_transaction()
-    def object_metadata_add(
+    def raw_extrinsic_metadata_add(
         self, metadata: Iterable[RawExtrinsicMetadata], db, cur,
     ) -> None:
         counter = Counter[MetadataTargetType]()
@@ -1116,7 +1116,7 @@ class Storage:
             authority_id = self._get_authority_id(metadata_entry.authority, db, cur)
             fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
-            db.object_metadata_add(
+            db.raw_extrinsic_metadata_add(
                 object_type=metadata_entry.type.value,
                 id=str(metadata_entry.id),
                 discovery_date=metadata_entry.discovery_date,
@@ -1143,7 +1143,7 @@ class Storage:
             )
 
     @db_transaction()
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1157,14 +1157,14 @@ class Storage:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type='origin', but "
-                    f"provided id is an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type!='origin', but "
-                    f"provided id is not an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token:
@@ -1184,7 +1184,7 @@ class Storage:
                 "results": [],
             }
 
-        rows = db.object_metadata_get(
+        rows = db.raw_extrinsic_metadata_get(
             object_type,
             str(id),
             authority_id,
@@ -1193,16 +1193,16 @@ class Storage:
             limit + 1,
             cur,
         )
-        rows = [dict(zip(db.object_metadata_get_cols, row)) for row in rows]
+        rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
             row = row.copy()
             row.pop("metadata_fetcher.id")
 
-            assert str(id) == row["object_metadata.id"]
+            assert str(id) == row["raw_extrinsic_metadata.id"]
 
             result = RawExtrinsicMetadata(
-                type=MetadataTargetType(row["object_metadata.type"]),
+                type=MetadataTargetType(row["raw_extrinsic_metadata.type"]),
                 id=id,
                 authority=MetadataAuthority(
                     type=MetadataAuthorityType(row["metadata_authority.type"]),
@@ -1214,7 +1214,7 @@ class Storage:
                 ),
                 discovery_date=row["discovery_date"],
                 format=row["format"],
-                metadata=row["object_metadata.metadata"],
+                metadata=row["raw_extrinsic_metadata.metadata"],
                 origin=row["origin"],
                 visit=row["visit"],
                 snapshot=map_optional(parse_swhid, row["snapshot"]),
