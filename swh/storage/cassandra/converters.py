@@ -10,10 +10,9 @@ import attr
 from copy import deepcopy
 from typing import Any, Dict, Tuple
 
-from cassandra.cluster import ResultSet
-
 from swh.model.model import (
     ObjectType,
+    OriginVisit,
     OriginVisitStatus,
     Revision,
     RevisionType,
@@ -81,9 +80,20 @@ def row_to_content_hashes(row: Row) -> Dict[str, bytes]:
     return hashes
 
 
-def row_to_visit_status(row: ResultSet) -> OriginVisitStatus:
-    """Format a row representing a visit_status to an actual dict representing an
-    OriginVisitStatus.
+def row_to_visit(row) -> OriginVisit:
+    """Format a row representing an origin_visit to an actual OriginVisit.
+
+    """
+    return OriginVisit(
+        origin=row.origin,
+        visit=row.visit,
+        date=row.date.replace(tzinfo=datetime.timezone.utc),
+        type=row.type,
+    )
+
+
+def row_to_visit_status(row) -> OriginVisitStatus:
+    """Format a row representing a visit_status to an actual OriginVisitStatus.
 
     """
     return OriginVisitStatus.from_dict(
