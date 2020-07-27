@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(158, now(), 'Work In Progress');
+      values(159, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -426,7 +426,7 @@ comment on column metadata_authority.metadata is 'Other metadata about authority
 
 
 -- Extrinsic metadata on a DAG objects and origins.
-create table object_metadata
+create table raw_extrinsic_metadata
 (
   type           text          not null,
   id             text          not null,
@@ -450,14 +450,14 @@ create table object_metadata
   directory      swhid
 );
 
-comment on table object_metadata is 'keeps all metadata found concerning an object';
-comment on column object_metadata.type is 'the type of object (content/directory/revision/release/snapshot/origin) the metadata is on';
-comment on column object_metadata.id is 'the SWHID or origin URL for which the metadata was found';
-comment on column object_metadata.discovery_date is 'the date of retrieval';
-comment on column object_metadata.authority_id is 'the metadata provider: github, openhub, deposit, etc.';
-comment on column object_metadata.fetcher_id is 'the tool used for extracting metadata: loaders, crawlers, etc.';
-comment on column object_metadata.format is 'name of the format of metadata, used by readers to interpret it.';
-comment on column object_metadata.metadata is 'original metadata in opaque format';
+comment on table raw_extrinsic_metadata is 'keeps all metadata found concerning an object';
+comment on column raw_extrinsic_metadata.type is 'the type of object (content/directory/revision/release/snapshot/origin) the metadata is on';
+comment on column raw_extrinsic_metadata.id is 'the SWHID or origin URL for which the metadata was found';
+comment on column raw_extrinsic_metadata.discovery_date is 'the date of retrieval';
+comment on column raw_extrinsic_metadata.authority_id is 'the metadata provider: github, openhub, deposit, etc.';
+comment on column raw_extrinsic_metadata.fetcher_id is 'the tool used for extracting metadata: loaders, crawlers, etc.';
+comment on column raw_extrinsic_metadata.format is 'name of the format of metadata, used by readers to interpret it.';
+comment on column raw_extrinsic_metadata.metadata is 'original metadata in opaque format';
 
 
 -- Keep a cache of object counts

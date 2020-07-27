@@ -142,7 +142,7 @@ class InMemoryStorage:
         self._persons = {}
 
         # {object_type: {id: {authority: [metadata]}}}
-        self._object_metadata: Dict[
+        self._raw_extrinsic_metadata: Dict[
             MetadataTargetType,
             Dict[
                 Union[str, SWHID],
@@ -890,24 +890,21 @@ class InMemoryStorage:
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits:
             visits = self._origin_visits[origin_url]
             visit = min(visits, key=lambda v: (abs(v.date - visit_date), -v.visit))
-            visit_update = self._origin_visit_get_updated(origin, visit.visit)
-            assert visit_update is not None
-            return visit_update
+            return visit
         return None
 
-    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[Dict[str, Any]]:
+    def origin_visit_get_by(self, origin: str, visit: int) -> Optional[OriginVisit]:
         origin_url = self._get_origin_url(origin)
         if origin_url in self._origin_visits and visit <= len(
             self._origin_visits[origin_url]
         ):
-            visit_update = self._origin_visit_get_updated(origin_url, visit)
-            assert visit_update is not None
-            return visit_update
+            found_visit, _ = self._origin_visit_status_get_latest(origin, visit)
+            return found_visit
         return None
 
     def origin_visit_get_latest(
@@ -916,29 +913,33 @@ class InMemoryStorage:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[OriginVisit]:
         ori = self._origins.get(origin)
         if not ori:
             return None
-        visits = self._origin_visits[ori.url]
 
-        visits = [
-            self._origin_visit_get_updated(visit.origin, visit.visit)
-            for visit in visits
-            if visit is not None
-        ]
+        visits = sorted(
+            self._origin_visits[ori.url], key=lambda v: v.date, reverse=True,
+        )
+        for visit in visits:
+            if type is not None and visit.type != type:
+                continue
+            visit_statuses = self._origin_visit_statuses[origin, visit.visit]
 
-        if type is not None:
-            visits = [visit for visit in visits if visit["type"] == type]
-        if allowed_statuses is not None:
-            visits = [visit for visit in visits if visit["status"] in allowed_statuses]
-        if require_snapshot:
-            visits = [visit for visit in visits if visit["snapshot"]]
+            if allowed_statuses is not None:
+                visit_statuses = [
+                    vs for vs in visit_statuses if vs.status in allowed_statuses
+                ]
+            if require_snapshot:
+                visit_statuses = [vs for vs in visit_statuses if vs.snapshot]
 
-        visit = max(visits, key=lambda v: (v["date"], v["visit"]), default=None)
-        if visit is None:
-            return None
-        return visit
+            if visit_statuses:  # we found visit statuses matching criteria
+                visit_status = max(visit_statuses, key=lambda vs: (vs.date, vs.visit))
+                assert visit.origin == visit_status.origin
+                assert visit.visit == visit_status.visit
+                return visit
+
+        return None
 
     def origin_visit_status_get_latest(
         self,
@@ -1017,7 +1018,9 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
-    def object_metadata_add(self, metadata: Iterable[RawExtrinsicMetadata],) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata],
+    ) -> None:
         for metadata_entry in metadata:
             authority_key = self._metadata_authority_key(metadata_entry.authority)
             if authority_key not in self._metadata_authorities:
@@ -1030,23 +1033,23 @@ class InMemoryStorage:
                     f"Unknown fetcher {metadata_entry.fetcher}"
                 )
 
-            object_metadata_list = self._object_metadata[metadata_entry.type][
-                metadata_entry.id
-            ][authority_key]
+            raw_extrinsic_metadata_list = self._raw_extrinsic_metadata[
+                metadata_entry.type
+            ][metadata_entry.id][authority_key]
 
-            for existing_object_metadata in object_metadata_list:
+            for existing_raw_extrinsic_metadata in raw_extrinsic_metadata_list:
                 if (
-                    self._metadata_fetcher_key(existing_object_metadata.fetcher)
+                    self._metadata_fetcher_key(existing_raw_extrinsic_metadata.fetcher)
                     == fetcher_key
-                    and existing_object_metadata.discovery_date
+                    and existing_raw_extrinsic_metadata.discovery_date
                     == metadata_entry.discovery_date
                 ):
                     # Duplicate of an existing one; ignore it.
                     break
             else:
-                object_metadata_list.add(metadata_entry)
+                raw_extrinsic_metadata_list.add(metadata_entry)
 
-    def object_metadata_get(
+    def raw_extrinsic_metadata_get(
         self,
         object_type: MetadataTargetType,
         id: Union[str, SWHID],
@@ -1060,14 +1063,14 @@ class InMemoryStorage:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type='origin', but "
-                    f"provided id is an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"object_metadata_get called with object_type!='origin', but "
-                    f"provided id is not an SWHID: {id!r}"
+                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token is not None:
@@ -1077,16 +1080,16 @@ class InMemoryStorage:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._object_metadata[object_type][id][authority_key].iter_after(
-                (after_time, after_fetcher)
-            )
+            entries = self._raw_extrinsic_metadata[object_type][id][
+                authority_key
+            ].iter_after((after_time, after_fetcher))
         elif after is not None:
-            entries = self._object_metadata[object_type][id][authority_key].iter_from(
-                (after,)
-            )
+            entries = self._raw_extrinsic_metadata[object_type][id][
+                authority_key
+            ].iter_from((after,))
             entries = (entry for entry in entries if entry.discovery_date > after)
         else:
-            entries = iter(self._object_metadata[object_type][id][authority_key])
+            entries = iter(self._raw_extrinsic_metadata[object_type][id][authority_key])
 
         if limit:
             entries = itertools.islice(entries, 0, limit + 1)

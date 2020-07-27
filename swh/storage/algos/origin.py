@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Optional, Iterable, Iterator, Tuple
+from typing import Optional, Iterable, Iterator, Tuple
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 from swh.storage.interface import StorageInterface
@@ -47,7 +47,7 @@ def iter_origins(
 
 
 def origin_get_latest_visit_status(
-    storage,
+    storage: StorageInterface,
     origin_url: str,
     type: Optional[str] = None,
     allowed_statuses: Optional[Iterable[str]] = None,
@@ -77,31 +77,20 @@ def origin_get_latest_visit_status(
         status exist (and match the search criteria), None otherwise.
 
     """
-    last_visit = None
-    while True:
-        visits = list(
-            storage.origin_visit_get(
-                origin_url, last_visit=last_visit, order="desc", limit=10,
-            )
+    visit = storage.origin_visit_get_latest(
+        origin_url,
+        type=type,
+        allowed_statuses=allowed_statuses,
+        require_snapshot=require_snapshot,
+    )
+    result: Optional[Tuple[OriginVisit, OriginVisitStatus]] = None
+    if visit:
+        visit_status = storage.origin_visit_status_get_latest(
+            origin_url,
+            visit.visit,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
         )
-        if not visits:
-            return None
-        last_visit = visits[-1]["visit"]
-
-        visit_status: Optional[OriginVisitStatus] = None
-        visit: Dict[str, Any]
-        for visit in visits:
-            if type is not None and visit["type"] != type:
-                continue
-            visit_status = storage.origin_visit_status_get_latest(
-                origin_url,
-                visit["visit"],
-                allowed_statuses=allowed_statuses,
-                require_snapshot=require_snapshot,
-            )
-            if visit_status is not None:
-                # storage api gives us too many data which no longer map to an
-                # origin-visit, so we drop those
-                for key in ["metadata", "status", "snapshot"]:
-                    visit.pop(key, None)
-                return (OriginVisit.from_dict(visit), visit_status)
+        if visit_status:
+            result = visit, visit_status
+    return result
