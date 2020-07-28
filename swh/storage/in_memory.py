@@ -919,7 +919,7 @@ class InMemoryStorage:
             return None
 
         visits = sorted(
-            self._origin_visits[ori.url], key=lambda v: v.date, reverse=True,
+            self._origin_visits[ori.url], key=lambda v: (v.date, v.visit), reverse=True,
         )
         for visit in visits:
             if type is not None and visit.type != type:
