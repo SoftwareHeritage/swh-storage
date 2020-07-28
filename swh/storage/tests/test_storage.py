@@ -2106,6 +2106,24 @@ class TestStorage:
         )
         assert actual_visit_status == visit_status3_with_snapshot
 
+    def test_origin_visit_get_latest__same_date(self, swh_storage, sample_data):
+        empty_snapshot, complete_snapshot = sample_data.snapshots[1:3]
+        origin = sample_data.origin
+
+        swh_storage.origin_add([origin])
+        visit1 = OriginVisit(
+            origin=origin.url, date=sample_data.date_visit1, type="git",
+        )
+        visit2 = OriginVisit(
+            origin=origin.url, date=sample_data.date_visit1, type="hg",
+        )
+
+        ov1, ov2 = swh_storage.origin_visit_add([visit1, visit2])
+
+        # ties should be broken by using the visit id
+        actual_visit = swh_storage.origin_visit_get_latest(origin.url)
+        assert actual_visit == ov2
+
     def test_origin_visit_status_get_latest(self, swh_storage, sample_data):
         snapshot = sample_data.snapshots[2]
         origin1 = sample_data.origin
