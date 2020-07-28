@@ -972,6 +972,8 @@ class CassandraStorage:
     def raw_extrinsic_metadata_add(
         self, metadata: Iterable[RawExtrinsicMetadata]
     ) -> None:
+        metadata = list(metadata)
+        self.journal_writer.raw_extrinsic_metadata_add(metadata)
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
@@ -1108,6 +1110,8 @@ class CassandraStorage:
         }
 
     def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
+        fetchers = list(fetchers)
+        self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
                 fetcher.name,
@@ -1129,6 +1133,8 @@ class CassandraStorage:
             return None
 
     def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+        authorities = list(authorities)
+        self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
                 authority.url,

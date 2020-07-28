@@ -1021,6 +1021,8 @@ class InMemoryStorage:
     def raw_extrinsic_metadata_add(
         self, metadata: Iterable[RawExtrinsicMetadata],
     ) -> None:
+        metadata = list(metadata)
+        self.journal_writer.raw_extrinsic_metadata_add(metadata)
         for metadata_entry in metadata:
             authority_key = self._metadata_authority_key(metadata_entry.authority)
             if authority_key not in self._metadata_authorities:
@@ -1131,6 +1133,8 @@ class InMemoryStorage:
         }
 
     def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
+        fetchers = list(fetchers)
+        self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             if fetcher.metadata is None:
                 raise StorageArgumentException(
@@ -1148,6 +1152,8 @@ class InMemoryStorage:
         )
 
     def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+        authorities = list(authorities)
+        self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             if authority.metadata is None:
                 raise StorageArgumentException(

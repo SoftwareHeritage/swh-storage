@@ -1117,6 +1117,8 @@ class Storage:
     def raw_extrinsic_metadata_add(
         self, metadata: Iterable[RawExtrinsicMetadata], db, cur,
     ) -> None:
+        metadata = list(metadata)
+        self.journal_writer.raw_extrinsic_metadata_add(metadata)
         counter = Counter[MetadataTargetType]()
         for metadata_entry in metadata:
             authority_id = self._get_authority_id(metadata_entry.authority, db, cur)
@@ -1255,6 +1257,8 @@ class Storage:
     def metadata_fetcher_add(
         self, fetchers: Iterable[MetadataFetcher], db=None, cur=None
     ) -> None:
+        fetchers = list(fetchers)
+        self.journal_writer.metadata_fetcher_add(fetchers)
         count = 0
         for fetcher in fetchers:
             if fetcher.metadata is None:
@@ -1282,6 +1286,8 @@ class Storage:
     def metadata_authority_add(
         self, authorities: Iterable[MetadataAuthority], db=None, cur=None
     ) -> None:
+        authorities = list(authorities)
+        self.journal_writer.metadata_authority_add(authorities)
         count = 0
         for authority in authorities:
             if authority.metadata is None:

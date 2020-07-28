@@ -17,6 +17,9 @@ from swh.model.model import (
     Release,
     Content,
     SkippedContent,
+    RawExtrinsicMetadata,
+    MetadataFetcher,
+    MetadataAuthority,
 )
 
 try:
@@ -86,3 +89,14 @@ class JournalWriter:
 
     def origin_add(self, origins: Iterable[Origin]) -> None:
         self.write_additions("origin", origins)
+
+    def raw_extrinsic_metadata_add(
+        self, metadata: Iterable[RawExtrinsicMetadata]
+    ) -> None:
+        self.write_additions("raw_extrinsic_metadata", metadata)
+
+    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
+        self.write_additions("metadata_fetcher", fetchers)
+
+    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+        self.write_additions("metadata_authority", authorities)

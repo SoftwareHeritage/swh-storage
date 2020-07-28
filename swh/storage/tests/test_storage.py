@@ -3157,6 +3157,14 @@ class TestStorage:
         res = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert res == fetcher
 
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_fetcher", fetcher),
+        ]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
+
     def test_metadata_fetcher_add_zero(self, swh_storage, sample_data):
         fetcher = sample_data.metadata_fetcher
         actual_fetcher = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
@@ -3176,6 +3184,14 @@ class TestStorage:
 
         res = swh_storage.metadata_authority_get(authority.type, authority.url)
         assert res == authority
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_authority", authority),
+        ]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_metadata_authority_add_zero(self, swh_storage, sample_data):
         authority = sample_data.metadata_authority
@@ -3209,6 +3225,15 @@ class TestStorage:
         assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == list(
             content_metadata
         )
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_authority", authority),
+            ("metadata_fetcher", fetcher),
+        ] + [("raw_extrinsic_metadata", item) for item in content_metadata]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_content_metadata_add_duplicate(self, swh_storage, sample_data):
         """Duplicates should be silently updated."""
@@ -3437,6 +3462,17 @@ class TestStorage:
             origin_metadata,
             origin_metadata2,
         ]
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_authority", authority),
+            ("metadata_fetcher", fetcher),
+            ("raw_extrinsic_metadata", origin_metadata),
+            ("raw_extrinsic_metadata", origin_metadata2),
+        ]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_origin_metadata_add_duplicate(self, swh_storage, sample_data):
         """Duplicates should be silently updated."""
