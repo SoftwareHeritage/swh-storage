@@ -888,13 +888,8 @@ class InMemoryStorage:
 
         assert len(visits) <= extra_limit
         if len(visits) == extra_limit:
-            last_visit = visits[limit]
             visits = visits[:limit]
-            assert last_visit is not None and last_visit.visit is not None
-            if order == ListOrder.ASC:
-                next_page_token = str(last_visit.visit - 1)
-            else:
-                next_page_token = str(last_visit.visit + 1)
+            next_page_token = str(visits[-1].visit)
 
         return PagedResult(results=visits, next_page_token=next_page_token)
 
