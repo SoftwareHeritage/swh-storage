@@ -187,22 +187,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
 
-    def test_content_add_from_generator(self, swh_storage, sample_data):
-        cont = sample_data.content
-
-        def _cnt_gen():
-            yield cont
-
-        actual_result = swh_storage.content_add(_cnt_gen())
-
-        assert actual_result == {
-            "content:add": 1,
-            "content:add:bytes": cont.length,
-        }
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["content"] == 1
-
     def test_content_add_from_lazy_content(self, swh_storage, sample_data):
         cont = sample_data.content
         lazy_content = LazyContent.from_dict(cont.to_dict())
@@ -677,22 +661,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["directory"] == 1
 
-    def test_directory_add_from_generator(self, swh_storage, sample_data):
-        directory = sample_data.directories[1]
-
-        def _dir_gen():
-            yield directory
-
-        actual_result = swh_storage.directory_add(directories=_dir_gen())
-        assert actual_result == {"directory:add": 1}
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", directory)
-        ]
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["directory"] == 1
-
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
 
@@ -881,18 +849,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["revision"] == 1
 
-    def test_revision_add_from_generator(self, swh_storage, sample_data):
-        revision = sample_data.revision
-
-        def _rev_gen():
-            yield revision
-
-        actual_result = swh_storage.revision_add(_rev_gen())
-        assert actual_result == {"revision:add": 1}
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["revision"] == 1
-
     def test_revision_add_twice(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
 
@@ -1062,24 +1018,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["release"] == 2
 
-    def test_release_add_from_generator(self, swh_storage, sample_data):
-        release, release2 = sample_data.releases[:2]
-
-        def _rel_gen():
-            yield release
-            yield release2
-
-        actual_result = swh_storage.release_add(_rel_gen())
-        assert actual_result == {"release:add": 2}
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", release),
-            ("release", release2),
-        ]
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["release"] == 2
-
     def test_release_add_no_author_date(self, swh_storage, sample_data):
         full_release = sample_data.release
 
@@ -1182,26 +1120,6 @@ class TestStorage:
 
         assert set(swh_storage.journal_writer.journal.objects) == set(
             [("origin", origins[0]), ("origin", origins[1]),]
-        )
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["origin"] == 2
-
-    def test_origin_add_from_generator(self, swh_storage, sample_data):
-        origin, origin2 = sample_data.origins[:2]
-
-        def _ori_gen():
-            yield origin
-            yield origin2
-
-        stats = swh_storage.origin_add(_ori_gen())
-        assert stats == {"origin:add": 2}
-
-        actual_origins = swh_storage.origin_get([origin.url, origin2.url])
-        assert actual_origins == [origin, origin2]
-
-        assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origin), ("origin", origin2),]
         )
 
         swh_storage.refresh_stat_counters()
@@ -2411,18 +2329,6 @@ class TestStorage:
             **snapshot.to_dict(),
             "next_branch": None,
         }
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["snapshot"] == 2
-
-    def test_snapshot_add_many_from_generator(self, swh_storage, sample_data):
-        snapshot, _, complete_snapshot = sample_data.snapshots[:3]
-
-        def _snp_gen():
-            yield from [snapshot, complete_snapshot]
-
-        actual_result = swh_storage.snapshot_add(_snp_gen())
-        assert actual_result == {"snapshot:add": 2}
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["snapshot"] == 2

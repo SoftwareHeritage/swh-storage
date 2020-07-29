@@ -205,7 +205,7 @@ class Storage:
 
     @timed
     @process_metrics
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         ctime = now()
 
         contents = [attr.evolve(c, ctime=ctime) for c in content]
@@ -248,14 +248,11 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def content_add_metadata(
-        self, content: Iterable[Content], db=None, cur=None
-    ) -> Dict:
-        contents = list(content)
+    def content_add_metadata(self, content: List[Content], db=None, cur=None) -> Dict:
         missing = self.content_missing(
-            (c.to_dict() for c in contents), key_hash="sha1_git", db=db, cur=cur,
+            (c.to_dict() for c in content), key_hash="sha1_git", db=db, cur=cur,
         )
-        contents = [c for c in contents if c.sha1_git in missing]
+        contents = [c for c in content if c.sha1_git in missing]
 
         self.journal_writer.content_add_metadata(contents)
         self._content_add_metadata(db, cur, contents)
@@ -394,7 +391,7 @@ class Storage:
 
         return d
 
-    def _skipped_content_add_metadata(self, db, cur, content: Iterable[SkippedContent]):
+    def _skipped_content_add_metadata(self, db, cur, content: List[SkippedContent]):
         origin_ids = db.origin_id_get_by_url([cont.origin for cont in content], cur=cur)
         content = [
             attr.evolve(c, origin=origin_id)
@@ -415,7 +412,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def skipped_content_add(
-        self, content: Iterable[SkippedContent], db=None, cur=None
+        self, content: List[SkippedContent], db=None, cur=None
     ) -> Dict:
         ctime = now()
         content = [attr.evolve(c, ctime=ctime) for c in content]
@@ -452,10 +449,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def directory_add(
-        self, directories: Iterable[Directory], db=None, cur=None
-    ) -> Dict:
-        directories = list(directories)
+    def directory_add(self, directories: List[Directory], db=None, cur=None) -> Dict:
         summary = {"directory:add": 0}
 
         dirs = set()
@@ -541,8 +535,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def revision_add(self, revisions: Iterable[Revision], db=None, cur=None) -> Dict:
-        revisions = list(revisions)
+    def revision_add(self, revisions: List[Revision], db=None, cur=None) -> Dict:
         summary = {"revision:add": 0}
 
         revisions_missing = set(
@@ -629,8 +622,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def release_add(self, releases: Iterable[Release], db=None, cur=None) -> Dict:
-        releases = list(releases)
+    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict:
         summary = {"release:add": 0}
 
         release_ids = set(release.id for release in releases)
@@ -680,7 +672,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def snapshot_add(self, snapshots: Iterable[Snapshot], db=None, cur=None) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot], db=None, cur=None) -> Dict:
         created_temp_table = False
 
         count = 0
@@ -800,7 +792,7 @@ class Storage:
     @timed
     @db_transaction()
     def origin_visit_add(
-        self, visits: Iterable[OriginVisit], db=None, cur=None
+        self, visits: List[OriginVisit], db=None, cur=None
     ) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get([visit.origin], db=db, cur=cur)[0]
@@ -848,7 +840,7 @@ class Storage:
     @timed
     @db_transaction()
     def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus], db=None, cur=None,
+        self, visit_statuses: List[OriginVisitStatus], db=None, cur=None,
     ) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
@@ -1025,10 +1017,9 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def origin_get(
-        self, origins: Iterable[str], db=None, cur=None
+        self, origins: List[str], db=None, cur=None
     ) -> Iterable[Optional[Origin]]:
-        origin_urls = list(origins)
-        rows = db.origin_get_by_url(origin_urls, cur)
+        rows = db.origin_get_by_url(origins, cur)
         result: List[Optional[Origin]] = []
         for row in rows:
             origin_d = dict(zip(db.origin_cols, row))
@@ -1103,9 +1094,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def origin_add(
-        self, origins: Iterable[Origin], db=None, cur=None
-    ) -> Dict[str, int]:
+    def origin_add(self, origins: List[Origin], db=None, cur=None) -> Dict[str, int]:
         urls = [o.url for o in origins]
         known_origins = set(url for (url,) in db.origin_get_by_url(urls, cur))
         # use lists here to keep origins sorted; some tests depend on this
@@ -1145,7 +1134,7 @@ class Storage:
 
     @db_transaction()
     def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata], db, cur,
+        self, metadata: List[RawExtrinsicMetadata], db, cur,
     ) -> None:
         metadata = list(metadata)
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
@@ -1285,7 +1274,7 @@ class Storage:
     @timed
     @db_transaction()
     def metadata_fetcher_add(
-        self, fetchers: Iterable[MetadataFetcher], db=None, cur=None
+        self, fetchers: List[MetadataFetcher], db=None, cur=None
     ) -> None:
         fetchers = list(fetchers)
         self.journal_writer.metadata_fetcher_add(fetchers)
@@ -1314,7 +1303,7 @@ class Storage:
     @timed
     @db_transaction()
     def metadata_authority_add(
-        self, authorities: Iterable[MetadataAuthority], db=None, cur=None
+        self, authorities: List[MetadataAuthority], db=None, cur=None
     ) -> None:
         authorities = list(authorities)
         self.journal_writer.metadata_authority_add(authorities)
@@ -1355,13 +1344,13 @@ class Storage:
     def diff_revision(self, revision, track_renaming=False):
         return diff.diff_revision(self, revision, track_renaming)
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         return {}
 
     def _get_authority_id(self, authority: MetadataAuthority, db, cur):

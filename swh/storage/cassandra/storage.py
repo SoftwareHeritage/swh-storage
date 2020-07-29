@@ -147,7 +147,7 @@ class CassandraStorage:
 
         return summary
 
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(list(contents), with_data=True)
 
@@ -156,8 +156,8 @@ class CassandraStorage:
             "content_update is not supported by the Cassandra backend"
         )
 
-    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
-        return self._content_add(list(content), with_data=False)
+    def content_add_metadata(self, content: List[Content]) -> Dict:
+        return self._content_add(content, with_data=False)
 
     def content_get(self, content):
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
@@ -281,7 +281,7 @@ class CassandraStorage:
                 if getattr(row, algo) == hash_:
                     yield row
 
-    def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
+    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
         # Filter-out content already in the database.
         contents = [
             c
@@ -306,7 +306,7 @@ class CassandraStorage:
 
         return {"skipped_content:add": len(contents)}
 
-    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
@@ -315,9 +315,7 @@ class CassandraStorage:
             if not self._cql_runner.skipped_content_get_from_pk(content):
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
-    def directory_add(self, directories: Iterable[Directory]) -> Dict:
-        directories = list(directories)
-
+    def directory_add(self, directories: List[Directory]) -> Dict:
         # Filter out directories that are already inserted.
         missing = self.directory_missing([dir_.id for dir_ in directories])
         directories = [dir_ for dir_ in directories if dir_.id in missing]
@@ -420,9 +418,7 @@ class CassandraStorage:
     def directory_get_random(self):
         return self._cql_runner.directory_get_random().id
 
-    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
-        revisions = list(revisions)
-
+    def revision_add(self, revisions: List[Revision]) -> Dict:
         # Filter-out revisions already in the database
         missing = self.revision_missing([rev.id for rev in revisions])
         revisions = [rev for rev in revisions if rev.id in missing]
@@ -511,7 +507,7 @@ class CassandraStorage:
     def revision_get_random(self):
         return self._cql_runner.revision_get_random().id
 
-    def release_add(self, releases: Iterable[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict:
         to_add = []
         for rel in releases:
             if rel not in to_add:
@@ -543,8 +539,7 @@ class CassandraStorage:
     def release_get_random(self):
         return self._cql_runner.release_get_random().id
 
-    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
-        snapshots = list(snapshots)
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         missing = self._cql_runner.snapshot_missing([snp.id for snp in snapshots])
         snapshots = [snp for snp in snapshots if snp.id in missing]
 
@@ -686,7 +681,7 @@ class CassandraStorage:
 
         return results
 
-    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         return [self.origin_get_one(origin) for origin in origins]
 
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:
@@ -747,15 +742,14 @@ class CassandraStorage:
 
         return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
 
-    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
-        origins = list(origins)
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
         self.journal_writer.origin_add(to_add)
         for origin in to_add:
             self._cql_runner.origin_add_one(origin)
         return {"origin:add": len(to_add)}
 
-    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+    def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get_one(visit.origin)
             if not origin:  # Cannot add a visit without an origin
@@ -791,9 +785,7 @@ class CassandraStorage:
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(visit_status)
 
-    def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus]
-    ) -> None:
+    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus]) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get_one(visit_status.origin)
@@ -990,10 +982,7 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata]
-    ) -> None:
-        metadata = list(metadata)
+    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata]) -> None:
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
@@ -1130,8 +1119,7 @@ class CassandraStorage:
             "results": results,
         }
 
-    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
-        fetchers = list(fetchers)
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
@@ -1153,8 +1141,7 @@ class CassandraStorage:
         else:
             return None
 
-    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
-        authorities = list(authorities)
+    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
         self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
@@ -1176,11 +1163,11 @@ class CassandraStorage:
         else:
             return None
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         return {}

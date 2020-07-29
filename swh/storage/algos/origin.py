@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Optional, Iterable, Iterator, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 from swh.storage.interface import StorageInterface
@@ -50,7 +50,7 @@ def origin_get_latest_visit_status(
     storage: StorageInterface,
     origin_url: str,
     type: Optional[str] = None,
-    allowed_statuses: Optional[Iterable[str]] = None,
+    allowed_statuses: Optional[List[str]] = None,
     require_snapshot: bool = False,
 ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
     """Get the latest origin visit (and status) of an origin. Optionally, a combination of

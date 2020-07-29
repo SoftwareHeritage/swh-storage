@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterable, Optional
+from typing import List, Optional
 
 from swh.model.model import Snapshot
 
@@ -39,7 +39,7 @@ def snapshot_get_all_branches(storage, snapshot_id):
 def snapshot_get_latest(
     storage,
     origin: str,
-    allowed_statuses: Optional[Iterable[str]] = None,
+    allowed_statuses: Optional[List[str]] = None,
     branches_count: Optional[int] = None,
 ) -> Optional[Snapshot]:
     """Get the latest snapshot for the given origin, optionally only from visits that have

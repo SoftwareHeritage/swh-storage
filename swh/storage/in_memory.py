@@ -177,7 +177,7 @@ class InMemoryStorage:
     def check_config(self, *, check_write):
         return True
 
-    def _content_add(self, contents: Iterable[Content], with_data: bool) -> Dict:
+    def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
         self.journal_writer.content_add(contents)
 
         content_add = 0
@@ -221,7 +221,7 @@ class InMemoryStorage:
 
         return summary
 
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(content, with_data=True)
 
@@ -247,7 +247,7 @@ class InMemoryStorage:
                     hash_ = new_cont.get_hash(algorithm)
                     self._content_indexes[algorithm][hash_].add(new_key)
 
-    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -382,7 +382,7 @@ class InMemoryStorage:
 
         return summary
 
-    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(content)
 
@@ -400,7 +400,7 @@ class InMemoryStorage:
             if not matches:
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
-    def directory_add(self, directories: Iterable[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict:
         directories = [dir_ for dir_ in directories if dir_.id not in self._directories]
         self.journal_writer.directory_add(directories)
 
@@ -487,7 +487,7 @@ class InMemoryStorage:
             first_item["target"], paths[1:], prefix + paths[0] + b"/"
         )
 
-    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict:
         revisions = [rev for rev in revisions if rev.id not in self._revisions]
         self.journal_writer.revision_add(revisions)
 
@@ -539,7 +539,7 @@ class InMemoryStorage:
     def revision_get_random(self):
         return random.choice(list(self._revisions))
 
-    def release_add(self, releases: Iterable[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict:
         to_add = []
         for rel in releases:
             if rel.id not in self._releases and rel not in to_add:
@@ -567,9 +567,9 @@ class InMemoryStorage:
     def release_get_random(self):
         return random.choice(list(self._releases))
 
-    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         count = 0
-        snapshots = (snap for snap in snapshots if snap.id not in self._snapshots)
+        snapshots = [snap for snap in snapshots if snap.id not in self._snapshots]
         for snapshot in snapshots:
             self.journal_writer.snapshot_add([snapshot])
             self._snapshots[snapshot.id] = snapshot
@@ -674,7 +674,7 @@ class InMemoryStorage:
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:
         return self._origins.get(origin_url)
 
-    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         return [self.origin_get_one(origin_url) for origin_url in origins]
 
     def origin_get_by_sha1(self, sha1s):
@@ -744,8 +744,7 @@ class InMemoryStorage:
             )
         )
 
-    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
-        origins = list(origins)
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         added = 0
         for origin in origins:
             if origin.url not in self._origins:
@@ -770,7 +769,7 @@ class InMemoryStorage:
 
         return origin.url
 
-    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+    def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get_one(visit.origin)
             if not origin:  # Cannot add a visit without an origin
@@ -819,9 +818,7 @@ class InMemoryStorage:
         if visit_status not in visit_statuses:
             visit_statuses.append(visit_status)
 
-    def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus],
-    ) -> None:
+    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus],) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get_one(visit_status.origin)
@@ -1031,10 +1028,7 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
-    def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata],
-    ) -> None:
-        metadata = list(metadata)
+    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata],) -> None:
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
         for metadata_entry in metadata:
             authority_key = self._metadata_authority_key(metadata_entry.authority)
@@ -1145,8 +1139,7 @@ class InMemoryStorage:
             "results": results,
         }
 
-    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
-        fetchers = list(fetchers)
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             if fetcher.metadata is None:
@@ -1164,8 +1157,7 @@ class InMemoryStorage:
             self._metadata_fetcher_key(MetadataFetcher(name=name, version=version))
         )
 
-    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
-        authorities = list(authorities)
+    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
         self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             if authority.metadata is None:
@@ -1221,11 +1213,11 @@ class InMemoryStorage:
     def diff_revision(self, revision, track_renaming=False):
         raise NotImplementedError("InMemoryStorage.diff_revision")
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         return {}
