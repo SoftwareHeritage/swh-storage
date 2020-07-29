@@ -1231,7 +1231,13 @@ class TestStorage:
         assert actual_page.next_page_token is None
         assert actual_page.results == [ov3]
 
-        next_page_token = str(ov1.visit)
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get(origin.url, limit=1)
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov1]
+
+        # order asc, token, no limit
         actual_page = swh_storage.origin_visit_get(
             origin.url, page_token=next_page_token
         )
@@ -1245,7 +1251,13 @@ class TestStorage:
         assert actual_page.next_page_token is None
         assert actual_page.results == [ov2, ov3]
 
-        next_page_token = str(ov2.visit)
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, limit=1
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov2]
+
         actual_page = swh_storage.origin_visit_get(
             origin.url, page_token=next_page_token, limit=1
         )
@@ -1265,14 +1277,22 @@ class TestStorage:
         assert next_page_token is not None
         assert actual_page.results == [ov3, ov2]
 
+        # order desc, token, no limit
         actual_page = swh_storage.origin_visit_get(
             origin.url, page_token=next_page_token, order=ListOrder.DESC
         )
         assert actual_page.next_page_token is None
         assert actual_page.results == [ov1]
 
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, limit=1, order=ListOrder.DESC
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov3]
+
         # order desc, token, no limit
-        next_page_token = str(ov3.visit)
         actual_page = swh_storage.origin_visit_get(
             origin.url, page_token=next_page_token, order=ListOrder.DESC
         )
