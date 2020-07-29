@@ -862,6 +862,32 @@ class CassandraStorage:
 
         return PagedResult(results=visits, next_page_token=next_page_token)
 
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitStatus]:
+        next_page_token = None
+        date_from = None
+        if page_token is not None:
+            date_from = datetime.datetime.fromisoformat(page_token)
+
+        # Take one more visit status so we can reuse it as the next page token if any
+        rows = self._cql_runner.origin_visit_status_get_range(
+            origin, visit, date_from, limit + 1, order
+        )
+        visit_statuses = [converters.row_to_visit_status(row) for row in rows]
+        if len(visit_statuses) > limit:
+            # last visit status date is the next page token
+            next_page_token = str(visit_statuses[-1].date)
+            # excluding that visit status from the result to respect the limit size
+            visit_statuses = visit_statuses[:limit]
+
+        return PagedResult(results=visit_statuses, next_page_token=next_page_token)
+
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
     ) -> Optional[OriginVisit]:

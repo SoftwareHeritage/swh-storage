@@ -972,6 +972,48 @@ class Storage:
         return None
 
     @timed
+    @db_transaction(statement_timeout=500)
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+        db=None,
+        cur=None,
+    ) -> PagedResult[OriginVisitStatus]:
+        next_page_token = None
+        date_from = None
+        if page_token is not None:
+            date_from = datetime.datetime.fromisoformat(page_token)
+
+        visit_statuses: List[OriginVisitStatus] = []
+        # Take one more visit status so we can reuse it as the next page token if any
+        for row in db.origin_visit_status_get_range(
+            origin, visit, date_from=date_from, order=order, limit=limit + 1, cur=cur,
+        ):
+            row_d = dict(zip(db.origin_visit_status_cols, row))
+            visit_statuses.append(
+                OriginVisitStatus(
+                    origin=row_d["origin"],
+                    visit=row_d["visit"],
+                    date=row_d["date"],
+                    status=row_d["status"],
+                    snapshot=row_d["snapshot"],
+                    metadata=row_d["metadata"],
+                )
+            )
+
+        if len(visit_statuses) > limit:
+            # last visit status date is the next page token
+            next_page_token = str(visit_statuses[-1].date)
+            # excluding that visit status from the result to respect the limit size
+            visit_statuses = visit_statuses[:limit]
+
+        return PagedResult(results=visit_statuses, next_page_token=next_page_token)
+
+    @timed
     @db_transaction()
     def origin_visit_status_get_random(
         self, type: str, db=None, cur=None

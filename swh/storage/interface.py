@@ -891,6 +891,30 @@ class StorageInterface:
         """
         ...
 
+    @remote_api_endpoint("origin/visit_status/get")
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitStatus]:
+        """Retrieve page of OriginVisitStatus information.
+
+        Args:
+            origin: The visited origin
+            visit: The visit identifier
+            page_token: opaque string used to get the next results of a search
+            order: Order on visit status objects to list (default to asc)
+            limit: Number of visit statuses to return
+
+        Returns: Page of OriginVisitStatus data model objects. if next_page_token is
+            None, there is no longer data to retrieve.
+
+        """
+        ...
+
     @remote_api_endpoint("origin/visit_status/get_latest")
     def origin_visit_status_get_latest(
         self,
