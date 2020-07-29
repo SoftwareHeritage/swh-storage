@@ -85,6 +85,7 @@ def origin_get_latest_visit_status(
     )
     result: Optional[Tuple[OriginVisit, OriginVisitStatus]] = None
     if visit:
+        assert visit.visit is not None
         visit_status = storage.origin_visit_status_get_latest(
             origin_url,
             visit.visit,
