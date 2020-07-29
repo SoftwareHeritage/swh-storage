@@ -6,8 +6,7 @@
 import datetime
 import functools
 import logging
-
-from typing import Container, Dict, Optional
+from typing import Any, Container, Dict, Optional
 
 import pytest
 
@@ -40,7 +39,7 @@ def replayer_storage_and_client(
         "client_id": "kafka_writer",
         "prefix": kafka_prefix,
     }
-    storage_config = {
+    storage_config: Dict[str, Any] = {
         "cls": "memory",
         "journal_writer": journal_writer_config,
     }
@@ -278,7 +277,7 @@ def test_storage_play_anonymized(
         "prefix": kafka_prefix,
         "anonymize": True,
     }
-    src_config = {"cls": "memory", "journal_writer": writer_config}
+    src_config: Dict[str, Any] = {"cls": "memory", "journal_writer": writer_config}
 
     storage = get_storage(**src_config)
 
