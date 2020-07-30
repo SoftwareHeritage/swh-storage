@@ -3,13 +3,20 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 import pytest
 
 from unittest.mock import patch
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 
-from swh.storage.algos.origin import iter_origins, origin_get_latest_visit_status
+from swh.storage.algos.origin import (
+    iter_origins,
+    origin_get_latest_visit_status,
+    iter_origin_visits,
+    iter_origin_visit_statuses,
+)
+from swh.storage.interface import ListOrder
 from swh.storage.utils import now
 
 from swh.storage.tests.test_storage import round_to_milliseconds
@@ -319,3 +326,92 @@ def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data
     assert actual_ov2.visit == ov2.visit
     assert actual_ov2.type == ov2.type
     assert actual_ovs22 == ovs22
+
+
+def test_iter_origin_visits(swh_storage, sample_data):
+    """Iter over origin visits for an origin returns all visits"""
+    origin1, origin2 = sample_data.origins[:2]
+    swh_storage.origin_add([origin1, origin2])
+
+    date_past = now() - datetime.timedelta(weeks=20)
+
+    new_visits = []
+    for visit_id in range(20):
+        new_visits.append(
+            OriginVisit(
+                origin=origin1.url,
+                date=date_past + datetime.timedelta(days=visit_id),
+                type="git",
+            )
+        )
+
+    visits = swh_storage.origin_visit_add(new_visits)
+    reversed_visits = list(reversed(visits))
+
+    # no limit, order asc
+    actual_visits = list(iter_origin_visits(swh_storage, origin1.url))
+    assert actual_visits == visits
+
+    # no limit, order desc
+    actual_visits = list(
+        iter_origin_visits(swh_storage, origin1.url, order=ListOrder.DESC)
+    )
+    assert actual_visits == reversed_visits
+
+    # no result
+    actual_visits = list(iter_origin_visits(swh_storage, origin2.url))
+    assert actual_visits == []
+
+
+def test_iter_origin_visit_status(swh_storage, sample_data):
+    origin1, origin2 = sample_data.origins[:2]
+    swh_storage.origin_add([origin1])
+
+    ov1 = swh_storage.origin_visit_add([sample_data.origin_visit])[0]
+    assert ov1.origin == origin1.url
+
+    date_past = now() - datetime.timedelta(weeks=20)
+
+    ovs1 = OriginVisitStatus(
+        origin=origin1.url,
+        visit=ov1.visit,
+        date=ov1.date,
+        status="created",
+        snapshot=None,
+    )
+    new_visit_statuses = [ovs1]
+    for i in range(20):
+        status_date = date_past + datetime.timedelta(days=i)
+
+        new_visit_statuses.append(
+            OriginVisitStatus(
+                origin=origin1.url,
+                visit=ov1.visit,
+                date=status_date,
+                status="created",
+                snapshot=None,
+            )
+        )
+
+    visit_statuses = swh_storage.origin_visit_add(new_visit_statuses)
+    reversed_visit_statuses = list(reversed(visit_statuses))
+
+    # order asc
+    actual_visit_statuses = list(
+        iter_origin_visit_statuses(swh_storage, ov1.origin, ov1.visit)
+    )
+    assert actual_visit_statuses == visit_statuses
+
+    # order desc
+    actual_visit_statuses = list(
+        iter_origin_visit_statuses(
+            swh_storage, ov1.origin, ov1.visit, order=ListOrder.DESC
+        )
+    )
+    assert actual_visit_statuses == reversed_visit_statuses
+
+    # no result
+    actual_visit_statuses = list(
+        iter_origin_visit_statuses(swh_storage, origin2.url, ov1.visit)
+    )
+    assert actual_visit_statuses == []
