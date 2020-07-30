@@ -3,22 +3,25 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import importlib
+from typing import Any, Dict, List
 import warnings
 
+from .interface import StorageInterface
 
-STORAGE_IMPLEMENTATION = {
-    "pipeline",
-    "local",
-    "remote",
-    "memory",
-    "filter",
-    "buffer",
-    "retry",
-    "cassandra",
+
+STORAGE_IMPLEMENTATIONS = {
+    "local": ".storage.Storage",
+    "remote": ".api.client.RemoteStorage",
+    "memory": ".in_memory.InMemoryStorage",
+    "filter": ".filter.FilteringProxyStorage",
+    "buffer": ".buffer.BufferingProxyStorage",
+    "retry": ".retry.RetryingProxyStorage",
+    "cassandra": ".cassandra.CassandraStorage",
 }
 
 
-def get_storage(cls, **kwargs):
+def get_storage(cls: str, **kwargs) -> StorageInterface:
     """Get a storage object of class `storage_class` with arguments
     `storage_args`.
 
@@ -35,12 +38,6 @@ def get_storage(cls, **kwargs):
         ValueError if passed an unknown storage class.
 
     """
-    if cls not in STORAGE_IMPLEMENTATION:
-        raise ValueError(
-            "Unknown storage class `%s`. Supported: %s"
-            % (cls, ", ".join(STORAGE_IMPLEMENTATION))
-        )
-
     if "args" in kwargs:
         warnings.warn(
             'Explicit "args" key is deprecated, use keys directly instead.',
@@ -51,25 +48,20 @@ def get_storage(cls, **kwargs):
     if cls == "pipeline":
         return get_storage_pipeline(**kwargs)
 
-    if cls == "remote":
-        from .api.client import RemoteStorage as Storage
-    elif cls == "local":
-        from .storage import Storage
-    elif cls == "cassandra":
-        from .cassandra import CassandraStorage as Storage
-    elif cls == "memory":
-        from .in_memory import InMemoryStorage as Storage
-    elif cls == "filter":
-        from .filter import FilteringProxyStorage as Storage
-    elif cls == "buffer":
-        from .buffer import BufferingProxyStorage as Storage
-    elif cls == "retry":
-        from .retry import RetryingProxyStorage as Storage
+    class_path = STORAGE_IMPLEMENTATIONS.get(cls)
+    if class_path is None:
+        raise ValueError(
+            "Unknown storage class `%s`. Supported: %s"
+            % (cls, ", ".join(STORAGE_IMPLEMENTATIONS))
+        )
 
+    (module_path, class_name) = class_path.rsplit(".", 1)
+    module = importlib.import_module(module_path, package=__package__)
+    Storage = getattr(module, class_name)
     return Storage(**kwargs)
 
 
-def get_storage_pipeline(steps):
+def get_storage_pipeline(steps: List[Dict[str, Any]]) -> StorageInterface:
     """Recursively get a storage object that may use other storage objects
     as backends.
 
@@ -97,5 +89,8 @@ def get_storage_pipeline(steps):
         if storage_config:
             step["storage"] = storage_config
         storage_config = step
+
+    if storage_config is None:
+        raise ValueError("'pipeline' has no steps.")
 
     return get_storage(**storage_config)

@@ -43,6 +43,8 @@ from swh.model.model import (
     Origin,
 )
 
+from swh.storage.interface import ListOrder
+
 from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
 
@@ -734,11 +736,8 @@ class CqlRunner:
         origin_url: str,
         last_visit: Optional[int],
         limit: Optional[int],
-        order: str = "asc",
+        order: ListOrder,
     ) -> ResultSet:
-        order = order.lower()
-        assert order in ["asc", "desc"]
-
         args: List[Any] = [origin_url]
 
         if last_visit is not None:
@@ -753,9 +752,85 @@ class CqlRunner:
         else:
             limit_name = "no_limit"
 
-        method_name = f"_origin_visit_get_{page_name}_{order}_{limit_name}"
+        method_name = f"_origin_visit_get_{page_name}_{order.value}_{limit_name}"
         origin_visit_get_method = getattr(self, method_name)
         return origin_visit_get_method(*args)
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit_status WHERE origin = ? "
+        "AND visit = ? AND date >= ? "
+        "ORDER BY date ASC "
+        "LIMIT ?"
+    )
+    def _origin_visit_status_get_with_date_asc_limit(
+        self,
+        origin: str,
+        visit: int,
+        date_from: datetime.datetime,
+        limit: int,
+        *,
+        statement,
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin, visit, date_from, limit])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit_status WHERE origin = ? "
+        "AND visit = ? AND date <= ? "
+        "ORDER BY visit DESC "
+        "LIMIT ?"
+    )
+    def _origin_visit_status_get_with_date_desc_limit(
+        self,
+        origin: str,
+        visit: int,
+        date_from: datetime.datetime,
+        limit: int,
+        *,
+        statement,
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin, visit, date_from, limit])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit_status WHERE origin = ? AND visit = ? "
+        "ORDER BY visit ASC "
+        "LIMIT ?"
+    )
+    def _origin_visit_status_get_with_no_date_asc_limit(
+        self, origin: str, visit: int, limit: int, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin, visit, limit])
+
+    @_prepared_statement(
+        "SELECT * FROM origin_visit_status WHERE origin = ? AND visit = ? "
+        "ORDER BY visit DESC "
+        "LIMIT ?"
+    )
+    def _origin_visit_status_get_with_no_date_desc_limit(
+        self, origin: str, visit: int, limit: int, *, statement
+    ) -> ResultSet:
+        return self._execute_with_retries(statement, [origin, visit, limit])
+
+    def origin_visit_status_get_range(
+        self,
+        origin: str,
+        visit: int,
+        date_from: Optional[datetime.datetime],
+        limit: int,
+        order: ListOrder,
+    ) -> ResultSet:
+        args: List[Any] = [origin, visit]
+
+        if date_from is not None:
+            date_name = "date"
+            args.append(date_from)
+        else:
+            date_name = "no_date"
+
+        args.append(limit)
+
+        method_name = f"_origin_visit_status_get_with_{date_name}_{order.value}_limit"
+        origin_visit_status_get_method = getattr(self, method_name)
+        return origin_visit_status_get_method(*args)
 
     @_prepared_insert_statement("origin_visit", _origin_visit_keys)
     def origin_visit_add_one(self, visit: OriginVisit, *, statement) -> None:

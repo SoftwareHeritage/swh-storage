@@ -41,7 +41,7 @@ from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
 from swh.storage.converters import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
-from swh.storage.interface import StorageInterface
+from swh.storage.interface import ListOrder, PagedResult, StorageInterface
 from swh.storage.utils import content_hex_hashes, now
 
 
@@ -183,22 +183,6 @@ class TestStorage:
             assert insertion_start_time <= obj.ctime
             assert obj.ctime <= insertion_end_time
             assert obj == expected_cont
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["content"] == 1
-
-    def test_content_add_from_generator(self, swh_storage, sample_data):
-        cont = sample_data.content
-
-        def _cnt_gen():
-            yield cont
-
-        actual_result = swh_storage.content_add(_cnt_gen())
-
-        assert actual_result == {
-            "content:add": 1,
-            "content:add:bytes": cont.length,
-        }
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
@@ -677,22 +661,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["directory"] == 1
 
-    def test_directory_add_from_generator(self, swh_storage, sample_data):
-        directory = sample_data.directories[1]
-
-        def _dir_gen():
-            yield directory
-
-        actual_result = swh_storage.directory_add(directories=_dir_gen())
-        assert actual_result == {"directory:add": 1}
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", directory)
-        ]
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["directory"] == 1
-
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
 
@@ -881,18 +849,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["revision"] == 1
 
-    def test_revision_add_from_generator(self, swh_storage, sample_data):
-        revision = sample_data.revision
-
-        def _rev_gen():
-            yield revision
-
-        actual_result = swh_storage.revision_add(_rev_gen())
-        assert actual_result == {"revision:add": 1}
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["revision"] == 1
-
     def test_revision_add_twice(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
 
@@ -1062,24 +1018,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["release"] == 2
 
-    def test_release_add_from_generator(self, swh_storage, sample_data):
-        release, release2 = sample_data.releases[:2]
-
-        def _rel_gen():
-            yield release
-            yield release2
-
-        actual_result = swh_storage.release_add(_rel_gen())
-        assert actual_result == {"release:add": 2}
-
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("release", release),
-            ("release", release2),
-        ]
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["release"] == 2
-
     def test_release_add_no_author_date(self, swh_storage, sample_data):
         full_release = sample_data.release
 
@@ -1187,26 +1125,6 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["origin"] == 2
 
-    def test_origin_add_from_generator(self, swh_storage, sample_data):
-        origin, origin2 = sample_data.origins[:2]
-
-        def _ori_gen():
-            yield origin
-            yield origin2
-
-        stats = swh_storage.origin_add(_ori_gen())
-        assert stats == {"origin:add": 2}
-
-        actual_origins = swh_storage.origin_get([origin.url, origin2.url])
-        assert actual_origins == [origin, origin2]
-
-        assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origin), ("origin", origin2),]
-        )
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["origin"] == 2
-
     def test_origin_add_twice(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
 
@@ -1253,10 +1171,29 @@ class TestStorage:
             visits.append(date_visit)
         return visits
 
+    def test_origin_visit_get__unknown_origin(self, swh_storage):
+        actual_page = swh_storage.origin_visit_get("foo")
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
+        assert actual_page == PagedResult()
+
+    def test_origin_visit_get__validation_failure(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        with pytest.raises(
+            StorageArgumentException, match="page_token must be a string"
+        ):
+            swh_storage.origin_visit_get(origin.url, page_token=10)  # not bytes
+
+        with pytest.raises(
+            StorageArgumentException, match="order must be a ListOrder value"
+        ):
+            swh_storage.origin_visit_get(origin.url, order="foobar")  # wrong order
+
     def test_origin_visit_get_all(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
-        visits = swh_storage.origin_visit_add(
+        ov1, ov2, ov3 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
                     origin=origin.url,
@@ -1275,59 +1212,283 @@ class TestStorage:
                 ),
             ]
         )
-        ov1, ov2, ov3 = [
-            {**v.to_dict(), "status": "created", "snapshot": None, "metadata": None,}
-            for v in visits
-        ]
 
-        # order asc, no pagination, no limit
-        all_visits = list(swh_storage.origin_visit_get(origin.url))
-        assert all_visits == [ov1, ov2, ov3]
+        # order asc, no token, no limit
+        actual_page = swh_storage.origin_visit_get(origin.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov1, ov2, ov3]
 
-        # order asc, no pagination, limit
-        all_visits2 = list(swh_storage.origin_visit_get(origin.url, limit=2))
-        assert all_visits2 == [ov1, ov2]
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get(origin.url, limit=2)
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov1, ov2]
 
-        # order asc, pagination, no limit
-        all_visits3 = list(
-            swh_storage.origin_visit_get(origin.url, last_visit=ov1["visit"])
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token
         )
-        assert all_visits3 == [ov2, ov3]
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov3]
 
-        # order asc, pagination, limit
-        all_visits4 = list(
-            swh_storage.origin_visit_get(origin.url, last_visit=ov2["visit"], limit=1)
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get(origin.url, limit=1)
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov1]
+
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token
         )
-        assert all_visits4 == [ov3]
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov2, ov3]
 
-        # order desc, no pagination, no limit
-        all_visits5 = list(swh_storage.origin_visit_get(origin.url, order="desc"))
-        assert all_visits5 == [ov3, ov2, ov1]
-
-        # order desc, no pagination, limit
-        all_visits6 = list(
-            swh_storage.origin_visit_get(origin.url, limit=2, order="desc")
+        # order asc, token, limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, limit=2
         )
-        assert all_visits6 == [ov3, ov2]
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov2, ov3]
 
-        # order desc, pagination, no limit
-        all_visits7 = list(
-            swh_storage.origin_visit_get(
-                origin.url, last_visit=ov3["visit"], order="desc"
-            )
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, limit=1
         )
-        assert all_visits7 == [ov2, ov1]
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov2]
 
-        # order desc, pagination, limit
-        all_visits8 = list(
-            swh_storage.origin_visit_get(
-                origin.url, last_visit=ov3["visit"], order="desc", limit=1
-            )
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, limit=1
         )
-        assert all_visits8 == [ov2]
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov3]
 
-    def test_origin_visit_get__unknown_origin(self, swh_storage):
-        assert [] == list(swh_storage.origin_visit_get("foo"))
+        # order desc, no token, no limit
+        actual_page = swh_storage.origin_visit_get(origin.url, order=ListOrder.DESC)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov3, ov2, ov1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, limit=2, order=ListOrder.DESC
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov3, ov2]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, limit=1, order=ListOrder.DESC
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov3]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov2, ov1]
+
+        # order desc, token, limit
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, order=ListOrder.DESC, limit=1
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ov2]
+
+        actual_page = swh_storage.origin_visit_get(
+            origin.url, page_token=next_page_token, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ov1]
+
+    def test_origin_visit_status_get__unknown_cases(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        actual_page = swh_storage.origin_visit_status_get("foobar", 1)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
+
+        actual_page = swh_storage.origin_visit_status_get(origin.url, 1)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
+
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        ov1 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
+                ),
+            ]
+        )[0]
+        actual_page = swh_storage.origin_visit_status_get(origin.url, ov1.visit + 10)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
+
+    def test_origin_visit_status_get_all(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        date_visit3 = round_to_milliseconds(now())
+        date_visit1 = date_visit3 - datetime.timedelta(hours=2)
+        date_visit2 = date_visit3 - datetime.timedelta(hours=1)
+        assert date_visit1 < date_visit2 < date_visit3
+
+        ov1 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url, date=date_visit1, type=sample_data.type_visit1,
+                ),
+            ]
+        )[0]
+
+        ovs1 = OriginVisitStatus(
+            origin=origin.url,
+            visit=ov1.visit,
+            date=date_visit1,
+            status="created",
+            snapshot=None,
+        )
+
+        ovs2 = OriginVisitStatus(
+            origin=origin.url,
+            visit=ov1.visit,
+            date=date_visit2,
+            status="partial",
+            snapshot=None,
+        )
+
+        ovs3 = OriginVisitStatus(
+            origin=origin.url,
+            visit=ov1.visit,
+            date=date_visit3,
+            status="full",
+            snapshot=sample_data.snapshot.id,
+            metadata={},
+        )
+
+        swh_storage.origin_visit_status_add([ovs2, ovs3])
+
+        # order asc, no token, no limit
+        actual_page = swh_storage.origin_visit_status_get(origin.url, ov1.visit)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs1, ovs2, ovs3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, limit=2
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovs1, ovs2]
+
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, limit=1
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovs1]
+
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs2, ovs3]
+
+        # order asc, token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token, limit=2
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs2, ovs3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, limit=2
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovs1, ovs2]
+
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token, limit=1
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs3]
+
+        # order desc, no token, no limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs3, ovs2, ovs1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, limit=2, order=ListOrder.DESC
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovs3, ovs2]
+
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, order=ListOrder.DESC, limit=1
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovs3]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs2, ovs1]
+
+        # order desc, token, limit
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url,
+            ov1.visit,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovs2]
+
+        actual_page = swh_storage.origin_visit_status_get(
+            origin.url, ov1.visit, page_token=next_page_token, order=ListOrder.DESC
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovs1]
 
     def test_origin_visit_status_get_random(self, swh_storage, sample_data):
         origins = sample_data.origins[:2]
@@ -1562,21 +1723,16 @@ class TestStorage:
             snapshot=None,
         )
 
-        actual_origin_visits = list(swh_storage.origin_visit_get(origin1.url))
-        expected_visits = [
-            {**ovs1.to_dict(), "type": ov1.type},
-            {**ovs2.to_dict(), "type": ov2.type},
-        ]
-
-        assert len(expected_visits) == len(actual_origin_visits)
-
+        actual_visits = swh_storage.origin_visit_get(origin1.url).results
+        expected_visits = [ov1, ov2]
+        assert len(expected_visits) == len(actual_visits)
         for visit in expected_visits:
-            assert visit in actual_origin_visits
+            assert visit in actual_visits
 
         actual_objects = list(swh_storage.journal_writer.journal.objects)
         expected_objects = list(
             [("origin", origin1)]
-            + [("origin_visit", visit) for visit in [ov1, ov2]] * 2
+            + [("origin_visit", visit) for visit in expected_visits] * 2
             + [("origin_visit_status", ovs) for ovs in [ovs1, ovs2]]
         )
 
@@ -1719,7 +1875,7 @@ class TestStorage:
             status="created",
             snapshot=None,
         )
-        date_visit_now = now()
+        date_visit_now = round_to_milliseconds(now())
         visit_status1 = OriginVisitStatus(
             origin=ov1.origin,
             visit=ov1.visit,
@@ -1732,13 +1888,8 @@ class TestStorage:
         # second call will ignore existing entries (will send to storage though)
         swh_storage.origin_visit_status_add([visit_status1])
 
-        origin_visits = list(swh_storage.origin_visit_get(ov1.origin))
-
-        assert len(origin_visits) == 1
-        origin_visit1 = origin_visits[0]
-        assert origin_visit1
-        assert origin_visit1["status"] == "full"
-        assert origin_visit1["snapshot"] == snapshot.id
+        visit_status = swh_storage.origin_visit_status_get_latest(ov1.origin, ov1.visit)
+        assert visit_status == visit_status1
 
         actual_objects = list(swh_storage.journal_writer.journal.objects)
 
@@ -2373,18 +2524,6 @@ class TestStorage:
             **snapshot.to_dict(),
             "next_branch": None,
         }
-
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["snapshot"] == 2
-
-    def test_snapshot_add_many_from_generator(self, swh_storage, sample_data):
-        snapshot, _, complete_snapshot = sample_data.snapshots[:3]
-
-        def _snp_gen():
-            yield from [snapshot, complete_snapshot]
-
-        actual_result = swh_storage.snapshot_add(_snp_gen())
-        assert actual_result == {"snapshot:add": 2}
 
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["snapshot"] == 2
@@ -3157,6 +3296,14 @@ class TestStorage:
         res = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert res == fetcher
 
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_fetcher", fetcher),
+        ]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
+
     def test_metadata_fetcher_add_zero(self, swh_storage, sample_data):
         fetcher = sample_data.metadata_fetcher
         actual_fetcher = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
@@ -3176,6 +3323,14 @@ class TestStorage:
 
         res = swh_storage.metadata_authority_get(authority.type, authority.url)
         assert res == authority
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_authority", authority),
+        ]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_metadata_authority_add_zero(self, swh_storage, sample_data):
         authority = sample_data.metadata_authority
@@ -3209,6 +3364,15 @@ class TestStorage:
         assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == list(
             content_metadata
         )
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_authority", authority),
+            ("metadata_fetcher", fetcher),
+        ] + [("raw_extrinsic_metadata", item) for item in content_metadata]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_content_metadata_add_duplicate(self, swh_storage, sample_data):
         """Duplicates should be silently updated."""
@@ -3437,6 +3601,17 @@ class TestStorage:
             origin_metadata,
             origin_metadata2,
         ]
+
+        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        expected_objects = [
+            ("metadata_authority", authority),
+            ("metadata_fetcher", fetcher),
+            ("raw_extrinsic_metadata", origin_metadata),
+            ("raw_extrinsic_metadata", origin_metadata2),
+        ]
+
+        for obj in expected_objects:
+            assert obj in actual_objects
 
     def test_origin_metadata_add_duplicate(self, swh_storage, sample_data):
         """Duplicates should be silently updated."""
@@ -3830,22 +4005,21 @@ class TestStorageGeneratedData:
         page_token = None
         i = 0
         while True:
-            result = swh_storage.origin_list(page_token=page_token, limit=limit)
-            assert len(result["origins"]) <= limit
+            actual_page = swh_storage.origin_list(page_token=page_token, limit=limit)
+            assert len(actual_page.results) <= limit
 
-            returned_origins.extend(origin["url"] for origin in result["origins"])
+            returned_origins.extend(actual_page.results)
 
             i += 1
-            page_token = result.get("next_page_token")
+            page_token = actual_page.next_page_token
 
             if page_token is None:
                 assert i * limit >= len(swh_origins)
                 break
             else:
-                assert len(result["origins"]) == limit
+                assert len(actual_page.results) == limit
 
-        expected_origins = [origin.url for origin in swh_origins]
-        assert sorted(returned_origins) == sorted(expected_origins)
+        assert sorted(returned_origins) == sorted(swh_origins)
 
     def test_origin_count(self, swh_storage, sample_data):
         swh_storage.origin_add(sample_data.origins)

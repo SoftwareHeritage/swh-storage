@@ -5,9 +5,12 @@
 
 import datetime
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from enum import Enum
+from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+
 
 from swh.core.api import remote_api_endpoint
+from swh.core.api.classes import PagedResult as CorePagedResult
 from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
@@ -27,6 +30,17 @@ from swh.model.model import (
 )
 
 
+class ListOrder(Enum):
+    """Specifies the order for paginated endpoints returning sorted results."""
+
+    ASC = "asc"
+    DESC = "desc"
+
+
+TResult = TypeVar("TResult")
+PagedResult = CorePagedResult[TResult, str]
+
+
 def deprecated(f):
     f.deprecated_endpoint = True
     return f
@@ -39,7 +53,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/add")
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         """Add content blobs to the storage
 
         Args:
@@ -97,7 +111,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/add_metadata")
-    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict:
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -248,7 +262,7 @@ class StorageInterface:
         """List content missing from storage based only on sha1.
 
         Args:
-            contents: Iterable of sha1 to check for absence.
+            contents: List of sha1 to check for absence.
 
         Returns:
             iterable: missing ids
@@ -264,7 +278,7 @@ class StorageInterface:
         """List content missing from storage based only on sha1_git.
 
         Args:
-            contents (Iterable): An iterable of content id (sha1_git)
+            contents (List): An iterable of content id (sha1_git)
 
         Yields:
             missing contents sha1_git
@@ -301,7 +315,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/skipped/add")
-    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
         """Add contents to the skipped_content list, which contains
         (partial) information about content missing from the archive.
 
@@ -352,7 +366,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/add")
-    def directory_add(self, directories: Iterable[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict:
         """Add directories to the storage
 
         Args:
@@ -434,11 +448,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision/add")
-    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict:
         """Add revisions to the storage
 
         Args:
-            revisions (Iterable[dict]): iterable of dictionaries representing
+            revisions (List[dict]): iterable of dictionaries representing
                 the individual revisions to add. Each dict has the following
                 keys:
 
@@ -538,11 +552,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("release/add")
-    def release_add(self, releases: Iterable[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict:
         """Add releases to the storage
 
         Args:
-            releases (Iterable[dict]): iterable of dictionaries representing
+            releases (List[dict]): iterable of dictionaries representing
                 the individual releases to add. Each dict has the following
                 keys:
 
@@ -603,7 +617,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/add")
-    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         """Add snapshots to the storage.
 
         Args:
@@ -755,26 +769,24 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/visit/add")
-    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+    def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         """Add visits to storage. If the visits have no id, they will be created and assigned
         one. The resulted visits are visits with their visit id set.
 
         Args:
-            visits: Iterable of OriginVisit objects to add
+            visits: List of OriginVisit objects to add
 
         Raises:
             StorageArgumentException if some origin visit reference unknown origins
 
         Returns:
-            Iterable[OriginVisit] stored
+            List[OriginVisit] stored
 
         """
         ...
 
     @remote_api_endpoint("origin/visit_status/add")
-    def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus],
-    ) -> None:
+    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus],) -> None:
         """Add origin visit statuses.
 
         If there is already a status for the same origin and visit id at the same
@@ -793,22 +805,24 @@ class StorageInterface:
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
-        order: str = "asc",
-    ) -> Iterable[Dict[str, Any]]:
-        """Retrieve all the origin's visit's information.
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisit]:
+        """Retrieve page of OriginVisit information.
 
         Args:
             origin: The visited origin
-            last_visit: Starting point from which listing the next visits
-                Default to None
-            limit: Number of results to return from the last visit.
-                Default to None
+            page_token: opaque string used to get the next results of a search
             order: Order on visit id fields to list origin visits (default to asc)
+            limit: Number of visits to return
 
-        Yields:
-            List of visits.
+        Raises:
+            StorageArgumentException if the order is wrong or the page_token type is
+            mistyped.
+
+        Returns: Page of OriginVisit data model objects. if next_page_token is None,
+            there is no longer data to retrieve.
 
         """
         ...
@@ -877,6 +891,30 @@ class StorageInterface:
         """
         ...
 
+    @remote_api_endpoint("origin/visit_status/get")
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitStatus]:
+        """Retrieve page of OriginVisitStatus information.
+
+        Args:
+            origin: The visited origin
+            visit: The visit identifier
+            page_token: opaque string used to get the next results of a search
+            order: Order on visit status objects to list (default to asc)
+            limit: Number of visit statuses to return
+
+        Returns: Page of OriginVisitStatus data model objects. if next_page_token is
+            None, there is no longer data to retrieve.
+
+        """
+        ...
+
     @remote_api_endpoint("origin/visit_status/get_latest")
     def origin_visit_status_get_latest(
         self,
@@ -937,7 +975,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/get")
-    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         """Return origins.
 
         Args:
@@ -984,7 +1022,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/list")
-    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    def origin_list(
+        self, page_token: Optional[str] = None, limit: int = 100
+    ) -> PagedResult[Origin]:
         """Returns the list of origins
 
         Args:
@@ -992,12 +1032,9 @@ class StorageInterface:
             limit: the maximum number of results to return
 
         Returns:
-            dict: dict with the following keys:
-              - **next_page_token** (str, optional): opaque token to be used as
-                `page_token` for retrieving the next page. if absent, there is
-                no more pages to gather.
-              - **origins** (List[dict]): list of origins, as returned by
-                `origin_get`.
+            Page of Origin data model objects. if next_page_token is None, there is
+            no longer data to retrieve.
+
         """
         ...
 
@@ -1044,7 +1081,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/add_multi")
-    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         """Add origins to the storage
 
         Args:
@@ -1077,9 +1114,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("raw_extrinsic_metadata/add")
-    def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata],
-    ) -> None:
+    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata],) -> None:
         """Add extrinsic metadata on objects (contents, directories, ...).
 
         The authority and fetcher must be known to the storage before
@@ -1125,7 +1160,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("metadata_fetcher/add")
-    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher],) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> None:
         """Add new metadata fetchers to the storage.
 
         Their `name` and `version` together are unique identifiers of this
@@ -1157,7 +1192,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("metadata_authority/add")
-    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
         """Add new metadata authorities to the storage.
 
         Their `type` and `url` together are unique identifiers of this
@@ -1242,7 +1277,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("clear/buffer")
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """For backend storages (pg, storage, in-memory), this is a noop operation. For proxy
         storages (especially filter, buffer), this is an operation which cleans internal
         state.
@@ -1250,7 +1285,7 @@ class StorageInterface:
         """
 
     @remote_api_endpoint("flush")
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         """For backend storages (pg, storage, in-memory), this is expected to be a noop
         operation. For proxy storages (especially buffer), this is expected to trigger
         actual writes to the backend.

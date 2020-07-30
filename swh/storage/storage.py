@@ -10,7 +10,6 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import (
-    Any,
     Counter,
     Dict,
     Iterable,
@@ -45,6 +44,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
+from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -204,7 +204,7 @@ class Storage:
 
     @timed
     @process_metrics
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         ctime = now()
 
         contents = [attr.evolve(c, ctime=ctime) for c in content]
@@ -247,14 +247,11 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def content_add_metadata(
-        self, content: Iterable[Content], db=None, cur=None
-    ) -> Dict:
-        contents = list(content)
+    def content_add_metadata(self, content: List[Content], db=None, cur=None) -> Dict:
         missing = self.content_missing(
-            (c.to_dict() for c in contents), key_hash="sha1_git", db=db, cur=cur,
+            (c.to_dict() for c in content), key_hash="sha1_git", db=db, cur=cur,
         )
-        contents = [c for c in contents if c.sha1_git in missing]
+        contents = [c for c in content if c.sha1_git in missing]
 
         self.journal_writer.content_add_metadata(contents)
         self._content_add_metadata(db, cur, contents)
@@ -393,7 +390,7 @@ class Storage:
 
         return d
 
-    def _skipped_content_add_metadata(self, db, cur, content: Iterable[SkippedContent]):
+    def _skipped_content_add_metadata(self, db, cur, content: List[SkippedContent]):
         origin_ids = db.origin_id_get_by_url([cont.origin for cont in content], cur=cur)
         content = [
             attr.evolve(c, origin=origin_id)
@@ -414,7 +411,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def skipped_content_add(
-        self, content: Iterable[SkippedContent], db=None, cur=None
+        self, content: List[SkippedContent], db=None, cur=None
     ) -> Dict:
         ctime = now()
         content = [attr.evolve(c, ctime=ctime) for c in content]
@@ -451,10 +448,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def directory_add(
-        self, directories: Iterable[Directory], db=None, cur=None
-    ) -> Dict:
-        directories = list(directories)
+    def directory_add(self, directories: List[Directory], db=None, cur=None) -> Dict:
         summary = {"directory:add": 0}
 
         dirs = set()
@@ -540,8 +534,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def revision_add(self, revisions: Iterable[Revision], db=None, cur=None) -> Dict:
-        revisions = list(revisions)
+    def revision_add(self, revisions: List[Revision], db=None, cur=None) -> Dict:
         summary = {"revision:add": 0}
 
         revisions_missing = set(
@@ -628,8 +621,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def release_add(self, releases: Iterable[Release], db=None, cur=None) -> Dict:
-        releases = list(releases)
+    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict:
         summary = {"release:add": 0}
 
         release_ids = set(release.id for release in releases)
@@ -679,7 +671,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def snapshot_add(self, snapshots: Iterable[Snapshot], db=None, cur=None) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot], db=None, cur=None) -> Dict:
         created_temp_table = False
 
         count = 0
@@ -799,7 +791,7 @@ class Storage:
     @timed
     @db_transaction()
     def origin_visit_add(
-        self, visits: Iterable[OriginVisit], db=None, cur=None
+        self, visits: List[OriginVisit], db=None, cur=None
     ) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get([visit.origin], db=db, cur=cur)[0]
@@ -847,7 +839,7 @@ class Storage:
     @timed
     @db_transaction()
     def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus], db=None, cur=None,
+        self, visit_statuses: List[OriginVisitStatus], db=None, cur=None,
     ) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
@@ -877,22 +869,46 @@ class Storage:
         return OriginVisitStatus.from_dict(row)
 
     @timed
-    @db_transaction_generator(statement_timeout=500)
+    @db_transaction(statement_timeout=500)
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
-        order: str = "asc",
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
         db=None,
         cur=None,
-    ) -> Iterable[Dict[str, Any]]:
-        assert order in ["asc", "desc"]
-        lines = db.origin_visit_get_all(
-            origin, last_visit=last_visit, limit=limit, order=order, cur=cur
-        )
-        for line in lines:
-            yield dict(zip(db.origin_visit_get_cols, line))
+    ) -> PagedResult[OriginVisit]:
+        page_token = page_token or "0"
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
+        if not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
+
+        next_page_token = None
+        visit_from = int(page_token)
+        visits: List[OriginVisit] = []
+        extra_limit = limit + 1
+        for row in db.origin_visit_get_range(
+            origin, visit_from=visit_from, order=order, limit=extra_limit, cur=cur
+        ):
+            row_d = dict(zip(db.origin_visit_cols, row))
+            visits.append(
+                OriginVisit(
+                    origin=row_d["origin"],
+                    visit=row_d["visit"],
+                    date=row_d["date"],
+                    type=row_d["type"],
+                )
+            )
+
+        assert len(visits) <= extra_limit
+
+        if len(visits) == extra_limit:
+            visits = visits[:limit]
+            next_page_token = str(visits[-1].visit)
+
+        return PagedResult(results=visits, next_page_token=next_page_token)
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -955,6 +971,48 @@ class Storage:
         return None
 
     @timed
+    @db_transaction(statement_timeout=500)
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+        db=None,
+        cur=None,
+    ) -> PagedResult[OriginVisitStatus]:
+        next_page_token = None
+        date_from = None
+        if page_token is not None:
+            date_from = datetime.datetime.fromisoformat(page_token)
+
+        visit_statuses: List[OriginVisitStatus] = []
+        # Take one more visit status so we can reuse it as the next page token if any
+        for row in db.origin_visit_status_get_range(
+            origin, visit, date_from=date_from, order=order, limit=limit + 1, cur=cur,
+        ):
+            row_d = dict(zip(db.origin_visit_status_cols, row))
+            visit_statuses.append(
+                OriginVisitStatus(
+                    origin=row_d["origin"],
+                    visit=row_d["visit"],
+                    date=row_d["date"],
+                    status=row_d["status"],
+                    snapshot=row_d["snapshot"],
+                    metadata=row_d["metadata"],
+                )
+            )
+
+        if len(visit_statuses) > limit:
+            # last visit status date is the next page token
+            next_page_token = str(visit_statuses[-1].date)
+            # excluding that visit status from the result to respect the limit size
+            visit_statuses = visit_statuses[:limit]
+
+        return PagedResult(results=visit_statuses, next_page_token=next_page_token)
+
+    @timed
     @db_transaction()
     def origin_visit_status_get_random(
         self, type: str, db=None, cur=None
@@ -995,10 +1053,9 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def origin_get(
-        self, origins: Iterable[str], db=None, cur=None
+        self, origins: List[str], db=None, cur=None
     ) -> Iterable[Optional[Origin]]:
-        origin_urls = list(origins)
-        rows = db.origin_get_by_url(origin_urls, cur)
+        rows = db.origin_get_by_url(origins, cur)
         result: List[Optional[Origin]] = []
         for row in rows:
             origin_d = dict(zip(db.origin_cols, row))
@@ -1025,26 +1082,28 @@ class Storage:
     @db_transaction()
     def origin_list(
         self, page_token: Optional[str] = None, limit: int = 100, *, db=None, cur=None
-    ) -> dict:
+    ) -> PagedResult[Origin]:
         page_token = page_token or "0"
         if not isinstance(page_token, str):
             raise StorageArgumentException("page_token must be a string.")
         origin_from = int(page_token)
-        result: Dict[str, Any] = {
-            "origins": [
-                dict(zip(db.origin_get_range_cols, origin))
-                for origin in db.origin_get_range(origin_from, limit, cur)
-            ],
-        }
+        next_page_token = None
 
-        assert len(result["origins"]) <= limit
-        if len(result["origins"]) == limit:
-            result["next_page_token"] = str(result["origins"][limit - 1]["id"] + 1)
+        origins: List[Origin] = []
+        # Take one more origin so we can reuse it as the next page token if any
+        for row_d in self.origin_get_range(origin_from, limit + 1, db=db, cur=cur):
+            origins.append(Origin(url=row_d["url"]))
+            # keep the last_id for the pagination if needed
+            last_id = row_d["id"]
 
-        for origin in result["origins"]:
-            del origin["id"]
+        if len(origins) > limit:  # data left for subsequent call
+            # last origin id is the next page token
+            next_page_token = str(last_id)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
 
-        return result
+        assert len(origins) <= limit
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     @timed
     @db_transaction_generator()
@@ -1073,9 +1132,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def origin_add(
-        self, origins: Iterable[Origin], db=None, cur=None
-    ) -> Dict[str, int]:
+    def origin_add(self, origins: List[Origin], db=None, cur=None) -> Dict[str, int]:
         urls = [o.url for o in origins]
         known_origins = set(url for (url,) in db.origin_get_by_url(urls, cur))
         # use lists here to keep origins sorted; some tests depend on this
@@ -1115,8 +1172,10 @@ class Storage:
 
     @db_transaction()
     def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata], db, cur,
+        self, metadata: List[RawExtrinsicMetadata], db, cur,
     ) -> None:
+        metadata = list(metadata)
+        self.journal_writer.raw_extrinsic_metadata_add(metadata)
         counter = Counter[MetadataTargetType]()
         for metadata_entry in metadata:
             authority_id = self._get_authority_id(metadata_entry.authority, db, cur)
@@ -1253,8 +1312,10 @@ class Storage:
     @timed
     @db_transaction()
     def metadata_fetcher_add(
-        self, fetchers: Iterable[MetadataFetcher], db=None, cur=None
+        self, fetchers: List[MetadataFetcher], db=None, cur=None
     ) -> None:
+        fetchers = list(fetchers)
+        self.journal_writer.metadata_fetcher_add(fetchers)
         count = 0
         for fetcher in fetchers:
             if fetcher.metadata is None:
@@ -1280,8 +1341,10 @@ class Storage:
     @timed
     @db_transaction()
     def metadata_authority_add(
-        self, authorities: Iterable[MetadataAuthority], db=None, cur=None
+        self, authorities: List[MetadataAuthority], db=None, cur=None
     ) -> None:
+        authorities = list(authorities)
+        self.journal_writer.metadata_authority_add(authorities)
         count = 0
         for authority in authorities:
             if authority.metadata is None:
@@ -1319,13 +1382,13 @@ class Storage:
     def diff_revision(self, revision, track_renaming=False):
         return diff.diff_revision(self, revision, track_renaming)
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         return {}
 
     def _get_authority_id(self, authority: MetadataAuthority, db, cur):
