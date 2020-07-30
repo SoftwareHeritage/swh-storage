@@ -269,16 +269,15 @@ def test_retrying_proxy_swh_storage_origin_visit_add(swh_storage, sample_data):
 
     swh_storage.origin_add([origin])
 
-    origins = list(swh_storage.origin_visit_get(origin.url))
+    origins = swh_storage.origin_visit_get(origin.url).results
     assert not origins
 
     origin_visit = swh_storage.origin_visit_add([visit])[0]
     assert origin_visit.origin == origin.url
     assert isinstance(origin_visit.visit, int)
 
-    origin_visit = next(swh_storage.origin_visit_get(origin.url))
-    assert origin_visit["origin"] == origin.url
-    assert isinstance(origin_visit["visit"], int)
+    actual_visit = swh_storage.origin_visit_get(origin.url).results[0]
+    assert actual_visit == visit
 
 
 def test_retrying_proxy_swh_storage_origin_visit_add_retry(
@@ -303,7 +302,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_retry(
         [visit],
     ]
 
-    origins = list(swh_storage.origin_visit_get(origin.url))
+    origins = swh_storage.origin_visit_get(origin.url).results
     assert not origins
 
     r = swh_storage.origin_visit_add([visit])
@@ -327,7 +326,7 @@ def test_retrying_proxy_swh_storage_origin_visit_add_failure(
     visit = sample_data.origin_visit
     assert visit.origin == origin.url
 
-    origins = list(swh_storage.origin_visit_get(origin.url))
+    origins = swh_storage.origin_visit_get(origin.url).results
     assert not origins
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):

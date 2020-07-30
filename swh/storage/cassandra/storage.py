@@ -32,6 +32,7 @@ from swh.model.model import (
     MetadataTargetType,
     RawExtrinsicMetadata,
 )
+from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -146,7 +147,7 @@ class CassandraStorage:
 
         return summary
 
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(list(contents), with_data=True)
 
@@ -155,8 +156,8 @@ class CassandraStorage:
             "content_update is not supported by the Cassandra backend"
         )
 
-    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
-        return self._content_add(list(content), with_data=False)
+    def content_add_metadata(self, content: List[Content]) -> Dict:
+        return self._content_add(content, with_data=False)
 
     def content_get(self, content):
         if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
@@ -280,7 +281,7 @@ class CassandraStorage:
                 if getattr(row, algo) == hash_:
                     yield row
 
-    def _skipped_content_add(self, contents: Iterable[SkippedContent]) -> Dict:
+    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
         # Filter-out content already in the database.
         contents = [
             c
@@ -305,7 +306,7 @@ class CassandraStorage:
 
         return {"skipped_content:add": len(contents)}
 
-    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
@@ -314,9 +315,7 @@ class CassandraStorage:
             if not self._cql_runner.skipped_content_get_from_pk(content):
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
-    def directory_add(self, directories: Iterable[Directory]) -> Dict:
-        directories = list(directories)
-
+    def directory_add(self, directories: List[Directory]) -> Dict:
         # Filter out directories that are already inserted.
         missing = self.directory_missing([dir_.id for dir_ in directories])
         directories = [dir_ for dir_ in directories if dir_.id in missing]
@@ -419,9 +418,7 @@ class CassandraStorage:
     def directory_get_random(self):
         return self._cql_runner.directory_get_random().id
 
-    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
-        revisions = list(revisions)
-
+    def revision_add(self, revisions: List[Revision]) -> Dict:
         # Filter-out revisions already in the database
         missing = self.revision_missing([rev.id for rev in revisions])
         revisions = [rev for rev in revisions if rev.id in missing]
@@ -510,7 +507,7 @@ class CassandraStorage:
     def revision_get_random(self):
         return self._cql_runner.revision_get_random().id
 
-    def release_add(self, releases: Iterable[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict:
         to_add = []
         for rel in releases:
             if rel not in to_add:
@@ -542,8 +539,7 @@ class CassandraStorage:
     def release_get_random(self):
         return self._cql_runner.release_get_random().id
 
-    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
-        snapshots = list(snapshots)
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         missing = self._cql_runner.snapshot_missing([snp.id for snp in snapshots])
         snapshots = [snp for snp in snapshots if snp.id in missing]
 
@@ -685,7 +681,7 @@ class CassandraStorage:
 
         return results
 
-    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         return [self.origin_get_one(origin) for origin in origins]
 
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:
@@ -709,26 +705,33 @@ class CassandraStorage:
                 results.append(None)
         return results
 
-    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    def origin_list(
+        self, page_token: Optional[str] = None, limit: int = 100
+    ) -> PagedResult[Origin]:
         # Compute what token to begin the listing from
         start_token = TOKEN_BEGIN
         if page_token:
             start_token = int(page_token)
             if not (TOKEN_BEGIN <= start_token <= TOKEN_END):
                 raise StorageArgumentException("Invalid page_token.")
+        next_page_token = None
 
-        rows = self._cql_runner.origin_list(start_token, limit)
-        rows = list(rows)
+        origins = []
+        # Take one more origin so we can reuse it as the next page token if any
+        for row in self._cql_runner.origin_list(start_token, limit + 1):
+            origins.append(Origin(url=row.url))
+            # keep reference of the last id for pagination purposes
+            last_id = row.tok
 
-        if len(rows) == limit:
-            next_page_token: Optional[str] = str(rows[-1].tok + 1)
-        else:
-            next_page_token = None
+        if len(origins) > limit:
+            # last origin id is the next page token
+            next_page_token = str(last_id)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
 
-        return {
-            "origins": [{"url": row.url} for row in rows],
-            "next_page_token": next_page_token,
-        }
+        assert (len(origins)) <= limit
+
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
         self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
@@ -746,15 +749,14 @@ class CassandraStorage:
 
         return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
 
-    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
-        origins = list(origins)
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
         self.journal_writer.origin_add(to_add)
         for origin in to_add:
             self._cql_runner.origin_add_one(origin)
         return {"origin:add": len(to_add)}
 
-    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+    def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get_one(visit.origin)
             if not origin:  # Cannot add a visit without an origin
@@ -790,9 +792,7 @@ class CassandraStorage:
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(visit_status)
 
-    def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus]
-    ) -> None:
+    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus]) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get_one(visit_status.origin)
@@ -844,15 +844,56 @@ class CassandraStorage:
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
-        order: str = "asc",
-    ) -> Iterable[Dict[str, Any]]:
-        rows = self._cql_runner.origin_visit_get(origin, last_visit, limit, order)
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisit]:
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
+        if page_token and not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
 
+        next_page_token = None
+        visit_from = page_token and int(page_token)
+        visits: List[OriginVisit] = []
+        extra_limit = limit + 1
+
+        rows = self._cql_runner.origin_visit_get(origin, visit_from, extra_limit, order)
         for row in rows:
-            visit = self._format_origin_visit_row(row)
-            yield self._origin_visit_apply_last_status(visit)
+            visits.append(converters.row_to_visit(row))
+
+        assert len(visits) <= extra_limit
+        if len(visits) == extra_limit:
+            visits = visits[:limit]
+            next_page_token = str(visits[-1].visit)
+
+        return PagedResult(results=visits, next_page_token=next_page_token)
+
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitStatus]:
+        next_page_token = None
+        date_from = None
+        if page_token is not None:
+            date_from = datetime.datetime.fromisoformat(page_token)
+
+        # Take one more visit status so we can reuse it as the next page token if any
+        rows = self._cql_runner.origin_visit_status_get_range(
+            origin, visit, date_from, limit + 1, order
+        )
+        visit_statuses = [converters.row_to_visit_status(row) for row in rows]
+        if len(visit_statuses) > limit:
+            # last visit status date is the next page token
+            next_page_token = str(visit_statuses[-1].date)
+            # excluding that visit status from the result to respect the limit size
+            visit_statuses = visit_statuses[:limit]
+
+        return PagedResult(results=visit_statuses, next_page_token=next_page_token)
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
@@ -969,9 +1010,8 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata]
-    ) -> None:
+    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata]) -> None:
+        self.journal_writer.raw_extrinsic_metadata_add(metadata)
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
@@ -1107,7 +1147,8 @@ class CassandraStorage:
             "results": results,
         }
 
-    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
+        self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
                 fetcher.name,
@@ -1128,7 +1169,8 @@ class CassandraStorage:
         else:
             return None
 
-    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
+        self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
                 authority.url,
@@ -1149,11 +1191,11 @@ class CassandraStorage:
         else:
             return None
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         return {}

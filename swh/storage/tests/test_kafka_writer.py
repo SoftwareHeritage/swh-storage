@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Any, Dict
+
 from confluent_kafka import Consumer
 
 from swh.storage import get_storage
@@ -26,7 +28,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         "prefix": kafka_prefix,
         "anonymize": False,
     }
-    storage_config = {
+    storage_config: Dict[str, Any] = {
         "cls": "pipeline",
         "steps": [{"cls": "memory", "journal_writer": writer_config},],
     }
@@ -93,7 +95,7 @@ def test_storage_direct_writer_anonymized(
         "prefix": kafka_prefix,
         "anonymize": True,
     }
-    storage_config = {
+    storage_config: Dict[str, Any] = {
         "cls": "pipeline",
         "steps": [{"cls": "memory", "journal_writer": writer_config},],
     }

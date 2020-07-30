@@ -280,6 +280,7 @@ swh/storage/tests/test_pytest_plugin.py
 swh/storage/tests/test_replay.py
 swh/storage/tests/test_retry.py
 swh/storage/tests/test_revision_bw_compat.py
+swh/storage/tests/test_serializers.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage.py
 swh/storage/tests/test_storage_data.py

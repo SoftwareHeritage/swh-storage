@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 
-from typing import Dict, Iterable, Set
+from typing import Dict, Iterable, List, Set
 
 from swh.model.model import (
     Content,
@@ -14,6 +14,7 @@ from swh.model.model import (
 )
 
 from swh.storage import get_storage
+from swh.storage.interface import StorageInterface
 
 
 class FilteringProxyStorage:
@@ -35,38 +36,36 @@ class FilteringProxyStorage:
     object_types = ["content", "skipped_content", "directory", "revision"]
 
     def __init__(self, storage):
-        self.storage = get_storage(**storage)
+        self.storage: StorageInterface = get_storage(**storage)
 
     def __getattr__(self, key):
         if key == "storage":
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, content: Iterable[Content]) -> Dict:
-        contents = list(content)
-        contents_to_add = self._filter_missing_contents(contents)
+    def content_add(self, content: List[Content]) -> Dict:
+        contents_to_add = self._filter_missing_contents(content)
         return self.storage.content_add(
-            x for x in contents if x.sha256 in contents_to_add
+            [x for x in content if x.sha256 in contents_to_add]
         )
 
-    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
-        contents = list(content)
-        contents_to_add = self._filter_missing_skipped_contents(contents)
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
+        contents_to_add = self._filter_missing_skipped_contents(content)
         return self.storage.skipped_content_add(
-            x for x in contents if x.sha1_git is None or x.sha1_git in contents_to_add
+            [x for x in content if x.sha1_git is None or x.sha1_git in contents_to_add]
         )
 
-    def directory_add(self, directories: Iterable[Directory]) -> Dict:
-        directories = list(directories)
+    def directory_add(self, directories: List[Directory]) -> Dict:
         missing_ids = self._filter_missing_ids("directory", (d.id for d in directories))
-        return self.storage.directory_add(d for d in directories if d.id in missing_ids)
+        return self.storage.directory_add(
+            [d for d in directories if d.id in missing_ids]
+        )
 
-    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
-        revisions = list(revisions)
+    def revision_add(self, revisions: List[Revision]) -> Dict:
         missing_ids = self._filter_missing_ids("revision", (r.id for r in revisions))
-        return self.storage.revision_add(r for r in revisions if r.id in missing_ids)
+        return self.storage.revision_add([r for r in revisions if r.id in missing_ids])
 
-    def _filter_missing_contents(self, contents: Iterable[Content]) -> Set[bytes]:
+    def _filter_missing_contents(self, contents: List[Content]) -> Set[bytes]:
         """Return only the content keys missing from swh
 
         Args:
@@ -81,7 +80,7 @@ class FilteringProxyStorage:
         return set(self.storage.content_missing(missing_contents, key_hash="sha256",))
 
     def _filter_missing_skipped_contents(
-        self, contents: Iterable[SkippedContent]
+        self, contents: List[SkippedContent]
     ) -> Set[bytes]:
         """Return only the content keys missing from swh
 
@@ -106,7 +105,7 @@ class FilteringProxyStorage:
 
         Args:
             object_type: object type to use {revision, directory}
-            ids: Iterable of object_type ids
+            ids: List of object_type ids
 
         Returns:
             Missing ids from the storage for object_type

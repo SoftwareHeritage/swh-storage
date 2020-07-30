@@ -51,6 +51,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
+from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -176,7 +177,7 @@ class InMemoryStorage:
     def check_config(self, *, check_write):
         return True
 
-    def _content_add(self, contents: Iterable[Content], with_data: bool) -> Dict:
+    def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
         self.journal_writer.content_add(contents)
 
         content_add = 0
@@ -220,7 +221,7 @@ class InMemoryStorage:
 
         return summary
 
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(content, with_data=True)
 
@@ -246,7 +247,7 @@ class InMemoryStorage:
                     hash_ = new_cont.get_hash(algorithm)
                     self._content_indexes[algorithm][hash_].add(new_key)
 
-    def content_add_metadata(self, content: Iterable[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
     def content_get(self, content):
@@ -381,7 +382,7 @@ class InMemoryStorage:
 
         return summary
 
-    def skipped_content_add(self, content: Iterable[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(content)
 
@@ -399,7 +400,7 @@ class InMemoryStorage:
             if not matches:
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
-    def directory_add(self, directories: Iterable[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict:
         directories = [dir_ for dir_ in directories if dir_.id not in self._directories]
         self.journal_writer.directory_add(directories)
 
@@ -486,7 +487,7 @@ class InMemoryStorage:
             first_item["target"], paths[1:], prefix + paths[0] + b"/"
         )
 
-    def revision_add(self, revisions: Iterable[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict:
         revisions = [rev for rev in revisions if rev.id not in self._revisions]
         self.journal_writer.revision_add(revisions)
 
@@ -538,7 +539,7 @@ class InMemoryStorage:
     def revision_get_random(self):
         return random.choice(list(self._revisions))
 
-    def release_add(self, releases: Iterable[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict:
         to_add = []
         for rel in releases:
             if rel.id not in self._releases and rel not in to_add:
@@ -566,9 +567,9 @@ class InMemoryStorage:
     def release_get_random(self):
         return random.choice(list(self._releases))
 
-    def snapshot_add(self, snapshots: Iterable[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         count = 0
-        snapshots = (snap for snap in snapshots if snap.id not in self._snapshots)
+        snapshots = [snap for snap in snapshots if snap.id not in self._snapshots]
         for snapshot in snapshots:
             self.journal_writer.snapshot_add([snapshot])
             self._snapshots[snapshot.id] = snapshot
@@ -673,7 +674,7 @@ class InMemoryStorage:
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:
         return self._origins.get(origin_url)
 
-    def origin_get(self, origins: Iterable[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         return [self.origin_get_one(origin_url) for origin_url in origins]
 
     def origin_get_by_sha1(self, sha1s):
@@ -689,23 +690,25 @@ class InMemoryStorage:
                 origin = self._convert_origin(self._origins[self._origins_by_id[idx]])
                 yield {"id": idx + 1, **origin}
 
-    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    def origin_list(
+        self, page_token: Optional[str] = None, limit: int = 100
+    ) -> PagedResult[Origin]:
         origin_urls = sorted(self._origins)
-        if page_token:
-            from_ = bisect.bisect_left(origin_urls, page_token)
-        else:
-            from_ = 0
+        from_ = bisect.bisect_left(origin_urls, page_token) if page_token else 0
+        next_page_token = None
 
-        result = {
-            "origins": [
-                {"url": origin_url} for origin_url in origin_urls[from_ : from_ + limit]
-            ]
-        }
+        # Take one more origin so we can reuse it as the next page token if any
+        origins = [Origin(url=url) for url in origin_urls[from_ : from_ + limit + 1]]
 
-        if from_ + limit < len(origin_urls):
-            result["next_page_token"] = origin_urls[from_ + limit]
+        if len(origins) > limit:
+            # last origin id is the next page token
+            next_page_token = str(origins[-1].url)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
 
-        return result
+        assert len(origins) <= limit
+
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
         self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
@@ -743,8 +746,7 @@ class InMemoryStorage:
             )
         )
 
-    def origin_add(self, origins: Iterable[Origin]) -> Dict[str, int]:
-        origins = list(origins)
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         added = 0
         for origin in origins:
             if origin.url not in self._origins:
@@ -769,7 +771,7 @@ class InMemoryStorage:
 
         return origin.url
 
-    def origin_visit_add(self, visits: Iterable[OriginVisit]) -> Iterable[OriginVisit]:
+    def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get_one(visit.origin)
             if not origin:  # Cannot add a visit without an origin
@@ -818,9 +820,7 @@ class InMemoryStorage:
         if visit_status not in visit_statuses:
             visit_statuses.append(visit_status)
 
-    def origin_visit_status_add(
-        self, visit_statuses: Iterable[OriginVisitStatus],
-    ) -> None:
+    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus],) -> None:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get_one(visit_status.origin)
@@ -862,31 +862,38 @@ class InMemoryStorage:
     def origin_visit_get(
         self,
         origin: str,
-        last_visit: Optional[int] = None,
-        limit: Optional[int] = None,
-        order: str = "asc",
-    ) -> Iterable[Dict[str, Any]]:
-        order = order.lower()
-        assert order in ["asc", "desc"]
-        origin_url = self._get_origin_url(origin)
-        if origin_url in self._origin_visits:
-            visits = self._origin_visits[origin_url]
-            visits = sorted(visits, key=lambda v: v.visit, reverse=(order == "desc"))
-            if last_visit is not None:
-                if order == "asc":
-                    visits = [v for v in visits if v.visit > last_visit]
-                else:
-                    visits = [v for v in visits if v.visit < last_visit]
-            if limit is not None:
-                visits = visits[:limit]
-            for visit in visits:
-                if not visit:
-                    continue
-                visit_id = visit.visit
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisit]:
+        next_page_token = None
+        page_token = page_token or "0"
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
+        if not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
 
-                visit_update = self._origin_visit_get_updated(origin_url, visit_id)
-                assert visit_update is not None
-                yield visit_update
+        visit_from = int(page_token)
+        origin_url = self._get_origin_url(origin)
+        extra_limit = limit + 1
+        visits = sorted(
+            self._origin_visits.get(origin_url, []),
+            key=lambda v: v.visit,
+            reverse=(order == ListOrder.DESC),
+        )
+
+        if visit_from > 0 and order == ListOrder.ASC:
+            visits = [v for v in visits if v.visit > visit_from]
+        elif visit_from > 0 and order == ListOrder.DESC:
+            visits = [v for v in visits if v.visit < visit_from]
+        visits = visits[:extra_limit]
+
+        assert len(visits) <= extra_limit
+        if len(visits) == extra_limit:
+            visits = visits[:limit]
+            next_page_token = str(visits[-1].visit)
+
+        return PagedResult(results=visits, next_page_token=next_page_token)
 
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime
@@ -940,6 +947,42 @@ class InMemoryStorage:
                 return visit
 
         return None
+
+    def origin_visit_status_get(
+        self,
+        origin: str,
+        visit: int,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitStatus]:
+        next_page_token = None
+        date_from = None
+        if page_token is not None:
+            date_from = datetime.datetime.fromisoformat(page_token)
+
+        visit_statuses = sorted(
+            self._origin_visit_statuses.get((origin, visit), []),
+            key=lambda v: v.date,
+            reverse=(order == ListOrder.DESC),
+        )
+
+        if date_from is not None:
+            if order == ListOrder.ASC:
+                visit_statuses = [v for v in visit_statuses if v.date >= date_from]
+            elif order == ListOrder.DESC:
+                visit_statuses = [v for v in visit_statuses if v.date <= date_from]
+
+        # Take one more visit status so we can reuse it as the next page token if any
+        visit_statuses = visit_statuses[: limit + 1]
+
+        if len(visit_statuses) > limit:
+            # last visit status date is the next page token
+            next_page_token = str(visit_statuses[-1].date)
+            # excluding that visit status from the result to respect the limit size
+            visit_statuses = visit_statuses[:limit]
+
+        return PagedResult(results=visit_statuses, next_page_token=next_page_token)
 
     def origin_visit_status_get_latest(
         self,
@@ -1018,9 +1061,8 @@ class InMemoryStorage:
     def refresh_stat_counters(self):
         pass
 
-    def raw_extrinsic_metadata_add(
-        self, metadata: Iterable[RawExtrinsicMetadata],
-    ) -> None:
+    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata],) -> None:
+        self.journal_writer.raw_extrinsic_metadata_add(metadata)
         for metadata_entry in metadata:
             authority_key = self._metadata_authority_key(metadata_entry.authority)
             if authority_key not in self._metadata_authorities:
@@ -1130,7 +1172,8 @@ class InMemoryStorage:
             "results": results,
         }
 
-    def metadata_fetcher_add(self, fetchers: Iterable[MetadataFetcher]) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
+        self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             if fetcher.metadata is None:
                 raise StorageArgumentException(
@@ -1147,7 +1190,8 @@ class InMemoryStorage:
             self._metadata_fetcher_key(MetadataFetcher(name=name, version=version))
         )
 
-    def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
+    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
+        self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             if authority.metadata is None:
                 raise StorageArgumentException(
@@ -1202,11 +1246,11 @@ class InMemoryStorage:
     def diff_revision(self, revision, track_renaming=False):
         raise NotImplementedError("InMemoryStorage.diff_revision")
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         return {}

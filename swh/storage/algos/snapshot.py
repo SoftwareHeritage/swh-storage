@@ -3,11 +3,16 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterable, Optional
+from typing import List, Optional
 
-from swh.model.model import Snapshot
+from swh.model.model import Snapshot, TargetType
 
-from swh.storage.algos.origin import origin_get_latest_visit_status
+from swh.storage.algos.origin import (
+    origin_get_latest_visit_status,
+    iter_origin_visits,
+    iter_origin_visit_statuses,
+)
+from swh.storage.interface import ListOrder, StorageInterface
 
 
 def snapshot_get_all_branches(storage, snapshot_id):
@@ -39,7 +44,7 @@ def snapshot_get_all_branches(storage, snapshot_id):
 def snapshot_get_latest(
     storage,
     origin: str,
-    allowed_statuses: Optional[Iterable[str]] = None,
+    allowed_statuses: Optional[List[str]] = None,
     branches_count: Optional[int] = None,
 ) -> Optional[Snapshot]:
     """Get the latest snapshot for the given origin, optionally only from visits that have
@@ -93,3 +98,41 @@ def snapshot_get_latest(
     else:
         snapshot = snapshot_get_all_branches(storage, snapshot_id)
     return Snapshot.from_dict(snapshot) if snapshot else None
+
+
+def snapshot_id_get_from_revision(
+    storage: StorageInterface, origin: str, revision_id: bytes
+) -> Optional[bytes]:
+    """Retrieve the most recent snapshot id targeting the revision_id for the given origin.
+
+    *Warning* This is a potentially highly costly operation
+
+    Returns
+        The snapshot id if found. None otherwise.
+
+    """
+    revision = storage.revision_get([revision_id])
+    if not revision:
+        return None
+
+    for visit in iter_origin_visits(storage, origin, order=ListOrder.DESC):
+        assert visit.visit is not None
+        for visit_status in iter_origin_visit_statuses(
+            storage, origin, visit.visit, order=ListOrder.DESC
+        ):
+            snapshot_id = visit_status.snapshot
+            if snapshot_id is None:
+                continue
+
+            snapshot = snapshot_get_all_branches(storage, snapshot_id)
+            if not snapshot:
+                continue
+            for branch_name, branch in snapshot["branches"].items():
+                if (
+                    branch is not None
+                    and branch["target_type"] == TargetType.REVISION.value
+                    and branch["target"] == revision_id
+                ):  # snapshot found
+                    return snapshot_id
+
+    return None

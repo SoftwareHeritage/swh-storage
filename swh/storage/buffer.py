@@ -9,6 +9,7 @@ from typing import Dict, Iterable, List, Optional
 from swh.core.utils import grouper
 from swh.model.model import Content, BaseModel
 from swh.storage import get_storage
+from swh.storage.interface import StorageInterface
 
 
 class BufferingProxyStorage:
@@ -36,7 +37,7 @@ class BufferingProxyStorage:
     """
 
     def __init__(self, storage, min_batch_size=None):
-        self.storage = get_storage(**storage)
+        self.storage: StorageInterface = get_storage(**storage)
 
         if min_batch_size is None:
             min_batch_size = {}
@@ -67,7 +68,7 @@ class BufferingProxyStorage:
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, content: Iterable[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict:
         """Enqueue contents to write to the storage.
 
         Following policies apply:
@@ -79,7 +80,6 @@ class BufferingProxyStorage:
               threshold is hit. If it is flush content to the storage.
 
         """
-        content = list(content)
         s = self.object_add(
             content,
             object_type="content",
@@ -93,14 +93,14 @@ class BufferingProxyStorage:
 
         return s
 
-    def skipped_content_add(self, content: Iterable[Content]) -> Dict:
+    def skipped_content_add(self, content: List[Content]) -> Dict:
         return self.object_add(
             content,
             object_type="skipped_content",
             keys=["sha1", "sha1_git", "sha256", "blake2s256"],
         )
 
-    def flush(self, object_types: Optional[Iterable[str]] = None) -> Dict:
+    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
         summary: Dict[str, int] = self.storage.flush(object_types)
         if object_types is None:
             object_types = self.object_types
@@ -109,7 +109,7 @@ class BufferingProxyStorage:
             batches = grouper(buffer_.values(), n=self.min_batch_size[object_type])
             for batch in batches:
                 add_fn = getattr(self.storage, "%s_add" % object_type)
-                s = add_fn(batch)
+                s = add_fn(list(batch))
                 summary = {k: v + summary.get(k, 0) for k, v in s.items()}
             buffer_.clear()
 
@@ -132,7 +132,7 @@ class BufferingProxyStorage:
 
         return {}
 
-    def clear_buffers(self, object_types: Optional[Iterable[str]] = None) -> None:
+    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Clear objects from current buffer.
 
         WARNING:
