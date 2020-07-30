@@ -1040,24 +1040,28 @@ class StorageInterface:
 
     @remote_api_endpoint("origin/search")
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
-    ):
+        self,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+    ) -> PagedResult[Origin]:
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
 
         Args:
-            url_pattern (str): the string pattern to search for in origin urls
-            offset (int): number of found origins to skip before returning
-                results
-            limit (int): the maximum number of found origins to return
-            regexp (bool): if True, consider the provided pattern as a regular
+            url_pattern: the string pattern to search for in origin urls
+            page_token: opaque token used for pagination
+            limit: the maximum number of found origins to return
+            regexp: if True, consider the provided pattern as a regular
                 expression and return origins whose urls match it
-            with_visit (bool): if True, filter out origins with no visit
+            with_visit: if True, filter out origins with no visit
 
         Yields:
-            dicts containing origin information as returned
-            by :meth:`swh.storage.storage.Storage.origin_get`.
+            PagedResult of Origin
+
         """
         ...
 

@@ -1576,113 +1576,103 @@ class TestStorage:
     def test_origin_search_single_result(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
 
-        found_origins = list(swh_storage.origin_search(origin.url))
-        assert len(found_origins) == 0
+        actual_page = swh_storage.origin_search(origin.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
 
-        found_origins = list(swh_storage.origin_search(origin.url, regexp=True))
-        assert len(found_origins) == 0
+        actual_page = swh_storage.origin_search(origin.url, regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
 
         swh_storage.origin_add([origin])
-        origin_data = origin.to_dict()
-        found_origins = list(swh_storage.origin_search(origin.url))
+        actual_page = swh_storage.origin_search(origin.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin]
 
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin_data
-
-        found_origins = list(
-            swh_storage.origin_search(f".{origin.url[1:-1]}.", regexp=True)
-        )
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin_data
+        actual_page = swh_storage.origin_search(f".{origin.url[1:-1]}.", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin]
 
         swh_storage.origin_add([origin2])
-        origin2_data = origin2.to_dict()
-        found_origins = list(swh_storage.origin_search(origin2.url))
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin2_data
+        actual_page = swh_storage.origin_search(origin2.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
-        found_origins = list(
-            swh_storage.origin_search(f".{origin2.url[1:-1]}.", regexp=True)
-        )
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin2_data
+        actual_page = swh_storage.origin_search(f".{origin2.url[1:-1]}.", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_search_no_regexp(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
-        origin_dicts = [o.to_dict() for o in [origin, origin2]]
-
         swh_storage.origin_add([origin, origin2])
 
         # no pagination
-        found_origins = list(swh_storage.origin_search("/"))
-        assert len(found_origins) == 2
+        actual_page = swh_storage.origin_search("/")
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin, origin2]
 
         # offset=0
-        found_origins0 = list(swh_storage.origin_search("/", offset=0, limit=1))
-        assert len(found_origins0) == 1
-        assert found_origins0[0] in origin_dicts
+        actual_page = swh_storage.origin_search("/", page_token=None, limit=1)
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [origin]
 
         # offset=1
-        found_origins1 = list(swh_storage.origin_search("/", offset=1, limit=1))
-        assert len(found_origins1) == 1
-        assert found_origins1[0] in origin_dicts
-
-        # check both origins were returned
-        assert found_origins0 != found_origins1
+        actual_page = swh_storage.origin_search(
+            "/", page_token=next_page_token, limit=1
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_search_regexp_substring(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
-        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
 
         # no pagination
-        found_origins = list(swh_storage.origin_search("/", regexp=True))
-        assert len(found_origins) == 2
+        actual_page = swh_storage.origin_search("/", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin, origin2]
 
         # offset=0
-        found_origins0 = list(
-            swh_storage.origin_search("/", offset=0, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            "/", page_token=None, limit=1, regexp=True
         )
-        assert len(found_origins0) == 1
-        assert found_origins0[0] in origin_dicts
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [origin]
 
         # offset=1
-        found_origins1 = list(
-            swh_storage.origin_search("/", offset=1, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            "/", page_token=next_page_token, limit=1, regexp=True
         )
-        assert len(found_origins1) == 1
-        assert found_origins1[0] in origin_dicts
-
-        # check both origins were returned
-        assert found_origins0 != found_origins1
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_search_regexp_fullstring(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
-        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
 
         # no pagination
-        found_origins = list(swh_storage.origin_search(".*/.*", regexp=True))
-        assert len(found_origins) == 2
+        actual_page = swh_storage.origin_search(".*/.*", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin, origin2]
 
         # offset=0
-        found_origins0 = list(
-            swh_storage.origin_search(".*/.*", offset=0, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            ".*/.*", page_token=None, limit=1, regexp=True
         )
-        assert len(found_origins0) == 1
-        assert found_origins0[0] in origin_dicts
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [origin]
 
         # offset=1
-        found_origins1 = list(
-            swh_storage.origin_search(".*/.*", offset=1, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            ".*/.*", page_token=next_page_token, limit=1, regexp=True
         )
-        assert len(found_origins1) == 1
-        assert found_origins1[0] in origin_dicts
-
-        # check both origins were returned
-        assert found_origins0 != found_origins1
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_visit_add(self, swh_storage, sample_data):
         origin1 = sample_data.origins[1]

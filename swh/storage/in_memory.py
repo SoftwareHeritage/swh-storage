@@ -711,20 +711,29 @@ class InMemoryStorage:
         return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
-    ):
-        origins = map(self._convert_origin, self._origins.values())
+        self,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+    ) -> PagedResult[Origin]:
+        next_page_token = None
+        offset = int(page_token) if page_token else 0
+
+        origins = self._origins.values()
         if regexp:
             pat = re.compile(url_pattern)
-            origins = [orig for orig in origins if pat.search(orig["url"])]
+            origins = [orig for orig in origins if pat.search(orig.url)]
         else:
-            origins = [orig for orig in origins if url_pattern in orig["url"]]
+            origins = [orig for orig in origins if url_pattern in orig.url]
+
         if with_visit:
             filtered_origins = []
             for orig in origins:
                 visits = (
                     self._origin_visit_get_updated(ov.origin, ov.visit)
-                    for ov in self._origin_visits[orig["url"]]
+                    for ov in self._origin_visits[orig.url]
                 )
                 for ov in visits:
                     snapshot = ov["snapshot"]
@@ -734,17 +743,23 @@ class InMemoryStorage:
         else:
             filtered_origins = origins
 
-        return filtered_origins[offset : offset + limit]
+        # Take one more origin so we can reuse it as the next page token if any
+        origins = filtered_origins[offset : offset + limit + 1]
+        if len(origins) > limit:
+            # next offset
+            next_page_token = str(offset + limit)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
+
+        assert len(origins) <= limit
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_count(self, url_pattern, regexp=False, with_visit=False):
-        return len(
-            self.origin_search(
-                url_pattern,
-                regexp=regexp,
-                with_visit=with_visit,
-                limit=len(self._origins),
-            )
+        actual_page = self.origin_search(
+            url_pattern, regexp=regexp, with_visit=with_visit, limit=len(self._origins),
         )
+        assert actual_page.next_page_token is None
+        return len(actual_page.results)
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         added = 0

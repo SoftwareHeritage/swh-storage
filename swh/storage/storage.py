@@ -1106,21 +1106,37 @@ class Storage:
         return PagedResult(results=origins, next_page_token=next_page_token)
 
     @timed
-    @db_transaction_generator()
+    @db_transaction()
     def origin_search(
         self,
-        url_pattern,
-        offset=0,
-        limit=50,
-        regexp=False,
-        with_visit=False,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
         db=None,
         cur=None,
-    ):
+    ) -> PagedResult[Origin]:
+        next_page_token = None
+        offset = int(page_token) if page_token else 0
+
+        origins = []
+        # Take one more origin so we can reuse it as the next page token if any
         for origin in db.origin_search(
-            url_pattern, offset, limit, regexp, with_visit, cur
+            url_pattern, offset, limit + 1, regexp, with_visit, cur
         ):
-            yield dict(zip(db.origin_cols, origin))
+            row_d = dict(zip(db.origin_cols, origin))
+            origins.append(Origin(url=row_d["url"]))
+
+        if len(origins) > limit:
+            # next offset
+            next_page_token = str(offset + limit)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
+
+        assert len(origins) <= limit
+
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     @timed
     @db_transaction()

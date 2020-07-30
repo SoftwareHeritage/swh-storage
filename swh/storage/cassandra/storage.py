@@ -729,25 +729,41 @@ class CassandraStorage:
             # excluding that origin from the result to respect the limit size
             origins = origins[:limit]
 
-        assert (len(origins)) <= limit
+        assert len(origins) <= limit
 
         return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
-    ):
+        self,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+    ) -> PagedResult[Origin]:
         # TODO: remove this endpoint, swh-search should be used instead.
+        next_page_token = None
+        offset = int(page_token) if page_token else 0
+
         origins = self._cql_runner.origin_iter_all()
         if regexp:
             pat = re.compile(url_pattern)
-            origins = [orig for orig in origins if pat.search(orig.url)]
+            origins = [Origin(orig.url) for orig in origins if pat.search(orig.url)]
         else:
-            origins = [orig for orig in origins if url_pattern in orig.url]
+            origins = [Origin(orig.url) for orig in origins if url_pattern in orig.url]
 
         if with_visit:
-            origins = [orig for orig in origins if orig.next_visit_id > 1]
+            origins = [Origin(orig.url) for orig in origins if orig.next_visit_id > 1]
 
-        return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
+        origins = origins[offset : offset + limit + 1]
+        if len(origins) > limit:
+            # next offset
+            next_page_token = str(offset + limit)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
+
+        assert len(origins) <= limit
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]

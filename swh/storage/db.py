@@ -1023,7 +1023,7 @@ class Db(BaseDb):
 
         if not regexp:
             query = query % (origin_cols, "ILIKE")
-            query_params = ("%" + url_pattern + "%", offset, limit)
+            query_params = (f"%{url_pattern}%", offset, limit)
         else:
             query = query % (origin_cols, "~*")
             query_params = (url_pattern, offset, limit)
@@ -1034,20 +1034,26 @@ class Db(BaseDb):
         cur.execute(query, query_params)
 
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False, cur=None
+        self,
+        url_pattern: str,
+        offset: int = 0,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+        cur=None,
     ):
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
 
         Args:
-            url_pattern (str): the string pattern to search for in origin urls
-            offset (int): number of found origins to skip before returning
+            url_pattern: the string pattern to search for in origin urls
+            offset: number of found origins to skip before returning
                 results
-            limit (int): the maximum number of found origins to return
-            regexp (bool): if True, consider the provided pattern as a regular
+            limit: the maximum number of found origins to return
+            regexp: if True, consider the provided pattern as a regular
                 expression and returns origins whose urls match it
-            with_visit (bool): if True, filter out origins with no visit
+            with_visit: if True, filter out origins with no visit
 
         """
         self._origin_query(
