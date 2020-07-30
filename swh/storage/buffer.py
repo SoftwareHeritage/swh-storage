@@ -109,7 +109,7 @@ class BufferingProxyStorage:
             batches = grouper(buffer_.values(), n=self.min_batch_size[object_type])
             for batch in batches:
                 add_fn = getattr(self.storage, "%s_add" % object_type)
-                s = add_fn(batch)
+                s = add_fn(list(batch))
                 summary = {k: v + summary.get(k, 0) for k, v in s.items()}
             buffer_.clear()
 
