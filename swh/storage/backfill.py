@@ -20,7 +20,11 @@ import logging
 
 from swh.core.db import BaseDb
 from swh.journal.writer.kafka import KafkaJournalWriter
-from swh.storage.converters import db_to_release, db_to_revision
+from swh.storage.converters import (
+    db_to_raw_extrinsic_metadata,
+    db_to_release,
+    db_to_revision,
+)
 from swh.storage.replay import object_converter_fn
 
 
@@ -30,6 +34,9 @@ PARTITION_KEY = {
     "content": "sha1",
     "skipped_content": "sha1",
     "directory": "id",
+    "metadata_authority": "type, url",
+    "metadata_fetcher": "name, version",
+    "raw_extrinsic_metadata": "id",
     "revision": "revision.id",
     "release": "release.id",
     "snapshot": "id",
@@ -59,6 +66,26 @@ COLUMNS = {
         "reason",
     ],
     "directory": ["id", "dir_entries", "file_entries", "rev_entries"],
+    "metadata_authority": ["type", "url", "metadata",],
+    "metadata_fetcher": ["name", "version", "metadata",],
+    "raw_extrinsic_metadata": [
+        "raw_extrinsic_metadata.type",
+        "raw_extrinsic_metadata.id",
+        "metadata_authority.type",
+        "metadata_authority.url",
+        "metadata_fetcher.name",
+        "metadata_fetcher.version",
+        "discovery_date",
+        "format",
+        "raw_extrinsic_metadata.metadata",
+        "origin",
+        "visit",
+        "snapshot",
+        "release",
+        "revision",
+        "path",
+        "directory",
+    ],
     "revision": [
         ("revision.id", "id"),
         "date",
@@ -123,6 +150,11 @@ JOINS = {
     ],
     "origin_visit": ["origin on origin_visit.origin=origin.id"],
     "origin_visit_status": ["origin on origin_visit_status.origin=origin.id"],
+    "raw_extrinsic_metadata": [
+        "metadata_authority on "
+        "raw_extrinsic_metadata.authority_id=metadata_authority.id",
+        "metadata_fetcher on raw_extrinsic_metadata.fetcher_id=metadata_fetcher.id",
+    ],
 }
 
 
@@ -158,6 +190,14 @@ def directory_converter(db, directory):
 
     directory["entries"] = entries
     return directory
+
+
+def raw_extrinsic_metadata_converter(db, metadata):
+    """Convert revision from the flat representation to swh model
+       compatible objects.
+
+    """
+    return db_to_raw_extrinsic_metadata(metadata).to_dict()
 
 
 def revision_converter(db, revision):
@@ -205,6 +245,7 @@ def snapshot_converter(db, snapshot):
 
 CONVERTERS = {
     "directory": directory_converter,
+    "raw_extrinsic_metadata": raw_extrinsic_metadata_converter,
     "revision": revision_converter,
     "release": release_converter,
     "snapshot": snapshot_converter,

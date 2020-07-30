@@ -25,7 +25,7 @@ import psycopg2.pool
 import psycopg2.errors
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
-from swh.model.identifiers import parse_swhid, SWHID
+from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -1277,35 +1277,8 @@ class Storage:
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
-            row = row.copy()
-            row.pop("metadata_fetcher.id")
-
             assert str(id) == row["raw_extrinsic_metadata.id"]
-
-            result = RawExtrinsicMetadata(
-                type=MetadataTargetType(row["raw_extrinsic_metadata.type"]),
-                id=id,
-                authority=MetadataAuthority(
-                    type=MetadataAuthorityType(row["metadata_authority.type"]),
-                    url=row["metadata_authority.url"],
-                ),
-                fetcher=MetadataFetcher(
-                    name=row["metadata_fetcher.name"],
-                    version=row["metadata_fetcher.version"],
-                ),
-                discovery_date=row["discovery_date"],
-                format=row["format"],
-                metadata=row["raw_extrinsic_metadata.metadata"],
-                origin=row["origin"],
-                visit=row["visit"],
-                snapshot=map_optional(parse_swhid, row["snapshot"]),
-                release=map_optional(parse_swhid, row["release"]),
-                revision=map_optional(parse_swhid, row["revision"]),
-                path=row["path"],
-                directory=map_optional(parse_swhid, row["directory"]),
-            )
-
-            results.append(result)
+            results.append(converters.db_to_raw_extrinsic_metadata(row))
 
         if len(results) > limit:
             results.pop()
