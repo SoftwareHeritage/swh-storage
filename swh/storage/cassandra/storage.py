@@ -705,26 +705,33 @@ class CassandraStorage:
                 results.append(None)
         return results
 
-    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    def origin_list(
+        self, page_token: Optional[str] = None, limit: int = 100
+    ) -> PagedResult[Origin]:
         # Compute what token to begin the listing from
         start_token = TOKEN_BEGIN
         if page_token:
             start_token = int(page_token)
             if not (TOKEN_BEGIN <= start_token <= TOKEN_END):
                 raise StorageArgumentException("Invalid page_token.")
+        next_page_token = None
 
-        rows = self._cql_runner.origin_list(start_token, limit)
-        rows = list(rows)
+        origins = []
+        # Take one more origin so we can reuse it as the next page token if any
+        for row in self._cql_runner.origin_list(start_token, limit + 1):
+            origins.append(Origin(url=row.url))
+            # keep reference of the last id for pagination purposes
+            last_id = row.tok
 
-        if len(rows) == limit:
-            next_page_token: Optional[str] = str(rows[-1].tok + 1)
-        else:
-            next_page_token = None
+        if len(origins) > limit:
+            # last origin id is the next page token
+            next_page_token = str(last_id)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
 
-        return {
-            "origins": [{"url": row.url} for row in rows],
-            "next_page_token": next_page_token,
-        }
+        assert (len(origins)) <= limit
+
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
         self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False

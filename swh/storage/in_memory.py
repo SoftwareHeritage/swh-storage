@@ -690,23 +690,25 @@ class InMemoryStorage:
                 origin = self._convert_origin(self._origins[self._origins_by_id[idx]])
                 yield {"id": idx + 1, **origin}
 
-    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    def origin_list(
+        self, page_token: Optional[str] = None, limit: int = 100
+    ) -> PagedResult[Origin]:
         origin_urls = sorted(self._origins)
-        if page_token:
-            from_ = bisect.bisect_left(origin_urls, page_token)
-        else:
-            from_ = 0
+        from_ = bisect.bisect_left(origin_urls, page_token) if page_token else 0
+        next_page_token = None
 
-        result = {
-            "origins": [
-                {"url": origin_url} for origin_url in origin_urls[from_ : from_ + limit]
-            ]
-        }
+        # Take one more origin so we can reuse it as the next page token if any
+        origins = [Origin(url=url) for url in origin_urls[from_ : from_ + limit + 1]]
 
-        if from_ + limit < len(origin_urls):
-            result["next_page_token"] = origin_urls[from_ + limit]
+        if len(origins) > limit:
+            # last origin id is the next page token
+            next_page_token = str(origins[-1].url)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
 
-        return result
+        assert len(origins) <= limit
+
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
         self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False

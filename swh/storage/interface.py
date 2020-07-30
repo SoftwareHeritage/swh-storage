@@ -1022,7 +1022,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/list")
-    def origin_list(self, page_token: Optional[str] = None, limit: int = 100) -> dict:
+    def origin_list(
+        self, page_token: Optional[str] = None, limit: int = 100
+    ) -> PagedResult[Origin]:
         """Returns the list of origins
 
         Args:
@@ -1030,12 +1032,9 @@ class StorageInterface:
             limit: the maximum number of results to return
 
         Returns:
-            dict: dict with the following keys:
-              - **next_page_token** (str, optional): opaque token to be used as
-                `page_token` for retrieving the next page. if absent, there is
-                no more pages to gather.
-              - **origins** (List[dict]): list of origins, as returned by
-                `origin_get`.
+            Page of Origin data model objects. if next_page_token is None, there is
+            no longer data to retrieve.
+
         """
         ...
 

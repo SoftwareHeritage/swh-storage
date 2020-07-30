@@ -10,7 +10,6 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import (
-    Any,
     Counter,
     Dict,
     Iterable,
@@ -1083,26 +1082,28 @@ class Storage:
     @db_transaction()
     def origin_list(
         self, page_token: Optional[str] = None, limit: int = 100, *, db=None, cur=None
-    ) -> dict:
+    ) -> PagedResult[Origin]:
         page_token = page_token or "0"
         if not isinstance(page_token, str):
             raise StorageArgumentException("page_token must be a string.")
         origin_from = int(page_token)
-        result: Dict[str, Any] = {
-            "origins": [
-                dict(zip(db.origin_get_range_cols, origin))
-                for origin in db.origin_get_range(origin_from, limit, cur)
-            ],
-        }
+        next_page_token = None
 
-        assert len(result["origins"]) <= limit
-        if len(result["origins"]) == limit:
-            result["next_page_token"] = str(result["origins"][limit - 1]["id"] + 1)
+        origins: List[Origin] = []
+        # Take one more origin so we can reuse it as the next page token if any
+        for row_d in self.origin_get_range(origin_from, limit + 1, db=db, cur=cur):
+            origins.append(Origin(url=row_d["url"]))
+            # keep the last_id for the pagination if needed
+            last_id = row_d["id"]
 
-        for origin in result["origins"]:
-            del origin["id"]
+        if len(origins) > limit:  # data left for subsequent call
+            # last origin id is the next page token
+            next_page_token = str(last_id)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
 
-        return result
+        assert len(origins) <= limit
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     @timed
     @db_transaction_generator()

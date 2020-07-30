@@ -4005,22 +4005,21 @@ class TestStorageGeneratedData:
         page_token = None
         i = 0
         while True:
-            result = swh_storage.origin_list(page_token=page_token, limit=limit)
-            assert len(result["origins"]) <= limit
+            actual_page = swh_storage.origin_list(page_token=page_token, limit=limit)
+            assert len(actual_page.results) <= limit
 
-            returned_origins.extend(origin["url"] for origin in result["origins"])
+            returned_origins.extend(actual_page.results)
 
             i += 1
-            page_token = result.get("next_page_token")
+            page_token = actual_page.next_page_token
 
             if page_token is None:
                 assert i * limit >= len(swh_origins)
                 break
             else:
-                assert len(result["origins"]) == limit
+                assert len(actual_page.results) == limit
 
-        expected_origins = [origin.url for origin in swh_origins]
-        assert sorted(returned_origins) == sorted(expected_origins)
+        assert sorted(returned_origins) == sorted(swh_origins)
 
     def test_origin_count(self, swh_storage, sample_data):
         swh_storage.origin_add(sample_data.origins)

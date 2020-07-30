@@ -960,15 +960,16 @@ class Db(BaseDb):
 
     origin_get_range_cols = ["id", "url"]
 
-    def origin_get_range(self, origin_from=1, origin_count=100, cur=None):
+    def origin_get_range(self, origin_from: int = 1, origin_count: int = 100, cur=None):
         """Retrieve ``origin_count`` origins whose ids are greater
         or equal than ``origin_from``.
 
         Origins are sorted by id before retrieving them.
 
         Args:
-            origin_from (int): the minimum id of origins to retrieve
-            origin_count (int): the maximum number of origins to retrieve
+            origin_from: the minimum id of origins to retrieve
+            origin_count: the maximum number of origins to retrieve
+
         """
         cur = self._cursor(cur)
 
