@@ -12,6 +12,7 @@ from swh.core.db import BaseDb
 from swh.core.db.db_utils import stored_procedure, jsonize as _jsonize
 from swh.core.db.db_utils import execute_values_generator
 from swh.model.model import OriginVisit, OriginVisitStatus, SHA1_SIZE
+from swh.storage.interface import ListOrder
 
 
 def jsonize(d):
@@ -481,6 +482,8 @@ class Db(BaseDb):
             + [jsonize(visit_status.metadata)],
         )
 
+    origin_visit_cols = ["origin", "visit", "date", "type"]
+
     def origin_visit_add_with_id(self, origin_visit: OriginVisit, cur=None) -> None:
         """Insert origin visit when id are already set
 
@@ -488,12 +491,11 @@ class Db(BaseDb):
         ov = origin_visit
         assert ov.visit is not None
         cur = self._cursor(cur)
-        origin_visit_cols = ["origin", "visit", "date", "type"]
         query = """INSERT INTO origin_visit ({cols})
                    VALUES ((select id from origin where url=%s), {values})
                    ON CONFLICT (origin, visit) DO NOTHING""".format(
-            cols=", ".join(origin_visit_cols),
-            values=", ".join("%s" for col in origin_visit_cols[1:]),
+            cols=", ".join(self.origin_visit_cols),
+            values=", ".join("%s" for col in self.origin_visit_cols[1:]),
         )
         cur.execute(query, (ov.origin, ov.visit, ov.date, ov.type))
 
@@ -572,47 +574,72 @@ class Db(BaseDb):
         row = cur.fetchone()
         return self._make_origin_visit_status(row)
 
-    def origin_visit_get_all(
-        self, origin_id, last_visit=None, order="asc", limit=None, cur=None
+    def origin_visit_status_get_range(
+        self,
+        origin: str,
+        visit: int,
+        date_from: Optional[datetime.datetime],
+        order: ListOrder,
+        limit: int,
+        cur=None,
     ):
-        """Retrieve all visits for origin with id origin_id.
-
-        Args:
-            origin_id: The occurrence's origin
-
-        Yields:
-            The visits for that origin
+        """Retrieve visit_status rows for visit (origin, visit) in a paginated way.
 
         """
         cur = self._cursor(cur)
-        assert order.lower() in ["asc", "desc"]
 
         query_parts = [
-            "SELECT DISTINCT ON (ov.visit) %s "
-            % ", ".join(self.origin_visit_select_cols),
-            "FROM origin_visit ov",
-            "INNER JOIN origin o ON o.id = ov.origin",
-            "INNER JOIN origin_visit_status ovs",
-            "ON ov.origin = ovs.origin AND ov.visit = ovs.visit",
+            f"SELECT {', '.join(self.origin_visit_status_select_cols)} "
+            "FROM origin_visit_status ovs ",
+            "INNER JOIN origin o ON o.id = ovs.origin ",
         ]
-        query_parts.append("WHERE o.url = %s")
-        query_params: List[Any] = [origin_id]
+        query_parts.append("WHERE o.url = %s AND ovs.visit = %s ")
+        query_params: List[Any] = [origin, visit]
 
-        if last_visit is not None:
-            op_comparison = ">" if order == "asc" else "<"
-            query_parts.append(f"and ov.visit {op_comparison} %s")
-            query_params.append(last_visit)
+        if date_from is not None:
+            op_comparison = ">=" if order == ListOrder.ASC else "<="
+            query_parts.append(f"and ovs.date {op_comparison} %s ")
+            query_params.append(date_from)
 
-        if order == "asc":
-            query_parts.append("ORDER BY ov.visit ASC, ovs.date DESC")
-        elif order == "desc":
-            query_parts.append("ORDER BY ov.visit DESC, ovs.date DESC")
+        if order == ListOrder.ASC:
+            query_parts.append("ORDER BY ovs.date ASC ")
+        elif order == ListOrder.DESC:
+            query_parts.append("ORDER BY ovs.date DESC ")
         else:
             assert False
 
-        if limit is not None:
-            query_parts.append("LIMIT %s")
-            query_params.append(limit)
+        query_parts.append("LIMIT %s")
+        query_params.append(limit)
+
+        query = "\n".join(query_parts)
+        cur.execute(query, tuple(query_params))
+        yield from cur
+
+    def origin_visit_get_range(
+        self, origin: str, visit_from: int, order: ListOrder, limit: int, cur=None,
+    ):
+        cur = self._cursor(cur)
+
+        origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
+        query_parts = [
+            f"SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov ",
+            "INNER JOIN origin o ON o.id = ov.origin ",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin]
+
+        if visit_from > 0:
+            op_comparison = ">" if order == ListOrder.ASC else "<"
+            query_parts.append(f"and ov.visit {op_comparison} %s")
+            query_params.append(visit_from)
+
+        if order == ListOrder.ASC:
+            query_parts.append("ORDER BY ov.visit ASC")
+        elif order == ListOrder.DESC:
+            query_parts.append("ORDER BY ov.visit DESC")
+
+        query_parts.append("LIMIT %s")
+        query_params.append(limit)
 
         query = "\n".join(query_parts)
         cur.execute(query, tuple(query_params))
@@ -933,15 +960,16 @@ class Db(BaseDb):
 
     origin_get_range_cols = ["id", "url"]
 
-    def origin_get_range(self, origin_from=1, origin_count=100, cur=None):
+    def origin_get_range(self, origin_from: int = 1, origin_count: int = 100, cur=None):
         """Retrieve ``origin_count`` origins whose ids are greater
         or equal than ``origin_from``.
 
         Origins are sorted by id before retrieving them.
 
         Args:
-            origin_from (int): the minimum id of origins to retrieve
-            origin_count (int): the maximum number of origins to retrieve
+            origin_from: the minimum id of origins to retrieve
+            origin_count: the maximum number of origins to retrieve
+
         """
         cur = self._cursor(cur)
 

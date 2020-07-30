@@ -3,10 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Optional, Iterable, Iterator, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
-from swh.storage.interface import StorageInterface
+from swh.storage.interface import ListOrder, StorageInterface
 
 
 def iter_origins(
@@ -50,7 +50,7 @@ def origin_get_latest_visit_status(
     storage: StorageInterface,
     origin_url: str,
     type: Optional[str] = None,
-    allowed_statuses: Optional[Iterable[str]] = None,
+    allowed_statuses: Optional[List[str]] = None,
     require_snapshot: bool = False,
 ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
     """Get the latest origin visit (and status) of an origin. Optionally, a combination of
@@ -85,6 +85,7 @@ def origin_get_latest_visit_status(
     )
     result: Optional[Tuple[OriginVisit, OriginVisitStatus]] = None
     if visit:
+        assert visit.visit is not None
         visit_status = storage.origin_visit_status_get_latest(
             origin_url,
             visit.visit,
@@ -94,3 +95,35 @@ def origin_get_latest_visit_status(
         if visit_status:
             result = visit, visit_status
     return result
+
+
+def iter_origin_visits(
+    storage: StorageInterface, origin: str, order: ListOrder = ListOrder.ASC
+) -> Iterator[OriginVisit]:
+    """Iter over origin visits from an origin
+
+    """
+    next_page_token = None
+    while True:
+        page = storage.origin_visit_get(origin, order=order, page_token=next_page_token)
+        next_page_token = page.next_page_token
+        yield from page.results
+        if page.next_page_token is None:
+            break
+
+
+def iter_origin_visit_statuses(
+    storage: StorageInterface, origin: str, visit: int, order: ListOrder = ListOrder.ASC
+) -> Iterator[OriginVisitStatus]:
+    """Iter over origin visit status from an origin visit
+
+    """
+    next_page_token = None
+    while True:
+        page = storage.origin_visit_status_get(
+            origin, visit, order=order, page_token=next_page_token
+        )
+        next_page_token = page.next_page_token
+        yield from page.results
+        if next_page_token is None:
+            break

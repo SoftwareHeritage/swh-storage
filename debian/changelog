@@ -1,8 +1,22 @@
-swh-storage (0.11.5-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.11.6-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.11.6     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-07-30 16:20:48
+    +0200)
+  * Upstream changes:     - v0.11.6     - storage*: Adapt
+    origin_list(...) -> PagedResult[Origin]     - algos.snapshot: Open
+    snapshot_id_get_from_revision     - storage*: add
+    origin_visit_status_get(...) -> PagedResult[OriginVisitStatus]     -
+    Add type annotations on get_storage.     - buffer: Pass lists to
+    backend functions, not iterables.     - storage*: Simplify next-page-
+    token computation     - filter: Fix types passed to the proxied
+    storage.     - Fix upcoming type warning with swh.core > v0.1.2.
+    - Make API endpoints take Lists instead of Iterables as arguments
+    - storage*: use an enum to explicit the order in origin_visit_get
+    - storage*: origin_visit_get(...) -> PagedResult[OriginVisit]     -
+    Write metadata + metadata authorities/fetchers to the journal.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 28 Jul 2020 08:20:05 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 30 Jul 2020 14:29:10 +0000
 
 swh-storage (0.11.5-1~swh1) unstable-swh; urgency=medium
 
