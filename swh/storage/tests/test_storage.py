@@ -1576,113 +1576,103 @@ class TestStorage:
     def test_origin_search_single_result(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
 
-        found_origins = list(swh_storage.origin_search(origin.url))
-        assert len(found_origins) == 0
+        actual_page = swh_storage.origin_search(origin.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
 
-        found_origins = list(swh_storage.origin_search(origin.url, regexp=True))
-        assert len(found_origins) == 0
+        actual_page = swh_storage.origin_search(origin.url, regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
 
         swh_storage.origin_add([origin])
-        origin_data = origin.to_dict()
-        found_origins = list(swh_storage.origin_search(origin.url))
+        actual_page = swh_storage.origin_search(origin.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin]
 
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin_data
-
-        found_origins = list(
-            swh_storage.origin_search(f".{origin.url[1:-1]}.", regexp=True)
-        )
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin_data
+        actual_page = swh_storage.origin_search(f".{origin.url[1:-1]}.", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin]
 
         swh_storage.origin_add([origin2])
-        origin2_data = origin2.to_dict()
-        found_origins = list(swh_storage.origin_search(origin2.url))
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin2_data
+        actual_page = swh_storage.origin_search(origin2.url)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
-        found_origins = list(
-            swh_storage.origin_search(f".{origin2.url[1:-1]}.", regexp=True)
-        )
-        assert len(found_origins) == 1
-        assert found_origins[0] == origin2_data
+        actual_page = swh_storage.origin_search(f".{origin2.url[1:-1]}.", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_search_no_regexp(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
-        origin_dicts = [o.to_dict() for o in [origin, origin2]]
-
         swh_storage.origin_add([origin, origin2])
 
         # no pagination
-        found_origins = list(swh_storage.origin_search("/"))
-        assert len(found_origins) == 2
+        actual_page = swh_storage.origin_search("/")
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin, origin2]
 
         # offset=0
-        found_origins0 = list(swh_storage.origin_search("/", offset=0, limit=1))
-        assert len(found_origins0) == 1
-        assert found_origins0[0] in origin_dicts
+        actual_page = swh_storage.origin_search("/", page_token=None, limit=1)
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [origin]
 
         # offset=1
-        found_origins1 = list(swh_storage.origin_search("/", offset=1, limit=1))
-        assert len(found_origins1) == 1
-        assert found_origins1[0] in origin_dicts
-
-        # check both origins were returned
-        assert found_origins0 != found_origins1
+        actual_page = swh_storage.origin_search(
+            "/", page_token=next_page_token, limit=1
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_search_regexp_substring(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
-        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
 
         # no pagination
-        found_origins = list(swh_storage.origin_search("/", regexp=True))
-        assert len(found_origins) == 2
+        actual_page = swh_storage.origin_search("/", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin, origin2]
 
         # offset=0
-        found_origins0 = list(
-            swh_storage.origin_search("/", offset=0, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            "/", page_token=None, limit=1, regexp=True
         )
-        assert len(found_origins0) == 1
-        assert found_origins0[0] in origin_dicts
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [origin]
 
         # offset=1
-        found_origins1 = list(
-            swh_storage.origin_search("/", offset=1, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            "/", page_token=next_page_token, limit=1, regexp=True
         )
-        assert len(found_origins1) == 1
-        assert found_origins1[0] in origin_dicts
-
-        # check both origins were returned
-        assert found_origins0 != found_origins1
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_search_regexp_fullstring(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
-        origin_dicts = [o.to_dict() for o in [origin, origin2]]
 
         swh_storage.origin_add([origin, origin2])
 
         # no pagination
-        found_origins = list(swh_storage.origin_search(".*/.*", regexp=True))
-        assert len(found_origins) == 2
+        actual_page = swh_storage.origin_search(".*/.*", regexp=True)
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin, origin2]
 
         # offset=0
-        found_origins0 = list(
-            swh_storage.origin_search(".*/.*", offset=0, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            ".*/.*", page_token=None, limit=1, regexp=True
         )
-        assert len(found_origins0) == 1
-        assert found_origins0[0] in origin_dicts
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [origin]
 
         # offset=1
-        found_origins1 = list(
-            swh_storage.origin_search(".*/.*", offset=1, limit=1, regexp=True)
+        actual_page = swh_storage.origin_search(
+            ".*/.*", page_token=next_page_token, limit=1, regexp=True
         )
-        assert len(found_origins1) == 1
-        assert found_origins1[0] in origin_dicts
-
-        # check both origins were returned
-        assert found_origins0 != found_origins1
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
 
     def test_origin_visit_add(self, swh_storage, sample_data):
         origin1 = sample_data.origins[1]
@@ -3360,8 +3350,8 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
-        assert result["next_page_token"] is None
-        assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == list(
+        assert result.next_page_token is None
+        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == list(
             content_metadata
         )
 
@@ -3397,12 +3387,12 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
 
         expected_results1 = (content_metadata, new_content_metadata2)
         expected_results2 = (content_metadata, content_metadata2)
 
-        assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
+        assert tuple(sorted(result.results, key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
@@ -3436,24 +3426,24 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content1_swhid, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [content1_metadata1, content1_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content1_swhid, authority2
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [content1_metadata3] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content2_swhid, authority
         )
-        assert result["next_page_token"] is None
-        assert [content2_metadata] == list(result["results"],)
+        assert result.next_page_token is None
+        assert [content2_metadata] == list(result.results,)
 
     def test_content_metadata_get_after(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3474,9 +3464,9 @@ class TestStorage:
             authority,
             after=content_metadata.discovery_date - timedelta(seconds=1),
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [content_metadata, content_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
@@ -3485,8 +3475,8 @@ class TestStorage:
             authority,
             after=content_metadata.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [content_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [content_metadata2]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
@@ -3494,8 +3484,8 @@ class TestStorage:
             authority,
             after=content_metadata2.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == []
+        assert result.next_page_token is None
+        assert result.results == []
 
     def test_content_metadata_get_paginate(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3515,18 +3505,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [content_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [content_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [content_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [content_metadata2]
 
     def test_content_metadata_get_paginate_same_date(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3552,18 +3542,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [content_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [content_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [new_content_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [new_content_metadata2]
 
     def test_content_metadata_get__invalid_id(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3596,8 +3586,8 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
-        assert result["next_page_token"] is None
-        assert list(sorted(result["results"], key=lambda x: x.discovery_date)) == [
+        assert result.next_page_token is None
+        assert list(sorted(result.results, key=lambda x: x.discovery_date)) == [
             origin_metadata,
             origin_metadata2,
         ]
@@ -3634,13 +3624,13 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
 
         # which of the two behavior happens is backend-specific.
         expected_results1 = (origin_metadata, new_origin_metadata2)
         expected_results2 = (origin_metadata, origin_metadata2)
 
-        assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
+        assert tuple(sorted(result.results, key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
@@ -3669,24 +3659,24 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [origin1_metadata1, origin1_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority2
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [origin1_metadata3] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin2.url, authority
         )
-        assert result["next_page_token"] is None
-        assert [origin2_metadata] == list(result["results"],)
+        assert result.next_page_token is None
+        assert [origin2_metadata] == list(result.results,)
 
     def test_origin_metadata_get_after(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3706,8 +3696,8 @@ class TestStorage:
             authority,
             after=origin_metadata.discovery_date - timedelta(seconds=1),
         )
-        assert result["next_page_token"] is None
-        assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == [
+        assert result.next_page_token is None
+        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == [
             origin_metadata,
             origin_metadata2,
         ]
@@ -3718,8 +3708,8 @@ class TestStorage:
             authority,
             after=origin_metadata.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [origin_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [origin_metadata2]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
@@ -3727,8 +3717,8 @@ class TestStorage:
             authority,
             after=origin_metadata2.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == []
+        assert result.next_page_token is None
+        assert result.results == []
 
     def test_origin_metadata_get_paginate(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3749,18 +3739,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [origin_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [origin_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [origin_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [origin_metadata2]
 
     def test_origin_metadata_get_paginate_same_date(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3783,18 +3773,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [origin_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [origin_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [new_origin_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [new_origin_metadata2]
 
     def test_origin_metadata_add_missing_authority(self, swh_storage, sample_data):
         origin = sample_data.origin

@@ -11,7 +11,6 @@ from typing import Any, Container, Dict, Optional
 import pytest
 
 from swh.model.hashutil import hash_to_hex, MultiHash, DEFAULT_ALGORITHMS
-from swh.model.model import Content
 
 from swh.storage import get_storage
 from swh.storage.in_memory import InMemoryStorage
@@ -120,9 +119,9 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
     prefix = src.journal_writer.journal._prefix
     for content in DUPLICATE_CONTENTS:
         topic = f"{prefix}.content"
-        key = content["sha1"]
+        key = content.sha1
         producer.produce(
-            topic=topic, key=key_to_kafka(key), value=value_to_kafka(content),
+            topic=topic, key=key_to_kafka(key), value=value_to_kafka(content.to_dict()),
         )
         nb_sent += 1
 
@@ -149,14 +148,14 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
 
     algo = "sha1"
     assert actual_collision["algo"] == algo
-    expected_colliding_hash = hash_to_hex(DUPLICATE_CONTENTS[0][algo])
+    expected_colliding_hash = hash_to_hex(DUPLICATE_CONTENTS[0].get_hash(algo))
     assert actual_collision["hash"] == expected_colliding_hash
 
     actual_colliding_hashes = actual_collision["objects"]
     assert len(actual_colliding_hashes) == len(DUPLICATE_CONTENTS)
     for content in DUPLICATE_CONTENTS:
         expected_content_hashes = {
-            k: hash_to_hex(v) for k, v in Content.from_dict(content).hashes().items()
+            k: hash_to_hex(v) for k, v in content.hashes().items()
         }
         assert expected_content_hashes in actual_colliding_hashes
 

@@ -34,7 +34,7 @@ def test_config_ko_missing_mandatory_key():
         with pytest.raises(ValueError) as e:
             JournalBackfiller(config)
 
-        error = "Configuration error: The following keys must be" " provided: %s" % (
+        error = "Configuration error: The following keys must be provided: %s" % (
             ",".join([key]),
         )
         assert e.value.args[0] == error
@@ -167,12 +167,15 @@ RANGE_GENERATORS = {
     "content": lambda start, end: [(None, None)],
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: [(None, None)],
+    "metadata_authority": lambda start, end: [(None, None)],
+    "metadata_fetcher": lambda start, end: [(None, None)],
     "revision": lambda start, end: [(None, None)],
     "release": lambda start, end: [(None, None)],
     "snapshot": lambda start, end: [(None, None)],
     "origin": lambda start, end: [(None, 10000)],
     "origin_visit": lambda start, end: [(None, 10000)],
     "origin_visit_status": lambda start, end: [(None, 10000)],
+    "raw_extrinsic_metadata": lambda start, end: [(None, None)],
 }
 
 

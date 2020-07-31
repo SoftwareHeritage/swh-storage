@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import base64
 import contextlib
 import datetime
 import itertools
@@ -25,7 +26,7 @@ import psycopg2.pool
 import psycopg2.errors
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
-from swh.model.identifiers import parse_swhid, SWHID
+from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -1106,21 +1107,37 @@ class Storage:
         return PagedResult(results=origins, next_page_token=next_page_token)
 
     @timed
-    @db_transaction_generator()
+    @db_transaction()
     def origin_search(
         self,
-        url_pattern,
-        offset=0,
-        limit=50,
-        regexp=False,
-        with_visit=False,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
         db=None,
         cur=None,
-    ):
+    ) -> PagedResult[Origin]:
+        next_page_token = None
+        offset = int(page_token) if page_token else 0
+
+        origins = []
+        # Take one more origin so we can reuse it as the next page token if any
         for origin in db.origin_search(
-            url_pattern, offset, limit, regexp, with_visit, cur
+            url_pattern, offset, limit + 1, regexp, with_visit, cur
         ):
-            yield dict(zip(db.origin_cols, origin))
+            row_d = dict(zip(db.origin_cols, origin))
+            origins.append(Origin(url=row_d["url"]))
+
+        if len(origins) > limit:
+            # next offset
+            next_page_token = str(offset + limit)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
+
+        assert len(origins) <= limit
+
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     @timed
     @db_transaction()
@@ -1182,7 +1199,7 @@ class Storage:
             fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
             db.raw_extrinsic_metadata_add(
-                object_type=metadata_entry.type.value,
+                type=metadata_entry.type.value,
                 id=str(metadata_entry.id),
                 discovery_date=metadata_entry.discovery_date,
                 authority_id=authority_id,
@@ -1200,17 +1217,17 @@ class Storage:
             )
             counter[metadata_entry.type] += 1
 
-        for (object_type, count) in counter.items():
+        for (type, count) in counter.items():
             send_metric(
-                f"{object_type.value}_metadata:add",
+                f"{type.value}_metadata:add",
                 count=count,
-                method_name=f"{object_type.value}_metadata_add",
+                method_name=f"{type.value}_metadata_add",
             )
 
     @db_transaction()
     def raw_extrinsic_metadata_get(
         self,
-        object_type: MetadataTargetType,
+        type: MetadataTargetType,
         id: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
@@ -1218,22 +1235,22 @@ class Storage:
         limit: int = 1000,
         db=None,
         cur=None,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
-        if object_type == MetadataTargetType.ORIGIN:
+    ) -> PagedResult[RawExtrinsicMetadata]:
+        if type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"raw_extrinsic_metadata_get called with type='origin', "
                     f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"raw_extrinsic_metadata_get called with type!='origin', "
                     f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token:
-            (after_time, after_fetcher) = msgpack_loads(page_token)
+            (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
             if after and after_time < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
@@ -1244,70 +1261,33 @@ class Storage:
 
         authority_id = self._get_authority_id(authority, db, cur)
         if not authority_id:
-            return {
-                "next_page_token": None,
-                "results": [],
-            }
+            return PagedResult(next_page_token=None, results=[],)
 
         rows = db.raw_extrinsic_metadata_get(
-            object_type,
-            str(id),
-            authority_id,
-            after_time,
-            after_fetcher,
-            limit + 1,
-            cur,
+            type, str(id), authority_id, after_time, after_fetcher, limit + 1, cur,
         )
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
-            row = row.copy()
-            row.pop("metadata_fetcher.id")
-
             assert str(id) == row["raw_extrinsic_metadata.id"]
-
-            result = RawExtrinsicMetadata(
-                type=MetadataTargetType(row["raw_extrinsic_metadata.type"]),
-                id=id,
-                authority=MetadataAuthority(
-                    type=MetadataAuthorityType(row["metadata_authority.type"]),
-                    url=row["metadata_authority.url"],
-                ),
-                fetcher=MetadataFetcher(
-                    name=row["metadata_fetcher.name"],
-                    version=row["metadata_fetcher.version"],
-                ),
-                discovery_date=row["discovery_date"],
-                format=row["format"],
-                metadata=row["raw_extrinsic_metadata.metadata"],
-                origin=row["origin"],
-                visit=row["visit"],
-                snapshot=map_optional(parse_swhid, row["snapshot"]),
-                release=map_optional(parse_swhid, row["release"]),
-                revision=map_optional(parse_swhid, row["revision"]),
-                path=row["path"],
-                directory=map_optional(parse_swhid, row["directory"]),
-            )
-
-            results.append(result)
+            results.append(converters.db_to_raw_extrinsic_metadata(row))
 
         if len(results) > limit:
             results.pop()
             assert len(results) == limit
             last_returned_row = rows[-2]  # rows[-1] corresponds to the popped result
-            next_page_token: Optional[bytes] = msgpack_dumps(
-                (
-                    last_returned_row["discovery_date"],
-                    last_returned_row["metadata_fetcher.id"],
+            next_page_token: Optional[str] = base64.b64encode(
+                msgpack_dumps(
+                    (
+                        last_returned_row["discovery_date"],
+                        last_returned_row["metadata_fetcher.id"],
+                    )
                 )
-            )
+            ).decode()
         else:
             next_page_token = None
 
-        return {
-            "next_page_token": next_page_token,
-            "results": results,
-        }
+        return PagedResult(next_page_token=next_page_token, results=results,)
 
     @timed
     @db_transaction()

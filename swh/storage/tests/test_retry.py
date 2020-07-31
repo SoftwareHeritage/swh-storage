@@ -485,8 +485,8 @@ def test_retrying_proxy_storage_raw_extrinsic_metadata_add(swh_storage, sample_d
     origin_metadata = swh_storage.raw_extrinsic_metadata_get(
         MetadataTargetType.ORIGIN, ori_meta.id, ori_meta.authority
     )
-    assert origin_metadata["next_page_token"] is None
-    assert not origin_metadata["results"]
+    assert origin_metadata.next_page_token is None
+    assert not origin_metadata.results
 
     swh_storage.raw_extrinsic_metadata_add([ori_meta])
 
