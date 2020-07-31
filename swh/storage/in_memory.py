@@ -755,7 +755,9 @@ class InMemoryStorage:
         assert len(origins) <= limit
         return PagedResult(results=origins, next_page_token=next_page_token)
 
-    def origin_count(self, url_pattern, regexp=False, with_visit=False):
+    def origin_count(
+        self, url_pattern: str, regexp: bool = False, with_visit: bool = False
+    ) -> int:
         actual_page = self.origin_search(
             url_pattern, regexp=regexp, with_visit=with_visit, limit=len(self._origins),
         )

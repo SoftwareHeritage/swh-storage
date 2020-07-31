@@ -1142,8 +1142,13 @@ class Storage:
     @timed
     @db_transaction()
     def origin_count(
-        self, url_pattern, regexp=False, with_visit=False, db=None, cur=None
-    ):
+        self,
+        url_pattern: str,
+        regexp: bool = False,
+        with_visit: bool = False,
+        db=None,
+        cur=None,
+    ) -> int:
         return db.origin_count(url_pattern, regexp, with_visit, cur)
 
     @timed

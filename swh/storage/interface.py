@@ -1067,7 +1067,9 @@ class StorageInterface:
 
     @deprecated
     @remote_api_endpoint("origin/count")
-    def origin_count(self, url_pattern, regexp=False, with_visit=False):
+    def origin_count(
+        self, url_pattern: str, regexp: bool = False, with_visit: bool = False
+    ) -> int:
         """Count origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The pattern search in origin urls is performed in a case insensitive
