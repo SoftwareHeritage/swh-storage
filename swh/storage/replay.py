@@ -19,13 +19,16 @@ from swh.model.model import (
     BaseModel,
     Content,
     Directory,
+    MetadataAuthority,
+    MetadataFetcher,
     Origin,
     OriginVisit,
     OriginVisitStatus,
+    RawExtrinsicMetadata,
+    Release,
     Revision,
     SkippedContent,
     Snapshot,
-    Release,
 )
 from swh.storage.exc import HashCollision
 
@@ -45,6 +48,9 @@ object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
     "directory": Directory.from_dict,
     "content": Content.from_dict,
     "skipped_content": SkippedContent.from_dict,
+    "metadata_authority": MetadataAuthority.from_dict,
+    "metadata_fetcher": MetadataFetcher.from_dict,
+    "raw_extrinsic_metadata": RawExtrinsicMetadata.from_dict,
 }
 
 

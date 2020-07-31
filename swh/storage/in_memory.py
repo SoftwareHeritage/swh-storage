@@ -3,13 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import re
+import base64
 import bisect
 import collections
 import copy
 import datetime
 import itertools
 import random
+import re
 
 from collections import defaultdict
 from datetime import timedelta
@@ -711,20 +712,29 @@ class InMemoryStorage:
         return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
-    ):
-        origins = map(self._convert_origin, self._origins.values())
+        self,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+    ) -> PagedResult[Origin]:
+        next_page_token = None
+        offset = int(page_token) if page_token else 0
+
+        origins = self._origins.values()
         if regexp:
             pat = re.compile(url_pattern)
-            origins = [orig for orig in origins if pat.search(orig["url"])]
+            origins = [orig for orig in origins if pat.search(orig.url)]
         else:
-            origins = [orig for orig in origins if url_pattern in orig["url"]]
+            origins = [orig for orig in origins if url_pattern in orig.url]
+
         if with_visit:
             filtered_origins = []
             for orig in origins:
                 visits = (
                     self._origin_visit_get_updated(ov.origin, ov.visit)
-                    for ov in self._origin_visits[orig["url"]]
+                    for ov in self._origin_visits[orig.url]
                 )
                 for ov in visits:
                     snapshot = ov["snapshot"]
@@ -734,17 +744,23 @@ class InMemoryStorage:
         else:
             filtered_origins = origins
 
-        return filtered_origins[offset : offset + limit]
+        # Take one more origin so we can reuse it as the next page token if any
+        origins = filtered_origins[offset : offset + limit + 1]
+        if len(origins) > limit:
+            # next offset
+            next_page_token = str(offset + limit)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
+
+        assert len(origins) <= limit
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_count(self, url_pattern, regexp=False, with_visit=False):
-        return len(
-            self.origin_search(
-                url_pattern,
-                regexp=regexp,
-                with_visit=with_visit,
-                limit=len(self._origins),
-            )
+        actual_page = self.origin_search(
+            url_pattern, regexp=regexp, with_visit=with_visit, limit=len(self._origins),
         )
+        assert actual_page.next_page_token is None
+        return len(actual_page.results)
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         added = 0
@@ -1093,45 +1109,45 @@ class InMemoryStorage:
 
     def raw_extrinsic_metadata_get(
         self,
-        object_type: MetadataTargetType,
+        type: MetadataTargetType,
         id: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+    ) -> PagedResult[RawExtrinsicMetadata]:
         authority_key = self._metadata_authority_key(authority)
 
-        if object_type == MetadataTargetType.ORIGIN:
+        if type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"raw_extrinsic_metadata_get called with type='origin', "
                     f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"raw_extrinsic_metadata_get called with type!='origin', "
                     f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token is not None:
-            (after_time, after_fetcher) = msgpack_loads(page_token)
+            (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
             after_fetcher = tuple(after_fetcher)
             if after is not None and after > after_time:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._raw_extrinsic_metadata[object_type][id][
-                authority_key
-            ].iter_after((after_time, after_fetcher))
+            entries = self._raw_extrinsic_metadata[type][id][authority_key].iter_after(
+                (after_time, after_fetcher)
+            )
         elif after is not None:
-            entries = self._raw_extrinsic_metadata[object_type][id][
-                authority_key
-            ].iter_from((after,))
+            entries = self._raw_extrinsic_metadata[type][id][authority_key].iter_from(
+                (after,)
+            )
             entries = (entry for entry in entries if entry.discovery_date > after)
         else:
-            entries = iter(self._raw_extrinsic_metadata[object_type][id][authority_key])
+            entries = iter(self._raw_extrinsic_metadata[type][id][authority_key])
 
         if limit:
             entries = itertools.islice(entries, 0, limit + 1)
@@ -1158,19 +1174,18 @@ class InMemoryStorage:
             results.pop()
             assert len(results) == limit
             last_result = results[-1]
-            next_page_token: Optional[bytes] = msgpack_dumps(
-                (
-                    last_result.discovery_date,
-                    self._metadata_fetcher_key(last_result.fetcher),
+            next_page_token: Optional[str] = base64.b64encode(
+                msgpack_dumps(
+                    (
+                        last_result.discovery_date,
+                        self._metadata_fetcher_key(last_result.fetcher),
+                    )
                 )
-            )
+            ).decode()
         else:
             next_page_token = None
 
-        return {
-            "next_page_token": next_page_token,
-            "results": results,
-        }
+        return PagedResult(next_page_token=next_page_token, results=results,)
 
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
         self.journal_writer.metadata_fetcher_add(fetchers)

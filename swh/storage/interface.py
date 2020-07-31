@@ -1040,24 +1040,28 @@ class StorageInterface:
 
     @remote_api_endpoint("origin/search")
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
-    ):
+        self,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+    ) -> PagedResult[Origin]:
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
 
         Args:
-            url_pattern (str): the string pattern to search for in origin urls
-            offset (int): number of found origins to skip before returning
-                results
-            limit (int): the maximum number of found origins to return
-            regexp (bool): if True, consider the provided pattern as a regular
+            url_pattern: the string pattern to search for in origin urls
+            page_token: opaque token used for pagination
+            limit: the maximum number of found origins to return
+            regexp: if True, consider the provided pattern as a regular
                 expression and return origins whose urls match it
-            with_visit (bool): if True, filter out origins with no visit
+            with_visit: if True, filter out origins with no visit
 
         Yields:
-            dicts containing origin information as returned
-            by :meth:`swh.storage.storage.Storage.origin_get`.
+            PagedResult of Origin
+
         """
         ...
 
@@ -1133,28 +1137,25 @@ class StorageInterface:
     @remote_api_endpoint("raw_extrinsic_metadata/get")
     def raw_extrinsic_metadata_get(
         self,
-        object_type: MetadataTargetType,
+        type: MetadataTargetType,
         id: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+    ) -> PagedResult[RawExtrinsicMetadata]:
         """Retrieve list of all raw_extrinsic_metadata entries for the id
 
         Args:
-            object_type: one of the values of swh.model.model.MetadataTargetType
-            id: an URL if object_type is 'origin', else a core SWHID
+            type: one of the values of swh.model.model.MetadataTargetType
+            id: an URL if type is 'origin', else a core SWHID
             authority: a dict containing keys `type` and `url`.
             after: minimum discovery_date for a result to be returned
             page_token: opaque token, used to get the next page of results
             limit: maximum number of results to be returned
 
         Returns:
-            dict with keys `next_page_token` and `results`.
-            `next_page_token` is an opaque token that is used to get the
-            next page of results, or `None` if there are no more results.
-            `results` is a list of RawExtrinsicMetadata objects:
+            PagedResult of RawExtrinsicMetadata
 
         """
         ...

@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import base64
 import datetime
 import itertools
 import json
@@ -729,25 +730,41 @@ class CassandraStorage:
             # excluding that origin from the result to respect the limit size
             origins = origins[:limit]
 
-        assert (len(origins)) <= limit
+        assert len(origins) <= limit
 
         return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False
-    ):
+        self,
+        url_pattern: str,
+        page_token: Optional[str] = None,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+    ) -> PagedResult[Origin]:
         # TODO: remove this endpoint, swh-search should be used instead.
+        next_page_token = None
+        offset = int(page_token) if page_token else 0
+
         origins = self._cql_runner.origin_iter_all()
         if regexp:
             pat = re.compile(url_pattern)
-            origins = [orig for orig in origins if pat.search(orig.url)]
+            origins = [Origin(orig.url) for orig in origins if pat.search(orig.url)]
         else:
-            origins = [orig for orig in origins if url_pattern in orig.url]
+            origins = [Origin(orig.url) for orig in origins if url_pattern in orig.url]
 
         if with_visit:
-            origins = [orig for orig in origins if orig.next_visit_id > 1]
+            origins = [Origin(orig.url) for orig in origins if orig.next_visit_id > 1]
 
-        return [{"url": orig.url,} for orig in origins[offset : offset + limit]]
+        origins = origins[offset : offset + limit + 1]
+        if len(origins) > limit:
+            # next offset
+            next_page_token = str(offset + limit)
+            # excluding that origin from the result to respect the limit size
+            origins = origins[:limit]
+
+        assert len(origins) <= limit
+        return PagedResult(results=origins, next_page_token=next_page_token)
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
@@ -1050,29 +1067,29 @@ class CassandraStorage:
 
     def raw_extrinsic_metadata_get(
         self,
-        object_type: MetadataTargetType,
+        type: MetadataTargetType,
         id: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
-        if object_type == MetadataTargetType.ORIGIN:
+    ) -> PagedResult[RawExtrinsicMetadata]:
+        if type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"raw_extrinsic_metadata_get called with type='origin', "
                     f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"raw_extrinsic_metadata_get called with type!='origin', "
                     f"but provided id is not an SWHID: {id!r}"
                 )
 
         if page_token is not None:
             (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
-                page_token
+                base64.b64decode(page_token)
             )
             if after and after_date < after:
                 raise StorageArgumentException(
@@ -1132,20 +1149,19 @@ class CassandraStorage:
             results.pop()
             assert len(results) == limit
             last_result = results[-1]
-            next_page_token: Optional[bytes] = msgpack_dumps(
-                (
-                    last_result.discovery_date,
-                    last_result.fetcher.name,
-                    last_result.fetcher.version,
+            next_page_token: Optional[str] = base64.b64encode(
+                msgpack_dumps(
+                    (
+                        last_result.discovery_date,
+                        last_result.fetcher.name,
+                        last_result.fetcher.version,
+                    )
                 )
-            )
+            ).decode()
         else:
             next_page_token = None
 
-        return {
-            "next_page_token": next_page_token,
-            "results": results,
-        }
+        return PagedResult(next_page_token=next_page_token, results=results,)
 
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
         self.journal_writer.metadata_fetcher_add(fetchers)
