@@ -1137,7 +1137,7 @@ class StorageInterface:
     @remote_api_endpoint("raw_extrinsic_metadata/get")
     def raw_extrinsic_metadata_get(
         self,
-        object_type: MetadataTargetType,
+        type: MetadataTargetType,
         id: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
@@ -1147,8 +1147,8 @@ class StorageInterface:
         """Retrieve list of all raw_extrinsic_metadata entries for the id
 
         Args:
-            object_type: one of the values of swh.model.model.MetadataTargetType
-            id: an URL if object_type is 'origin', else a core SWHID
+            type: one of the values of swh.model.model.MetadataTargetType
+            id: an URL if type is 'origin', else a core SWHID
             authority: a dict containing keys `type` and `url`.
             after: minimum discovery_date for a result to be returned
             page_token: opaque token, used to get the next page of results

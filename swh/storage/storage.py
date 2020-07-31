@@ -1199,7 +1199,7 @@ class Storage:
             fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
             db.raw_extrinsic_metadata_add(
-                object_type=metadata_entry.type.value,
+                type=metadata_entry.type.value,
                 id=str(metadata_entry.id),
                 discovery_date=metadata_entry.discovery_date,
                 authority_id=authority_id,
@@ -1217,17 +1217,17 @@ class Storage:
             )
             counter[metadata_entry.type] += 1
 
-        for (object_type, count) in counter.items():
+        for (type, count) in counter.items():
             send_metric(
-                f"{object_type.value}_metadata:add",
+                f"{type.value}_metadata:add",
                 count=count,
-                method_name=f"{object_type.value}_metadata_add",
+                method_name=f"{type.value}_metadata_add",
             )
 
     @db_transaction()
     def raw_extrinsic_metadata_get(
         self,
-        object_type: MetadataTargetType,
+        type: MetadataTargetType,
         id: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
@@ -1236,16 +1236,16 @@ class Storage:
         db=None,
         cur=None,
     ) -> PagedResult[RawExtrinsicMetadata]:
-        if object_type == MetadataTargetType.ORIGIN:
+        if type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type='origin', "
+                    f"raw_extrinsic_metadata_get called with type='origin', "
                     f"but provided id is an SWHID: {id!r}"
                 )
         else:
             if not isinstance(id, SWHID):
                 raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with object_type!='origin', "
+                    f"raw_extrinsic_metadata_get called with type!='origin', "
                     f"but provided id is not an SWHID: {id!r}"
                 )
 
@@ -1264,13 +1264,7 @@ class Storage:
             return PagedResult(next_page_token=None, results=[],)
 
         rows = db.raw_extrinsic_metadata_get(
-            object_type,
-            str(id),
-            authority_id,
-            after_time,
-            after_fetcher,
-            limit + 1,
-            cur,
+            type, str(id), authority_id, after_time, after_fetcher, limit + 1, cur,
         )
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []

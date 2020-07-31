@@ -1188,7 +1188,7 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_add(
         self,
-        object_type: str,
+        type: str,
         id: str,
         discovery_date: datetime.datetime,
         authority_id: int,
@@ -1206,7 +1206,7 @@ class Db(BaseDb):
     ):
         query = self._raw_extrinsic_metadata_insert_query
         args: Dict[str, Any] = dict(
-            type=object_type,
+            type=type,
             id=id,
             authority_id=authority_id,
             fetcher_id=fetcher_id,
@@ -1228,7 +1228,7 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_get(
         self,
-        object_type: str,
+        type: str,
         id: str,
         authority_id: int,
         after_time: Optional[datetime.datetime],
