@@ -19,10 +19,6 @@ from swh.storage.utils import now
 from swh.storage.tests.test_storage import round_to_milliseconds
 
 
-def assert_list_eq(left, right, msg=None):
-    assert list(left) == list(right), msg
-
-
 def test_iter_origins(swh_storage):
     origins = [
         Origin(url="bar"),
@@ -30,43 +26,11 @@ def test_iter_origins(swh_storage):
         Origin(url="quuz"),
     ]
     assert swh_storage.origin_add(origins) == {"origin:add": 3}
-    assert_list_eq(iter_origins(swh_storage), origins)
-    assert_list_eq(iter_origins(swh_storage, batch_size=1), origins)
-    assert_list_eq(iter_origins(swh_storage, batch_size=2), origins)
 
-    for i in range(1, 5):
-        assert_list_eq(iter_origins(swh_storage, origin_from=i + 1), origins[i:], i)
-
-        assert_list_eq(
-            iter_origins(swh_storage, origin_from=i + 1, batch_size=1), origins[i:], i
-        )
-
-        assert_list_eq(
-            iter_origins(swh_storage, origin_from=i + 1, batch_size=2), origins[i:], i
-        )
-
-        for j in range(i, 5):
-            assert_list_eq(
-                iter_origins(swh_storage, origin_from=i + 1, origin_to=j + 1),
-                origins[i:j],
-                (i, j),
-            )
-
-            assert_list_eq(
-                iter_origins(
-                    swh_storage, origin_from=i + 1, origin_to=j + 1, batch_size=1
-                ),
-                origins[i:j],
-                (i, j),
-            )
-
-            assert_list_eq(
-                iter_origins(
-                    swh_storage, origin_from=i + 1, origin_to=j + 1, batch_size=2
-                ),
-                origins[i:j],
-                (i, j),
-            )
+    # this returns all the origins, only the number of paged called is different
+    assert list(iter_origins(swh_storage)) == origins
+    assert list(iter_origins(swh_storage, limit=1)) == origins
+    assert list(iter_origins(swh_storage, limit=2)) == origins
 
 
 def test_origin_get_latest_visit_status_none(swh_storage, sample_data):

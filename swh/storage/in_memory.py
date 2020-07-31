@@ -137,7 +137,6 @@ class InMemoryStorage:
         self._releases = {}
         self._snapshots = {}
         self._origins = {}
-        self._origins_by_id = []
         self._origins_by_sha1 = {}
         self._origin_visits = {}
         self._origin_visit_statuses: Dict[Tuple[str, int], List[OriginVisitStatus]] = {}
@@ -681,16 +680,6 @@ class InMemoryStorage:
     def origin_get_by_sha1(self, sha1s):
         return [self._convert_origin(self._origins_by_sha1.get(sha1)) for sha1 in sha1s]
 
-    def origin_get_range(self, origin_from=1, origin_count=100):
-        origin_from = max(origin_from, 1)
-        if origin_from <= len(self._origins_by_id):
-            max_idx = origin_from + origin_count - 1
-            if max_idx > len(self._origins_by_id):
-                max_idx = len(self._origins_by_id)
-            for idx in range(origin_from - 1, max_idx):
-                origin = self._convert_origin(self._origins[self._origins_by_id[idx]])
-                yield {"id": idx + 1, **origin}
-
     def origin_list(
         self, page_token: Optional[str] = None, limit: int = 100
     ) -> PagedResult[Origin]:
@@ -776,12 +765,6 @@ class InMemoryStorage:
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
             self.journal_writer.origin_add([origin])
-            # generate an origin_id because it is needed by origin_get_range.
-            # TODO: remove this when we remove origin_get_range
-            origin_id = len(self._origins) + 1
-            self._origins_by_id.append(origin.url)
-            assert len(self._origins_by_id) == origin_id
-
             self._origins[origin.url] = origin
             self._origins_by_sha1[origin_url_to_sha1(origin.url)] = origin
             self._origin_visits[origin.url] = []

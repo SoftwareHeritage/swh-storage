@@ -10,41 +10,18 @@ from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 from swh.storage.interface import ListOrder, StorageInterface
 
 
-def iter_origins(
-    storage: StorageInterface,
-    origin_from: int = 1,
-    origin_to: Optional[int] = None,
-    batch_size: int = 10000,
-) -> Iterator[Origin]:
-    """Iterates over all origins in the storage.
+def iter_origins(storage: StorageInterface, limit: int = 10000,) -> Iterator[Origin]:
+    """Iterates over origins in the storage.
 
     Args:
         storage: the storage object used for queries.
-        origin_from: lower interval boundary
-        origin_to: upper interval boundary
-        batch_size: number of origins per query
+        limit: maximum number of origins per page
 
     Yields:
-        origin within the boundary [origin_to, origin_from] in batch_size
+        origin model objects from the storage in page of `limit` origins
 
     """
-    start = origin_from
-    while True:
-        if origin_to:
-            origin_count = min(origin_to - start, batch_size)
-        else:
-            origin_count = batch_size
-        origins = list(
-            storage.origin_get_range(origin_from=start, origin_count=origin_count)
-        )
-        if not origins:
-            break
-        start = origins[-1]["id"] + 1
-        for origin in origins:
-            del origin["id"]
-            yield Origin.from_dict(origin)
-        if origin_to and start > origin_to:
-            break
+    yield from stream_results(storage.origin_list, limit=limit)
 
 
 def origin_get_latest_visit_status(
