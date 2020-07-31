@@ -43,11 +43,14 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             "content",
             "skipped_content",
             "directory",
+            "metadata_authority",
+            "metadata_fetcher",
             "revision",
             "release",
             "snapshot",
             "origin",
             "origin_visit_status",
+            "raw_extrinsic_metadata",
         ):
             method(objs)
             expected_messages += len(objs)
@@ -70,9 +73,12 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         for obj_type in (
             "content",
             "directory",
+            "metadata_authority",
+            "metadata_fetcher",
             "origin",
             "origin_visit",
             "origin_visit_status",
+            "raw_extrinsic_metadata",
             "release",
             "revision",
             "snapshot",
@@ -123,9 +129,12 @@ def test_storage_direct_writer_anonymized(
         for obj_type in (
             "content",
             "directory",
+            "metadata_authority",
+            "metadata_fetcher",
             "origin",
             "origin_visit",
             "origin_visit_status",
+            "raw_extrinsic_metadata",
             "release",
             "revision",
             "snapshot",

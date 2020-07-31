@@ -1000,15 +1000,32 @@ class Db(BaseDb):
 
         if count:
             origin_cols = "COUNT(*)"
+            order_clause = ""
         else:
             origin_cols = ",".join(self.origin_cols)
+            order_clause = "ORDER BY id"
 
-        query = """SELECT %s
-                   FROM origin o
-                   WHERE """
+        if not regexp:
+            operator = "ILIKE"
+            query_params = [f"%{url_pattern}%"]
+        else:
+            operator = "~*"
+            query_params = [url_pattern]
+
+        query = f"""
+            WITH filtered_origins AS (
+                SELECT *
+                FROM origin
+                WHERE url {operator} %s
+                {order_clause}
+            )
+            SELECT {origin_cols}
+            FROM filtered_origins AS o
+            """
+
         if with_visit:
             query += """
-                   EXISTS (
+                   WHERE EXISTS (
                      SELECT 1
                      FROM origin_visit ov
                      INNER JOIN origin_visit_status ovs
@@ -1016,38 +1033,35 @@ class Db(BaseDb):
                      INNER JOIN snapshot ON ovs.snapshot=snapshot.id
                      WHERE ov.origin=o.id
                      )
-                   AND """
-        query += "url %s %%s "
+            """
+
         if not count:
-            query += "ORDER BY id OFFSET %%s LIMIT %%s"
-
-        if not regexp:
-            query = query % (origin_cols, "ILIKE")
-            query_params = ("%" + url_pattern + "%", offset, limit)
-        else:
-            query = query % (origin_cols, "~*")
-            query_params = (url_pattern, offset, limit)
-
-        if count:
-            query_params = (query_params[0],)
+            query += "OFFSET %s LIMIT %s"
+            query_params.extend([offset, limit])
 
         cur.execute(query, query_params)
 
     def origin_search(
-        self, url_pattern, offset=0, limit=50, regexp=False, with_visit=False, cur=None
+        self,
+        url_pattern: str,
+        offset: int = 0,
+        limit: int = 50,
+        regexp: bool = False,
+        with_visit: bool = False,
+        cur=None,
     ):
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The search is performed in a case insensitive way.
 
         Args:
-            url_pattern (str): the string pattern to search for in origin urls
-            offset (int): number of found origins to skip before returning
+            url_pattern: the string pattern to search for in origin urls
+            offset: number of found origins to skip before returning
                 results
-            limit (int): the maximum number of found origins to return
-            regexp (bool): if True, consider the provided pattern as a regular
+            limit: the maximum number of found origins to return
+            regexp: if True, consider the provided pattern as a regular
                 expression and returns origins whose urls match it
-            with_visit (bool): if True, filter out origins with no visit
+            with_visit: if True, filter out origins with no visit
 
         """
         self._origin_query(
@@ -1174,7 +1188,7 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_add(
         self,
-        object_type: str,
+        type: str,
         id: str,
         discovery_date: datetime.datetime,
         authority_id: int,
@@ -1192,7 +1206,7 @@ class Db(BaseDb):
     ):
         query = self._raw_extrinsic_metadata_insert_query
         args: Dict[str, Any] = dict(
-            type=object_type,
+            type=type,
             id=id,
             authority_id=authority_id,
             fetcher_id=fetcher_id,
@@ -1214,7 +1228,7 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_get(
         self,
-        object_type: str,
+        type: str,
         id: str,
         authority_id: int,
         after_time: Optional[datetime.datetime],

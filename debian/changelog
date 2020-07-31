@@ -1,8 +1,16 @@
-swh-storage (0.11.6-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.11.8-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.11.8     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-07-31 14:57:09 +0200)
+  * Upstream changes:     - v0.11.8     - * test_replay: update for
+    swh.journal 0.4.1.     - * Add support for metadata-related object
+    types to the backfiller and replayer.     - * pg: Rewrite
+    _origin_query to force the query planner to filter on URLs before
+    filtering on visits.     - * Make raw_extrinsic_metadata_get return
+    PagedResult instead of Dict.     - * Rename argument 'object_type'
+    of raw_extrinsic_metadata_get to 'type'.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 30 Jul 2020 14:40:30 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 31 Jul 2020 13:17:40 +0000
 
 swh-storage (0.11.6-1~swh1) unstable-swh; urgency=medium
 

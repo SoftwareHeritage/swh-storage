@@ -9,7 +9,17 @@ from typing import Optional, Dict
 
 from swh.core.utils import encode_with_unescape
 from swh.model import identifiers
+from swh.model.identifiers import parse_swhid
+from swh.model.model import (
+    MetadataAuthority,
+    MetadataAuthorityType,
+    MetadataFetcher,
+    MetadataTargetType,
+    RawExtrinsicMetadata,
+)
 from swh.model.hashutil import MultiHash
+
+from .utils import map_optional
 
 
 DEFAULT_AUTHOR = {
@@ -286,6 +296,34 @@ def db_to_release(db_release):
         ret["object_id"] = db_release["object_id"]
 
     return ret
+
+
+def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
+    type_ = MetadataTargetType(row["raw_extrinsic_metadata.type"])
+    id_ = row["raw_extrinsic_metadata.id"]
+    if type_ != MetadataTargetType.ORIGIN:
+        id_ = parse_swhid(id_)
+    return RawExtrinsicMetadata(
+        type=type_,
+        id=id_,
+        authority=MetadataAuthority(
+            type=MetadataAuthorityType(row["metadata_authority.type"]),
+            url=row["metadata_authority.url"],
+        ),
+        fetcher=MetadataFetcher(
+            name=row["metadata_fetcher.name"], version=row["metadata_fetcher.version"],
+        ),
+        discovery_date=row["discovery_date"],
+        format=row["format"],
+        metadata=row["raw_extrinsic_metadata.metadata"],
+        origin=row["origin"],
+        visit=row["visit"],
+        snapshot=map_optional(parse_swhid, row["snapshot"]),
+        release=map_optional(parse_swhid, row["release"]),
+        revision=map_optional(parse_swhid, row["revision"]),
+        path=row["path"],
+        directory=map_optional(parse_swhid, row["directory"]),
+    )
 
 
 def origin_url_to_sha1(origin_url):
