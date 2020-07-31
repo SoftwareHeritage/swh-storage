@@ -5,6 +5,7 @@
 
 from typing import Iterator, List, Optional, Tuple
 
+from swh.core.api.classes import stream_results
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 from swh.storage.interface import ListOrder, StorageInterface
 
@@ -103,13 +104,7 @@ def iter_origin_visits(
     """Iter over origin visits from an origin
 
     """
-    next_page_token = None
-    while True:
-        page = storage.origin_visit_get(origin, order=order, page_token=next_page_token)
-        next_page_token = page.next_page_token
-        yield from page.results
-        if page.next_page_token is None:
-            break
+    yield from stream_results(storage.origin_visit_get, origin, order=order)
 
 
 def iter_origin_visit_statuses(
@@ -118,12 +113,6 @@ def iter_origin_visit_statuses(
     """Iter over origin visit status from an origin visit
 
     """
-    next_page_token = None
-    while True:
-        page = storage.origin_visit_status_get(
-            origin, visit, order=order, page_token=next_page_token
-        )
-        next_page_token = page.next_page_token
-        yield from page.results
-        if next_page_token is None:
-            break
+    yield from stream_results(
+        storage.origin_visit_status_get, origin, visit, order=order
+    )
