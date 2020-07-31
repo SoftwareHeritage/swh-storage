@@ -1000,15 +1000,32 @@ class Db(BaseDb):
 
         if count:
             origin_cols = "COUNT(*)"
+            order_clause = ""
         else:
             origin_cols = ",".join(self.origin_cols)
+            order_clause = "ORDER BY id"
 
-        query = """SELECT %s
-                   FROM origin o
-                   WHERE """
+        if not regexp:
+            operator = "ILIKE"
+            query_params = [f"%{url_pattern}%"]
+        else:
+            operator = "~*"
+            query_params = [url_pattern]
+
+        query = f"""
+            WITH filtered_origins AS (
+                SELECT *
+                FROM origin
+                WHERE url {operator} %s
+                {order_clause}
+            )
+            SELECT {origin_cols}
+            FROM filtered_origins AS o
+            """
+
         if with_visit:
             query += """
-                   EXISTS (
+                   WHERE EXISTS (
                      SELECT 1
                      FROM origin_visit ov
                      INNER JOIN origin_visit_status ovs
@@ -1016,20 +1033,11 @@ class Db(BaseDb):
                      INNER JOIN snapshot ON ovs.snapshot=snapshot.id
                      WHERE ov.origin=o.id
                      )
-                   AND """
-        query += "url %s %%s "
+            """
+
         if not count:
-            query += "ORDER BY id OFFSET %%s LIMIT %%s"
-
-        if not regexp:
-            query = query % (origin_cols, "ILIKE")
-            query_params = (f"%{url_pattern}%", offset, limit)
-        else:
-            query = query % (origin_cols, "~*")
-            query_params = (url_pattern, offset, limit)
-
-        if count:
-            query_params = (query_params[0],)
+            query += "OFFSET %s LIMIT %s"
+            query_params.extend([offset, limit])
 
         cur.execute(query, query_params)
 
