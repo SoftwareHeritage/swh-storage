@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import base64
 import datetime
 import itertools
 import json
@@ -1072,7 +1073,7 @@ class CassandraStorage:
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+    ) -> PagedResult[RawExtrinsicMetadata]:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
@@ -1088,7 +1089,7 @@ class CassandraStorage:
 
         if page_token is not None:
             (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
-                page_token
+                base64.b64decode(page_token)
             )
             if after and after_date < after:
                 raise StorageArgumentException(
@@ -1148,20 +1149,19 @@ class CassandraStorage:
             results.pop()
             assert len(results) == limit
             last_result = results[-1]
-            next_page_token: Optional[bytes] = msgpack_dumps(
-                (
-                    last_result.discovery_date,
-                    last_result.fetcher.name,
-                    last_result.fetcher.version,
+            next_page_token: Optional[str] = base64.b64encode(
+                msgpack_dumps(
+                    (
+                        last_result.discovery_date,
+                        last_result.fetcher.name,
+                        last_result.fetcher.version,
+                    )
                 )
-            )
+            ).decode()
         else:
             next_page_token = None
 
-        return {
-            "next_page_token": next_page_token,
-            "results": results,
-        }
+        return PagedResult(next_page_token=next_page_token, results=results,)
 
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
         self.journal_writer.metadata_fetcher_add(fetchers)

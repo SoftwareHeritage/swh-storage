@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import base64
 import contextlib
 import datetime
 import itertools
@@ -1234,7 +1235,7 @@ class Storage:
         limit: int = 1000,
         db=None,
         cur=None,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+    ) -> PagedResult[RawExtrinsicMetadata]:
         if object_type == MetadataTargetType.ORIGIN:
             if isinstance(id, SWHID):
                 raise StorageArgumentException(
@@ -1249,7 +1250,7 @@ class Storage:
                 )
 
         if page_token:
-            (after_time, after_fetcher) = msgpack_loads(page_token)
+            (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
             if after and after_time < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
@@ -1260,10 +1261,7 @@ class Storage:
 
         authority_id = self._get_authority_id(authority, db, cur)
         if not authority_id:
-            return {
-                "next_page_token": None,
-                "results": [],
-            }
+            return PagedResult(next_page_token=None, results=[],)
 
         rows = db.raw_extrinsic_metadata_get(
             object_type,
@@ -1284,19 +1282,18 @@ class Storage:
             results.pop()
             assert len(results) == limit
             last_returned_row = rows[-2]  # rows[-1] corresponds to the popped result
-            next_page_token: Optional[bytes] = msgpack_dumps(
-                (
-                    last_returned_row["discovery_date"],
-                    last_returned_row["metadata_fetcher.id"],
+            next_page_token: Optional[str] = base64.b64encode(
+                msgpack_dumps(
+                    (
+                        last_returned_row["discovery_date"],
+                        last_returned_row["metadata_fetcher.id"],
+                    )
                 )
-            )
+            ).decode()
         else:
             next_page_token = None
 
-        return {
-            "next_page_token": next_page_token,
-            "results": results,
-        }
+        return PagedResult(next_page_token=next_page_token, results=results,)
 
     @timed
     @db_transaction()

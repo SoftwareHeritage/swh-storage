@@ -3,13 +3,14 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import re
+import base64
 import bisect
 import collections
 import copy
 import datetime
 import itertools
 import random
+import re
 
 from collections import defaultdict
 from datetime import timedelta
@@ -1114,7 +1115,7 @@ class InMemoryStorage:
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+    ) -> PagedResult[RawExtrinsicMetadata]:
         authority_key = self._metadata_authority_key(authority)
 
         if object_type == MetadataTargetType.ORIGIN:
@@ -1131,7 +1132,7 @@ class InMemoryStorage:
                 )
 
         if page_token is not None:
-            (after_time, after_fetcher) = msgpack_loads(page_token)
+            (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
             after_fetcher = tuple(after_fetcher)
             if after is not None and after > after_time:
                 raise StorageArgumentException(
@@ -1173,19 +1174,18 @@ class InMemoryStorage:
             results.pop()
             assert len(results) == limit
             last_result = results[-1]
-            next_page_token: Optional[bytes] = msgpack_dumps(
-                (
-                    last_result.discovery_date,
-                    self._metadata_fetcher_key(last_result.fetcher),
+            next_page_token: Optional[str] = base64.b64encode(
+                msgpack_dumps(
+                    (
+                        last_result.discovery_date,
+                        self._metadata_fetcher_key(last_result.fetcher),
+                    )
                 )
-            )
+            ).decode()
         else:
             next_page_token = None
 
-        return {
-            "next_page_token": next_page_token,
-            "results": results,
-        }
+        return PagedResult(next_page_token=next_page_token, results=results,)
 
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
         self.journal_writer.metadata_fetcher_add(fetchers)

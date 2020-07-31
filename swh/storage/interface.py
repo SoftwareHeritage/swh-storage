@@ -1143,7 +1143,7 @@ class StorageInterface:
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-    ) -> Dict[str, Union[Optional[bytes], List[RawExtrinsicMetadata]]]:
+    ) -> PagedResult[RawExtrinsicMetadata]:
         """Retrieve list of all raw_extrinsic_metadata entries for the id
 
         Args:
@@ -1155,10 +1155,7 @@ class StorageInterface:
             limit: maximum number of results to be returned
 
         Returns:
-            dict with keys `next_page_token` and `results`.
-            `next_page_token` is an opaque token that is used to get the
-            next page of results, or `None` if there are no more results.
-            `results` is a list of RawExtrinsicMetadata objects:
+            PagedResult of RawExtrinsicMetadata
 
         """
         ...

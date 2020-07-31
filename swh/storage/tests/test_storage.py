@@ -3350,8 +3350,8 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
-        assert result["next_page_token"] is None
-        assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == list(
+        assert result.next_page_token is None
+        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == list(
             content_metadata
         )
 
@@ -3387,12 +3387,12 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
 
         expected_results1 = (content_metadata, new_content_metadata2)
         expected_results2 = (content_metadata, content_metadata2)
 
-        assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
+        assert tuple(sorted(result.results, key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
@@ -3426,24 +3426,24 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content1_swhid, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [content1_metadata1, content1_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content1_swhid, authority2
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [content1_metadata3] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content2_swhid, authority
         )
-        assert result["next_page_token"] is None
-        assert [content2_metadata] == list(result["results"],)
+        assert result.next_page_token is None
+        assert [content2_metadata] == list(result.results,)
 
     def test_content_metadata_get_after(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3464,9 +3464,9 @@ class TestStorage:
             authority,
             after=content_metadata.discovery_date - timedelta(seconds=1),
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [content_metadata, content_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
@@ -3475,8 +3475,8 @@ class TestStorage:
             authority,
             after=content_metadata.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [content_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [content_metadata2]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
@@ -3484,8 +3484,8 @@ class TestStorage:
             authority,
             after=content_metadata2.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == []
+        assert result.next_page_token is None
+        assert result.results == []
 
     def test_content_metadata_get_paginate(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3505,18 +3505,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [content_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [content_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [content_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [content_metadata2]
 
     def test_content_metadata_get_paginate_same_date(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3542,18 +3542,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT, content_swhid, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [content_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [content_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.CONTENT,
             content_swhid,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [new_content_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [new_content_metadata2]
 
     def test_content_metadata_get__invalid_id(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3586,8 +3586,8 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
-        assert result["next_page_token"] is None
-        assert list(sorted(result["results"], key=lambda x: x.discovery_date)) == [
+        assert result.next_page_token is None
+        assert list(sorted(result.results, key=lambda x: x.discovery_date)) == [
             origin_metadata,
             origin_metadata2,
         ]
@@ -3624,13 +3624,13 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
 
         # which of the two behavior happens is backend-specific.
         expected_results1 = (origin_metadata, new_origin_metadata2)
         expected_results2 = (origin_metadata, origin_metadata2)
 
-        assert tuple(sorted(result["results"], key=lambda x: x.discovery_date,)) in (
+        assert tuple(sorted(result.results, key=lambda x: x.discovery_date,)) in (
             expected_results1,  # cassandra
             expected_results2,  # postgresql
         )
@@ -3659,24 +3659,24 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [origin1_metadata1, origin1_metadata2] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority2
         )
-        assert result["next_page_token"] is None
+        assert result.next_page_token is None
         assert [origin1_metadata3] == list(
-            sorted(result["results"], key=lambda x: x.discovery_date,)
+            sorted(result.results, key=lambda x: x.discovery_date,)
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin2.url, authority
         )
-        assert result["next_page_token"] is None
-        assert [origin2_metadata] == list(result["results"],)
+        assert result.next_page_token is None
+        assert [origin2_metadata] == list(result.results,)
 
     def test_origin_metadata_get_after(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3696,8 +3696,8 @@ class TestStorage:
             authority,
             after=origin_metadata.discovery_date - timedelta(seconds=1),
         )
-        assert result["next_page_token"] is None
-        assert list(sorted(result["results"], key=lambda x: x.discovery_date,)) == [
+        assert result.next_page_token is None
+        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == [
             origin_metadata,
             origin_metadata2,
         ]
@@ -3708,8 +3708,8 @@ class TestStorage:
             authority,
             after=origin_metadata.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [origin_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [origin_metadata2]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
@@ -3717,8 +3717,8 @@ class TestStorage:
             authority,
             after=origin_metadata2.discovery_date,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == []
+        assert result.next_page_token is None
+        assert result.results == []
 
     def test_origin_metadata_get_paginate(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3739,18 +3739,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [origin_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [origin_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [origin_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [origin_metadata2]
 
     def test_origin_metadata_get_paginate_same_date(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3773,18 +3773,18 @@ class TestStorage:
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN, origin.url, authority, limit=1
         )
-        assert result["next_page_token"] is not None
-        assert result["results"] == [origin_metadata]
+        assert result.next_page_token is not None
+        assert result.results == [origin_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
             MetadataTargetType.ORIGIN,
             origin.url,
             authority,
             limit=1,
-            page_token=result["next_page_token"],
+            page_token=result.next_page_token,
         )
-        assert result["next_page_token"] is None
-        assert result["results"] == [new_origin_metadata2]
+        assert result.next_page_token is None
+        assert result.results == [new_origin_metadata2]
 
     def test_origin_metadata_add_missing_authority(self, swh_storage, sample_data):
         origin = sample_data.origin
