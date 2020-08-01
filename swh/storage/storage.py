@@ -45,7 +45,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.interface import ListOrder, PagedResult
+from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -862,6 +862,12 @@ class Storage:
         db=None,
         cur=None,
     ) -> Optional[OriginVisitStatus]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
+
         row = db.origin_visit_status_get_latest(
             origin_url, visit, allowed_statuses, require_snapshot, cur=cur
         )
@@ -953,6 +959,12 @@ class Storage:
         db=None,
         cur=None,
     ) -> Optional[OriginVisit]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
+
         row = db.origin_visit_get_latest(
             origin,
             type=type,

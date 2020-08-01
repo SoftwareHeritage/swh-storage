@@ -4,9 +4,6 @@
 # See top-level LICENSE file for more information
 
 import datetime
-import pytest
-
-from unittest.mock import patch
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 
@@ -24,13 +21,6 @@ from swh.storage.tests.test_storage import round_to_milliseconds
 
 def assert_list_eq(left, right, msg=None):
     assert list(left) == list(right), msg
-
-
-@pytest.fixture
-def swh_storage_backend_config():
-    yield {
-        "cls": "memory",
-    }
 
 
 def test_iter_origins(swh_storage):
@@ -79,17 +69,6 @@ def test_iter_origins(swh_storage):
             )
 
 
-@patch("swh.storage.in_memory.InMemoryStorage.origin_get_range")
-def test_iter_origins_batch_size(mock_origin_get_range, swh_storage):
-    mock_origin_get_range.return_value = []
-
-    list(iter_origins(swh_storage))
-    mock_origin_get_range.assert_called_with(origin_from=1, origin_count=10000)
-
-    list(iter_origins(swh_storage, batch_size=42))
-    mock_origin_get_range.assert_called_with(origin_from=1, origin_count=42)
-
-
 def test_origin_get_latest_visit_status_none(swh_storage, sample_data):
     """Looking up unknown objects should return nothing
 
@@ -112,11 +91,6 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data):
 
     actual_origin_visit = origin_get_latest_visit_status(
         swh_storage, origin.url, require_snapshot=True
-    )
-    assert actual_origin_visit is None
-
-    actual_origin_visit = origin_get_latest_visit_status(
-        swh_storage, origin.url, allowed_statuses=["unknown"]
     )
     assert actual_origin_visit is None
 
@@ -155,7 +129,7 @@ def init_storage_with_origin_visits(swh_storage, sample_data):
     ovs11 = OriginVisitStatus(
         origin=origin1.url,
         visit=ov1.visit,
-        date=sample_data.date_visit1,
+        date=ov1.date + datetime.timedelta(seconds=10),  # so it's not ignored
         status="partial",
         snapshot=None,
     )
@@ -171,7 +145,7 @@ def init_storage_with_origin_visits(swh_storage, sample_data):
     ovs21 = OriginVisitStatus(
         origin=origin2.url,
         visit=ov2.visit,
-        date=sample_data.date_visit2,
+        date=ov2.date + datetime.timedelta(seconds=10),  # so it's not ignored
         status="ongoing",
         snapshot=None,
     )
@@ -247,10 +221,10 @@ def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data):
     ov1, ov2 = objects["origin_visit"]
     ovs11, ovs12, _, ovs22 = objects["origin_visit_status"]
 
-    # no failed status for that visit
+    # no partial status for that origin visit
     assert (
         origin_get_latest_visit_status(
-            swh_storage, origin2.url, allowed_statuses=["failed"]
+            swh_storage, origin2.url, allowed_statuses=["partial"]
         )
         is None
     )
@@ -393,14 +367,14 @@ def test_iter_origin_visit_status(swh_storage, sample_data):
             )
         )
 
-    visit_statuses = swh_storage.origin_visit_add(new_visit_statuses)
-    reversed_visit_statuses = list(reversed(visit_statuses))
+    swh_storage.origin_visit_status_add(new_visit_statuses)
+    reversed_visit_statuses = list(reversed(new_visit_statuses))
 
     # order asc
     actual_visit_statuses = list(
         iter_origin_visit_statuses(swh_storage, ov1.origin, ov1.visit)
     )
-    assert actual_visit_statuses == visit_statuses
+    assert actual_visit_statuses == new_visit_statuses
 
     # order desc
     actual_visit_statuses = list(

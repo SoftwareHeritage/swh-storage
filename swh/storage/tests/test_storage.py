@@ -2028,17 +2028,20 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_by(origin.url, 999)  # unknown visit
         assert actual_visit is None
 
-    def test_origin_visit_get_latest_none(self, swh_storage, sample_data):
-        """Origin visit get latest on unknown objects should return nothing
-
-        """
+    def test_origin_visit_get_latest_edge_cases(self, swh_storage, sample_data):
         # unknown origin so no result
         assert swh_storage.origin_visit_get_latest("unknown-origin") is None
 
-        # unknown type
+        # unknown type so no result
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         assert swh_storage.origin_visit_get_latest(origin.url, type="unknown") is None
+
+        # unknown allowed statuses should raise
+        with pytest.raises(StorageArgumentException, match="Unknown allowed statuses"):
+            swh_storage.origin_visit_get_latest(
+                origin.url, allowed_statuses=["unknown"]
+            )
 
     def test_origin_visit_get_latest_filter_type(self, swh_storage, sample_data):
         """Filtering origin visit get latest with filter type should be ok
@@ -2264,6 +2267,19 @@ class TestStorage:
         # ties should be broken by using the visit id
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
         assert actual_visit == ov2
+
+    def test_origin_visit_status_get_latest__validation(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        visit1 = OriginVisit(
+            origin=origin.url, date=sample_data.date_visit1, type="git",
+        )
+
+        # unknown allowed statuses should raise
+        with pytest.raises(StorageArgumentException, match="Unknown allowed statuses"):
+            swh_storage.origin_visit_status_get_latest(
+                origin.url, visit1.visit, allowed_statuses=["unknown"]
+            )
 
     def test_origin_visit_status_get_latest(self, swh_storage, sample_data):
         snapshot = sample_data.snapshots[2]

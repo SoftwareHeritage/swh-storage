@@ -41,6 +41,10 @@ TResult = TypeVar("TResult")
 PagedResult = CorePagedResult[TResult, str]
 
 
+# TODO: Make it an enum (too much impact)
+VISIT_STATUSES = ["created", "ongoing", "full", "partial"]
+
+
 def deprecated(f):
     f.deprecated_endpoint = True
     return f
@@ -883,6 +887,10 @@ class StorageInterface:
             require_snapshot: If True, only a visit with a snapshot
                 will be returned.
 
+        Raises:
+            StorageArgumentException if values for the allowed_statuses parameters
+            are unknown
+
         Returns:
             OriginVisit matching the criteria if found, None otherwise. Note that as
             OriginVisit no longer held reference on the visit status or snapshot, you
@@ -936,6 +944,10 @@ class StorageInterface:
                 have successfully run to completion.
             require_snapshot: If True, only a visit with a snapshot
                 will be returned.
+
+        Raises:
+            StorageArgumentException if values for the allowed_statuses parameters
+            are unknown
 
         Returns:
             The OriginVisitStatus matching the criteria
