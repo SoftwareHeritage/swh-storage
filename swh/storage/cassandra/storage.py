@@ -32,6 +32,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1Git,
 )
 from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
@@ -260,7 +261,7 @@ class CassandraStorage:
             [{"sha1_git": c for c in contents}], key_hash="sha1_git"
         )
 
-    def content_get_random(self):
+    def content_get_random(self) -> Sha1Git:
         return self._cql_runner.content_get_random().sha1_git
 
     def _skipped_content_get_from_hash(self, algo, hash_) -> Iterable:
@@ -416,7 +417,7 @@ class CassandraStorage:
     def directory_ls(self, directory, recursive=False):
         yield from self._directory_ls(directory, recursive)
 
-    def directory_get_random(self):
+    def directory_get_random(self) -> Sha1Git:
         return self._cql_runner.directory_get_random().id
 
     def revision_add(self, revisions: List[Revision]) -> Dict:
@@ -505,7 +506,7 @@ class CassandraStorage:
         seen = set()
         yield from self._get_parent_revs(revisions, seen, limit, True)
 
-    def revision_get_random(self):
+    def revision_get_random(self) -> Sha1Git:
         return self._cql_runner.revision_get_random().id
 
     def release_add(self, releases: List[Release]) -> Dict:
@@ -537,7 +538,7 @@ class CassandraStorage:
         for rel_id in releases:
             yield rels.get(rel_id)
 
-    def release_get_random(self):
+    def release_get_random(self) -> Sha1Git:
         return self._cql_runner.release_get_random().id
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
@@ -652,7 +653,7 @@ class CassandraStorage:
             "next_branch": last_branch,
         }
 
-    def snapshot_get_random(self):
+    def snapshot_get_random(self) -> Sha1Git:
         return self._cql_runner.snapshot_get_random().id
 
     def object_find_by_sha1_git(self, ids):

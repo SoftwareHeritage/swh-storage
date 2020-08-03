@@ -36,6 +36,7 @@ from swh.model.model import (
     Revision,
     Release,
     SkippedContent,
+    Sha1Git,
     Snapshot,
     SHA1_SIZE,
     MetadataAuthority,
@@ -376,7 +377,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_get_random(self, db=None, cur=None):
+    def content_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.content_get_random(cur)
 
     @staticmethod
@@ -529,7 +530,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def directory_get_random(self, db=None, cur=None):
+    def directory_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.directory_get_random(cur)
 
     @timed
@@ -616,7 +617,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def revision_get_random(self, db=None, cur=None):
+    def revision_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.revision_get_random(cur)
 
     @timed
@@ -666,7 +667,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def release_get_random(self, db=None, cur=None):
+    def release_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.release_get_random(cur)
 
     @timed
@@ -786,7 +787,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def snapshot_get_random(self, db=None, cur=None):
+    def snapshot_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
 
     @timed

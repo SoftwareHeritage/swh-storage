@@ -50,6 +50,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1Git,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
@@ -361,7 +362,7 @@ class InMemoryStorage:
             if content not in self._content_indexes["sha1_git"]:
                 yield content
 
-    def content_get_random(self):
+    def content_get_random(self) -> Sha1Git:
         return random.choice(list(self._content_indexes["sha1_git"]))
 
     def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
@@ -454,9 +455,7 @@ class InMemoryStorage:
     def directory_entry_get_by_path(self, directory, paths):
         return self._directory_entry_get_by_path(directory, paths, b"")
 
-    def directory_get_random(self):
-        if not self._directories:
-            return None
+    def directory_get_random(self) -> Sha1Git:
         return random.choice(list(self._directories))
 
     def _directory_entry_get_by_path(self, directory, paths, prefix):
@@ -536,7 +535,7 @@ class InMemoryStorage:
             (rev["id"], rev["parents"]) for rev in self.revision_log(revisions, limit)
         )
 
-    def revision_get_random(self):
+    def revision_get_random(self) -> Sha1Git:
         return random.choice(list(self._revisions))
 
     def release_add(self, releases: List[Release]) -> Dict:
@@ -564,7 +563,7 @@ class InMemoryStorage:
             else:
                 yield None
 
-    def release_get_random(self):
+    def release_get_random(self) -> Sha1Git:
         return random.choice(list(self._releases))
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
@@ -655,7 +654,7 @@ class InMemoryStorage:
             "next_branch": next_branch,
         }
 
-    def snapshot_get_random(self):
+    def snapshot_get_random(self) -> Sha1Git:
         return random.choice(list(self._snapshots))
 
     def object_find_by_sha1_git(self, ids):

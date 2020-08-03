@@ -27,6 +27,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1Git,
 )
 
 
@@ -310,7 +311,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/get_random")
-    def content_get_random(self):
+    def content_get_random(self) -> Sha1Git:
         """Finds a random content id.
 
         Returns:
@@ -443,7 +444,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/get_random")
-    def directory_get_random(self):
+    def directory_get_random(self) -> Sha1Git:
         """Finds a random directory id.
 
         Returns:
@@ -547,7 +548,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision/get_random")
-    def revision_get_random(self):
+    def revision_get_random(self) -> Sha1Git:
         """Finds a random revision id.
 
         Returns:
@@ -612,7 +613,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("release/get_random")
-    def release_get_random(self):
+    def release_get_random(self) -> Sha1Git:
         """Finds a random release id.
 
         Returns:
@@ -764,7 +765,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/get_random")
-    def snapshot_get_random(self):
+    def snapshot_get_random(self) -> Sha1Git:
         """Finds a random snapshot id.
 
         Returns:
