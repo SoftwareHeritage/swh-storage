@@ -2028,17 +2028,20 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_by(origin.url, 999)  # unknown visit
         assert actual_visit is None
 
-    def test_origin_visit_get_latest_none(self, swh_storage, sample_data):
-        """Origin visit get latest on unknown objects should return nothing
-
-        """
+    def test_origin_visit_get_latest_edge_cases(self, swh_storage, sample_data):
         # unknown origin so no result
         assert swh_storage.origin_visit_get_latest("unknown-origin") is None
 
-        # unknown type
+        # unknown type so no result
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         assert swh_storage.origin_visit_get_latest(origin.url, type="unknown") is None
+
+        # unknown allowed statuses should raise
+        with pytest.raises(StorageArgumentException, match="Unknown allowed statuses"):
+            swh_storage.origin_visit_get_latest(
+                origin.url, allowed_statuses=["unknown"]
+            )
 
     def test_origin_visit_get_latest_filter_type(self, swh_storage, sample_data):
         """Filtering origin visit get latest with filter type should be ok
@@ -2264,6 +2267,19 @@ class TestStorage:
         # ties should be broken by using the visit id
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
         assert actual_visit == ov2
+
+    def test_origin_visit_status_get_latest__validation(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        visit1 = OriginVisit(
+            origin=origin.url, date=sample_data.date_visit1, type="git",
+        )
+
+        # unknown allowed statuses should raise
+        with pytest.raises(StorageArgumentException, match="Unknown allowed statuses"):
+            swh_storage.origin_visit_status_get_latest(
+                origin.url, visit1.visit, allowed_statuses=["unknown"]
+            )
 
     def test_origin_visit_status_get_latest(self, swh_storage, sample_data):
         snapshot = sample_data.snapshots[2]
@@ -3951,42 +3967,6 @@ class TestStorageGeneratedData:
         assert len(actual_contents2) == 1
 
         assert_contents_ok([contents_map[get_sha1s[-1]]], actual_contents2, ["sha1"])
-
-    def test_origin_get_range_from_zero(self, swh_storage, swh_origins):
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=0, origin_count=0)
-        )
-        assert len(actual_origins) == 0
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=0, origin_count=1)
-        )
-        assert len(actual_origins) == 1
-        assert actual_origins[0]["id"] == 1
-        assert actual_origins[0]["url"] == swh_origins[0].url
-
-    @pytest.mark.parametrize(
-        "origin_from,origin_count",
-        [(1, 1), (1, 10), (1, 20), (1, 101), (11, 0), (11, 10), (91, 11)],
-    )
-    def test_origin_get_range(
-        self, swh_storage, swh_origins, origin_from, origin_count
-    ):
-        actual_origins = list(
-            swh_storage.origin_get_range(
-                origin_from=origin_from, origin_count=origin_count
-            )
-        )
-
-        origins_with_id = list(enumerate(swh_origins, start=1))
-        expected_origins = [
-            {"url": origin.url, "id": origin_id,}
-            for (origin_id, origin) in origins_with_id[
-                origin_from - 1 : origin_from + origin_count - 1
-            ]
-        ]
-
-        assert actual_origins == expected_origins
 
     @pytest.mark.parametrize("limit", [1, 7, 10, 100, 1000])
     def test_origin_list(self, swh_storage, swh_origins, limit):
