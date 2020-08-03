@@ -41,6 +41,10 @@ TResult = TypeVar("TResult")
 PagedResult = CorePagedResult[TResult, str]
 
 
+# TODO: Make it an enum (too much impact)
+VISIT_STATUSES = ["created", "ongoing", "full", "partial"]
+
+
 def deprecated(f):
     f.deprecated_endpoint = True
     return f
@@ -883,6 +887,10 @@ class StorageInterface:
             require_snapshot: If True, only a visit with a snapshot
                 will be returned.
 
+        Raises:
+            StorageArgumentException if values for the allowed_statuses parameters
+            are unknown
+
         Returns:
             OriginVisit matching the criteria if found, None otherwise. Note that as
             OriginVisit no longer held reference on the visit status or snapshot, you
@@ -936,6 +944,10 @@ class StorageInterface:
                 have successfully run to completion.
             require_snapshot: If True, only a visit with a snapshot
                 will be returned.
+
+        Raises:
+            StorageArgumentException if values for the allowed_statuses parameters
+            are unknown
 
         Returns:
             The OriginVisitStatus matching the criteria
@@ -1003,24 +1015,6 @@ class StorageInterface:
         """
         ...
 
-    @deprecated
-    @remote_api_endpoint("origin/get_range")
-    def origin_get_range(self, origin_from=1, origin_count=100):
-        """Retrieve ``origin_count`` origins whose ids are greater
-        or equal than ``origin_from``.
-
-        Origins are sorted by id before retrieving them.
-
-        Args:
-            origin_from (int): the minimum id of origins to retrieve
-            origin_count (int): the maximum number of origins to retrieve
-
-        Yields:
-            dicts containing origin information as returned
-            by :meth:`swh.storage.storage.Storage.origin_get`.
-        """
-        ...
-
     @remote_api_endpoint("origin/list")
     def origin_list(
         self, page_token: Optional[str] = None, limit: int = 100
@@ -1067,7 +1061,9 @@ class StorageInterface:
 
     @deprecated
     @remote_api_endpoint("origin/count")
-    def origin_count(self, url_pattern, regexp=False, with_visit=False):
+    def origin_count(
+        self, url_pattern: str, regexp: bool = False, with_visit: bool = False
+    ) -> int:
         """Count origins whose urls contain a provided string pattern
         or match a provided regular expression.
         The pattern search in origin urls is performed in a case insensitive

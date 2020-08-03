@@ -33,7 +33,7 @@ from swh.model.model import (
     MetadataTargetType,
     RawExtrinsicMetadata,
 )
-from swh.storage.interface import ListOrder, PagedResult
+from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -941,6 +941,11 @@ class CassandraStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[OriginVisit]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
         # TODO: Do not fetch all visits
         rows = self._cql_runner.origin_visit_get_all(origin)
         latest_visit = None
@@ -979,6 +984,11 @@ class CassandraStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[OriginVisitStatus]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
         rows = self._cql_runner.origin_visit_status_get(
             origin_url, visit, allowed_statuses, require_snapshot
         )
