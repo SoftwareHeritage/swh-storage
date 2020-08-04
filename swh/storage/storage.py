@@ -354,7 +354,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def content_missing_per_sha1(self, contents, db=None, cur=None):
+    def content_missing_per_sha1(
+        self, contents: List[bytes], db=None, cur=None
+    ) -> Iterable[bytes]:
         for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
 

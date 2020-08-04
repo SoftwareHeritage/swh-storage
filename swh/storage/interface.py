@@ -269,17 +269,17 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/missing/sha1")
-    def content_missing_per_sha1(self, contents):
+    def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         """List content missing from storage based only on sha1.
 
         Args:
             contents: List of sha1 to check for absence.
 
-        Returns:
-            iterable: missing ids
-
         Raises:
             TODO: an exception when we get a hash collision.
+
+        Returns:
+            Iterable of missing content ids (sha1)
 
         """
         ...
@@ -293,6 +293,7 @@ class StorageInterface:
 
         Yields:
             missing contents sha1_git
+
         """
         ...
 

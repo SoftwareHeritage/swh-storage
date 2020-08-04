@@ -361,7 +361,7 @@ class InMemoryStorage:
                     yield content[key_hash]
                     break
 
-    def content_missing_per_sha1(self, contents):
+    def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         for content in contents:
             if content not in self._content_indexes["sha1"]:
                 yield content
