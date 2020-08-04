@@ -305,8 +305,8 @@ class Storage:
         partition_id: int,
         nb_partitions: int,
         limit: int = 1000,
-        page_token: str = None,
-    ):
+        page_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
         (start, end) = get_partition_bounds_bytes(

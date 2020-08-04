@@ -208,8 +208,8 @@ class StorageInterface:
         partition_id: int,
         nb_partitions: int,
         limit: int = 1000,
-        page_token: str = None,
-    ):
+        page_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Splits contents into nb_partitions, and returns one of these based on
         partition_id (which must be in [0, nb_partitions-1])
 
