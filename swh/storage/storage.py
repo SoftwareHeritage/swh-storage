@@ -266,13 +266,15 @@ class Storage:
         }
 
     @timed
-    def content_get(self, content):
+    def content_get(
+        self, contents: List[bytes]
+    ) -> Iterable[Optional[Dict[str, bytes]]]:
         # FIXME: Make this method support slicing the `data`.
-        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
+        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise StorageArgumentException(
-                "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX
+                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
             )
-        yield from self.objstorage.content_get(content)
+        yield from self.objstorage.content_get(contents)
 
     @timed
     @db_transaction()

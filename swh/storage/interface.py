@@ -146,7 +146,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/data")
-    def content_get(self, content):
+    def content_get(
+        self, contents: List[bytes]
+    ) -> Iterable[Optional[Dict[str, bytes]]]:
         """Retrieve in bulk contents and their data.
 
         This generator yields exactly as many items than provided sha1
@@ -154,19 +156,21 @@ class StorageInterface:
 
         It may also yield `None` values in case an object was not found.
 
+        TODO:
+            Rename to content_get_data
+
         Args:
-            content: iterables of sha1
+            contents: iterables of sha1
+
+        Raises:
+            StorageArgumentException in case of too much contents are required.
+            (cf. BULK_BLOCK_CONTENT_LEN_MAX)
 
         Yields:
-            Dict[str, bytes]: Generates streams of contents as dict with their
-                raw data:
+            Streams of contents as dict with their raw data:
 
                 - sha1 (bytes): content id
                 - data (bytes): content's raw data
-
-        Raises:
-            ValueError in case of too much contents are required.
-            cf. BULK_BLOCK_CONTENT_LEN_MAX
 
         """
         ...
