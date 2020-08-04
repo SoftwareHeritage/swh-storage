@@ -366,7 +366,9 @@ class InMemoryStorage:
             if content not in self._content_indexes["sha1"]:
                 yield content
 
-    def content_missing_per_sha1_git(self, contents):
+    def content_missing_per_sha1_git(
+        self, contents: List[Sha1Git]
+    ) -> Iterable[Sha1Git]:
         for content in contents:
             if content not in self._content_indexes["sha1_git"]:
                 yield content

@@ -362,7 +362,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def content_missing_per_sha1_git(self, contents, db=None, cur=None):
+    def content_missing_per_sha1_git(
+        self, contents: List[bytes], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         for obj in db.content_missing_per_sha1_git(contents, cur):
             yield obj[0]
 

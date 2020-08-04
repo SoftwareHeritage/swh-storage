@@ -285,7 +285,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/missing/sha1_git")
-    def content_missing_per_sha1_git(self, contents):
+    def content_missing_per_sha1_git(
+        self, contents: List[Sha1Git]
+    ) -> Iterable[Sha1Git]:
         """List content missing from storage based only on sha1_git.
 
         Args:

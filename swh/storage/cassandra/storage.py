@@ -263,7 +263,9 @@ class CassandraStorage:
     def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         return self.content_missing([{"sha1": c for c in contents}])
 
-    def content_missing_per_sha1_git(self, contents):
+    def content_missing_per_sha1_git(
+        self, contents: List[Sha1Git]
+    ) -> Iterable[Sha1Git]:
         return self.content_missing(
             [{"sha1_git": c for c in contents}], key_hash="sha1_git"
         )
