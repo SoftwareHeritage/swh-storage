@@ -1,3 +1,15 @@
+swh-storage (0.11.10-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.11.10     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-08-04 14:10:21
+    +0200)
+  * Upstream changes:     - v0.11.10     - tests: Improve coverage on
+    directory_ls endpoints     - storage*: Type content_find(...) ->
+    List[Content]     - storage*: Type
+    {cnt,dir,rev,rel,snp}_get_random(...) -> Sha1Git
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 04 Aug 2020 12:15:21 +0000
+
 swh-storage (0.11.9-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.11.9     - (tagged by Antoine R. Dumont
