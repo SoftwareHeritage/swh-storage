@@ -247,11 +247,18 @@ class CassandraStorage:
                 results.append(Content(**row_d))
         return results
 
-    def content_missing(self, content, key_hash="sha1"):
-        for cont in content:
-            res = self.content_find(cont)
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+    ) -> Iterable[bytes]:
+        if key_hash not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        for content in contents:
+            res = self.content_find(content)
             if not res:
-                yield cont[key_hash]
+                yield content[key_hash]
 
     def content_missing_per_sha1(self, contents):
         return self.content_missing([{"sha1": c for c in contents}])

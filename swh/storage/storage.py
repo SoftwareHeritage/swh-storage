@@ -338,18 +338,18 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def content_missing(self, content, key_hash="sha1", db=None, cur=None):
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1", db=None, cur=None
+    ) -> Iterable[bytes]:
+        if key_hash not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
         keys = db.content_hash_keys
-
-        if key_hash not in keys:
-            raise StorageArgumentException("key_hash should be one of %s" % keys)
-
         key_hash_idx = keys.index(key_hash)
 
-        if not content:
-            return
-
-        for obj in db.content_missing_from_list(content, cur):
+        for obj in db.content_missing_from_list(contents, cur):
             yield obj[key_hash_idx]
 
     @timed

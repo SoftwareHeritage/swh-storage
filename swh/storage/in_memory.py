@@ -345,13 +345,20 @@ class InMemoryStorage:
         keys = list(set.intersection(*found))
         return [self._contents[key] for key in keys]
 
-    def content_missing(self, content, key_hash="sha1"):
-        for cont in content:
-            for (algo, hash_) in cont.items():
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+    ) -> Iterable[bytes]:
+        if key_hash not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        for content in contents:
+            for (algo, hash_) in content.items():
                 if algo not in DEFAULT_ALGORITHMS:
                     continue
                 if hash_ not in self._content_indexes.get(algo, []):
-                    yield cont[key_hash]
+                    yield content[key_hash]
                     break
 
     def content_missing_per_sha1(self, contents):

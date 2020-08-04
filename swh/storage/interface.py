@@ -247,25 +247,23 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/missing")
-    def content_missing(self, content, key_hash="sha1"):
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+    ) -> Iterable[bytes]:
         """List content missing from storage
 
         Args:
-            content ([dict]): iterable of dictionaries whose keys are
-                              either 'length' or an item of
-                              :data:`swh.model.hashutil.ALGORITHMS`;
-                              mapped to the corresponding checksum
-                              (or length).
-
-            key_hash (str): name of the column to use as hash id
-                            result (default: 'sha1')
-
-        Returns:
-            iterable ([bytes]): missing content ids (as per the
-            key_hash column)
+            content: iterable of dictionaries whose keys are either 'length' or an item
+                of :data:`swh.model.hashutil.ALGORITHMS`; mapped to the
+                corresponding checksum (or length).
+            key_hash: name of the column to use as hash id result (default: 'sha1')
 
         Raises:
+            StorageArgumentException when key_hash is unknown.
             TODO: an exception when we get a hash collision.
+
+        Returns:
+            iterable of missing content ids (as per the `key_hash` column)
 
         """
         ...
