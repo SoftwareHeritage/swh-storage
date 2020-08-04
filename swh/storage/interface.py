@@ -177,7 +177,9 @@ class StorageInterface:
 
     @deprecated
     @remote_api_endpoint("content/range")
-    def content_get_range(self, start, end, limit=1000):
+    def content_get_range(
+        self, start: bytes, end: bytes, limit: int = 1000
+    ) -> Dict[str, Any]:
         """Retrieve contents within range [start, end] bound by limit.
 
         Note that this function may return more than one blob per hash. The
@@ -185,11 +187,11 @@ class StorageInterface:
         will count twice toward the limit).
 
         Args:
-            **start** (bytes): Starting identifier range (expected smaller
+            **start**: Starting identifier range (expected smaller
                            than end)
-            **end** (bytes): Ending identifier range (expected larger
+            **end**: Ending identifier range (expected larger
                              than start)
-            **limit** (int): Limit result (default to 1000)
+            **limit**: Limit result (default to 1000)
 
         Returns:
             a dict with keys:

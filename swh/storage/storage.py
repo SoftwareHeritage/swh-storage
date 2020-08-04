@@ -278,7 +278,9 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
+    def content_get_range(
+        self, start: bytes, end: bytes, limit: int = 1000, db=None, cur=None
+    ) -> Dict[str, Any]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
         contents = []
