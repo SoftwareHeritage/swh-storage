@@ -370,7 +370,9 @@ class CassandraStorage:
                     ret[key] = getattr(content, key)
         return ret
 
-    def _directory_ls(self, directory_id, recursive, prefix=b""):
+    def _directory_ls(
+        self, directory_id: Sha1Git, recursive: bool, prefix: bytes = b""
+    ) -> Iterable[Dict[str, Any]]:
         if self.directory_missing([directory_id]):
             return
         rows = list(self._cql_runner.directory_entry_get([directory_id]))
@@ -425,7 +427,9 @@ class CassandraStorage:
             first_item["target"], paths[1:], prefix + paths[0] + b"/"
         )
 
-    def directory_ls(self, directory, recursive=False):
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False
+    ) -> Iterable[Dict[str, Any]]:
         yield from self._directory_ls(directory, recursive)
 
     def directory_get_random(self) -> Sha1Git:

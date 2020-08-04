@@ -462,7 +462,9 @@ class InMemoryStorage:
                         ret["target"], True, prefix + ret["name"] + b"/"
                     )
 
-    def directory_ls(self, directory, recursive=False):
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False
+    ) -> Iterable[Dict[str, Any]]:
         yield from self._directory_ls(directory, recursive)
 
     def directory_entry_get_by_path(self, directory, paths):

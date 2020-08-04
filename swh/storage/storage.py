@@ -531,7 +531,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=20000)
-    def directory_ls(self, directory, recursive=False, db=None, cur=None):
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False, db=None, cur=None
+    ) -> Iterable[Dict[str, Any]]:
         if recursive:
             res_gen = db.directory_walk(directory, cur=cur)
         else:

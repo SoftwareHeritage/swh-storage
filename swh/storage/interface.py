@@ -423,18 +423,20 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/ls")
-    def directory_ls(self, directory, recursive=False):
-        """Get entries for one directory.
-
-        Args:
-            - directory: the directory to list entries from.
-            - recursive: if flag on, this list recursively from this directory.
-
-        Returns:
-            List of entries for such directory.
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False
+    ) -> Iterable[Dict[str, Any]]:
+        """List entries for one directory.
 
         If `recursive=True`, names in the path of a dir/file not at the
         root are concatenated with a slash (`/`).
+
+        Args:
+            directory: the directory to list entries from.
+            recursive: if flag on, this list recursively from this directory.
+
+        Yields:
+            directory entries for such directory.
 
         """
         ...
