@@ -347,9 +347,9 @@ class CassandraStorage:
             # with half the entries.
             self._cql_runner.directory_add_one(directory.id)
 
-        return {"directory:add": len(missing)}
+        return {"directory:add": len(directories)}
 
-    def directory_missing(self, directories):
+    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.directory_missing(directories)
 
     def _join_dentry_to_content(self, dentry: DirectoryEntry) -> Dict[str, Any]:

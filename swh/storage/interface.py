@@ -410,11 +410,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/missing")
-    def directory_missing(self, directories):
-        """List directories missing from storage
+    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
+        """List directories missing from storage.
 
         Args:
-            directories (iterable): an iterable of directory ids
+            directories: list of directory ids
 
         Yields:
             missing directory ids

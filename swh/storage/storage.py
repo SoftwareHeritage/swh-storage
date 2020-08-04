@@ -523,7 +523,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def directory_missing(self, directories, db=None, cur=None):
+    def directory_missing(
+        self, directories: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         for obj in db.directory_missing_from_list(directories, cur):
             yield obj[0]
 

@@ -426,7 +426,7 @@ class InMemoryStorage:
 
         return {"directory:add": count}
 
-    def directory_missing(self, directories):
+    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
         for id in directories:
             if id not in self._directories:
                 yield id
