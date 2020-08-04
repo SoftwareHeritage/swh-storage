@@ -32,8 +32,9 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1Git,
 )
-from swh.storage.interface import ListOrder, PagedResult
+from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -214,14 +215,14 @@ class CassandraStorage:
                 result[content_metadata["sha1"]].append(content_metadata)
         return result
 
-    def content_find(self, content):
+    def content_find(self, content: Dict[str, Any]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
         filter_algos = list(set(content).intersection(HASH_ALGORITHMS))
         if not filter_algos:
             raise StorageArgumentException(
-                "content keys must contain at least one of: "
-                "%s" % ", ".join(sorted(HASH_ALGORITHMS))
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(HASH_ALGORITHMS))}"
             )
         common_algo = filter_algos[0]
 
@@ -236,20 +237,15 @@ class CassandraStorage:
                     break
             else:
                 # All hashes match, keep this row.
-                results.append(
-                    {
-                        **row._asdict(),
-                        "ctime": row.ctime.replace(tzinfo=datetime.timezone.utc),
-                    }
-                )
+                row_d = row._asdict()
+                row_d["ctime"] = row.ctime.replace(tzinfo=datetime.timezone.utc)
+                results.append(Content(**row_d))
         return results
 
     def content_missing(self, content, key_hash="sha1"):
         for cont in content:
             res = self.content_find(cont)
             if not res:
-                yield cont[key_hash]
-            if any(c["status"] == "missing" for c in res):
                 yield cont[key_hash]
 
     def content_missing_per_sha1(self, contents):
@@ -260,7 +256,7 @@ class CassandraStorage:
             [{"sha1_git": c for c in contents}], key_hash="sha1_git"
         )
 
-    def content_get_random(self):
+    def content_get_random(self) -> Sha1Git:
         return self._cql_runner.content_get_random().sha1_git
 
     def _skipped_content_get_from_hash(self, algo, hash_) -> Iterable:
@@ -340,7 +336,7 @@ class CassandraStorage:
     def directory_missing(self, directories):
         return self._cql_runner.directory_missing(directories)
 
-    def _join_dentry_to_content(self, dentry):
+    def _join_dentry_to_content(self, dentry: DirectoryEntry) -> Dict[str, Any]:
         keys = (
             "status",
             "sha1",
@@ -351,11 +347,11 @@ class CassandraStorage:
         ret = dict.fromkeys(keys)
         ret.update(dentry.to_dict())
         if ret["type"] == "file":
-            content = self.content_find({"sha1_git": ret["target"]})
-            if content:
-                content = content[0]
+            contents = self.content_find({"sha1_git": ret["target"]})
+            if contents:
+                content = contents[0]
                 for key in keys:
-                    ret[key] = content[key]
+                    ret[key] = getattr(content, key)
         return ret
 
     def _directory_ls(self, directory_id, recursive, prefix=b""):
@@ -416,7 +412,7 @@ class CassandraStorage:
     def directory_ls(self, directory, recursive=False):
         yield from self._directory_ls(directory, recursive)
 
-    def directory_get_random(self):
+    def directory_get_random(self) -> Sha1Git:
         return self._cql_runner.directory_get_random().id
 
     def revision_add(self, revisions: List[Revision]) -> Dict:
@@ -505,7 +501,7 @@ class CassandraStorage:
         seen = set()
         yield from self._get_parent_revs(revisions, seen, limit, True)
 
-    def revision_get_random(self):
+    def revision_get_random(self) -> Sha1Git:
         return self._cql_runner.revision_get_random().id
 
     def release_add(self, releases: List[Release]) -> Dict:
@@ -537,7 +533,7 @@ class CassandraStorage:
         for rel_id in releases:
             yield rels.get(rel_id)
 
-    def release_get_random(self):
+    def release_get_random(self) -> Sha1Git:
         return self._cql_runner.release_get_random().id
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
@@ -652,7 +648,7 @@ class CassandraStorage:
             "next_branch": last_branch,
         }
 
-    def snapshot_get_random(self):
+    def snapshot_get_random(self) -> Sha1Git:
         return self._cql_runner.snapshot_get_random().id
 
     def object_find_by_sha1_git(self, ids):
@@ -941,6 +937,11 @@ class CassandraStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[OriginVisit]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
         # TODO: Do not fetch all visits
         rows = self._cql_runner.origin_visit_get_all(origin)
         latest_visit = None
@@ -979,6 +980,11 @@ class CassandraStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[OriginVisitStatus]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
         rows = self._cql_runner.origin_visit_status_get(
             origin_url, visit, allowed_statuses, require_snapshot
         )

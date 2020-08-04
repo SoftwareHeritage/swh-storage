@@ -21,13 +21,14 @@ import pytest
 
 from hypothesis import given, strategies, settings, HealthCheck
 
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Dict, Iterator, Optional
 
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
+    Directory,
     MetadataTargetType,
     Origin,
     OriginVisit,
@@ -52,24 +53,42 @@ def db_transaction(storage):
             yield db, cur
 
 
-def transform_entries(dir_, *, prefix=b""):
+def transform_entries(
+    storage: StorageInterface, dir_: Directory, *, prefix: bytes = b""
+) -> Iterator[Dict[str, Any]]:
+    """Iterate through a directory's entries, and yields the items 'directory_ls' is
+       expected to return; including content metadata for file entries."""
+
     for ent in dir_.entries:
-        yield {
-            "dir_id": dir_.id,
-            "type": ent.type,
-            "target": ent.target,
-            "name": prefix + ent.name,
-            "perms": ent.perms,
-            "status": None,
-            "sha1": None,
-            "sha1_git": None,
-            "sha256": None,
-            "length": None,
-        }
-
-
-def cmpdir(directory):
-    return (directory["type"], directory["dir_id"])
+        if ent.type == "dir":
+            yield {
+                "dir_id": dir_.id,
+                "type": ent.type,
+                "target": ent.target,
+                "name": prefix + ent.name,
+                "perms": ent.perms,
+                "status": None,
+                "sha1": None,
+                "sha1_git": None,
+                "sha256": None,
+                "length": None,
+            }
+        elif ent.type == "file":
+            contents = storage.content_find({"sha1_git": ent.target})
+            assert contents
+            ent_dict = contents[0].to_dict()
+            for key in ["ctime", "blake2s256"]:
+                del ent_dict[key]
+            ent_dict.update(
+                {
+                    "dir_id": dir_.id,
+                    "type": ent.type,
+                    "target": ent.target,
+                    "name": prefix + ent.name,
+                    "perms": ent.perms,
+                }
+            )
+            yield ent_dict
 
 
 def assert_contents_ok(
@@ -638,7 +657,10 @@ class TestStorage:
         }
 
     def test_directory_add(self, swh_storage, sample_data):
+        content = sample_data.content
         directory = sample_data.directories[1]
+        assert directory.entries[0].target == content.sha1_git
+        swh_storage.content_add([content])
 
         init_missing = list(swh_storage.directory_missing([directory.id]))
         assert [directory.id] == init_missing
@@ -646,14 +668,15 @@ class TestStorage:
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", directory)
-        ]
+        assert ("directory", directory) in list(
+            swh_storage.journal_writer.journal.objects
+        )
 
         actual_data = list(swh_storage.directory_ls(directory.id))
-        expected_data = list(transform_entries(directory))
+        expected_data = list(transform_entries(swh_storage, directory))
 
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
+        for data in actual_data:
+            assert data in expected_data
 
         after_missing = list(swh_storage.directory_missing([directory.id]))
         assert after_missing == []
@@ -678,79 +701,84 @@ class TestStorage:
             ("directory", directory)
         ]
 
-    def test_directory_get_recursive(self, swh_storage, sample_data):
+    def test_directory_ls_recursive(self, swh_storage, sample_data):
+        # create consistent dataset regarding the directories we want to list
+        content, content2 = sample_data.contents[:2]
+        swh_storage.content_add([content, content2])
         dir1, dir2, dir3 = sample_data.directories[:3]
 
-        init_missing = list(swh_storage.directory_missing([dir1.id]))
-        assert init_missing == [dir1.id]
+        dir_ids = [d.id for d in [dir1, dir2, dir3]]
+        init_missing = list(swh_storage.directory_missing(dir_ids))
+        assert init_missing == dir_ids
 
         actual_result = swh_storage.directory_add([dir1, dir2, dir3])
         assert actual_result == {"directory:add": 3}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", dir1),
-            ("directory", dir2),
-            ("directory", dir3),
-        ]
-
-        # List directory containing a file and an unknown subdirectory
+        # List directory containing one file
         actual_data = list(swh_storage.directory_ls(dir1.id, recursive=True))
-        expected_data = list(transform_entries(dir1))
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
+        expected_data = list(transform_entries(swh_storage, dir1))
+        for data in actual_data:
+            assert data in expected_data
 
         # List directory containing a file and an unknown subdirectory
         actual_data = list(swh_storage.directory_ls(dir2.id, recursive=True))
-        expected_data = list(transform_entries(dir2))
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
+        expected_data = list(transform_entries(swh_storage, dir2))
+        for data in actual_data:
+            assert data in expected_data
 
-        # List directory containing a known subdirectory, entries should
-        # be both those of the directory and of the subdir
+        # List directory containing both a known and unknown subdirectory, entries
+        # should be both those of the directory and of the known subdir (up to contents)
         actual_data = list(swh_storage.directory_ls(dir3.id, recursive=True))
         expected_data = list(
             itertools.chain(
-                transform_entries(dir3), transform_entries(dir2, prefix=b"subdir/"),
+                transform_entries(swh_storage, dir3),
+                transform_entries(swh_storage, dir2, prefix=b"subdir/"),
             )
         )
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
 
-    def test_directory_get_non_recursive(self, swh_storage, sample_data):
-        dir1, dir2, dir3 = sample_data.directories[:3]
+        for data in actual_data:
+            assert data in expected_data
 
-        init_missing = list(swh_storage.directory_missing([dir1.id]))
-        assert init_missing == [dir1.id]
+    def test_directory_ls_non_recursive(self, swh_storage, sample_data):
+        # create consistent dataset regarding the directories we want to list
+        content, content2 = sample_data.contents[:2]
+        swh_storage.content_add([content, content2])
+        dir1, dir2, dir3, _, dir5 = sample_data.directories[:5]
 
-        actual_result = swh_storage.directory_add([dir1, dir2, dir3])
-        assert actual_result == {"directory:add": 3}
+        dir_ids = [d.id for d in [dir1, dir2, dir3, dir5]]
+        init_missing = list(swh_storage.directory_missing(dir_ids))
+        assert init_missing == dir_ids
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
-            ("directory", dir1),
-            ("directory", dir2),
-            ("directory", dir3),
-        ]
+        actual_result = swh_storage.directory_add([dir1, dir2, dir3, dir5])
+        assert actual_result == {"directory:add": 4}
 
         # List directory containing a file and an unknown subdirectory
         actual_data = list(swh_storage.directory_ls(dir1.id))
-        expected_data = list(transform_entries(dir1))
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
+        expected_data = list(transform_entries(swh_storage, dir1))
+        for data in actual_data:
+            assert data in expected_data
 
-        # List directory contaiining a single file
+        # List directory containing a single file
         actual_data = list(swh_storage.directory_ls(dir2.id))
-        expected_data = list(transform_entries(dir2))
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
+        expected_data = list(transform_entries(swh_storage, dir2))
+        for data in actual_data:
+            assert data in expected_data
 
         # List directory containing a known subdirectory, entries should
         # only be those of the parent directory, not of the subdir
         actual_data = list(swh_storage.directory_ls(dir3.id))
-        expected_data = list(transform_entries(dir3))
-        assert sorted(expected_data, key=cmpdir) == sorted(actual_data, key=cmpdir)
+        expected_data = list(transform_entries(swh_storage, dir3))
+        for data in actual_data:
+            assert data in expected_data
 
     def test_directory_entry_get_by_path(self, swh_storage, sample_data):
-        cont = sample_data.content
+        cont, content2 = sample_data.contents[:2]
         dir1, dir2, dir3, dir4, dir5 = sample_data.directories[:5]
 
         # given
-        init_missing = list(swh_storage.directory_missing([dir3.id]))
-        assert init_missing == [dir3.id]
+        dir_ids = [d.id for d in [dir1, dir2, dir3, dir4, dir5]]
+        init_missing = list(swh_storage.directory_missing(dir_ids))
+        assert init_missing == dir_ids
 
         actual_result = swh_storage.directory_add([dir3, dir4])
         assert actual_result == {"directory:add": 2}
@@ -784,7 +812,7 @@ class TestStorage:
                 "dir_id": dir3.id,
                 "name": b"hello",
                 "type": "file",
-                "target": dir5.id,
+                "target": content2.sha1_git,
                 "sha1": None,
                 "sha1_git": None,
                 "sha256": None,
@@ -2028,17 +2056,20 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_by(origin.url, 999)  # unknown visit
         assert actual_visit is None
 
-    def test_origin_visit_get_latest_none(self, swh_storage, sample_data):
-        """Origin visit get latest on unknown objects should return nothing
-
-        """
+    def test_origin_visit_get_latest_edge_cases(self, swh_storage, sample_data):
         # unknown origin so no result
         assert swh_storage.origin_visit_get_latest("unknown-origin") is None
 
-        # unknown type
+        # unknown type so no result
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         assert swh_storage.origin_visit_get_latest(origin.url, type="unknown") is None
+
+        # unknown allowed statuses should raise
+        with pytest.raises(StorageArgumentException, match="Unknown allowed statuses"):
+            swh_storage.origin_visit_get_latest(
+                origin.url, allowed_statuses=["unknown"]
+            )
 
     def test_origin_visit_get_latest_filter_type(self, swh_storage, sample_data):
         """Filtering origin visit get latest with filter type should be ok
@@ -2264,6 +2295,19 @@ class TestStorage:
         # ties should be broken by using the visit id
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
         assert actual_visit == ov2
+
+    def test_origin_visit_status_get_latest__validation(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        visit1 = OriginVisit(
+            origin=origin.url, date=sample_data.date_visit1, type="git",
+        )
+
+        # unknown allowed statuses should raise
+        with pytest.raises(StorageArgumentException, match="Unknown allowed statuses"):
+            swh_storage.origin_visit_status_get_latest(
+                origin.url, visit1.visit, allowed_statuses=["unknown"]
+            )
 
     def test_origin_visit_status_get_latest(self, swh_storage, sample_data):
         snapshot = sample_data.snapshots[2]
@@ -3033,45 +3077,38 @@ class TestStorage:
         swh_storage.content_add_metadata([content])
 
         actually_present = swh_storage.content_find({"sha1": content.sha1})
-        assert actually_present[0] == content.to_dict()
+        assert actually_present[0] == content
 
     def test_content_find_with_present_content(self, swh_storage, sample_data):
         content = sample_data.content
-        expected_content = content.to_dict()
-        del expected_content["data"]
-        del expected_content["ctime"]
+        expected_content = attr.evolve(content, data=None)
 
         # 1. with something to find
         swh_storage.content_add([content])
 
         actually_present = swh_storage.content_find({"sha1": content.sha1})
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
         # 2. with something to find
         actually_present = swh_storage.content_find({"sha1_git": content.sha1_git})
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
         # 3. with something to find
         actually_present = swh_storage.content_find({"sha256": content.sha256})
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
         # 4. with something to find
         actually_present = swh_storage.content_find(content.hashes())
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
     def test_content_find_with_non_present_content(self, swh_storage, sample_data):
         missing_content = sample_data.skipped_content
         # 1. with something that does not exist
         actually_present = swh_storage.content_find({"sha1": missing_content.sha1})
-
         assert actually_present == []
 
         # 2. with something that does not exist
@@ -3099,30 +3136,18 @@ class TestStorage:
         # Inject the data
         swh_storage.content_add([content, duplicated_content])
 
-        actual_result = list(
-            swh_storage.content_find(
-                {
-                    "blake2s256": duplicated_content.blake2s256,
-                    "sha256": duplicated_content.sha256,
-                }
-            )
+        actual_result = swh_storage.content_find(
+            {
+                "blake2s256": duplicated_content.blake2s256,
+                "sha256": duplicated_content.sha256,
+            }
         )
 
-        expected_content = content.to_dict()
-        expected_duplicated_content = duplicated_content.to_dict()
+        expected_content = attr.evolve(content, data=None)
+        expected_duplicated_content = attr.evolve(duplicated_content, data=None)
 
-        for key in ["data", "ctime"]:  # so we can compare
-            for dict_ in [
-                expected_content,
-                expected_duplicated_content,
-                actual_result[0],
-                actual_result[1],
-            ]:
-                dict_.pop(key, None)
-
-        expected_result = [expected_content, expected_duplicated_content]
-        for result in expected_result:
-            assert result in actual_result
+        for result in actual_result:
+            assert result in [expected_content, expected_duplicated_content]
 
     def test_content_find_with_duplicate_sha256(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3142,42 +3167,24 @@ class TestStorage:
         )
         swh_storage.content_add([content, duplicated_content])
 
-        actual_result = list(
-            swh_storage.content_find({"sha256": duplicated_content.sha256})
-        )
-
+        actual_result = swh_storage.content_find({"sha256": duplicated_content.sha256})
         assert len(actual_result) == 2
 
-        expected_content = content.to_dict()
-        expected_duplicated_content = duplicated_content.to_dict()
+        expected_content = attr.evolve(content, data=None)
+        expected_duplicated_content = attr.evolve(duplicated_content, data=None)
 
-        for key in ["data", "ctime"]:  # so we can compare
-            for dict_ in [
-                expected_content,
-                expected_duplicated_content,
-                actual_result[0],
-                actual_result[1],
-            ]:
-                dict_.pop(key, None)
-
-        assert sorted(actual_result, key=lambda x: x["sha1"]) == [
-            expected_content,
-            expected_duplicated_content,
-        ]
+        for result in actual_result:
+            assert result in [expected_content, expected_duplicated_content]
 
         # Find with both sha256 and blake2s256
-        actual_result = list(
-            swh_storage.content_find(
-                {
-                    "sha256": duplicated_content.sha256,
-                    "blake2s256": duplicated_content.blake2s256,
-                }
-            )
+        actual_result = swh_storage.content_find(
+            {
+                "sha256": duplicated_content.sha256,
+                "blake2s256": duplicated_content.blake2s256,
+            }
         )
 
         assert len(actual_result) == 1
-        actual_result[0].pop("ctime")
-
         assert actual_result == [expected_duplicated_content]
 
     def test_content_find_with_duplicate_blake2s256(self, swh_storage, sample_data):
@@ -3200,45 +3207,32 @@ class TestStorage:
 
         swh_storage.content_add([content, duplicated_content])
 
-        actual_result = list(
-            swh_storage.content_find({"blake2s256": duplicated_content.blake2s256})
+        actual_result = swh_storage.content_find(
+            {"blake2s256": duplicated_content.blake2s256}
         )
 
-        expected_content = content.to_dict()
-        expected_duplicated_content = duplicated_content.to_dict()
+        expected_content = attr.evolve(content, data=None)
+        expected_duplicated_content = attr.evolve(duplicated_content, data=None)
 
-        for key in ["data", "ctime"]:  # so we can compare
-            for dict_ in [
-                expected_content,
-                expected_duplicated_content,
-                actual_result[0],
-                actual_result[1],
-            ]:
-                dict_.pop(key, None)
-
-        expected_result = [expected_content, expected_duplicated_content]
-        for result in expected_result:
-            assert result in actual_result
+        for result in actual_result:
+            assert result in [expected_content, expected_duplicated_content]
 
         # Find with both sha256 and blake2s256
-        actual_result = list(
-            swh_storage.content_find(
-                {
-                    "sha256": duplicated_content.sha256,
-                    "blake2s256": duplicated_content.blake2s256,
-                }
-            )
+        actual_result = swh_storage.content_find(
+            {
+                "sha256": duplicated_content.sha256,
+                "blake2s256": duplicated_content.blake2s256,
+            }
         )
 
-        actual_result[0].pop("ctime")
         assert actual_result == [expected_duplicated_content]
 
     def test_content_find_bad_input(self, swh_storage):
-        # 1. with bad input
+        # 1. with no hash to lookup
         with pytest.raises(StorageArgumentException):
-            swh_storage.content_find({})  # empty is bad
+            swh_storage.content_find({})  # need at least one hash
 
-        # 2. with bad input
+        # 2. with bad hash
         with pytest.raises(StorageArgumentException):
             swh_storage.content_find({"unknown-sha1": "something"})  # not the right key
 
@@ -3951,42 +3945,6 @@ class TestStorageGeneratedData:
         assert len(actual_contents2) == 1
 
         assert_contents_ok([contents_map[get_sha1s[-1]]], actual_contents2, ["sha1"])
-
-    def test_origin_get_range_from_zero(self, swh_storage, swh_origins):
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=0, origin_count=0)
-        )
-        assert len(actual_origins) == 0
-
-        actual_origins = list(
-            swh_storage.origin_get_range(origin_from=0, origin_count=1)
-        )
-        assert len(actual_origins) == 1
-        assert actual_origins[0]["id"] == 1
-        assert actual_origins[0]["url"] == swh_origins[0].url
-
-    @pytest.mark.parametrize(
-        "origin_from,origin_count",
-        [(1, 1), (1, 10), (1, 20), (1, 101), (11, 0), (11, 10), (91, 11)],
-    )
-    def test_origin_get_range(
-        self, swh_storage, swh_origins, origin_from, origin_count
-    ):
-        actual_origins = list(
-            swh_storage.origin_get_range(
-                origin_from=origin_from, origin_count=origin_count
-            )
-        )
-
-        origins_with_id = list(enumerate(swh_origins, start=1))
-        expected_origins = [
-            {"url": origin.url, "id": origin_id,}
-            for (origin_id, origin) in origins_with_id[
-                origin_from - 1 : origin_from + origin_count - 1
-            ]
-        ]
-
-        assert actual_origins == expected_origins
 
     @pytest.mark.parametrize("limit", [1, 7, 10, 100, 1000])
     def test_origin_list(self, swh_storage, swh_origins, limit):

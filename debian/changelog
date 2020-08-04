@@ -1,8 +1,27 @@
-swh-storage (0.11.8-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.11.10-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.11.10     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-08-04 14:10:21
+    +0200)
+  * Upstream changes:     - v0.11.10     - tests: Improve coverage on
+    directory_ls endpoints     - storage*: Type content_find(...) ->
+    List[Content]     - storage*: Type
+    {cnt,dir,rev,rel,snp}_get_random(...) -> Sha1Git
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 31 Jul 2020 13:29:03 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 04 Aug 2020 12:15:21 +0000
+
+swh-storage (0.11.9-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.11.9     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-08-03 11:55:10
+    +0200)
+  * Upstream changes:     - v0.11.9     - storage*: Drop origin-get-
+    range in favor of origin-list     - storage*: Do not allow unknown
+    visit status in origin_visit*_get_latest     - storage*: Add type
+    annotation to origin_count     - Reuse swh.core stream_results
+    function
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 03 Aug 2020 10:02:56 +0000
 
 swh-storage (0.11.8-1~swh1) unstable-swh; urgency=medium
 

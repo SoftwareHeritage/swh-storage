@@ -293,7 +293,12 @@ class Db(BaseDb):
     ]
 
     def content_find(
-        self, sha1=None, sha1_git=None, sha256=None, blake2s256=None, cur=None
+        self,
+        sha1: Optional[bytes] = None,
+        sha1_git: Optional[bytes] = None,
+        sha256: Optional[bytes] = None,
+        blake2s256: Optional[bytes] = None,
+        cur=None,
     ):
         """Find the content optionally on a combination of the following
         checksums sha1, sha1_git, sha256 or blake2s256.
@@ -316,21 +321,19 @@ class Db(BaseDb):
             "sha256": sha256,
             "blake2s256": blake2s256,
         }
+
+        query_parts = [f"SELECT {','.join(self.content_find_cols)} FROM content WHERE "]
+        query_params = []
         where_parts = []
-        args = []
-        # Adds only those keys which have value other than None
+        # Adds only those keys which have values exist
         for algorithm in checksum_dict:
             if checksum_dict[algorithm] is not None:
-                args.append(checksum_dict[algorithm])
-                where_parts.append(algorithm + "= %s")
-        query = " AND ".join(where_parts)
-        cur.execute(
-            """SELECT %s
-                       FROM content WHERE %s
-                       """
-            % (",".join(self.content_find_cols), query),
-            args,
-        )
+                where_parts.append(f"{algorithm} = %s")
+                query_params.append(checksum_dict[algorithm])
+
+        query_parts.append(" AND ".join(where_parts))
+        query = "\n".join(query_parts)
+        cur.execute(query, query_params)
         content = cur.fetchall()
         return content
 

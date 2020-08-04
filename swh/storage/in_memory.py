@@ -50,9 +50,10 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1Git,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.interface import ListOrder, PagedResult
+from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -137,7 +138,6 @@ class InMemoryStorage:
         self._releases = {}
         self._snapshots = {}
         self._origins = {}
-        self._origins_by_id = []
         self._origins_by_sha1 = {}
         self._origin_visits = {}
         self._origin_visit_statuses: Dict[Tuple[str, int], List[OriginVisitStatus]] = {}
@@ -321,11 +321,11 @@ class InMemoryStorage:
                     result[sha1].append(d)
         return result
 
-    def content_find(self, content):
+    def content_find(self, content: Dict[str, Any]) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
-                "content keys must contain at least one of: %s"
-                % ", ".join(sorted(DEFAULT_ALGORITHMS))
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(DEFAULT_ALGORITHMS))}"
             )
         found = []
         for algo in DEFAULT_ALGORITHMS:
@@ -337,7 +337,7 @@ class InMemoryStorage:
             return []
 
         keys = list(set.intersection(*found))
-        return [self._contents[key].to_dict() for key in keys]
+        return [self._contents[key] for key in keys]
 
     def content_missing(self, content, key_hash="sha1"):
         for cont in content:
@@ -347,10 +347,6 @@ class InMemoryStorage:
                 if hash_ not in self._content_indexes.get(algo, []):
                     yield cont[key_hash]
                     break
-            else:
-                for result in self.content_find(cont):
-                    if result["status"] == "missing":
-                        yield cont[key_hash]
 
     def content_missing_per_sha1(self, contents):
         for content in contents:
@@ -362,7 +358,7 @@ class InMemoryStorage:
             if content not in self._content_indexes["sha1_git"]:
                 yield content
 
-    def content_get_random(self):
+    def content_get_random(self) -> Sha1Git:
         return random.choice(list(self._content_indexes["sha1_git"]))
 
     def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
@@ -418,7 +414,7 @@ class InMemoryStorage:
             if id not in self._directories:
                 yield id
 
-    def _join_dentry_to_content(self, dentry):
+    def _join_dentry_to_content(self, dentry: Dict[str, Any]) -> Dict[str, Any]:
         keys = (
             "status",
             "sha1",
@@ -430,11 +426,11 @@ class InMemoryStorage:
         ret.update(dentry)
         if ret["type"] == "file":
             # TODO: Make it able to handle more than one content
-            content = self.content_find({"sha1_git": ret["target"]})
-            if content:
-                content = content[0]
+            contents = self.content_find({"sha1_git": ret["target"]})
+            if contents:
+                content = contents[0]
                 for key in keys:
-                    ret[key] = content[key]
+                    ret[key] = getattr(content, key)
         return ret
 
     def _directory_ls(self, directory_id, recursive, prefix=b""):
@@ -455,9 +451,7 @@ class InMemoryStorage:
     def directory_entry_get_by_path(self, directory, paths):
         return self._directory_entry_get_by_path(directory, paths, b"")
 
-    def directory_get_random(self):
-        if not self._directories:
-            return None
+    def directory_get_random(self) -> Sha1Git:
         return random.choice(list(self._directories))
 
     def _directory_entry_get_by_path(self, directory, paths, prefix):
@@ -537,7 +531,7 @@ class InMemoryStorage:
             (rev["id"], rev["parents"]) for rev in self.revision_log(revisions, limit)
         )
 
-    def revision_get_random(self):
+    def revision_get_random(self) -> Sha1Git:
         return random.choice(list(self._revisions))
 
     def release_add(self, releases: List[Release]) -> Dict:
@@ -565,7 +559,7 @@ class InMemoryStorage:
             else:
                 yield None
 
-    def release_get_random(self):
+    def release_get_random(self) -> Sha1Git:
         return random.choice(list(self._releases))
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
@@ -656,7 +650,7 @@ class InMemoryStorage:
             "next_branch": next_branch,
         }
 
-    def snapshot_get_random(self):
+    def snapshot_get_random(self) -> Sha1Git:
         return random.choice(list(self._snapshots))
 
     def object_find_by_sha1_git(self, ids):
@@ -680,16 +674,6 @@ class InMemoryStorage:
 
     def origin_get_by_sha1(self, sha1s):
         return [self._convert_origin(self._origins_by_sha1.get(sha1)) for sha1 in sha1s]
-
-    def origin_get_range(self, origin_from=1, origin_count=100):
-        origin_from = max(origin_from, 1)
-        if origin_from <= len(self._origins_by_id):
-            max_idx = origin_from + origin_count - 1
-            if max_idx > len(self._origins_by_id):
-                max_idx = len(self._origins_by_id)
-            for idx in range(origin_from - 1, max_idx):
-                origin = self._convert_origin(self._origins[self._origins_by_id[idx]])
-                yield {"id": idx + 1, **origin}
 
     def origin_list(
         self, page_token: Optional[str] = None, limit: int = 100
@@ -755,7 +739,9 @@ class InMemoryStorage:
         assert len(origins) <= limit
         return PagedResult(results=origins, next_page_token=next_page_token)
 
-    def origin_count(self, url_pattern, regexp=False, with_visit=False):
+    def origin_count(
+        self, url_pattern: str, regexp: bool = False, with_visit: bool = False
+    ) -> int:
         actual_page = self.origin_search(
             url_pattern, regexp=regexp, with_visit=with_visit, limit=len(self._origins),
         )
@@ -774,12 +760,6 @@ class InMemoryStorage:
     def origin_add_one(self, origin: Origin) -> str:
         if origin.url not in self._origins:
             self.journal_writer.origin_add([origin])
-            # generate an origin_id because it is needed by origin_get_range.
-            # TODO: remove this when we remove origin_get_range
-            origin_id = len(self._origins) + 1
-            self._origins_by_id.append(origin.url)
-            assert len(self._origins_by_id) == origin_id
-
             self._origins[origin.url] = origin
             self._origins_by_sha1[origin_url_to_sha1(origin.url)] = origin
             self._origin_visits[origin.url] = []
@@ -937,6 +917,12 @@ class InMemoryStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[OriginVisit]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
+
         ori = self._origins.get(origin)
         if not ori:
             return None
@@ -1007,6 +993,12 @@ class InMemoryStorage:
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
     ) -> Optional[OriginVisitStatus]:
+        if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
+            raise StorageArgumentException(
+                f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
+                f"{','.join(VISIT_STATUSES)} authorized"
+            )
+
         ori = self._origins.get(origin_url)
         if not ori:
             return None
