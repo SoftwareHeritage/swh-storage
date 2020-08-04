@@ -175,7 +175,7 @@ class InMemoryStorage:
 
         self.objstorage = ObjStorage({"cls": "memory", "args": {}})
 
-    def check_config(self, *, check_write):
+    def check_config(self, *, check_write: bool) -> bool:
         return True
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict:

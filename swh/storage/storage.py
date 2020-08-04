@@ -144,7 +144,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def check_config(self, *, check_write, db=None, cur=None):
+    def check_config(self, *, check_write: bool, db=None, cur=None) -> bool:
 
         if not self.objstorage.check_config(check_write=check_write):
             return False

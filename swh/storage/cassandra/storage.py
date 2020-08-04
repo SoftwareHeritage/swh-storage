@@ -56,7 +56,7 @@ class CassandraStorage:
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(objstorage)
 
-    def check_config(self, *, check_write):
+    def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
 
         return True

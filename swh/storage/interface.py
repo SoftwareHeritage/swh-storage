@@ -53,7 +53,7 @@ def deprecated(f):
 
 class StorageInterface:
     @remote_api_endpoint("check_config")
-    def check_config(self, *, check_write):
+    def check_config(self, *, check_write: bool) -> bool:
         """Check that the storage is configured and ready to go."""
         ...
 
