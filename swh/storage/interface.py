@@ -366,15 +366,17 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/skipped/missing")
-    def skipped_content_missing(self, contents):
-        """List skipped_content missing from storage
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]]
+    ) -> Iterable[Dict[str, Any]]:
+        """List skipped contents missing from storage.
 
         Args:
-            content: iterable of dictionaries containing the data for each
+            contents: iterable of dictionaries containing the data for each
                 checksum algorithm.
 
         Returns:
-            iterable: missing signatures
+            Iterable of missing skipped contents as dict
 
         """
         ...

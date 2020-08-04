@@ -398,7 +398,9 @@ class InMemoryStorage:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(content)
 
-    def skipped_content_missing(self, contents):
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]]
+    ) -> Iterable[Dict[str, Any]]:
         for content in contents:
             matches = list(self._skipped_contents.values())
             for (algorithm, key) in self._content_key(content):

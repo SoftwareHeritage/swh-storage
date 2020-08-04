@@ -457,7 +457,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def skipped_content_missing(self, contents, db=None, cur=None):
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]], db=None, cur=None
+    ) -> Iterable[Dict[str, Any]]:
         contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
             yield dict(zip(db.content_hash_keys, content))

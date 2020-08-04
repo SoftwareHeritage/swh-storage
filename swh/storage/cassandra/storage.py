@@ -321,7 +321,9 @@ class CassandraStorage:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
-    def skipped_content_missing(self, contents):
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]]
+    ) -> Iterable[Dict[str, Any]]:
         for content in contents:
             if not self._cql_runner.skipped_content_get_from_pk(content):
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
