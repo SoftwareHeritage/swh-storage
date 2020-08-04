@@ -93,12 +93,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/update")
-    def content_update(self, content, keys=[]):
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = []
+    ) -> None:
         """Update content blobs to the storage. Does nothing for unknown
         contents or skipped ones.
 
         Args:
-            content (iterable): iterable of dictionaries representing
+            content: iterable of dictionaries representing
                 individual pieces of content to update. Each dictionary has the
                 following keys:
 

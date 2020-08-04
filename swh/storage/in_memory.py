@@ -226,10 +226,12 @@ class InMemoryStorage:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(content, with_data=True)
 
-    def content_update(self, content, keys=[]):
-        self.journal_writer.content_update(content)
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = []
+    ) -> None:
+        self.journal_writer.content_update(contents)
 
-        for cont_update in content:
+        for cont_update in contents:
             cont_update = cont_update.copy()
             sha1 = cont_update.pop("sha1")
             for old_key in self._content_indexes["sha1"][sha1]:

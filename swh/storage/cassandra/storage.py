@@ -153,7 +153,9 @@ class CassandraStorage:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(list(contents), with_data=True)
 
-    def content_update(self, content, keys=[]):
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = []
+    ) -> None:
         raise NotImplementedError(
             "content_update is not supported by the Cassandra backend"
         )

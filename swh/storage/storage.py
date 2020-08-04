@@ -236,15 +236,17 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_update(self, content, keys=[], db=None, cur=None):
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = [], db=None, cur=None
+    ) -> None:
         # TODO: Add a check on input keys. How to properly implement
         # this? We don't know yet the new columns.
-        self.journal_writer.content_update(content)
+        self.journal_writer.content_update(contents)
 
         db.mktemp("content", cur)
         select_keys = list(set(db.content_get_metadata_keys).union(set(keys)))
         with convert_validation_exceptions():
-            db.copy_to(content, "tmp_content", select_keys, cur)
+            db.copy_to(contents, "tmp_content", select_keys, cur)
             db.content_update_from_temp(keys_to_update=keys, cur=cur)
 
     @timed
