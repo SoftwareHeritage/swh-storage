@@ -165,7 +165,7 @@ class StorageData:
                 DirectoryEntry(
                     name=b"hello",
                     type="file",
-                    target=directory5.id,
+                    target=content2.sha1_git,
                     perms=from_disk.DentryPerms.content,
                 ),
             ],
