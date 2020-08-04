@@ -215,14 +215,14 @@ class CassandraStorage:
                 result[content_metadata["sha1"]].append(content_metadata)
         return result
 
-    def content_find(self, content):
+    def content_find(self, content: Dict[str, Any]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
         filter_algos = list(set(content).intersection(HASH_ALGORITHMS))
         if not filter_algos:
             raise StorageArgumentException(
-                "content keys must contain at least one of: "
-                "%s" % ", ".join(sorted(HASH_ALGORITHMS))
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(HASH_ALGORITHMS))}"
             )
         common_algo = filter_algos[0]
 
@@ -237,20 +237,15 @@ class CassandraStorage:
                     break
             else:
                 # All hashes match, keep this row.
-                results.append(
-                    {
-                        **row._asdict(),
-                        "ctime": row.ctime.replace(tzinfo=datetime.timezone.utc),
-                    }
-                )
+                row_d = row._asdict()
+                row_d["ctime"] = row.ctime.replace(tzinfo=datetime.timezone.utc)
+                results.append(Content(**row_d))
         return results
 
     def content_missing(self, content, key_hash="sha1"):
         for cont in content:
             res = self.content_find(cont)
             if not res:
-                yield cont[key_hash]
-            if any(c["status"] == "missing" for c in res):
                 yield cont[key_hash]
 
     def content_missing_per_sha1(self, contents):
@@ -341,7 +336,7 @@ class CassandraStorage:
     def directory_missing(self, directories):
         return self._cql_runner.directory_missing(directories)
 
-    def _join_dentry_to_content(self, dentry):
+    def _join_dentry_to_content(self, dentry: DirectoryEntry) -> Dict[str, Any]:
         keys = (
             "status",
             "sha1",
@@ -352,11 +347,11 @@ class CassandraStorage:
         ret = dict.fromkeys(keys)
         ret.update(dentry.to_dict())
         if ret["type"] == "file":
-            content = self.content_find({"sha1_git": ret["target"]})
-            if content:
-                content = content[0]
+            contents = self.content_find({"sha1_git": ret["target"]})
+            if contents:
+                content = contents[0]
                 for key in keys:
-                    ret[key] = content[key]
+                    ret[key] = getattr(content, key)
         return ret
 
     def _directory_ls(self, directory_id, recursive, prefix=b""):

@@ -3049,45 +3049,38 @@ class TestStorage:
         swh_storage.content_add_metadata([content])
 
         actually_present = swh_storage.content_find({"sha1": content.sha1})
-        assert actually_present[0] == content.to_dict()
+        assert actually_present[0] == content
 
     def test_content_find_with_present_content(self, swh_storage, sample_data):
         content = sample_data.content
-        expected_content = content.to_dict()
-        del expected_content["data"]
-        del expected_content["ctime"]
+        expected_content = attr.evolve(content, data=None)
 
         # 1. with something to find
         swh_storage.content_add([content])
 
         actually_present = swh_storage.content_find({"sha1": content.sha1})
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
         # 2. with something to find
         actually_present = swh_storage.content_find({"sha1_git": content.sha1_git})
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
         # 3. with something to find
         actually_present = swh_storage.content_find({"sha256": content.sha256})
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
         # 4. with something to find
         actually_present = swh_storage.content_find(content.hashes())
         assert 1 == len(actually_present)
-        actually_present[0].pop("ctime")
         assert actually_present[0] == expected_content
 
     def test_content_find_with_non_present_content(self, swh_storage, sample_data):
         missing_content = sample_data.skipped_content
         # 1. with something that does not exist
         actually_present = swh_storage.content_find({"sha1": missing_content.sha1})
-
         assert actually_present == []
 
         # 2. with something that does not exist
@@ -3115,30 +3108,18 @@ class TestStorage:
         # Inject the data
         swh_storage.content_add([content, duplicated_content])
 
-        actual_result = list(
-            swh_storage.content_find(
-                {
-                    "blake2s256": duplicated_content.blake2s256,
-                    "sha256": duplicated_content.sha256,
-                }
-            )
+        actual_result = swh_storage.content_find(
+            {
+                "blake2s256": duplicated_content.blake2s256,
+                "sha256": duplicated_content.sha256,
+            }
         )
 
-        expected_content = content.to_dict()
-        expected_duplicated_content = duplicated_content.to_dict()
+        expected_content = attr.evolve(content, data=None)
+        expected_duplicated_content = attr.evolve(duplicated_content, data=None)
 
-        for key in ["data", "ctime"]:  # so we can compare
-            for dict_ in [
-                expected_content,
-                expected_duplicated_content,
-                actual_result[0],
-                actual_result[1],
-            ]:
-                dict_.pop(key, None)
-
-        expected_result = [expected_content, expected_duplicated_content]
-        for result in expected_result:
-            assert result in actual_result
+        for result in actual_result:
+            assert result in [expected_content, expected_duplicated_content]
 
     def test_content_find_with_duplicate_sha256(self, swh_storage, sample_data):
         content = sample_data.content
@@ -3158,42 +3139,24 @@ class TestStorage:
         )
         swh_storage.content_add([content, duplicated_content])
 
-        actual_result = list(
-            swh_storage.content_find({"sha256": duplicated_content.sha256})
-        )
-
+        actual_result = swh_storage.content_find({"sha256": duplicated_content.sha256})
         assert len(actual_result) == 2
 
-        expected_content = content.to_dict()
-        expected_duplicated_content = duplicated_content.to_dict()
+        expected_content = attr.evolve(content, data=None)
+        expected_duplicated_content = attr.evolve(duplicated_content, data=None)
 
-        for key in ["data", "ctime"]:  # so we can compare
-            for dict_ in [
-                expected_content,
-                expected_duplicated_content,
-                actual_result[0],
-                actual_result[1],
-            ]:
-                dict_.pop(key, None)
-
-        assert sorted(actual_result, key=lambda x: x["sha1"]) == [
-            expected_content,
-            expected_duplicated_content,
-        ]
+        for result in actual_result:
+            assert result in [expected_content, expected_duplicated_content]
 
         # Find with both sha256 and blake2s256
-        actual_result = list(
-            swh_storage.content_find(
-                {
-                    "sha256": duplicated_content.sha256,
-                    "blake2s256": duplicated_content.blake2s256,
-                }
-            )
+        actual_result = swh_storage.content_find(
+            {
+                "sha256": duplicated_content.sha256,
+                "blake2s256": duplicated_content.blake2s256,
+            }
         )
 
         assert len(actual_result) == 1
-        actual_result[0].pop("ctime")
-
         assert actual_result == [expected_duplicated_content]
 
     def test_content_find_with_duplicate_blake2s256(self, swh_storage, sample_data):
@@ -3216,45 +3179,32 @@ class TestStorage:
 
         swh_storage.content_add([content, duplicated_content])
 
-        actual_result = list(
-            swh_storage.content_find({"blake2s256": duplicated_content.blake2s256})
+        actual_result = swh_storage.content_find(
+            {"blake2s256": duplicated_content.blake2s256}
         )
 
-        expected_content = content.to_dict()
-        expected_duplicated_content = duplicated_content.to_dict()
+        expected_content = attr.evolve(content, data=None)
+        expected_duplicated_content = attr.evolve(duplicated_content, data=None)
 
-        for key in ["data", "ctime"]:  # so we can compare
-            for dict_ in [
-                expected_content,
-                expected_duplicated_content,
-                actual_result[0],
-                actual_result[1],
-            ]:
-                dict_.pop(key, None)
-
-        expected_result = [expected_content, expected_duplicated_content]
-        for result in expected_result:
-            assert result in actual_result
+        for result in actual_result:
+            assert result in [expected_content, expected_duplicated_content]
 
         # Find with both sha256 and blake2s256
-        actual_result = list(
-            swh_storage.content_find(
-                {
-                    "sha256": duplicated_content.sha256,
-                    "blake2s256": duplicated_content.blake2s256,
-                }
-            )
+        actual_result = swh_storage.content_find(
+            {
+                "sha256": duplicated_content.sha256,
+                "blake2s256": duplicated_content.blake2s256,
+            }
         )
 
-        actual_result[0].pop("ctime")
         assert actual_result == [expected_duplicated_content]
 
     def test_content_find_bad_input(self, swh_storage):
-        # 1. with bad input
+        # 1. with no hash to lookup
         with pytest.raises(StorageArgumentException):
-            swh_storage.content_find({})  # empty is bad
+            swh_storage.content_find({})  # need at least one hash
 
-        # 2. with bad input
+        # 2. with bad hash
         with pytest.raises(StorageArgumentException):
             swh_storage.content_find({"unknown-sha1": "something"})  # not the right key
 

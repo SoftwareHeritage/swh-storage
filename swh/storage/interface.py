@@ -6,7 +6,7 @@
 import datetime
 
 from enum import Enum
-from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 
 from swh.core.api import remote_api_endpoint
@@ -291,7 +291,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/present")
-    def content_find(self, content):
+    def content_find(self, content: Dict[str, Any]) -> List[Content]:
         """Find a content hash in db.
 
         Args:
@@ -299,13 +299,13 @@ class StorageInterface:
                 checksum algorithm names (see swh.model.hashutil.ALGORITHMS) to
                 checksum values
 
-        Returns:
-            a triplet (sha1, sha1_git, sha256) if the content exist
-            or None otherwise.
-
         Raises:
             ValueError: in case the key of the dictionary is not sha1, sha1_git
                 nor sha256.
+
+        Returns:
+            an iterable of Content objects matching the search criteria if the
+            content exist. Empty iterable otherwise.
 
         """
         ...

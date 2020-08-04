@@ -321,11 +321,11 @@ class InMemoryStorage:
                     result[sha1].append(d)
         return result
 
-    def content_find(self, content):
+    def content_find(self, content: Dict[str, Any]) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
-                "content keys must contain at least one of: %s"
-                % ", ".join(sorted(DEFAULT_ALGORITHMS))
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(DEFAULT_ALGORITHMS))}"
             )
         found = []
         for algo in DEFAULT_ALGORITHMS:
@@ -337,7 +337,7 @@ class InMemoryStorage:
             return []
 
         keys = list(set.intersection(*found))
-        return [self._contents[key].to_dict() for key in keys]
+        return [self._contents[key] for key in keys]
 
     def content_missing(self, content, key_hash="sha1"):
         for cont in content:
@@ -347,10 +347,6 @@ class InMemoryStorage:
                 if hash_ not in self._content_indexes.get(algo, []):
                     yield cont[key_hash]
                     break
-            else:
-                for result in self.content_find(cont):
-                    if result["status"] == "missing":
-                        yield cont[key_hash]
 
     def content_missing_per_sha1(self, contents):
         for content in contents:
@@ -418,7 +414,7 @@ class InMemoryStorage:
             if id not in self._directories:
                 yield id
 
-    def _join_dentry_to_content(self, dentry):
+    def _join_dentry_to_content(self, dentry: Dict[str, Any]) -> Dict[str, Any]:
         keys = (
             "status",
             "sha1",
@@ -430,11 +426,11 @@ class InMemoryStorage:
         ret.update(dentry)
         if ret["type"] == "file":
             # TODO: Make it able to handle more than one content
-            content = self.content_find({"sha1_git": ret["target"]})
-            if content:
-                content = content[0]
+            contents = self.content_find({"sha1_git": ret["target"]})
+            if contents:
+                content = contents[0]
                 for key in keys:
-                    ret[key] = content[key]
+                    ret[key] = getattr(content, key)
         return ret
 
     def _directory_ls(self, directory_id, recursive, prefix=b""):
