@@ -1002,16 +1002,16 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/get_sha1")
-    def origin_get_by_sha1(self, sha1s):
+    def origin_get_by_sha1(
+        self, sha1s: List[bytes]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         """Return origins, identified by the sha1 of their URLs.
 
         Args:
-            sha1s (list[bytes]): a list of sha1s
+            sha1s: a list of sha1s
 
-        Yields:
-            dicts containing origin information as returned
-            by :meth:`swh.storage.storage.Storage.origin_get`, or None if an
-            origin matching the sha1 is not found.
+        List:
+            Origins whose sha1 of their url match, None when the origins is not found.
 
         """
         ...

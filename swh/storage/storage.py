@@ -1084,7 +1084,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=500)
-    def origin_get_by_sha1(self, sha1s, db=None, cur=None):
+    def origin_get_by_sha1(
+        self, sha1s: List[bytes], db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.origin_get_by_sha1(sha1s, cur):
             if line[0] is not None:
                 yield dict(zip(db.origin_cols, line))
