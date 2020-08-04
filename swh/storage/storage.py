@@ -544,10 +544,11 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def directory_entry_get_by_path(self, directory, paths, db=None, cur=None):
+    def directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes], db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
         res = db.directory_entry_get_by_path(directory, paths, cur)
-        if res:
-            return dict(zip(db.directory_ls_cols, res))
+        return dict(zip(db.directory_ls_cols, res)) if res else None
 
     @timed
     @db_transaction()

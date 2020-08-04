@@ -392,17 +392,21 @@ class CassandraStorage:
                     ret["target"], True, prefix + ret["name"] + b"/"
                 )
 
-    def directory_entry_get_by_path(self, directory, paths):
+    def directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes]
+    ) -> Optional[Dict[str, Any]]:
         return self._directory_entry_get_by_path(directory, paths, b"")
 
-    def _directory_entry_get_by_path(self, directory, paths, prefix):
+    def _directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes], prefix: bytes
+    ) -> Optional[Dict[str, Any]]:
         if not paths:
-            return
+            return None
 
         contents = list(self.directory_ls(directory))
 
         if not contents:
-            return
+            return None
 
         def _get_entry(entries, name):
             """Finds the entry with the requested name, prepends the
@@ -421,7 +425,7 @@ class CassandraStorage:
             return first_item
 
         if not first_item or first_item["type"] != "dir":
-            return
+            return None
 
         return self._directory_entry_get_by_path(
             first_item["target"], paths[1:], prefix + paths[0] + b"/"

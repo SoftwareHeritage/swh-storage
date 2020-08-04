@@ -442,16 +442,18 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/path")
-    def directory_entry_get_by_path(self, directory, paths):
+    def directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes]
+    ) -> Optional[Dict[str, Any]]:
         """Get the directory entry (either file or dir) from directory with path.
 
         Args:
-            - directory: sha1 of the top level directory
-            - paths: path to lookup from the top level directory. From left
+            directory: directory id
+            paths: path to lookup from the top level directory. From left
               (top) to right (bottom).
 
         Returns:
-            The corresponding directory entry if found, None otherwise.
+            The corresponding directory entry as dict if found, None otherwise.
 
         """
         ...
