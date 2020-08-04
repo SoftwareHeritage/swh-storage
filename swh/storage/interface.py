@@ -6,7 +6,7 @@
 import datetime
 
 from enum import Enum
-from typing import Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 
 from swh.core.api import remote_api_endpoint
@@ -27,6 +27,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1Git,
 )
 
 
@@ -290,7 +291,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/present")
-    def content_find(self, content):
+    def content_find(self, content: Dict[str, Any]) -> List[Content]:
         """Find a content hash in db.
 
         Args:
@@ -298,19 +299,19 @@ class StorageInterface:
                 checksum algorithm names (see swh.model.hashutil.ALGORITHMS) to
                 checksum values
 
-        Returns:
-            a triplet (sha1, sha1_git, sha256) if the content exist
-            or None otherwise.
-
         Raises:
             ValueError: in case the key of the dictionary is not sha1, sha1_git
                 nor sha256.
+
+        Returns:
+            an iterable of Content objects matching the search criteria if the
+            content exist. Empty iterable otherwise.
 
         """
         ...
 
     @remote_api_endpoint("content/get_random")
-    def content_get_random(self):
+    def content_get_random(self) -> Sha1Git:
         """Finds a random content id.
 
         Returns:
@@ -443,7 +444,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/get_random")
-    def directory_get_random(self):
+    def directory_get_random(self) -> Sha1Git:
         """Finds a random directory id.
 
         Returns:
@@ -547,7 +548,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision/get_random")
-    def revision_get_random(self):
+    def revision_get_random(self) -> Sha1Git:
         """Finds a random revision id.
 
         Returns:
@@ -612,7 +613,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("release/get_random")
-    def release_get_random(self):
+    def release_get_random(self) -> Sha1Git:
         """Finds a random release id.
 
         Returns:
@@ -764,7 +765,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/get_random")
-    def snapshot_get_random(self):
+    def snapshot_get_random(self) -> Sha1Git:
         """Finds a random snapshot id.
 
         Returns:

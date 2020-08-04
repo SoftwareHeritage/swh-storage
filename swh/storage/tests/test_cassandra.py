@@ -313,14 +313,14 @@ class TestCassandraStorage(_TestStorage):
             swh_storage._cql_runner, "content_get_from_token", mock_cgft
         )
 
-        expected_cont = attr.evolve(cont, data=None).to_dict()
+        expected_content = attr.evolve(cont, data=None)
 
         actual_result = swh_storage.content_find({"sha1": cont.sha1})
 
         assert called == 2
 
         # but cont2 should be filtered out
-        assert actual_result == [expected_cont]
+        assert actual_result == [expected_content]
 
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):

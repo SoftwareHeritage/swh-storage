@@ -561,9 +561,6 @@ def test_retrying_proxy_storage_directory_add(swh_storage, sample_data):
     """
     sample_dir = sample_data.directory
 
-    directory = swh_storage.directory_get_random()  # no directory
-    assert not directory
-
     s = swh_storage.directory_add([sample_dir])
     assert s == {
         "directory:add": 1,
@@ -591,9 +588,6 @@ def test_retrying_proxy_storage_directory_add_with_retry(
 
     sample_dir = sample_data.directories[1]
 
-    directory_id = swh_storage.directory_get_random()  # no directory
-    assert not directory_id
-
     s = swh_storage.directory_add([sample_dir])
     assert s == {
         "directory:add": 1,
@@ -616,9 +610,6 @@ def test_retrying_proxy_swh_storage_directory_add_failure(
     )
 
     sample_dir = sample_data.directory
-
-    directory_id = swh_storage.directory_get_random()  # no directory
-    assert not directory_id
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.directory_add([sample_dir])
