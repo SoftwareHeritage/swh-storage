@@ -11,6 +11,7 @@ import itertools
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import (
+    Any,
     Counter,
     Dict,
     Iterable,
@@ -36,6 +37,7 @@ from swh.model.model import (
     Revision,
     Release,
     SkippedContent,
+    Sha1Git,
     Snapshot,
     SHA1_SIZE,
     MetadataAuthority,
@@ -358,25 +360,29 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_find(self, content, db=None, cur=None):
+    def content_find(self, content: Dict[str, Any], db=None, cur=None) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
-                "content keys must contain at least one of: "
-                "sha1, sha1_git, sha256, blake2s256"
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(DEFAULT_ALGORITHMS))}"
             )
 
-        contents = db.content_find(
+        rows = db.content_find(
             sha1=content.get("sha1"),
             sha1_git=content.get("sha1_git"),
             sha256=content.get("sha256"),
             blake2s256=content.get("blake2s256"),
             cur=cur,
         )
-        return [dict(zip(db.content_find_cols, content)) for content in contents]
+        contents = []
+        for row in rows:
+            row_d = dict(zip(db.content_find_cols, row))
+            contents.append(Content(**row_d))
+        return contents
 
     @timed
     @db_transaction()
-    def content_get_random(self, db=None, cur=None):
+    def content_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.content_get_random(cur)
 
     @staticmethod
@@ -529,7 +535,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def directory_get_random(self, db=None, cur=None):
+    def directory_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.directory_get_random(cur)
 
     @timed
@@ -616,7 +622,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def revision_get_random(self, db=None, cur=None):
+    def revision_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.revision_get_random(cur)
 
     @timed
@@ -666,7 +672,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def release_get_random(self, db=None, cur=None):
+    def release_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.release_get_random(cur)
 
     @timed
@@ -786,7 +792,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def snapshot_get_random(self, db=None, cur=None):
+    def snapshot_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
 
     @timed
