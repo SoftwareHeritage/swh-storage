@@ -536,21 +536,25 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision/log")
-    def revision_log(self, revisions, limit=None):
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         """Fetch revision entry from the given root revisions.
 
         Args:
-            revisions: array of root revision to lookup
+            revisions: array of root revisions to lookup
             limit: limitation on the output result. Default to None.
 
         Yields:
-            List of revision log from such revisions root.
+            revision entries log from the given root root revisions
 
         """
         ...
 
     @remote_api_endpoint("revision/shortlog")
-    def revision_shortlog(self, revisions, limit=None):
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         """Fetch the shortlog for the given revisions
 
         Args:
@@ -558,7 +562,7 @@ class StorageInterface:
             limit: depth limitation for the output
 
         Yields:
-            a list of (id, parents) tuples.
+            a list of (id, parents) tuples
 
         """
         ...

@@ -24,6 +24,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -536,7 +537,9 @@ class InMemoryStorage:
             else:
                 yield None
 
-    def _get_parent_revs(self, rev_id, seen, limit):
+    def _get_parent_revs(
+        self, rev_id: Sha1Git, seen: Set[Sha1Git], limit: Optional[int]
+    ) -> Iterable[Dict[str, Any]]:
         if limit and len(seen) >= limit:
             return
         if rev_id in seen or rev_id not in self._revisions:
@@ -546,14 +549,19 @@ class InMemoryStorage:
         for parent in self._revisions[rev_id].parents:
             yield from self._get_parent_revs(parent, seen, limit)
 
-    def revision_log(self, revisions, limit=None):
-        seen = set()
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
+        seen: Set[Sha1Git] = set()
         for rev_id in revisions:
             yield from self._get_parent_revs(rev_id, seen, limit)
 
-    def revision_shortlog(self, revisions, limit=None):
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         yield from (
-            (rev["id"], rev["parents"]) for rev in self.revision_log(revisions, limit)
+            (rev["id"], rev["parents"]) if rev else None
+            for rev in self.revision_log(revisions, limit)
         )
 
     def revision_get_random(self) -> Sha1Git:

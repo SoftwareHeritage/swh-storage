@@ -1,11 +1,11 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import datetime
 
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 
 from swh.core.utils import encode_with_unescape
 from swh.model import identifiers
@@ -184,7 +184,7 @@ def revision_to_db(rev):
     }
 
 
-def db_to_revision(db_revision):
+def db_to_revision(db_revision: Dict[str, Any]) -> Dict[str, Any]:
     """Convert a database representation of a revision to its swh-model
     representation."""
 

@@ -9,7 +9,7 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Dict, List, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, List, Iterable, Optional, Set, Tuple, Union
 
 import attr
 
@@ -485,7 +485,15 @@ class CassandraStorage:
         for rev_id in revisions:
             yield revs.get(rev_id)
 
-    def _get_parent_revs(self, rev_ids, seen, limit, short):
+    def _get_parent_revs(
+        self,
+        rev_ids: Iterable[Sha1Git],
+        seen: Set[Sha1Git],
+        limit: Optional[int],
+        short: bool,
+    ) -> Union[
+        Iterable[Dict[str, Any]], Iterable[Tuple[Sha1Git, Tuple[Sha1Git, ...]]],
+    ]:
         if limit and len(seen) >= limit:
             return
         rev_ids = [id_ for id_ in rev_ids if id_ not in seen]
@@ -519,12 +527,16 @@ class CassandraStorage:
                 yield rev.to_dict()
             yield from self._get_parent_revs(parents, seen, limit, short)
 
-    def revision_log(self, revisions, limit=None):
-        seen = set()
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
+        seen: Set[Sha1Git] = set()
         yield from self._get_parent_revs(revisions, seen, limit, False)
 
-    def revision_shortlog(self, revisions, limit=None):
-        seen = set()
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
+        seen: Set[Sha1Git] = set()
         yield from self._get_parent_revs(revisions, seen, limit, True)
 
     def revision_get_random(self) -> Sha1Git:

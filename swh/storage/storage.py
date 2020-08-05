@@ -627,7 +627,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=2000)
-    def revision_log(self, revisions, limit=None, db=None, cur=None):
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None, db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
             if not data["type"]:
@@ -637,8 +639,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=2000)
-    def revision_shortlog(self, revisions, limit=None, db=None, cur=None):
-
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None, db=None, cur=None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         yield from db.revision_shortlog(revisions, limit, cur)
 
     @timed
