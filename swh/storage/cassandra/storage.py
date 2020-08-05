@@ -623,7 +623,7 @@ class CassandraStorage:
             return self.snapshot_get(visit_status.snapshot)
         return None
 
-    def snapshot_count_branches(self, snapshot_id):
+    def snapshot_count_branches(self, snapshot_id: Sha1Git) -> Optional[Dict[str, int]]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
             # being added.

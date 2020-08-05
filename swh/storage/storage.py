@@ -767,7 +767,9 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
+    def snapshot_count_branches(
+        self, snapshot_id: Sha1Git, db=None, cur=None
+    ) -> Optional[Dict[str, int]]:
         return dict([bc for bc in db.snapshot_count_branches(snapshot_id, cur)])
 
     @timed

@@ -747,15 +747,16 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/count_branches")
-    def snapshot_count_branches(self, snapshot_id):
+    def snapshot_count_branches(self, snapshot_id: Sha1Git) -> Optional[Dict[str, int]]:
         """Count the number of branches in the snapshot with the given id
 
         Args:
-            snapshot_id (bytes): identifier of the snapshot
+            snapshot_id: snapshot identifier
 
         Returns:
-            dict: A dict whose keys are the target types of branches and
-            values their corresponding amount
+            A dict whose keys are the target types of branches and values their
+            corresponding amount
+
         """
         ...
 
