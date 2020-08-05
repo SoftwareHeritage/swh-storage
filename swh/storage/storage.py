@@ -750,7 +750,9 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get(self, snapshot_id: Sha1Git, db=None, cur=None) -> Dict[str, Any]:
+    def snapshot_get(
+        self, snapshot_id: Sha1Git, db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
         return self.snapshot_get_branches(snapshot_id, db=db, cur=cur)
 
     @timed
@@ -776,13 +778,13 @@ class Storage:
     @db_transaction(statement_timeout=2000)
     def snapshot_get_branches(
         self,
-        snapshot_id,
-        branches_from=b"",
-        branches_count=1000,
-        target_types=None,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
         db=None,
         cur=None,
-    ):
+    ) -> Optional[Dict[str, Any]]:
         if snapshot_id == EMPTY_SNAPSHOT_ID:
             return {
                 "id": snapshot_id,

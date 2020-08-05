@@ -610,7 +610,7 @@ class CassandraStorage:
     def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.snapshot_missing(snapshots)
 
-    def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
         return self.snapshot_get_branches(snapshot_id)
 
     def snapshot_get_by_origin_visit(
@@ -637,14 +637,18 @@ class CassandraStorage:
         return counts
 
     def snapshot_get_branches(
-        self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
-    ):
+        self,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
             # being added.
             return None
 
-        branches = []
+        branches: List = []
         while len(branches) < branches_count + 1:
             new_branches = list(
                 self._cql_runner.snapshot_branch_get(
@@ -677,7 +681,7 @@ class CassandraStorage:
         else:
             last_branch = None
 
-        branches = {
+        branches_d = {
             branch.name: {"target": branch.target, "target_type": branch.target_type,}
             if branch.target
             else None
@@ -686,7 +690,7 @@ class CassandraStorage:
 
         return {
             "id": snapshot_id,
-            "branches": branches,
+            "branches": branches_d,
             "next_branch": last_branch,
         }
 

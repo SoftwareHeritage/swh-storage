@@ -690,7 +690,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot")
-    def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical
@@ -762,23 +762,28 @@ class StorageInterface:
 
     @remote_api_endpoint("snapshot/get_branches")
     def snapshot_get_branches(
-        self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
-    ):
+        self,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical
         order of their names.
 
         Args:
-            snapshot_id (bytes): identifier of the snapshot
-            branches_from (bytes): optional parameter used to skip branches
+            snapshot_id: identifier of the snapshot
+            branches_from: optional parameter used to skip branches
                 whose name is lesser than it before returning them
-            branches_count (int): optional parameter used to restrain
+            branches_count: optional parameter used to restrain
                 the amount of returned branches
-            target_types (list): optional parameter used to filter the
+            target_types: optional parameter used to filter the
                 target types of branch to return (possible values that can be
                 contained in that list are `'content', 'directory',
                 'revision', 'release', 'snapshot', 'alias'`)
+
         Returns:
             dict: None if the snapshot does not exist;
               a dict with three keys otherwise:

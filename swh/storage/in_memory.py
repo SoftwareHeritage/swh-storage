@@ -613,7 +613,7 @@ class InMemoryStorage:
             if id not in self._snapshots:
                 yield id
 
-    def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
         return self.snapshot_get_branches(snapshot_id)
 
     def snapshot_get_by_origin_visit(
@@ -643,8 +643,12 @@ class InMemoryStorage:
         )
 
     def snapshot_get_branches(
-        self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
-    ):
+        self,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         snapshot = self._snapshots.get(snapshot_id)
         if snapshot is None:
             return None
@@ -653,7 +657,7 @@ class InMemoryStorage:
         from_index = bisect.bisect_left(sorted_branch_names, branches_from)
         if target_types:
             next_branch = None
-            branches = {}
+            branches: Dict = {}
             for (branch_name, branch) in sorted_branches:
                 if branch_name in sorted_branch_names[from_index:]:
                     if branch and branch.target_type.value in target_types:
