@@ -175,33 +175,6 @@ class StorageInterface:
         """
         ...
 
-    @deprecated
-    @remote_api_endpoint("content/range")
-    def content_get_range(
-        self, start: bytes, end: bytes, limit: int = 1000
-    ) -> Dict[str, Any]:
-        """Retrieve contents within range [start, end] bound by limit.
-
-        Note that this function may return more than one blob per hash. The
-        limit is enforced with multiplicity (ie. two blobs with the same hash
-        will count twice toward the limit).
-
-        Args:
-            **start**: Starting identifier range (expected smaller
-                           than end)
-            **end**: Ending identifier range (expected larger
-                             than start)
-            **limit**: Limit result (default to 1000)
-
-        Returns:
-            a dict with keys:
-            - contents [dict]: iterable of contents in between the range.
-            - next (bytes): There remains content in the range
-              starting from this next sha1
-
-        """
-        ...
-
     @remote_api_endpoint("content/partition")
     def content_get_partition(
         self,
