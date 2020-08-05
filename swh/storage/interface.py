@@ -677,11 +677,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/missing")
-    def snapshot_missing(self, snapshots):
+    def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         """List snapshots missing from storage
 
         Args:
-            snapshots (iterable): an iterable of snapshot ids
+            snapshots: snapshot ids
 
         Yields:
             missing snapshot ids

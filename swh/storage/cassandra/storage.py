@@ -607,7 +607,7 @@ class CassandraStorage:
 
         return {"snapshot:add": len(snapshots)}
 
-    def snapshot_missing(self, snapshots):
+    def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.snapshot_missing(snapshots)
 
     def snapshot_get(self, snapshot_id):

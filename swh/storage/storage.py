@@ -742,7 +742,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def snapshot_missing(self, snapshots, db=None, cur=None):
+    def snapshot_missing(
+        self, snapshots: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         for obj in db.snapshot_missing_from_list(snapshots, cur):
             yield obj[0]
 

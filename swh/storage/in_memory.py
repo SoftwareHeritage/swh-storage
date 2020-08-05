@@ -608,7 +608,7 @@ class InMemoryStorage:
 
         return {"snapshot:add": count}
 
-    def snapshot_missing(self, snapshots):
+    def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         for id in snapshots:
             if id not in self._snapshots:
                 yield id
