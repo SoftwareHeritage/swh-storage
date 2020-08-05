@@ -264,30 +264,6 @@ class InMemoryStorage:
             )
         yield from self.objstorage.content_get(contents)
 
-    def content_get_range(
-        self, start: bytes, end: bytes, limit: int = 1000
-    ) -> Dict[str, Any]:
-        if limit is None:
-            raise StorageArgumentException("limit should not be None")
-        sha1s = (
-            (sha1, content_key)
-            for sha1 in self._sorted_sha1s.iter_from(start)
-            for content_key in self._content_indexes["sha1"][sha1]
-        )
-        matched: List[Dict[str, Any]] = []
-        next_content = None
-        for sha1, key in sha1s:
-            if sha1 > end:
-                break
-            if len(matched) >= limit:
-                next_content = sha1
-                break
-            matched.append(self._contents[key].to_dict())
-        return {
-            "contents": matched,
-            "next": next_content,
-        }
-
     def content_get_partition(
         self,
         partition_id: int,
