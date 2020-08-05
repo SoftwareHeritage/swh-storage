@@ -522,7 +522,7 @@ class InMemoryStorage:
 
         return {"revision:add": count}
 
-    def revision_missing(self, revisions):
+    def revision_missing(self, revisions: List[Sha1Git]) -> Iterable[Sha1Git]:
         for id in revisions:
             if id not in self._revisions:
                 yield id

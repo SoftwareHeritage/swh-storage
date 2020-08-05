@@ -462,7 +462,7 @@ class CassandraStorage:
 
         return {"revision:add": len(revisions)}
 
-    def revision_missing(self, revisions):
+    def revision_missing(self, revisions: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.revision_missing(revisions)
 
     def revision_get(self, revisions):

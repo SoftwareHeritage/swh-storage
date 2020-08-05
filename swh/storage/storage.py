@@ -604,9 +604,11 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def revision_missing(self, revisions, db=None, cur=None):
+    def revision_missing(
+        self, revisions: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         if not revisions:
-            return
+            return None
 
         for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]

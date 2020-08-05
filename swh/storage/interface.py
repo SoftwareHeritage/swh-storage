@@ -508,11 +508,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision/missing")
-    def revision_missing(self, revisions):
+    def revision_missing(self, revisions: List[Sha1Git]) -> Iterable[Sha1Git]:
         """List revisions missing from storage
 
         Args:
-            revisions (iterable): revision ids
+            revisions: revision ids
 
         Yields:
             missing revision ids
