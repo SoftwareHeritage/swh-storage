@@ -561,7 +561,9 @@ class CassandraStorage:
     def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.release_missing(releases)
 
-    def release_get(self, releases):
+    def release_get(
+        self, releases: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         rows = self._cql_runner.release_get(releases)
         rels = {}
         for row in rows:

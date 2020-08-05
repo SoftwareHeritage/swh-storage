@@ -691,7 +691,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=500)
-    def release_get(self, releases, db=None, cur=None):
+    def release_get(
+        self, releases: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for release in db.release_get_from_list(releases, cur):
             data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
             yield data if data["target_type"] else None

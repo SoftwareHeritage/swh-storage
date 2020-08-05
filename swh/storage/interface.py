@@ -619,7 +619,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("release")
-    def release_get(self, releases):
+    def release_get(
+        self, releases: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         """Given a list of sha1, return the releases's information
 
         Args:

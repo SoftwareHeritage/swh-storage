@@ -585,7 +585,9 @@ class InMemoryStorage:
     def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         yield from (rel for rel in releases if rel not in self._releases)
 
-    def release_get(self, releases):
+    def release_get(
+        self, releases: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for rel_id in releases:
             if rel_id in self._releases:
                 yield self._releases[rel_id].to_dict()
