@@ -1093,8 +1093,10 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def object_find_by_sha1_git(self, ids, db=None, cur=None):
-        ret = {id: [] for id in ids}
+    def object_find_by_sha1_git(
+        self, ids: List[Sha1Git], db=None, cur=None
+    ) -> Dict[Sha1Git, List[Dict]]:
+        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
 
         for retval in db.object_find_by_sha1_git(ids, cur=cur):
             if retval[1]:

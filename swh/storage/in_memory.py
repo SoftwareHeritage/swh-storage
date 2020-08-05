@@ -694,8 +694,8 @@ class InMemoryStorage:
     def snapshot_get_random(self) -> Sha1Git:
         return random.choice(list(self._snapshots))
 
-    def object_find_by_sha1_git(self, ids):
-        ret = {}
+    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
+        ret: Dict[Sha1Git, List[Dict]] = {}
         for id_ in ids:
             objs = self._objects.get(id_, [])
             ret[id_] = [{"sha1_git": id_, "type": obj[0],} for obj in objs]

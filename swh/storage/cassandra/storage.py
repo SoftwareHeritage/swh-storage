@@ -697,8 +697,8 @@ class CassandraStorage:
     def snapshot_get_random(self) -> Sha1Git:
         return self._cql_runner.snapshot_get_random().id
 
-    def object_find_by_sha1_git(self, ids):
-        results = {id_: [] for id_ in ids}
+    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
+        results: Dict[Sha1Git, List[Dict]] = {id_: [] for id_ in ids}
         missing_ids = set(ids)
 
         # Mind the order, revision is the most likely one for a given ID,
