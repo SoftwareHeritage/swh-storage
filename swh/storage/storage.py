@@ -615,7 +615,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=1000)
-    def revision_get(self, revisions, db=None, cur=None):
+    def revision_get(
+        self, revisions: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_get_from_list(revisions, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
             if not data["type"]:

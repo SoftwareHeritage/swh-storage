@@ -527,7 +527,9 @@ class InMemoryStorage:
             if id not in self._revisions:
                 yield id
 
-    def revision_get(self, revisions):
+    def revision_get(
+        self, revisions: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for id in revisions:
             if id in self._revisions:
                 yield self._revisions.get(id).to_dict()
