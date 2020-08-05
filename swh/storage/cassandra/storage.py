@@ -730,9 +730,7 @@ class CassandraStorage:
         else:
             return None
 
-    def origin_get_by_sha1(
-        self, sha1s: List[bytes]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    def origin_get_by_sha1(self, sha1s: List[bytes]) -> List[Optional[Dict[str, Any]]]:
         results = []
         for sha1 in sha1s:
             rows = self._cql_runner.origin_get_by_sha1(sha1)

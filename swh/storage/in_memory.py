@@ -705,11 +705,8 @@ class InMemoryStorage:
     def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         return [self.origin_get_one(origin_url) for origin_url in origins]
 
-    def origin_get_by_sha1(
-        self, sha1s: List[bytes]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
-        for sha1 in sha1s:
-            yield self._convert_origin(self._origins_by_sha1.get(sha1))
+    def origin_get_by_sha1(self, sha1s: List[bytes]) -> List[Optional[Dict[str, Any]]]:
+        return [self._convert_origin(self._origins_by_sha1.get(sha1)) for sha1 in sha1s]
 
     def origin_list(
         self, page_token: Optional[str] = None, limit: int = 100

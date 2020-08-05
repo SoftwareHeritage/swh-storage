@@ -1022,16 +1022,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/get_sha1")
-    def origin_get_by_sha1(
-        self, sha1s: List[bytes]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    def origin_get_by_sha1(self, sha1s: List[bytes]) -> List[Optional[Dict[str, Any]]]:
         """Return origins, identified by the sha1 of their URLs.
 
         Args:
             sha1s: a list of sha1s
 
-        List:
-            Origins whose sha1 of their url match, None when the origins is not found.
+        Returns:
+            List of origins dict whose sha1 of their url match, None otherwise.
 
         """
         ...

@@ -1595,9 +1595,9 @@ class TestStorage:
         assert origins[0]["url"] == origin.url
 
     def test_origin_get_by_sha1_not_found(self, swh_storage, sample_data):
-        origin = sample_data.origin
-        assert swh_storage.origin_get([origin.url])[0] is None
-        origins = list(swh_storage.origin_get_by_sha1([sha1(origin.url)]))
+        unknown_origin = sample_data.origin
+        assert swh_storage.origin_get([unknown_origin.url])[0] is None
+        origins = list(swh_storage.origin_get_by_sha1([sha1(unknown_origin.url)]))
         assert len(origins) == 1
         assert origins[0] is None
 
