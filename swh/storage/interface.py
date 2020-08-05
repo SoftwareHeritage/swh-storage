@@ -180,9 +180,9 @@ class StorageInterface:
         self,
         partition_id: int,
         nb_partitions: int,
-        limit: int = 1000,
         page_token: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        limit: int = 1000,
+    ) -> PagedResult[Content]:
         """Splits contents into nb_partitions, and returns one of these based on
         partition_id (which must be in [0, nb_partitions-1])
 
@@ -190,17 +190,15 @@ class StorageInterface:
         result order.
 
         Args:
-            partition_id (int): index of the partition to fetch
-            nb_partitions (int): total number of partitions to split into
-            limit (int): Limit result (default to 1000)
-            page_token (Optional[str]): opaque token used for pagination.
+            partition_id: index of the partition to fetch
+            nb_partitions: total number of partitions to split into
+            page_token: opaque token used for pagination.
+            limit: Limit result (default to 1000)
 
         Returns:
-            a dict with keys:
-              - contents (List[dict]): iterable of contents in the partition.
-              - **next_page_token** (Optional[str]): opaque token to be used as
-                `page_token` for retrieving the next page. if absent, there is
-                no more pages to gather.
+            PagedResult of Content model objects within the partition. If
+            next_page_token is None, there is no longer data to retrieve.
+
         """
         ...
 

@@ -292,9 +292,9 @@ class InMemoryStorage:
         self,
         partition_id: int,
         nb_partitions: int,
-        limit: int = 1000,
         page_token: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        limit: int = 1000,
+    ) -> PagedResult[Content]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
         (start, end) = get_partition_bounds_bytes(
@@ -304,14 +304,24 @@ class InMemoryStorage:
             start = hash_to_bytes(page_token)
         if end is None:
             end = b"\xff" * SHA1_SIZE
-        result = self.content_get_range(start, end, limit)
-        result2 = {
-            "contents": result["contents"],
-            "next_page_token": None,
-        }
-        if result["next"]:
-            result2["next_page_token"] = hash_to_hex(result["next"])
-        return result2
+
+        next_page_token: Optional[str] = None
+        sha1s = (
+            (sha1, content_key)
+            for sha1 in self._sorted_sha1s.iter_from(start)
+            for content_key in self._content_indexes["sha1"][sha1]
+        )
+        contents: List[Content] = []
+        for counter, (sha1, key) in enumerate(sha1s):
+            if sha1 > end:
+                break
+            if counter >= limit:
+                next_page_token = hash_to_hex(sha1)
+                break
+            contents.append(self._contents[key])
+
+        assert len(contents) <= limit
+        return PagedResult(results=contents, next_page_token=next_page_token)
 
     def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         result: Dict = {sha1: [] for sha1 in contents}

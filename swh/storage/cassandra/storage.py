@@ -177,9 +177,9 @@ class CassandraStorage:
         self,
         partition_id: int,
         nb_partitions: int,
-        limit: int = 1000,
         page_token: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        limit: int = 1000,
+    ) -> PagedResult[Content]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
 
@@ -195,19 +195,24 @@ class CassandraStorage:
                 raise StorageArgumentException("Invalid page_token.")
             range_start = int(page_token)
 
-        # Get the first rows of the range
+        next_page_token: Optional[str] = None
+
         rows = self._cql_runner.content_get_token_range(range_start, range_end, limit)
-        rows = list(rows)
+        contents = []
+        last_id: Optional[int] = None
+        for row in rows:
+            if row.status == "absent":
+                continue
+            row_d = row._asdict()
+            last_id = row_d.pop("tok")
+            contents.append(Content(**row_d))
 
-        if len(rows) == limit:
-            next_page_token: Optional[str] = str(rows[-1].tok + 1)
-        else:
-            next_page_token = None
+        if len(contents) == limit:
+            assert last_id is not None
+            next_page_token = str(last_id + 1)
 
-        return {
-            "contents": [row._asdict() for row in rows if row.status != "absent"],
-            "next_page_token": next_page_token,
-        }
+        assert len(contents) <= limit
+        return PagedResult(results=contents, next_page_token=next_page_token,)
 
     def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         result: Dict[bytes, List[Dict]] = {sha1: [] for sha1 in contents}

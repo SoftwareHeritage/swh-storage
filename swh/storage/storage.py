@@ -278,35 +278,15 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_get_range(
-        self, start: bytes, end: bytes, limit: int = 1000, db=None, cur=None
-    ) -> Dict[str, Any]:
-        if limit is None:
-            raise StorageArgumentException("limit should not be None")
-        contents = []
-        next_content = None
-        for counter, content_row in enumerate(
-            db.content_get_range(start, end, limit + 1, cur)
-        ):
-            content = dict(zip(db.content_get_metadata_keys, content_row))
-            if counter >= limit:
-                # take the last commit for the next page starting from this
-                next_content = content["sha1"]
-                break
-            contents.append(content)
-        return {
-            "contents": contents,
-            "next": next_content,
-        }
-
-    @timed
     def content_get_partition(
         self,
         partition_id: int,
         nb_partitions: int,
-        limit: int = 1000,
         page_token: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> PagedResult[Content]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
         (start, end) = get_partition_bounds_bytes(
@@ -316,14 +296,20 @@ class Storage:
             start = hash_to_bytes(page_token)
         if end is None:
             end = b"\xff" * SHA1_SIZE
-        result = self.content_get_range(start, end, limit)
-        result2 = {
-            "contents": result["contents"],
-            "next_page_token": None,
-        }
-        if result["next"]:
-            result2["next_page_token"] = hash_to_hex(result["next"])
-        return result2
+
+        next_page_token: Optional[str] = None
+        contents = []
+        for counter, row in enumerate(db.content_get_range(start, end, limit + 1, cur)):
+            row_d = dict(zip(db.content_get_metadata_keys, row))
+            content = Content(**row_d)
+            if counter >= limit:
+                # take the last content for the next page starting from this
+                next_page_token = hash_to_hex(content.sha1)
+                break
+            contents.append(content)
+
+        assert len(contents) <= limit
+        return PagedResult(results=contents, next_page_token=next_page_token)
 
     @timed
     @db_transaction(statement_timeout=500)
