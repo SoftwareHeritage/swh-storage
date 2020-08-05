@@ -680,7 +680,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def release_missing(self, releases, db=None, cur=None):
+    def release_missing(
+        self, releases: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         if not releases:
             return
 

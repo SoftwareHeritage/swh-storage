@@ -582,7 +582,7 @@ class InMemoryStorage:
 
         return {"release:add": len(to_add)}
 
-    def release_missing(self, releases):
+    def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         yield from (rel for rel in releases if rel not in self._releases)
 
     def release_get(self, releases):

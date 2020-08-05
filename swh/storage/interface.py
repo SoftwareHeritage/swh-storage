@@ -606,13 +606,13 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("release/missing")
-    def release_missing(self, releases):
-        """List releases missing from storage
+    def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
+        """List missing release ids from storage
 
         Args:
-            releases: an iterable of release ids
+            releases: release ids
 
-        Returns:
+        Yields:
             a list of missing release ids
 
         """
