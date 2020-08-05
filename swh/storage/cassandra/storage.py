@@ -610,7 +610,7 @@ class CassandraStorage:
     def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.snapshot_missing(snapshots)
 
-    def snapshot_get(self, snapshot_id):
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
         return self.snapshot_get_branches(snapshot_id)
 
     def snapshot_get_by_origin_visit(self, origin, visit):

@@ -613,7 +613,7 @@ class InMemoryStorage:
             if id not in self._snapshots:
                 yield id
 
-    def snapshot_get(self, snapshot_id):
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
         return self.snapshot_get_branches(snapshot_id)
 
     def snapshot_get_by_origin_visit(self, origin, visit):

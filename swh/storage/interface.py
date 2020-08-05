@@ -690,7 +690,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot")
-    def snapshot_get(self, snapshot_id):
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical
@@ -702,7 +702,8 @@ class StorageInterface:
             should be used instead.
 
         Args:
-            snapshot_id (bytes): identifier of the snapshot
+            snapshot_id: snapshot identifier
+
         Returns:
             dict: a dict with three keys:
                 * **id**: identifier of the snapshot

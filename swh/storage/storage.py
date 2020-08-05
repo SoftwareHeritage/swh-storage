@@ -750,8 +750,7 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get(self, snapshot_id, db=None, cur=None):
-
+    def snapshot_get(self, snapshot_id: Sha1Git, db=None, cur=None) -> Dict[str, Any]:
         return self.snapshot_get_branches(snapshot_id, db=db, cur=cur)
 
     @timed
