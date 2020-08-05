@@ -613,13 +613,15 @@ class CassandraStorage:
     def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
         return self.snapshot_get_branches(snapshot_id)
 
-    def snapshot_get_by_origin_visit(self, origin, visit):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int
+    ) -> Optional[Dict[str, Any]]:
         visit_status = self.origin_visit_status_get_latest(
             origin, visit, require_snapshot=True
         )
-        if not visit_status:
-            return None
-        return self.snapshot_get(visit_status.snapshot)
+        if visit_status and visit_status.snapshot:
+            return self.snapshot_get(visit_status.snapshot)
+        return None
 
     def snapshot_count_branches(self, snapshot_id):
         if self._cql_runner.snapshot_missing([snapshot_id]):

@@ -755,7 +755,9 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get_by_origin_visit(self, origin, visit, db=None, cur=None):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int, db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
         snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
 
         if snapshot_id:

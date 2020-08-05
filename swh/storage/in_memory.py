@@ -616,18 +616,20 @@ class InMemoryStorage:
     def snapshot_get(self, snapshot_id: Sha1Git) -> Dict[str, Any]:
         return self.snapshot_get_branches(snapshot_id)
 
-    def snapshot_get_by_origin_visit(self, origin, visit):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int
+    ) -> Optional[Dict[str, Any]]:
         origin_url = self._get_origin_url(origin)
         if not origin_url:
-            return
+            return None
 
         if origin_url not in self._origins or visit > len(
             self._origin_visits[origin_url]
         ):
             return None
 
-        visit = self._origin_visit_get_updated(origin_url, visit)
-        snapshot_id = visit["snapshot"]
+        visit_d = self._origin_visit_get_updated(origin_url, visit)
+        snapshot_id = visit_d["snapshot"]
         if snapshot_id:
             return self.snapshot_get(snapshot_id)
         else:

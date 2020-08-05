@@ -716,7 +716,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/by_origin_visit")
-    def snapshot_get_by_origin_visit(self, origin, visit):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int
+    ) -> Optional[Dict[str, Any]]:
         """Get the content, possibly partial, of a snapshot for the given origin visit
 
         The branches of the snapshot are iterated in the lexicographical
@@ -728,8 +730,9 @@ class StorageInterface:
             should be used instead.
 
         Args:
-            origin (int): the origin identifier
-            visit (int): the visit identifier
+            origin: origin identifier (url)
+            visit: the visit identifier
+
         Returns:
             dict: None if the snapshot does not exist;
               a dict with three keys otherwise:
