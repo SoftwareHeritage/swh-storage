@@ -197,22 +197,23 @@ class CassandraStorage:
 
         next_page_token: Optional[str] = None
 
-        rows = self._cql_runner.content_get_token_range(range_start, range_end, limit)
+        rows = self._cql_runner.content_get_token_range(
+            range_start, range_end, limit + 1
+        )
         contents = []
         last_id: Optional[int] = None
-        for row in rows:
+        for counter, row in enumerate(rows):
             if row.status == "absent":
                 continue
             row_d = row._asdict()
             last_id = row_d.pop("tok")
+            if counter >= limit:
+                next_page_token = str(last_id)
+                break
             contents.append(Content(**row_d))
 
-        if len(contents) == limit:
-            assert last_id is not None
-            next_page_token = str(last_id + 1)
-
         assert len(contents) <= limit
-        return PagedResult(results=contents, next_page_token=next_page_token,)
+        return PagedResult(results=contents, next_page_token=next_page_token)
 
     def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         result: Dict[bytes, List[Dict]] = {sha1: [] for sha1 in contents}
