@@ -24,6 +24,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -175,7 +176,7 @@ class InMemoryStorage:
 
         self.objstorage = ObjStorage({"cls": "memory", "args": {}})
 
-    def check_config(self, *, check_write):
+    def check_config(self, *, check_write: bool) -> bool:
         return True
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
@@ -226,10 +227,12 @@ class InMemoryStorage:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._content_add(content, with_data=True)
 
-    def content_update(self, content, keys=[]):
-        self.journal_writer.content_update(content)
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = []
+    ) -> None:
+        self.journal_writer.content_update(contents)
 
-        for cont_update in content:
+        for cont_update in contents:
             cont_update = cont_update.copy()
             sha1 = cont_update.pop("sha1")
             for old_key in self._content_indexes["sha1"][sha1]:
@@ -251,43 +254,23 @@ class InMemoryStorage:
     def content_add_metadata(self, content: List[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
-    def content_get(self, content):
+    def content_get(
+        self, contents: List[bytes]
+    ) -> Iterable[Optional[Dict[str, bytes]]]:
         # FIXME: Make this method support slicing the `data`.
-        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
+        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise StorageArgumentException(
-                "Sending at most %s contents." % BULK_BLOCK_CONTENT_LEN_MAX
+                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
             )
-        yield from self.objstorage.content_get(content)
-
-    def content_get_range(self, start, end, limit=1000):
-        if limit is None:
-            raise StorageArgumentException("limit should not be None")
-        sha1s = (
-            (sha1, content_key)
-            for sha1 in self._sorted_sha1s.iter_from(start)
-            for content_key in self._content_indexes["sha1"][sha1]
-        )
-        matched = []
-        next_content = None
-        for sha1, key in sha1s:
-            if sha1 > end:
-                break
-            if len(matched) >= limit:
-                next_content = sha1
-                break
-            matched.append(self._contents[key].to_dict())
-        return {
-            "contents": matched,
-            "next": next_content,
-        }
+        yield from self.objstorage.content_get(contents)
 
     def content_get_partition(
         self,
         partition_id: int,
         nb_partitions: int,
+        page_token: Optional[str] = None,
         limit: int = 1000,
-        page_token: str = None,
-    ):
+    ) -> PagedResult[Content]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
         (start, end) = get_partition_bounds_bytes(
@@ -297,14 +280,24 @@ class InMemoryStorage:
             start = hash_to_bytes(page_token)
         if end is None:
             end = b"\xff" * SHA1_SIZE
-        result = self.content_get_range(start, end, limit)
-        result2 = {
-            "contents": result["contents"],
-            "next_page_token": None,
-        }
-        if result["next"]:
-            result2["next_page_token"] = hash_to_hex(result["next"])
-        return result2
+
+        next_page_token: Optional[str] = None
+        sha1s = (
+            (sha1, content_key)
+            for sha1 in self._sorted_sha1s.iter_from(start)
+            for content_key in self._content_indexes["sha1"][sha1]
+        )
+        contents: List[Content] = []
+        for counter, (sha1, key) in enumerate(sha1s):
+            if sha1 > end:
+                break
+            if counter >= limit:
+                next_page_token = hash_to_hex(sha1)
+                break
+            contents.append(self._contents[key])
+
+        assert len(contents) <= limit
+        return PagedResult(results=contents, next_page_token=next_page_token)
 
     def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
         result: Dict = {sha1: [] for sha1 in contents}
@@ -339,21 +332,30 @@ class InMemoryStorage:
         keys = list(set.intersection(*found))
         return [self._contents[key] for key in keys]
 
-    def content_missing(self, content, key_hash="sha1"):
-        for cont in content:
-            for (algo, hash_) in cont.items():
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+    ) -> Iterable[bytes]:
+        if key_hash not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        for content in contents:
+            for (algo, hash_) in content.items():
                 if algo not in DEFAULT_ALGORITHMS:
                     continue
                 if hash_ not in self._content_indexes.get(algo, []):
-                    yield cont[key_hash]
+                    yield content[key_hash]
                     break
 
-    def content_missing_per_sha1(self, contents):
+    def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         for content in contents:
             if content not in self._content_indexes["sha1"]:
                 yield content
 
-    def content_missing_per_sha1_git(self, contents):
+    def content_missing_per_sha1_git(
+        self, contents: List[Sha1Git]
+    ) -> Iterable[Sha1Git]:
         for content in contents:
             if content not in self._content_indexes["sha1_git"]:
                 yield content
@@ -383,7 +385,9 @@ class InMemoryStorage:
         content = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(content)
 
-    def skipped_content_missing(self, contents):
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]]
+    ) -> Iterable[Dict[str, Any]]:
         for content in contents:
             matches = list(self._skipped_contents.values())
             for (algorithm, key) in self._content_key(content):
@@ -409,7 +413,7 @@ class InMemoryStorage:
 
         return {"directory:add": count}
 
-    def directory_missing(self, directories):
+    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
         for id in directories:
             if id not in self._directories:
                 yield id
@@ -445,23 +449,29 @@ class InMemoryStorage:
                         ret["target"], True, prefix + ret["name"] + b"/"
                     )
 
-    def directory_ls(self, directory, recursive=False):
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False
+    ) -> Iterable[Dict[str, Any]]:
         yield from self._directory_ls(directory, recursive)
 
-    def directory_entry_get_by_path(self, directory, paths):
+    def directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes]
+    ) -> Optional[Dict[str, Any]]:
         return self._directory_entry_get_by_path(directory, paths, b"")
 
     def directory_get_random(self) -> Sha1Git:
         return random.choice(list(self._directories))
 
-    def _directory_entry_get_by_path(self, directory, paths, prefix):
+    def _directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes], prefix: bytes
+    ) -> Optional[Dict[str, Any]]:
         if not paths:
-            return
+            return None
 
         contents = list(self.directory_ls(directory))
 
         if not contents:
-            return
+            return None
 
         def _get_entry(entries, name):
             for entry in entries:
@@ -476,7 +486,7 @@ class InMemoryStorage:
             return first_item
 
         if not first_item or first_item["type"] != "dir":
-            return
+            return None
 
         return self._directory_entry_get_by_path(
             first_item["target"], paths[1:], prefix + paths[0] + b"/"
@@ -499,19 +509,23 @@ class InMemoryStorage:
 
         return {"revision:add": count}
 
-    def revision_missing(self, revisions):
+    def revision_missing(self, revisions: List[Sha1Git]) -> Iterable[Sha1Git]:
         for id in revisions:
             if id not in self._revisions:
                 yield id
 
-    def revision_get(self, revisions):
+    def revision_get(
+        self, revisions: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for id in revisions:
             if id in self._revisions:
                 yield self._revisions.get(id).to_dict()
             else:
                 yield None
 
-    def _get_parent_revs(self, rev_id, seen, limit):
+    def _get_parent_revs(
+        self, rev_id: Sha1Git, seen: Set[Sha1Git], limit: Optional[int]
+    ) -> Iterable[Dict[str, Any]]:
         if limit and len(seen) >= limit:
             return
         if rev_id in seen or rev_id not in self._revisions:
@@ -521,14 +535,19 @@ class InMemoryStorage:
         for parent in self._revisions[rev_id].parents:
             yield from self._get_parent_revs(parent, seen, limit)
 
-    def revision_log(self, revisions, limit=None):
-        seen = set()
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
+        seen: Set[Sha1Git] = set()
         for rev_id in revisions:
             yield from self._get_parent_revs(rev_id, seen, limit)
 
-    def revision_shortlog(self, revisions, limit=None):
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         yield from (
-            (rev["id"], rev["parents"]) for rev in self.revision_log(revisions, limit)
+            (rev["id"], rev["parents"]) if rev else None
+            for rev in self.revision_log(revisions, limit)
         )
 
     def revision_get_random(self) -> Sha1Git:
@@ -549,10 +568,12 @@ class InMemoryStorage:
 
         return {"release:add": len(to_add)}
 
-    def release_missing(self, releases):
+    def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         yield from (rel for rel in releases if rel not in self._releases)
 
-    def release_get(self, releases):
+    def release_get(
+        self, releases: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for rel_id in releases:
             if rel_id in self._releases:
                 yield self._releases[rel_id].to_dict()
@@ -573,32 +594,34 @@ class InMemoryStorage:
 
         return {"snapshot:add": count}
 
-    def snapshot_missing(self, snapshots):
+    def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         for id in snapshots:
             if id not in self._snapshots:
                 yield id
 
-    def snapshot_get(self, snapshot_id):
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
         return self.snapshot_get_branches(snapshot_id)
 
-    def snapshot_get_by_origin_visit(self, origin, visit):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int
+    ) -> Optional[Dict[str, Any]]:
         origin_url = self._get_origin_url(origin)
         if not origin_url:
-            return
+            return None
 
         if origin_url not in self._origins or visit > len(
             self._origin_visits[origin_url]
         ):
             return None
 
-        visit = self._origin_visit_get_updated(origin_url, visit)
-        snapshot_id = visit["snapshot"]
+        visit_d = self._origin_visit_get_updated(origin_url, visit)
+        snapshot_id = visit_d["snapshot"]
         if snapshot_id:
             return self.snapshot_get(snapshot_id)
         else:
             return None
 
-    def snapshot_count_branches(self, snapshot_id):
+    def snapshot_count_branches(self, snapshot_id: Sha1Git) -> Optional[Dict[str, int]]:
         snapshot = self._snapshots[snapshot_id]
         return collections.Counter(
             branch.target_type.value if branch else None
@@ -606,8 +629,12 @@ class InMemoryStorage:
         )
 
     def snapshot_get_branches(
-        self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
-    ):
+        self,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         snapshot = self._snapshots.get(snapshot_id)
         if snapshot is None:
             return None
@@ -616,7 +643,7 @@ class InMemoryStorage:
         from_index = bisect.bisect_left(sorted_branch_names, branches_from)
         if target_types:
             next_branch = None
-            branches = {}
+            branches: Dict = {}
             for (branch_name, branch) in sorted_branches:
                 if branch_name in sorted_branch_names[from_index:]:
                     if branch and branch.target_type.value in target_types:
@@ -653,8 +680,8 @@ class InMemoryStorage:
     def snapshot_get_random(self) -> Sha1Git:
         return random.choice(list(self._snapshots))
 
-    def object_find_by_sha1_git(self, ids):
-        ret = {}
+    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
+        ret: Dict[Sha1Git, List[Dict]] = {}
         for id_ in ids:
             objs = self._objects.get(id_, [])
             ret[id_] = [{"sha1_git": id_, "type": obj[0],} for obj in objs]
@@ -672,7 +699,7 @@ class InMemoryStorage:
     def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
         return [self.origin_get_one(origin_url) for origin_url in origins]
 
-    def origin_get_by_sha1(self, sha1s):
+    def origin_get_by_sha1(self, sha1s: List[bytes]) -> List[Optional[Dict[str, Any]]]:
         return [self._convert_origin(self._origins_by_sha1.get(sha1)) for sha1 in sha1s]
 
     def origin_list(

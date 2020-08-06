@@ -11,6 +11,7 @@ from swh.model.model import (
     SkippedContent,
     Directory,
     Revision,
+    Sha1Git,
 )
 
 from swh.storage import get_storage
@@ -81,7 +82,7 @@ class FilteringProxyStorage:
 
     def _filter_missing_skipped_contents(
         self, contents: List[SkippedContent]
-    ) -> Set[bytes]:
+    ) -> Set[Sha1Git]:
         """Return only the content keys missing from swh
 
         Args:
@@ -89,16 +90,14 @@ class FilteringProxyStorage:
                 storage
 
         """
-        missing_contents = []
-        for content in contents:
-            if content.sha1_git is None:
-                continue
-            missing_contents.append(content.hashes())
+        missing_contents = [c.hashes() for c in contents if c.sha1_git is not None]
 
-        return {
-            c.get("sha1_git")
-            for c in self.storage.skipped_content_missing(missing_contents)
-        }
+        ids = set()
+        for c in self.storage.skipped_content_missing(missing_contents):
+            if c is None or c.get("sha1_git") is None:
+                continue
+            ids.add(c["sha1_git"])
+        return ids
 
     def _filter_missing_ids(self, object_type: str, ids: Iterable[bytes]) -> Set[bytes]:
         """Filter missing ids from the storage for a given object type.
