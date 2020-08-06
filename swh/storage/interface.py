@@ -53,7 +53,7 @@ def deprecated(f):
 
 class StorageInterface:
     @remote_api_endpoint("check_config")
-    def check_config(self, *, check_write):
+    def check_config(self, *, check_write: bool) -> bool:
         """Check that the storage is configured and ready to go."""
         ...
 
@@ -93,12 +93,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/update")
-    def content_update(self, content, keys=[]):
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = []
+    ) -> None:
         """Update content blobs to the storage. Does nothing for unknown
         contents or skipped ones.
 
         Args:
-            content (iterable): iterable of dictionaries representing
+            content: iterable of dictionaries representing
                 individual pieces of content to update. Each dictionary has the
                 following keys:
 
@@ -144,7 +146,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/data")
-    def content_get(self, content):
+    def content_get(
+        self, contents: List[bytes]
+    ) -> Iterable[Optional[Dict[str, bytes]]]:
         """Retrieve in bulk contents and their data.
 
         This generator yields exactly as many items than provided sha1
@@ -152,44 +156,21 @@ class StorageInterface:
 
         It may also yield `None` values in case an object was not found.
 
+        TODO:
+            Rename to content_get_data
+
         Args:
-            content: iterables of sha1
+            contents: iterables of sha1
+
+        Raises:
+            StorageArgumentException in case of too much contents are required.
+            (cf. BULK_BLOCK_CONTENT_LEN_MAX)
 
         Yields:
-            Dict[str, bytes]: Generates streams of contents as dict with their
-                raw data:
+            Streams of contents as dict with their raw data:
 
                 - sha1 (bytes): content id
                 - data (bytes): content's raw data
-
-        Raises:
-            ValueError in case of too much contents are required.
-            cf. BULK_BLOCK_CONTENT_LEN_MAX
-
-        """
-        ...
-
-    @deprecated
-    @remote_api_endpoint("content/range")
-    def content_get_range(self, start, end, limit=1000):
-        """Retrieve contents within range [start, end] bound by limit.
-
-        Note that this function may return more than one blob per hash. The
-        limit is enforced with multiplicity (ie. two blobs with the same hash
-        will count twice toward the limit).
-
-        Args:
-            **start** (bytes): Starting identifier range (expected smaller
-                           than end)
-            **end** (bytes): Ending identifier range (expected larger
-                             than start)
-            **limit** (int): Limit result (default to 1000)
-
-        Returns:
-            a dict with keys:
-            - contents [dict]: iterable of contents in between the range.
-            - next (bytes): There remains content in the range
-              starting from this next sha1
 
         """
         ...
@@ -199,9 +180,9 @@ class StorageInterface:
         self,
         partition_id: int,
         nb_partitions: int,
+        page_token: Optional[str] = None,
         limit: int = 1000,
-        page_token: str = None,
-    ):
+    ) -> PagedResult[Content]:
         """Splits contents into nb_partitions, and returns one of these based on
         partition_id (which must be in [0, nb_partitions-1])
 
@@ -209,17 +190,15 @@ class StorageInterface:
         result order.
 
         Args:
-            partition_id (int): index of the partition to fetch
-            nb_partitions (int): total number of partitions to split into
-            limit (int): Limit result (default to 1000)
-            page_token (Optional[str]): opaque token used for pagination.
+            partition_id: index of the partition to fetch
+            nb_partitions: total number of partitions to split into
+            page_token: opaque token used for pagination.
+            limit: Limit result (default to 1000)
 
         Returns:
-            a dict with keys:
-              - contents (List[dict]): iterable of contents in the partition.
-              - **next_page_token** (Optional[str]): opaque token to be used as
-                `page_token` for retrieving the next page. if absent, there is
-                no more pages to gather.
+            PagedResult of Content model objects within the partition. If
+            next_page_token is None, there is no longer data to retrieve.
+
         """
         ...
 
@@ -239,47 +218,47 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/missing")
-    def content_missing(self, content, key_hash="sha1"):
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+    ) -> Iterable[bytes]:
         """List content missing from storage
 
         Args:
-            content ([dict]): iterable of dictionaries whose keys are
-                              either 'length' or an item of
-                              :data:`swh.model.hashutil.ALGORITHMS`;
-                              mapped to the corresponding checksum
-                              (or length).
-
-            key_hash (str): name of the column to use as hash id
-                            result (default: 'sha1')
-
-        Returns:
-            iterable ([bytes]): missing content ids (as per the
-            key_hash column)
+            content: iterable of dictionaries whose keys are either 'length' or an item
+                of :data:`swh.model.hashutil.ALGORITHMS`; mapped to the
+                corresponding checksum (or length).
+            key_hash: name of the column to use as hash id result (default: 'sha1')
 
         Raises:
+            StorageArgumentException when key_hash is unknown.
             TODO: an exception when we get a hash collision.
+
+        Returns:
+            iterable of missing content ids (as per the `key_hash` column)
 
         """
         ...
 
     @remote_api_endpoint("content/missing/sha1")
-    def content_missing_per_sha1(self, contents):
+    def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         """List content missing from storage based only on sha1.
 
         Args:
             contents: List of sha1 to check for absence.
 
-        Returns:
-            iterable: missing ids
-
         Raises:
             TODO: an exception when we get a hash collision.
+
+        Returns:
+            Iterable of missing content ids (sha1)
 
         """
         ...
 
     @remote_api_endpoint("content/missing/sha1_git")
-    def content_missing_per_sha1_git(self, contents):
+    def content_missing_per_sha1_git(
+        self, contents: List[Sha1Git]
+    ) -> Iterable[Sha1Git]:
         """List content missing from storage based only on sha1_git.
 
         Args:
@@ -287,6 +266,7 @@ class StorageInterface:
 
         Yields:
             missing contents sha1_git
+
         """
         ...
 
@@ -357,15 +337,17 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/skipped/missing")
-    def skipped_content_missing(self, contents):
-        """List skipped_content missing from storage
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]]
+    ) -> Iterable[Dict[str, Any]]:
+        """List skipped contents missing from storage.
 
         Args:
-            content: iterable of dictionaries containing the data for each
+            contents: iterable of dictionaries containing the data for each
                 checksum algorithm.
 
         Returns:
-            iterable: missing signatures
+            Iterable of missing skipped contents as dict
 
         """
         ...
@@ -399,11 +381,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/missing")
-    def directory_missing(self, directories):
-        """List directories missing from storage
+    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
+        """List directories missing from storage.
 
         Args:
-            directories (iterable): an iterable of directory ids
+            directories: list of directory ids
 
         Yields:
             missing directory ids
@@ -412,33 +394,37 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("directory/ls")
-    def directory_ls(self, directory, recursive=False):
-        """Get entries for one directory.
-
-        Args:
-            - directory: the directory to list entries from.
-            - recursive: if flag on, this list recursively from this directory.
-
-        Returns:
-            List of entries for such directory.
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False
+    ) -> Iterable[Dict[str, Any]]:
+        """List entries for one directory.
 
         If `recursive=True`, names in the path of a dir/file not at the
         root are concatenated with a slash (`/`).
+
+        Args:
+            directory: the directory to list entries from.
+            recursive: if flag on, this list recursively from this directory.
+
+        Yields:
+            directory entries for such directory.
 
         """
         ...
 
     @remote_api_endpoint("directory/path")
-    def directory_entry_get_by_path(self, directory, paths):
+    def directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes]
+    ) -> Optional[Dict[str, Any]]:
         """Get the directory entry (either file or dir) from directory with path.
 
         Args:
-            - directory: sha1 of the top level directory
-            - paths: path to lookup from the top level directory. From left
+            directory: directory id
+            paths: path to lookup from the top level directory. From left
               (top) to right (bottom).
 
         Returns:
-            The corresponding directory entry if found, None otherwise.
+            The corresponding directory entry as dict if found, None otherwise.
 
         """
         ...
@@ -493,11 +479,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision/missing")
-    def revision_missing(self, revisions):
+    def revision_missing(self, revisions: List[Sha1Git]) -> Iterable[Sha1Git]:
         """List revisions missing from storage
 
         Args:
-            revisions (iterable): revision ids
+            revisions: revision ids
 
         Yields:
             missing revision ids
@@ -506,35 +492,40 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("revision")
-    def revision_get(self, revisions):
-        """Get all revisions from storage
+    def revision_get(
+        self, revisions: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
+        """Get revisions from storage
 
         Args:
-            revisions: an iterable of revision ids
+            revisions: revision ids
 
-        Returns:
-            iterable: an iterable of revisions as dictionaries (or None if the
-                revision doesn't exist)
+        Yields:
+            revisions as dictionaries (or None if the revision doesn't exist)
 
         """
         ...
 
     @remote_api_endpoint("revision/log")
-    def revision_log(self, revisions, limit=None):
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         """Fetch revision entry from the given root revisions.
 
         Args:
-            revisions: array of root revision to lookup
+            revisions: array of root revisions to lookup
             limit: limitation on the output result. Default to None.
 
         Yields:
-            List of revision log from such revisions root.
+            revision entries log from the given root root revisions
 
         """
         ...
 
     @remote_api_endpoint("revision/shortlog")
-    def revision_shortlog(self, revisions, limit=None):
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         """Fetch the shortlog for the given revisions
 
         Args:
@@ -542,7 +533,7 @@ class StorageInterface:
             limit: depth limitation for the output
 
         Yields:
-            a list of (id, parents) tuples.
+            a list of (id, parents) tuples
 
         """
         ...
@@ -586,20 +577,22 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("release/missing")
-    def release_missing(self, releases):
-        """List releases missing from storage
+    def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
+        """List missing release ids from storage
 
         Args:
-            releases: an iterable of release ids
+            releases: release ids
 
-        Returns:
+        Yields:
             a list of missing release ids
 
         """
         ...
 
     @remote_api_endpoint("release")
-    def release_get(self, releases):
+    def release_get(
+        self, releases: List[Sha1Git]
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         """Given a list of sha1, return the releases's information
 
         Args:
@@ -655,11 +648,11 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/missing")
-    def snapshot_missing(self, snapshots):
+    def snapshot_missing(self, snapshots: List[Sha1Git]) -> Iterable[Sha1Git]:
         """List snapshots missing from storage
 
         Args:
-            snapshots (iterable): an iterable of snapshot ids
+            snapshots: snapshot ids
 
         Yields:
             missing snapshot ids
@@ -668,7 +661,7 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot")
-    def snapshot_get(self, snapshot_id):
+    def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical
@@ -680,7 +673,8 @@ class StorageInterface:
             should be used instead.
 
         Args:
-            snapshot_id (bytes): identifier of the snapshot
+            snapshot_id: snapshot identifier
+
         Returns:
             dict: a dict with three keys:
                 * **id**: identifier of the snapshot
@@ -693,7 +687,9 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/by_origin_visit")
-    def snapshot_get_by_origin_visit(self, origin, visit):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int
+    ) -> Optional[Dict[str, Any]]:
         """Get the content, possibly partial, of a snapshot for the given origin visit
 
         The branches of the snapshot are iterated in the lexicographical
@@ -705,8 +701,9 @@ class StorageInterface:
             should be used instead.
 
         Args:
-            origin (int): the origin identifier
-            visit (int): the visit identifier
+            origin: origin identifier (url)
+            visit: the visit identifier
+
         Returns:
             dict: None if the snapshot does not exist;
               a dict with three keys otherwise:
@@ -721,37 +718,43 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("snapshot/count_branches")
-    def snapshot_count_branches(self, snapshot_id):
+    def snapshot_count_branches(self, snapshot_id: Sha1Git) -> Optional[Dict[str, int]]:
         """Count the number of branches in the snapshot with the given id
 
         Args:
-            snapshot_id (bytes): identifier of the snapshot
+            snapshot_id: snapshot identifier
 
         Returns:
-            dict: A dict whose keys are the target types of branches and
-            values their corresponding amount
+            A dict whose keys are the target types of branches and values their
+            corresponding amount
+
         """
         ...
 
     @remote_api_endpoint("snapshot/get_branches")
     def snapshot_get_branches(
-        self, snapshot_id, branches_from=b"", branches_count=1000, target_types=None
-    ):
+        self,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical
         order of their names.
 
         Args:
-            snapshot_id (bytes): identifier of the snapshot
-            branches_from (bytes): optional parameter used to skip branches
+            snapshot_id: identifier of the snapshot
+            branches_from: optional parameter used to skip branches
                 whose name is lesser than it before returning them
-            branches_count (int): optional parameter used to restrain
+            branches_count: optional parameter used to restrain
                 the amount of returned branches
-            target_types (list): optional parameter used to filter the
+            target_types: optional parameter used to filter the
                 target types of branch to return (possible values that can be
                 contained in that list are `'content', 'directory',
                 'revision', 'release', 'snapshot', 'alias'`)
+
         Returns:
             dict: None if the snapshot does not exist;
               a dict with three keys otherwise:
@@ -971,14 +974,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("object/find_by_sha1_git")
-    def object_find_by_sha1_git(self, ids):
+    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
         """Return the objects found with the given ids.
 
         Args:
             ids: a generator of sha1_gits
 
         Returns:
-            dict: a mapping from id to the list of objects found. Each object
+            A dict from id to the list of objects found for that id. Each object
             found is itself a dict with keys:
 
             - sha1_git: the input id
@@ -1002,16 +1005,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("origin/get_sha1")
-    def origin_get_by_sha1(self, sha1s):
+    def origin_get_by_sha1(self, sha1s: List[bytes]) -> List[Optional[Dict[str, Any]]]:
         """Return origins, identified by the sha1 of their URLs.
 
         Args:
-            sha1s (list[bytes]): a list of sha1s
+            sha1s: a list of sha1s
 
-        Yields:
-            dicts containing origin information as returned
-            by :meth:`swh.storage.storage.Storage.origin_get`, or None if an
-            origin matching the sha1 is not found.
+        Returns:
+            List of origins dict whose sha1 of their url match, None otherwise.
 
         """
         ...
