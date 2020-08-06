@@ -544,30 +544,38 @@ class TestStorage:
 
     def test_content_get_partition(self, swh_storage, swh_contents):
         """content_get_partition paginates results if limit exceeded"""
-        expected_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
+        expected_contents = [
+            attr.evolve(c, data=None) for c in swh_contents if c.status != "absent"
+        ]
 
         actual_contents = []
         for i in range(16):
             actual_result = swh_storage.content_get_partition(i, 16)
-            assert actual_result["next_page_token"] is None
-            actual_contents.extend(actual_result["contents"])
+            assert actual_result.next_page_token is None
+            actual_contents.extend(actual_result.results)
 
-        assert_contents_ok(expected_contents, actual_contents, ["sha1"])
+        assert len(actual_contents) == len(expected_contents)
+        for content in actual_contents:
+            assert content in expected_contents
 
     def test_content_get_partition_full(self, swh_storage, swh_contents):
-        """content_get_partition for a single partition returns all available
-        contents"""
-        expected_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
+        """content_get_partition for a single partition returns all available contents
+
+        """
+        expected_contents = [
+            attr.evolve(c, data=None) for c in swh_contents if c.status != "absent"
+        ]
 
         actual_result = swh_storage.content_get_partition(0, 1)
-        assert actual_result["next_page_token"] is None
+        assert actual_result.next_page_token is None
 
-        actual_contents = actual_result["contents"]
-        assert_contents_ok(expected_contents, actual_contents, ["sha1"])
+        actual_contents = actual_result.results
+        assert len(actual_contents) == len(expected_contents)
+        for content in actual_contents:
+            assert content in expected_contents
 
     def test_content_get_partition_empty(self, swh_storage, swh_contents):
-        """content_get_partition when at least one of the partitions is
-        empty"""
+        """content_get_partition when at least one of the partitions is empty"""
         expected_contents = {
             cont.sha1 for cont in swh_contents if cont.status != "absent"
         }
@@ -582,24 +590,24 @@ class TestStorage:
                 i, nb_partitions, limit=len(swh_contents) + 1
             )
 
-            for cont in actual_result["contents"]:
-                seen_sha1s.append(cont["sha1"])
+            for content in actual_result.results:
+                seen_sha1s.append(content.sha1)
 
             # Limit is higher than the max number of results
-            assert actual_result["next_page_token"] is None
+            assert actual_result.next_page_token is None
 
         assert set(seen_sha1s) == expected_contents
 
     def test_content_get_partition_limit_none(self, swh_storage):
         """content_get_partition call with wrong limit input should fail"""
-        with pytest.raises(StorageArgumentException) as e:
+        with pytest.raises(StorageArgumentException, match="limit should not be None"):
             swh_storage.content_get_partition(1, 16, limit=None)
 
-        assert e.value.args == ("limit should not be None",)
-
-    def test_generate_content_get_partition_pagination(self, swh_storage, swh_contents):
+    def test_content_get_partition_pagination_generate(self, swh_storage, swh_contents):
         """content_get_partition returns contents within range provided"""
-        expected_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
+        expected_contents = [
+            attr.evolve(c, data=None) for c in swh_contents if c.status != "absent"
+        ]
 
         # retrieve contents
         actual_contents = []
@@ -609,13 +617,15 @@ class TestStorage:
                 actual_result = swh_storage.content_get_partition(
                     i, 4, limit=3, page_token=page_token
                 )
-                actual_contents.extend(actual_result["contents"])
-                page_token = actual_result["next_page_token"]
+                actual_contents.extend(actual_result.results)
+                page_token = actual_result.next_page_token
 
                 if page_token is None:
                     break
 
-        assert_contents_ok(expected_contents, actual_contents, ["sha1"])
+        assert len(actual_contents) == len(expected_contents)
+        for content in actual_contents:
+            assert content in expected_contents
 
     def test_content_get_metadata(self, swh_storage, sample_data):
         cont1, cont2 = sample_data.contents[:2]
@@ -1595,9 +1605,9 @@ class TestStorage:
         assert origins[0]["url"] == origin.url
 
     def test_origin_get_by_sha1_not_found(self, swh_storage, sample_data):
-        origin = sample_data.origin
-        assert swh_storage.origin_get([origin.url])[0] is None
-        origins = list(swh_storage.origin_get_by_sha1([sha1(origin.url)]))
+        unknown_origin = sample_data.origin
+        assert swh_storage.origin_get([unknown_origin.url])[0] is None
+        origins = list(swh_storage.origin_get_by_sha1([sha1(unknown_origin.url)]))
         assert len(origins) == 1
         assert origins[0] is None
 
@@ -3851,100 +3861,6 @@ class TestStorageGeneratedData:
         assert_contents_ok(
             expected_contents, actual_contents, keys_to_check=keys_to_check
         )
-
-    def test_generate_content_get_range(self, swh_storage, swh_contents):
-        """content_get_range returns complete range"""
-        present_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
-
-        get_sha1s = sorted([c.sha1 for c in swh_contents if c.status != "absent"])
-        start = get_sha1s[2]
-        end = get_sha1s[-2]
-        actual_result = swh_storage.content_get_range(start, end)
-
-        assert actual_result["next"] is None
-
-        actual_contents = actual_result["contents"]
-        expected_contents = [c for c in present_contents if start <= c["sha1"] <= end]
-        if expected_contents:
-            assert_contents_ok(expected_contents, actual_contents, ["sha1"])
-        else:
-            assert actual_contents == []
-
-    def test_generate_content_get_range_full(self, swh_storage, swh_contents):
-        """content_get_range for a full range returns all available contents"""
-        present_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
-
-        start = b"0" * 40
-        end = b"f" * 40
-        actual_result = swh_storage.content_get_range(start, end)
-        assert actual_result["next"] is None
-
-        actual_contents = actual_result["contents"]
-        expected_contents = [c for c in present_contents if start <= c["sha1"] <= end]
-        if expected_contents:
-            assert_contents_ok(expected_contents, actual_contents, ["sha1"])
-        else:
-            assert actual_contents == []
-
-    def test_generate_content_get_range_empty(self, swh_storage, swh_contents):
-        """content_get_range for an empty range returns nothing"""
-        start = b"0" * 40
-        end = b"f" * 40
-        actual_result = swh_storage.content_get_range(end, start)
-        assert actual_result["next"] is None
-        assert len(actual_result["contents"]) == 0
-
-    def test_generate_content_get_range_limit_none(self, swh_storage):
-        """content_get_range call with wrong limit input should fail"""
-        with pytest.raises(StorageArgumentException) as e:
-            swh_storage.content_get_range(start=None, end=None, limit=None)
-
-        assert e.value.args == ("limit should not be None",)
-
-    def test_generate_content_get_range_no_limit(self, swh_storage, swh_contents):
-        """content_get_range returns contents within range provided"""
-        # input the list of sha1s we want from storage
-        get_sha1s = sorted([c.sha1 for c in swh_contents if c.status != "absent"])
-        start = get_sha1s[0]
-        end = get_sha1s[-1]
-
-        # retrieve contents
-        actual_result = swh_storage.content_get_range(start, end)
-
-        actual_contents = actual_result["contents"]
-        assert actual_result["next"] is None
-        assert len(actual_contents) == len(get_sha1s)
-
-        expected_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
-        assert_contents_ok(expected_contents, actual_contents, ["sha1"])
-
-    def test_generate_content_get_range_limit(self, swh_storage, swh_contents):
-        """content_get_range paginates results if limit exceeded"""
-        contents_map = {c.sha1: c.to_dict() for c in swh_contents}
-
-        # input the list of sha1s we want from storage
-        get_sha1s = sorted([c.sha1 for c in swh_contents if c.status != "absent"])
-        start = get_sha1s[0]
-        end = get_sha1s[-1]
-
-        # retrieve contents limited to n-1 results
-        limited_results = len(get_sha1s) - 1
-        actual_result = swh_storage.content_get_range(start, end, limit=limited_results)
-
-        actual_contents = actual_result["contents"]
-        assert actual_result["next"] == get_sha1s[-1]
-        assert len(actual_contents) == limited_results
-
-        expected_contents = [contents_map[sha1] for sha1 in get_sha1s[:-1]]
-        assert_contents_ok(expected_contents, actual_contents, ["sha1"])
-
-        # retrieve next part
-        actual_results2 = swh_storage.content_get_range(start=end, end=end)
-        assert actual_results2["next"] is None
-        actual_contents2 = actual_results2["contents"]
-        assert len(actual_contents2) == 1
-
-        assert_contents_ok([contents_map[get_sha1s[-1]]], actual_contents2, ["sha1"])
 
     @pytest.mark.parametrize("limit", [1, 7, 10, 100, 1000])
     def test_origin_list(self, swh_storage, swh_origins, limit):

@@ -144,7 +144,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def check_config(self, *, check_write, db=None, cur=None):
+    def check_config(self, *, check_write: bool, db=None, cur=None) -> bool:
 
         if not self.objstorage.check_config(check_write=check_write):
             return False
@@ -236,15 +236,17 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_update(self, content, keys=[], db=None, cur=None):
+    def content_update(
+        self, contents: List[Dict[str, Any]], keys: List[str] = [], db=None, cur=None
+    ) -> None:
         # TODO: Add a check on input keys. How to properly implement
         # this? We don't know yet the new columns.
-        self.journal_writer.content_update(content)
+        self.journal_writer.content_update(contents)
 
         db.mktemp("content", cur)
         select_keys = list(set(db.content_get_metadata_keys).union(set(keys)))
         with convert_validation_exceptions():
-            db.copy_to(content, "tmp_content", select_keys, cur)
+            db.copy_to(contents, "tmp_content", select_keys, cur)
             db.content_update_from_temp(keys_to_update=keys, cur=cur)
 
     @timed
@@ -264,43 +266,27 @@ class Storage:
         }
 
     @timed
-    def content_get(self, content):
+    def content_get(
+        self, contents: List[bytes]
+    ) -> Iterable[Optional[Dict[str, bytes]]]:
         # FIXME: Make this method support slicing the `data`.
-        if len(content) > BULK_BLOCK_CONTENT_LEN_MAX:
+        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
             raise StorageArgumentException(
-                "Send at maximum %s contents." % BULK_BLOCK_CONTENT_LEN_MAX
+                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
             )
-        yield from self.objstorage.content_get(content)
+        yield from self.objstorage.content_get(contents)
 
     @timed
     @db_transaction()
-    def content_get_range(self, start, end, limit=1000, db=None, cur=None):
-        if limit is None:
-            raise StorageArgumentException("limit should not be None")
-        contents = []
-        next_content = None
-        for counter, content_row in enumerate(
-            db.content_get_range(start, end, limit + 1, cur)
-        ):
-            content = dict(zip(db.content_get_metadata_keys, content_row))
-            if counter >= limit:
-                # take the last commit for the next page starting from this
-                next_content = content["sha1"]
-                break
-            contents.append(content)
-        return {
-            "contents": contents,
-            "next": next_content,
-        }
-
-    @timed
     def content_get_partition(
         self,
         partition_id: int,
         nb_partitions: int,
+        page_token: Optional[str] = None,
         limit: int = 1000,
-        page_token: str = None,
-    ):
+        db=None,
+        cur=None,
+    ) -> PagedResult[Content]:
         if limit is None:
             raise StorageArgumentException("limit should not be None")
         (start, end) = get_partition_bounds_bytes(
@@ -310,14 +296,20 @@ class Storage:
             start = hash_to_bytes(page_token)
         if end is None:
             end = b"\xff" * SHA1_SIZE
-        result = self.content_get_range(start, end, limit)
-        result2 = {
-            "contents": result["contents"],
-            "next_page_token": None,
-        }
-        if result["next"]:
-            result2["next_page_token"] = hash_to_hex(result["next"])
-        return result2
+
+        next_page_token: Optional[str] = None
+        contents = []
+        for counter, row in enumerate(db.content_get_range(start, end, limit + 1, cur)):
+            row_d = dict(zip(db.content_get_metadata_keys, row))
+            content = Content(**row_d)
+            if counter >= limit:
+                # take the last content for the next page starting from this
+                next_page_token = hash_to_hex(content.sha1)
+                break
+            contents.append(content)
+
+        assert len(contents) <= limit
+        return PagedResult(results=contents, next_page_token=next_page_token)
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -332,29 +324,33 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def content_missing(self, content, key_hash="sha1", db=None, cur=None):
+    def content_missing(
+        self, contents: List[Dict[str, Any]], key_hash: str = "sha1", db=None, cur=None
+    ) -> Iterable[bytes]:
+        if key_hash not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
         keys = db.content_hash_keys
-
-        if key_hash not in keys:
-            raise StorageArgumentException("key_hash should be one of %s" % keys)
-
         key_hash_idx = keys.index(key_hash)
 
-        if not content:
-            return
-
-        for obj in db.content_missing_from_list(content, cur):
+        for obj in db.content_missing_from_list(contents, cur):
             yield obj[key_hash_idx]
 
     @timed
     @db_transaction_generator()
-    def content_missing_per_sha1(self, contents, db=None, cur=None):
+    def content_missing_per_sha1(
+        self, contents: List[bytes], db=None, cur=None
+    ) -> Iterable[bytes]:
         for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
 
     @timed
     @db_transaction_generator()
-    def content_missing_per_sha1_git(self, contents, db=None, cur=None):
+    def content_missing_per_sha1_git(
+        self, contents: List[bytes], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         for obj in db.content_missing_per_sha1_git(contents, cur):
             yield obj[0]
 
@@ -447,7 +443,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def skipped_content_missing(self, contents, db=None, cur=None):
+    def skipped_content_missing(
+        self, contents: List[Dict[str, Any]], db=None, cur=None
+    ) -> Iterable[Dict[str, Any]]:
         contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
             yield dict(zip(db.content_hash_keys, content))
@@ -511,13 +509,17 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def directory_missing(self, directories, db=None, cur=None):
+    def directory_missing(
+        self, directories: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         for obj in db.directory_missing_from_list(directories, cur):
             yield obj[0]
 
     @timed
     @db_transaction_generator(statement_timeout=20000)
-    def directory_ls(self, directory, recursive=False, db=None, cur=None):
+    def directory_ls(
+        self, directory: Sha1Git, recursive: bool = False, db=None, cur=None
+    ) -> Iterable[Dict[str, Any]]:
         if recursive:
             res_gen = db.directory_walk(directory, cur=cur)
         else:
@@ -528,10 +530,11 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def directory_entry_get_by_path(self, directory, paths, db=None, cur=None):
+    def directory_entry_get_by_path(
+        self, directory: Sha1Git, paths: List[bytes], db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
         res = db.directory_entry_get_by_path(directory, paths, cur)
-        if res:
-            return dict(zip(db.directory_ls_cols, res))
+        return dict(zip(db.directory_ls_cols, res)) if res else None
 
     @timed
     @db_transaction()
@@ -587,16 +590,20 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def revision_missing(self, revisions, db=None, cur=None):
+    def revision_missing(
+        self, revisions: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         if not revisions:
-            return
+            return None
 
         for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]
 
     @timed
     @db_transaction_generator(statement_timeout=1000)
-    def revision_get(self, revisions, db=None, cur=None):
+    def revision_get(
+        self, revisions: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_get_from_list(revisions, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
             if not data["type"]:
@@ -606,7 +613,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=2000)
-    def revision_log(self, revisions, limit=None, db=None, cur=None):
+    def revision_log(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None, db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
             if not data["type"]:
@@ -616,8 +625,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=2000)
-    def revision_shortlog(self, revisions, limit=None, db=None, cur=None):
-
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None, db=None, cur=None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         yield from db.revision_shortlog(revisions, limit, cur)
 
     @timed
@@ -656,7 +666,9 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def release_missing(self, releases, db=None, cur=None):
+    def release_missing(
+        self, releases: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         if not releases:
             return
 
@@ -665,7 +677,9 @@ class Storage:
 
     @timed
     @db_transaction_generator(statement_timeout=500)
-    def release_get(self, releases, db=None, cur=None):
+    def release_get(
+        self, releases: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Optional[Dict[str, Any]]]:
         for release in db.release_get_from_list(releases, cur):
             data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
             yield data if data["target_type"] else None
@@ -714,19 +728,24 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def snapshot_missing(self, snapshots, db=None, cur=None):
+    def snapshot_missing(
+        self, snapshots: List[Sha1Git], db=None, cur=None
+    ) -> Iterable[Sha1Git]:
         for obj in db.snapshot_missing_from_list(snapshots, cur):
             yield obj[0]
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get(self, snapshot_id, db=None, cur=None):
-
+    def snapshot_get(
+        self, snapshot_id: Sha1Git, db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
         return self.snapshot_get_branches(snapshot_id, db=db, cur=cur)
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get_by_origin_visit(self, origin, visit, db=None, cur=None):
+    def snapshot_get_by_origin_visit(
+        self, origin: str, visit: int, db=None, cur=None
+    ) -> Optional[Dict[str, Any]]:
         snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
 
         if snapshot_id:
@@ -736,20 +755,22 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_count_branches(self, snapshot_id, db=None, cur=None):
+    def snapshot_count_branches(
+        self, snapshot_id: Sha1Git, db=None, cur=None
+    ) -> Optional[Dict[str, int]]:
         return dict([bc for bc in db.snapshot_count_branches(snapshot_id, cur)])
 
     @timed
     @db_transaction(statement_timeout=2000)
     def snapshot_get_branches(
         self,
-        snapshot_id,
-        branches_from=b"",
-        branches_count=1000,
-        target_types=None,
+        snapshot_id: Sha1Git,
+        branches_from: bytes = b"",
+        branches_count: int = 1000,
+        target_types: Optional[List[str]] = None,
         db=None,
         cur=None,
-    ):
+    ) -> Optional[Dict[str, Any]]:
         if snapshot_id == EMPTY_SNAPSHOT_ID:
             return {
                 "id": snapshot_id,
@@ -1058,8 +1079,10 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def object_find_by_sha1_git(self, ids, db=None, cur=None):
-        ret = {id: [] for id in ids}
+    def object_find_by_sha1_git(
+        self, ids: List[Sha1Git], db=None, cur=None
+    ) -> Dict[Sha1Git, List[Dict]]:
+        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
 
         for retval in db.object_find_by_sha1_git(ids, cur=cur):
             if retval[1]:
@@ -1083,13 +1106,14 @@ class Storage:
         return result
 
     @timed
-    @db_transaction_generator(statement_timeout=500)
-    def origin_get_by_sha1(self, sha1s, db=None, cur=None):
-        for line in db.origin_get_by_sha1(sha1s, cur):
-            if line[0] is not None:
-                yield dict(zip(db.origin_cols, line))
-            else:
-                yield None
+    @db_transaction(statement_timeout=500)
+    def origin_get_by_sha1(
+        self, sha1s: List[bytes], db=None, cur=None
+    ) -> List[Optional[Dict[str, Any]]]:
+        return [
+            dict(zip(db.origin_cols, row)) if row[0] else None
+            for row in db.origin_get_by_sha1(sha1s, cur)
+        ]
 
     @timed
     @db_transaction_generator()

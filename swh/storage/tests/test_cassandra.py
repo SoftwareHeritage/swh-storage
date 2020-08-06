@@ -352,30 +352,6 @@ class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
         pass
 
     @pytest.mark.skip("Not supported by Cassandra")
-    def test_generate_content_get_range_limit(self):
-        pass
-
-    @pytest.mark.skip("Not supported by Cassandra")
-    def test_generate_content_get_range_no_limit(self):
-        pass
-
-    @pytest.mark.skip("Not supported by Cassandra")
-    def test_generate_content_get_range(self):
-        pass
-
-    @pytest.mark.skip("Not supported by Cassandra")
-    def test_generate_content_get_range_empty(self):
-        pass
-
-    @pytest.mark.skip("Not supported by Cassandra")
-    def test_generate_content_get_range_limit_none(self):
-        pass
-
-    @pytest.mark.skip("Not supported by Cassandra")
-    def test_generate_content_get_range_full(self):
-        pass
-
-    @pytest.mark.skip("Not supported by Cassandra")
     def test_origin_count_with_visit_no_visits(self):
         pass
 
