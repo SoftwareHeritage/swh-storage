@@ -308,14 +308,16 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=500)
-    def content_get_metadata(
-        self, contents: List[bytes], db=None, cur=None
-    ) -> Dict[bytes, List[Dict]]:
-        result: Dict[bytes, List[Dict]] = {sha1: [] for sha1 in contents}
+    def content_get(
+        self, contents: List[Sha1], db=None, cur=None
+    ) -> List[Optional[Content]]:
+        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
         for row in db.content_get_metadata_from_sha1s(contents, cur):
-            content_meta = dict(zip(db.content_get_metadata_keys, row))
-            result[content_meta["sha1"]].append(content_meta)
-        return result
+            row_d = dict(zip(db.content_get_metadata_keys, row))
+            content = Content(**row_d)
+            contents_by_sha1[content.sha1] = content
+
+        return [contents_by_sha1.get(sha1) for sha1 in contents]
 
     @timed
     @db_transaction_generator()

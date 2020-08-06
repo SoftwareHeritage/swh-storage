@@ -187,16 +187,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/metadata")
-    def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
+    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
         """Retrieve content metadata in bulk
 
         Args:
-            content: iterable of content identifiers (sha1)
+            content: List of content identifiers
 
         Returns:
-            a dict with keys the content's sha1 and the associated value
-            either the existing content's metadata or None if the content does
-            not exist.
+            List of contents model objects when they exist, None otherwise.
 
         """
         ...

@@ -267,15 +267,14 @@ class TestCassandraStorage(_TestStorage):
             swh_storage._cql_runner, "content_get_from_token", mock_cgft
         )
 
-        actual_result = swh_storage.content_get_metadata([cont.sha1])
-
+        actual_result = swh_storage.content_get([cont.sha1])
         assert called == 2
 
         # dropping extra column not returned
-        expected_cont = attr.evolve(cont, data=None, ctime=None).to_dict()
+        expected_cont = attr.evolve(cont, data=None)
 
         # but cont2 should be filtered out
-        assert actual_result == {cont.sha1: [expected_cont]}
+        assert actual_result == [expected_cont]
 
     def test_content_find_murmur3_collision(self, swh_storage, mocker, sample_data):
         """The Murmur3 token is used as link from index tables to the main

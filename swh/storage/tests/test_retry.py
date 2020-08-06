@@ -117,17 +117,17 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
     content = attr.evolve(sample_content, data=None)
 
     pk = content.sha1
-    content_metadata = swh_storage.content_get_metadata([pk])
-    assert not content_metadata[pk]
+    content_metadata = swh_storage.content_get([pk])
+    assert content_metadata == [None]
 
     s = swh_storage.content_add_metadata([content])
     assert s == {
         "content:add": 1,
     }
 
-    content_metadata = swh_storage.content_get_metadata([pk])
-    assert len(content_metadata[pk]) == 1
-    assert content_metadata[pk][0]["sha1"] == pk
+    content_metadata = swh_storage.content_get([pk])
+    assert len(content_metadata) == 1
+    assert content_metadata[0].sha1 == pk
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
@@ -174,10 +174,6 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
 
     sample_content = sample_data.content
     content = attr.evolve(sample_content, data=None)
-
-    pk = content.sha1
-    content_metadata = swh_storage.content_get_metadata([pk])
-    assert not content_metadata[pk]
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.content_add_metadata([content])

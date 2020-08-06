@@ -330,10 +330,9 @@ class TestStorage:
 
         swh_storage.content_update([cont1b.to_dict()], keys=["sha1_git"])
 
-        results = swh_storage.content_get_metadata([cont1.sha1])
-
-        expected_content = attr.evolve(cont1b, data=None, ctime=None).to_dict()
-        assert tuple(results[cont1.sha1]) == (expected_content,)
+        actual_contents = swh_storage.content_get([cont1.sha1])
+        expected_content = attr.evolve(cont1b, data=None)
+        assert actual_contents == [expected_content]
 
     def test_content_add_metadata(self, swh_storage, sample_data):
         cont = attr.evolve(sample_data.content, data=None, ctime=now())
@@ -343,12 +342,8 @@ class TestStorage:
             "content:add": 1,
         }
 
-        expected_cont = cont.to_dict()
-        expected_cont.pop("ctime", None)
-
-        assert tuple(swh_storage.content_get_metadata([cont.sha1])[cont.sha1]) == (
-            expected_cont,
-        )
+        expected_cont = cont
+        assert swh_storage.content_get([cont.sha1]) == [expected_cont]
         contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
@@ -617,32 +612,33 @@ class TestStorage:
         for content in actual_contents:
             assert content in expected_contents
 
-    def test_content_get_metadata(self, swh_storage, sample_data):
+    def test_content_get(self, swh_storage, sample_data):
         cont1, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_md = swh_storage.content_get_metadata([cont1.sha1, cont2.sha1])
+        actual_contents = swh_storage.content_get([cont1.sha1, cont2.sha1])
 
         # we only retrieve the metadata so no data nor ctime within
-        expected_cont1, expected_cont2 = [
-            attr.evolve(c, data=None, ctime=None).to_dict() for c in [cont1, cont2]
-        ]
+        expected_contents = [attr.evolve(c, data=None) for c in [cont1, cont2]]
 
-        assert tuple(actual_md[cont1.sha1]) == (expected_cont1,)
-        assert tuple(actual_md[cont2.sha1]) == (expected_cont2,)
-        assert len(actual_md.keys()) == 2
+        assert actual_contents == expected_contents
 
-    def test_content_get_metadata_missing_sha1(self, swh_storage, sample_data):
+    def test_content_get_missing_sha1(self, swh_storage, sample_data):
         cont1, cont2 = sample_data.contents[:2]
+        assert cont1.sha1 != cont2.sha1
         missing_cont = sample_data.skipped_content
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_contents = swh_storage.content_get_metadata([missing_cont.sha1])
+        actual_contents = swh_storage.content_get(
+            [cont1.sha1, cont2.sha1, missing_cont.sha1]
+        )
 
-        assert len(actual_contents) == 1
-        assert tuple(actual_contents[missing_cont.sha1]) == ()
+        expected_contents = [
+            attr.evolve(c, data=None) if c else None for c in [cont1, cont2, None]
+        ]
+        assert actual_contents == expected_contents
 
     def test_content_get_random(self, swh_storage, sample_data):
         cont, cont2, cont3 = sample_data.contents[:3]
@@ -3829,25 +3825,15 @@ class TestStorageGeneratedData:
             assert actual_content_data is not None
             assert actual_content_data == content.data
 
-    def test_generate_content_get_metadata(self, swh_storage, swh_contents):
-        # input the list of sha1s we want from storage
-        expected_contents = [c.to_dict() for c in swh_contents if c.status != "absent"]
-        get_sha1s = [c["sha1"] for c in expected_contents]
+    def test_generate_content_get(self, swh_storage, swh_contents):
+        expected_contents = [
+            attr.evolve(c, data=None) for c in swh_contents if c.status != "absent"
+        ]
 
-        # retrieve contents
-        meta_contents = swh_storage.content_get_metadata(get_sha1s)
+        actual_contents = swh_storage.content_get([c.sha1 for c in expected_contents])
 
-        assert len(list(meta_contents)) == len(get_sha1s)
-
-        actual_contents = []
-        for contents in meta_contents.values():
-            actual_contents.extend(contents)
-
-        keys_to_check = {"length", "status", "sha1", "sha1_git", "sha256", "blake2s256"}
-
-        assert_contents_ok(
-            expected_contents, actual_contents, keys_to_check=keys_to_check
-        )
+        assert len(actual_contents) == len(expected_contents)
+        assert actual_contents == expected_contents
 
     @pytest.mark.parametrize("limit", [1, 7, 10, 100, 1000])
     def test_origin_list(self, swh_storage, swh_origins, limit):
