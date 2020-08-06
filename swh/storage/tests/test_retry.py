@@ -47,8 +47,8 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
 
     """
     sample_content = sample_data.content
-    content = next(swh_storage.content_get([sample_content.sha1]))
-    assert not content
+    content = swh_storage.content_get_data(sample_content.sha1)
+    assert content is None
 
     s = swh_storage.content_add([sample_content])
     assert s == {
@@ -56,8 +56,8 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
         "content:add:bytes": sample_content.length,
     }
 
-    content = next(swh_storage.content_get([sample_content.sha1]))
-    assert content["sha1"] == sample_content.sha1
+    content = swh_storage.content_get_data(sample_content.sha1)
+    assert content == sample_content.data
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
@@ -78,8 +78,8 @@ def test_retrying_proxy_storage_content_add_with_retry(
 
     sample_content = sample_data.content
 
-    content = next(swh_storage.content_get([sample_content.sha1]))
-    assert not content
+    content = swh_storage.content_get_data(sample_content.sha1)
+    assert content is None
 
     s = swh_storage.content_add([sample_content])
     assert s == {"content:add": 1}
@@ -100,8 +100,8 @@ def test_retrying_proxy_swh_storage_content_add_failure(
 
     sample_content = sample_data.content
 
-    content = next(swh_storage.content_get([sample_content.sha1]))
-    assert not content
+    content = swh_storage.content_get_data(sample_content.sha1)
+    assert content is None
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.content_add([sample_content])

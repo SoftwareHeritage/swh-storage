@@ -37,6 +37,7 @@ from swh.model.model import (
     Revision,
     Release,
     SkippedContent,
+    Sha1,
     Sha1Git,
     Snapshot,
     SHA1_SIZE,
@@ -266,15 +267,9 @@ class Storage:
         }
 
     @timed
-    def content_get(
-        self, contents: List[bytes]
-    ) -> Iterable[Optional[Dict[str, bytes]]]:
-        # FIXME: Make this method support slicing the `data`.
-        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise StorageArgumentException(
-                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
-            )
-        yield from self.objstorage.content_get(contents)
+    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+        # FIXME: Make this method support slicing the `data`
+        return self.objstorage.content_get(content)
 
     @timed
     @db_transaction()

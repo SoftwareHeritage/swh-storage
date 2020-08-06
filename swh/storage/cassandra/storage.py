@@ -34,7 +34,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
     Sha1Git,
 )
-from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
+from swh.storage.interface import ListOrder, PagedResult, Sha1, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -163,15 +163,9 @@ class CassandraStorage:
     def content_add_metadata(self, content: List[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
-    def content_get(
-        self, contents: List[bytes]
-    ) -> Iterable[Optional[Dict[str, bytes]]]:
-        # FIXME: Make this method support slicing the `data`.
-        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise StorageArgumentException(
-                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
-            )
-        yield from self.objstorage.content_get(contents)
+    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+        # FIXME: Make this method support slicing the `data`
+        return self.objstorage.content_get(content)
 
     def content_get_partition(
         self,

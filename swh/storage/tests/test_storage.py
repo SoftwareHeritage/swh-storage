@@ -186,9 +186,7 @@ class TestStorage:
             "content:add:bytes": cont.length,
         }
 
-        assert list(swh_storage.content_get([cont.sha1])) == [
-            {"sha1": cont.sha1, "data": cont.data}
-        ]
+        assert swh_storage.content_get_data(cont.sha1) == cont.data
 
         expected_cont = attr.evolve(cont, data=None)
 
@@ -223,9 +221,7 @@ class TestStorage:
 
         # the fact that we retrieve the content object from the storage with
         # the correct 'data' field ensures it has been 'called'
-        assert list(swh_storage.content_get([cont.sha1])) == [
-            {"sha1": cont.sha1, "data": cont.data}
-        ]
+        assert swh_storage.content_get_data(cont.sha1) == cont.data
 
         expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
         contents = [
@@ -242,23 +238,20 @@ class TestStorage:
         swh_storage.refresh_stat_counters()
         assert swh_storage.stat_counters()["content"] == 1
 
-    def test_content_get_missing(self, swh_storage, sample_data):
+    def test_content_get_data_missing(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont])
 
         # Query a single missing content
-        results = list(swh_storage.content_get([cont2.sha1]))
-        assert results == [None]
+        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        assert actual_content_data is None
 
         # Check content_get does not abort after finding a missing content
-        results = list(swh_storage.content_get([cont.sha1, cont2.sha1]))
-        assert results == [{"sha1": cont.sha1, "data": cont.data}, None]
-
-        # Check content_get does not discard found countent when it finds
-        # a missing content.
-        results = list(swh_storage.content_get([cont2.sha1, cont.sha1]))
-        assert results == [None, {"sha1": cont.sha1, "data": cont.data}]
+        actual_content_data = swh_storage.content_get_data(cont.sha1)
+        assert actual_content_data == cont.data
+        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        assert actual_content_data is None
 
     def test_content_add_different_input(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
@@ -320,9 +313,7 @@ class TestStorage:
         cont = sample_data.content
         swh_storage.content_add([cont, cont])
 
-        assert list(swh_storage.content_get([cont.sha1])) == [
-            {"sha1": cont.sha1, "data": cont.data}
-        ]
+        assert swh_storage.content_get_data(cont.sha1) == cont.data
 
     def test_content_update(self, swh_storage, sample_data):
         cont1 = sample_data.content
@@ -3829,15 +3820,14 @@ class TestStorage:
 
 
 class TestStorageGeneratedData:
-    def test_generate_content_get(self, swh_storage, swh_contents):
-        contents_with_data = [c.to_dict() for c in swh_contents if c.status != "absent"]
-        # input the list of sha1s we want from storage
-        get_sha1s = [c["sha1"] for c in contents_with_data]
+    def test_generate_content_get_data(self, swh_storage, swh_contents):
+        contents_with_data = [c for c in swh_contents if c.status != "absent"]
 
         # retrieve contents
-        actual_contents = list(swh_storage.content_get(get_sha1s))
-        assert None not in actual_contents
-        assert_contents_ok(contents_with_data, actual_contents)
+        for content in contents_with_data:
+            actual_content_data = swh_storage.content_get_data(content.sha1)
+            assert actual_content_data is not None
+            assert actual_content_data == content.data
 
     def test_generate_content_get_metadata(self, swh_storage, swh_contents):
         # input the list of sha1s we want from storage
