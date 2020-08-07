@@ -3,8 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Generator, Iterable
+from typing import Dict, Iterable, Optional
 
+from swh.storage.interface import Sha1
 from swh.model.model import Content, MissingData
 from swh.objstorage import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
@@ -26,21 +27,22 @@ class ObjStorage:
             raise AttributeError(key)
         return getattr(self.objstorage, key)
 
-    def content_get(self, contents: Iterable[bytes]) -> Generator:
-        """Retrieve content data from the objstorage
+    def content_get(self, obj_id: Sha1) -> Optional[bytes]:
+        """Retrieve data associated to the content from the objstorage
 
         Args:
-            contents: List of contents to retrieve data from
+            content: content identitier
+
+        Returns:
+            associated content's data if any, None otherwise.
 
         """
-        for obj_id in contents:
-            try:
-                data = self.objstorage.get(obj_id)
-            except ObjNotFoundError:
-                yield None
-                continue
+        try:
+            data = self.objstorage.get(obj_id)
+        except ObjNotFoundError:
+            data = None
 
-            yield {"sha1": obj_id, "data": data}
+        return data
 
     def content_add(self, contents: Iterable[Content]) -> Dict:
         """Add contents to the objstorage.

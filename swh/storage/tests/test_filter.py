@@ -23,8 +23,8 @@ def swh_storage():
 def test_filtering_proxy_storage_content(swh_storage, sample_data):
     sample_content = sample_data.content
 
-    content = next(swh_storage.content_get([sample_content.sha1]))
-    assert not content
+    content = swh_storage.content_get_data(sample_content.sha1)
+    assert content is None
 
     s = swh_storage.content_add([sample_content])
     assert s == {
@@ -32,7 +32,7 @@ def test_filtering_proxy_storage_content(swh_storage, sample_data):
         "content:add:bytes": sample_content.length,
     }
 
-    content = next(swh_storage.content_get([sample_content.sha1]))
+    content = swh_storage.content_get_data(sample_content.sha1)
     assert content is not None
 
     s = swh_storage.content_add([sample_content])
