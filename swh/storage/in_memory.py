@@ -51,6 +51,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1,
     Sha1Git,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
@@ -254,15 +255,9 @@ class InMemoryStorage:
     def content_add_metadata(self, content: List[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
-    def content_get(
-        self, contents: List[bytes]
-    ) -> Iterable[Optional[Dict[str, bytes]]]:
-        # FIXME: Make this method support slicing the `data`.
-        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise StorageArgumentException(
-                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
-            )
-        yield from self.objstorage.content_get(contents)
+    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+        # FIXME: Make this method support slicing the `data`
+        return self.objstorage.content_get(content)
 
     def content_get_partition(
         self,
@@ -299,20 +294,18 @@ class InMemoryStorage:
         assert len(contents) <= limit
         return PagedResult(results=contents, next_page_token=next_page_token)
 
-    def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
-        result: Dict = {sha1: [] for sha1 in contents}
+    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
+        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
         for sha1 in contents:
             if sha1 in self._content_indexes["sha1"]:
                 objs = self._content_indexes["sha1"][sha1]
                 # only 1 element as content_add_metadata would have raised a
                 # hash collision otherwise
+                assert len(objs) == 1
                 for key in objs:
-                    d = self._contents[key].to_dict()
-                    del d["ctime"]
-                    if "data" in d:
-                        del d["data"]
-                    result[sha1].append(d)
-        return result
+                    content = attr.evolve(self._contents[key], data=None, ctime=None)
+                    contents_by_sha1[sha1] = content
+        return [contents_by_sha1.get(sha1) for sha1 in contents]
 
     def content_find(self, content: Dict[str, Any]) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):

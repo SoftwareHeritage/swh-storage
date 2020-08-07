@@ -27,6 +27,7 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
+    Sha1,
     Sha1Git,
 )
 
@@ -146,31 +147,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/data")
-    def content_get(
-        self, contents: List[bytes]
-    ) -> Iterable[Optional[Dict[str, bytes]]]:
-        """Retrieve in bulk contents and their data.
-
-        This generator yields exactly as many items than provided sha1
-        identifiers, but callers should not assume this will always be true.
-
-        It may also yield `None` values in case an object was not found.
-
-        TODO:
-            Rename to content_get_data
+    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+        """Given a content identifier, returns its associated data if any.
 
         Args:
-            contents: iterables of sha1
+            content: sha1 identifier
 
-        Raises:
-            StorageArgumentException in case of too much contents are required.
-            (cf. BULK_BLOCK_CONTENT_LEN_MAX)
-
-        Yields:
-            Streams of contents as dict with their raw data:
-
-                - sha1 (bytes): content id
-                - data (bytes): content's raw data
+        Returns:
+             raw content data (bytes)
 
         """
         ...
@@ -203,16 +187,14 @@ class StorageInterface:
         ...
 
     @remote_api_endpoint("content/metadata")
-    def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
+    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
         """Retrieve content metadata in bulk
 
         Args:
-            content: iterable of content identifiers (sha1)
+            content: List of content identifiers
 
         Returns:
-            a dict with keys the content's sha1 and the associated value
-            either the existing content's metadata or None if the content does
-            not exist.
+            List of contents model objects when they exist, None otherwise.
 
         """
         ...

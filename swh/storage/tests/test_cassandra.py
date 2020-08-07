@@ -11,9 +11,11 @@ import subprocess
 import time
 
 from collections import namedtuple
+from typing import Dict
 
 import pytest
 
+from swh.core.api.classes import stream_results
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
 from swh.storage.cassandra.schema import TABLES, HASH_ALGORITHMS
@@ -265,16 +267,14 @@ class TestCassandraStorage(_TestStorage):
             swh_storage._cql_runner, "content_get_from_token", mock_cgft
         )
 
-        actual_result = swh_storage.content_get_metadata([cont.sha1])
-
+        actual_result = swh_storage.content_get([cont.sha1])
         assert called == 2
 
         # dropping extra column not returned
-        expected_cont = attr.evolve(cont, data=None, ctime=None).to_dict()
-        del expected_cont["ctime"]  # forced to pop it as to_dict does not
+        expected_cont = attr.evolve(cont, data=None)
 
         # but cont2 should be filtered out
-        assert actual_result == {cont.sha1: [expected_cont]}
+        assert actual_result == [expected_cont]
 
     def test_content_find_murmur3_collision(self, swh_storage, mocker, sample_data):
         """The Murmur3 token is used as link from index tables to the main
@@ -321,6 +321,57 @@ class TestCassandraStorage(_TestStorage):
 
         # but cont2 should be filtered out
         assert actual_result == [expected_content]
+
+    def test_content_get_partition_murmur3_collision(
+        self, swh_storage, mocker, sample_data
+    ):
+        """The Murmur3 token is used as link from index tables to the main table; and
+        non-matching contents with colliding murmur3-hash are filtered-out when reading
+        the main table.
+
+        This test checks the content_get_partition endpoints return all contents, even
+        the collisions.
+
+        """
+        called = 0
+
+        rows: Dict[int, Dict] = {}
+        for tok, content in enumerate(sample_data.contents):
+            cont = attr.evolve(content, data=None, ctime=now())
+            row_d = {**cont.to_dict(), "tok": tok}
+            rows[tok] = row_d
+
+        # For all tokens, always return cont
+        keys = set(["tok"] + list(content.to_dict().keys())).difference(set(["data"]))
+        Row = namedtuple("Row", keys)
+
+        def mock_content_get_token_range(range_start, range_end, limit):
+            nonlocal called
+            called += 1
+
+            for tok in list(rows.keys()) * 3:  # yield multiple times the same tok
+                row_d = rows[tok]
+                yield Row(**row_d)
+
+        mocker.patch.object(
+            swh_storage._cql_runner,
+            "content_get_token_range",
+            mock_content_get_token_range,
+        )
+
+        actual_results = list(
+            stream_results(
+                swh_storage.content_get_partition, partition_id=0, nb_partitions=1
+            )
+        )
+
+        assert called > 0
+
+        # everything is listed, even collisions
+        assert len(actual_results) == 3 * len(sample_data.contents)
+        # as we duplicated the returned results, dropping duplicate should yield
+        # the original length
+        assert len(set(actual_results)) == len(sample_data.contents)
 
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):
