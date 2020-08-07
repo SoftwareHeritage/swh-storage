@@ -27,18 +27,18 @@ def snapshot_get_all_branches(storage, snapshot_id):
             * **branches**: a dict of branches contained in the snapshot
               whose keys are the branches' names.
     """
-    ret = storage.snapshot_get(snapshot_id)
+    ret = storage.snapshot_get_branches(snapshot_id)
 
     if not ret:
         return
 
-    next_branch = ret.pop("next_branch", None)
+    next_branch = ret["next_branch"]
     while next_branch:
         data = storage.snapshot_get_branches(snapshot_id, branches_from=next_branch)
         ret["branches"].update(data["branches"])
-        next_branch = data.get("next_branch")
+        next_branch = data["next_branch"]
 
-    return ret
+    return Snapshot(id=ret["id"], branches=ret["branches"])
 
 
 def snapshot_get_latest(
@@ -95,9 +95,9 @@ def snapshot_get_latest(
         if snapshot is None:
             return None
         snapshot.pop("next_branch")
+        return Snapshot(**snapshot)
     else:
-        snapshot = snapshot_get_all_branches(storage, snapshot_id)
-    return Snapshot.from_dict(snapshot) if snapshot else None
+        return snapshot_get_all_branches(storage, snapshot_id)
 
 
 def snapshot_id_get_from_revision(
@@ -127,11 +127,11 @@ def snapshot_id_get_from_revision(
             snapshot = snapshot_get_all_branches(storage, snapshot_id)
             if not snapshot:
                 continue
-            for branch_name, branch in snapshot["branches"].items():
+            for branch_name, branch in snapshot.branches.items():
                 if (
                     branch is not None
-                    and branch["target_type"] == TargetType.REVISION.value
-                    and branch["target"] == revision_id
+                    and branch.target_type == TargetType.REVISION
+                    and branch.target == revision_id
                 ):  # snapshot found
                     return snapshot_id
 

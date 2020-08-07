@@ -586,7 +586,7 @@ class CqlRunner:
     )
     def snapshot_branch_get(
         self, snapshot_id: Sha1Git, from_: bytes, limit: int, *, statement
-    ) -> None:
+    ) -> ResultSet:
         return self._execute_with_retries(statement, [snapshot_id, from_, limit])
 
     ##########################
