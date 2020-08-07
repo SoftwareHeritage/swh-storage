@@ -1,8 +1,16 @@
-swh-storage (0.12.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.13.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.13.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-08-07 12:38:47
+    +0200)
+  * Upstream changes:     - v0.13.0     - storage*: Rename and type
+    content_get(List[Sha1]) -> List[Optional[Content]]     - storage*:
+    Rename content_get_data(Sha1) -> Optional[bytes]     - Simplify as
+    Content.ctime None is popped out of a to_dict call in recent model
+    - cassandra.storage: Use next token for pagination instead of
+    computing it
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 06 Aug 2020 06:57:31 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 07 Aug 2020 10:49:28 +0000
 
 swh-storage (0.12.0-1~swh1) unstable-swh; urgency=medium
 

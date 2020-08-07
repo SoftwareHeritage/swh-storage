@@ -34,7 +34,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
     Sha1Git,
 )
-from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
+from swh.storage.interface import ListOrder, PagedResult, Sha1, VISIT_STATUSES
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -163,15 +163,9 @@ class CassandraStorage:
     def content_add_metadata(self, content: List[Content]) -> Dict:
         return self._content_add(content, with_data=False)
 
-    def content_get(
-        self, contents: List[bytes]
-    ) -> Iterable[Optional[Dict[str, bytes]]]:
-        # FIXME: Make this method support slicing the `data`.
-        if len(contents) > BULK_BLOCK_CONTENT_LEN_MAX:
-            raise StorageArgumentException(
-                f"Send at maximum {BULK_BLOCK_CONTENT_LEN_MAX} contents."
-            )
-        yield from self.objstorage.content_get(contents)
+    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+        # FIXME: Make this method support slicing the `data`
+        return self.objstorage.content_get(content)
 
     def content_get_partition(
         self,
@@ -197,33 +191,35 @@ class CassandraStorage:
 
         next_page_token: Optional[str] = None
 
-        rows = self._cql_runner.content_get_token_range(range_start, range_end, limit)
+        rows = self._cql_runner.content_get_token_range(
+            range_start, range_end, limit + 1
+        )
         contents = []
         last_id: Optional[int] = None
-        for row in rows:
+        for counter, row in enumerate(rows):
             if row.status == "absent":
                 continue
             row_d = row._asdict()
             last_id = row_d.pop("tok")
+            if counter >= limit:
+                next_page_token = str(last_id)
+                break
             contents.append(Content(**row_d))
 
-        if len(contents) == limit:
-            assert last_id is not None
-            next_page_token = str(last_id + 1)
-
         assert len(contents) <= limit
-        return PagedResult(results=contents, next_page_token=next_page_token,)
+        return PagedResult(results=contents, next_page_token=next_page_token)
 
-    def content_get_metadata(self, contents: List[bytes]) -> Dict[bytes, List[Dict]]:
-        result: Dict[bytes, List[Dict]] = {sha1: [] for sha1 in contents}
+    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
+        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
         for sha1 in contents:
             # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1
             # matches the argument, from the index table ('content_by_sha1')
             for row in self._content_get_from_hash("sha1", sha1):
-                content_metadata = row._asdict()
-                content_metadata.pop("ctime")
-                result[content_metadata["sha1"]].append(content_metadata)
-        return result
+                row_d = row._asdict()
+                row_d.pop("ctime")
+                content = Content(**row_d)
+                contents_by_sha1[content.sha1] = content
+        return [contents_by_sha1.get(sha1) for sha1 in contents]
 
     def content_find(self, content: Dict[str, Any]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
