@@ -78,7 +78,7 @@ def transform_entries(
             assert contents
             ent_dict = contents[0].to_dict()
             for key in ["ctime", "blake2s256"]:
-                del ent_dict[key]
+                ent_dict.pop(key, None)
             ent_dict.update(
                 {
                     "dir_id": dir_.id,
@@ -341,8 +341,7 @@ class TestStorage:
 
         results = swh_storage.content_get_metadata([cont1.sha1])
 
-        expected_content = attr.evolve(cont1b, data=None).to_dict()
-        del expected_content["ctime"]
+        expected_content = attr.evolve(cont1b, data=None, ctime=None).to_dict()
         assert tuple(results[cont1.sha1]) == (expected_content,)
 
     def test_content_add_metadata(self, swh_storage, sample_data):
@@ -354,7 +353,7 @@ class TestStorage:
         }
 
         expected_cont = cont.to_dict()
-        del expected_cont["ctime"]
+        expected_cont.pop("ctime", None)
 
         assert tuple(swh_storage.content_get_metadata([cont.sha1])[cont.sha1]) == (
             expected_cont,
@@ -636,10 +635,8 @@ class TestStorage:
 
         # we only retrieve the metadata so no data nor ctime within
         expected_cont1, expected_cont2 = [
-            attr.evolve(c, data=None).to_dict() for c in [cont1, cont2]
+            attr.evolve(c, data=None, ctime=None).to_dict() for c in [cont1, cont2]
         ]
-        expected_cont1.pop("ctime")
-        expected_cont2.pop("ctime")
 
         assert tuple(actual_md[cont1.sha1]) == (expected_cont1,)
         assert tuple(actual_md[cont2.sha1]) == (expected_cont2,)

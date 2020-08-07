@@ -273,7 +273,6 @@ class TestCassandraStorage(_TestStorage):
 
         # dropping extra column not returned
         expected_cont = attr.evolve(cont, data=None, ctime=None).to_dict()
-        del expected_cont["ctime"]  # forced to pop it as to_dict does not
 
         # but cont2 should be filtered out
         assert actual_result == {cont.sha1: [expected_cont]}
@@ -339,7 +338,7 @@ class TestCassandraStorage(_TestStorage):
 
         rows: Dict[int, Dict] = {}
         for tok, content in enumerate(sample_data.contents):
-            cont = attr.evolve(content, data=None)
+            cont = attr.evolve(content, data=None, ctime=now())
             row_d = {**cont.to_dict(), "tok": tok}
             rows[tok] = row_d
 

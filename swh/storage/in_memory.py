@@ -307,10 +307,9 @@ class InMemoryStorage:
                 # only 1 element as content_add_metadata would have raised a
                 # hash collision otherwise
                 for key in objs:
-                    d = self._contents[key].to_dict()
-                    del d["ctime"]
-                    if "data" in d:
-                        del d["data"]
+                    d = attr.evolve(
+                        self._contents[key], data=None, ctime=None
+                    ).to_dict()
                     result[sha1].append(d)
         return result
 
