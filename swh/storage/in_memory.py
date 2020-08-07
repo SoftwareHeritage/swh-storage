@@ -55,7 +55,12 @@ from swh.model.model import (
     Sha1Git,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
+from swh.storage.interface import (
+    ListOrder,
+    PagedResult,
+    PartialBranches,
+    VISIT_STATUSES,
+)
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -593,7 +598,17 @@ class InMemoryStorage:
                 yield id
 
     def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
-        return self.snapshot_get_branches(snapshot_id)
+        d = self.snapshot_get_branches(snapshot_id)
+        if d is None:
+            return None
+        return {
+            "id": d["id"],
+            "branches": {
+                name: branch.to_dict() if branch else None
+                for (name, branch) in d["branches"].items()
+            },
+            "next_branch": d["next_branch"],
+        }
 
     def snapshot_get_by_origin_visit(
         self, origin: str, visit: int
@@ -627,7 +642,7 @@ class InMemoryStorage:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[PartialBranches]:
         snapshot = self._snapshots.get(snapshot_id)
         if snapshot is None:
             return None
@@ -659,16 +674,9 @@ class InMemoryStorage:
             else:
                 next_branch = sorted_branch_names[to_index]
 
-        branches = {
-            name: branch.to_dict() if branch else None
-            for (name, branch) in branches.items()
-        }
-
-        return {
-            "id": snapshot_id,
-            "branches": branches,
-            "next_branch": next_branch,
-        }
+        return PartialBranches(
+            id=snapshot_id, branches=branches, next_branch=next_branch,
+        )
 
     def snapshot_get_random(self) -> Sha1Git:
         return random.choice(list(self._snapshots))

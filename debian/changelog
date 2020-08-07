@@ -1,8 +1,11 @@
-swh-storage (0.13.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.13.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.13.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-08-07 18:14:32 +0200)
+  * Upstream changes:     - v0.13.1     - * Make snapshot_get_branches
+    return a TypedDict containing SnapshotBranch objects.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 07 Aug 2020 13:02:03 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 07 Aug 2020 16:23:01 +0000
 
 swh-storage (0.13.0-1~swh1) unstable-swh; urgency=medium
 
