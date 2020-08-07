@@ -1,3 +1,9 @@
+swh-storage (0.13.1-1~swh3) unstable-swh; urgency=medium
+
+  * Update dependencies
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Fri, 07 Aug 2020 21:17:01 +0000
+
 swh-storage (0.13.1-1~swh2) unstable-swh; urgency=medium
 
   * Update dependencies
