@@ -31,7 +31,7 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
     swh_storage.snapshot_add([snapshot])
 
     returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot.id)
-    assert snapshot.to_dict() == returned_snapshot
+    assert snapshot == returned_snapshot
 
 
 @given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
@@ -45,7 +45,7 @@ def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
     swh_storage.snapshot_add([snapshot])
 
     returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot.id)
-    assert snapshot.to_dict() == returned_snapshot
+    assert snapshot == returned_snapshot
 
 
 def test_snapshot_get_latest_none(swh_storage, sample_data):

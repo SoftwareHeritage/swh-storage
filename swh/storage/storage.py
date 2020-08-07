@@ -40,6 +40,8 @@ from swh.model.model import (
     Sha1,
     Sha1Git,
     Snapshot,
+    SnapshotBranch,
+    TargetType,
     SHA1_SIZE,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -48,7 +50,12 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.interface import ListOrder, PagedResult, VISIT_STATUSES
+from swh.storage.interface import (
+    ListOrder,
+    PagedResult,
+    PartialBranches,
+    VISIT_STATUSES,
+)
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 
@@ -736,7 +743,15 @@ class Storage:
     def snapshot_get(
         self, snapshot_id: Sha1Git, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
-        return self.snapshot_get_branches(snapshot_id, db=db, cur=cur)
+        d = self.snapshot_get_branches(snapshot_id)
+        return {
+            "id": d["id"],
+            "branches": {
+                name: branch.to_dict() if branch else None
+                for (name, branch) in d["branches"].items()
+            },
+            "next_branch": d["next_branch"],
+        }
 
     @timed
     @db_transaction(statement_timeout=2000)
@@ -767,13 +782,9 @@ class Storage:
         target_types: Optional[List[str]] = None,
         db=None,
         cur=None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[PartialBranches]:
         if snapshot_id == EMPTY_SNAPSHOT_ID:
-            return {
-                "id": snapshot_id,
-                "branches": {},
-                "next_branch": None,
-            }
+            return PartialBranches(id=snapshot_id, branches={}, next_branch=None,)
 
         branches = {}
         next_branch = None
@@ -787,24 +798,27 @@ class Storage:
                 cur=cur,
             )
         )
-        for branch in fetched_branches[:branches_count]:
-            branch = dict(zip(db.snapshot_get_cols, branch))
-            del branch["snapshot_id"]
-            name = branch.pop("name")
-            if branch == {"target": None, "target_type": None}:
+        for row in fetched_branches[:branches_count]:
+            branch_d = dict(zip(db.snapshot_get_cols, row))
+            del branch_d["snapshot_id"]
+            name = branch_d.pop("name")
+            if branch_d["target"] is None and branch_d["target_type"] is None:
                 branch = None
+            else:
+                assert branch_d["target_type"] is not None
+                branch = SnapshotBranch(
+                    target=branch_d["target"],
+                    target_type=TargetType(branch_d["target_type"]),
+                )
             branches[name] = branch
 
         if len(fetched_branches) > branches_count:
-            branch = dict(zip(db.snapshot_get_cols, fetched_branches[-1]))
-            next_branch = branch["name"]
+            next_branch = dict(zip(db.snapshot_get_cols, fetched_branches[-1]))["name"]
 
         if branches:
-            return {
-                "id": snapshot_id,
-                "branches": branches,
-                "next_branch": next_branch,
-            }
+            return PartialBranches(
+                id=snapshot_id, branches=branches, next_branch=next_branch,
+            )
 
         return None
 

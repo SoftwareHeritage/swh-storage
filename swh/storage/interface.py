@@ -8,6 +8,7 @@ import datetime
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
+from typing_extensions import TypedDict
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
@@ -22,6 +23,7 @@ from swh.model.model import (
     Release,
     Snapshot,
     SkippedContent,
+    SnapshotBranch,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -37,6 +39,19 @@ class ListOrder(Enum):
 
     ASC = "asc"
     DESC = "desc"
+
+
+class PartialBranches(TypedDict):
+    """Type of the dictionary returned by snapshot_get_branches"""
+
+    id: Sha1Git
+    """Identifier of the snapshot"""
+    branches: Dict[bytes, Optional[SnapshotBranch]]
+    """A dict of branches contained in the snapshot
+    whose keys are the branches' names"""
+    next_branch: Optional[bytes]
+    """The name of the first branch not returned or :const:`None` if
+    the snapshot has less than the request number of branches."""
 
 
 TResult = TypeVar("TResult")
@@ -720,7 +735,7 @@ class StorageInterface:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[PartialBranches]:
         """Get the content, possibly partial, of a snapshot with the given id
 
         The branches of the snapshot are iterated in the lexicographical

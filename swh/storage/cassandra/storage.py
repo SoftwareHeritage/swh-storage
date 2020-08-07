@@ -26,6 +26,8 @@ from swh.model.model import (
     OriginVisit,
     OriginVisitStatus,
     Snapshot,
+    SnapshotBranch,
+    TargetType,
     Origin,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -34,7 +36,13 @@ from swh.model.model import (
     RawExtrinsicMetadata,
     Sha1Git,
 )
-from swh.storage.interface import ListOrder, PagedResult, Sha1, VISIT_STATUSES
+from swh.storage.interface import (
+    ListOrder,
+    PagedResult,
+    PartialBranches,
+    Sha1,
+    VISIT_STATUSES,
+)
 from swh.storage.objstorage import ObjStorage
 from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
@@ -612,7 +620,17 @@ class CassandraStorage:
         return self._cql_runner.snapshot_missing(snapshots)
 
     def snapshot_get(self, snapshot_id: Sha1Git) -> Optional[Dict[str, Any]]:
-        return self.snapshot_get_branches(snapshot_id)
+        d = self.snapshot_get_branches(snapshot_id)
+        if d is None:
+            return None
+        return {
+            "id": d["id"],
+            "branches": {
+                name: branch.to_dict() if branch else None
+                for (name, branch) in d["branches"].items()
+            },
+            "next_branch": d["next_branch"],
+        }
 
     def snapshot_get_by_origin_visit(
         self, origin: str, visit: int
@@ -643,7 +661,7 @@ class CassandraStorage:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[PartialBranches]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
             # being added.
@@ -682,18 +700,18 @@ class CassandraStorage:
         else:
             last_branch = None
 
-        branches_d = {
-            branch.name: {"target": branch.target, "target_type": branch.target_type,}
-            if branch.target
-            else None
-            for branch in branches
-        }
-
-        return {
-            "id": snapshot_id,
-            "branches": branches_d,
-            "next_branch": last_branch,
-        }
+        return PartialBranches(
+            id=snapshot_id,
+            branches={
+                branch.name: None
+                if branch.target is None
+                else SnapshotBranch(
+                    target=branch.target, target_type=TargetType(branch.target_type)
+                )
+                for branch in branches
+            },
+            next_branch=last_branch,
+        )
 
     def snapshot_get_random(self) -> Sha1Git:
         return self._cql_runner.snapshot_get_random().id

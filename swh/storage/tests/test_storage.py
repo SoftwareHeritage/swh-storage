@@ -37,6 +37,7 @@ from swh.model.model import (
     Release,
     Revision,
     Snapshot,
+    TargetType,
 )
 from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
@@ -2618,7 +2619,7 @@ class TestStorage:
         swh_storage.snapshot_add([complete_snapshot])
 
         snp_id = complete_snapshot.id
-        branches = complete_snapshot.to_dict()["branches"]
+        branches = complete_snapshot.branches
         branch_names = list(sorted(branches))
 
         # Test branch_from
@@ -2686,7 +2687,7 @@ class TestStorage:
         )
 
         snp_id = complete_snapshot.id
-        branches = complete_snapshot.to_dict()["branches"]
+        branches = complete_snapshot.branches
 
         snapshot = swh_storage.snapshot_get_branches(
             snp_id, target_types=["release", "revision"]
@@ -2697,7 +2698,7 @@ class TestStorage:
             "branches": {
                 name: tgt
                 for name, tgt in branches.items()
-                if tgt and tgt["target_type"] in ["release", "revision"]
+                if tgt and tgt.target_type in [TargetType.RELEASE, TargetType.REVISION]
             },
             "next_branch": None,
         }
@@ -2711,7 +2712,7 @@ class TestStorage:
             "branches": {
                 name: tgt
                 for name, tgt in branches.items()
-                if tgt and tgt["target_type"] == "alias"
+                if tgt and tgt.target_type == TargetType.ALIAS
             },
             "next_branch": None,
         }
@@ -2724,7 +2725,7 @@ class TestStorage:
         swh_storage.snapshot_add([complete_snapshot])
 
         snp_id = complete_snapshot.id
-        branches = complete_snapshot.to_dict()["branches"]
+        branches = complete_snapshot.branches
         branch_names = list(sorted(branches))
 
         # Test branch_from
