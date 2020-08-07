@@ -744,6 +744,8 @@ class Storage:
         self, snapshot_id: Sha1Git, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
         d = self.snapshot_get_branches(snapshot_id)
+        if d is None:
+            return d
         return {
             "id": d["id"],
             "branches": {
