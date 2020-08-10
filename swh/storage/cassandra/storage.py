@@ -296,25 +296,6 @@ class CassandraStorage:
     def content_get_random(self) -> Sha1Git:
         return self._cql_runner.content_get_random().sha1_git
 
-    def _skipped_content_get_from_hash(self, algo, hash_) -> Iterable:
-        """From the name of a hash algorithm and a value of that hash,
-        looks up the "hash -> token" secondary table
-        (skipped_content_by_{algo}) to get tokens.
-        Then, looks up the main table (content) to get all contents with
-        that token, and filters out contents whose hash doesn't match."""
-        found_tokens = self._cql_runner.skipped_content_get_tokens_from_single_hash(
-            algo, hash_
-        )
-
-        for token in found_tokens:
-            # Query the main table ('content').
-            res = self._cql_runner.skipped_content_get_from_token(token)
-
-            for row in res:
-                # re-check the the hash (in case of murmur3 collision)
-                if getattr(row, algo) == hash_:
-                    yield row
-
     def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
         # Filter-out content already in the database.
         contents = [
