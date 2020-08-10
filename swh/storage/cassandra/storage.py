@@ -9,7 +9,7 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Dict, List, Iterable, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Iterable, Optional, Set, Tuple, Union
 
 import attr
 
@@ -74,9 +74,9 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 class CassandraStorage:
     def __init__(self, hosts, keyspace, objstorage, port=9042, journal_writer=None):
-        self._cql_runner = CqlRunner(hosts, keyspace, port)
-        self.journal_writer = JournalWriter(journal_writer)
-        self.objstorage = ObjStorage(objstorage)
+        self._cql_runner: CqlRunner = CqlRunner(hosts, keyspace, port)
+        self.journal_writer: JournalWriter = JournalWriter(journal_writer)
+        self.objstorage: ObjStorage = ObjStorage(objstorage)
 
     def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
@@ -92,6 +92,7 @@ class CassandraStorage:
         found_tokens = self._cql_runner.content_get_tokens_from_single_hash(algo, hash_)
 
         for token in found_tokens:
+            assert isinstance(token, int), found_tokens
             # Query the main table ('content').
             res = self._cql_runner.content_get_from_token(token)
 
@@ -294,7 +295,9 @@ class CassandraStorage:
         )
 
     def content_get_random(self) -> Sha1Git:
-        return self._cql_runner.content_get_random().sha1_git
+        content = self._cql_runner.content_get_random()
+        assert content, "Could not find any content"
+        return content.sha1_git
 
     def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
         # Filter-out content already in the database.
@@ -441,7 +444,9 @@ class CassandraStorage:
         yield from self._directory_ls(directory, recursive)
 
     def directory_get_random(self) -> Sha1Git:
-        return self._cql_runner.directory_get_random().id
+        directory = self._cql_runner.directory_get_random()
+        assert directory, "Could not find any directory"
+        return directory.id
 
     def revision_add(self, revisions: List[Revision]) -> Dict:
         # Filter-out revisions already in the database
@@ -553,7 +558,9 @@ class CassandraStorage:
         yield from self._get_parent_revs(revisions, seen, limit, True)
 
     def revision_get_random(self) -> Sha1Git:
-        return self._cql_runner.revision_get_random().id
+        revision = self._cql_runner.revision_get_random()
+        assert revision, "Could not find any revision"
+        return revision.id
 
     def release_add(self, releases: List[Release]) -> Dict:
         to_add = []
@@ -587,7 +594,9 @@ class CassandraStorage:
             yield rels.get(rel_id)
 
     def release_get_random(self) -> Sha1Git:
-        return self._cql_runner.release_get_random().id
+        release = self._cql_runner.release_get_random()
+        assert release, "Could not find any release"
+        return release.id
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         missing = self._cql_runner.snapshot_missing([snp.id for snp in snapshots])
@@ -714,7 +723,9 @@ class CassandraStorage:
         )
 
     def snapshot_get_random(self) -> Sha1Git:
-        return self._cql_runner.snapshot_get_random().id
+        snapshot = self._cql_runner.snapshot_get_random()
+        assert snapshot, "Could not find any snapshot"
+        return snapshot.id
 
     def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
         results: Dict[Sha1Git, List[Dict]] = {id_: [] for id_ in ids}
@@ -722,7 +733,7 @@ class CassandraStorage:
 
         # Mind the order, revision is the most likely one for a given ID,
         # so we check revisions first.
-        queries = [
+        queries: List[Tuple[str, Callable[[List[Sha1Git]], List[Sha1Git]]]] = [
             ("revision", self._cql_runner.revision_missing),
             ("release", self._cql_runner.release_missing),
             ("content", self._cql_runner.content_missing_by_sha1_git),
@@ -730,7 +741,7 @@ class CassandraStorage:
         ]
 
         for (object_type, query_fn) in queries:
-            found_ids = missing_ids - set(query_fn(missing_ids))
+            found_ids = missing_ids - set(query_fn(list(missing_ids)))
             for sha1_git in found_ids:
                 results[sha1_git].append(
                     {"sha1_git": sha1_git, "type": object_type,}
@@ -910,6 +921,7 @@ class CassandraStorage:
         """Retrieve the latest visit status information for the origin visit object.
 
         """
+        assert visit.visit
         row = self._cql_runner.origin_visit_status_get_latest(visit.origin, visit.visit)
         assert row is not None
         visit_status = converters.row_to_visit_status(row)
@@ -936,7 +948,7 @@ class CassandraStorage:
             raise StorageArgumentException("page_token must be a string.")
 
         next_page_token = None
-        visit_from = page_token and int(page_token)
+        visit_from = None if page_token is None else int(page_token)
         visits: List[OriginVisit] = []
         extra_limit = limit + 1
 

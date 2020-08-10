@@ -31,6 +31,7 @@ from tenacity import (
     wait_random_exponential,
     retry_if_exception_type,
 )
+from mypy_extensions import NamedArg
 
 from swh.model.model import (
     Content,
@@ -103,10 +104,12 @@ def create_keyspace(
         session.execute(query)
 
 
-T = TypeVar("T")
+TRet = TypeVar("TRet")
 
 
-def _prepared_statement(query: str) -> Callable[[Callable[..., T]], Callable[..., T]]:
+def _prepared_statement(
+    query: str,
+) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
     """Returns a decorator usable on methods of CqlRunner, to
     inject them with a 'statement' argument, that is a prepared
     statement corresponding to the query.
@@ -116,7 +119,7 @@ def _prepared_statement(query: str) -> Callable[[Callable[..., T]], Callable[...
 
     def decorator(f):
         @functools.wraps(f)
-        def newf(self, *args, **kwargs) -> T:
+        def newf(self, *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
                 statement: PreparedStatement = self._session.prepare(query)
                 self._prepared_statements[f.__name__] = statement
@@ -129,7 +132,16 @@ def _prepared_statement(query: str) -> Callable[[Callable[..., T]], Callable[...
     return decorator
 
 
-def _prepared_insert_statement(table_name: str, columns: List[str]):
+TArg = TypeVar("TArg")
+TSelf = TypeVar("TSelf")
+
+
+def _prepared_insert_statement(
+    table_name: str, columns: List[str]
+) -> Callable[
+    [Callable[[TSelf, TArg, NamedArg(Any, "statement")], TRet]],  # noqa
+    Callable[[TSelf, TArg], TRet],
+]:
     """Shorthand for using `_prepared_statement` for `INSERT INTO`
     statements."""
     return _prepared_statement(
@@ -138,7 +150,12 @@ def _prepared_insert_statement(table_name: str, columns: List[str]):
     )
 
 
-def _prepared_exists_statement(table_name: str):
+def _prepared_exists_statement(
+    table_name: str,
+) -> Callable[
+    [Callable[[TSelf, TArg, NamedArg(Any, "statement")], TRet]],  # noqa
+    Callable[[TSelf, TArg], TRet],
+]:
     """Shorthand for using `_prepared_statement` for queries that only
     check which ids in a list exist in the table."""
     return _prepared_statement(f"SELECT id FROM {table_name} WHERE id IN ?")
