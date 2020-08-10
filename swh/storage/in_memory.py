@@ -629,7 +629,9 @@ class InMemoryStorage:
         else:
             return None
 
-    def snapshot_count_branches(self, snapshot_id: Sha1Git) -> Optional[Dict[str, int]]:
+    def snapshot_count_branches(
+        self, snapshot_id: Sha1Git
+    ) -> Optional[Dict[Optional[str], int]]:
         snapshot = self._snapshots[snapshot_id]
         return collections.Counter(
             branch.target_type.value if branch else None
