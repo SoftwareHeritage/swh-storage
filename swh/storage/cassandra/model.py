@@ -21,7 +21,7 @@ that can be mapped to UDTs (Person and TimestampWithTimezone).
 
 import dataclasses
 import datetime
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Dict, List, Optional, Type, TypeVar
 
 from swh.model.model import Person, TimestampWithTimezone
 
@@ -30,6 +30,8 @@ T = TypeVar("T", bound="BaseRow")
 
 
 class BaseRow:
+    TABLE: ClassVar[str]
+
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
         return cls(**d)  # type: ignore
@@ -44,6 +46,8 @@ class BaseRow:
 
 @dataclasses.dataclass
 class ContentRow(BaseRow):
+    TABLE = "content"
+
     sha1: bytes
     sha1_git: bytes
     sha256: bytes
@@ -55,6 +59,8 @@ class ContentRow(BaseRow):
 
 @dataclasses.dataclass
 class SkippedContentRow(BaseRow):
+    TABLE = "skipped_content"
+
     sha1: Optional[bytes]
     sha1_git: Optional[bytes]
     sha256: Optional[bytes]
@@ -68,11 +74,15 @@ class SkippedContentRow(BaseRow):
 
 @dataclasses.dataclass
 class DirectoryRow(BaseRow):
+    TABLE = "directory"
+
     id: bytes
 
 
 @dataclasses.dataclass
 class DirectoryEntryRow(BaseRow):
+    TABLE = "directory_entry"
+
     directory_id: bytes
     name: bytes
     target: bytes
@@ -82,6 +92,8 @@ class DirectoryEntryRow(BaseRow):
 
 @dataclasses.dataclass
 class RevisionRow(BaseRow):
+    TABLE = "revision"
+
     id: bytes
     date: Optional[TimestampWithTimezone]
     committer_date: Optional[TimestampWithTimezone]
@@ -97,6 +109,8 @@ class RevisionRow(BaseRow):
 
 @dataclasses.dataclass
 class RevisionParentRow(BaseRow):
+    TABLE = "revision_parent"
+
     id: bytes
     parent_rank: int
     parent_id: bytes
@@ -104,6 +118,8 @@ class RevisionParentRow(BaseRow):
 
 @dataclasses.dataclass
 class ReleaseRow(BaseRow):
+    TABLE = "release"
+
     id: bytes
     target_type: str
     target: bytes
@@ -116,11 +132,15 @@ class ReleaseRow(BaseRow):
 
 @dataclasses.dataclass
 class SnapshotRow(BaseRow):
+    TABLE = "snapshot"
+
     id: bytes
 
 
 @dataclasses.dataclass
 class SnapshotBranchRow(BaseRow):
+    TABLE = "snapshot_branch"
+
     snapshot_id: bytes
     name: bytes
     target_type: Optional[str]
@@ -129,6 +149,8 @@ class SnapshotBranchRow(BaseRow):
 
 @dataclasses.dataclass
 class OriginVisitRow(BaseRow):
+    TABLE = "origin_visit"
+
     origin: str
     visit: int
     date: datetime.datetime
@@ -137,6 +159,8 @@ class OriginVisitRow(BaseRow):
 
 @dataclasses.dataclass
 class OriginVisitStatusRow(BaseRow):
+    TABLE = "origin_visit_status"
+
     origin: str
     visit: int
     date: datetime.datetime
@@ -147,6 +171,8 @@ class OriginVisitStatusRow(BaseRow):
 
 @dataclasses.dataclass
 class OriginRow(BaseRow):
+    TABLE = "origin"
+
     sha1: bytes
     url: str
     next_visit_id: int
@@ -154,6 +180,8 @@ class OriginRow(BaseRow):
 
 @dataclasses.dataclass
 class MetadataAuthorityRow(BaseRow):
+    TABLE = "metadata_authority"
+
     url: str
     type: str
     metadata: str
@@ -161,6 +189,8 @@ class MetadataAuthorityRow(BaseRow):
 
 @dataclasses.dataclass
 class MetadataFetcherRow(BaseRow):
+    TABLE = "metadata_fetcher"
+
     name: str
     version: str
     metadata: str
@@ -168,6 +198,8 @@ class MetadataFetcherRow(BaseRow):
 
 @dataclasses.dataclass
 class RawExtrinsicMetadataRow(BaseRow):
+    TABLE = "raw_extrinsic_metadata"
+
     type: str
     id: str
 
