@@ -223,6 +223,8 @@ class RawExtrinsicMetadataRow(BaseRow):
 
 @dataclasses.dataclass
 class ObjectCountRow(BaseRow):
+    TABLE = "object_count"
+
     partition_key: int
     object_type: str
     count: int
