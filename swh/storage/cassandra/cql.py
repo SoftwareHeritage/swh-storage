@@ -837,13 +837,7 @@ class CqlRunner:
         OriginVisitStatusRow, "WHERE origin = ? AND visit = ? ORDER BY date DESC"
     )
     def origin_visit_status_get(
-        self,
-        origin: str,
-        visit: int,
-        allowed_statuses: Optional[List[str]] = None,
-        require_snapshot: bool = False,
-        *,
-        statement,
+        self, origin: str, visit: int, *, statement,
     ) -> Iterator[OriginVisitStatusRow]:
         """Return all origin visit statuses for a given visit
 
