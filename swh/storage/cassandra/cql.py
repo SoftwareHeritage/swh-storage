@@ -1014,5 +1014,5 @@ class CqlRunner:
         self._execute_with_retries(statement, [])
 
     @_prepared_select_statement(ObjectCountRow, "WHERE partition_key=0")
-    def stat_counters(self, *, statement) -> ResultSet:
+    def stat_counters(self, *, statement) -> Iterable[ObjectCountRow]:
         return map(ObjectCountRow.from_dict, self._execute_with_retries(statement, []))
