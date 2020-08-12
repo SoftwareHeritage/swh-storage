@@ -8,14 +8,20 @@ import datetime
 from typing import Any, Optional, Dict
 
 from swh.core.utils import encode_with_unescape
-from swh.model import identifiers
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    ObjectType,
+    Person,
     RawExtrinsicMetadata,
+    Release,
+    Revision,
+    RevisionType,
+    Timestamp,
+    TimestampWithTimezone,
 )
 from swh.model.hashutil import MultiHash
 
@@ -35,7 +41,7 @@ DEFAULT_DATE = {
 }
 
 
-def author_to_db(author):
+def author_to_db(author: Optional[Person]) -> Dict[str, Any]:
     """Convert a swh-model author to its DB representation.
 
     Args:
@@ -48,12 +54,12 @@ def author_to_db(author):
     if author is None:
         return DEFAULT_AUTHOR
 
-    return author
+    return author.to_dict()
 
 
 def db_to_author(
     fullname: Optional[bytes], name: Optional[bytes], email: Optional[bytes]
-) -> Optional[Dict[str, Optional[bytes]]]:
+) -> Optional[Person]:
     """Convert the DB representation of an author to a swh-model author.
 
     Args:
@@ -62,16 +68,11 @@ def db_to_author(
         email (bytes): the author's email
 
     Returns:
-        a dictionary with three keys (fullname, name and email), or
-        None if all the arguments are None.
+        a Person object, or None if 'fullname' is None.
     """
-    if (fullname, name, email) == (None, None, None):
+    if fullname is None:
         return None
-    return {
-        "fullname": fullname,
-        "name": name,
-        "email": email,
-    }
+    return Person(fullname=fullname, name=name, email=email,)
 
 
 def db_to_git_headers(db_git_headers):
@@ -81,41 +82,38 @@ def db_to_git_headers(db_git_headers):
     return ret
 
 
-def db_to_date(date, offset, neg_utc_offset):
+def db_to_date(
+    date: Optional[datetime.datetime], offset: int, neg_utc_offset: bool
+) -> Optional[TimestampWithTimezone]:
     """Convert the DB representation of a date to a swh-model compatible date.
 
     Args:
-        date (datetime.datetime): a date pulled out of the database
-        offset (int): an integer number of minutes representing an UTC offset
-        neg_utc_offset (boolean): whether an utc offset is negative
+        date: a date pulled out of the database
+        offset: an integer number of minutes representing an UTC offset
+        neg_utc_offset: whether an utc offset is negative
 
     Returns:
-        dict: a dict with three keys:
-
-            - timestamp: a timestamp from UTC
-            - offset: the number of minutes since UTC
-            - negative_utc: whether a null UTC offset is negative
+        a TimestampWithTimezone, or None if the date is None.
 
     """
 
     if date is None:
         return None
 
-    return {
-        "timestamp": {
-            "seconds": int(date.timestamp()),
-            "microseconds": date.microsecond,
-        },
-        "offset": offset,
-        "negative_utc": neg_utc_offset,
-    }
+    return TimestampWithTimezone(
+        timestamp=Timestamp(
+            seconds=int(date.timestamp()), microseconds=date.microsecond,
+        ),
+        offset=offset,
+        negative_utc=neg_utc_offset,
+    )
 
 
-def date_to_db(date_offset):
+def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
     """Convert a swh-model date_offset to its DB representation.
 
     Args:
-        date_offset: a :mod:`swh.model` compatible date_offset
+        ts_with_tz: a TimestampWithTimezone object
 
     Returns:
         dict: a dictionary with three keys:
@@ -127,38 +125,33 @@ def date_to_db(date_offset):
 
     """
 
-    if date_offset is None:
+    if ts_with_tz is None:
         return DEFAULT_DATE
 
-    normalized = identifiers.normalize_timestamp(date_offset)
+    ts = ts_with_tz.timestamp
 
-    ts = normalized["timestamp"]
-    seconds = ts.get("seconds", 0)
-    microseconds = ts.get("microseconds", 0)
-
-    timestamp = datetime.datetime.fromtimestamp(seconds, datetime.timezone.utc)
-    timestamp = timestamp.replace(microsecond=microseconds)
+    timestamp = datetime.datetime.fromtimestamp(ts.seconds, datetime.timezone.utc)
+    timestamp = timestamp.replace(microsecond=ts.microseconds)
 
     return {
         # PostgreSQL supports isoformatted timestamps
         "timestamp": timestamp.isoformat(),
-        "offset": normalized["offset"],
-        "neg_utc_offset": normalized["negative_utc"],
+        "offset": ts_with_tz.offset,
+        "neg_utc_offset": ts_with_tz.negative_utc,
     }
 
 
-def revision_to_db(rev):
+def revision_to_db(revision: Revision) -> Dict[str, Any]:
     """Convert a swh-model revision to its database representation.
     """
 
-    revision = rev.to_dict()
-    author = author_to_db(revision["author"])
-    date = date_to_db(revision["date"])
-    committer = author_to_db(revision["committer"])
-    committer_date = date_to_db(revision["committer_date"])
+    author = author_to_db(revision.author)
+    date = date_to_db(revision.date)
+    committer = author_to_db(revision.committer)
+    committer_date = date_to_db(revision.committer_date)
 
     return {
-        "id": revision["id"],
+        "id": revision.id,
         "author_fullname": author["fullname"],
         "author_name": author["name"],
         "author_email": author["email"],
@@ -171,22 +164,27 @@ def revision_to_db(rev):
         "committer_date": committer_date["timestamp"],
         "committer_date_offset": committer_date["offset"],
         "committer_date_neg_utc_offset": committer_date["neg_utc_offset"],
-        "type": revision["type"],
-        "directory": revision["directory"],
-        "message": revision["message"],
-        "metadata": revision["metadata"],
-        "synthetic": revision["synthetic"],
-        "extra_headers": revision["extra_headers"],
+        "type": revision.type.value,
+        "directory": revision.directory,
+        "message": revision.message,
+        "metadata": None if revision.metadata is None else dict(revision.metadata),
+        "synthetic": revision.synthetic,
+        "extra_headers": revision.extra_headers,
         "parents": [
-            {"id": revision["id"], "parent_id": parent, "parent_rank": i,}
-            for i, parent in enumerate(revision["parents"])
+            {"id": revision.id, "parent_id": parent, "parent_rank": i,}
+            for i, parent in enumerate(revision.parents)
         ],
     }
 
 
-def db_to_revision(db_revision: Dict[str, Any]) -> Dict[str, Any]:
+def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
     """Convert a database representation of a revision to its swh-model
     representation."""
+    if db_revision["type"] is None:
+        assert all(
+            v is None for (k, v) in db_revision.items() if k not in ("id", "parents")
+        )
+        return None
 
     author = db_to_author(
         db_revision["author_fullname"],
@@ -210,6 +208,9 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Dict[str, Any]:
         db_revision["committer_date_neg_utc_offset"],
     )
 
+    assert author, "author is None"
+    assert committer, "committer is None"
+
     parents = []
     if "parents" in db_revision:
         for parent in db_revision["parents"]:
@@ -221,56 +222,51 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Dict[str, Any]:
     if not extra_headers and metadata and "extra_headers" in metadata:
         extra_headers = db_to_git_headers(metadata.pop("extra_headers"))
 
-    ret = {
-        "id": db_revision["id"],
-        "author": author,
-        "date": date,
-        "committer": committer,
-        "committer_date": committer_date,
-        "type": db_revision["type"],
-        "directory": db_revision["directory"],
-        "message": db_revision["message"],
-        "metadata": metadata,
-        "synthetic": db_revision["synthetic"],
-        "extra_headers": extra_headers,
-        "parents": parents,
-    }
-
-    if "object_id" in db_revision:
-        ret["object_id"] = db_revision["object_id"]
-
-    return ret
+    return Revision(
+        id=db_revision["id"],
+        author=author,
+        date=date,
+        committer=committer,
+        committer_date=committer_date,
+        type=RevisionType(db_revision["type"]),
+        directory=db_revision["directory"],
+        message=db_revision["message"],
+        metadata=metadata,
+        synthetic=db_revision["synthetic"],
+        extra_headers=extra_headers,
+        parents=tuple(parents),
+    )
 
 
-def release_to_db(rel):
+def release_to_db(release: Release) -> Dict[str, Any]:
     """Convert a swh-model release to its database representation.
     """
-
-    release = rel.to_dict()
-
-    author = author_to_db(release["author"])
-    date = date_to_db(release["date"])
+    author = author_to_db(release.author)
+    date = date_to_db(release.date)
 
     return {
-        "id": release["id"],
+        "id": release.id,
         "author_fullname": author["fullname"],
         "author_name": author["name"],
         "author_email": author["email"],
         "date": date["timestamp"],
         "date_offset": date["offset"],
         "date_neg_utc_offset": date["neg_utc_offset"],
-        "name": release["name"],
-        "target": release["target"],
-        "target_type": release["target_type"],
-        "comment": release["message"],
-        "synthetic": release["synthetic"],
+        "name": release.name,
+        "target": release.target,
+        "target_type": release.target_type.value,
+        "comment": release.message,
+        "synthetic": release.synthetic,
     }
 
 
-def db_to_release(db_release):
+def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
     """Convert a database representation of a release to its swh-model
     representation.
     """
+    if db_release["target_type"] is None:
+        assert all(v is None for (k, v) in db_release.items() if k != "id")
+        return None
 
     author = db_to_author(
         db_release["author_fullname"],
@@ -281,21 +277,16 @@ def db_to_release(db_release):
         db_release["date"], db_release["date_offset"], db_release["date_neg_utc_offset"]
     )
 
-    ret = {
-        "author": author,
-        "date": date,
-        "id": db_release["id"],
-        "name": db_release["name"],
-        "message": db_release["comment"],
-        "synthetic": db_release["synthetic"],
-        "target": db_release["target"],
-        "target_type": db_release["target_type"],
-    }
-
-    if "object_id" in db_release:
-        ret["object_id"] = db_release["object_id"]
-
-    return ret
+    return Release(
+        author=author,
+        date=date,
+        id=db_release["id"],
+        name=db_release["name"],
+        message=db_release["comment"],
+        synthetic=db_release["synthetic"],
+        target=db_release["target"],
+        target_type=ObjectType(db_release["target_type"]),
+    )
 
 
 def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
@@ -326,6 +317,6 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
     )
 
 
-def origin_url_to_sha1(origin_url):
+def origin_url_to_sha1(origin_url: str) -> bytes:
     """Convert an origin URL to a sha1. Encodes URL to utf-8."""
     return MultiHash.from_data(origin_url.encode("utf-8"), {"sha1"}).digest()["sha1"]

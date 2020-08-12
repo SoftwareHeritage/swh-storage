@@ -205,7 +205,7 @@ def revision_converter(db, revision):
        compatible objects.
 
     """
-    return db_to_revision(revision)
+    return db_to_revision(revision).to_dict()
 
 
 def release_converter(db, release):
@@ -213,7 +213,7 @@ def release_converter(db, release):
        compatible objects.
 
     """
-    return db_to_release(release)
+    return db_to_release(release).to_dict()
 
 
 def snapshot_converter(db, snapshot):
