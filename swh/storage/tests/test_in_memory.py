@@ -152,6 +152,13 @@ def test_table():
 
 
 class TestInMemoryStorage(_TestStorage):
+    @pytest.mark.skip(
+        'The "person" table of the pgsql is a legacy thing, and not '
+        "supported by the cassandra backend."
+    )
+    def test_person_fullname_unicity(self):
+        pass
+
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):
         pass
