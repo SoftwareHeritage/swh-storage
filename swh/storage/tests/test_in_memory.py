@@ -9,7 +9,8 @@ import pytest
 
 from swh.storage.cassandra.model import BaseRow
 from swh.storage.in_memory import SortedList, Table
-from swh.storage.tests.test_storage import TestStorage, TestStorageGeneratedData  # noqa
+from swh.storage.tests.test_storage import TestStorage as _TestStorage
+from swh.storage.tests.test_storage import TestStorageGeneratedData  # noqa
 
 
 # tests are executed using imported classes (TestStorage and
@@ -144,3 +145,9 @@ def test_table():
     assert len(all_rows) == 3
     for row in (row1, row2, row3):
         assert (table.primary_key(row), row) in all_rows
+
+
+class TestInMemoryStorage(_TestStorage):
+    @pytest.mark.skip("content_update is not yet implemented for Cassandra")
+    def test_content_update(self):
+        pass

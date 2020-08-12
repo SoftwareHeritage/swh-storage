@@ -3,16 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import dataclasses
 import datetime
 import functools
 import logging
 from typing import Any, Container, Dict, Optional
 
+import attr
 import pytest
 
 from swh.model.hashutil import hash_to_hex, MultiHash, DEFAULT_ALGORITHMS
 
 from swh.storage import get_storage
+from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.replay import process_replay_objects
 
@@ -26,6 +29,13 @@ from swh.journal.tests.journal_data import (
 
 
 UTC = datetime.timezone.utc
+
+
+def nullify_ctime(obj):
+    if isinstance(obj, (ContentRow, SkippedContentRow)):
+        return dataclasses.replace(obj, ctime=None)
+    else:
+        return obj
 
 
 @pytest.fixture()
@@ -120,6 +130,8 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
     for content in DUPLICATE_CONTENTS:
         topic = f"{prefix}.content"
         key = content.sha1
+        now = datetime.datetime.now(tz=UTC)
+        content = attr.evolve(content, ctime=now)
         producer.produce(
             topic=topic, key=key_to_kafka(key), value=value_to_kafka(content.to_dict()),
         )
@@ -162,7 +174,10 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
     # all objects from the src should exists in the dst storage
     _check_replayed(src, dst, exclude=["contents"])
     # but the dst has one content more (one of the 2 colliding ones)
-    assert len(src._contents) == len(dst._contents) - 1
+    assert (
+        len(list(src._cql_runner._contents.iter_all()))
+        == len(list(dst._cql_runner._contents.iter_all())) - 1
+    )
 
 
 def test_replay_skipped_content(replayer_storage_and_client):
@@ -190,8 +205,7 @@ def _check_replayed(
     got_persons = set(dst._persons.values())
     assert got_persons == expected_persons
 
-    for attr in (
-        "contents",
+    for attr_ in (
         "skipped_contents",
         "directories",
         "revisions",
@@ -201,11 +215,24 @@ def _check_replayed(
         "origin_visits",
         "origin_visit_statuses",
     ):
-        if exclude and attr in exclude:
+        if exclude and attr_ in exclude:
             continue
-        expected_objects = sorted(getattr(src, f"_{attr}").items())
-        got_objects = sorted(getattr(dst, f"_{attr}").items())
-        assert got_objects == expected_objects, f"Mismatch object list for {attr}"
+        expected_objects = sorted(getattr(src, f"_{attr_}").items())
+        got_objects = sorted(getattr(dst, f"_{attr_}").items())
+        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
+
+    for attr_ in ("contents",):
+        if exclude and attr_ in exclude:
+            continue
+        expected_objects = [
+            (id, nullify_ctime(obj))
+            for id, obj in sorted(getattr(src._cql_runner, f"_{attr_}").iter_all())
+        ]
+        got_objects = [
+            (id, nullify_ctime(obj))
+            for id, obj in sorted(getattr(dst._cql_runner, f"_{attr_}").iter_all())
+        ]
+        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
 
 
 def _check_replay_skipped_content(storage, replayer, topic):
@@ -329,17 +356,28 @@ def check_replayed(src, dst, expected_anonymized=False):
 
     """
 
-    def maybe_anonymize(obj):
+    def maybe_anonymize(attr_, row):
         if expected_anonymized:
-            return obj.anonymize() or obj
-        return obj
+            if hasattr(row, "anonymize"):
+                # for model objects; cases below are for BaseRow objects
+                row = row.anonymize() or row
+            elif attr_ == "releases":
+                row = dataclasses.replace(row, author=row.author.anonymize())
+            elif attr_ == "revisions":
+                row = dataclasses.replace(
+                    row,
+                    author=row.author.anonymize(),
+                    committer=row.committer.anonymize(),
+                )
+        return row
 
-    expected_persons = {maybe_anonymize(person) for person in src._persons.values()}
+    expected_persons = {
+        maybe_anonymize("persons", person) for person in src._persons.values()
+    }
     got_persons = set(dst._persons.values())
     assert got_persons == expected_persons
 
-    for attr in (
-        "contents",
+    for attr_ in (
         "skipped_contents",
         "directories",
         "revisions",
@@ -349,10 +387,21 @@ def check_replayed(src, dst, expected_anonymized=False):
         "origin_visit_statuses",
     ):
         expected_objects = [
-            (id, maybe_anonymize(obj))
-            for id, obj in sorted(getattr(src, f"_{attr}").items())
+            (id, maybe_anonymize(attr_, obj))
+            for id, obj in sorted(getattr(src, f"_{attr_}").items())
         ]
         got_objects = [
-            (id, obj) for id, obj in sorted(getattr(dst, f"_{attr}").items())
+            (id, obj) for id, obj in sorted(getattr(dst, f"_{attr_}").items())
         ]
-        assert got_objects == expected_objects, f"Mismatch object list for {attr}"
+        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
+
+    for attr_ in ("contents",):
+        expected_objects = [
+            (id, nullify_ctime(maybe_anonymize(attr_, obj)))
+            for id, obj in sorted(getattr(src._cql_runner, f"_{attr_}").iter_all())
+        ]
+        got_objects = [
+            (id, nullify_ctime(obj))
+            for id, obj in sorted(getattr(dst._cql_runner, f"_{attr_}").iter_all())
+        ]
+        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"

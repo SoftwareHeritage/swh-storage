@@ -3,8 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from unittest.mock import patch
-
 import pytest
 
 import swh.storage.api.server as server
@@ -63,8 +61,6 @@ def swh_storage(swh_rpc_client, app_server):
 
 
 class TestStorage(_TestStorage):
-    def test_content_update(self, swh_storage, app_server, sample_data):
-        # TODO, journal_writer not supported
-        swh_storage.journal_writer.journal = None
-        with patch.object(server.storage.journal_writer, "journal", None):
-            super().test_content_update(swh_storage, sample_data)
+    @pytest.mark.skip("content_update is not yet implemented for Cassandra")
+    def test_content_update(self):
+        pass
