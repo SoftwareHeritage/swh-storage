@@ -206,7 +206,6 @@ def _check_replayed(
     assert got_persons == expected_persons
 
     for attr_ in (
-        "skipped_contents",
         "directories",
         "revisions",
         "releases",
@@ -221,7 +220,10 @@ def _check_replayed(
         got_objects = sorted(getattr(dst, f"_{attr_}").items())
         assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
 
-    for attr_ in ("contents",):
+    for attr_ in (
+        "contents",
+        "skipped_contents",
+    ):
         if exclude and attr_ in exclude:
             continue
         expected_objects = [
@@ -378,7 +380,6 @@ def check_replayed(src, dst, expected_anonymized=False):
     assert got_persons == expected_persons
 
     for attr_ in (
-        "skipped_contents",
         "directories",
         "revisions",
         "releases",
@@ -395,7 +396,10 @@ def check_replayed(src, dst, expected_anonymized=False):
         ]
         assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
 
-    for attr_ in ("contents",):
+    for attr_ in (
+        "contents",
+        "skipped_contents",
+    ):
         expected_objects = [
             (id, nullify_ctime(maybe_anonymize(attr_, obj)))
             for id, obj in sorted(getattr(src._cql_runner, f"_{attr_}").iter_all())
