@@ -21,7 +21,7 @@ that can be mapped to UDTs (Person and TimestampWithTimezone).
 
 import dataclasses
 import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, TypeVar
 
 from swh.model.model import Person, TimestampWithTimezone
 
@@ -31,6 +31,8 @@ T = TypeVar("T", bound="BaseRow")
 
 class BaseRow:
     TABLE: ClassVar[str]
+    PARTITION_KEY: ClassVar[Tuple[str, ...]]
+    CLUSTERING_KEY: ClassVar[Tuple[str, ...]] = ()
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
@@ -47,6 +49,7 @@ class BaseRow:
 @dataclasses.dataclass
 class ContentRow(BaseRow):
     TABLE = "content"
+    PARTITION_KEY = ("sha1", "sha1_git", "sha256", "blake2s256")
 
     sha1: bytes
     sha1_git: bytes
@@ -60,6 +63,7 @@ class ContentRow(BaseRow):
 @dataclasses.dataclass
 class SkippedContentRow(BaseRow):
     TABLE = "skipped_content"
+    PARTITION_KEY = ("sha1", "sha1_git", "sha256", "blake2s256")
 
     sha1: Optional[bytes]
     sha1_git: Optional[bytes]
@@ -75,6 +79,7 @@ class SkippedContentRow(BaseRow):
 @dataclasses.dataclass
 class DirectoryRow(BaseRow):
     TABLE = "directory"
+    PARTITION_KEY = ("id",)
 
     id: bytes
 
@@ -82,6 +87,8 @@ class DirectoryRow(BaseRow):
 @dataclasses.dataclass
 class DirectoryEntryRow(BaseRow):
     TABLE = "directory_entry"
+    PARTITION_KEY = ("directory_id",)
+    CLUSTERING_KEY = ("name",)
 
     directory_id: bytes
     name: bytes
@@ -93,6 +100,7 @@ class DirectoryEntryRow(BaseRow):
 @dataclasses.dataclass
 class RevisionRow(BaseRow):
     TABLE = "revision"
+    PARTITION_KEY = ("id",)
 
     id: bytes
     date: Optional[TimestampWithTimezone]
@@ -110,6 +118,8 @@ class RevisionRow(BaseRow):
 @dataclasses.dataclass
 class RevisionParentRow(BaseRow):
     TABLE = "revision_parent"
+    PARTITION_KEY = ("id",)
+    CLUSTERING_KEY = ("parent_rank",)
 
     id: bytes
     parent_rank: int
@@ -119,6 +129,7 @@ class RevisionParentRow(BaseRow):
 @dataclasses.dataclass
 class ReleaseRow(BaseRow):
     TABLE = "release"
+    PARTITION_KEY = ("id",)
 
     id: bytes
     target_type: str
@@ -133,6 +144,7 @@ class ReleaseRow(BaseRow):
 @dataclasses.dataclass
 class SnapshotRow(BaseRow):
     TABLE = "snapshot"
+    PARTITION_KEY = ("id",)
 
     id: bytes
 
@@ -140,6 +152,8 @@ class SnapshotRow(BaseRow):
 @dataclasses.dataclass
 class SnapshotBranchRow(BaseRow):
     TABLE = "snapshot_branch"
+    PARTITION_KEY = ("snapshot_id",)
+    CLUSTERING_KEY = ("name",)
 
     snapshot_id: bytes
     name: bytes
@@ -150,6 +164,8 @@ class SnapshotBranchRow(BaseRow):
 @dataclasses.dataclass
 class OriginVisitRow(BaseRow):
     TABLE = "origin_visit"
+    PARTITION_KEY = ("origin",)
+    CLUSTERING_KEY = ("visit",)
 
     origin: str
     visit: int
@@ -160,6 +176,8 @@ class OriginVisitRow(BaseRow):
 @dataclasses.dataclass
 class OriginVisitStatusRow(BaseRow):
     TABLE = "origin_visit_status"
+    PARTITION_KEY = ("origin",)
+    CLUSTERING_KEY = ("visit", "date")
 
     origin: str
     visit: int
@@ -172,6 +190,7 @@ class OriginVisitStatusRow(BaseRow):
 @dataclasses.dataclass
 class OriginRow(BaseRow):
     TABLE = "origin"
+    PARTITION_KEY = ("sha1",)
 
     sha1: bytes
     url: str
@@ -181,6 +200,8 @@ class OriginRow(BaseRow):
 @dataclasses.dataclass
 class MetadataAuthorityRow(BaseRow):
     TABLE = "metadata_authority"
+    PARTITION_KEY = ("url",)
+    CLUSTERING_KEY = ("type",)
 
     url: str
     type: str
@@ -190,6 +211,8 @@ class MetadataAuthorityRow(BaseRow):
 @dataclasses.dataclass
 class MetadataFetcherRow(BaseRow):
     TABLE = "metadata_fetcher"
+    PARTITION_KEY = ("name",)
+    CLUSTERING_KEY = ("version",)
 
     name: str
     version: str
@@ -199,6 +222,14 @@ class MetadataFetcherRow(BaseRow):
 @dataclasses.dataclass
 class RawExtrinsicMetadataRow(BaseRow):
     TABLE = "raw_extrinsic_metadata"
+    PARTITION_KEY = ("id",)
+    CLUSTERING_KEY = (
+        "authority_type",
+        "authority_url",
+        "discovery_date",
+        "fetcher_name",
+        "fetcher_version",
+    )
 
     type: str
     id: str
@@ -224,6 +255,8 @@ class RawExtrinsicMetadataRow(BaseRow):
 @dataclasses.dataclass
 class ObjectCountRow(BaseRow):
     TABLE = "object_count"
+    PARTITION_KEY = ("partition_key",)
+    CLUSTERING_KEY = ("object_type",)
 
     partition_key: int
     object_type: str
