@@ -60,6 +60,7 @@ from .model import (
     MetadataFetcherRow,
     OriginRow,
     OriginVisitRow,
+    OriginVisitStatusRow,
     RawExtrinsicMetadataRow,
     RevisionParentRow,
     SkippedContentRow,
@@ -895,16 +896,13 @@ class CassandraStorage:
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
 
-    def _origin_visit_apply_last_status(self, visit: Dict[str, Any]) -> Dict[str, Any]:
+    def _origin_visit_apply_status(
+        self, visit: Dict[str, Any], visit_status: OriginVisitStatusRow
+    ) -> Dict[str, Any]:
         """Retrieve the latest visit status information for the origin visit.
         Then merge it with the visit and return it.
 
         """
-        row = self._cql_runner.origin_visit_status_get_latest(
-            visit["origin"], visit["visit"]
-        )
-        assert row is not None
-        visit_status = converters.row_to_visit_status(row)
         return {
             # default to the values in visit
             **visit,
@@ -1028,22 +1026,25 @@ class CassandraStorage:
         latest_visit = None
         for row in rows:
             visit = self._format_origin_visit_row(row)
-            updated_visit = self._origin_visit_apply_last_status(visit)
-            if type is not None and updated_visit["type"] != type:
-                continue
-            if allowed_statuses and updated_visit["status"] not in allowed_statuses:
-                continue
-            if require_snapshot and updated_visit["snapshot"] is None:
-                continue
-
-            # updated_visit is a candidate
-            if latest_visit is not None:
-                if updated_visit["date"] < latest_visit["date"]:
+            for status_row in self._cql_runner.origin_visit_status_get(
+                origin, visit["visit"]
+            ):
+                updated_visit = self._origin_visit_apply_status(visit, status_row)
+                if type is not None and updated_visit["type"] != type:
                     continue
-                if updated_visit["visit"] < latest_visit["visit"]:
+                if allowed_statuses and updated_visit["status"] not in allowed_statuses:
+                    continue
+                if require_snapshot and updated_visit["snapshot"] is None:
                     continue
 
-            latest_visit = updated_visit
+                # updated_visit is a candidate
+                if latest_visit is not None:
+                    if updated_visit["date"] < latest_visit["date"]:
+                        continue
+                    if updated_visit["visit"] < latest_visit["visit"]:
+                        continue
+
+                latest_visit = updated_visit
 
         if latest_visit is None:
             return None

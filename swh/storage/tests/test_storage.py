@@ -2295,6 +2295,60 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
         assert actual_visit == ov2
 
+    def test_origin_visit_get_latest__not_last(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+
+        visit1, visit2 = sample_data.origin_visits[:2]
+        assert visit1.origin == origin.url
+
+        swh_storage.origin_visit_add([visit1])
+        ov1 = swh_storage.origin_visit_get_latest(origin.url)
+
+        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        complete_snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([complete_snapshot])
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=visit2.date,
+                    status="partial",
+                    snapshot=None,
+                )
+            ]
+        )
+        assert visit1.date < visit2.date
+
+        # no snapshot associated to the visit, so None
+        visit = swh_storage.origin_visit_get_latest(
+            origin.url, allowed_statuses=["partial"], require_snapshot=True,
+        )
+        assert visit is None
+
+        date_now = now()
+        assert visit2.date < date_now
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=date_now,
+                    status="full",
+                    snapshot=complete_snapshot.id,
+                )
+            ]
+        )
+
+        swh_storage.origin_visit_add(
+            [OriginVisit(origin=origin.url, date=now(), type=visit1.type,)]
+        )
+
+        visit = swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
+        assert visit is not None
+
     def test_origin_visit_status_get_latest__validation(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
