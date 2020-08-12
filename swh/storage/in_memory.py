@@ -231,6 +231,34 @@ class InMemoryCqlRunner:
         for (object_type, count) in self._stat_counters.items():
             yield ObjectCountRow(partition_key=0, object_type=object_type, count=count)
 
+    ##########################
+    # 'content_by_*' tables
+    ##########################
+
+    def content_missing_by_sha1_git(self, ids: List[bytes]) -> List[bytes]:
+        return ids
+
+    ##########################
+    # 'directory' table
+    ##########################
+
+    def directory_missing(self, ids: List[bytes]) -> List[bytes]:
+        return ids
+
+    ##########################
+    # 'revision' table
+    ##########################
+
+    def revision_missing(self, ids: List[bytes]) -> List[bytes]:
+        return ids
+
+    ##########################
+    # 'release' table
+    ##########################
+
+    def release_missing(self, ids: List[bytes]) -> List[bytes]:
+        return ids
+
 
 class InMemoryStorage(CassandraStorage):
     _cql_runner: InMemoryCqlRunner  # type: ignore
@@ -782,10 +810,10 @@ class InMemoryStorage(CassandraStorage):
         return random.choice(list(self._snapshots))
 
     def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
-        ret: Dict[Sha1Git, List[Dict]] = {}
+        ret = super().object_find_by_sha1_git(ids)
         for id_ in ids:
             objs = self._objects.get(id_, [])
-            ret[id_] = [{"sha1_git": id_, "type": obj[0],} for obj in objs]
+            ret[id_].extend([{"sha1_git": id_, "type": obj[0],} for obj in objs])
         return ret
 
     def _convert_origin(self, t):
