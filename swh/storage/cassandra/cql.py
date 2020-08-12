@@ -457,7 +457,9 @@ class CqlRunner:
         )
 
     @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
-    def revision_get(self, revision_ids, *, statement) -> Iterable[RevisionRow]:
+    def revision_get(
+        self, revision_ids: List[Sha1Git], *, statement
+    ) -> Iterable[RevisionRow]:
         return map(
             RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
         )

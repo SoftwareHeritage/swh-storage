@@ -64,3 +64,10 @@ class TestStorage(_TestStorage):
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):
         pass
+
+    @pytest.mark.skip(
+        'The "person" table of the pgsql is a legacy thing, and not '
+        "supported by the cassandra backend."
+    )
+    def test_person_fullname_unicity(self):
+        pass

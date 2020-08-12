@@ -206,7 +206,6 @@ def _check_replayed(
     assert got_persons == expected_persons
 
     for attr_ in (
-        "revisions",
         "releases",
         "snapshots",
         "origins",
@@ -223,6 +222,7 @@ def _check_replayed(
         "contents",
         "skipped_contents",
         "directories",
+        "revisions",
     ):
         if exclude and attr_ in exclude:
             continue
@@ -380,7 +380,6 @@ def check_replayed(src, dst, expected_anonymized=False):
     assert got_persons == expected_persons
 
     for attr_ in (
-        "revisions",
         "releases",
         "snapshots",
         "origins",
@@ -399,6 +398,7 @@ def check_replayed(src, dst, expected_anonymized=False):
         "contents",
         "skipped_contents",
         "directories",
+        "revisions",
     ):
         expected_objects = [
             (id, nullify_ctime(maybe_anonymize(attr_, obj)))
