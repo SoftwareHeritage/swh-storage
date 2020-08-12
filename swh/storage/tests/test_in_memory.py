@@ -9,7 +9,8 @@ import pytest
 
 from swh.storage.cassandra.model import BaseRow
 from swh.storage.in_memory import SortedList, Table
-from swh.storage.tests.test_storage import TestStorage, TestStorageGeneratedData  # noqa
+from swh.storage.tests.test_storage import TestStorage as _TestStorage
+from swh.storage.tests.test_storage import TestStorageGeneratedData  # noqa
 
 
 # tests are executed using imported classes (TestStorage and
@@ -138,3 +139,9 @@ def test_table():
 
     # order matters
     assert list(table.get_from_token(table.token(partition_key))) == [row1, row3, row2]
+
+
+class TestInMemoryStorage(_TestStorage):
+    @pytest.mark.skip("content_update is not yet implemented for Cassandra")
+    def test_content_update(self):
+        pass
