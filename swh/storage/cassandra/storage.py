@@ -143,11 +143,11 @@ class CassandraStorage:
                         # row
                         continue
 
-                    for algo in HASH_ALGORITHMS:
-                        if getattr(row, algo) != content.get_hash(algo):
+                    for other_algo in HASH_ALGORITHMS:
+                        if getattr(row, other_algo) != content.get_hash(other_algo):
                             # This hash didn't match; discard the row.
                             collisions.append(
-                                {algo: getattr(row, algo) for algo in HASH_ALGORITHMS}
+                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
                             )
 
                 if collisions:

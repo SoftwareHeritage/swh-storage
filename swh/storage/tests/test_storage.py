@@ -296,7 +296,7 @@ class TestStorage:
 
         exc = cm.value
         actual_algo = exc.algo
-        assert actual_algo in ["sha1", "sha1_git", "blake2s256"]
+        assert actual_algo in ["sha1", "sha1_git"]
         actual_id = exc.hash_id
         assert actual_id == getattr(cont1, actual_algo).hex()
         collisions = exc.args[2]
