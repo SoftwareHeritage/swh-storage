@@ -136,6 +136,6 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
         method(model_objs)
     elif object_type in ("directory", "revision", "release", "snapshot", "origin",):
         method = getattr(storage, object_type + "_add")
-        method(object_converter_fn[object_type](o) for o in objects)
+        method([object_converter_fn[object_type](o) for o in objects])
     else:
         logger.warning("Received a series of %s, this should not happen", object_type)
