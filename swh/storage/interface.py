@@ -683,37 +683,6 @@ class StorageInterface:
         """
         ...
 
-    @remote_api_endpoint("snapshot/by_origin_visit")
-    def snapshot_get_by_origin_visit(
-        self, origin: str, visit: int
-    ) -> Optional[Dict[str, Any]]:
-        """Get the content, possibly partial, of a snapshot for the given origin visit
-
-        The branches of the snapshot are iterated in the lexicographical
-        order of their names.
-
-        .. warning:: At most 1000 branches contained in the snapshot will be
-            returned for performance reasons. In order to browse the whole
-            set of branches, the method :meth:`snapshot_get_branches`
-            should be used instead.
-
-        Args:
-            origin: origin identifier (url)
-            visit: the visit identifier
-
-        Returns:
-            dict: None if the snapshot does not exist;
-              a dict with three keys otherwise:
-                * **id**: identifier of the snapshot
-                * **branches**: a dict of branches contained in the snapshot
-                  whose keys are the branches' names.
-                * **next_branch**: the name of the first branch not returned
-                  or :const:`None` if the snapshot has less than 1000
-                  branches.
-
-        """
-        ...
-
     @remote_api_endpoint("snapshot/count_branches")
     def snapshot_count_branches(
         self, snapshot_id: Sha1Git
