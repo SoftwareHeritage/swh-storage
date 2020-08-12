@@ -206,16 +206,6 @@ def _check_replayed(
     assert got_persons == expected_persons
 
     for attr_ in (
-        "origin_visits",
-        "origin_visit_statuses",
-    ):
-        if exclude and attr_ in exclude:
-            continue
-        expected_objects = sorted(getattr(src, f"_{attr_}").items())
-        got_objects = sorted(getattr(dst, f"_{attr_}").items())
-        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
-
-    for attr_ in (
         "contents",
         "skipped_contents",
         "directories",
@@ -223,6 +213,8 @@ def _check_replayed(
         "releases",
         "snapshots",
         "origins",
+        "origin_visits",
+        "origin_visit_statuses",
     ):
         if exclude and attr_ in exclude:
             continue
@@ -360,10 +352,7 @@ def check_replayed(src, dst, expected_anonymized=False):
 
     def maybe_anonymize(attr_, row):
         if expected_anonymized:
-            if hasattr(row, "anonymize"):
-                # for model objects; cases below are for BaseRow objects
-                row = row.anonymize() or row
-            elif attr_ == "releases":
+            if attr_ == "releases":
                 row = dataclasses.replace(row, author=row.author.anonymize())
             elif attr_ == "revisions":
                 row = dataclasses.replace(
@@ -379,16 +368,6 @@ def check_replayed(src, dst, expected_anonymized=False):
     got_persons = set(dst._persons.values())
     assert got_persons == expected_persons
 
-    for attr_ in ("origin_visit_statuses",):
-        expected_objects = [
-            (id, maybe_anonymize(attr_, obj))
-            for id, obj in sorted(getattr(src, f"_{attr_}").items())
-        ]
-        got_objects = [
-            (id, obj) for id, obj in sorted(getattr(dst, f"_{attr_}").items())
-        ]
-        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"
-
     for attr_ in (
         "contents",
         "skipped_contents",
@@ -397,6 +376,7 @@ def check_replayed(src, dst, expected_anonymized=False):
         "releases",
         "snapshots",
         "origins",
+        "origin_visit_statuses",
     ):
         expected_objects = [
             (id, nullify_ctime(maybe_anonymize(attr_, obj)))
