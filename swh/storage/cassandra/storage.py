@@ -1057,11 +1057,7 @@ class CassandraStorage:
                 f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
                 f"{','.join(VISIT_STATUSES)} authorized"
             )
-        rows = list(
-            self._cql_runner.origin_visit_status_get(
-                origin_url, visit, allowed_statuses, require_snapshot
-            )
-        )
+        rows = list(self._cql_runner.origin_visit_status_get(origin_url, visit))
         # filtering is done python side as we cannot do it server side
         if allowed_statuses:
             rows = [row for row in rows if row.status in allowed_statuses]
