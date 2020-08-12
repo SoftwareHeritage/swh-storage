@@ -61,6 +61,7 @@ from swh.storage.cassandra.model import (
     BaseRow,
     ContentRow,
     ObjectCountRow,
+    SkippedContentRow,
 )
 from swh.storage.interface import (
     ListOrder,
@@ -216,6 +217,8 @@ class InMemoryCqlRunner:
     def __init__(self):
         self._contents = Table(ContentRow)
         self._content_indexes = defaultdict(lambda: defaultdict(set))
+        self._skipped_contents = Table(ContentRow)
+        self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
         self._stat_counters = defaultdict(int)
 
     def increment_counter(self, object_type: str, nb: int):
@@ -288,6 +291,36 @@ class InMemoryCqlRunner:
         return self._content_indexes[algo][hash_]
 
     ##########################
+    # 'skipped_content' table
+    ##########################
+
+    def _skipped_content_add_finalize(self, content: SkippedContentRow) -> None:
+        self._skipped_contents.insert(content)
+        self.increment_counter("skipped_content", 1)
+
+    def skipped_content_add_prepare(self, content: SkippedContentRow):
+        finalizer = functools.partial(self._skipped_content_add_finalize, content)
+        return (
+            self._skipped_contents.token(self._contents.partition_key(content)),
+            finalizer,
+        )
+
+    def skipped_content_get_from_pk(
+        self, content_hashes: Dict[str, bytes]
+    ) -> Optional[SkippedContentRow]:
+        primary_key = self._skipped_contents.primary_key_from_dict(content_hashes)
+        return self._skipped_contents.get_from_primary_key(primary_key)
+
+    ##########################
+    # 'skipped_content_by_*' tables
+    ##########################
+
+    def skipped_content_index_add_one(
+        self, algo: str, content: SkippedContent, token: int
+    ) -> None:
+        self._skipped_content_indexes[algo][content.get_hash(algo)].add(token)
+
+    ##########################
     # 'directory' table
     ##########################
 
@@ -318,8 +351,6 @@ class InMemoryStorage(CassandraStorage):
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
-        self._skipped_contents = {}
-        self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
         self._directories = {}
         self._revisions = {}
         self._releases = {}
@@ -364,46 +395,6 @@ class InMemoryStorage(CassandraStorage):
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
-
-    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
-        self.journal_writer.skipped_content_add(contents)
-
-        summary = {"skipped_content:add": 0}
-
-        missing_contents = self.skipped_content_missing([c.hashes() for c in contents])
-        missing = {self._content_key(c) for c in missing_contents}
-        contents = [c for c in contents if self._content_key(c) in missing]
-        for content in contents:
-            key = self._content_key(content)
-            for algo in DEFAULT_ALGORITHMS:
-                if content.get_hash(algo):
-                    self._skipped_content_indexes[algo][content.get_hash(algo)].add(key)
-            self._skipped_contents[key] = content
-            summary["skipped_content:add"] += 1
-
-        self._cql_runner.increment_counter("skipped_content", len(contents))
-
-        return summary
-
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
-        content = [attr.evolve(c, ctime=now()) for c in content]
-        return self._skipped_content_add(content)
-
-    def skipped_content_missing(
-        self, contents: List[Dict[str, Any]]
-    ) -> Iterable[Dict[str, Any]]:
-        for content in contents:
-            matches = list(self._skipped_contents.values())
-            for (algorithm, key) in self._content_key(content):
-                if algorithm == "blake2s256":
-                    continue
-                # Filter out skipped contents with the same hash
-                matches = [
-                    match for match in matches if match.get_hash(algorithm) == key
-                ]
-            # if none of the contents match
-            if not matches:
-                yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
     def directory_add(self, directories: List[Directory]) -> Dict:
         directories = [dir_ for dir_ in directories if dir_.id not in self._directories]
