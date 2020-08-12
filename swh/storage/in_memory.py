@@ -39,7 +39,6 @@ from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     SkippedContent,
-    Directory,
     Revision,
     Release,
     Snapshot,
@@ -58,6 +57,8 @@ from swh.storage.cassandra import CassandraStorage
 from swh.storage.cassandra.model import (
     BaseRow,
     ContentRow,
+    DirectoryRow,
+    DirectoryEntryRow,
     ObjectCountRow,
     SkippedContentRow,
 )
@@ -199,6 +200,13 @@ class Table(Generic[TRow]):
 
         return (partition_key, clustering_key)
 
+    def get_from_partition_key(self, partition_key: Tuple) -> Iterable[TRow]:
+        """Returns at most one row, from its partition key."""
+        token = self.token(partition_key)
+        for row in self.get_from_token(token):
+            if self.partition_key(row) == partition_key:
+                yield row
+
     def get_from_primary_key(self, primary_key: Tuple) -> Optional[TRow]:
         """Returns at most one row, from its primary key."""
         (partition_key, clustering_key) = self.split_primary_key(primary_key)
@@ -220,6 +228,9 @@ class Table(Generic[TRow]):
             for (clustering_key, row) in partition.items()
         )
 
+    def get_random(self) -> Optional[TRow]:
+        return random.choice([row for (pk, row) in self.iter_all()])
+
 
 class InMemoryCqlRunner:
     def __init__(self):
@@ -227,6 +238,8 @@ class InMemoryCqlRunner:
         self._content_indexes = defaultdict(lambda: defaultdict(set))
         self._skipped_contents = Table(ContentRow)
         self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
+        self._directories = Table(DirectoryRow)
+        self._directory_entries = Table(DirectoryEntryRow)
         self._stat_counters = defaultdict(int)
 
     def increment_counter(self, object_type: str, nb: int):
@@ -258,13 +271,7 @@ class InMemoryCqlRunner:
         return self._contents.get_from_token(token)
 
     def content_get_random(self) -> Optional[ContentRow]:
-        return random.choice(
-            [
-                row
-                for partition in self._contents.data.values()
-                for row in partition.values()
-            ]
-        )
+        return self._contents.get_random()
 
     def content_get_token_range(
         self, start: int, end: int, limit: int,
@@ -333,7 +340,32 @@ class InMemoryCqlRunner:
     ##########################
 
     def directory_missing(self, ids: List[bytes]) -> List[bytes]:
-        return ids
+        missing = []
+        for id_ in ids:
+            if self._directories.get_from_primary_key((id_,)) is None:
+                missing.append(id_)
+
+        return missing
+
+    def directory_add_one(self, directory: DirectoryRow) -> None:
+        self._directories.insert(directory)
+        self.increment_counter("directory", 1)
+
+    def directory_get_random(self) -> Optional[DirectoryRow]:
+        return self._directories.get_random()
+
+    ##########################
+    # 'directory_entry' table
+    ##########################
+
+    def directory_entry_add_one(self, entry: DirectoryEntryRow) -> None:
+        self._directory_entries.insert(entry)
+
+    def directory_entry_get(
+        self, directory_ids: List[Sha1Git]
+    ) -> Iterable[DirectoryEntryRow]:
+        for id_ in directory_ids:
+            yield from self._directory_entries.get_from_partition_key((id_,))
 
     ##########################
     # 'revision' table
@@ -359,7 +391,6 @@ class InMemoryStorage(CassandraStorage):
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
-        self._directories = {}
         self._revisions = {}
         self._releases = {}
         self._snapshots = {}
@@ -403,80 +434,6 @@ class InMemoryStorage(CassandraStorage):
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
-
-    def directory_add(self, directories: List[Directory]) -> Dict:
-        directories = [dir_ for dir_ in directories if dir_.id not in self._directories]
-        self.journal_writer.directory_add(directories)
-
-        count = 0
-        for directory in directories:
-            count += 1
-            self._directories[directory.id] = directory
-            self._objects[directory.id].append(("directory", directory.id))
-
-        self._cql_runner.increment_counter("directory", len(directories))
-
-        return {"directory:add": count}
-
-    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
-        for id in directories:
-            if id not in self._directories:
-                yield id
-
-    def _directory_ls(self, directory_id, recursive, prefix=b""):
-        if directory_id in self._directories:
-            for entry in self._directories[directory_id].entries:
-                ret = self._join_dentry_to_content(entry)
-                ret["name"] = prefix + ret["name"]
-                ret["dir_id"] = directory_id
-                yield ret
-                if recursive and ret["type"] == "dir":
-                    yield from self._directory_ls(
-                        ret["target"], True, prefix + ret["name"] + b"/"
-                    )
-
-    def directory_ls(
-        self, directory: Sha1Git, recursive: bool = False
-    ) -> Iterable[Dict[str, Any]]:
-        yield from self._directory_ls(directory, recursive)
-
-    def directory_entry_get_by_path(
-        self, directory: Sha1Git, paths: List[bytes]
-    ) -> Optional[Dict[str, Any]]:
-        return self._directory_entry_get_by_path(directory, paths, b"")
-
-    def directory_get_random(self) -> Sha1Git:
-        return random.choice(list(self._directories))
-
-    def _directory_entry_get_by_path(
-        self, directory: Sha1Git, paths: List[bytes], prefix: bytes
-    ) -> Optional[Dict[str, Any]]:
-        if not paths:
-            return None
-
-        contents = list(self.directory_ls(directory))
-
-        if not contents:
-            return None
-
-        def _get_entry(entries, name):
-            for entry in entries:
-                if entry["name"] == name:
-                    entry = entry.copy()
-                    entry["name"] = prefix + entry["name"]
-                    return entry
-
-        first_item = _get_entry(contents, paths[0])
-
-        if len(paths) == 1:
-            return first_item
-
-        if not first_item or first_item["type"] != "dir":
-            return None
-
-        return self._directory_entry_get_by_path(
-            first_item["target"], paths[1:], prefix + paths[0] + b"/"
-        )
 
     def revision_add(self, revisions: List[Revision]) -> Dict:
         revisions = [rev for rev in revisions if rev.id not in self._revisions]

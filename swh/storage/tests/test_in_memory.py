@@ -125,25 +125,35 @@ def test_table():
     row1 = Row(col1="foo", col2="bar", col3="baz", col4="qux", col5="quux", col6=4)
     row2 = Row(col1="foo", col2="bar", col3="baz", col4="qux2", col5="quux", col6=4)
     row3 = Row(col1="foo", col2="bar", col3="baz", col4="qux1", col5="quux", col6=4)
+    row4 = Row(col1="foo", col2="bar2", col3="baz", col4="qux1", col5="quux", col6=4)
     partition_key = ("foo", "bar")
+    partition_key4 = ("foo", "bar2")
     primary_key1 = ("foo", "bar", "baz", "qux")
     primary_key2 = ("foo", "bar", "baz", "qux2")
     primary_key3 = ("foo", "bar", "baz", "qux1")
+    primary_key4 = ("foo", "bar2", "baz", "qux1")
 
     table.insert(row1)
     table.insert(row2)
     table.insert(row3)
+    table.insert(row4)
 
     assert table.get_from_primary_key(primary_key1) == row1
     assert table.get_from_primary_key(primary_key2) == row2
     assert table.get_from_primary_key(primary_key3) == row3
+    assert table.get_from_primary_key(primary_key4) == row4
 
     # order matters
     assert list(table.get_from_token(table.token(partition_key))) == [row1, row3, row2]
 
+    # order matters
+    assert list(table.get_from_partition_key(partition_key)) == [row1, row3, row2]
+
+    assert list(table.get_from_partition_key(partition_key4)) == [row4]
+
     all_rows = list(table.iter_all())
-    assert len(all_rows) == 3
-    for row in (row1, row2, row3):
+    assert len(all_rows) == 4
+    for row in (row1, row2, row3, row4):
         assert (table.primary_key(row), row) in all_rows
 
 

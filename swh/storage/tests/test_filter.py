@@ -114,7 +114,7 @@ def test_filtering_proxy_storage_revision(swh_storage, sample_data):
 def test_filtering_proxy_storage_directory(swh_storage, sample_data):
     sample_directory = sample_data.directory
 
-    directory = next(swh_storage.directory_missing([sample_directory.id]))
+    directory = list(swh_storage.directory_missing([sample_directory.id]))[0]
     assert directory
 
     s = swh_storage.directory_add([sample_directory])
