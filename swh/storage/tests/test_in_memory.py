@@ -3,9 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import dataclasses
+
 import pytest
 
-from swh.storage.in_memory import SortedList
+from swh.storage.cassandra.model import BaseRow
+from swh.storage.in_memory import SortedList, Table
 from swh.storage.tests.test_storage import TestStorage, TestStorageGeneratedData  # noqa
 
 
@@ -84,3 +87,54 @@ def test_sorted_list_iter_after__key(items):
     for split in items:
         expected = reversed(sorted(item for item in items if item < split))
         assert list(list_.iter_after(-split)) == list(expected), f"split: {split}"
+
+
+@dataclasses.dataclass
+class Row(BaseRow):
+    PARTITION_KEY = ("col1", "col2")
+    CLUSTERING_KEY = ("col3", "col4")
+
+    col1: str
+    col2: str
+    col3: str
+    col4: str
+    col5: str
+    col6: int
+
+
+def test_table_keys():
+    table = Table(Row)
+
+    primary_key = ("foo", "bar", "baz", "qux")
+    partition_key = ("foo", "bar")
+    clustering_key = ("baz", "qux")
+
+    row = Row(col1="foo", col2="bar", col3="baz", col4="qux", col5="quux", col6=4)
+    assert table.partition_key(row) == partition_key
+    assert table.clustering_key(row) == clustering_key
+
+    assert table.primary_key_from_dict(row.to_dict()) == primary_key
+    assert table.split_primary_key(primary_key) == (partition_key, clustering_key)
+
+
+def test_table():
+    table = Table(Row)
+
+    row1 = Row(col1="foo", col2="bar", col3="baz", col4="qux", col5="quux", col6=4)
+    row2 = Row(col1="foo", col2="bar", col3="baz", col4="qux2", col5="quux", col6=4)
+    row3 = Row(col1="foo", col2="bar", col3="baz", col4="qux1", col5="quux", col6=4)
+    partition_key = ("foo", "bar")
+    primary_key1 = ("foo", "bar", "baz", "qux")
+    primary_key2 = ("foo", "bar", "baz", "qux2")
+    primary_key3 = ("foo", "bar", "baz", "qux1")
+
+    table.insert(row1)
+    table.insert(row2)
+    table.insert(row3)
+
+    assert table.get_from_primary_key(primary_key1) == row1
+    assert table.get_from_primary_key(primary_key2) == row2
+    assert table.get_from_primary_key(primary_key3) == row3
+
+    # order matters
+    assert list(table.get_from_token(table.token(partition_key))) == [row1, row3, row2]
