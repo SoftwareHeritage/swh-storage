@@ -646,16 +646,6 @@ class CassandraStorage:
             "next_branch": d["next_branch"],
         }
 
-    def snapshot_get_by_origin_visit(
-        self, origin: str, visit: int
-    ) -> Optional[Dict[str, Any]]:
-        visit_status = self.origin_visit_status_get_latest(
-            origin, visit, require_snapshot=True
-        )
-        if visit_status and visit_status.snapshot:
-            return self.snapshot_get(visit_status.snapshot)
-        return None
-
     def snapshot_count_branches(
         self, snapshot_id: Sha1Git
     ) -> Optional[Dict[Optional[str], int]]:

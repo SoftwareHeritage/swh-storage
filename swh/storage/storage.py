@@ -757,18 +757,6 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get_by_origin_visit(
-        self, origin: str, visit: int, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
-        snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
-
-        if snapshot_id:
-            return self.snapshot_get(snapshot_id, db=db, cur=cur)
-
-        return None
-
-    @timed
-    @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(
         self, snapshot_id: Sha1Git, db=None, cur=None
     ) -> Optional[Dict[Optional[str], int]]:

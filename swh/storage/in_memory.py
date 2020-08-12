@@ -515,25 +515,6 @@ class InMemoryStorage(CassandraStorage):
             "next_branch": d["next_branch"],
         }
 
-    def snapshot_get_by_origin_visit(
-        self, origin: str, visit: int
-    ) -> Optional[Dict[str, Any]]:
-        origin_url = self._get_origin_url(origin)
-        if not origin_url:
-            return None
-
-        if origin_url not in self._origins or visit > len(
-            self._origin_visits[origin_url]
-        ):
-            return None
-
-        visit_d = self._origin_visit_get_updated(origin_url, visit)
-        snapshot_id = visit_d["snapshot"]
-        if snapshot_id:
-            return self.snapshot_get(snapshot_id)
-        else:
-            return None
-
     def snapshot_count_branches(
         self, snapshot_id: Sha1Git
     ) -> Optional[Dict[Optional[str], int]]:

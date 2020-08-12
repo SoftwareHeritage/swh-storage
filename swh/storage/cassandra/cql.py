@@ -556,12 +556,6 @@ class CqlRunner:
     def snapshot_add_one(self, snapshot: SnapshotRow, *, statement) -> None:
         self._add_one(statement, snapshot)
 
-    @_prepared_select_statement(SnapshotRow, "WHERE id = ?")
-    def snapshot_get(self, snapshot_id: Sha1Git, *, statement) -> ResultSet:
-        return map(
-            SnapshotRow.from_dict, self._execute_with_retries(statement, [snapshot_id])
-        )
-
     @_prepared_select_statement(SnapshotRow, "WHERE token(id) > ? LIMIT 1")
     def snapshot_get_random(self, *, statement) -> Optional[SnapshotRow]:
         return self._get_random_row(SnapshotRow, statement)
