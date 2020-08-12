@@ -10,7 +10,9 @@ import pytest
 from swh.storage.cassandra.model import BaseRow
 from swh.storage.in_memory import SortedList, Table
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
-from swh.storage.tests.test_storage import TestStorageGeneratedData  # noqa
+from swh.storage.tests.test_storage import (
+    TestStorageGeneratedData as _TestStorageGeneratedData,
+)
 
 
 # tests are executed using imported classes (TestStorage and
@@ -167,4 +169,26 @@ class TestInMemoryStorage(_TestStorage):
 
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):
+        pass
+
+    @pytest.mark.skip("Not supported by Cassandra")
+    def test_origin_count(self):
+        pass
+
+
+class TestInMemoryStorageGeneratedData(_TestStorageGeneratedData):
+    @pytest.mark.skip("Not supported by Cassandra")
+    def test_origin_count(self):
+        pass
+
+    @pytest.mark.skip("Not supported by Cassandra")
+    def test_origin_count_with_visit_no_visits(self):
+        pass
+
+    @pytest.mark.skip("Not supported by Cassandra")
+    def test_origin_count_with_visit_with_visits_and_snapshot(self):
+        pass
+
+    @pytest.mark.skip("Not supported by Cassandra")
+    def test_origin_count_with_visit_with_visits_no_snapshot(self):
         pass

@@ -206,7 +206,6 @@ def _check_replayed(
     assert got_persons == expected_persons
 
     for attr_ in (
-        "origins",
         "origin_visits",
         "origin_visit_statuses",
     ):
@@ -223,6 +222,7 @@ def _check_replayed(
         "revisions",
         "releases",
         "snapshots",
+        "origins",
     ):
         if exclude and attr_ in exclude:
             continue
@@ -379,10 +379,7 @@ def check_replayed(src, dst, expected_anonymized=False):
     got_persons = set(dst._persons.values())
     assert got_persons == expected_persons
 
-    for attr_ in (
-        "origins",
-        "origin_visit_statuses",
-    ):
+    for attr_ in ("origin_visit_statuses",):
         expected_objects = [
             (id, maybe_anonymize(attr_, obj))
             for id, obj in sorted(getattr(src, f"_{attr_}").items())
@@ -399,6 +396,7 @@ def check_replayed(src, dst, expected_anonymized=False):
         "revisions",
         "releases",
         "snapshots",
+        "origins",
     ):
         expected_objects = [
             (id, nullify_ctime(maybe_anonymize(attr_, obj)))
