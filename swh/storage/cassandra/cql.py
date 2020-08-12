@@ -743,6 +743,56 @@ class CqlRunner:
         origin_visit_get_method = getattr(self, method_name)
         return map(OriginVisitRow.from_dict, origin_visit_get_method(*args))
 
+    @_prepared_insert_statement(OriginVisitRow)
+    def origin_visit_add_one(self, visit: OriginVisitRow, *, statement) -> None:
+        self._add_one(statement, visit)
+
+    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ? AND visit = ?")
+    def origin_visit_get_one(
+        self, origin_url: str, visit_id: int, *, statement
+    ) -> Optional[OriginVisitRow]:
+        # TODO: error handling
+        rows = list(self._execute_with_retries(statement, [origin_url, visit_id]))
+        if rows:
+            return OriginVisitRow.from_dict(rows[0])
+        else:
+            return None
+
+    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ?")
+    def origin_visit_get_all(
+        self, origin_url: str, *, statement
+    ) -> Iterable[OriginVisitRow]:
+        return map(
+            OriginVisitRow.from_dict,
+            self._execute_with_retries(statement, [origin_url]),
+        )
+
+    @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) >= ?")
+    def _origin_visit_iter_from(
+        self, min_token: int, *, statement
+    ) -> Iterable[OriginVisitRow]:
+        return map(
+            OriginVisitRow.from_dict, self._execute_with_retries(statement, [min_token])
+        )
+
+    @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) < ?")
+    def _origin_visit_iter_to(
+        self, max_token: int, *, statement
+    ) -> Iterable[OriginVisitRow]:
+        return map(
+            OriginVisitRow.from_dict, self._execute_with_retries(statement, [max_token])
+        )
+
+    def origin_visit_iter(self, start_token: int) -> Iterator[OriginVisitRow]:
+        """Returns all origin visits in order from this token,
+        and wraps around the token space."""
+        yield from self._origin_visit_iter_from(start_token)
+        yield from self._origin_visit_iter_to(start_token)
+
+    ##########################
+    # 'origin_visit_status' table
+    ##########################
+
     @_prepared_select_statement(
         OriginVisitStatusRow,
         "WHERE origin = ? AND visit = ? AND date >= ? ORDER BY date ASC LIMIT ?",
@@ -815,10 +865,6 @@ class CqlRunner:
             OriginVisitStatusRow.from_dict, origin_visit_status_get_method(*args)
         )
 
-    @_prepared_insert_statement(OriginVisitRow)
-    def origin_visit_add_one(self, visit: OriginVisitRow, *, statement) -> None:
-        self._add_one(statement, visit)
-
     @_prepared_insert_statement(OriginVisitStatusRow)
     def origin_visit_status_add_one(
         self, visit_update: OriginVisitStatusRow, *, statement
@@ -846,48 +892,6 @@ class CqlRunner:
             OriginVisitStatusRow.from_dict,
             self._execute_with_retries(statement, [origin, visit]),
         )
-
-    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ? AND visit = ?")
-    def origin_visit_get_one(
-        self, origin_url: str, visit_id: int, *, statement
-    ) -> Optional[OriginVisitRow]:
-        # TODO: error handling
-        rows = list(self._execute_with_retries(statement, [origin_url, visit_id]))
-        if rows:
-            return OriginVisitRow.from_dict(rows[0])
-        else:
-            return None
-
-    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ?")
-    def origin_visit_get_all(
-        self, origin_url: str, *, statement
-    ) -> Iterable[OriginVisitRow]:
-        return map(
-            OriginVisitRow.from_dict,
-            self._execute_with_retries(statement, [origin_url]),
-        )
-
-    @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) >= ?")
-    def _origin_visit_iter_from(
-        self, min_token: int, *, statement
-    ) -> Iterable[OriginVisitRow]:
-        return map(
-            OriginVisitRow.from_dict, self._execute_with_retries(statement, [min_token])
-        )
-
-    @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) < ?")
-    def _origin_visit_iter_to(
-        self, max_token: int, *, statement
-    ) -> Iterable[OriginVisitRow]:
-        return map(
-            OriginVisitRow.from_dict, self._execute_with_retries(statement, [max_token])
-        )
-
-    def origin_visit_iter(self, start_token: int) -> Iterator[OriginVisitRow]:
-        """Returns all origin visits in order from this token,
-        and wraps around the token space."""
-        yield from self._origin_visit_iter_from(start_token)
-        yield from self._origin_visit_iter_to(start_token)
 
     ##########################
     # 'metadata_authority' table
