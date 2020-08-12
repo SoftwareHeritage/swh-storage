@@ -243,8 +243,6 @@ class CqlRunner:
     # 'content' table
     ##########################
 
-    _content_pk = ["sha1", "sha1_git", "sha256", "blake2s256"]
-
     def _content_add_finalize(self, statement: BoundStatement) -> None:
         """Returned currified by content_add_prepare, to be called when the
         content row should be added to the primary table."""
@@ -265,7 +263,7 @@ class CqlRunner:
         token_class = self._cluster.metadata.token_map.token_class
 
         # Token of the row when it will be inserted. This is equivalent to
-        # "SELECT token({', '.join(self._content_pk)}) FROM content WHERE ..."
+        # "SELECT token({', '.join(ContentRow.PARTITION_KEY)}) FROM content WHERE ..."
         # after the row is inserted; but we need the token to insert in the
         # index tables *before* inserting to the main 'content' table
         token = token_class.from_key(statement.routing_key).value
@@ -295,13 +293,13 @@ class CqlRunner:
             return None
 
     @_prepared_select_statement(
-        ContentRow, f"WHERE token({', '.join(_content_pk)}) = ?"
+        ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) = ?"
     )
     def content_get_from_token(self, token, *, statement) -> Iterable[ContentRow]:
         return map(ContentRow.from_dict, self._execute_with_retries(statement, [token]))
 
     @_prepared_select_statement(
-        ContentRow, f"WHERE token({', '.join(_content_pk)}) > ? LIMIT 1"
+        ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) > ? LIMIT 1"
     )
     def content_get_random(self, *, statement) -> Optional[ContentRow]:
         return self._get_random_row(ContentRow, statement)
@@ -310,7 +308,7 @@ class CqlRunner:
         (
             "SELECT token({0}) AS tok, {1} FROM content "
             "WHERE token({0}) >= ? AND token({0}) <= ? LIMIT ?"
-        ).format(", ".join(_content_pk), ", ".join(ContentRow.cols()))
+        ).format(", ".join(ContentRow.PARTITION_KEY), ", ".join(ContentRow.cols()))
     )
     def content_get_token_range(
         self, start: int, end: int, limit: int, *, statement
@@ -354,7 +352,6 @@ class CqlRunner:
     # 'skipped_content' table
     ##########################
 
-    _skipped_content_pk = ["sha1", "sha1_git", "sha256", "blake2s256"]
     _magic_null_pk = b"<null>"
     """
     NULLs (or all-empty blobs) are not allowed in primary keys; instead use a
@@ -377,7 +374,7 @@ class CqlRunner:
 
         # Replace NULLs (which are not allowed in the partition key) with
         # an empty byte string
-        for key in self._skipped_content_pk:
+        for key in SkippedContentRow.PARTITION_KEY:
             if getattr(content, key) is None:
                 setattr(content, key, self._magic_null_pk)
 
@@ -388,7 +385,7 @@ class CqlRunner:
         token_class = self._cluster.metadata.token_map.token_class
 
         # Token of the row when it will be inserted. This is equivalent to
-        # "SELECT token({', '.join(self._content_pk)})
+        # "SELECT token({', '.join(SkippedContentRow.PARTITION_KEY)})
         #  FROM skipped_content WHERE ..."
         # after the row is inserted; but we need the token to insert in the
         # index tables *before* inserting to the main 'skipped_content' table
