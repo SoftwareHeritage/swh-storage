@@ -453,11 +453,7 @@ class InMemoryCqlRunner:
     ##########################
 
     def origin_visit_get(
-        self,
-        origin_url: str,
-        last_visit: Optional[int],
-        limit: Optional[int],
-        order: ListOrder,
+        self, origin_url: str, last_visit: Optional[int], limit: int, order: ListOrder,
     ) -> Iterable[OriginVisitRow]:
         visits = list(self._origin_visits.get_from_partition_key((origin_url,)))
 
@@ -469,8 +465,7 @@ class InMemoryCqlRunner:
 
         visits.sort(key=lambda v: v.visit, reverse=order == ListOrder.DESC)
 
-        if limit is not None:
-            visits = visits[0:limit]
+        visits = visits[0:limit]
 
         return visits
 

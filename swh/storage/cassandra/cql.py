@@ -659,33 +659,17 @@ class CqlRunner:
     ##########################
 
     @_prepared_select_statement(
-        OriginVisitRow, "WHERE origin = ? AND visit > ? ORDER BY visit ASC"
-    )
-    def _origin_visit_get_pagination_asc_no_limit(
-        self, origin_url: str, last_visit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, last_visit])
-
-    @_prepared_select_statement(
         OriginVisitRow, "WHERE origin = ? AND visit > ? ORDER BY visit ASC LIMIT ?"
     )
-    def _origin_visit_get_pagination_asc_limit(
+    def _origin_visit_get_pagination_asc(
         self, origin_url: str, last_visit: int, limit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, last_visit, limit])
 
     @_prepared_select_statement(
-        OriginVisitRow, "WHERE origin = ? AND visit < ? ORDER BY visit DESC"
-    )
-    def _origin_visit_get_pagination_desc_no_limit(
-        self, origin_url: str, last_visit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, last_visit])
-
-    @_prepared_select_statement(
         OriginVisitRow, "WHERE origin = ? AND visit < ? ORDER BY visit DESC LIMIT ?"
     )
-    def _origin_visit_get_pagination_desc_limit(
+    def _origin_visit_get_pagination_desc(
         self, origin_url: str, last_visit: int, limit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, last_visit, limit])
@@ -693,37 +677,21 @@ class CqlRunner:
     @_prepared_select_statement(
         OriginVisitRow, "WHERE origin = ? ORDER BY visit ASC LIMIT ?"
     )
-    def _origin_visit_get_no_pagination_asc_limit(
+    def _origin_visit_get_no_pagination_asc(
         self, origin_url: str, limit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, limit])
 
-    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ? ORDER BY visit ASC ")
-    def _origin_visit_get_no_pagination_asc_no_limit(
-        self, origin_url: str, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url])
-
-    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ? ORDER BY visit DESC")
-    def _origin_visit_get_no_pagination_desc_no_limit(
-        self, origin_url: str, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url])
-
     @_prepared_select_statement(
         OriginVisitRow, "WHERE origin = ? ORDER BY visit DESC LIMIT ?"
     )
-    def _origin_visit_get_no_pagination_desc_limit(
+    def _origin_visit_get_no_pagination_desc(
         self, origin_url: str, limit: int, *, statement
     ) -> ResultSet:
         return self._execute_with_retries(statement, [origin_url, limit])
 
     def origin_visit_get(
-        self,
-        origin_url: str,
-        last_visit: Optional[int],
-        limit: Optional[int],
-        order: ListOrder,
+        self, origin_url: str, last_visit: Optional[int], limit: int, order: ListOrder,
     ) -> Iterable[OriginVisitRow]:
         args: List[Any] = [origin_url]
 
@@ -733,13 +701,9 @@ class CqlRunner:
         else:
             page_name = "no_pagination"
 
-        if limit is not None:
-            limit_name = "limit"
-            args.append(limit)
-        else:
-            limit_name = "no_limit"
+        args.append(limit)
 
-        method_name = f"_origin_visit_get_{page_name}_{order.value}_{limit_name}"
+        method_name = f"_origin_visit_get_{page_name}_{order.value}"
         origin_visit_get_method = getattr(self, method_name)
         return map(OriginVisitRow.from_dict, origin_visit_get_method(*args))
 
