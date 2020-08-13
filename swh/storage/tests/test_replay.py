@@ -201,10 +201,6 @@ def _check_replayed(
     """Simple utility function to compare the content of 2 in_memory storages
 
     """
-    expected_persons = set(src._persons.values())
-    got_persons = set(dst._persons.values())
-    assert got_persons == expected_persons
-
     for attr_ in (
         "contents",
         "skipped_contents",
@@ -361,12 +357,6 @@ def check_replayed(src, dst, expected_anonymized=False):
                     committer=row.committer.anonymize(),
                 )
         return row
-
-    expected_persons = {
-        maybe_anonymize("persons", person) for person in src._persons.values()
-    }
-    got_persons = set(dst._persons.values())
-    assert got_persons == expected_persons
 
     for attr_ in (
         "contents",

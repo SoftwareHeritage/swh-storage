@@ -3,17 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import bisect
-import collections
 import datetime
 import functools
-import itertools
 import random
 
 from collections import defaultdict
 from typing import (
     Any,
-    Callable,
     Dict,
     Generic,
     Iterable,
@@ -57,65 +53,6 @@ from swh.storage.objstorage import ObjStorage
 
 from .converters import origin_url_to_sha1
 from .writer import JournalWriter
-
-# Max block size of contents to return
-BULK_BLOCK_CONTENT_LEN_MAX = 10000
-
-
-SortedListItem = TypeVar("SortedListItem")
-SortedListKey = TypeVar("SortedListKey")
-
-FetcherKey = Tuple[str, str]
-
-
-class SortedList(collections.UserList, Generic[SortedListKey, SortedListItem]):
-    data: List[Tuple[SortedListKey, SortedListItem]]
-
-    # https://github.com/python/mypy/issues/708
-    # key: Callable[[SortedListItem], SortedListKey]
-
-    def __init__(
-        self,
-        data: List[SortedListItem] = None,
-        key: Optional[Callable[[SortedListItem], SortedListKey]] = None,
-    ):
-        if key is None:
-
-            def key(item):
-                return item
-
-        assert key is not None  # for mypy
-        super().__init__(sorted((key(x), x) for x in data or []))
-
-        self.key: Callable[[SortedListItem], SortedListKey] = key
-
-    def add(self, item: SortedListItem):
-        k = self.key(item)
-        bisect.insort(self.data, (k, item))
-
-    def __iter__(self) -> Iterator[SortedListItem]:
-        for (k, item) in self.data:
-            yield item
-
-    def iter_from(self, start_key: Any) -> Iterator[SortedListItem]:
-        """Returns an iterator over all the elements whose key is greater
-        or equal to `start_key`.
-        (This is an efficient equivalent to:
-        `(x for x in L if key(x) >= start_key)`)
-        """
-        from_index = bisect.bisect_left(self.data, (start_key,))
-        for (k, item) in itertools.islice(self.data, from_index, None):
-            yield item
-
-    def iter_after(self, start_key: Any) -> Iterator[SortedListItem]:
-        """Same as iter_from, but using a strict inequality."""
-        it = self.iter_from(start_key)
-        for item in it:
-            if self.key(item) > start_key:  # type: ignore
-                yield item
-                break
-
-        yield from it
 
 
 TRow = TypeVar("TRow", bound=BaseRow)
@@ -687,30 +624,7 @@ class InMemoryStorage(CassandraStorage):
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
-        self._persons = {}
-
-        self._objects = defaultdict(list)
-        self._sorted_sha1s = SortedList[bytes, bytes]()
-
         self.objstorage = ObjStorage({"cls": "memory", "args": {}})
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
-
-    def diff_directories(self, from_dir, to_dir, track_renaming=False):
-        raise NotImplementedError("InMemoryStorage.diff_directories")
-
-    def diff_revisions(self, from_rev, to_rev, track_renaming=False):
-        raise NotImplementedError("InMemoryStorage.diff_revisions")
-
-    def diff_revision(self, revision, track_renaming=False):
-        raise NotImplementedError("InMemoryStorage.diff_revision")
-
-    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
-        """Do nothing
-
-        """
-        return None
-
-    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
-        return {}
