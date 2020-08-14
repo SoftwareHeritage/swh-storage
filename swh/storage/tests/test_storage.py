@@ -509,13 +509,17 @@ class TestStorage:
     def test_content_missing_per_sha1(self, swh_storage, sample_data):
         # given
         cont = sample_data.content
+        cont2 = sample_data.content2
         missing_cont = sample_data.skipped_content
-        swh_storage.content_add([cont])
+        missing_cont2 = sample_data.skipped_content2
+        swh_storage.content_add([cont, cont2])
 
         # when
-        gen = swh_storage.content_missing_per_sha1([cont.sha1, missing_cont.sha1])
+        gen = swh_storage.content_missing_per_sha1(
+            [cont.sha1, missing_cont.sha1, cont2.sha1, missing_cont2.sha1]
+        )
         # then
-        assert list(gen) == [missing_cont.sha1]
+        assert list(gen) == [missing_cont.sha1, missing_cont2.sha1]
 
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
