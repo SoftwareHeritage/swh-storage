@@ -67,14 +67,14 @@ def test_db_to_revision():
     # when
     actual_revision = converters.db_to_revision(
         {
-            "id": "revision-id",
+            "id": b"revision-id",
             "date": None,
             "date_offset": None,
             "date_neg_utc_offset": None,
             "committer_date": None,
             "committer_date_offset": None,
             "committer_date_neg_utc_offset": None,
-            "type": "rev",
+            "type": "git",
             "directory": b"dir-sha1",
             "message": b"commit message",
             "author_fullname": b"auth-fullname",
@@ -86,13 +86,13 @@ def test_db_to_revision():
             "metadata": {},
             "synthetic": False,
             "extra_headers": (),
-            "parents": [123, 456],
+            "parents": [b"123", b"456"],
         }
     )
 
     # then
     assert actual_revision == {
-        "id": "revision-id",
+        "id": b"revision-id",
         "author": {
             "fullname": b"auth-fullname",
             "name": b"auth-name",
@@ -105,13 +105,13 @@ def test_db_to_revision():
             "email": b"comm-email",
         },
         "committer_date": None,
-        "type": "rev",
+        "type": "git",
         "directory": b"dir-sha1",
         "message": b"commit message",
         "metadata": {},
         "synthetic": False,
         "extra_headers": (),
-        "parents": [123, 456],
+        "parents": [b"123", b"456"],
     }
 
 
