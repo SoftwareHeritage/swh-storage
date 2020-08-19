@@ -41,7 +41,7 @@ from swh.model.model import (
 )
 from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
-from swh.storage.converters import origin_url_to_sha1 as sha1
+from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import ListOrder, PagedResult, StorageInterface
 from swh.storage.utils import content_hex_hashes, now

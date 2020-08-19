@@ -10,14 +10,14 @@ from unittest.mock import patch
 from swh.storage import get_storage
 
 from swh.storage.api.client import RemoteStorage
-from swh.storage.storage import Storage as DbStorage
+from swh.storage.postgresql.storage import Storage as DbStorage
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.buffer import BufferingProxyStorage
 from swh.storage.filter import FilteringProxyStorage
 from swh.storage.retry import RetryingProxyStorage
 
 
-@patch("swh.storage.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg2.pool")
 def test_get_storage(mock_pool):
     """Instantiating an existing storage should be ok
 
@@ -40,7 +40,7 @@ def test_get_storage(mock_pool):
         assert isinstance(actual_storage, real_class)
 
 
-@patch("swh.storage.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg2.pool")
 def test_get_storage_legacy_args(mock_pool):
     """Instantiating an existing storage should be ok even with the legacy
     explicit 'args' keys

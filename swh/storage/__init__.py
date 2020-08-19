@@ -11,7 +11,7 @@ from .interface import StorageInterface
 
 
 STORAGE_IMPLEMENTATIONS = {
-    "local": ".storage.Storage",
+    "local": ".postgresql.storage.Storage",
     "remote": ".api.client.RemoteStorage",
     "memory": ".in_memory.InMemoryStorage",
     "filter": ".filter.FilteringProxyStorage",

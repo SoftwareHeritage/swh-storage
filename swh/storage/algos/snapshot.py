@@ -22,7 +22,7 @@ def snapshot_get_all_branches(
     """Get all the branches for a given snapshot
 
     Args:
-        storage (swh.storage.storage.Storage): the storage instance
+        storage (swh.storage.interface.StorageInterface): the storage instance
         snapshot_id (bytes): the snapshot's identifier
     Returns:
         dict: a dict with two keys:

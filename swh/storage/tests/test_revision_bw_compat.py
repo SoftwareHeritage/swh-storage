@@ -8,7 +8,7 @@ import attr
 from swh.core.utils import decode_with_escape
 from swh.model.model import Revision
 from swh.storage import get_storage
-from swh.storage.tests.test_storage import db_transaction
+from swh.storage.tests.test_postgresql import db_transaction
 
 
 def headers_to_db(git_headers):
