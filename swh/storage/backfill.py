@@ -110,6 +110,7 @@ COLUMNS = {
         "message",
         "synthetic",
         "metadata",
+        "extra_headers",
         (
             "array(select parent_id::bytea from revision_history rh "
             "where rh.id = revision.id order by rh.parent_rank asc)",
