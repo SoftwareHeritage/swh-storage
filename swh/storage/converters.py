@@ -83,7 +83,7 @@ def db_to_git_headers(db_git_headers):
 
 
 def db_to_date(
-    date: Optional[datetime.datetime], offset: int, neg_utc_offset: bool
+    date: Optional[datetime.datetime], offset: int, neg_utc_offset: Optional[bool]
 ) -> Optional[TimestampWithTimezone]:
     """Convert the DB representation of a date to a swh-model compatible date.
 
@@ -99,6 +99,10 @@ def db_to_date(
 
     if date is None:
         return None
+
+    if neg_utc_offset is None:
+        # For older versions of the database that were not migrated to schema v160
+        neg_utc_offset = False
 
     return TimestampWithTimezone(
         timestamp=Timestamp(
