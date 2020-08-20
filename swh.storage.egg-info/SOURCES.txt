@@ -211,6 +211,8 @@ sql/upgrades/156.sql
 sql/upgrades/157.sql
 sql/upgrades/158.sql
 sql/upgrades/159.sql
+sql/upgrades/160.sql
+sql/upgrades/161.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -253,6 +255,7 @@ swh/storage/cassandra/__init__.py
 swh/storage/cassandra/common.py
 swh/storage/cassandra/converters.py
 swh/storage/cassandra/cql.py
+swh/storage/cassandra/model.py
 swh/storage/cassandra/schema.py
 swh/storage/cassandra/storage.py
 swh/storage/sql/10-swh-init.sql

@@ -3,9 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import dataclasses
 import datetime
 import functools
-import json
 import logging
 import random
 from typing import (
@@ -17,35 +17,54 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Type,
     TypeVar,
+    Union,
 )
 
 from cassandra import CoordinationFailure
 from cassandra.cluster import Cluster, EXEC_PROFILE_DEFAULT, ExecutionProfile, ResultSet
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
-from cassandra.query import PreparedStatement, BoundStatement
+from cassandra.query import PreparedStatement, BoundStatement, dict_factory
 from tenacity import (
     retry,
     stop_after_attempt,
     wait_random_exponential,
     retry_if_exception_type,
 )
+from mypy_extensions import NamedArg
 
 from swh.model.model import (
+    Content,
+    SkippedContent,
     Sha1Git,
     TimestampWithTimezone,
     Timestamp,
     Person,
-    Content,
-    SkippedContent,
-    OriginVisit,
-    OriginVisitStatus,
-    Origin,
 )
 
 from swh.storage.interface import ListOrder
 
-from .common import Row, TOKEN_BEGIN, TOKEN_END, hash_url
+from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
+from .model import (
+    BaseRow,
+    ContentRow,
+    DirectoryEntryRow,
+    DirectoryRow,
+    MetadataAuthorityRow,
+    MetadataFetcherRow,
+    ObjectCountRow,
+    OriginRow,
+    OriginVisitRow,
+    OriginVisitStatusRow,
+    RawExtrinsicMetadataRow,
+    ReleaseRow,
+    RevisionParentRow,
+    RevisionRow,
+    SkippedContentRow,
+    SnapshotBranchRow,
+    SnapshotRow,
+)
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
 
 
@@ -54,7 +73,8 @@ logger = logging.getLogger(__name__)
 
 _execution_profiles = {
     EXEC_PROFILE_DEFAULT: ExecutionProfile(
-        load_balancing_policy=TokenAwarePolicy(DCAwareRoundRobinPolicy())
+        load_balancing_policy=TokenAwarePolicy(DCAwareRoundRobinPolicy()),
+        row_factory=dict_factory,
     ),
 }
 # Configuration for cassandra-driver's access to servers:
@@ -85,10 +105,12 @@ def create_keyspace(
         session.execute(query)
 
 
-T = TypeVar("T")
+TRet = TypeVar("TRet")
 
 
-def _prepared_statement(query: str) -> Callable[[Callable[..., T]], Callable[..., T]]:
+def _prepared_statement(
+    query: str,
+) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
     """Returns a decorator usable on methods of CqlRunner, to
     inject them with a 'statement' argument, that is a prepared
     statement corresponding to the query.
@@ -98,7 +120,7 @@ def _prepared_statement(query: str) -> Callable[[Callable[..., T]], Callable[...
 
     def decorator(f):
         @functools.wraps(f)
-        def newf(self, *args, **kwargs) -> T:
+        def newf(self, *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
                 statement: PreparedStatement = self._session.prepare(query)
                 self._prepared_statements[f.__name__] = statement
@@ -111,19 +133,71 @@ def _prepared_statement(query: str) -> Callable[[Callable[..., T]], Callable[...
     return decorator
 
 
-def _prepared_insert_statement(table_name: str, columns: List[str]):
+TArg = TypeVar("TArg")
+TSelf = TypeVar("TSelf")
+
+
+def _prepared_insert_statement(
+    row_class: Type[BaseRow],
+) -> Callable[
+    [Callable[[TSelf, TArg, NamedArg(Any, "statement")], TRet]],  # noqa
+    Callable[[TSelf, TArg], TRet],
+]:
     """Shorthand for using `_prepared_statement` for `INSERT INTO`
     statements."""
+    columns = row_class.cols()
     return _prepared_statement(
         "INSERT INTO %s (%s) VALUES (%s)"
-        % (table_name, ", ".join(columns), ", ".join("?" for _ in columns),)
+        % (row_class.TABLE, ", ".join(columns), ", ".join("?" for _ in columns),)
     )
 
 
-def _prepared_exists_statement(table_name: str):
+def _prepared_exists_statement(
+    table_name: str,
+) -> Callable[
+    [Callable[[TSelf, TArg, NamedArg(Any, "statement")], TRet]],  # noqa
+    Callable[[TSelf, TArg], TRet],
+]:
     """Shorthand for using `_prepared_statement` for queries that only
     check which ids in a list exist in the table."""
     return _prepared_statement(f"SELECT id FROM {table_name} WHERE id IN ?")
+
+
+def _prepared_select_statement(
+    row_class: Type[BaseRow], clauses: str = "", cols: Optional[List[str]] = None,
+) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
+    if cols is None:
+        cols = row_class.cols()
+
+    return _prepared_statement(
+        f"SELECT {', '.join(cols)} FROM {row_class.TABLE} {clauses}"
+    )
+
+
+def _prepared_select_statements(
+    row_class: Type[BaseRow], queries: Dict[Any, str],
+) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
+    """Like _prepared_statement, but supports multiple statements, passed a dict,
+    and passes a dict of prepared statements to the decorated method"""
+    cols = row_class.cols()
+
+    statement_start = f"SELECT {', '.join(cols)} FROM {row_class.TABLE} "
+
+    def decorator(f):
+        @functools.wraps(f)
+        def newf(self, *args, **kwargs) -> TRet:
+            if f.__name__ not in self._prepared_statements:
+                self._prepared_statements[f.__name__] = {
+                    key: self._session.prepare(statement_start + query)
+                    for (key, query) in queries.items()
+                }
+            return f(
+                self, *args, **kwargs, statements=self._prepared_statements[f.__name__]
+            )
+
+        return newf
+
+    return decorator
 
 
 class CqlRunner:
@@ -141,7 +215,13 @@ class CqlRunner:
         self._cluster.register_user_type(keyspace, "microtimestamp", Timestamp)
         self._cluster.register_user_type(keyspace, "person", Person)
 
-        self._prepared_statements: Dict[str, PreparedStatement] = {}
+        # directly a PreparedStatement for methods decorated with
+        # @_prepared_statements (and its wrappers, _prepared_insert_statement,
+        # _prepared_exists_statement, and _prepared_select_statement);
+        # and a dict of PreparedStatements with @_prepared_select_statements
+        self._prepared_statements: Dict[
+            str, Union[PreparedStatement, Dict[Any, PreparedStatement]]
+        ] = {}
 
     ##########################
     # Common utility functions
@@ -166,11 +246,13 @@ class CqlRunner:
     ) -> None:
         self._execute_with_retries(statement, [nb, object_type])
 
-    def _add_one(self, statement, object_type: str, obj, keys: List[str]) -> None:
-        self._increment_counter(object_type, 1)
-        self._execute_with_retries(statement, [getattr(obj, key) for key in keys])
+    def _add_one(self, statement, obj: BaseRow) -> None:
+        self._increment_counter(obj.TABLE, 1)
+        self._execute_with_retries(statement, dataclasses.astuple(obj))
 
-    def _get_random_row(self, statement) -> Optional[Row]:
+    _T = TypeVar("_T", bound=BaseRow)
+
+    def _get_random_row(self, row_class: Type[_T], statement) -> Optional[_T]:  # noqa
         """Takes a prepared statement of the form
         "SELECT * FROM <table> WHERE token(<keys>) > ? LIMIT 1"
         and uses it to return a random row"""
@@ -181,29 +263,18 @@ class CqlRunner:
             # the row with the smallest token
             rows = self._execute_with_retries(statement, [TOKEN_BEGIN])
         if rows:
-            return rows.one()
+            return row_class.from_dict(rows.one())  # type: ignore
         else:
             return None
 
     def _missing(self, statement, ids):
-        res = self._execute_with_retries(statement, [ids])
-        found_ids = {id_ for (id_,) in res}
+        rows = self._execute_with_retries(statement, [ids])
+        found_ids = {row["id"] for row in rows}
         return [id_ for id_ in ids if id_ not in found_ids]
 
     ##########################
     # 'content' table
     ##########################
-
-    _content_pk = ["sha1", "sha1_git", "sha256", "blake2s256"]
-    _content_keys = [
-        "sha1",
-        "sha1_git",
-        "sha256",
-        "blake2s256",
-        "length",
-        "ctime",
-        "status",
-    ]
 
     def _content_add_finalize(self, statement: BoundStatement) -> None:
         """Returned currified by content_add_prepare, to be called when the
@@ -211,23 +282,21 @@ class CqlRunner:
         self._execute_with_retries(statement, None)
         self._increment_counter("content", 1)
 
-    @_prepared_insert_statement("content", _content_keys)
+    @_prepared_insert_statement(ContentRow)
     def content_add_prepare(
-        self, content, *, statement
+        self, content: ContentRow, *, statement
     ) -> Tuple[int, Callable[[], None]]:
         """Prepares insertion of a Content to the main 'content' table.
         Returns a token (to be used in secondary tables), and a function to be
         called to perform the insertion in the main table."""
-        statement = statement.bind(
-            [getattr(content, key) for key in self._content_keys]
-        )
+        statement = statement.bind(dataclasses.astuple(content))
 
         # Type used for hashing keys (usually, it will be
         # cassandra.metadata.Murmur3Token)
         token_class = self._cluster.metadata.token_map.token_class
 
         # Token of the row when it will be inserted. This is equivalent to
-        # "SELECT token({', '.join(self._content_pk)}) FROM content WHERE ..."
+        # "SELECT token({', '.join(ContentRow.PARTITION_KEY)}) FROM content WHERE ..."
         # after the row is inserted; but we need the token to insert in the
         # index tables *before* inserting to the main 'content' table
         token = token_class.from_key(statement.routing_key).value
@@ -239,13 +308,12 @@ class CqlRunner:
 
         return (token, finalizer)
 
-    @_prepared_statement(
-        "SELECT * FROM content WHERE "
-        + " AND ".join(map("%s = ?".__mod__, HASH_ALGORITHMS))
+    @_prepared_select_statement(
+        ContentRow, f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}"
     )
     def content_get_from_pk(
         self, content_hashes: Dict[str, bytes], *, statement
-    ) -> Optional[Row]:
+    ) -> Optional[ContentRow]:
         rows = list(
             self._execute_with_retries(
                 statement, [content_hashes[algo] for algo in HASH_ALGORITHMS]
@@ -253,38 +321,44 @@ class CqlRunner:
         )
         assert len(rows) <= 1
         if rows:
-            return rows[0]
+            return ContentRow(**rows[0])
         else:
             return None
 
-    @_prepared_statement(
-        "SELECT * FROM content WHERE token(" + ", ".join(_content_pk) + ") = ?"
+    @_prepared_select_statement(
+        ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) = ?"
     )
-    def content_get_from_token(self, token, *, statement) -> Iterable[Row]:
-        return self._execute_with_retries(statement, [token])
+    def content_get_from_token(self, token, *, statement) -> Iterable[ContentRow]:
+        return map(ContentRow.from_dict, self._execute_with_retries(statement, [token]))
 
-    @_prepared_statement(
-        "SELECT * FROM content WHERE token(%s) > ? LIMIT 1" % ", ".join(_content_pk)
+    @_prepared_select_statement(
+        ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) > ? LIMIT 1"
     )
-    def content_get_random(self, *, statement) -> Optional[Row]:
-        return self._get_random_row(statement)
+    def content_get_random(self, *, statement) -> Optional[ContentRow]:
+        return self._get_random_row(ContentRow, statement)
 
     @_prepared_statement(
         (
             "SELECT token({0}) AS tok, {1} FROM content "
             "WHERE token({0}) >= ? AND token({0}) <= ? LIMIT ?"
-        ).format(", ".join(_content_pk), ", ".join(_content_keys))
+        ).format(", ".join(ContentRow.PARTITION_KEY), ", ".join(ContentRow.cols()))
     )
     def content_get_token_range(
         self, start: int, end: int, limit: int, *, statement
-    ) -> Iterable[Row]:
-        return self._execute_with_retries(statement, [start, end, limit])
+    ) -> Iterable[Tuple[int, ContentRow]]:
+        """Returns an iterable of (token, row)"""
+        return (
+            (row["tok"], ContentRow.from_dict(remove_keys(row, ("tok",))))
+            for row in self._execute_with_retries(statement, [start, end, limit])
+        )
 
     ##########################
     # 'content_by_*' tables
     ##########################
 
-    @_prepared_statement("SELECT sha1_git FROM content_by_sha1_git WHERE sha1_git IN ?")
+    @_prepared_statement(
+        "SELECT sha1_git AS id FROM content_by_sha1_git WHERE sha1_git IN ?"
+    )
     def content_missing_by_sha1_git(
         self, ids: List[bytes], *, statement
     ) -> List[bytes]:
@@ -303,24 +377,14 @@ class CqlRunner:
     ) -> Iterable[int]:
         assert algo in HASH_ALGORITHMS
         query = f"SELECT target_token FROM content_by_{algo} WHERE {algo} = %s"
-        return (tok for (tok,) in self._execute_with_retries(query, [hash_]))
+        return (
+            row["target_token"] for row in self._execute_with_retries(query, [hash_])
+        )
 
     ##########################
     # 'skipped_content' table
     ##########################
 
-    _skipped_content_pk = ["sha1", "sha1_git", "sha256", "blake2s256"]
-    _skipped_content_keys = [
-        "sha1",
-        "sha1_git",
-        "sha256",
-        "blake2s256",
-        "length",
-        "ctime",
-        "status",
-        "reason",
-        "origin",
-    ]
     _magic_null_pk = b"<null>"
     """
     NULLs (or all-empty blobs) are not allowed in primary keys; instead use a
@@ -333,7 +397,7 @@ class CqlRunner:
         self._execute_with_retries(statement, None)
         self._increment_counter("skipped_content", 1)
 
-    @_prepared_insert_statement("skipped_content", _skipped_content_keys)
+    @_prepared_insert_statement(SkippedContentRow)
     def skipped_content_add_prepare(
         self, content, *, statement
     ) -> Tuple[int, Callable[[], None]]:
@@ -343,21 +407,18 @@ class CqlRunner:
 
         # Replace NULLs (which are not allowed in the partition key) with
         # an empty byte string
-        content = content.to_dict()
-        for key in self._skipped_content_pk:
-            if content[key] is None:
-                content[key] = self._magic_null_pk
+        for key in SkippedContentRow.PARTITION_KEY:
+            if getattr(content, key) is None:
+                setattr(content, key, self._magic_null_pk)
 
-        statement = statement.bind(
-            [content.get(key) for key in self._skipped_content_keys]
-        )
+        statement = statement.bind(dataclasses.astuple(content))
 
         # Type used for hashing keys (usually, it will be
         # cassandra.metadata.Murmur3Token)
         token_class = self._cluster.metadata.token_map.token_class
 
         # Token of the row when it will be inserted. This is equivalent to
-        # "SELECT token({', '.join(self._content_pk)})
+        # "SELECT token({', '.join(SkippedContentRow.PARTITION_KEY)})
         #  FROM skipped_content WHERE ..."
         # after the row is inserted; but we need the token to insert in the
         # index tables *before* inserting to the main 'skipped_content' table
@@ -370,13 +431,13 @@ class CqlRunner:
 
         return (token, finalizer)
 
-    @_prepared_statement(
-        "SELECT * FROM skipped_content WHERE "
-        + " AND ".join(map("%s = ?".__mod__, HASH_ALGORITHMS))
+    @_prepared_select_statement(
+        SkippedContentRow,
+        f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}",
     )
     def skipped_content_get_from_pk(
         self, content_hashes: Dict[str, bytes], *, statement
-    ) -> Optional[Row]:
+    ) -> Optional[SkippedContentRow]:
         rows = list(
             self._execute_with_retries(
                 statement,
@@ -389,7 +450,7 @@ class CqlRunner:
         assert len(rows) <= 1
         if rows:
             # TODO: convert _magic_null_pk back to None?
-            return rows[0]
+            return SkippedContentRow.from_dict(rows[0])
         else:
             return None
 
@@ -414,218 +475,194 @@ class CqlRunner:
     # 'revision' table
     ##########################
 
-    _revision_keys = [
-        "id",
-        "date",
-        "committer_date",
-        "type",
-        "directory",
-        "message",
-        "author",
-        "committer",
-        "synthetic",
-        "metadata",
-        "extra_headers",
-    ]
-
     @_prepared_exists_statement("revision")
     def revision_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
         return self._missing(statement, ids)
 
-    @_prepared_insert_statement("revision", _revision_keys)
-    def revision_add_one(self, revision: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(
-            statement, [revision[key] for key in self._revision_keys]
-        )
-        self._increment_counter("revision", 1)
+    @_prepared_insert_statement(RevisionRow)
+    def revision_add_one(self, revision: RevisionRow, *, statement) -> None:
+        self._add_one(statement, revision)
 
     @_prepared_statement("SELECT id FROM revision WHERE id IN ?")
-    def revision_get_ids(self, revision_ids, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [revision_ids])
+    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[int]:
+        return (
+            row["id"] for row in self._execute_with_retries(statement, [revision_ids])
+        )
 
-    @_prepared_statement("SELECT * FROM revision WHERE id IN ?")
-    def revision_get(self, revision_ids, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [revision_ids])
+    @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
+    def revision_get(
+        self, revision_ids: List[Sha1Git], *, statement
+    ) -> Iterable[RevisionRow]:
+        return map(
+            RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
+        )
 
-    @_prepared_statement("SELECT * FROM revision WHERE token(id) > ? LIMIT 1")
-    def revision_get_random(self, *, statement) -> Optional[Row]:
-        return self._get_random_row(statement)
+    @_prepared_select_statement(RevisionRow, "WHERE token(id) > ? LIMIT 1")
+    def revision_get_random(self, *, statement) -> Optional[RevisionRow]:
+        return self._get_random_row(RevisionRow, statement)
 
     ##########################
     # 'revision_parent' table
     ##########################
 
-    _revision_parent_keys = ["id", "parent_rank", "parent_id"]
-
-    @_prepared_insert_statement("revision_parent", _revision_parent_keys)
+    @_prepared_insert_statement(RevisionParentRow)
     def revision_parent_add_one(
-        self, id_: Sha1Git, parent_rank: int, parent_id: Sha1Git, *, statement
+        self, revision_parent: RevisionParentRow, *, statement
     ) -> None:
-        self._execute_with_retries(statement, [id_, parent_rank, parent_id])
+        self._add_one(statement, revision_parent)
 
     @_prepared_statement("SELECT parent_id FROM revision_parent WHERE id = ?")
-    def revision_parent_get(self, revision_id: Sha1Git, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [revision_id])
+    def revision_parent_get(
+        self, revision_id: Sha1Git, *, statement
+    ) -> Iterable[bytes]:
+        return (
+            row["parent_id"]
+            for row in self._execute_with_retries(statement, [revision_id])
+        )
 
     ##########################
     # 'release' table
     ##########################
 
-    _release_keys = [
-        "id",
-        "target",
-        "target_type",
-        "date",
-        "name",
-        "message",
-        "author",
-        "synthetic",
-    ]
-
     @_prepared_exists_statement("release")
     def release_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
         return self._missing(statement, ids)
 
-    @_prepared_insert_statement("release", _release_keys)
-    def release_add_one(self, release: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(
-            statement, [release[key] for key in self._release_keys]
+    @_prepared_insert_statement(ReleaseRow)
+    def release_add_one(self, release: ReleaseRow, *, statement) -> None:
+        self._add_one(statement, release)
+
+    @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
+    def release_get(self, release_ids: List[str], *, statement) -> Iterable[ReleaseRow]:
+        return map(
+            ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
         )
-        self._increment_counter("release", 1)
 
-    @_prepared_statement("SELECT * FROM release WHERE id in ?")
-    def release_get(self, release_ids: List[str], *, statement) -> None:
-        return self._execute_with_retries(statement, [release_ids])
-
-    @_prepared_statement("SELECT * FROM release WHERE token(id) > ? LIMIT 1")
-    def release_get_random(self, *, statement) -> Optional[Row]:
-        return self._get_random_row(statement)
+    @_prepared_select_statement(ReleaseRow, "WHERE token(id) > ? LIMIT 1")
+    def release_get_random(self, *, statement) -> Optional[ReleaseRow]:
+        return self._get_random_row(ReleaseRow, statement)
 
     ##########################
     # 'directory' table
     ##########################
 
-    _directory_keys = ["id"]
-
     @_prepared_exists_statement("directory")
     def directory_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
         return self._missing(statement, ids)
 
-    @_prepared_insert_statement("directory", _directory_keys)
-    def directory_add_one(self, directory_id: Sha1Git, *, statement) -> None:
+    @_prepared_insert_statement(DirectoryRow)
+    def directory_add_one(self, directory: DirectoryRow, *, statement) -> None:
         """Called after all calls to directory_entry_add_one, to
         commit/finalize the directory."""
-        self._execute_with_retries(statement, [directory_id])
-        self._increment_counter("directory", 1)
+        self._add_one(statement, directory)
 
-    @_prepared_statement("SELECT * FROM directory WHERE token(id) > ? LIMIT 1")
-    def directory_get_random(self, *, statement) -> Optional[Row]:
-        return self._get_random_row(statement)
+    @_prepared_select_statement(DirectoryRow, "WHERE token(id) > ? LIMIT 1")
+    def directory_get_random(self, *, statement) -> Optional[DirectoryRow]:
+        return self._get_random_row(DirectoryRow, statement)
 
     ##########################
     # 'directory_entry' table
     ##########################
 
-    _directory_entry_keys = ["directory_id", "name", "type", "target", "perms"]
+    @_prepared_insert_statement(DirectoryEntryRow)
+    def directory_entry_add_one(self, entry: DirectoryEntryRow, *, statement) -> None:
+        self._add_one(statement, entry)
 
-    @_prepared_insert_statement("directory_entry", _directory_entry_keys)
-    def directory_entry_add_one(self, entry: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(
-            statement, [entry[key] for key in self._directory_entry_keys]
+    @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
+    def directory_entry_get(
+        self, directory_ids, *, statement
+    ) -> Iterable[DirectoryEntryRow]:
+        return map(
+            DirectoryEntryRow.from_dict,
+            self._execute_with_retries(statement, [directory_ids]),
         )
-
-    @_prepared_statement("SELECT * FROM directory_entry WHERE directory_id IN ?")
-    def directory_entry_get(self, directory_ids, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [directory_ids])
 
     ##########################
     # 'snapshot' table
     ##########################
 
-    _snapshot_keys = ["id"]
-
     @_prepared_exists_statement("snapshot")
     def snapshot_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
         return self._missing(statement, ids)
 
-    @_prepared_insert_statement("snapshot", _snapshot_keys)
-    def snapshot_add_one(self, snapshot_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [snapshot_id])
-        self._increment_counter("snapshot", 1)
+    @_prepared_insert_statement(SnapshotRow)
+    def snapshot_add_one(self, snapshot: SnapshotRow, *, statement) -> None:
+        self._add_one(statement, snapshot)
 
-    @_prepared_statement("SELECT * FROM snapshot WHERE id = ?")
-    def snapshot_get(self, snapshot_id: Sha1Git, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [snapshot_id])
-
-    @_prepared_statement("SELECT * FROM snapshot WHERE token(id) > ? LIMIT 1")
-    def snapshot_get_random(self, *, statement) -> Optional[Row]:
-        return self._get_random_row(statement)
+    @_prepared_select_statement(SnapshotRow, "WHERE token(id) > ? LIMIT 1")
+    def snapshot_get_random(self, *, statement) -> Optional[SnapshotRow]:
+        return self._get_random_row(SnapshotRow, statement)
 
     ##########################
     # 'snapshot_branch' table
     ##########################
 
-    _snapshot_branch_keys = ["snapshot_id", "name", "target_type", "target"]
-
-    @_prepared_insert_statement("snapshot_branch", _snapshot_branch_keys)
-    def snapshot_branch_add_one(self, branch: Dict[str, Any], *, statement) -> None:
-        self._execute_with_retries(
-            statement, [branch[key] for key in self._snapshot_branch_keys]
-        )
+    @_prepared_insert_statement(SnapshotBranchRow)
+    def snapshot_branch_add_one(self, branch: SnapshotBranchRow, *, statement) -> None:
+        self._add_one(statement, branch)
 
     @_prepared_statement(
         "SELECT ascii_bins_count(target_type) AS counts "
         "FROM snapshot_branch "
         "WHERE snapshot_id = ? "
     )
-    def snapshot_count_branches(self, snapshot_id: Sha1Git, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [snapshot_id])
+    def snapshot_count_branches(
+        self, snapshot_id: Sha1Git, *, statement
+    ) -> Dict[Optional[str], int]:
+        """Returns a dictionary from type names to the number of branches
+        of that type."""
+        row = self._execute_with_retries(statement, [snapshot_id]).one()
+        (nb_none, counts) = row["counts"]
+        return {None: nb_none, **counts}
 
-    @_prepared_statement(
-        "SELECT * FROM snapshot_branch WHERE snapshot_id = ? AND name >= ? LIMIT ?"
+    @_prepared_select_statement(
+        SnapshotBranchRow, "WHERE snapshot_id = ? AND name >= ? LIMIT ?"
     )
     def snapshot_branch_get(
         self, snapshot_id: Sha1Git, from_: bytes, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [snapshot_id, from_, limit])
+    ) -> Iterable[SnapshotBranchRow]:
+        return map(
+            SnapshotBranchRow.from_dict,
+            self._execute_with_retries(statement, [snapshot_id, from_, limit]),
+        )
 
     ##########################
     # 'origin' table
     ##########################
 
-    origin_keys = ["sha1", "url", "type", "next_visit_id"]
+    @_prepared_insert_statement(OriginRow)
+    def origin_add_one(self, origin: OriginRow, *, statement) -> None:
+        self._add_one(statement, origin)
 
-    @_prepared_statement(
-        "INSERT INTO origin (sha1, url, next_visit_id) "
-        "VALUES (?, ?, 1) IF NOT EXISTS"
-    )
-    def origin_add_one(self, origin: Origin, *, statement) -> None:
-        self._execute_with_retries(statement, [hash_url(origin.url), origin.url])
-        self._increment_counter("origin", 1)
+    @_prepared_select_statement(OriginRow, "WHERE sha1 = ?")
+    def origin_get_by_sha1(self, sha1: bytes, *, statement) -> Iterable[OriginRow]:
+        return map(OriginRow.from_dict, self._execute_with_retries(statement, [sha1]))
 
-    @_prepared_statement("SELECT * FROM origin WHERE sha1 = ?")
-    def origin_get_by_sha1(self, sha1: bytes, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [sha1])
-
-    def origin_get_by_url(self, url: str) -> ResultSet:
+    def origin_get_by_url(self, url: str) -> Iterable[OriginRow]:
         return self.origin_get_by_sha1(hash_url(url))
 
     @_prepared_statement(
-        f'SELECT token(sha1) AS tok, {", ".join(origin_keys)} '
+        f'SELECT token(sha1) AS tok, {", ".join(OriginRow.cols())} '
         f"FROM origin WHERE token(sha1) >= ? LIMIT ?"
     )
-    def origin_list(self, start_token: int, limit: int, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [start_token, limit])
+    def origin_list(
+        self, start_token: int, limit: int, *, statement
+    ) -> Iterable[Tuple[int, OriginRow]]:
+        """Returns an iterable of (token, origin)"""
+        return (
+            (row["tok"], OriginRow.from_dict(remove_keys(row, ("tok",))))
+            for row in self._execute_with_retries(statement, [start_token, limit])
+        )
 
-    @_prepared_statement("SELECT * FROM origin")
-    def origin_iter_all(self, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [])
+    @_prepared_select_statement(OriginRow)
+    def origin_iter_all(self, *, statement) -> Iterable[OriginRow]:
+        return map(OriginRow.from_dict, self._execute_with_retries(statement, []))
 
     @_prepared_statement("SELECT next_visit_id FROM origin WHERE sha1 = ?")
     def _origin_get_next_visit_id(self, origin_sha1: bytes, *, statement) -> int:
         rows = list(self._execute_with_retries(statement, [origin_sha1]))
         assert len(rows) == 1  # TODO: error handling
-        return rows[0].next_visit_id
+        return rows[0]["next_visit_id"]
 
     @_prepared_statement(
         "UPDATE origin SET next_visit_id=? WHERE sha1 = ? IF next_visit_id=?"
@@ -640,12 +677,12 @@ class CqlRunner:
                 )
             )
             assert len(res) == 1
-            if res[0].applied:
+            if res[0]["[applied]"]:
                 # No data race
                 return next_id
             else:
                 # Someone else updated it before we did, let's try again
-                next_id = res[0].next_visit_id
+                next_id = res[0]["next_visit_id"]
                 # TODO: abort after too many attempts
 
         return next_id
@@ -654,162 +691,109 @@ class CqlRunner:
     # 'origin_visit' table
     ##########################
 
-    _origin_visit_keys = [
-        "origin",
-        "visit",
-        "type",
-        "date",
-    ]
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? AND visit > ? "
-        "ORDER BY visit ASC"
+    @_prepared_select_statements(
+        OriginVisitRow,
+        {
+            (True, ListOrder.ASC): (
+                "WHERE origin = ? AND visit > ? ORDER BY visit ASC LIMIT ?"
+            ),
+            (True, ListOrder.DESC): (
+                "WHERE origin = ? AND visit < ? ORDER BY visit DESC LIMIT ?"
+            ),
+            (False, ListOrder.ASC): "WHERE origin = ? ORDER BY visit ASC LIMIT ?",
+            (False, ListOrder.DESC): "WHERE origin = ? ORDER BY visit DESC LIMIT ?",
+        },
     )
-    def _origin_visit_get_pagination_asc_no_limit(
-        self, origin_url: str, last_visit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, last_visit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? AND visit > ? "
-        "ORDER BY visit ASC "
-        "LIMIT ?"
-    )
-    def _origin_visit_get_pagination_asc_limit(
-        self, origin_url: str, last_visit: int, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, last_visit, limit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? AND visit < ? "
-        "ORDER BY visit DESC"
-    )
-    def _origin_visit_get_pagination_desc_no_limit(
-        self, origin_url: str, last_visit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, last_visit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? AND visit < ? "
-        "ORDER BY visit DESC "
-        "LIMIT ?"
-    )
-    def _origin_visit_get_pagination_desc_limit(
-        self, origin_url: str, last_visit: int, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, last_visit, limit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit ASC LIMIT ?"
-    )
-    def _origin_visit_get_no_pagination_asc_limit(
-        self, origin_url: str, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, limit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit ASC "
-    )
-    def _origin_visit_get_no_pagination_asc_no_limit(
-        self, origin_url: str, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit DESC"
-    )
-    def _origin_visit_get_no_pagination_desc_no_limit(
-        self, origin_url: str, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit WHERE origin = ? ORDER BY visit DESC LIMIT ?"
-    )
-    def _origin_visit_get_no_pagination_desc_limit(
-        self, origin_url: str, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url, limit])
-
     def origin_visit_get(
         self,
         origin_url: str,
         last_visit: Optional[int],
-        limit: Optional[int],
+        limit: int,
         order: ListOrder,
-    ) -> ResultSet:
+        *,
+        statements,
+    ) -> Iterable[OriginVisitRow]:
         args: List[Any] = [origin_url]
 
         if last_visit is not None:
-            page_name = "pagination"
             args.append(last_visit)
+
+        args.append(limit)
+
+        statement = statements[(last_visit is not None, order)]
+        return map(
+            OriginVisitRow.from_dict, self._execute_with_retries(statement, args)
+        )
+
+    @_prepared_insert_statement(OriginVisitRow)
+    def origin_visit_add_one(self, visit: OriginVisitRow, *, statement) -> None:
+        self._add_one(statement, visit)
+
+    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ? AND visit = ?")
+    def origin_visit_get_one(
+        self, origin_url: str, visit_id: int, *, statement
+    ) -> Optional[OriginVisitRow]:
+        # TODO: error handling
+        rows = list(self._execute_with_retries(statement, [origin_url, visit_id]))
+        if rows:
+            return OriginVisitRow.from_dict(rows[0])
         else:
-            page_name = "no_pagination"
+            return None
 
-        if limit is not None:
-            limit_name = "limit"
-            args.append(limit)
-        else:
-            limit_name = "no_limit"
+    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ?")
+    def origin_visit_get_all(
+        self, origin_url: str, *, statement
+    ) -> Iterable[OriginVisitRow]:
+        return map(
+            OriginVisitRow.from_dict,
+            self._execute_with_retries(statement, [origin_url]),
+        )
 
-        method_name = f"_origin_visit_get_{page_name}_{order.value}_{limit_name}"
-        origin_visit_get_method = getattr(self, method_name)
-        return origin_visit_get_method(*args)
+    @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) >= ?")
+    def _origin_visit_iter_from(
+        self, min_token: int, *, statement
+    ) -> Iterable[OriginVisitRow]:
+        return map(
+            OriginVisitRow.from_dict, self._execute_with_retries(statement, [min_token])
+        )
 
-    @_prepared_statement(
-        "SELECT * FROM origin_visit_status WHERE origin = ? "
-        "AND visit = ? AND date >= ? "
-        "ORDER BY date ASC "
-        "LIMIT ?"
+    @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) < ?")
+    def _origin_visit_iter_to(
+        self, max_token: int, *, statement
+    ) -> Iterable[OriginVisitRow]:
+        return map(
+            OriginVisitRow.from_dict, self._execute_with_retries(statement, [max_token])
+        )
+
+    def origin_visit_iter(self, start_token: int) -> Iterator[OriginVisitRow]:
+        """Returns all origin visits in order from this token,
+        and wraps around the token space."""
+        yield from self._origin_visit_iter_from(start_token)
+        yield from self._origin_visit_iter_to(start_token)
+
+    ##########################
+    # 'origin_visit_status' table
+    ##########################
+
+    @_prepared_select_statements(
+        OriginVisitStatusRow,
+        {
+            (True, ListOrder.ASC): (
+                "WHERE origin = ? AND visit = ? AND date >= ? "
+                "ORDER BY visit ASC LIMIT ?"
+            ),
+            (True, ListOrder.DESC): (
+                "WHERE origin = ? AND visit = ? AND date <= ? "
+                "ORDER BY visit DESC LIMIT ?"
+            ),
+            (False, ListOrder.ASC): (
+                "WHERE origin = ? AND visit = ? ORDER BY visit ASC LIMIT ?"
+            ),
+            (False, ListOrder.DESC): (
+                "WHERE origin = ? AND visit = ? ORDER BY visit DESC LIMIT ?"
+            ),
+        },
     )
-    def _origin_visit_status_get_with_date_asc_limit(
-        self,
-        origin: str,
-        visit: int,
-        date_from: datetime.datetime,
-        limit: int,
-        *,
-        statement,
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin, visit, date_from, limit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit_status WHERE origin = ? "
-        "AND visit = ? AND date <= ? "
-        "ORDER BY visit DESC "
-        "LIMIT ?"
-    )
-    def _origin_visit_status_get_with_date_desc_limit(
-        self,
-        origin: str,
-        visit: int,
-        date_from: datetime.datetime,
-        limit: int,
-        *,
-        statement,
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin, visit, date_from, limit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit_status WHERE origin = ? AND visit = ? "
-        "ORDER BY visit ASC "
-        "LIMIT ?"
-    )
-    def _origin_visit_status_get_with_no_date_asc_limit(
-        self, origin: str, visit: int, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin, visit, limit])
-
-    @_prepared_statement(
-        "SELECT * FROM origin_visit_status WHERE origin = ? AND visit = ? "
-        "ORDER BY visit DESC "
-        "LIMIT ?"
-    )
-    def _origin_visit_status_get_with_no_date_desc_limit(
-        self, origin: str, visit: int, limit: int, *, statement
-    ) -> ResultSet:
-        return self._execute_with_retries(statement, [origin, visit, limit])
-
     def origin_visit_status_get_range(
         self,
         origin: str,
@@ -817,173 +801,97 @@ class CqlRunner:
         date_from: Optional[datetime.datetime],
         limit: int,
         order: ListOrder,
-    ) -> ResultSet:
+        *,
+        statements,
+    ) -> Iterable[OriginVisitStatusRow]:
         args: List[Any] = [origin, visit]
 
         if date_from is not None:
-            date_name = "date"
             args.append(date_from)
-        else:
-            date_name = "no_date"
 
         args.append(limit)
 
-        method_name = f"_origin_visit_status_get_with_{date_name}_{order.value}_limit"
-        origin_visit_status_get_method = getattr(self, method_name)
-        return origin_visit_status_get_method(*args)
+        statement = statements[(date_from is not None, order)]
 
-    @_prepared_insert_statement("origin_visit", _origin_visit_keys)
-    def origin_visit_add_one(self, visit: OriginVisit, *, statement) -> None:
-        self._add_one(statement, "origin_visit", visit, self._origin_visit_keys)
+        return map(
+            OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)
+        )
 
-    _origin_visit_status_keys = [
-        "origin",
-        "visit",
-        "date",
-        "status",
-        "snapshot",
-        "metadata",
-    ]
-
-    @_prepared_insert_statement("origin_visit_status", _origin_visit_status_keys)
+    @_prepared_insert_statement(OriginVisitStatusRow)
     def origin_visit_status_add_one(
-        self, visit_update: OriginVisitStatus, *, statement
+        self, visit_update: OriginVisitStatusRow, *, statement
     ) -> None:
-        assert self._origin_visit_status_keys[-1] == "metadata"
-        keys = self._origin_visit_status_keys
+        self._add_one(statement, visit_update)
 
-        metadata = json.dumps(
-            dict(visit_update.metadata) if visit_update.metadata is not None else None
-        )
-        self._execute_with_retries(
-            statement, [getattr(visit_update, key) for key in keys[:-1]] + [metadata]
-        )
-
-    def origin_visit_status_get_latest(self, origin: str, visit: int,) -> Optional[Row]:
+    def origin_visit_status_get_latest(
+        self, origin: str, visit: int,
+    ) -> Optional[OriginVisitStatusRow]:
         """Given an origin visit id, return its latest origin_visit_status
 
          """
-        rows = self.origin_visit_status_get(origin, visit)
-        return rows[0] if rows else None
+        return next(self.origin_visit_status_get(origin, visit), None)
 
-    @_prepared_statement(
-        "SELECT * FROM origin_visit_status "
-        "WHERE origin = ? AND visit = ? "
-        "ORDER BY date DESC"
+    @_prepared_select_statement(
+        OriginVisitStatusRow, "WHERE origin = ? AND visit = ? ORDER BY date DESC"
     )
     def origin_visit_status_get(
-        self,
-        origin: str,
-        visit: int,
-        allowed_statuses: Optional[List[str]] = None,
-        require_snapshot: bool = False,
-        *,
-        statement,
-    ) -> List[Row]:
+        self, origin: str, visit: int, *, statement,
+    ) -> Iterator[OriginVisitStatusRow]:
         """Return all origin visit statuses for a given visit
 
         """
-        return list(self._execute_with_retries(statement, [origin, visit]))
-
-    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ? AND visit = ?")
-    def origin_visit_get_one(
-        self, origin_url: str, visit_id: int, *, statement
-    ) -> Optional[Row]:
-        # TODO: error handling
-        rows = list(self._execute_with_retries(statement, [origin_url, visit_id]))
-        if rows:
-            return rows[0]
-        else:
-            return None
-
-    @_prepared_statement("SELECT * FROM origin_visit WHERE origin = ?")
-    def origin_visit_get_all(self, origin_url: str, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [origin_url])
-
-    @_prepared_statement("SELECT * FROM origin_visit WHERE token(origin) >= ?")
-    def _origin_visit_iter_from(self, min_token: int, *, statement) -> Iterator[Row]:
-        yield from self._execute_with_retries(statement, [min_token])
-
-    @_prepared_statement("SELECT * FROM origin_visit WHERE token(origin) < ?")
-    def _origin_visit_iter_to(self, max_token: int, *, statement) -> Iterator[Row]:
-        yield from self._execute_with_retries(statement, [max_token])
-
-    def origin_visit_iter(self, start_token: int) -> Iterator[Row]:
-        """Returns all origin visits in order from this token,
-        and wraps around the token space."""
-        yield from self._origin_visit_iter_from(start_token)
-        yield from self._origin_visit_iter_to(start_token)
+        return map(
+            OriginVisitStatusRow.from_dict,
+            self._execute_with_retries(statement, [origin, visit]),
+        )
 
     ##########################
     # 'metadata_authority' table
     ##########################
 
-    _metadata_authority_keys = ["url", "type", "metadata"]
+    @_prepared_insert_statement(MetadataAuthorityRow)
+    def metadata_authority_add(self, authority: MetadataAuthorityRow, *, statement):
+        self._add_one(statement, authority)
 
-    @_prepared_insert_statement("metadata_authority", _metadata_authority_keys)
-    def metadata_authority_add(self, url, type, metadata, *, statement):
-        return self._execute_with_retries(statement, [url, type, metadata])
-
-    @_prepared_statement("SELECT * from metadata_authority WHERE type = ? AND url = ?")
-    def metadata_authority_get(self, type, url, *, statement) -> Optional[Row]:
-        return next(iter(self._execute_with_retries(statement, [type, url])), None)
+    @_prepared_select_statement(MetadataAuthorityRow, "WHERE type = ? AND url = ?")
+    def metadata_authority_get(
+        self, type, url, *, statement
+    ) -> Optional[MetadataAuthorityRow]:
+        rows = list(self._execute_with_retries(statement, [type, url]))
+        if rows:
+            return MetadataAuthorityRow.from_dict(rows[0])
+        else:
+            return None
 
     ##########################
     # 'metadata_fetcher' table
     ##########################
 
-    _metadata_fetcher_keys = ["name", "version", "metadata"]
+    @_prepared_insert_statement(MetadataFetcherRow)
+    def metadata_fetcher_add(self, fetcher, *, statement):
+        self._add_one(statement, fetcher)
 
-    @_prepared_insert_statement("metadata_fetcher", _metadata_fetcher_keys)
-    def metadata_fetcher_add(self, name, version, metadata, *, statement):
-        return self._execute_with_retries(statement, [name, version, metadata])
-
-    @_prepared_statement(
-        "SELECT * from metadata_fetcher WHERE name = ? AND version = ?"
-    )
-    def metadata_fetcher_get(self, name, version, *, statement) -> Optional[Row]:
-        return next(iter(self._execute_with_retries(statement, [name, version])), None)
+    @_prepared_select_statement(MetadataFetcherRow, "WHERE name = ? AND version = ?")
+    def metadata_fetcher_get(
+        self, name, version, *, statement
+    ) -> Optional[MetadataFetcherRow]:
+        rows = list(self._execute_with_retries(statement, [name, version]))
+        if rows:
+            return MetadataFetcherRow.from_dict(rows[0])
+        else:
+            return None
 
     #########################
     # 'raw_extrinsic_metadata' table
     #########################
 
-    _raw_extrinsic_metadata_keys = [
-        "type",
-        "id",
-        "authority_type",
-        "authority_url",
-        "discovery_date",
-        "fetcher_name",
-        "fetcher_version",
-        "format",
-        "metadata",
-        "origin",
-        "visit",
-        "snapshot",
-        "release",
-        "revision",
-        "path",
-        "directory",
-    ]
+    @_prepared_insert_statement(RawExtrinsicMetadataRow)
+    def raw_extrinsic_metadata_add(self, raw_extrinsic_metadata, *, statement):
+        self._add_one(statement, raw_extrinsic_metadata)
 
-    @_prepared_statement(
-        f"INSERT INTO raw_extrinsic_metadata "
-        f"  ({', '.join(_raw_extrinsic_metadata_keys)}) "
-        f"VALUES ({', '.join('?' for _ in _raw_extrinsic_metadata_keys)})"
-    )
-    def raw_extrinsic_metadata_add(
-        self, statement, **kwargs,
-    ):
-        assert set(kwargs) == set(
-            self._raw_extrinsic_metadata_keys
-        ), f"Bad kwargs: {set(kwargs)}"
-        params = [kwargs[key] for key in self._raw_extrinsic_metadata_keys]
-        return self._execute_with_retries(statement, params,)
-
-    @_prepared_statement(
-        "SELECT * from raw_extrinsic_metadata "
-        "WHERE id=? AND authority_url=? AND discovery_date>? AND authority_type=?"
+    @_prepared_select_statement(
+        RawExtrinsicMetadataRow,
+        "WHERE id=? AND authority_url=? AND discovery_date>? AND authority_type=?",
     )
     def raw_extrinsic_metadata_get_after_date(
         self,
@@ -993,15 +901,18 @@ class CqlRunner:
         after: datetime.datetime,
         *,
         statement,
-    ):
-        return self._execute_with_retries(
-            statement, [id, authority_url, after, authority_type]
+    ) -> Iterable[RawExtrinsicMetadataRow]:
+        return map(
+            RawExtrinsicMetadataRow.from_dict,
+            self._execute_with_retries(
+                statement, [id, authority_url, after, authority_type]
+            ),
         )
 
-    @_prepared_statement(
-        "SELECT * from raw_extrinsic_metadata "
+    @_prepared_select_statement(
+        RawExtrinsicMetadataRow,
         "WHERE id=? AND authority_type=? AND authority_url=? "
-        "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)"
+        "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)",
     )
     def raw_extrinsic_metadata_get_after_date_and_fetcher(
         self,
@@ -1013,28 +924,31 @@ class CqlRunner:
         after_fetcher_version: str,
         *,
         statement,
-    ):
-        return self._execute_with_retries(
-            statement,
-            [
-                id,
-                authority_type,
-                authority_url,
-                after_date,
-                after_fetcher_name,
-                after_fetcher_version,
-            ],
+    ) -> Iterable[RawExtrinsicMetadataRow]:
+        return map(
+            RawExtrinsicMetadataRow.from_dict,
+            self._execute_with_retries(
+                statement,
+                [
+                    id,
+                    authority_type,
+                    authority_url,
+                    after_date,
+                    after_fetcher_name,
+                    after_fetcher_version,
+                ],
+            ),
         )
 
-    @_prepared_statement(
-        "SELECT * from raw_extrinsic_metadata "
-        "WHERE id=? AND authority_url=? AND authority_type=?"
+    @_prepared_select_statement(
+        RawExtrinsicMetadataRow, "WHERE id=? AND authority_url=? AND authority_type=?"
     )
     def raw_extrinsic_metadata_get(
         self, id: str, authority_type: str, authority_url: str, *, statement
-    ) -> Iterable[Row]:
-        return self._execute_with_retries(
-            statement, [id, authority_url, authority_type]
+    ) -> Iterable[RawExtrinsicMetadataRow]:
+        return map(
+            RawExtrinsicMetadataRow.from_dict,
+            self._execute_with_retries(statement, [id, authority_url, authority_type]),
         )
 
     ##########################
@@ -1045,8 +959,6 @@ class CqlRunner:
     def check_read(self, *, statement):
         self._execute_with_retries(statement, [])
 
-    @_prepared_statement(
-        "SELECT object_type, count FROM object_count WHERE partition_key=0"
-    )
-    def stat_counters(self, *, statement) -> ResultSet:
-        return self._execute_with_retries(statement, [])
+    @_prepared_select_statement(ObjectCountRow, "WHERE partition_key=0")
+    def stat_counters(self, *, statement) -> Iterable[ObjectCountRow]:
+        return map(ObjectCountRow.from_dict, self._execute_with_retries(statement, []))

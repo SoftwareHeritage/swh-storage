@@ -568,13 +568,13 @@ class Storage:
 
         self.journal_writer.revision_add(revisions_filtered)
 
-        revisions_filtered = list(map(converters.revision_to_db, revisions_filtered))
+        db_revisions_filtered = list(map(converters.revision_to_db, revisions_filtered))
 
         parents_filtered: List[bytes] = []
 
         with convert_validation_exceptions():
             db.copy_to(
-                revisions_filtered,
+                db_revisions_filtered,
                 "tmp_revision",
                 db.revision_add_cols,
                 cur,
@@ -610,10 +610,10 @@ class Storage:
     ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_get_from_list(revisions, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
-            if not data["type"]:
+            if not data:
                 yield None
                 continue
-            yield data
+            yield data.to_dict()
 
     @timed
     @db_transaction_generator(statement_timeout=2000)
@@ -622,10 +622,10 @@ class Storage:
     ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
-            if not data["type"]:
+            if not data:
                 yield None
                 continue
-            yield data
+            yield data.to_dict()
 
     @timed
     @db_transaction_generator(statement_timeout=2000)
@@ -659,10 +659,10 @@ class Storage:
 
         self.journal_writer.release_add(releases_filtered)
 
-        releases_filtered = list(map(converters.release_to_db, releases_filtered))
+        db_releases_filtered = list(map(converters.release_to_db, releases_filtered))
 
         with convert_validation_exceptions():
-            db.copy_to(releases_filtered, "tmp_release", db.release_add_cols, cur)
+            db.copy_to(db_releases_filtered, "tmp_release", db.release_add_cols, cur)
 
             db.release_add_from_temp(cur)
 
@@ -686,7 +686,7 @@ class Storage:
     ) -> Iterable[Optional[Dict[str, Any]]]:
         for release in db.release_get_from_list(releases, cur):
             data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
-            yield data if data["target_type"] else None
+            yield data.to_dict() if data else None
 
     @timed
     @db_transaction()
@@ -744,6 +744,8 @@ class Storage:
         self, snapshot_id: Sha1Git, db=None, cur=None
     ) -> Optional[Dict[str, Any]]:
         d = self.snapshot_get_branches(snapshot_id)
+        if d is None:
+            return d
         return {
             "id": d["id"],
             "branches": {
@@ -755,21 +757,9 @@ class Storage:
 
     @timed
     @db_transaction(statement_timeout=2000)
-    def snapshot_get_by_origin_visit(
-        self, origin: str, visit: int, db=None, cur=None
-    ) -> Optional[Dict[str, Any]]:
-        snapshot_id = db.snapshot_get_by_origin_visit(origin, visit, cur)
-
-        if snapshot_id:
-            return self.snapshot_get(snapshot_id, db=db, cur=cur)
-
-        return None
-
-    @timed
-    @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(
         self, snapshot_id: Sha1Git, db=None, cur=None
-    ) -> Optional[Dict[str, int]]:
+    ) -> Optional[Dict[Optional[str], int]]:
         return dict([bc for bc in db.snapshot_count_branches(snapshot_id, cur)])
 
     @timed
