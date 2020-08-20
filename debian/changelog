@@ -1,3 +1,16 @@
+swh-storage (0.13.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.13.2     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2020-08-20 08:59:39 +0200)
+  * Upstream changes:     - v0.13.2     - * pg: Fix crash in
+    snapshot_get when the snapshot does not exist.     - * cassandra:
+    fix signatures     - * in_memory: rewrite as a backend for the
+    cassandra storage     - * remove endpoint
+    snapshot_get_by_origin_visit.     - * pg: rewrite converters to work
+    with model objects
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 20 Aug 2020 07:18:50 +0000
+
 swh-storage (0.13.1-1~swh3) unstable-swh; urgency=medium
 
   * Update dependencies
