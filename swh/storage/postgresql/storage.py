@@ -51,7 +51,6 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.algos import diff
 from swh.storage.exc import StorageArgumentException, StorageDBError, HashCollision
 from swh.storage.interface import (
     ListOrder,
@@ -1401,18 +1400,6 @@ class Storage:
         if not row:
             return None
         return MetadataAuthority.from_dict(dict(zip(db.metadata_authority_cols, row)))
-
-    @timed
-    def diff_directories(self, from_dir, to_dir, track_renaming=False):
-        return diff.diff_directories(self, from_dir, to_dir, track_renaming)
-
-    @timed
-    def diff_revisions(self, from_rev, to_rev, track_renaming=False):
-        return diff.diff_revisions(self, from_rev, to_rev, track_renaming)
-
-    @timed
-    def diff_revision(self, revision, track_renaming=False):
-        return diff.diff_revision(self, revision, track_renaming)
 
     def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing

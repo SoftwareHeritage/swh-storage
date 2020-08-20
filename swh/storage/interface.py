@@ -1188,61 +1188,6 @@ class StorageInterface:
         """
         ...
 
-    @deprecated
-    @remote_api_endpoint("algos/diff_directories")
-    def diff_directories(self, from_dir, to_dir, track_renaming=False):
-        """Compute the list of file changes introduced between two arbitrary
-        directories (insertion / deletion / modification / renaming of files).
-
-        Args:
-            from_dir (bytes): identifier of the directory to compare from
-            to_dir (bytes): identifier of the directory to compare to
-            track_renaming (bool): whether or not to track files renaming
-
-        Returns:
-            A list of dict describing the introduced file changes
-            (see :func:`swh.storage.algos.diff.diff_directories`
-            for more details).
-        """
-        ...
-
-    @deprecated
-    @remote_api_endpoint("algos/diff_revisions")
-    def diff_revisions(self, from_rev, to_rev, track_renaming=False):
-        """Compute the list of file changes introduced between two arbitrary
-        revisions (insertion / deletion / modification / renaming of files).
-
-        Args:
-            from_rev (bytes): identifier of the revision to compare from
-            to_rev (bytes): identifier of the revision to compare to
-            track_renaming (bool): whether or not to track files renaming
-
-        Returns:
-            A list of dict describing the introduced file changes
-            (see :func:`swh.storage.algos.diff.diff_directories`
-            for more details).
-        """
-        ...
-
-    @deprecated
-    @remote_api_endpoint("algos/diff_revision")
-    def diff_revision(self, revision, track_renaming=False):
-        """Compute the list of file changes introduced by a specific revision
-        (insertion / deletion / modification / renaming of files) by comparing
-        it against its first parent.
-
-        Args:
-            revision (bytes): identifier of the revision from which to
-                compute the list of files changes
-            track_renaming (bool): whether or not to track files renaming
-
-        Returns:
-            A list of dict describing the introduced file changes
-            (see :func:`swh.storage.algos.diff.diff_directories`
-            for more details).
-        """
-        ...
-
     @remote_api_endpoint("clear/buffer")
     def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """For backend storages (pg, storage, in-memory), this is a noop operation. For proxy
