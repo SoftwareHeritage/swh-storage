@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterable
+from typing import Any, Dict, Iterable
 
 from attr import evolve
 
@@ -57,7 +57,7 @@ class JournalWriter:
         contents = [evolve(item, data=None) for item in contents]
         self.write_additions("content", contents)
 
-    def content_update(self, contents: Iterable[Content]) -> None:
+    def content_update(self, contents: Iterable[Dict[str, Any]]) -> None:
         if self.journal:
             raise NotImplementedError("content_update is not supported by the journal.")
 

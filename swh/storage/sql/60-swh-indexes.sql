@@ -81,6 +81,20 @@ alter table revision validate constraint revision_author_fkey;
 alter table revision add constraint revision_committer_fkey foreign key (committer) references person(id) not valid;
 alter table revision validate constraint revision_committer_fkey;
 
+alter table revision
+    add constraint revision_date_neg_utc_offset_not_null
+    check (date is null or date_neg_utc_offset is not null)
+    not valid;
+alter table revision
+    add constraint revision_committer_date_neg_utc_offset_not_null
+    check (committer_date is null or committer_date_neg_utc_offset is not null)
+    not valid;
+
+alter table revision
+    validate constraint revision_date_neg_utc_offset_not_null;
+alter table revision
+    validate constraint revision_committer_date_neg_utc_offset_not_null;
+
 create index concurrently on revision(directory);
 create unique index concurrently on revision(object_id);
 
@@ -151,6 +165,14 @@ create unique index concurrently on release(object_id);
 
 alter table release add constraint release_author_fkey foreign key (author) references person(id) not valid;
 alter table release validate constraint release_author_fkey;
+
+alter table release
+    add constraint release_date_neg_utc_offset_not_null
+    check (date is null or date_neg_utc_offset is not null)
+    not valid;
+
+alter table release
+    validate constraint release_date_neg_utc_offset_not_null;
 
 -- if the author is null, then the date must be null
 alter table release add constraint release_author_date_check check ((date is null) or (author is not null)) not valid;

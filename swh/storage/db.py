@@ -262,23 +262,6 @@ class Db(BaseDb):
 
         yield from cur
 
-    def snapshot_get_by_origin_visit(self, origin_url, visit_id, cur=None):
-        cur = self._cursor(cur)
-        query = """\
-           SELECT ovs.snapshot
-           FROM origin_visit ov
-           INNER JOIN origin o ON o.id = ov.origin
-           INNER JOIN origin_visit_status ovs
-             ON ov.origin = ovs.origin AND ov.visit = ovs.visit
-           WHERE o.url=%s AND ov.visit=%s
-           ORDER BY ovs.date DESC LIMIT 1
-        """
-
-        cur.execute(query, (origin_url, visit_id))
-        ret = cur.fetchone()
-        if ret:
-            return ret[0]
-
     def snapshot_get_random(self, cur=None):
         return self._get_random_row_from_table("snapshot", ["id"], "id", cur)
 

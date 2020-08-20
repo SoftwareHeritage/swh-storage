@@ -3,22 +3,22 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import attr
+import datetime
 import os
 import signal
 import socket
 import subprocess
 import time
-
-from collections import namedtuple
 from typing import Dict
 
+import attr
 import pytest
 
 from swh.core.api.classes import stream_results
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
 from swh.storage.cassandra.schema import TABLES, HASH_ALGORITHMS
+from swh.storage.cassandra.model import ContentRow
 
 from swh.storage.utils import now
 from swh.storage.tests.test_storage import TestStorage as _TestStorage
@@ -209,12 +209,17 @@ class TestCassandraStorage(_TestStorage):
         )
 
         # For all tokens, always return cont
-        Row = namedtuple("Row", HASH_ALGORITHMS)
-
         def mock_cgft(token):
             nonlocal called
             called += 1
-            return [Row(**{algo: getattr(cont, algo) for algo in HASH_ALGORITHMS})]
+            return [
+                ContentRow(
+                    length=10,
+                    ctime=datetime.datetime.now(),
+                    status="present",
+                    **{algo: getattr(cont, algo) for algo in HASH_ALGORITHMS},
+                )
+            ]
 
         mocker.patch.object(
             swh_storage._cql_runner, "content_get_from_token", mock_cgft
@@ -253,13 +258,12 @@ class TestCassandraStorage(_TestStorage):
 
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
-        Row = namedtuple("Row", cols)
 
         def mock_cgft(token):
             nonlocal called
             called += 1
             return [
-                Row(**{col: getattr(cont, col) for col in cols})
+                ContentRow(**{col: getattr(cont, col) for col in cols},)
                 for cont in [cont, cont2]
             ]
 
@@ -299,13 +303,12 @@ class TestCassandraStorage(_TestStorage):
 
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
-        Row = namedtuple("Row", cols)
 
         def mock_cgft(token):
             nonlocal called
             called += 1
             return [
-                Row(**{col: getattr(cont, col) for col in cols})
+                ContentRow(**{col: getattr(cont, col) for col in cols})
                 for cont in [cont, cont2]
             ]
 
@@ -342,16 +345,15 @@ class TestCassandraStorage(_TestStorage):
             rows[tok] = row_d
 
         # For all tokens, always return cont
-        keys = set(["tok"] + list(content.to_dict().keys())).difference(set(["data"]))
-        Row = namedtuple("Row", keys)
 
         def mock_content_get_token_range(range_start, range_end, limit):
             nonlocal called
             called += 1
 
             for tok in list(rows.keys()) * 3:  # yield multiple times the same tok
-                row_d = rows[tok]
-                yield Row(**row_d)
+                row_d = dict(rows[tok].items())
+                row_d.pop("tok")
+                yield (tok, ContentRow(**row_d))
 
         mocker.patch.object(
             swh_storage._cql_runner,

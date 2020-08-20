@@ -8,7 +8,7 @@ import json
 import attr
 
 from copy import deepcopy
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 from swh.model.model import (
     ObjectType,
@@ -21,10 +21,11 @@ from swh.model.model import (
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 
-from .common import Row
+from .common import remove_keys
+from .model import OriginVisitRow, OriginVisitStatusRow, RevisionRow, ReleaseRow
 
 
-def revision_to_db(revision: Revision) -> Dict[str, Any]:
+def revision_to_db(revision: Revision) -> RevisionRow:
     # we use a deepcopy of the dict because we do not want to recurse the
     # Model->dict conversion (to keep Timestamp & al. entities), BUT we do not
     # want to modify original metadata (embedded in the Model entity), so we
@@ -39,11 +40,13 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
     )
     db_revision["extra_headers"] = extra_headers
     db_revision["type"] = db_revision["type"].value
-    return db_revision
+    return RevisionRow(**remove_keys(db_revision, ("parents",)))
 
 
-def revision_from_db(db_revision: Row, parents: Tuple[Sha1Git, ...]) -> Revision:
-    revision = db_revision._asdict()  # type: ignore
+def revision_from_db(
+    db_revision: RevisionRow, parents: Tuple[Sha1Git, ...]
+) -> Revision:
+    revision = db_revision.to_dict()
     metadata = json.loads(revision.pop("metadata", None))
     extra_headers = revision.pop("extra_headers", ())
     if not extra_headers and metadata and "extra_headers" in metadata:
@@ -59,18 +62,18 @@ def revision_from_db(db_revision: Row, parents: Tuple[Sha1Git, ...]) -> Revision
     )
 
 
-def release_to_db(release: Release) -> Dict[str, Any]:
+def release_to_db(release: Release) -> ReleaseRow:
     db_release = attr.asdict(release, recurse=False)
     db_release["target_type"] = db_release["target_type"].value
-    return db_release
+    return ReleaseRow(**remove_keys(db_release, ("metadata",)))
 
 
-def release_from_db(db_release: Row) -> Release:
-    release = db_release._asdict()  # type: ignore
+def release_from_db(db_release: ReleaseRow) -> Release:
+    release = db_release.to_dict()
     return Release(target_type=ObjectType(release.pop("target_type")), **release,)
 
 
-def row_to_content_hashes(row: Row) -> Dict[str, bytes]:
+def row_to_content_hashes(row: ReleaseRow) -> Dict[str, bytes]:
     """Convert cassandra row to a content hashes
 
     """
@@ -80,7 +83,7 @@ def row_to_content_hashes(row: Row) -> Dict[str, bytes]:
     return hashes
 
 
-def row_to_visit(row) -> OriginVisit:
+def row_to_visit(row: OriginVisitRow) -> OriginVisit:
     """Format a row representing an origin_visit to an actual OriginVisit.
 
     """
@@ -92,15 +95,19 @@ def row_to_visit(row) -> OriginVisit:
     )
 
 
-def row_to_visit_status(row) -> OriginVisitStatus:
+def row_to_visit_status(row: OriginVisitStatusRow) -> OriginVisitStatus:
     """Format a row representing a visit_status to an actual OriginVisitStatus.
 
     """
     return OriginVisitStatus.from_dict(
         {
-            **row._asdict(),
-            "origin": row.origin,
+            **row.to_dict(),
             "date": row.date.replace(tzinfo=datetime.timezone.utc),
             "metadata": (json.loads(row.metadata) if row.metadata else None),
         }
     )
+
+
+def visit_status_to_row(status: OriginVisitStatus) -> OriginVisitStatusRow:
+    d = status.to_dict()
+    return OriginVisitStatusRow.from_dict({**d, "metadata": json.dumps(d["metadata"])})
