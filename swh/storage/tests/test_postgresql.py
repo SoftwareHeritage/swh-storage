@@ -264,3 +264,12 @@ class TestPgStorage:
         monkeypatch.setattr(Db, "current_version", -1)
         with swh_storage.db() as db:
             assert db.check_dbversion() is False
+
+    def test_check_config(self, swh_storage):
+        assert swh_storage.check_config(check_write=True)
+        assert swh_storage.check_config(check_write=False)
+
+    def test_check_config_dbversion(self, swh_storage, monkeypatch):
+        monkeypatch.setattr(Db, "current_version", -1)
+        assert swh_storage.check_config(check_write=True) is False
+        assert swh_storage.check_config(check_write=False) is False

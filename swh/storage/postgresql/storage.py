@@ -160,6 +160,9 @@ class Storage:
         if not self.objstorage.check_config(check_write=check_write):
             return False
 
+        if not db.check_dbversion():
+            return False
+
         # Check permissions on one of the tables
         if check_write:
             check = "INSERT"
