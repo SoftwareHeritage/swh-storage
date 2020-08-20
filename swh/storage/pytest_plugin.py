@@ -139,7 +139,7 @@ class SwhDatabaseJanitor(DatabaseJanitor):
                     "WHERE table_schema = %s",
                     ("public",),
                 )
-                tables = set(table for (table,) in cur.fetchall())
+                tables = set(table for (table,) in cur.fetchall()) - {"dbversion"}
                 for table in tables:
                     cur.execute("truncate table %s cascade" % table)
 
