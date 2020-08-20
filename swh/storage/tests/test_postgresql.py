@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import attr
 import pytest
 
+from swh.storage.postgresql.db import Db
 from swh.storage.tests.storage_tests import TestStorage  # noqa
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
@@ -254,3 +255,12 @@ class TestPgStorage:
 
         """
         assert swh_storage.flush() == {}
+
+    def test_dbversion(self, swh_storage):
+        with swh_storage.db() as db:
+            assert db.check_dbversion()
+
+    def test_dbversion_mismatch(self, swh_storage, monkeypatch):
+        monkeypatch.setattr(Db, "current_version", -1)
+        with swh_storage.db() as db:
+            assert db.check_dbversion() is False

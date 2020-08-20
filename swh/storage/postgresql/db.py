@@ -24,6 +24,8 @@ class Db(BaseDb):
 
     """
 
+    current_version = 161
+
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
             "SELECT swh_mktemp_dir_entry(%s)", (("directory_entry_%s" % entry_type),)
@@ -1328,3 +1330,13 @@ class Db(BaseDb):
         row = cur.fetchone()
         if row:
             return row[0]
+
+    dbversion_cols = ["version", "release", "description"]
+
+    def dbversion(self):
+        with self.transaction() as cur:
+            cur.execute(f"SELECT {', '.join(self.dbversion_cols)} FROM dbversion")
+            return dict(zip(self.dbversion_cols, cur.fetchone()))
+
+    def check_dbversion(self):
+        return self.dbversion()["version"] == self.current_version
