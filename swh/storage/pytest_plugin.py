@@ -43,6 +43,7 @@ def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
             dbname="tests",
         ),
         "objstorage": {"cls": "memory", "args": {}},
+        "check_config": {"check_write": True},
     }
 
 
