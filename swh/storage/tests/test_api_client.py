@@ -8,10 +8,10 @@ import pytest
 import swh.storage.api.server as server
 import swh.storage
 from swh.storage import get_storage
-from swh.storage.tests.test_storage import (
+from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
-from swh.storage.tests.test_storage import TestStorage as _TestStorage
+from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture

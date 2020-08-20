@@ -97,3 +97,11 @@ def content_bytes_hashes(content: Dict[str, str]) -> Dict[str, bytes]:
 
     """
     return {algo: hash_to_bytes(content[algo]) for algo in DEFAULT_ALGORITHMS}
+
+
+def round_to_milliseconds(date):
+    """Round datetime to milliseconds before insertion, so equality doesn't fail after a
+    round-trip through a DB (eg. Cassandra)
+
+    """
+    return date.replace(microsecond=(date.microsecond // 1000) * 1000)

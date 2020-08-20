@@ -21,8 +21,8 @@ from swh.storage.cassandra.schema import TABLES, HASH_ALGORITHMS
 from swh.storage.cassandra.model import ContentRow
 
 from swh.storage.utils import now
-from swh.storage.tests.test_storage import TestStorage as _TestStorage
-from swh.storage.tests.test_storage import (
+from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
 

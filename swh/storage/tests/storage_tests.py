@@ -44,7 +44,7 @@ from swh.storage import get_storage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import ListOrder, PagedResult, StorageInterface
-from swh.storage.utils import content_hex_hashes, now
+from swh.storage.utils import content_hex_hashes, now, round_to_milliseconds
 
 
 @contextmanager
@@ -102,23 +102,6 @@ def assert_contents_ok(
         expected_list = set([c.get(k) for c in expected_contents])
         actual_list = set([c.get(k) for c in actual_contents])
         assert actual_list == expected_list, k
-
-
-def round_to_milliseconds(date):
-    """Round datetime to milliseconds before insertion, so equality doesn't fail after a
-    round-trip through a DB (eg. Cassandra)
-
-    """
-    return date.replace(microsecond=(date.microsecond // 1000) * 1000)
-
-
-def test_round_to_milliseconds():
-    date = now()
-
-    for (ms, expected_ms) in [(0, 0), (1000, 1000), (555555, 555000), (999500, 999000)]:
-        date = date.replace(microsecond=ms)
-        actual_date = round_to_milliseconds(date)
-        assert actual_date.microsecond == expected_ms
 
 
 class LazyContent(Content):
