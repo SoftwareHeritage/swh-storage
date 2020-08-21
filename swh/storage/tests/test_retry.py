@@ -13,6 +13,7 @@ import pytest
 from swh.model.model import MetadataTargetType
 
 from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.utils import now
 
 
 @pytest.fixture
@@ -120,7 +121,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
     content_metadata = swh_storage.content_get([pk])
     assert content_metadata == [None]
 
-    s = swh_storage.content_add_metadata([content])
+    s = swh_storage.content_add_metadata([attr.evolve(content, ctime=now())])
     assert s == {
         "content:add": 1,
     }

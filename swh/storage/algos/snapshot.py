@@ -5,7 +5,8 @@
 
 from typing import List, Optional
 
-from swh.model.model import Snapshot, TargetType
+from swh.model.hashutil import hash_to_hex
+from swh.model.model import Sha1Git, Snapshot, TargetType
 
 from swh.storage.algos.origin import (
     origin_get_latest_visit_status,
@@ -15,7 +16,9 @@ from swh.storage.algos.origin import (
 from swh.storage.interface import ListOrder, StorageInterface
 
 
-def snapshot_get_all_branches(storage, snapshot_id):
+def snapshot_get_all_branches(
+    storage: StorageInterface, snapshot_id: Sha1Git
+) -> Optional[Snapshot]:
     """Get all the branches for a given snapshot
 
     Args:
@@ -30,11 +33,12 @@ def snapshot_get_all_branches(storage, snapshot_id):
     ret = storage.snapshot_get_branches(snapshot_id)
 
     if not ret:
-        return
+        return None
 
     next_branch = ret["next_branch"]
     while next_branch:
         data = storage.snapshot_get_branches(snapshot_id, branches_from=next_branch)
+        assert data, f"Snapshot {hash_to_hex(snapshot_id)} ceased to exist"
         ret["branches"].update(data["branches"])
         next_branch = data["next_branch"]
 
@@ -42,7 +46,7 @@ def snapshot_get_all_branches(storage, snapshot_id):
 
 
 def snapshot_get_latest(
-    storage,
+    storage: StorageInterface,
     origin: str,
     allowed_statuses: Optional[List[str]] = None,
     branches_count: Optional[int] = None,
@@ -94,8 +98,7 @@ def snapshot_get_latest(
         )
         if snapshot is None:
             return None
-        snapshot.pop("next_branch")
-        return Snapshot(**snapshot)
+        return Snapshot(id=snapshot["id"], branches=snapshot["branches"])
     else:
         return snapshot_get_all_branches(storage, snapshot_id)
 

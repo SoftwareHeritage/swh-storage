@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(159, now(), 'Work In Progress');
+      values(161, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -240,7 +240,7 @@ create table revision
   object_id             bigserial,
   date_neg_utc_offset   boolean,
   committer_date_neg_utc_offset boolean,
-  extra_headers         bytea[][]  -- extra headers (used in hash computation)
+  extra_headers         bytea[][] not null  -- extra headers (used in hash computation)
 );
 
 comment on table revision is 'A revision represents the state of a source code tree at a specific point in time';

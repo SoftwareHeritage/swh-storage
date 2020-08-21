@@ -181,7 +181,6 @@ CREATE TABLE IF NOT EXISTS origin_visit_status (
 CREATE TABLE IF NOT EXISTS origin (
     sha1            blob PRIMARY KEY,
     url             text,
-    type            text,
     next_visit_id   int,
         -- We need integer visit ids for compatibility with the pgsql
         -- storage, so we're using lightweight transactions with this trick:

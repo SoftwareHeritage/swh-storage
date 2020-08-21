@@ -296,7 +296,7 @@ class TestStorage:
 
         exc = cm.value
         actual_algo = exc.algo
-        assert actual_algo in ["sha1", "sha1_git", "blake2s256"]
+        assert actual_algo in ["sha1", "sha1_git"]
         actual_id = exc.hash_id
         assert actual_id == getattr(cont1, actual_algo).hex()
         collisions = exc.args[2]
@@ -509,13 +509,17 @@ class TestStorage:
     def test_content_missing_per_sha1(self, swh_storage, sample_data):
         # given
         cont = sample_data.content
+        cont2 = sample_data.content2
         missing_cont = sample_data.skipped_content
-        swh_storage.content_add([cont])
+        missing_cont2 = sample_data.skipped_content2
+        swh_storage.content_add([cont, cont2])
 
         # when
-        gen = swh_storage.content_missing_per_sha1([cont.sha1, missing_cont.sha1])
+        gen = swh_storage.content_missing_per_sha1(
+            [cont.sha1, missing_cont.sha1, cont2.sha1, missing_cont2.sha1]
+        )
         # then
-        assert list(gen) == [missing_cont.sha1]
+        assert list(gen) == [missing_cont.sha1, missing_cont2.sha1]
 
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
@@ -2291,6 +2295,60 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
         assert actual_visit == ov2
 
+    def test_origin_visit_get_latest__not_last(self, swh_storage, sample_data):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+
+        visit1, visit2 = sample_data.origin_visits[:2]
+        assert visit1.origin == origin.url
+
+        swh_storage.origin_visit_add([visit1])
+        ov1 = swh_storage.origin_visit_get_latest(origin.url)
+
+        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        complete_snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([complete_snapshot])
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=visit2.date,
+                    status="partial",
+                    snapshot=None,
+                )
+            ]
+        )
+        assert visit1.date < visit2.date
+
+        # no snapshot associated to the visit, so None
+        visit = swh_storage.origin_visit_get_latest(
+            origin.url, allowed_statuses=["partial"], require_snapshot=True,
+        )
+        assert visit is None
+
+        date_now = now()
+        assert visit2.date < date_now
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=date_now,
+                    status="full",
+                    snapshot=complete_snapshot.id,
+                )
+            ]
+        )
+
+        swh_storage.origin_visit_add(
+            [OriginVisit(origin=origin.url, date=now(), type=visit1.type,)]
+        )
+
+        visit = swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
+        assert visit is not None
+
     def test_origin_visit_status_get_latest__validation(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
@@ -2469,9 +2527,6 @@ class TestStorage:
         by_id = swh_storage.snapshot_get(empty_snapshot.id)
         assert by_id == {**empty_snapshot_dict, "next_branch": None}
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin.url, ov1.visit)
-        assert by_ov == {**empty_snapshot_dict, "next_branch": None}
-
         ovs1 = OriginVisitStatus.from_dict(
             {
                 "origin": origin.url,
@@ -2516,7 +2571,6 @@ class TestStorage:
             type=sample_data.type_visit1,
         )
         origin_visit1 = swh_storage.origin_visit_add([visit])[0]
-        visit_id = origin_visit1.visit
 
         actual_result = swh_storage.snapshot_add([complete_snapshot])
         swh_storage.origin_visit_status_add(
@@ -2534,9 +2588,6 @@ class TestStorage:
 
         by_id = swh_storage.snapshot_get(complete_snapshot.id)
         assert by_id == {**complete_snapshot_dict, "next_branch": None}
-
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin.url, visit_id)
-        assert by_ov == {**complete_snapshot_dict, "next_branch": None}
 
     def test_snapshot_add_many(self, swh_storage, sample_data):
         snapshot, _, complete_snapshot = sample_data.snapshots[:3]
@@ -2850,9 +2901,6 @@ class TestStorage:
         by_id = swh_storage.snapshot_get(snapshot.id)
         assert by_id == expected_snapshot
 
-        by_ov = swh_storage.snapshot_get_by_origin_visit(origin.url, ov1.visit)
-        assert by_ov == expected_snapshot
-
         actual_visit = swh_storage.origin_visit_get_by(origin.url, ov1.visit)
         assert actual_visit == ov1
 
@@ -2860,121 +2908,6 @@ class TestStorage:
             origin.url, ov1.visit, require_snapshot=True
         )
         assert visit_status.snapshot == snapshot.id
-
-    def test_snapshot_add_twice__by_origin_visit(self, swh_storage, sample_data):
-        snapshot = sample_data.snapshot
-        origin = sample_data.origin
-
-        swh_storage.origin_add([origin])
-        ov1 = swh_storage.origin_visit_add(
-            [
-                OriginVisit(
-                    origin=origin.url,
-                    date=sample_data.date_visit1,
-                    type=sample_data.type_visit1,
-                )
-            ]
-        )[0]
-        swh_storage.snapshot_add([snapshot])
-        date_now2 = now()
-
-        swh_storage.origin_visit_status_add(
-            [
-                OriginVisitStatus(
-                    origin=origin.url,
-                    visit=ov1.visit,
-                    date=date_now2,
-                    status="ongoing",
-                    snapshot=snapshot.id,
-                )
-            ]
-        )
-
-        expected_snapshot = {**snapshot.to_dict(), "next_branch": None}
-
-        by_ov1 = swh_storage.snapshot_get_by_origin_visit(origin.url, ov1.visit)
-        assert by_ov1 == expected_snapshot
-
-        ov2 = swh_storage.origin_visit_add(
-            [
-                OriginVisit(
-                    origin=origin.url,
-                    date=sample_data.date_visit2,
-                    type=sample_data.type_visit2,
-                )
-            ]
-        )[0]
-
-        date_now4 = now()
-        swh_storage.origin_visit_status_add(
-            [
-                OriginVisitStatus(
-                    origin=origin.url,
-                    visit=ov2.visit,
-                    date=date_now4,
-                    status="ongoing",
-                    snapshot=snapshot.id,
-                )
-            ]
-        )
-
-        by_ov2 = swh_storage.snapshot_get_by_origin_visit(origin.url, ov2.visit)
-        assert by_ov2 == expected_snapshot
-
-        ovs1 = OriginVisitStatus.from_dict(
-            {
-                "origin": origin.url,
-                "date": sample_data.date_visit1,
-                "visit": ov1.visit,
-                "status": "created",
-                "metadata": None,
-                "snapshot": None,
-            }
-        )
-        ovs2 = OriginVisitStatus.from_dict(
-            {
-                "origin": origin.url,
-                "date": date_now2,
-                "visit": ov1.visit,
-                "status": "ongoing",
-                "metadata": None,
-                "snapshot": snapshot.id,
-            }
-        )
-        ovs3 = OriginVisitStatus.from_dict(
-            {
-                "origin": origin.url,
-                "date": sample_data.date_visit2,
-                "visit": ov2.visit,
-                "status": "created",
-                "metadata": None,
-                "snapshot": None,
-            }
-        )
-        ovs4 = OriginVisitStatus.from_dict(
-            {
-                "origin": origin.url,
-                "date": date_now4,
-                "visit": ov2.visit,
-                "status": "ongoing",
-                "metadata": None,
-                "snapshot": snapshot.id,
-            }
-        )
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
-        expected_objects = [
-            ("origin", origin),
-            ("origin_visit", ov1),
-            ("origin_visit_status", ovs1),
-            ("snapshot", snapshot),
-            ("origin_visit_status", ovs2),
-            ("origin_visit", ov2),
-            ("origin_visit_status", ovs3),
-            ("origin_visit_status", ovs4),
-        ]
-
-        for obj in expected_objects:
-            assert obj in actual_objects
 
     def test_snapshot_get_random(self, swh_storage, sample_data):
         snapshot, empty_snapshot, complete_snapshot = sample_data.snapshots[:3]

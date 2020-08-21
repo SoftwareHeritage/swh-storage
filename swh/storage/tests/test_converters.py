@@ -3,6 +3,16 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from swh.model.model import (
+    ObjectType,
+    Person,
+    Release,
+    Revision,
+    RevisionType,
+    Timestamp,
+    TimestampWithTimezone,
+)
+
 from swh.storage import converters
 
 
@@ -11,7 +21,11 @@ def test_date_to_db():
     assert date_to_db(None) == {"timestamp": None, "offset": 0, "neg_utc_offset": None}
 
     assert date_to_db(
-        {"timestamp": 1234567890, "offset": 120, "negative_utc": False,}
+        TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+            offset=120,
+            negative_utc=False,
+        )
     ) == {
         "timestamp": "2009-02-13T23:31:30+00:00",
         "offset": 120,
@@ -19,7 +33,11 @@ def test_date_to_db():
     }
 
     assert date_to_db(
-        {"timestamp": 1123456789, "offset": 0, "negative_utc": True,}
+        TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1123456789, microseconds=0,),
+            offset=0,
+            negative_utc=True,
+        )
     ) == {
         "timestamp": "2005-08-07T23:19:49+00:00",
         "offset": 0,
@@ -27,7 +45,11 @@ def test_date_to_db():
     }
 
     assert date_to_db(
-        {"timestamp": 1234567890, "offset": 42, "negative_utc": False,}
+        TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+            offset=42,
+            negative_utc=False,
+        )
     ) == {
         "timestamp": "2009-02-13T23:31:30+00:00",
         "offset": 42,
@@ -35,7 +57,11 @@ def test_date_to_db():
     }
 
     assert date_to_db(
-        {"timestamp": 1634366813, "offset": -120, "negative_utc": False,}
+        TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1634366813, microseconds=0,),
+            offset=-120,
+            negative_utc=False,
+        )
     ) == {
         "timestamp": "2021-10-16T06:46:53+00:00",
         "offset": -120,
@@ -48,11 +74,7 @@ def test_db_to_author():
     actual_author = converters.db_to_author(b"fullname", b"name", b"email")
 
     # then
-    assert actual_author == {
-        "fullname": b"fullname",
-        "name": b"name",
-        "email": b"email",
-    }
+    assert actual_author == Person(fullname=b"fullname", name=b"name", email=b"email",)
 
 
 def test_db_to_author_none():
@@ -67,14 +89,14 @@ def test_db_to_revision():
     # when
     actual_revision = converters.db_to_revision(
         {
-            "id": "revision-id",
+            "id": b"revision-id",
             "date": None,
             "date_offset": None,
             "date_neg_utc_offset": None,
             "committer_date": None,
             "committer_date_offset": None,
             "committer_date_neg_utc_offset": None,
-            "type": "rev",
+            "type": "git",
             "directory": b"dir-sha1",
             "message": b"commit message",
             "author_fullname": b"auth-fullname",
@@ -86,33 +108,29 @@ def test_db_to_revision():
             "metadata": {},
             "synthetic": False,
             "extra_headers": (),
-            "parents": [123, 456],
+            "parents": [b"123", b"456"],
         }
     )
 
     # then
-    assert actual_revision == {
-        "id": "revision-id",
-        "author": {
-            "fullname": b"auth-fullname",
-            "name": b"auth-name",
-            "email": b"auth-email",
-        },
-        "date": None,
-        "committer": {
-            "fullname": b"comm-fullname",
-            "name": b"comm-name",
-            "email": b"comm-email",
-        },
-        "committer_date": None,
-        "type": "rev",
-        "directory": b"dir-sha1",
-        "message": b"commit message",
-        "metadata": {},
-        "synthetic": False,
-        "extra_headers": (),
-        "parents": [123, 456],
-    }
+    assert actual_revision == Revision(
+        id=b"revision-id",
+        author=Person(
+            fullname=b"auth-fullname", name=b"auth-name", email=b"auth-email",
+        ),
+        date=None,
+        committer=Person(
+            fullname=b"comm-fullname", name=b"comm-name", email=b"comm-email",
+        ),
+        committer_date=None,
+        type=RevisionType.GIT,
+        directory=b"dir-sha1",
+        message=b"commit message",
+        metadata={},
+        synthetic=False,
+        extra_headers=(),
+        parents=(b"123", b"456"),
+    )
 
 
 def test_db_to_release():
@@ -135,17 +153,15 @@ def test_db_to_release():
     )
 
     # then
-    assert actual_release == {
-        "author": {
-            "fullname": b"auth-fullname",
-            "name": b"auth-name",
-            "email": b"auth-email",
-        },
-        "date": None,
-        "id": b"release-id",
-        "name": b"release-name",
-        "message": b"release comment",
-        "synthetic": True,
-        "target": b"revision-id",
-        "target_type": "revision",
-    }
+    assert actual_release == Release(
+        author=Person(
+            fullname=b"auth-fullname", name=b"auth-name", email=b"auth-email",
+        ),
+        date=None,
+        id=b"release-id",
+        name=b"release-name",
+        message=b"release comment",
+        synthetic=True,
+        target=b"revision-id",
+        target_type=ObjectType.REVISION,
+    )
