@@ -1,3 +1,9 @@
+swh-storage (0.13.2-1~swh2) unstable-swh; urgency=medium
+
+  * Add mypy-extensions to build-dependencies
+
+ -- Nicolas Dandrimont <olasd@debian.org>  Fri, 21 Aug 2020 12:17:05 +0200
+
 swh-storage (0.13.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.13.2     - (tagged by Valentin Lorentz
