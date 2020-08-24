@@ -9,7 +9,7 @@ insert into dbversion(version, release, description)
 
 
 update revision
-    set extra_headers = ARRAY[][]
+    set extra_headers = ARRAY[]::bytea[][]
     where extra_headers is null;
 
 
