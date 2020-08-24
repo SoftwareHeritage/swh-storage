@@ -3,10 +3,16 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 from swh.model.hashutil import hash_to_hex
-from swh.model.model import Sha1Git, Snapshot, TargetType
+from swh.model.model import (
+    OriginVisit,
+    OriginVisitStatus,
+    Sha1Git,
+    Snapshot,
+    TargetType,
+)
 
 from swh.storage.algos.origin import (
     origin_get_latest_visit_status,
@@ -114,9 +120,31 @@ def snapshot_id_get_from_revision(
         The snapshot id if found. None otherwise.
 
     """
+    res = visits_and_snapshots_get_from_revision(storage, origin, revision_id)
+
+    # they are sorted by descending date, so we just need to return the first one,
+    # if any.
+    for (visit, status, snapshot) in res:
+        return snapshot.id
+
+    return None
+
+
+def visits_and_snapshots_get_from_revision(
+    storage: StorageInterface, origin: str, revision_id: bytes
+) -> Iterator[Tuple[OriginVisit, OriginVisitStatus, Snapshot]]:
+    """Retrieve all visits, visit statuses, and matching snapshot of the given origin,
+    such that the snapshot targets the revision_id.
+
+    *Warning* This is a potentially highly costly operation
+
+    Yields:
+        Tuples of (visit, status, snapshot)
+
+    """
     revision = storage.revision_get([revision_id])
     if not revision:
-        return None
+        return
 
     for visit in iter_origin_visits(storage, origin, order=ListOrder.DESC):
         assert visit.visit is not None
@@ -136,6 +164,4 @@ def snapshot_id_get_from_revision(
                     and branch.target_type == TargetType.REVISION
                     and branch.target == revision_id
                 ):  # snapshot found
-                    return snapshot_id
-
-    return None
+                    yield (visit, visit_status, snapshot)
