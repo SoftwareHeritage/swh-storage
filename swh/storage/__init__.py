@@ -18,6 +18,7 @@ STORAGE_IMPLEMENTATIONS = {
     "buffer": ".buffer.BufferingProxyStorage",
     "retry": ".retry.RetryingProxyStorage",
     "cassandra": ".cassandra.CassandraStorage",
+    "validate": ".validate.ValidatingProxyStorage",
 }
 
 
