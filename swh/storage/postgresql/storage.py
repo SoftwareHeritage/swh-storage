@@ -686,13 +686,15 @@ class Storage:
             yield obj[0]
 
     @timed
-    @db_transaction_generator(statement_timeout=500)
+    @db_transaction(statement_timeout=500)
     def release_get(
         self, releases: List[Sha1Git], db=None, cur=None
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    ) -> List[Optional[Release]]:
+        rels = []
         for release in db.release_get_from_list(releases, cur):
             data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
-            yield data.to_dict() if data else None
+            rels.append(data if data else None)
+        return rels
 
     @timed
     @db_transaction()

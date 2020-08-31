@@ -29,7 +29,6 @@ from swh.model.model import (
     OriginVisit,
     OriginVisitStatus,
     Person,
-    Release,
     Revision,
     Snapshot,
     TargetType,
@@ -1076,13 +1075,12 @@ class TestStorage:
         swh_storage.release_add([release, release2])
 
         # when
-        releases = list(swh_storage.release_get([release.id, release2.id]))
-        actual_releases = [Release.from_dict(r) for r in releases]
+        actual_releases = swh_storage.release_get([release.id, release2.id])
 
         # then
         assert actual_releases == [release, release2]
 
-        unknown_releases = list(swh_storage.release_get([release3.id]))
+        unknown_releases = swh_storage.release_get([release3.id])
         assert unknown_releases[0] is None
 
     def test_release_get_order(self, swh_storage, sample_data):
@@ -1092,12 +1090,12 @@ class TestStorage:
         assert add_result == {"release:add": 2}
 
         # order 1
-        res1 = swh_storage.release_get([release.id, release2.id])
-        assert list(res1) == [release.to_dict(), release2.to_dict()]
+        actual_releases = swh_storage.release_get([release.id, release2.id])
+        assert actual_releases == [release, release2]
 
         # order 2
-        res2 = swh_storage.release_get([release2.id, release.id])
-        assert list(res2) == [release2.to_dict(), release.to_dict()]
+        actual_releases2 = swh_storage.release_get([release2.id, release.id])
+        assert actual_releases2 == [release2, release]
 
     def test_release_get_random(self, swh_storage, sample_data):
         release, release2, release3 = sample_data.releases[:3]

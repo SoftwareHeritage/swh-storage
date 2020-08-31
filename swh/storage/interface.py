@@ -588,17 +588,15 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("release")
-    def release_get(
-        self, releases: List[Sha1Git]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    def release_get(self, releases: List[Sha1Git]) -> List[Optional[Release]]:
         """Given a list of sha1, return the releases's information
 
         Args:
             releases: list of sha1s
 
-        Yields:
-            dicts with the same keys as those given to `release_add`
-            (or ``None`` if a release does not exist)
+        Returns:
+            List of releases matching the identifiers or None if the release does
+            not exist.
 
         """
         ...
