@@ -523,6 +523,7 @@ class TestStorage:
         assert len(actual_contents) == len(expected_contents)
         for content in actual_contents:
             assert content in expected_contents
+            assert content.ctime is None
 
     def test_content_get_partition_full(self, swh_storage, swh_contents):
         """content_get_partition for a single partition returns all available contents
@@ -604,6 +605,8 @@ class TestStorage:
         expected_contents = [attr.evolve(c, data=None) for c in [cont1, cont2]]
 
         assert actual_contents == expected_contents
+        for content in actual_contents:
+            assert content.ctime is None
 
     def test_content_get_missing_sha1(self, swh_storage, sample_data):
         cont1, cont2 = sample_data.contents[:2]
@@ -2981,6 +2984,8 @@ class TestStorage:
 
         actually_present = swh_storage.content_find({"sha1": content.sha1})
         assert actually_present[0] == content
+        assert actually_present[0].ctime is not None
+        assert actually_present[0].ctime.tzinfo is not None
 
     def test_content_find_with_present_content(self, swh_storage, sample_data):
         content = sample_data.content

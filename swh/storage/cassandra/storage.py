@@ -228,6 +228,7 @@ class CassandraStorage:
             if counter >= limit:
                 next_page_token = str(tok)
                 break
+            row_d.pop("ctime")
             contents.append(Content(**row_d))
 
         assert len(contents) <= limit
