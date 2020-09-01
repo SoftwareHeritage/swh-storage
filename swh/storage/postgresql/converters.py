@@ -23,9 +23,8 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
-from swh.model.hashutil import MultiHash
 
-from .utils import map_optional
+from ..utils import map_optional
 
 
 DEFAULT_AUTHOR = {
@@ -323,8 +322,3 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
         path=row["path"],
         directory=map_optional(parse_swhid, row["directory"]),
     )
-
-
-def origin_url_to_sha1(origin_url: str) -> bytes:
-    """Convert an origin URL to a sha1. Encodes URL to utf-8."""
-    return MultiHash.from_data(origin_url.encode("utf-8"), {"sha1"}).digest()["sha1"]

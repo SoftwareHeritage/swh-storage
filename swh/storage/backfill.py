@@ -31,7 +31,7 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
-from swh.storage.converters import (
+from swh.storage.postgresql.converters import (
     db_to_raw_extrinsic_metadata,
     db_to_release,
     db_to_revision,

@@ -314,7 +314,7 @@ def diff_directories(storage, from_dir, to_dir, track_renaming=False):
     between them.
 
     Args:
-        storage (swh.storage.storage.Storage): instance of a swh
+        storage (swh.storage.interface.StorageInterface): instance of a swh
             storage (either local or remote, for optimal performance
             the use of a local storage is recommended)
         from_dir (bytes): the swh identifier of the directory to compare from
@@ -367,7 +367,7 @@ def diff_revisions(storage, from_rev, to_rev, track_renaming=False):
     i.e. the list of file changes between the two associated directories.
 
     Args:
-        storage (swh.storage.storage.Storage): instance of a swh
+        storage (swh.storage.interface.StorageInterface): instance of a swh
             storage (either local or remote, for optimal performance
             the use of a local storage is recommended)
         from_rev (bytes): the identifier of the revision to compare from
@@ -395,7 +395,7 @@ def diff_revision(storage, revision, track_renaming=False):
     specific revision.
 
     Args:
-        storage (swh.storage.storage.Storage): instance of a swh
+        storage (swh.storage.interface.StorageInterface): instance of a swh
             storage (either local or remote, for optimal performance
             the use of a local storage is recommended)
         revision (bytes): the identifier of the revision from which to

@@ -43,6 +43,7 @@ def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
             dbname="tests",
         ),
         "objstorage": {"cls": "memory", "args": {}},
+        "check_config": {"check_write": True},
     }
 
 
@@ -139,7 +140,7 @@ class SwhDatabaseJanitor(DatabaseJanitor):
                     "WHERE table_schema = %s",
                     ("public",),
                 )
-                tables = set(table for (table,) in cur.fetchall())
+                tables = set(table for (table,) in cur.fetchall()) - {"dbversion"}
                 for table in tables:
                     cur.execute("truncate table %s cascade" % table)
 

@@ -689,16 +689,16 @@ def test_retrying_proxy_storage_release_add(swh_storage, sample_data):
     """
     sample_rel = sample_data.release
 
-    release = next(swh_storage.release_get([sample_rel.id]))
-    assert not release
+    release = swh_storage.release_get([sample_rel.id])[0]
+    assert release is None
 
     s = swh_storage.release_add([sample_rel])
     assert s == {
         "release:add": 1,
     }
 
-    release = next(swh_storage.release_get([sample_rel.id]))
-    assert release["id"] == sample_rel.id
+    release = swh_storage.release_get([sample_rel.id])[0]
+    assert release == sample_rel
 
 
 def test_retrying_proxy_storage_release_add_with_retry(
@@ -719,8 +719,8 @@ def test_retrying_proxy_storage_release_add_with_retry(
 
     sample_rel = sample_data.release
 
-    release = next(swh_storage.release_get([sample_rel.id]))
-    assert not release
+    release = swh_storage.release_get([sample_rel.id])[0]
+    assert release is None
 
     s = swh_storage.release_add([sample_rel])
     assert s == {
@@ -743,8 +743,8 @@ def test_retrying_proxy_swh_storage_release_add_failure(
 
     sample_rel = sample_data.release
 
-    release = next(swh_storage.release_get([sample_rel.id]))
-    assert not release
+    release = swh_storage.release_get([sample_rel.id])[0]
+    assert release is None
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.release_add([sample_rel])

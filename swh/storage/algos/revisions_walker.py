@@ -49,7 +49,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
     :func:`get_revisions_walker`.
 
     Args:
-        storage (swh.storage.storage.Storage): instance of swh storage
+        storage (swh.storage.interface.StorageInterface): instance of swh storage
             (either local or remote)
         rev_start (bytes): a revision identifier
         max_revs (Optional[int]): maximum number of revisions to return
@@ -97,7 +97,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
 
         Returns:
             dict: A dict describing a revision as returned by
-            :meth:`swh.storage.storage.Storage.revision_get`
+            :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         pass
 
@@ -109,7 +109,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
 
         Args:
             rev (dict): A dict describing a revision as returned by
-                :meth:`swh.storage.storage.Storage.revision_get`
+                :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         for parent_id in rev["parents"]:
             self.process_rev(parent_id)
@@ -121,7 +121,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
 
         Args:
             rev (dict): A dict describing a revision as returned by
-                :meth:`swh.storage.storage.Storage.revision_get`
+                :meth:`swh.storage.interface.StorageInterface.revision_get`
 
         Returns:
             bool: Whether to return the revision in the iteration
@@ -246,7 +246,7 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
 
         Returns:
             dict: A dict describing a revision as returned by
-            :meth:`swh.storage.storage.Storage.revision_get`
+            :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         _, rev_id = heapq.heappop(self._revs_to_visit)
         return rev_id
@@ -281,7 +281,7 @@ class BFSRevisionsWalker(RevisionsWalker):
 
         Returns:
             dict: A dict describing a revision as returned by
-            :meth:`swh.storage.storage.Storage.revision_get`
+            :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         return self._revs_to_visit.popleft()
 
@@ -313,7 +313,7 @@ class DFSPostRevisionsWalker(RevisionsWalker):
 
         Returns:
             dict: A dict describing a revision as returned by
-            :meth:`swh.storage.storage.Storage.revision_get`
+            :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         return self._revs_to_visit.pop()
 
@@ -336,7 +336,7 @@ class DFSRevisionsWalker(DFSPostRevisionsWalker):
 
         Args:
             rev (dict): A dict describing a revision as returned by
-                :meth:`swh.storage.storage.Storage.revision_get`
+                :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         for parent_id in reversed(rev["parents"]):
             self.process_rev(parent_id)
@@ -363,7 +363,7 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
         revisions does not exceed a couple of thousands.
 
     Args:
-        storage (swh.storage.storage.Storage): instance of swh storage
+        storage (swh.storage.interface.StorageInterface): instance of swh storage
             (either local or remote)
         rev_start (bytes): a revision identifier
         path (str): the path in the source tree to retrieve the history
@@ -441,7 +441,7 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
 
         Args:
             rev (dict): A dict describing a revision as returned by
-                :meth:`swh.storage.storage.Storage.revision_get`
+                :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
         rev_path_id = self._get_path_id(rev["id"])
 
@@ -473,7 +473,7 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
 
         Args:
             rev (dict): A dict describing a revision as returned by
-                :meth:`swh.storage.storage.Storage.revision_get`
+                :meth:`swh.storage.interface.StorageInterface.revision_get`
 
         Returns:
             bool: Whether to return the revision in the iteration

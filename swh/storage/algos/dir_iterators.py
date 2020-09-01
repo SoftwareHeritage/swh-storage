@@ -41,8 +41,8 @@ class DirectoryIterator(object):
     def __init__(self, storage, dir_id, base_path=b""):
         """
             Args:
-                storage (swh.storage.storage.Storage): instance of swh storage
-                    (either local or remote)
+                storage (swh.storage.interface.StorageInterface): instance of
+                    swh storage (either local or remote)
                 dir_id (bytes): identifier of a root directory
                 base_path (bytes): optional base path used when traversing
                     a sub-directory

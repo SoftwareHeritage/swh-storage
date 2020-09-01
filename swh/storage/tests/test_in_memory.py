@@ -9,8 +9,8 @@ import pytest
 
 from swh.storage.cassandra.model import BaseRow
 from swh.storage.in_memory import Table
-from swh.storage.tests.test_storage import TestStorage as _TestStorage
-from swh.storage.tests.test_storage import (
+from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
 

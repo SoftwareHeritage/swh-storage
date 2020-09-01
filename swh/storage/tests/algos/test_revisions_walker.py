@@ -385,7 +385,7 @@ class RevisionsWalkerTest(unittest.TestCase):
     def check_revisions_ordering(
         self, rev_walker_type, expected_result, truncated_history
     ):
-        with patch("swh.storage.storage.Storage") as MockStorage:
+        with patch("swh.storage.postgresql.storage.Storage") as MockStorage:
             storage = MockStorage()
             if not truncated_history:
                 storage.revision_log.return_value = _revisions_list
