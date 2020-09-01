@@ -13,7 +13,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 
-from swh.storage import converters
+from swh.storage.postgresql import converters
 
 
 def test_date_to_db():

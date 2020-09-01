@@ -27,6 +27,7 @@ import psycopg2.pool
 import psycopg2.errors
 
 from swh.core.api.serializers import msgpack_loads, msgpack_dumps
+from swh.core.db.common import db_transaction_generator, db_transaction
 from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
@@ -50,23 +51,25 @@ from swh.model.model import (
     RawExtrinsicMetadata,
 )
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
+from swh.storage.exc import StorageArgumentException, StorageDBError, HashCollision
 from swh.storage.interface import (
     ListOrder,
     PagedResult,
     PartialBranches,
     VISIT_STATUSES,
 )
+from swh.storage.metrics import timed, send_metric, process_metrics
 from swh.storage.objstorage import ObjStorage
-from swh.storage.utils import now
+from swh.storage.utils import (
+    get_partition_bounds_bytes,
+    extract_collision_hash,
+    map_optional,
+    now,
+)
+from swh.storage.writer import JournalWriter
 
 from . import converters
-from .common import db_transaction_generator, db_transaction
 from .db import Db
-from .exc import StorageArgumentException, StorageDBError, HashCollision
-from .algos import diff
-from .metrics import timed, send_metric, process_metrics
-from .utils import get_partition_bounds_bytes, extract_collision_hash, map_optional
-from .writer import JournalWriter
 
 
 # Max block size of contents to return
@@ -155,6 +158,9 @@ class Storage:
     def check_config(self, *, check_write: bool, db=None, cur=None) -> bool:
 
         if not self.objstorage.check_config(check_write=check_write):
+            return False
+
+        if not db.check_dbversion():
             return False
 
         # Check permissions on one of the tables
@@ -680,13 +686,15 @@ class Storage:
             yield obj[0]
 
     @timed
-    @db_transaction_generator(statement_timeout=500)
+    @db_transaction(statement_timeout=500)
     def release_get(
         self, releases: List[Sha1Git], db=None, cur=None
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    ) -> List[Optional[Release]]:
+        rels = []
         for release in db.release_get_from_list(releases, cur):
             data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
-            yield data.to_dict() if data else None
+            rels.append(data if data else None)
+        return rels
 
     @timed
     @db_transaction()
@@ -1397,18 +1405,6 @@ class Storage:
         if not row:
             return None
         return MetadataAuthority.from_dict(dict(zip(db.metadata_authority_cols, row)))
-
-    @timed
-    def diff_directories(self, from_dir, to_dir, track_renaming=False):
-        return diff.diff_directories(self, from_dir, to_dir, track_renaming)
-
-    @timed
-    def diff_revisions(self, from_rev, to_rev, track_renaming=False):
-        return diff.diff_revisions(self, from_rev, to_rev, track_renaming)
-
-    @timed
-    def diff_revision(self, revision, track_renaming=False):
-        return diff.diff_revision(self, revision, track_renaming)
 
     def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
         """Do nothing

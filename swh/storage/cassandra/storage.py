@@ -582,17 +582,14 @@ class CassandraStorage:
     def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.release_missing(releases)
 
-    def release_get(
-        self, releases: List[Sha1Git]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    def release_get(self, releases: List[Sha1Git]) -> List[Optional[Release]]:
         rows = self._cql_runner.release_get(releases)
-        rels = {}
+        rels: Dict[Sha1Git, Release] = {}
         for row in rows:
             release = converters.release_from_db(row)
-            rels[row.id] = release.to_dict()
+            rels[row.id] = release
 
-        for rel_id in releases:
-            yield rels.get(rel_id)
+        return [rels.get(rel_id) for rel_id in releases]
 
     def release_get_random(self) -> Sha1Git:
         release = self._cql_runner.release_get_random()
@@ -828,6 +825,13 @@ class CassandraStorage:
 
         assert len(origins) <= limit
         return PagedResult(results=origins, next_page_token=next_page_token)
+
+    def origin_count(
+        self, url_pattern: str, regexp: bool = False, with_visit: bool = False
+    ) -> int:
+        raise NotImplementedError(
+            "The Cassandra backend does not implement origin_count"
+        )
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]

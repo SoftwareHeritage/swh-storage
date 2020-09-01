@@ -11,13 +11,14 @@ from .interface import StorageInterface
 
 
 STORAGE_IMPLEMENTATIONS = {
-    "local": ".storage.Storage",
+    "local": ".postgresql.storage.Storage",
     "remote": ".api.client.RemoteStorage",
     "memory": ".in_memory.InMemoryStorage",
     "filter": ".filter.FilteringProxyStorage",
     "buffer": ".buffer.BufferingProxyStorage",
     "retry": ".retry.RetryingProxyStorage",
     "cassandra": ".cassandra.CassandraStorage",
+    "validate": ".validate.ValidatingProxyStorage",
 }
 
 
@@ -58,10 +59,17 @@ def get_storage(cls: str, **kwargs) -> StorageInterface:
     (module_path, class_name) = class_path.rsplit(".", 1)
     module = importlib.import_module(module_path, package=__package__)
     Storage = getattr(module, class_name)
-    return Storage(**kwargs)
+    check_config = kwargs.pop("check_config", {})
+    storage = Storage(**kwargs)
+    if check_config:
+        if not storage.check_config(**check_config):
+            raise EnvironmentError("storage check config failed")
+    return storage
 
 
-def get_storage_pipeline(steps: List[Dict[str, Any]]) -> StorageInterface:
+def get_storage_pipeline(
+    steps: List[Dict[str, Any]], check_config=None
+) -> StorageInterface:
     """Recursively get a storage object that may use other storage objects
     as backends.
 
@@ -88,6 +96,7 @@ def get_storage_pipeline(steps: List[Dict[str, Any]]) -> StorageInterface:
             }
         if storage_config:
             step["storage"] = storage_config
+        step["check_config"] = check_config
         storage_config = step
 
     if storage_config is None:

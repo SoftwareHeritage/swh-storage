@@ -6,7 +6,8 @@
 import functools
 import logging
 import os
-import warnings
+
+from typing import Dict, Optional
 
 import click
 
@@ -14,7 +15,7 @@ from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.journal.client import get_journal_client
 from swh.storage import get_storage
-from swh.storage.api.server import load_and_check_config, app
+from swh.storage.api.server import app
 
 try:
     from systemd.daemon import notify
@@ -30,8 +31,19 @@ except ImportError:
     type=click.Path(exists=True, dir_okay=False,),
     help="Configuration file.",
 )
+@click.option(
+    "--check-config",
+    default=None,
+    type=click.Choice(["no", "read", "write"]),
+    help=(
+        "Check the configuration of the storage at startup for read or write access; "
+        "if set, override the value present in the configuration file if any. "
+        "Defaults to 'read' for the 'backfill' command, and 'write' for 'rpc-server' "
+        "and 'replay' commands."
+    ),
+)
 @click.pass_context
-def storage(ctx, config_file):
+def storage(ctx, config_file, check_config):
     """Software Heritage Storage tools."""
     if not config_file:
         config_file = os.environ.get("SWH_CONFIG_FILENAME")
@@ -43,13 +55,15 @@ def storage(ctx, config_file):
     else:
         conf = {}
 
-    ctx.ensure_object(dict)
+    if "storage" not in conf:
+        ctx.fail("You must have a storage configured in your config file.")
 
+    ctx.ensure_object(dict)
     ctx.obj["config"] = conf
+    ctx.obj["check_config"] = check_config
 
 
 @storage.command(name="rpc-serve")
-@click.argument("config-path", default=None, required=False)
 @click.option(
     "--host",
     default="0.0.0.0",
@@ -71,25 +85,15 @@ def storage(ctx, config_file):
     help="Indicates if the server should run in debug mode",
 )
 @click.pass_context
-def serve(ctx, config_path, host, port, debug):
+def serve(ctx, host, port, debug):
     """Software Heritage Storage RPC server.
 
     Do NOT use this in a production environment.
     """
     if "log_level" in ctx.obj:
         logging.getLogger("werkzeug").setLevel(ctx.obj["log_level"])
-    if config_path:
-        # for bw compat
-        warnings.warn(
-            "The `config_path` argument of the `swh storage rpc-server` is now "
-            "deprecated. Please use the --config option of `swh storage` instead.",
-            DeprecationWarning,
-        )
-        api_cfg = load_and_check_config(config_path, type="any")
-        app.config.update(api_cfg)
-    else:
-        app.config.update(ctx.obj["config"])
-
+    ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "write")
+    app.config.update(ctx.obj["config"])
     app.run(host, port=int(port), debug=bool(debug))
 
 
@@ -116,6 +120,8 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
     - client_id: the kafka client ID.
 
     """
+    ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "read")
+
     # for "lazy" loading
     from swh.storage.backfill import JournalBackfiller
 
@@ -160,11 +166,11 @@ def replay(ctx, stop_after_objects):
     """
     from swh.storage.replay import process_replay_objects
 
+    ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "write")
+
     conf = ctx.obj["config"]
-    try:
-        storage = get_storage(**conf.pop("storage"))
-    except KeyError:
-        ctx.fail("You must have a storage configured in your config file.")
+    storage = get_storage(**conf.pop("storage"))
+
     client_cfg = conf.pop("journal_client")
     if stop_after_objects:
         client_cfg["stop_after_objects"] = stop_after_objects
@@ -188,6 +194,22 @@ def replay(ctx, stop_after_objects):
         if notify:
             notify("STOPPING=1")
         client.close()
+
+
+def ensure_check_config(storage_cfg: Dict, check_config: Optional[str], default: str):
+    """Helper function to inject the setting of check_config option in the storage config
+    dict according to the expected default value (default value depends on the command,
+    eg. backfill can be read-only).
+
+    """
+    if check_config is not None:
+        if check_config == "no":
+            storage_cfg.pop("check_config", None)
+        else:
+            storage_cfg["check_config"] = {"check_write": check_config == "write"}
+    else:
+        if "check_config" not in storage_cfg:
+            storage_cfg["check_config"] = {"check_write": default == "write"}
 
 
 def main():
