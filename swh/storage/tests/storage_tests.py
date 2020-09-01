@@ -142,6 +142,12 @@ class TestStorage:
 
         assert missing_methods == []
 
+        # If all the assertions above succeed, then this one should too.
+        # But there's no harm in double-checking.
+        # And we could replace the assertions above by this one, but unlike
+        # the assertions above, it doesn't explain what is missing.
+        assert isinstance(storage, StorageInterface)
+
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
         assert swh_storage.check_config(check_write=False)

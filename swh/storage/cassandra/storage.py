@@ -829,6 +829,13 @@ class CassandraStorage:
         assert len(origins) <= limit
         return PagedResult(results=origins, next_page_token=next_page_token)
 
+    def origin_count(
+        self, url_pattern: str, regexp: bool = False, with_visit: bool = False
+    ) -> int:
+        raise NotImplementedError(
+            "The Cassandra backend does not implement origin_count"
+        )
+
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
         self.journal_writer.origin_add(to_add)

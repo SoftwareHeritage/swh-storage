@@ -8,7 +8,7 @@ import datetime
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
-from typing_extensions import TypedDict
+from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
@@ -67,7 +67,8 @@ def deprecated(f):
     return f
 
 
-class StorageInterface:
+@runtime_checkable
+class StorageInterface(Protocol):
     @remote_api_endpoint("check_config")
     def check_config(self, *, check_write: bool) -> bool:
         """Check that the storage is configured and ready to go."""
