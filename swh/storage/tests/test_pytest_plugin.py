@@ -12,7 +12,7 @@ def test_sample_data(sample_data):
 
 
 def test_swh_storage(swh_storage: StorageInterface):
-    assert isinstance(swh_storage, StorageInterface) is not None
+    assert isinstance(swh_storage, StorageInterface)
 
 
 def test_swh_storage_backend_config(swh_storage_backend_config):

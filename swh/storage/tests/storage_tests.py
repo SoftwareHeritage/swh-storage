@@ -3,18 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import defaultdict
 import datetime
+from datetime import timedelta
 import inspect
 import itertools
 import math
-import queue
 import random
-import threading
-
-from collections import defaultdict
-from contextlib import contextmanager
-from datetime import timedelta
-from unittest.mock import Mock
 
 import attr
 import pytest
@@ -34,24 +29,16 @@ from swh.model.model import (
     OriginVisit,
     OriginVisitStatus,
     Person,
-    Release,
     Revision,
     Snapshot,
     TargetType,
 )
 from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
-from swh.storage.converters import origin_url_to_sha1 as sha1
+from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import ListOrder, PagedResult, StorageInterface
-from swh.storage.utils import content_hex_hashes, now
-
-
-@contextmanager
-def db_transaction(storage):
-    with storage.db() as db:
-        with db.transaction() as cur:
-            yield db, cur
+from swh.storage.utils import content_hex_hashes, now, round_to_milliseconds
 
 
 def transform_entries(
@@ -104,23 +91,6 @@ def assert_contents_ok(
         assert actual_list == expected_list, k
 
 
-def round_to_milliseconds(date):
-    """Round datetime to milliseconds before insertion, so equality doesn't fail after a
-    round-trip through a DB (eg. Cassandra)
-
-    """
-    return date.replace(microsecond=(date.microsecond // 1000) * 1000)
-
-
-def test_round_to_milliseconds():
-    date = now()
-
-    for (ms, expected_ms) in [(0, 0), (1000, 1000), (555555, 555000), (999500, 999000)]:
-        date = date.replace(microsecond=ms)
-        actual_date = round_to_milliseconds(date)
-        assert actual_date.microsecond == expected_ms
-
-
 class LazyContent(Content):
     def with_data(self):
         return Content.from_dict({**self.to_dict(), "data": b"42\n"})
@@ -170,6 +140,12 @@ class TestStorage:
             assert expected_signature == actual_signature, meth_name
 
         assert missing_methods == []
+
+        # If all the assertions above succeed, then this one should too.
+        # But there's no harm in double-checking.
+        # And we could replace the assertions above by this one, but unlike
+        # the assertions above, it doesn't explain what is missing.
+        assert isinstance(storage, StorageInterface)
 
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
@@ -1099,13 +1075,12 @@ class TestStorage:
         swh_storage.release_add([release, release2])
 
         # when
-        releases = list(swh_storage.release_get([release.id, release2.id]))
-        actual_releases = [Release.from_dict(r) for r in releases]
+        actual_releases = swh_storage.release_get([release.id, release2.id])
 
         # then
         assert actual_releases == [release, release2]
 
-        unknown_releases = list(swh_storage.release_get([release3.id]))
+        unknown_releases = swh_storage.release_get([release3.id])
         assert unknown_releases[0] is None
 
     def test_release_get_order(self, swh_storage, sample_data):
@@ -1115,12 +1090,12 @@ class TestStorage:
         assert add_result == {"release:add": 2}
 
         # order 1
-        res1 = swh_storage.release_get([release.id, release2.id])
-        assert list(res1) == [release.to_dict(), release2.to_dict()]
+        actual_releases = swh_storage.release_get([release.id, release2.id])
+        assert actual_releases == [release, release2]
 
         # order 2
-        res2 = swh_storage.release_get([release2.id, release.id])
-        assert list(res2) == [release2.to_dict(), release.to_dict()]
+        actual_releases2 = swh_storage.release_get([release2.id, release.id])
+        assert actual_releases2 == [release2, release]
 
     def test_release_get_random(self, swh_storage, sample_data):
         release, release2, release3 = sample_data.releases[:3]
@@ -3888,236 +3863,3 @@ class TestStorageGeneratedData:
                     method([obj])
                 except HashCollision:
                     pass
-
-
-@pytest.mark.db
-class TestLocalStorage:
-    """Test the local storage"""
-
-    # This test is only relevant on the local storage, with an actual
-    # objstorage raising an exception
-    def test_content_add_objstorage_exception(self, swh_storage, sample_data):
-        content = sample_data.content
-
-        swh_storage.objstorage.content_add = Mock(
-            side_effect=Exception("mocked broken objstorage")
-        )
-
-        with pytest.raises(Exception, match="mocked broken"):
-            swh_storage.content_add([content])
-
-        missing = list(swh_storage.content_missing([content.hashes()]))
-        assert missing == [content.sha1]
-
-
-@pytest.mark.db
-class TestStorageRaceConditions:
-    @pytest.mark.xfail
-    def test_content_add_race(self, swh_storage, sample_data):
-        content = sample_data.content
-
-        results = queue.Queue()
-
-        def thread():
-            try:
-                with db_transaction(swh_storage) as (db, cur):
-                    ret = swh_storage.content_add([content], db=db, cur=cur)
-                results.put((threading.get_ident(), "data", ret))
-            except Exception as e:
-                results.put((threading.get_ident(), "exc", e))
-
-        t1 = threading.Thread(target=thread)
-        t2 = threading.Thread(target=thread)
-        t1.start()
-        # this avoids the race condition
-        # import time
-        # time.sleep(1)
-        t2.start()
-        t1.join()
-        t2.join()
-
-        r1 = results.get(block=False)
-        r2 = results.get(block=False)
-
-        with pytest.raises(queue.Empty):
-            results.get(block=False)
-        assert r1[0] != r2[0]
-        assert r1[1] == "data", "Got exception %r in Thread%s" % (r1[2], r1[0])
-        assert r2[1] == "data", "Got exception %r in Thread%s" % (r2[2], r2[0])
-
-
-@pytest.mark.db
-class TestPgStorage:
-    """This class is dedicated for the rare case where the schema needs to
-       be altered dynamically.
-
-       Otherwise, the tests could be blocking when ran altogether.
-
-    """
-
-    def test_content_update_with_new_cols(self, swh_storage, sample_data):
-        content, content2 = sample_data.contents[:2]
-
-        swh_storage.journal_writer.journal = None  # TODO, not supported
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """alter table content
-                           add column test text default null,
-                           add column test2 text default null"""
-            )
-
-        swh_storage.content_add([content])
-
-        cont = content.to_dict()
-        cont["test"] = "value-1"
-        cont["test2"] = "value-2"
-
-        swh_storage.content_update([cont], keys=["test", "test2"])
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """SELECT sha1, sha1_git, sha256, length, status,
-                   test, test2
-                   FROM content WHERE sha1 = %s""",
-                (cont["sha1"],),
-            )
-
-            datum = cur.fetchone()
-
-        assert datum == (
-            cont["sha1"],
-            cont["sha1_git"],
-            cont["sha256"],
-            cont["length"],
-            "visible",
-            cont["test"],
-            cont["test2"],
-        )
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """alter table content drop column test,
-                                               drop column test2"""
-            )
-
-    def test_content_add_db(self, swh_storage, sample_data):
-        content = sample_data.content
-
-        actual_result = swh_storage.content_add([content])
-
-        assert actual_result == {
-            "content:add": 1,
-            "content:add:bytes": content.length,
-        }
-
-        if hasattr(swh_storage, "objstorage"):
-            assert content.sha1 in swh_storage.objstorage.objstorage
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                "SELECT sha1, sha1_git, sha256, length, status"
-                " FROM content WHERE sha1 = %s",
-                (content.sha1,),
-            )
-            datum = cur.fetchone()
-
-        assert datum == (
-            content.sha1,
-            content.sha1_git,
-            content.sha256,
-            content.length,
-            "visible",
-        )
-
-        contents = [
-            obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
-            if obj_type == "content"
-        ]
-        assert len(contents) == 1
-        assert contents[0] == attr.evolve(content, data=None)
-
-    def test_content_add_metadata_db(self, swh_storage, sample_data):
-        content = attr.evolve(sample_data.content, data=None, ctime=now())
-
-        actual_result = swh_storage.content_add_metadata([content])
-
-        assert actual_result == {
-            "content:add": 1,
-        }
-
-        if hasattr(swh_storage, "objstorage"):
-            assert content.sha1 not in swh_storage.objstorage.objstorage
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                "SELECT sha1, sha1_git, sha256, length, status"
-                " FROM content WHERE sha1 = %s",
-                (content.sha1,),
-            )
-            datum = cur.fetchone()
-        assert datum == (
-            content.sha1,
-            content.sha1_git,
-            content.sha256,
-            content.length,
-            "visible",
-        )
-
-        contents = [
-            obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
-            if obj_type == "content"
-        ]
-        assert len(contents) == 1
-        assert contents[0] == content
-
-    def test_skipped_content_add_db(self, swh_storage, sample_data):
-        content, cont2 = sample_data.skipped_contents[:2]
-        content2 = attr.evolve(cont2, blake2s256=None)
-
-        actual_result = swh_storage.skipped_content_add([content, content, content2])
-
-        assert 2 <= actual_result.pop("skipped_content:add") <= 3
-        assert actual_result == {}
-
-        with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                "SELECT sha1, sha1_git, sha256, blake2s256, "
-                "length, status, reason "
-                "FROM skipped_content ORDER BY sha1_git"
-            )
-
-            dbdata = cur.fetchall()
-
-        assert len(dbdata) == 2
-        assert dbdata[0] == (
-            content.sha1,
-            content.sha1_git,
-            content.sha256,
-            content.blake2s256,
-            content.length,
-            "absent",
-            "Content too long",
-        )
-
-        assert dbdata[1] == (
-            content2.sha1,
-            content2.sha1_git,
-            content2.sha256,
-            content2.blake2s256,
-            content2.length,
-            "absent",
-            "Content too long",
-        )
-
-    def test_clear_buffers(self, swh_storage):
-        """Calling clear buffers on real storage does nothing
-
-        """
-        assert swh_storage.clear_buffers() is None
-
-    def test_flush(self, swh_storage):
-        """Calling clear buffers on real storage does nothing
-
-        """
-        assert swh_storage.flush() == {}

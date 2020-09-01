@@ -51,7 +51,7 @@ from swh.storage.cassandra.model import (
 from swh.storage.interface import ListOrder
 from swh.storage.objstorage import ObjStorage
 
-from .converters import origin_url_to_sha1
+from .common import origin_url_to_sha1
 from .writer import JournalWriter
 
 

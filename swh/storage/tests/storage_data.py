@@ -48,7 +48,7 @@ class StorageData:
         sha1=hash_to_bytes("34973274ccef6ab4dfaaf86599792fa9c3fe4689"),
         sha1_git=hash_to_bytes("d81cc0710eb6cf9efd5b920a8453e1e07157b6cd"),
         sha256=hash_to_bytes(
-            "673650f936cb3b0a2f93ce09d81be10748b1b203c19e8176b4eefc1964a0cf3a"
+            "084c799cd551dd1d8d5c5f9a5d593b2e931f5e36122ee5c793c1d08a19839cc0"
         ),
         blake2s256=hash_to_bytes(
             "d5fe1939576527e42cfd76a9455a2432fe7f56669564577dd93c4280e76d661d"
@@ -115,7 +115,7 @@ class StorageData:
 
     directory5 = Directory(entries=())
     directory = Directory(
-        id=hash_to_bytes("34f335a750111ca0a8b64d8034faec9eedc396be"),
+        id=hash_to_bytes("5256e856a0a0898966d6ba14feb4388b8b82d302"),
         entries=tuple(
             [
                 DirectoryEntry(
@@ -193,7 +193,7 @@ class StorageData:
     )
 
     revision = Revision(
-        id=hash_to_bytes("066b1b62dbfa033362092af468bf6cfabec230e7"),
+        id=hash_to_bytes("01a7114f36fddd5ef2511b2cadda237a68adbb12"),
         message=b"hello",
         author=Person(
             name=b"Nicolas Dandrimont",
@@ -372,7 +372,7 @@ class StorageData:
     )
 
     release = Release(
-        id=hash_to_bytes("a673e617fcc6234e29b2cad06b8245f96c415c61"),
+        id=hash_to_bytes("f7f222093a18ec60d781070abec4a630c850b837"),
         name=b"v0.0.1",
         author=Person(
             name=b"olasd", email=b"nic@olasd.fr", fullname=b"olasd <nic@olasd.fr>",
@@ -425,7 +425,7 @@ class StorageData:
     releases: Tuple[Release, ...] = (release, release2, release3)
 
     snapshot = Snapshot(
-        id=hash_to_bytes("409ee1ff3f10d166714bc90581debfd0446dda57"),
+        id=hash_to_bytes("9b922e6d8d5b803c1582aabe5525b7b91150788e"),
         branches={
             b"master": SnapshotBranch(
                 target=revision.id, target_type=TargetType.REVISION,

@@ -16,7 +16,7 @@ from swh.storage.algos.origin import (
 from swh.storage.interface import ListOrder
 from swh.storage.utils import now
 
-from swh.storage.tests.test_storage import round_to_milliseconds
+from swh.storage.tests.storage_tests import round_to_milliseconds
 
 
 def test_iter_origins(swh_storage):

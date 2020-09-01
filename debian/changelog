@@ -1,8 +1,24 @@
-swh-storage (0.13.2-1~swh2~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.13.3-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.13.3     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-09-01 14:34:57
+    +0200)
+  * Upstream changes:     - v0.13.3     - storage*: release_get(...) ->
+    List[Optional[Release]]     - Make StorageInterface a Protocol.     -
+    Add a validating storage proxy, to check ids before insertion.     -
+    Add a --check-config option for cli commands     - Remove the
+    deprecated config-path option from `swh storage rpc-serve` command
+    - Add support for a new "check_config" config option in
+    get_storage()     - Check for db version mismatch in
+    PgStorage.check_config()     - Add a check_dbversion() method to the
+    Db class     - Fix pytest_plugin's database janitor: do not truncate
+    the dbversion table     - algos.snapshot: Add
+    visits_and_snapshots_get_from_revision     - storage/interface:
+    Remove deprecated diff endpoints     - storage_tests: Remove
+    duplicated postgresql-specific tests.     - Move postgresql-related
+    files to swh/storage/postgresql/
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 21 Aug 2020 10:34:28 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 01 Sep 2020 12:40:29 +0000
 
 swh-storage (0.13.2-1~swh2) unstable-swh; urgency=medium
 
