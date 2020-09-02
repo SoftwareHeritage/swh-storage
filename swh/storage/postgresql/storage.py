@@ -610,16 +610,16 @@ class Storage:
             yield obj[0]
 
     @timed
-    @db_transaction_generator(statement_timeout=1000)
+    @db_transaction(statement_timeout=1000)
     def revision_get(
-        self, revisions: List[Sha1Git], db=None, cur=None
-    ) -> Iterable[Optional[Dict[str, Any]]]:
-        for line in db.revision_get_from_list(revisions, cur):
-            data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
-            if not data:
-                yield None
-                continue
-            yield data.to_dict()
+        self, revision_ids: List[Sha1Git], db=None, cur=None
+    ) -> List[Optional[Revision]]:
+        revisions = []
+        for line in db.revision_get_from_list(revision_ids, cur):
+            revision = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
+            revisions.append(revision)
+
+        return revisions
 
     @timed
     @db_transaction_generator(statement_timeout=2000)

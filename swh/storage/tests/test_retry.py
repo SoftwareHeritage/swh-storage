@@ -620,16 +620,16 @@ def test_retrying_proxy_storage_revision_add(swh_storage, sample_data):
     """
     sample_rev = sample_data.revision
 
-    revision = next(swh_storage.revision_get([sample_rev.id]))
-    assert not revision
+    revision = swh_storage.revision_get([sample_rev.id])[0]
+    assert revision is None
 
     s = swh_storage.revision_add([sample_rev])
     assert s == {
         "revision:add": 1,
     }
 
-    revision = next(swh_storage.revision_get([sample_rev.id]))
-    assert revision["id"] == sample_rev.id
+    revision = swh_storage.revision_get([sample_rev.id])[0]
+    assert revision == sample_rev
 
 
 def test_retrying_proxy_storage_revision_add_with_retry(
@@ -650,8 +650,8 @@ def test_retrying_proxy_storage_revision_add_with_retry(
 
     sample_rev = sample_data.revision
 
-    revision = next(swh_storage.revision_get([sample_rev.id]))
-    assert not revision
+    revision = swh_storage.revision_get([sample_rev.id])[0]
+    assert revision is None
 
     s = swh_storage.revision_add([sample_rev])
     assert s == {
@@ -674,8 +674,8 @@ def test_retrying_proxy_swh_storage_revision_add_failure(
 
     sample_rev = sample_data.revision
 
-    revision = next(swh_storage.revision_get([sample_rev.id]))
-    assert not revision
+    revision = swh_storage.revision_get([sample_rev.id])[0]
+    assert revision is None
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
         swh_storage.revision_add([sample_rev])

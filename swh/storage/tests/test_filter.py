@@ -94,15 +94,15 @@ def test_filtering_proxy_storage_skipped_content_missing_sha1_git(
 def test_filtering_proxy_storage_revision(swh_storage, sample_data):
     sample_revision = sample_data.revision
 
-    revision = next(swh_storage.revision_get([sample_revision.id]))
-    assert not revision
+    revision = swh_storage.revision_get([sample_revision.id])[0]
+    assert revision is None
 
     s = swh_storage.revision_add([sample_revision])
     assert s == {
         "revision:add": 1,
     }
 
-    revision = next(swh_storage.revision_get([sample_revision.id]))
+    revision = swh_storage.revision_get([sample_revision.id])[0]
     assert revision is not None
 
     s = swh_storage.revision_add([sample_revision])

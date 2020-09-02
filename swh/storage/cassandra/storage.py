@@ -478,11 +478,9 @@ class CassandraStorage:
     def revision_missing(self, revisions: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.revision_missing(revisions)
 
-    def revision_get(
-        self, revisions: List[Sha1Git]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
-        rows = self._cql_runner.revision_get(revisions)
-        revs = {}
+    def revision_get(self, revision_ids: List[Sha1Git]) -> List[Optional[Revision]]:
+        rows = self._cql_runner.revision_get(revision_ids)
+        revisions: Dict[Sha1Git, Revision] = {}
         for row in rows:
             # TODO: use a single query to get all parents?
             # (it might have lower latency, but requires more code and more
@@ -492,10 +490,9 @@ class CassandraStorage:
             # parent_rank is the clustering key, so results are already
             # sorted by rank.
             rev = converters.revision_from_db(row, parents=parents)
-            revs[rev.id] = rev.to_dict()
+            revisions[rev.id] = rev
 
-        for rev_id in revisions:
-            yield revs.get(rev_id)
+        return [revisions.get(rev_id) for rev_id in revision_ids]
 
     def _get_parent_revs(
         self,
