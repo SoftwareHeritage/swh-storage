@@ -749,6 +749,23 @@ class TestStorage:
         for data in actual_data:
             assert data in expected_data
 
+    def test_directory_ls_missing_content(self, swh_storage, sample_data):
+        swh_storage.directory_add([sample_data.directory2])
+        assert list(swh_storage.directory_ls(sample_data.directory2.id)) == [
+            {
+                "dir_id": sample_data.directory2.id,
+                "length": None,
+                "name": b"oof",
+                "perms": 33188,
+                "sha1": None,
+                "sha1_git": None,
+                "sha256": None,
+                "status": None,
+                "target": sample_data.directory2.entries[0].target,
+                "type": "file",
+            },
+        ]
+
     def test_directory_entry_get_by_path(self, swh_storage, sample_data):
         cont, content2 = sample_data.contents[:2]
         dir1, dir2, dir3, dir4, dir5 = sample_data.directories[:5]
