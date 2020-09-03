@@ -26,6 +26,13 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, TypeVar
 from swh.model.model import Person, TimestampWithTimezone
 
 
+MAGIC_NULL_PK = b"<null>"
+"""
+NULLs (or all-empty blobs) are not allowed in primary keys; instead we use a
+special value that can't possibly be a valid hash.
+"""
+
+
 T = TypeVar("T", bound="BaseRow")
 
 
@@ -74,6 +81,14 @@ class SkippedContentRow(BaseRow):
     status: str
     reason: str
     origin: str
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "SkippedContentRow":
+        d = d.copy()
+        for k in ("sha1", "sha1_git", "sha256", "blake2s256"):
+            if d[k] == MAGIC_NULL_PK:
+                d[k] = None
+        return super().from_dict(d)
 
 
 @dataclasses.dataclass

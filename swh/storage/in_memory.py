@@ -256,6 +256,9 @@ class InMemoryCqlRunner:
         primary_key = self._skipped_contents.primary_key_from_dict(content_hashes)
         return self._skipped_contents.get_from_primary_key(primary_key)
 
+    def skipped_content_get_from_token(self, token: int) -> Iterable[SkippedContentRow]:
+        return self._skipped_contents.get_from_token(token)
+
     ##########################
     # 'skipped_content_by_*' tables
     ##########################
@@ -264,6 +267,11 @@ class InMemoryCqlRunner:
         self, algo: str, content: SkippedContent, token: int
     ) -> None:
         self._skipped_content_indexes[algo][content.get_hash(algo)].add(token)
+
+    def skipped_content_get_tokens_from_single_hash(
+        self, algo: str, hash_: bytes
+    ) -> Iterable[int]:
+        return self._skipped_content_indexes[algo][hash_]
 
     ##########################
     # 'directory' table

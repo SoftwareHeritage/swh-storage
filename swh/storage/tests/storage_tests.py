@@ -30,6 +30,7 @@ from swh.model.model import (
     OriginVisitStatus,
     Person,
     Revision,
+    SkippedContent,
     Snapshot,
     TargetType,
 )
@@ -761,6 +762,35 @@ class TestStorage:
                 "sha1_git": None,
                 "sha256": None,
                 "status": None,
+                "target": sample_data.directory2.entries[0].target,
+                "type": "file",
+            },
+        ]
+
+    def test_directory_ls_skipped_content(self, swh_storage, sample_data):
+        swh_storage.directory_add([sample_data.directory2])
+
+        cont = SkippedContent(
+            sha1_git=sample_data.directory2.entries[0].target,
+            sha1=b"c" * 20,
+            sha256=None,
+            blake2s256=None,
+            length=42,
+            status="absent",
+            reason="You need a premium subscription to access this content",
+        )
+        swh_storage.skipped_content_add([cont])
+
+        assert list(swh_storage.directory_ls(sample_data.directory2.id)) == [
+            {
+                "dir_id": sample_data.directory2.id,
+                "length": 42,
+                "name": b"oof",
+                "perms": 33188,
+                "sha1": b"c" * 20,
+                "sha1_git": sample_data.directory2.entries[0].target,
+                "sha256": None,
+                "status": "absent",
                 "target": sample_data.directory2.entries[0].target,
                 "type": "file",
             },
