@@ -1,11 +1,13 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 # flake8: noqa
 
+import pytest
 import unittest
+
 from unittest.mock import patch
 
 from swh.model.hashutil import hash_to_bytes
@@ -13,6 +15,19 @@ from swh.model.identifiers import directory_identifier
 from swh.storage.algos import diff
 
 from .test_dir_iterator import DirectoryModel
+
+
+def test__get_rev(swh_storage, sample_data):
+    revision = sample_data.revision
+
+    # does not exist then raises
+    with pytest.raises(AssertionError):
+        diff._get_rev(swh_storage, revision.id)
+
+    # otherwise, we retrieve its dict representation
+    swh_storage.revision_add([revision])
+    actual_revision = diff._get_rev(swh_storage, revision.id)
+    assert actual_revision == revision.to_dict()
 
 
 @patch("swh.storage.algos.diff._get_rev")
