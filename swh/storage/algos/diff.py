@@ -1,4 +1,4 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,20 +14,27 @@
 
 import collections
 
+from typing import Any, Dict
+
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier
 
+from swh.storage.interface import StorageInterface
+
 from .dir_iterators import DirectoryIterator, DoubleDirectoryIterator, Remaining
+
 
 # get the hash identifier for an empty directory
 _empty_dir_hash = hash_to_bytes(directory_identifier({"entries": []}))
 
 
-def _get_rev(storage, rev_id):
+def _get_rev(storage: StorageInterface, rev_id: bytes) -> Dict[str, Any]:
     """
     Return revision data from swh storage.
     """
-    return list(storage.revision_get([rev_id]))[0]
+    revision = storage.revision_get([rev_id])[0]
+    assert revision is not None
+    return revision.to_dict()
 
 
 class _RevisionChangesList(object):
