@@ -523,6 +523,7 @@ class TestStorage:
         assert len(actual_contents) == len(expected_contents)
         for content in actual_contents:
             assert content in expected_contents
+            assert content.ctime is None
 
     def test_content_get_partition_full(self, swh_storage, swh_contents):
         """content_get_partition for a single partition returns all available contents
@@ -604,6 +605,8 @@ class TestStorage:
         expected_contents = [attr.evolve(c, data=None) for c in [cont1, cont2]]
 
         assert actual_contents == expected_contents
+        for content in actual_contents:
+            assert content.ctime is None
 
     def test_content_get_missing_sha1(self, swh_storage, sample_data):
         cont1, cont2 = sample_data.contents[:2]
@@ -899,13 +902,12 @@ class TestStorage:
         assert add_result == {"revision:add": 2}
 
         # order 1
-        res1 = swh_storage.revision_get([revision.id, revision2.id])
-
-        assert [Revision.from_dict(r) for r in res1] == [revision, revision2]
+        actual_revisions = swh_storage.revision_get([revision.id, revision2.id])
+        assert actual_revisions == [revision, revision2]
 
         # order 2
-        res2 = swh_storage.revision_get([revision2.id, revision.id])
-        assert [Revision.from_dict(r) for r in res2] == [revision2, revision]
+        actual_revisions2 = swh_storage.revision_get([revision2.id, revision.id])
+        assert actual_revisions2 == [revision2, revision]
 
     def test_revision_log(self, swh_storage, sample_data):
         revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
@@ -970,21 +972,19 @@ class TestStorage:
 
         swh_storage.revision_add([revision])
 
-        actual_revisions = list(swh_storage.revision_get([revision.id, revision2.id]))
+        actual_revisions = swh_storage.revision_get([revision.id, revision2.id])
 
         assert len(actual_revisions) == 2
-        assert Revision.from_dict(actual_revisions[0]) == revision
-        assert actual_revisions[1] is None
+        assert actual_revisions == [revision, None]
 
     def test_revision_get_no_parents(self, swh_storage, sample_data):
         revision = sample_data.revision
         swh_storage.revision_add([revision])
 
-        get = list(swh_storage.revision_get([revision.id]))
+        actual_revision = swh_storage.revision_get([revision.id])[0]
 
-        assert len(get) == 1
         assert revision.parents == ()
-        assert tuple(get[0]["parents"]) == ()  # no parents on this one
+        assert actual_revision.parents == ()  # no parents on this one
 
     def test_revision_get_random(self, swh_storage, sample_data):
         revision1, revision2, revision3 = sample_data.revisions[:3]
@@ -2461,10 +2461,10 @@ class TestStorage:
         swh_storage.revision_add([revision, revision2])
 
         # when getting added revisions
-        revisions = list(swh_storage.revision_get([revision.id, revision2.id]))
+        revisions = swh_storage.revision_get([revision.id, revision2.id])
 
         # then check committers are the same
-        assert revisions[0]["committer"] == revisions[1]["committer"]
+        assert revisions[0].committer == revisions[1].committer
 
     def test_snapshot_add_get_empty(self, swh_storage, sample_data):
         empty_snapshot = sample_data.snapshots[1]
@@ -2981,6 +2981,8 @@ class TestStorage:
 
         actually_present = swh_storage.content_find({"sha1": content.sha1})
         assert actually_present[0] == content
+        assert actually_present[0].ctime is not None
+        assert actually_present[0].ctime.tzinfo is not None
 
     def test_content_find_with_present_content(self, swh_storage, sample_data):
         content = sample_data.content

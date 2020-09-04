@@ -6,7 +6,6 @@
 import attr
 
 from swh.core.utils import decode_with_escape
-from swh.model.model import Revision
 from swh.storage import get_storage
 from swh.storage.tests.test_postgresql import db_transaction
 
@@ -44,4 +43,4 @@ def test_revision_extra_header_in_metadata(swh_storage_backend_config, sample_da
     assert metadata == bw_rev.metadata
 
     # check the Revision build from revision_get is the original, "new style", Revision
-    assert [Revision.from_dict(x) for x in storage.revision_get([rev.id])] == [rev]
+    assert storage.revision_get([rev.id]) == [rev]
