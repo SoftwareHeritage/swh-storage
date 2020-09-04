@@ -1,3 +1,14 @@
+swh-storage (0.14.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.14.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-09-04 12:23:52
+    +0200)
+  * Upstream changes:     - v0.14.0     - Refactor revision_get storage
+    API to return Revision objects     - cassandra: Discard Content
+    ctime field in content_get_partition
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 04 Sep 2020 10:59:54 +0000
+
 swh-storage (0.13.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.13.3     - (tagged by Antoine R. Dumont
