@@ -490,16 +490,14 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("revision")
-    def revision_get(
-        self, revisions: List[Sha1Git]
-    ) -> Iterable[Optional[Dict[str, Any]]]:
+    def revision_get(self, revision_ids: List[Sha1Git]) -> List[Optional[Revision]]:
         """Get revisions from storage
 
         Args:
             revisions: revision ids
 
-        Yields:
-            revisions as dictionaries (or None if the revision doesn't exist)
+        Returns:
+            list of revision object (if the revision exists or None otherwise)
 
         """
         ...
