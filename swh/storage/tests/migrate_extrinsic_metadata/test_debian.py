@@ -9,7 +9,10 @@
 import copy
 import datetime
 import json
-from unittest.mock import call, Mock
+from unittest.mock import call, Mock, patch as _patch
+
+import attr
+import pytest
 
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
@@ -17,10 +20,21 @@ from swh.model.model import (
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    OriginVisit,
+    OriginVisitStatus,
+    Person,
     RawExtrinsicMetadata,
+    Revision,
+    RevisionType,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
+    Timestamp,
+    TimestampWithTimezone,
 )
 
-from swh.storage.migrate_extrinsic_metadata import handle_row
+from swh.storage.interface import ListOrder, PagedResult
+from swh.storage.migrate_extrinsic_metadata import handle_row, debian_origins_from_row
 
 
 FETCHER = MetadataFetcher(
@@ -31,6 +45,283 @@ SWH_AUTHORITY = MetadataAuthority(
     url="https://softwareheritage.org/",
     metadata={},
 )
+
+
+def patch(function_name, *args, **kwargs):
+    # It's a long name, this function spares some line breaks in 'with' statements
+    return _patch(
+        "swh.storage.migrate_extrinsic_metadata." + function_name, *args, **kwargs
+    )
+
+
+def test_debian_origins_from_row():
+    """Tests debian_origins_from_row on a real example (with some parts
+    omitted, for conciseness)."""
+    origin_url = "deb://Debian/packages/kalgebra"
+
+    visit = OriginVisit(
+        origin=origin_url,
+        date=datetime.datetime(
+            2020, 1, 27, 19, 32, 3, 925498, tzinfo=datetime.timezone.utc,
+        ),
+        type="deb",
+        visit=280,
+    )
+
+    def mock_origin_visit_get(origin, page_token, order):
+        if origin in (
+            "deb://Debian-Security/packages/kalgebra",
+            "http://snapshot.debian.org/package/kalgebra/",
+        ):
+            return PagedResult(results=[], next_page_token=None)
+        elif origin == "deb://Debian/packages/kalgebra":
+            if page_token == None:
+                return PagedResult(
+                    # ...
+                    results=[visit,],
+                    next_page_token="280",
+                )
+            elif page_token == "280":
+                return PagedResult(results=[], next_page_token=None)
+            else:
+                assert False, page_token
+        else:
+            assert False, origin
+
+    storage = Mock()
+
+    storage.origin_visit_get.side_effect = mock_origin_visit_get
+
+    storage.origin_visit_status_get.return_value = PagedResult(
+        results=[
+            OriginVisitStatus(
+                origin=origin_url,
+                visit=280,
+                date=datetime.datetime(
+                    2020, 1, 27, 19, 32, 3, 925498, tzinfo=datetime.timezone.utc
+                ),
+                status="full",
+                snapshot=b"\xafD\x15\x98){\xd4$\xdeI\x1f\xbe\x95lh`x\x14\xce\xc4",
+                metadata=None,
+            )
+        ],
+        next_page_token=None,
+    )
+
+    snapshot = Snapshot(
+        id=b"\xafD\x15\x98){\xd4$\xdeI\x1f\xbe\x95lh`x\x14\xce\xc4",
+        branches={
+            # ...
+            b"releases/unstable/main/4:19.12.1-1": SnapshotBranch(
+                target=b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+                target_type=TargetType.REVISION,
+            ),
+        },
+    )
+
+    revision_row = {
+        "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "metadata": {
+            # ...
+            "original_artifact": [
+                {
+                    "filename": "kalgebra_19.12.1-1.dsc",
+                    # ...
+                },
+            ]
+        },
+    }
+
+    with patch("snapshot_get_all_branches", return_value=snapshot):
+        assert debian_origins_from_row(revision_row, storage) == [origin_url]
+
+    assert storage.method_calls == [
+        call.origin_visit_get(
+            "deb://Debian/packages/kalgebra", order=ListOrder.ASC, page_token=None
+        ),
+        call.origin_visit_status_get(
+            "deb://Debian/packages/kalgebra", 280, order=ListOrder.ASC, page_token=None
+        ),
+        call.origin_visit_get(
+            "deb://Debian-Security/packages/kalgebra",
+            order=ListOrder.ASC,
+            page_token=None,
+        ),
+        call.origin_visit_get(
+            "http://snapshot.debian.org/package/kalgebra/",
+            order=ListOrder.ASC,
+            page_token=None,
+        ),
+    ]
+
+
+def test_debian_origins_from_row__no_result():
+    """Tests debian_origins_from_row when there's no origin, visit, status,
+    snapshot, branch, or matching branch.
+    """
+    storage = Mock()
+
+    origin_url = "deb://Debian/packages/kalgebra"
+
+    revision_row = {
+        "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "metadata": {"original_artifact": [{"filename": "kalgebra_19.12.1-1.dsc",},]},
+    }
+
+    # no visit
+    with patch("iter_origin_visits", return_value=[]):
+        assert debian_origins_from_row(revision_row, storage) == []
+
+    assert storage.method_calls == []
+
+    visit = OriginVisit(
+        origin=origin_url,
+        date=datetime.datetime.now(tz=datetime.timezone.utc),
+        type="deb",
+        visit=280,
+    )
+
+    # no status
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[]):
+            assert debian_origins_from_row(revision_row, storage) == []
+
+    assert storage.method_calls == []
+
+    status = OriginVisitStatus(
+        origin=origin_url,
+        visit=280,
+        date=datetime.datetime.now(tz=datetime.timezone.utc),
+        status="full",
+        snapshot=None,
+        metadata=None,
+    )
+
+    # no snapshot
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            assert debian_origins_from_row(revision_row, storage) == []
+
+    assert storage.method_calls == []
+
+    status = attr.evolve(status, snapshot=b"42" * 10)
+
+    snapshot = Snapshot(id=b"42" * 10, branches={},)
+
+    # no branch
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            with patch("snapshot_get_all_branches", return_value=snapshot):
+                assert debian_origins_from_row(revision_row, storage) == []
+
+    revision = Revision(
+        id=b"21" * 10,
+        message=b"foo",
+        author=Person.from_fullname(b"foo"),
+        committer=Person.from_fullname(b"foo"),
+        date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1580076204, microseconds=0),
+            offset=60,
+            negative_utc=False,
+        ),
+        committer_date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1580076204, microseconds=0),
+            offset=60,
+            negative_utc=False,
+        ),
+        type=RevisionType.DSC,
+        directory=b"\xd5\x9a\x1f\x9c\x80\x9d\x8c}19P\xf6\xc8\xa2\x0f^%H\xcd\xdb",
+        synthetic=True,
+        metadata=None,
+        parents=(),
+        extra_headers=(),
+    )
+
+    storage.revision_get.return_value = [revision]
+
+    # no matching branch
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            with patch("snapshot_get_all_branches", return_value=snapshot):
+                assert debian_origins_from_row(revision_row, storage) == []
+
+    assert storage.method_calls == []
+
+
+def test_debian_origins_from_row__check_revisions():
+    """Tests debian_origins_from_row errors when the revision at the head
+    of a branch is a DSC and has no parents
+    """
+    storage = Mock()
+
+    origin_url = "deb://Debian/packages/kalgebra"
+
+    revision_row = {
+        "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "metadata": {"original_artifact": [{"filename": "kalgebra_19.12.1-1.dsc",},]},
+    }
+
+    visit = OriginVisit(
+        origin=origin_url,
+        date=datetime.datetime.now(tz=datetime.timezone.utc),
+        type="deb",
+        visit=280,
+    )
+
+    status = OriginVisitStatus(
+        origin=origin_url,
+        visit=280,
+        date=datetime.datetime.now(tz=datetime.timezone.utc),
+        status="full",
+        snapshot=b"42" * 10,
+        metadata=None,
+    )
+    snapshot = Snapshot(
+        id=b"42" * 10,
+        branches={
+            b"foo": SnapshotBranch(target_type=TargetType.REVISION, target=b"21" * 10)
+        },
+    )
+
+    revision = Revision(
+        id=b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        message=b"foo",
+        author=Person.from_fullname(b"foo"),
+        committer=Person.from_fullname(b"foo"),
+        date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1580076204, microseconds=0),
+            offset=60,
+            negative_utc=False,
+        ),
+        committer_date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1580076204, microseconds=0),
+            offset=60,
+            negative_utc=False,
+        ),
+        type=RevisionType.DSC,
+        directory=b"\xd5\x9a\x1f\x9c\x80\x9d\x8c}19P\xf6\xc8\xa2\x0f^%H\xcd\xdb",
+        synthetic=True,
+        metadata=None,
+        parents=(b"parent    " * 2,),
+        extra_headers=(),
+    )
+
+    storage.revision_get.return_value = [revision]
+
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            with patch("snapshot_get_all_branches", return_value=snapshot):
+                with pytest.raises(AssertionError, match="DSC revision with parents"):
+                    debian_origins_from_row(revision_row, storage)
+
+    revision = attr.evolve(revision, type=RevisionType.GIT)
+    storage.revision_get.return_value = [revision]
+
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            with patch("snapshot_get_all_branches", return_value=snapshot):
+                with pytest.raises(AssertionError, match="non-DSC revision"):
+                    debian_origins_from_row(revision_row, storage)
 
 
 def test_debian_with_extrinsic():
@@ -138,9 +429,14 @@ def test_debian_with_extrinsic():
         },
     }
 
+    origin_url = "deb://Debian/packages/kalgebra"
+
     storage = Mock()
+
     deposit_cur = None
-    handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
+
+    with patch("debian_origins_from_row", return_value=[origin_url]):
+        handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
     assert storage.method_calls == [
         call.raw_extrinsic_metadata_add(
@@ -157,9 +453,10 @@ def test_debian_with_extrinsic():
                     fetcher=FETCHER,
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
+                    origin=origin_url,
                 ),
             ]
-        )
+        ),
     ]
 
 
@@ -249,8 +546,12 @@ def test_debian_without_extrinsic():
     }
 
     storage = Mock()
+
+    origin_url = "http://snapshot.debian.org/package/pymongo"
+
     deposit_cur = None
-    handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
+    with patch("debian_origins_from_row", return_value=[origin_url]):
+        handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
     assert storage.method_calls == [
         call.raw_extrinsic_metadata_add(
@@ -267,6 +568,7 @@ def test_debian_without_extrinsic():
                     fetcher=FETCHER,
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
+                    origin=origin_url,
                 ),
             ]
         )
