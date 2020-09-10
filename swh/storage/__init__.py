@@ -4,10 +4,11 @@
 # See top-level LICENSE file for more information
 
 import importlib
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 import warnings
 
-from .interface import StorageInterface
+if TYPE_CHECKING:
+    from .interface import StorageInterface
 
 
 STORAGE_IMPLEMENTATIONS = {
@@ -22,7 +23,7 @@ STORAGE_IMPLEMENTATIONS = {
 }
 
 
-def get_storage(cls: str, **kwargs) -> StorageInterface:
+def get_storage(cls: str, **kwargs) -> "StorageInterface":
     """Get a storage object of class `storage_class` with arguments
     `storage_args`.
 
@@ -69,7 +70,7 @@ def get_storage(cls: str, **kwargs) -> StorageInterface:
 
 def get_storage_pipeline(
     steps: List[Dict[str, Any]], check_config=None
-) -> StorageInterface:
+) -> "StorageInterface":
     """Recursively get a storage object that may use other storage objects
     as backends.
 

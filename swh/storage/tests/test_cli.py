@@ -34,7 +34,7 @@ CLI_CONFIG = {
 def swh_storage():
     """An swh-storage object that gets injected into the CLI functions."""
     storage = get_storage(**CLI_CONFIG["storage"])
-    with patch("swh.storage.cli.get_storage") as get_storage_mock:
+    with patch("swh.storage.get_storage") as get_storage_mock:
         get_storage_mock.return_value = storage
         yield storage
 
