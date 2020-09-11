@@ -162,6 +162,8 @@ def test_debian_origins_from_row__no_result():
     storage = Mock()
 
     origin_url = "deb://Debian/packages/kalgebra"
+    snapshot_id = b"42424242424242424242"
+    revision_id = b"21212121212121212121"
 
     revision_row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
@@ -204,9 +206,9 @@ def test_debian_origins_from_row__no_result():
 
     assert storage.method_calls == []
 
-    status = attr.evolve(status, snapshot=b"42" * 10)
+    status = attr.evolve(status, snapshot=snapshot_id)
 
-    snapshot = Snapshot(id=b"42" * 10, branches={},)
+    snapshot = Snapshot(id=snapshot_id, branches={},)
 
     # no branch
     with patch("iter_origin_visits", return_value=[visit]):
@@ -214,8 +216,29 @@ def test_debian_origins_from_row__no_result():
             with patch("snapshot_get_all_branches", return_value=snapshot):
                 assert debian_origins_from_row(revision_row, storage) == []
 
+    snapshot = attr.evolve(
+        snapshot,
+        branches={
+            b"foo": SnapshotBranch(target_type=TargetType.REVISION, target=revision_id,)
+        },
+    )
+    storage.revision_get.return_value = [None]
+
+    # branch points to unknown revision
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            with patch("snapshot_get_all_branches", return_value=snapshot):
+                assert debian_origins_from_row(revision_row, storage) == []
+
+    assert storage.method_calls == [
+        call.revision_get([revision_id]),
+        call.revision_get([revision_id]),
+        call.revision_get([revision_id]),
+    ]
+    storage.reset_mock()
+
     revision = Revision(
-        id=b"21" * 10,
+        id=revision_id,
         message=b"foo",
         author=Person.from_fullname(b"foo"),
         committer=Person.from_fullname(b"foo"),
@@ -245,7 +268,11 @@ def test_debian_origins_from_row__no_result():
             with patch("snapshot_get_all_branches", return_value=snapshot):
                 assert debian_origins_from_row(revision_row, storage) == []
 
-    assert storage.method_calls == []
+    assert storage.method_calls == [
+        call.revision_get([revision_id]),
+        call.revision_get([revision_id]),
+        call.revision_get([revision_id]),
+    ]
 
 
 def test_debian_origins_from_row__check_revisions():

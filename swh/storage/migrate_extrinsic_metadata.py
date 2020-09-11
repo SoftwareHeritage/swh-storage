@@ -189,6 +189,10 @@ def _check_revision_in_origin(storage, origin, revision_id):
                 seen_revisions.add(branch.target)
                 revision = storage.revision_get([branch.target])[0]
 
+                if revision is None:
+                    # https://forge.softwareheritage.org/T997
+                    continue
+
                 # Check it's DSC (we only support those for now)
                 assert (
                     revision.type == RevisionType.DSC
