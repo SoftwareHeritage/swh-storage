@@ -362,6 +362,7 @@ class CassandraStorage:
         return self._cql_runner.directory_missing(directories)
 
     def _join_dentry_to_content(self, dentry: DirectoryEntry) -> Dict[str, Any]:
+        contents: Union[List[Content], List[SkippedContentRow]]
         keys = (
             "status",
             "sha1",
@@ -373,6 +374,16 @@ class CassandraStorage:
         ret.update(dentry.to_dict())
         if ret["type"] == "file":
             contents = self.content_find({"sha1_git": ret["target"]})
+            if not contents:
+                tokens = list(
+                    self._cql_runner.skipped_content_get_tokens_from_single_hash(
+                        "sha1_git", ret["target"]
+                    )
+                )
+                if tokens:
+                    contents = list(
+                        self._cql_runner.skipped_content_get_from_token(tokens[0])
+                    )
             if contents:
                 content = contents[0]
                 for key in keys:
