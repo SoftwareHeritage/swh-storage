@@ -176,6 +176,9 @@ def _check_revision_in_origin(storage, origin, revision_id):
             seen_snapshots.add(status.snapshot)
             snapshot = snapshot_get_all_branches(storage, status.snapshot)
             for (branch_name, branch) in snapshot.branches.items():
+                if branch is None:
+                    continue
+
                 # If it's the revision passed as argument, then it is indeed in the
                 # origin
                 if branch.target == revision_id:

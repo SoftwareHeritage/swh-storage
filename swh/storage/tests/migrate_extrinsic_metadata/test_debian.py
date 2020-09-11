@@ -216,6 +216,16 @@ def test_debian_origins_from_row__no_result():
             with patch("snapshot_get_all_branches", return_value=snapshot):
                 assert debian_origins_from_row(revision_row, storage) == []
 
+    snapshot = attr.evolve(snapshot, branches={b"foo": None,},)
+
+    # dangling branch
+    with patch("iter_origin_visits", return_value=[visit]):
+        with patch("iter_origin_visit_statuses", return_value=[status]):
+            with patch("snapshot_get_all_branches", return_value=snapshot):
+                assert debian_origins_from_row(revision_row, storage) == []
+
+    assert storage.method_calls == []
+
     snapshot = attr.evolve(
         snapshot,
         branches={
