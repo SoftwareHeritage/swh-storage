@@ -213,6 +213,7 @@ sql/upgrades/158.sql
 sql/upgrades/159.sql
 sql/upgrades/160.sql
 sql/upgrades/161.sql
+sql/upgrades/162.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -231,6 +232,7 @@ swh/storage/fixer.py
 swh/storage/in_memory.py
 swh/storage/interface.py
 swh/storage/metrics.py
+swh/storage/migrate_extrinsic_metadata.py
 swh/storage/objstorage.py
 swh/storage/py.typed
 swh/storage/pytest_plugin.py
@@ -299,3 +301,10 @@ swh/storage/tests/algos/test_origin.py
 swh/storage/tests/algos/test_revisions_walker.py
 swh/storage/tests/algos/test_snapshot.py
 swh/storage/tests/data/storage.yml
+swh/storage/tests/migrate_extrinsic_metadata/test_cran.py
+swh/storage/tests/migrate_extrinsic_metadata/test_debian.py
+swh/storage/tests/migrate_extrinsic_metadata/test_deposit.py
+swh/storage/tests/migrate_extrinsic_metadata/test_gnu.py
+swh/storage/tests/migrate_extrinsic_metadata/test_nixguix.py
+swh/storage/tests/migrate_extrinsic_metadata/test_npm.py
+swh/storage/tests/migrate_extrinsic_metadata/test_pypi.py

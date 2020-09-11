@@ -51,6 +51,7 @@ from .model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    MAGIC_NULL_PK,
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
@@ -385,12 +386,6 @@ class CqlRunner:
     # 'skipped_content' table
     ##########################
 
-    _magic_null_pk = b"<null>"
-    """
-    NULLs (or all-empty blobs) are not allowed in primary keys; instead use a
-    special value that can't possibly be a valid hash.
-    """
-
     def _skipped_content_add_finalize(self, statement: BoundStatement) -> None:
         """Returned currified by skipped_content_add_prepare, to be called
         when the content row should be added to the primary table."""
@@ -409,7 +404,7 @@ class CqlRunner:
         # an empty byte string
         for key in SkippedContentRow.PARTITION_KEY:
             if getattr(content, key) is None:
-                setattr(content, key, self._magic_null_pk)
+                setattr(content, key, MAGIC_NULL_PK)
 
         statement = statement.bind(dataclasses.astuple(content))
 
@@ -441,18 +436,25 @@ class CqlRunner:
         rows = list(
             self._execute_with_retries(
                 statement,
-                [
-                    content_hashes[algo] or self._magic_null_pk
-                    for algo in HASH_ALGORITHMS
-                ],
+                [content_hashes[algo] or MAGIC_NULL_PK for algo in HASH_ALGORITHMS],
             )
         )
         assert len(rows) <= 1
         if rows:
-            # TODO: convert _magic_null_pk back to None?
             return SkippedContentRow.from_dict(rows[0])
         else:
             return None
+
+    @_prepared_select_statement(
+        SkippedContentRow,
+        f"WHERE token({', '.join(SkippedContentRow.PARTITION_KEY)}) = ?",
+    )
+    def skipped_content_get_from_token(
+        self, token, *, statement
+    ) -> Iterable[SkippedContentRow]:
+        return map(
+            SkippedContentRow.from_dict, self._execute_with_retries(statement, [token])
+        )
 
     ##########################
     # 'skipped_content_by_*' tables
@@ -468,7 +470,16 @@ class CqlRunner:
             f"VALUES (%s, %s)"
         )
         self._execute_with_retries(
-            query, [content.get_hash(algo) or self._magic_null_pk, token]
+            query, [content.get_hash(algo) or MAGIC_NULL_PK, token]
+        )
+
+    def skipped_content_get_tokens_from_single_hash(
+        self, algo: str, hash_: bytes
+    ) -> Iterable[int]:
+        assert algo in HASH_ALGORITHMS
+        query = f"SELECT target_token FROM skipped_content_by_{algo} WHERE {algo} = %s"
+        return (
+            row["target_token"] for row in self._execute_with_retries(query, [hash_])
         )
 
     ##########################
