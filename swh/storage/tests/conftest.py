@@ -23,7 +23,10 @@ from swh.storage.interface import StorageInterface
 # https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles
 settings.register_profile("fast", max_examples=5, deadline=5000)
 settings.register_profile("slow", max_examples=20, deadline=5000)
-
+# Load the fast profile by default to overcome default hypothesis values
+# (max_examples=100, deadline=200) that are unsuitable for our tests.
+# This can still be overloaded via the --hypothesis-profile option.
+settings.load_profile("fast")
 
 if pytest_cov is not None:
     # pytest_cov + multiprocessing can cause a segmentation fault when starting

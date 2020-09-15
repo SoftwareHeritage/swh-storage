@@ -1,9 +1,10 @@
-# Copyright (C) 2015-2019  The Software Heritage developers
+# Copyright (C) 2015-2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import functools
+# WARNING: do not import unnecessary things here to keep cli startup time under
+# control
 import logging
 import os
 
@@ -11,11 +12,7 @@ from typing import Dict, Optional
 
 import click
 
-from swh.core import config
 from swh.core.cli import CONTEXT_SETTINGS
-from swh.journal.client import get_journal_client
-from swh.storage import get_storage
-from swh.storage.api.server import app
 
 try:
     from systemd.daemon import notify
@@ -45,6 +42,8 @@ except ImportError:
 @click.pass_context
 def storage(ctx, config_file, check_config):
     """Software Heritage Storage tools."""
+    from swh.core import config
+
     if not config_file:
         config_file = os.environ.get("SWH_CONFIG_FILENAME")
 
@@ -90,6 +89,8 @@ def serve(ctx, host, port, debug):
 
     Do NOT use this in a production environment.
     """
+    from swh.storage.api.server import app
+
     if "log_level" in ctx.obj:
         logging.getLogger("werkzeug").setLevel(ctx.obj["log_level"])
     ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "write")
@@ -164,6 +165,10 @@ def replay(ctx, stop_after_objects):
     There can be several 'replayers' filling a Storage as long as they use
     the same `group-id`.
     """
+    import functools
+
+    from swh.journal.client import get_journal_client
+    from swh.storage import get_storage
     from swh.storage.replay import process_replay_objects
 
     ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "write")

@@ -7,7 +7,7 @@ from typing import Dict, Iterable, Optional
 
 from swh.storage.interface import Sha1
 from swh.model.model import Content, MissingData
-from swh.objstorage import get_objstorage
+from swh.objstorage.factory import get_objstorage
 from swh.objstorage.exc import ObjNotFoundError
 
 from .exc import StorageArgumentException

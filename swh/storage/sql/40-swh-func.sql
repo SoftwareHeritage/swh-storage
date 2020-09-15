@@ -314,12 +314,22 @@ as $$
      from ls_d
      left join directory_entry_dir e on ls_d.entry_id = e.id)
     union
-    (select dir_id, 'file'::directory_entry_type as type,
+    (with known_contents as
+	(select dir_id, 'file'::directory_entry_type as type,
             e.target, e.name, e.perms, c.status,
             c.sha1, c.sha1_git, c.sha256, c.length
-     from ls_f
-     left join directory_entry_file e on ls_f.entry_id = e.id
-     left join content c on e.target = c.sha1_git)
+         from ls_f
+         left join directory_entry_file e on ls_f.entry_id = e.id
+         inner join content c on e.target = c.sha1_git)
+        select * from known_contents
+	union
+	(select dir_id, 'file'::directory_entry_type as type,
+            e.target, e.name, e.perms, c.status,
+            c.sha1, c.sha1_git, c.sha256, c.length
+         from ls_f
+         left join directory_entry_file e on ls_f.entry_id = e.id
+         left join skipped_content c on e.target = c.sha1_git
+         where not exists (select 1 from known_contents where known_contents.sha1_git=e.target)))
     union
     (select dir_id, 'rev'::directory_entry_type as type,
             e.target, e.name, e.perms, NULL::content_status,

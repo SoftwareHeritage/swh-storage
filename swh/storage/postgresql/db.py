@@ -24,7 +24,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 161
+    current_version = 162
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
