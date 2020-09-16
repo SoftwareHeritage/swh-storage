@@ -43,7 +43,6 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     RawExtrinsicMetadata,
-    RevisionType,
     Sha1Git,
 )
 from swh.storage import get_storage
@@ -196,14 +195,9 @@ def _check_revision_in_origin(storage, origin, revision_id):
                     # https://forge.softwareheritage.org/T997
                     continue
 
-                # Check it's DSC (we only support those for now)
-                assert (
-                    revision.type == RevisionType.DSC
-                ), "non-DSC revisions are not supported"
-
                 # Check it doesn't have parents (else we would have to
                 # recurse)
-                assert revision.parents == (), "DSC revision with parents"
+                assert revision.parents == (), "revision with parents"
 
     return False
 
@@ -762,22 +756,15 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
             assert len(metadata["original_artifact"]) == 1
 
-            # it's tempting here to do this:
-            #
-            #   project_name = pypi_project_from_filename(
-            #       metadata["original_artifact"][0]["filename"]
-            #   )
-            #   origin = f"https://pypi.org/project/{project_name}/"
-            #   assert_origin_exists(storage, origin)
-            #
-            # but unfortunately, the filename is user-provided, and doesn't
-            # necessarily match the package name on pypi.
-
-            # TODO: on second thoughts, I think we can use this as a heuristic,
-            # then double-check by listing visits and snapshots from the origin;
-            # it should work for most packages.
-
-            origin = None
+            project_name = pypi_project_from_filename(
+                metadata["original_artifact"][0]["filename"]
+            )
+            origin = f"https://pypi.org/project/{project_name}/"
+            # But unfortunately, the filename is user-provided, and doesn't
+            # necessarily match the package name on pypi. Therefore, we need
+            # to check it.
+            if not _check_revision_in_origin(storage, origin, row["id"]):
+                origin = None
 
             if "project" in metadata:
                 # pypi loader format 2

@@ -309,14 +309,7 @@ def test_debian_origins_from_row__check_revisions():
     )
     storage.revision_add([revision])
 
-    with pytest.raises(AssertionError, match="DSC revision with parents"):
-        debian_origins_from_row(revision_row, storage)
-
-    storage = copy.deepcopy(storage_before_revision)
-    revision = attr.evolve(revision, type=RevisionType.GIT)
-    storage.revision_add([revision])
-
-    with pytest.raises(AssertionError, match="non-DSC revision"):
+    with pytest.raises(AssertionError, match="revision with parents"):
         debian_origins_from_row(revision_row, storage)
 
 
