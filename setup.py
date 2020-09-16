@@ -49,10 +49,8 @@ setup(
     use_scm_version=True,
     scripts=["bin/swh-storage-add-dir",],
     entry_points="""
-        [console_scripts]
-        swh-storage=swh.storage.cli:main
         [swh.cli.subcommands]
-        storage=swh.storage.cli:storage
+        storage=swh.storage.cli
     """,
     install_requires=parse_requirements() + parse_requirements("swh"),
     extras_require={
