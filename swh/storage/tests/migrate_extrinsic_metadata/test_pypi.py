@@ -57,6 +57,9 @@ def test_pypi_project_from_filename():
         ("py-evm-0.2.0a9.tar.gz", "py-evm"),
         ("collective.texttospeech-1.0rc1.tar.gz", "collective.texttospeech"),
         ("flatland-fork-0.4.post1.dev40550160.zip", "flatland-fork"),
+        ("fake-factory-0.5.6-proper.tar.gz", "fake-factory"),
+        ("ariane_procos-0.1.2-b05.tar.gz", "ariane_procos"),
+        ("Yelpy-0.2.2dev.tar.gz", "Yelpy"),
     ]
 
     for (filename, project) in files:

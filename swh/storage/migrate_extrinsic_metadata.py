@@ -117,7 +117,7 @@ deposit_revision_message_re = re.compile(
 def pypi_project_from_filename(filename):
     match = re.match(
         r"^(?P<project_name>[a-zA-Z0-9_.-]+)"
-        r"-[0-9.]+([a-z]+[0-9]+)?(\.dev[0-9]+)?\.(tar\.gz|zip)$",
+        r"-[0-9.]+([a-z]+[0-9]+)?(dev|\.dev[0-9]+)?(-[a-z][a-z0-9]*)?\.(tar\.gz|zip)$",
         filename,
     )
     assert match, filename
