@@ -9,7 +9,8 @@
 import copy
 import datetime
 import json
-from unittest.mock import call, Mock
+
+import attr
 
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
@@ -18,9 +19,16 @@ from swh.model.model import (
     MetadataFetcher,
     MetadataTargetType,
     Origin,
+    OriginVisit,
+    OriginVisitStatus,
     RawExtrinsicMetadata,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
 )
 
+from swh.storage import get_storage
+from swh.storage.interface import PagedResult
 from swh.storage.migrate_extrinsic_metadata import (
     handle_row,
     pypi_project_from_filename,
@@ -31,13 +39,15 @@ FETCHER = MetadataFetcher(
     name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
 )
 PYPI_AUTHORITY = MetadataAuthority(
-    type=MetadataAuthorityType.FORGE, url="https://pypi.org/", metadata={},
+    type=MetadataAuthorityType.FORGE, url="https://pypi.org/",
 )
 SWH_AUTHORITY = MetadataAuthority(
-    type=MetadataAuthorityType.REGISTRY,
-    url="https://softwareheritage.org/",
-    metadata={},
+    type=MetadataAuthorityType.REGISTRY, url="https://softwareheritage.org/",
 )
+
+
+def now():
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 def test_pypi_project_from_filename():
@@ -47,6 +57,9 @@ def test_pypi_project_from_filename():
         ("py-evm-0.2.0a9.tar.gz", "py-evm"),
         ("collective.texttospeech-1.0rc1.tar.gz", "collective.texttospeech"),
         ("flatland-fork-0.4.post1.dev40550160.zip", "flatland-fork"),
+        ("fake-factory-0.5.6-proper.tar.gz", "fake-factory"),
+        ("ariane_procos-0.1.2-b05.tar.gz", "ariane_procos"),
+        ("Yelpy-0.2.2dev.tar.gz", "Yelpy"),
     ]
 
     for (filename, project) in files:
@@ -119,55 +132,58 @@ def test_pypi_1():
 
     origin_url = "https://pypi.org/project/m3-ui/"
 
-    storage = Mock()
+    storage = get_storage("memory")
+    storage.origin_add([Origin(url=origin_url)])
+    storage.metadata_authority_add(
+        [
+            attr.evolve(PYPI_AUTHORITY, metadata={}),
+            attr.evolve(SWH_AUTHORITY, metadata={}),
+        ]
+    )
+    storage.metadata_fetcher_add([FETCHER])
 
-    def origin_get(urls):
-        assert urls == [origin_url]
-        return [Origin(url=origin_url)]
-
-    storage.origin_get.side_effect = origin_get
     deposit_cur = None
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    assert storage.method_calls == [
-        call.origin_get([origin_url]),
-        call.raw_extrinsic_metadata_add(
-            [
-                RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517"
-                    ),
-                    discovery_date=datetime.datetime(
-                        2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
-                    ),
-                    authority=PYPI_AUTHORITY,
-                    fetcher=FETCHER,
-                    format="pypi-project-json",
-                    metadata=json.dumps(extrinsic_metadata).encode(),
-                    origin=origin_url,
+    revision_swhid = parse_swhid("swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517")
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+    ) == PagedResult(
+        results=[
+            RawExtrinsicMetadata(
+                type=MetadataTargetType.REVISION,
+                id=revision_swhid,
+                discovery_date=datetime.datetime(
+                    2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
-            ]
-        ),
-        call.raw_extrinsic_metadata_add(
-            [
-                RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517"
-                    ),
-                    discovery_date=datetime.datetime(
-                        2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
-                    ),
-                    authority=SWH_AUTHORITY,
-                    fetcher=FETCHER,
-                    format="original-artifacts-json",
-                    metadata=json.dumps(original_artifacts).encode(),
-                    origin=origin_url,
+                authority=PYPI_AUTHORITY,
+                fetcher=FETCHER,
+                format="pypi-project-json",
+                metadata=json.dumps(extrinsic_metadata).encode(),
+                origin=origin_url,
+            ),
+        ],
+        next_page_token=None,
+    )
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+    ) == PagedResult(
+        results=[
+            RawExtrinsicMetadata(
+                type=MetadataTargetType.REVISION,
+                id=revision_swhid,
+                discovery_date=datetime.datetime(
+                    2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
-            ]
-        ),
-    ]
+                authority=SWH_AUTHORITY,
+                fetcher=FETCHER,
+                format="original-artifacts-json",
+                metadata=json.dumps(original_artifacts).encode(),
+                origin=origin_url,
+            ),
+        ],
+        next_page_token=None,
+    )
 
 
 def test_pypi_2():
@@ -230,59 +246,64 @@ def test_pypi_2():
 
     origin_url = "https://pypi.org/project/jupyterhub-simx/"
 
-    storage = Mock()
+    storage = get_storage("memory")
 
-    def origin_get(urls):
-        assert urls == [origin_url]
-        return [Origin(url=origin_url)]
-
-    storage.origin_get.side_effect = origin_get
+    storage.origin_add([Origin(url=origin_url)])
+    storage.metadata_authority_add(
+        [
+            attr.evolve(PYPI_AUTHORITY, metadata={}),
+            attr.evolve(SWH_AUTHORITY, metadata={}),
+        ]
+    )
+    storage.metadata_fetcher_add([FETCHER])
     deposit_cur = None
+
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    assert storage.method_calls == [
-        call.raw_extrinsic_metadata_add(
-            [
-                RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca"
-                    ),
-                    discovery_date=datetime.datetime(
-                        2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
-                    ),
-                    authority=PYPI_AUTHORITY,
-                    fetcher=FETCHER,
-                    format="pypi-project-json",
-                    metadata=json.dumps(extrinsic_metadata).encode(),
-                    origin=None,
+    revision_swhid = parse_swhid("swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca")
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+    ) == PagedResult(
+        results=[
+            RawExtrinsicMetadata(
+                type=MetadataTargetType.REVISION,
+                id=revision_swhid,
+                discovery_date=datetime.datetime(
+                    2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
-            ]
-        ),
-        call.raw_extrinsic_metadata_add(
-            [
-                RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca"
-                    ),
-                    discovery_date=datetime.datetime(
-                        2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
-                    ),
-                    authority=SWH_AUTHORITY,
-                    fetcher=FETCHER,
-                    format="original-artifacts-json",
-                    metadata=json.dumps(dest_original_artifacts).encode(),
-                    origin=None,
+                authority=PYPI_AUTHORITY,
+                fetcher=FETCHER,
+                format="pypi-project-json",
+                metadata=json.dumps(extrinsic_metadata).encode(),
+                origin=None,
+            ),
+        ],
+        next_page_token=None,
+    )
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+    ) == PagedResult(
+        results=[
+            RawExtrinsicMetadata(
+                type=MetadataTargetType.REVISION,
+                id=revision_swhid,
+                discovery_date=datetime.datetime(
+                    2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
-            ]
-        ),
-    ]
+                authority=SWH_AUTHORITY,
+                fetcher=FETCHER,
+                format="original-artifacts-json",
+                metadata=json.dumps(dest_original_artifacts).encode(),
+                origin=None,
+            ),
+        ],
+        next_page_token=None,
+    )
 
 
 def test_pypi_3():
-    """Tests loading a revision generated by a vert old PyPI loader that
-    does not have a provider orhas 'project' metadata."""
+    """Tests loading a revision generated by a very old PyPI loader that
+    does not have a provider or has 'project' metadata."""
 
     source_original_artifact = {
         "url": "https://files.pythonhosted.org/packages/34/4f/30087f22eaae8ad7077a28ce157342745a2977e264b8a8e4e7f804a8aa5e/PyPDFLite-0.1.32.tar.gz",
@@ -324,33 +345,150 @@ def test_pypi_3():
 
     origin_url = "https://pypi.org/project/PyPDFLite/"
 
-    storage = Mock()
+    storage = get_storage("memory")
 
-    def origin_get(urls):
-        assert urls == [origin_url]
-        return [Origin(url=origin_url)]
-
-    storage.origin_get.side_effect = origin_get
+    storage.origin_add([Origin(url=origin_url)])
+    storage.metadata_authority_add(
+        [
+            attr.evolve(PYPI_AUTHORITY, metadata={}),
+            attr.evolve(SWH_AUTHORITY, metadata={}),
+        ]
+    )
+    storage.metadata_fetcher_add([FETCHER])
     deposit_cur = None
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    assert storage.method_calls == [
-        call.raw_extrinsic_metadata_add(
-            [
-                RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2"
-                    ),
-                    discovery_date=datetime.datetime(
-                        2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
-                    ),
-                    authority=SWH_AUTHORITY,
-                    fetcher=FETCHER,
-                    format="original-artifacts-json",
-                    metadata=json.dumps(dest_original_artifacts).encode(),
-                    origin=None,
+    revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
+
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+    ) == PagedResult(results=[], next_page_token=None,)
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+    ) == PagedResult(
+        results=[
+            RawExtrinsicMetadata(
+                type=MetadataTargetType.REVISION,
+                id=revision_swhid,
+                discovery_date=datetime.datetime(
+                    2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),
-            ]
-        ),
+                authority=SWH_AUTHORITY,
+                fetcher=FETCHER,
+                format="original-artifacts-json",
+                metadata=json.dumps(dest_original_artifacts).encode(),
+                origin=None,
+            ),
+        ],
+        next_page_token=None,
+    )
+
+
+def test_pypi_good_origin():
+    """Tests loading a revision whose origin we can find"""
+
+    source_original_artifact = {
+        "url": "https://files.pythonhosted.org/packages/34/4f/30087f22eaae8ad7077a28ce157342745a2977e264b8a8e4e7f804a8aa5e/PyPDFLite-0.1.32.tar.gz",
+        "date": "2014-05-07T22:03:00",
+        "sha1": "3289269f75b4111dd00eaea53e00330db9a1db12",
+        "size": 46644,
+        "sha256": "911497d655cf7ef6530c5b57773dad7da97e21cf4d608ad9ad1e38bd7bec7824",
+        "filename": "PyPDFLite-0.1.32.tar.gz",
+        "sha1_git": "1e5c38014731242cfa8594839bcba8a0c4e158c5",
+        "blake2s256": "45792e57873f56d385c694e36c98a580cbba60d5ea91eb6fd0a2d1c71c1fb385",
+        "archive_type": "tar",
+    }
+
+    dest_original_artifacts = [
+        {
+            "url": "https://files.pythonhosted.org/packages/34/4f/30087f22eaae8ad7077a28ce157342745a2977e264b8a8e4e7f804a8aa5e/PyPDFLite-0.1.32.tar.gz",
+            "filename": "PyPDFLite-0.1.32.tar.gz",
+            "archive_type": "tar",
+            "length": 46644,
+            "checksums": {
+                "sha1": "3289269f75b4111dd00eaea53e00330db9a1db12",
+                "sha256": "911497d655cf7ef6530c5b57773dad7da97e21cf4d608ad9ad1e38bd7bec7824",
+                "sha1_git": "1e5c38014731242cfa8594839bcba8a0c4e158c5",
+                "blake2s256": "45792e57873f56d385c694e36c98a580cbba60d5ea91eb6fd0a2d1c71c1fb385",
+            },
+        }
     ]
+
+    revision_id = b"N\xa9\x91|\xdfS\xcd\x13SJ\x04.N\xb3x{\x86\xc84\xd2"
+    row = {
+        "id": revision_id,
+        "date": datetime.datetime(2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc),
+        "committer_date": datetime.datetime(
+            2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc
+        ),
+        "type": "tar",
+        "message": b"0.1.32",
+        "metadata": {"original_artifact": source_original_artifact},
+    }
+
+    origin_url = "https://pypi.org/project/PyPDFLite/"
+
+    storage = get_storage("memory")
+
+    snapshot_id = b"42" * 10
+    storage.origin_add([Origin(url=origin_url)])
+    storage.origin_visit_add(
+        [OriginVisit(origin=origin_url, visit=1, date=now(), type="pypi")]
+    )
+    storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin_url,
+                visit=1,
+                date=now(),
+                status="partial",
+                snapshot=snapshot_id,
+            )
+        ]
+    )
+    storage.snapshot_add(
+        [
+            Snapshot(
+                id=snapshot_id,
+                branches={
+                    b"foo": SnapshotBranch(
+                        target_type=TargetType.REVISION, target=revision_id,
+                    )
+                },
+            )
+        ]
+    )
+    storage.metadata_authority_add(
+        [
+            attr.evolve(PYPI_AUTHORITY, metadata={}),
+            attr.evolve(SWH_AUTHORITY, metadata={}),
+        ]
+    )
+    storage.metadata_fetcher_add([FETCHER])
+    deposit_cur = None
+    handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
+
+    revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
+
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+    ) == PagedResult(results=[], next_page_token=None,)
+    assert storage.raw_extrinsic_metadata_get(
+        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+    ) == PagedResult(
+        results=[
+            RawExtrinsicMetadata(
+                type=MetadataTargetType.REVISION,
+                id=revision_swhid,
+                discovery_date=datetime.datetime(
+                    2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
+                ),
+                authority=SWH_AUTHORITY,
+                fetcher=FETCHER,
+                format="original-artifacts-json",
+                metadata=json.dumps(dest_original_artifacts).encode(),
+                origin=origin_url,
+            ),
+        ],
+        next_page_token=None,
+    )
