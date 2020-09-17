@@ -1208,8 +1208,9 @@ class Storage:
     def origin_add(self, origins: List[Origin], db=None, cur=None) -> Dict[str, int]:
         urls = [o.url for o in origins]
         known_origins = set(url for (url,) in db.origin_get_by_url(urls, cur))
-        # use lists here to keep origins sorted; some tests depend on this
-        to_add = [url for url in urls if url not in known_origins]
+        # keep only one occurrence of each given origin while keeping the list
+        # sorted as originally given
+        to_add = sorted(set(urls) - known_origins, key=urls.index)
 
         self.journal_writer.origin_add([Origin(url=url) for url in to_add])
         added = 0

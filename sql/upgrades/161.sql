@@ -12,6 +12,10 @@ update revision
     set extra_headers = ARRAY[]::bytea[][]
     where extra_headers is null;
 
+alter table revision
+    add constraint revision_extra_headers_not_null
+    check (extra_headers is not null)
+    not valid;
 
 alter table revision
-    alter column extra_headers set not null;
+    validate constraint revision_extra_headers_not_null;

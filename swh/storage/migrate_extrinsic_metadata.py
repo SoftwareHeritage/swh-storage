@@ -46,6 +46,8 @@ from swh.model.model import (
     Sha1Git,
 )
 from swh.storage import get_storage
+from swh.storage.algos.origin import iter_origin_visits, iter_origin_visit_statuses
+from swh.storage.algos.snapshot import snapshot_get_all_branches
 
 # XML namespaces and fields for metadata coming from the deposit:
 
@@ -115,7 +117,7 @@ deposit_revision_message_re = re.compile(
 def pypi_project_from_filename(filename):
     match = re.match(
         r"^(?P<project_name>[a-zA-Z0-9_.-]+)"
-        r"-[0-9.]+([a-z]+[0-9]+)?(\.dev[0-9]+)?\.(tar\.gz|zip)$",
+        r"-[0-9.]+([a-z]+[0-9]+)?(dev|\.dev[0-9]+)?(-[a-z][a-z0-9]*)?\.(tar\.gz|zip)$",
         filename,
     )
     assert match, filename
@@ -158,6 +160,67 @@ def remove_atom_codemeta_metadata_without_xmlns(metadata):
     for key in list(metadata):
         if key.startswith(("{%s}" % ATOM_NS, "{%s}" % CODEMETA_NS)):
             del metadata[key]
+
+
+def _check_revision_in_origin(storage, origin, revision_id):
+    seen_snapshots = set()  # no need to visit them again
+    seen_revisions = set()
+
+    for visit in iter_origin_visits(storage, origin):
+        for status in iter_origin_visit_statuses(storage, origin, visit.visit):
+            if status.snapshot is None:
+                continue
+            if status.snapshot in seen_snapshots:
+                continue
+            seen_snapshots.add(status.snapshot)
+            snapshot = snapshot_get_all_branches(storage, status.snapshot)
+            for (branch_name, branch) in snapshot.branches.items():
+                if branch is None:
+                    continue
+
+                # If it's the revision passed as argument, then it is indeed in the
+                # origin
+                if branch.target == revision_id:
+                    return True
+
+                # Else, let's make sure the branch doesn't have any other revision
+
+                # Get the revision at the top of the branch.
+                if branch.target in seen_revisions:
+                    continue
+                seen_revisions.add(branch.target)
+                revision = storage.revision_get([branch.target])[0]
+
+                if revision is None:
+                    # https://forge.softwareheritage.org/T997
+                    continue
+
+                # Check it doesn't have parents (else we would have to
+                # recurse)
+                assert revision.parents == (), "revision with parents"
+
+    return False
+
+
+def debian_origins_from_row(row, storage):
+    """Guesses a Debian origin from a row. May return an empty list if it
+    cannot reliably guess it, but all results are guaranteed to be correct."""
+    filenames = [entry["filename"] for entry in row["metadata"]["original_artifact"]]
+    package_names = {filename.split("_")[0] for filename in filenames}
+    assert len(package_names) == 1, package_names
+    (package_name,) = package_names
+
+    candidate_origins = [
+        f"deb://Debian/packages/{package_name}",
+        f"deb://Debian-Security/packages/{package_name}",
+        f"http://snapshot.debian.org/package/{package_name}/",
+    ]
+
+    return [
+        origin
+        for origin in candidate_origins
+        if _check_revision_in_origin(storage, origin, row["id"])
+    ]
 
 
 # Cache of origins that are known to exist
@@ -378,11 +441,10 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
         return
 
     if type_ == "dsc":
-        origin = None  # TODO: I can't find how to get it reliably
+        origin = None  # it will be defined later, using debian_origins_from_row
 
         # TODO: the debian loader writes the changelog date as the revision's
-        # author date and committer date. Instead, we should use the visit's date,
-        # but I cannot find a way to reliably get it without the origin
+        # author date and committer date. Instead, we should use the visit's date
 
         if "extrinsic" in metadata:
             extrinsic_files = metadata["extrinsic"]["raw"]["files"]
@@ -694,22 +756,15 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
             assert len(metadata["original_artifact"]) == 1
 
-            # it's tempting here to do this:
-            #
-            #   project_name = pypi_project_from_filename(
-            #       metadata["original_artifact"][0]["filename"]
-            #   )
-            #   origin = f"https://pypi.org/project/{project_name}/"
-            #   assert_origin_exists(storage, origin)
-            #
-            # but unfortunately, the filename is user-provided, and doesn't
-            # necessarily match the package name on pypi.
-
-            # TODO: on second thoughts, I think we can use this as a heuristic,
-            # then double-check by listing visits and snapshots from the origin;
-            # it should work for most packages.
-
-            origin = None
+            project_name = pypi_project_from_filename(
+                metadata["original_artifact"][0]["filename"]
+            )
+            origin = f"https://pypi.org/project/{project_name}/"
+            # But unfortunately, the filename is user-provided, and doesn't
+            # necessarily match the package name on pypi. Therefore, we need
+            # to check it.
+            if not _check_revision_in_origin(storage, origin, row["id"]):
+                origin = None
 
             if "project" in metadata:
                 # pypi loader format 2
@@ -805,16 +860,24 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             }
             assert set(original_artifact) <= allowed_keys, set(original_artifact)
 
-        load_metadata(
-            storage,
-            row["id"],
-            discovery_date,
-            metadata["original_artifact"],
-            ORIGINAL_ARTIFACT_FORMAT,
-            authority=AUTHORITIES["swh"],
-            origin=origin,
-            dry_run=dry_run,
-        )
+        if type_ == "dsc":
+            assert origin is None
+            origins = debian_origins_from_row(row, storage)
+            assert origins, row
+        else:
+            origins = [origin]
+
+        for origin in origins:
+            load_metadata(
+                storage,
+                row["id"],
+                discovery_date,
+                metadata["original_artifact"],
+                ORIGINAL_ARTIFACT_FORMAT,
+                authority=AUTHORITIES["swh"],
+                origin=origin,
+                dry_run=dry_run,
+            )
         del metadata["original_artifact"]
 
     assert metadata == {}, (
