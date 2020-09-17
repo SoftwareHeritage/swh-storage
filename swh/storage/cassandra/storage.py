@@ -844,6 +844,9 @@ class CassandraStorage:
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
+        # keep only one occurrence of each given origin while keeping the list
+        # sorted as originally given
+        to_add = sorted(set(to_add), key=to_add.index)
         self.journal_writer.origin_add(to_add)
         for origin in to_add:
             self._cql_runner.origin_add_one(
