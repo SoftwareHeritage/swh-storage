@@ -5,6 +5,8 @@
 
 import glob
 from os import environ, path
+
+import subprocess
 from typing import Union
 
 import pytest
@@ -109,16 +111,24 @@ class SwhDatabaseJanitor(DatabaseJanitor):
         self.dump_files = sorted(glob.glob(dump_files), key=sortkey)
 
     def db_setup(self):
-        with psycopg2.connect(
-            dbname=self.db_name, user=self.user, host=self.host, port=self.port,
-        ) as cnx:
-            with cnx.cursor() as cur:
-                for fname in self.dump_files:
-                    with open(fname) as fobj:
-                        sql = fobj.read().replace("concurrently", "").strip()
-                        if sql:
-                            cur.execute(sql)
-            cnx.commit()
+        conninfo = (
+            f"host={self.host} user={self.user} port={self.port} dbname={self.db_name}"
+        )
+
+        for fname in self.dump_files:
+            subprocess.check_call(
+                [
+                    "psql",
+                    "--quiet",
+                    "--no-psqlrc",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-d",
+                    conninfo,
+                    "-f",
+                    fname,
+                ]
+            )
 
     def db_reset(self):
         with psycopg2.connect(
