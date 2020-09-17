@@ -23,35 +23,34 @@ from typing import (
 )
 
 from cassandra import CoordinationFailure
-from cassandra.cluster import Cluster, EXEC_PROFILE_DEFAULT, ExecutionProfile, ResultSet
+from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
-from cassandra.query import PreparedStatement, BoundStatement, dict_factory
+from cassandra.query import BoundStatement, PreparedStatement, dict_factory
+from mypy_extensions import NamedArg
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
-    retry_if_exception_type,
 )
-from mypy_extensions import NamedArg
 
 from swh.model.model import (
     Content,
-    SkippedContent,
-    Sha1Git,
-    TimestampWithTimezone,
-    Timestamp,
     Person,
+    Sha1Git,
+    SkippedContent,
+    Timestamp,
+    TimestampWithTimezone,
 )
-
 from swh.storage.interface import ListOrder
 
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
 from .model import (
+    MAGIC_NULL_PK,
     BaseRow,
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
-    MAGIC_NULL_PK,
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
@@ -67,7 +66,6 @@ from .model import (
     SnapshotRow,
 )
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
-
 
 logger = logging.getLogger(__name__)
 

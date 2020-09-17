@@ -7,7 +7,6 @@
 import hashlib
 from typing import Any, Dict, Tuple
 
-
 TOKEN_BEGIN = -(2 ** 63)
 """Minimum value returned by the CQL function token()"""
 TOKEN_END = 2 ** 63 - 1

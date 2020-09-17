@@ -9,9 +9,10 @@ import select
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from swh.core.db import BaseDb
-from swh.core.db.db_utils import stored_procedure, jsonize as _jsonize
 from swh.core.db.db_utils import execute_values_generator
-from swh.model.model import OriginVisit, OriginVisitStatus, SHA1_SIZE
+from swh.core.db.db_utils import jsonize as _jsonize
+from swh.core.db.db_utils import stored_procedure
+from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus
 from swh.storage.interface import ListOrder
 
 

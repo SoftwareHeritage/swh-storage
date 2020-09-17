@@ -9,11 +9,10 @@ import pytest
 
 from swh.storage.cassandra.model import BaseRow
 from swh.storage.in_memory import Table
-from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
-
+from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture

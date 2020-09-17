@@ -7,20 +7,17 @@ import copy
 import logging
 import re
 import tempfile
-import yaml
-
 from unittest.mock import patch
-
-import pytest
 
 from click.testing import CliRunner
 from confluent_kafka import Producer
+import pytest
+import yaml
 
-from swh.model.model import Snapshot, SnapshotBranch, TargetType
 from swh.journal.serializers import key_to_kafka, value_to_kafka
+from swh.model.model import Snapshot, SnapshotBranch, TargetType
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
-
 
 logger = logging.getLogger(__name__)
 

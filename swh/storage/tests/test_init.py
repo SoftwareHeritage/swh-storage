@@ -3,20 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import pytest
-
 from unittest.mock import patch
+
+import pytest
 
 from swh.core.pytest_plugin import RPCTestAdapter
 from swh.storage import get_storage
-from swh.storage.api import server
-from swh.storage.api import client
-from swh.storage.postgresql.storage import Storage as DbStorage
-from swh.storage.in_memory import InMemoryStorage
+from swh.storage.api import client, server
 from swh.storage.buffer import BufferingProxyStorage
 from swh.storage.filter import FilteringProxyStorage
+from swh.storage.in_memory import InMemoryStorage
+from swh.storage.postgresql.storage import Storage as DbStorage
 from swh.storage.retry import RetryingProxyStorage
-
 
 STORAGES = [
     pytest.param(cls, real_class, kwargs, id=cls)

@@ -3,14 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from swh.storage.interface import ListOrder
 from swh.model import model
-
 from swh.storage.api.serializers import (
-    _encode_enum,
     _decode_model_enum,
     _decode_storage_enum,
+    _encode_enum,
 )
+from swh.storage.interface import ListOrder
 
 
 def test_model_enum_serialization(sample_data):

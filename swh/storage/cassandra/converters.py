@@ -3,26 +3,26 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from copy import deepcopy
 import datetime
 import json
-import attr
-
-from copy import deepcopy
 from typing import Dict, Tuple
 
+import attr
+
+from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import (
     ObjectType,
     OriginVisit,
     OriginVisitStatus,
+    Release,
     Revision,
     RevisionType,
-    Release,
     Sha1Git,
 )
-from swh.model.hashutil import DEFAULT_ALGORITHMS
 
 from .common import remove_keys
-from .model import OriginVisitRow, OriginVisitStatusRow, RevisionRow, ReleaseRow
+from .model import OriginVisitRow, OriginVisitStatusRow, ReleaseRow, RevisionRow
 
 
 def revision_to_db(revision: Revision) -> RevisionRow:

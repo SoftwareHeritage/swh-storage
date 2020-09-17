@@ -7,7 +7,7 @@ from functools import partial
 from typing import Dict, Iterable, List, Optional
 
 from swh.core.utils import grouper
-from swh.model.model import Content, BaseModel
+from swh.model.model import BaseModel, Content
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 

@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 from swh.model.model import BaseModel
-
 from swh.storage.tests.storage_data import StorageData
 
 

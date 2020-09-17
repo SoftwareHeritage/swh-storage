@@ -4,22 +4,17 @@
 # See top-level LICENSE file for more information
 
 import glob
-
-from os import path, environ
+from os import environ, path
 from typing import Union
 
 import pytest
-
-import swh.storage
-
 from pytest_postgresql import factories
-from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
+from pytest_postgresql.janitor import DatabaseJanitor, Version, psycopg2
 
 from swh.core.utils import numfile_sortkey as sortkey
+import swh.storage
 from swh.storage import get_storage
-
 from swh.storage.tests.storage_data import StorageData
-
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), "sql")
 

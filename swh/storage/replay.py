@@ -12,8 +12,6 @@ except ImportError:
     notify = None
 
 from swh.core.statsd import statsd
-from swh.storage.fixer import fix_objects
-
 from swh.model.model import (
     BaseContent,
     BaseModel,
@@ -31,6 +29,7 @@ from swh.model.model import (
     Snapshot,
 )
 from swh.storage.exc import HashCollision
+from swh.storage.fixer import fix_objects
 
 logger = logging.getLogger(__name__)
 

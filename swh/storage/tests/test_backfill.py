@@ -3,17 +3,17 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import pytest
 import functools
 from unittest.mock import patch
 
-from swh.storage import get_storage
-from swh.storage.backfill import JournalBackfiller, compute_query, PARTITION_KEY
-from swh.storage.replay import process_replay_objects
-from swh.storage.tests.test_replay import check_replayed
+import pytest
 
 from swh.journal.client import JournalClient
 from swh.journal.tests.journal_data import TEST_OBJECTS
+from swh.storage import get_storage
+from swh.storage.backfill import PARTITION_KEY, JournalBackfiller, compute_query
+from swh.storage.replay import process_replay_objects
+from swh.storage.tests.test_replay import check_replayed
 
 TEST_CONFIG = {
     "brokers": ["localhost"],

@@ -7,7 +7,6 @@
 # control
 import logging
 import os
-
 from typing import Dict, Optional
 
 import click
