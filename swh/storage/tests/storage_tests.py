@@ -1189,6 +1189,21 @@ class TestStorage:
         )
         assert add2 == {"origin:add": 0}
 
+    def test_origin_add_twice_at_once(self, swh_storage, sample_data):
+        origin, origin2 = sample_data.origins[:2]
+
+        add1 = swh_storage.origin_add([origin, origin2, origin, origin2])
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [("origin", origin), ("origin", origin2),]
+        )
+        assert add1 == {"origin:add": 2}
+
+        add2 = swh_storage.origin_add([origin, origin2, origin, origin2])
+        assert set(swh_storage.journal_writer.journal.objects) == set(
+            [("origin", origin), ("origin", origin2),]
+        )
+        assert add2 == {"origin:add": 0}
+
     def test_origin_get(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
 
