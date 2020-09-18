@@ -120,7 +120,7 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
                 contents.append(c)
         collision_aware_content_add(storage.skipped_content_add, skipped_contents)
         collision_aware_content_add(storage.content_add_metadata, contents)
-    if object_type == "skipped_content":
+    elif object_type == "skipped_content":
         skipped_contents = [SkippedContent.from_dict(obj) for obj in objects]
         collision_aware_content_add(storage.skipped_content_add, skipped_contents)
     elif object_type in ("origin_visit", "origin_visit_status"):
