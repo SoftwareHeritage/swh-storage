@@ -115,6 +115,10 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
         for content in objects:
             c = BaseContent.from_dict(content)
             if isinstance(c, SkippedContent):
+                logger.warning(
+                    "Received a series of skipped_content in the "
+                    "content topic, this should not happen anymore"
+                )
                 skipped_contents.append(c)
             else:
                 contents.append(c)
