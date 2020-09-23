@@ -87,7 +87,7 @@ def postgresql_fact(process_fixture_name, db_name=None, dump_files=DUMP_FILES):
     return postgresql_factory
 
 
-swh_storage_postgresql = postgresql_fact("postgresql_proc")
+swh_storage_postgresql = postgresql_fact("postgresql_proc", db_name="storage")
 
 
 # This version of the DatabaseJanitor implement a different setup/teardown
