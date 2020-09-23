@@ -23,25 +23,6 @@ environ["LC_ALL"] = "C.UTF-8"
 DUMP_FILES = path.join(SQL_DIR, "*.sql")
 
 
-@pytest.fixture
-def swh_storage_backend_config(swh_storage_postgresql):
-    """Basic pg storage configuration with no journal collaborator
-    (to avoid pulling optional dependency on clients of this fixture)
-
-    """
-    yield {
-        "cls": "local",
-        "db": swh_storage_postgresql.dsn,
-        "objstorage": {"cls": "memory", "args": {}},
-        "check_config": {"check_write": True},
-    }
-
-
-@pytest.fixture
-def swh_storage(swh_storage_backend_config):
-    return get_storage(**swh_storage_backend_config)
-
-
 # the postgres_fact factory fixture below is mostly a copy of the code
 # from pytest-postgresql. We need a custom version here to be able to
 # specify our version of the DBJanitor we use.
@@ -88,6 +69,25 @@ def postgresql_fact(process_fixture_name, db_name=None, dump_files=DUMP_FILES):
 
 
 swh_storage_postgresql = postgresql_fact("postgresql_proc", db_name="storage")
+
+
+@pytest.fixture
+def swh_storage_backend_config(swh_storage_postgresql):
+    """Basic pg storage configuration with no journal collaborator
+    (to avoid pulling optional dependency on clients of this fixture)
+
+    """
+    yield {
+        "cls": "local",
+        "db": swh_storage_postgresql.dsn,
+        "objstorage": {"cls": "memory", "args": {}},
+        "check_config": {"check_write": True},
+    }
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend_config):
+    return get_storage(**swh_storage_backend_config)
 
 
 # This version of the DatabaseJanitor implement a different setup/teardown
