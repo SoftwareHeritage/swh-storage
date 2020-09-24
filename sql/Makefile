@@ -3,7 +3,7 @@
 DBNAME = softwareheritage-dev
 DOCDIR = autodoc
 
-SQL_FILES = $(sort $(wildcard $(CURDIR)/../swh/storage/sql/*))
+SQL_FILES = $(sort $(wildcard $(CURDIR)/../swh/storage/sql/*.sql))
 
 PSQL_BIN = psql
 PSQL_FLAGS = --echo-errors -X -v ON_ERROR_STOP=1

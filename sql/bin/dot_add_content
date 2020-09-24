@@ -2,7 +2,7 @@
 
 DOT_FILE="$1"
 DOT_EXTRA="$2"
-SQL_SCHEMA="../swh/storage/sql/30-swh-schema.sql"
+SQL_SCHEMA="../swh/storage/sql/30-schema.sql"
 if [ -z "$DOT_FILE" -o -z "$DOT_EXTRA" ] ; then
     echo "Usage: $0 DOT_FILE DOT_EXTRA"
     exit 1
