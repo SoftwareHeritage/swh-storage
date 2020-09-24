@@ -1,3 +1,12 @@
+swh-storage (0.15.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.15.1     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-09-24 18:34:54 +0200)
+  * Upstream changes:     - Release swh.storage v0.15.1     - Restore
+    buffer proxy behavior with default arguments
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Sep 2020 16:44:22 +0000
+
 swh-storage (0.15.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.15.0     - (tagged by Antoine R. Dumont
