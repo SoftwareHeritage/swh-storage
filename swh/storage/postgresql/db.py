@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import datetime
+import logging
 import random
 import select
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -14,6 +15,8 @@ from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus
 from swh.storage.interface import ListOrder
+
+logger = logging.getLogger(__name__)
 
 
 def jsonize(d):
@@ -1340,4 +1343,12 @@ class Db(BaseDb):
             return dict(zip(self.dbversion_cols, cur.fetchone()))
 
     def check_dbversion(self):
-        return self.dbversion()["version"] == self.current_version
+        dbversion = self.dbversion()["version"]
+        if dbversion != self.current_version:
+            logger.warning(
+                "database dbversion (%s) != %s current_version (%s)",
+                dbversion,
+                __name__,
+                self.current_version,
+            )
+        return dbversion == self.current_version
