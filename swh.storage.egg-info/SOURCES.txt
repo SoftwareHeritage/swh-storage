@@ -19,7 +19,6 @@ requirements.txt
 setup.cfg
 setup.py
 tox.ini
-version.txt
 ./requirements-swh-journal.txt
 ./requirements-swh.txt
 ./requirements-test.txt

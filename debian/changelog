@@ -1,8 +1,20 @@
-swh-storage (0.15.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.15.2-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.15.2     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-09-24 19:22:11 +0200)
+  * Upstream changes:     - Release swh.storage v0.15.2     - no change
+    rebuild to clean up jenkins fsckup accumulating old files.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Sep 2020 15:08:30 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Sep 2020 17:28:22 +0000
+
+swh-storage (0.15.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.15.1     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-09-24 18:34:54 +0200)
+  * Upstream changes:     - Release swh.storage v0.15.1     - Restore
+    buffer proxy behavior with default arguments
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Sep 2020 16:44:22 +0000
 
 swh-storage (0.15.0-1~swh1) unstable-swh; urgency=medium
 
