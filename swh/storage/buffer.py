@@ -55,13 +55,10 @@ class BufferingProxyStorage:
 
     """
 
-    def __init__(
-        self, storage: Mapping, min_batch_size: Mapping = DEFAULT_BUFFER_THRESHOLDS,
-    ):
+    def __init__(self, storage: Mapping, min_batch_size: Mapping = {}):
         self.storage: StorageInterface = get_storage(**storage)
 
-        if min_batch_size is not DEFAULT_BUFFER_THRESHOLDS:
-            self._buffer_thresholds = {**DEFAULT_BUFFER_THRESHOLDS, **min_batch_size}
+        self._buffer_thresholds = {**DEFAULT_BUFFER_THRESHOLDS, **min_batch_size}
 
         self._objects: Dict[str, Dict[Tuple[str, ...], BaseModel]] = {
             k: {} for k in OBJECT_TYPES
