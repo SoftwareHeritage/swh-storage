@@ -17,15 +17,13 @@ import pytest
 from swh.core.api.classes import stream_results
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
-from swh.storage.cassandra.schema import TABLES, HASH_ALGORITHMS
 from swh.storage.cassandra.model import ContentRow
-
-from swh.storage.utils import now
-from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.cassandra.schema import HASH_ALGORITHMS, TABLES
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
-
+from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.utils import now
 
 CONFIG_TEMPLATE = """
 data_file_directories:

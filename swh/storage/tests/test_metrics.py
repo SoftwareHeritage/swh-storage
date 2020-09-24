@@ -5,7 +5,7 @@
 
 from unittest.mock import patch
 
-from swh.storage.metrics import send_metric, OPERATIONS_METRIC, OPERATIONS_UNIT_METRIC
+from swh.storage.metrics import OPERATIONS_METRIC, OPERATIONS_UNIT_METRIC, send_metric
 
 
 def test_send_metric_unknown_unit():

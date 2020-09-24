@@ -9,7 +9,7 @@ deprecated
 typing-extensions
 mypy_extensions
 iso8601
-swh.core[db,http]>=0.2.0
+swh.core[db,http]>=0.3
 swh.model>=0.6.6
 swh.objstorage>=0.0.40
 

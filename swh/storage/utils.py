@@ -3,12 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import re
-
 from datetime import datetime, timezone
+import re
 from typing import Callable, Dict, Optional, Tuple, TypeVar
 
-from swh.model.hashutil import hash_to_bytes, hash_to_hex, DEFAULT_ALGORITHMS
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 
 
 def now() -> datetime:

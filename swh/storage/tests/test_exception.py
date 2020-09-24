@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 from swh.model import hashutil
-
 from swh.storage.exc import HashCollision
 from swh.storage.utils import content_hex_hashes
 

@@ -38,7 +38,6 @@ from swh.storage.postgresql.converters import (
 )
 from swh.storage.replay import object_converter_fn
 
-
 logger = logging.getLogger(__name__)
 
 PARTITION_KEY = {

@@ -5,13 +5,12 @@
 
 from typing import Any, Dict, Iterable, Union
 
-from swh.core.api import RPCClient, RemoteException
+from swh.core.api import RemoteException, RPCClient
 from swh.model.model import Content
 
-from ..exc import StorageAPIError, StorageArgumentException, HashCollision
+from ..exc import HashCollision, StorageAPIError, StorageArgumentException
 from ..interface import StorageInterface
-
-from .serializers import ENCODERS, DECODERS
+from .serializers import DECODERS, ENCODERS
 
 
 class RemoteStorage(RPCClient):

@@ -4,10 +4,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from setuptools import setup, find_packages
-
-from os import path
 from io import open
+from os import path
+
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -49,10 +49,8 @@ setup(
     use_scm_version=True,
     scripts=["bin/swh-storage-add-dir",],
     entry_points="""
-        [console_scripts]
-        swh-storage=swh.storage.cli:main
         [swh.cli.subcommands]
-        storage=swh.storage.cli:storage
+        storage=swh.storage.cli
     """,
     install_requires=parse_requirements() + parse_requirements("swh"),
     extras_require={

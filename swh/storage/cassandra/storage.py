@@ -9,49 +9,48 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Callable, Dict, List, Iterable, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import attr
 
-from swh.core.api.serializers import msgpack_loads, msgpack_dumps
-from swh.model.identifiers import parse_swhid, SWHID
+from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS
+from swh.model.identifiers import SWHID, parse_swhid
 from swh.model.model import (
-    Revision,
-    Release,
+    Content,
     Directory,
     DirectoryEntry,
-    Content,
-    SkippedContent,
-    OriginVisit,
-    OriginVisitStatus,
-    Snapshot,
-    SnapshotBranch,
-    TargetType,
-    Origin,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
     RawExtrinsicMetadata,
+    Release,
+    Revision,
     Sha1Git,
+    SkippedContent,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
 )
 from swh.storage.interface import (
+    VISIT_STATUSES,
     ListOrder,
     PagedResult,
     PartialBranches,
     Sha1,
-    VISIT_STATUSES,
 )
 from swh.storage.objstorage import ObjStorage
-from swh.storage.writer import JournalWriter
 from swh.storage.utils import map_optional, now
+from swh.storage.writer import JournalWriter
 
-from ..exc import StorageArgumentException, HashCollision
-from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
 from . import converters
+from ..exc import HashCollision, StorageArgumentException
+from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
 from .cql import CqlRunner
-from .schema import HASH_ALGORITHMS
 from .model import (
     ContentRow,
     DirectoryEntryRow,
@@ -67,7 +66,7 @@ from .model import (
     SnapshotBranchRow,
     SnapshotRow,
 )
-
+from .schema import HASH_ALGORITHMS
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000

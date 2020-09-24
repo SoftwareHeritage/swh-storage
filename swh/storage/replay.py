@@ -12,8 +12,6 @@ except ImportError:
     notify = None
 
 from swh.core.statsd import statsd
-from swh.storage.fixer import fix_objects
-
 from swh.model.model import (
     BaseContent,
     BaseModel,
@@ -31,6 +29,7 @@ from swh.model.model import (
     Snapshot,
 )
 from swh.storage.exc import HashCollision
+from swh.storage.fixer import fix_objects
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +115,16 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
         for content in objects:
             c = BaseContent.from_dict(content)
             if isinstance(c, SkippedContent):
+                logger.warning(
+                    "Received a series of skipped_content in the "
+                    "content topic, this should not happen anymore"
+                )
                 skipped_contents.append(c)
             else:
                 contents.append(c)
         collision_aware_content_add(storage.skipped_content_add, skipped_contents)
         collision_aware_content_add(storage.content_add_metadata, contents)
-    if object_type == "skipped_content":
+    elif object_type == "skipped_content":
         skipped_contents = [SkippedContent.from_dict(obj) for obj in objects]
         collision_aware_content_add(storage.skipped_content_add, skipped_contents)
     elif object_type in ("origin_visit", "origin_visit_status"):

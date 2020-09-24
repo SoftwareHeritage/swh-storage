@@ -9,7 +9,6 @@ from typing import Callable, Dict, List, Tuple
 
 from swh.model.identifiers import SWHID, parse_swhid
 import swh.model.model as model
-
 from swh.storage import interface
 
 

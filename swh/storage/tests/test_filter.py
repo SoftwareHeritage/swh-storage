@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import attr
-
 import pytest
 
 from swh.storage import get_storage

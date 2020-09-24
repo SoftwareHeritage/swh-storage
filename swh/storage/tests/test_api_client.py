@@ -5,9 +5,9 @@
 
 import pytest
 
-import swh.storage.api.server as server
 import swh.storage
 from swh.storage import get_storage
+import swh.storage.api.server as server
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )

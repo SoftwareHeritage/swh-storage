@@ -3,15 +3,13 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import attr
-
 from unittest.mock import call
 
+import attr
 import psycopg2
 import pytest
 
 from swh.model.model import MetadataTargetType
-
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.utils import now
 
