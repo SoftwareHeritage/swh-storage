@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import unittest
-
 from unittest.mock import patch
 
 from swh.model.hashutil import hash_to_bytes, hash_to_hex

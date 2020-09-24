@@ -5,9 +5,9 @@
 
 from swh.model import hashutil
 from swh.storage.utils import (
-    extract_collision_hash,
-    content_hex_hashes,
     content_bytes_hashes,
+    content_hex_hashes,
+    extract_collision_hash,
     now,
     round_to_milliseconds,
 )

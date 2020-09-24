@@ -9,8 +9,8 @@ import logging
 import os
 import sys
 
-from swh.storage.storage import Storage
 from swh.model.hashutil import MultiHash
+from swh.storage.storage import Storage
 
 if __name__ == "__main__":
     try:

@@ -10,16 +10,15 @@ import inspect
 import itertools
 import math
 import random
+from typing import Any, ClassVar, Dict, Iterator, Optional
 
 import attr
+from hypothesis import HealthCheck, given, settings, strategies
 import pytest
-
-from hypothesis import given, strategies, settings, HealthCheck
-
-from typing import Any, ClassVar, Dict, Iterator, Optional
 
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
+from swh.model.hypothesis_strategies import objects
 from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
@@ -34,7 +33,6 @@ from swh.model.model import (
     Snapshot,
     TargetType,
 )
-from swh.model.hypothesis_strategies import objects
 from swh.storage import get_storage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException

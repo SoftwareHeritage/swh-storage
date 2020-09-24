@@ -1,8 +1,21 @@
-swh-storage (0.14.3-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.15.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.15.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-09-24 16:54:07
+    +0200)
+  * Upstream changes:     - v0.15.0     - Support different database
+    flavors in the SQL scripts     - Add the SQL commands used to set up
+    the logical replication publication     - Output a warning when the
+    version of the database is different than expected     - Improve
+    code quality and doc in BufferedProxyStorage     - Adapt cli
+    declaration entrypoint to swh.core 0.3     - Add warning about
+    skipped_content (sneaking into the 'content' topics)     - graph-
+    replayer: fix to prevent wrong warning     - pre-commit: Add isort
+    hook and reorder imports with isort     - pytest_plugin: Change
+    dbname to storage to avoid clash in tests     - pytest_plugin: Use
+    psql to load SQL files instead of connecting with psycopg2
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 17 Sep 2020 17:04:09 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Sep 2020 15:03:58 +0000
 
 swh-storage (0.14.3-1~swh1) unstable-swh; urgency=medium
 

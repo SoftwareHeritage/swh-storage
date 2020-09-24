@@ -4,13 +4,12 @@
 # See top-level LICENSE file for more information
 
 import datetime
+from typing import Tuple
 
 import attr
 
-from typing import Tuple
-
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model import from_disk
+from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
     Content,

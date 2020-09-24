@@ -6,8 +6,7 @@
 from typing import Dict, List
 
 from swh.model.hashutil import hash_to_hex
-
-from swh.storage.utils import content_hex_hashes, content_bytes_hashes
+from swh.storage.utils import content_bytes_hashes, content_hex_hashes
 
 
 class StorageDBError(Exception):

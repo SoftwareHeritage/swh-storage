@@ -5,10 +5,10 @@
 
 # flake8: noqa
 
-import pytest
 import unittest
-
 from unittest.mock import patch
+
+import pytest
 
 from swh.model.hashutil import hash_to_bytes
 from swh.model.identifiers import directory_identifier

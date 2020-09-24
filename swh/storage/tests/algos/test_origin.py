@@ -6,17 +6,15 @@
 import datetime
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
-
 from swh.storage.algos.origin import (
+    iter_origin_visit_statuses,
+    iter_origin_visits,
     iter_origins,
     origin_get_latest_visit_status,
-    iter_origin_visits,
-    iter_origin_visit_statuses,
 )
 from swh.storage.interface import ListOrder
-from swh.storage.utils import now
-
 from swh.storage.tests.storage_tests import round_to_milliseconds
+from swh.storage.utils import now
 
 
 def test_iter_origins(swh_storage):

@@ -9,7 +9,7 @@
 import copy
 import datetime
 import json
-from unittest.mock import call, Mock, MagicMock
+from unittest.mock import MagicMock, Mock, call
 
 from swh.model.identifiers import parse_swhid
 from swh.model.model import (
@@ -20,13 +20,11 @@ from swh.model.model import (
     Origin,
     RawExtrinsicMetadata,
 )
-
 from swh.storage.migrate_extrinsic_metadata import (
     DEPOSIT_COLS,
-    handle_row,
     cran_package_from_url,
+    handle_row,
 )
-
 
 FETCHER = MetadataFetcher(
     name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",

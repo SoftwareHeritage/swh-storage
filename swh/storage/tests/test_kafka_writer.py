@@ -5,18 +5,16 @@
 
 from typing import Any, Dict
 
-from confluent_kafka import Consumer
-
-from swh.storage import get_storage
-from swh.model.model import Origin, OriginVisit
-from swh.model.hypothesis_strategies import objects
-from swh.journal.pytest_plugin import consume_messages, assert_all_objects_consumed
-from swh.journal.tests.journal_data import TEST_OBJECTS
-
-from swh.model.model import Person
 from attr import asdict, has
+from confluent_kafka import Consumer
 from hypothesis import given
 from hypothesis.strategies import lists
+
+from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
+from swh.journal.tests.journal_data import TEST_OBJECTS
+from swh.model.hypothesis_strategies import objects
+from swh.model.model import Origin, OriginVisit, Person
+from swh.storage import get_storage
 
 
 def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consumer):
