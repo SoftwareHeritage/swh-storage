@@ -3,18 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import os
 import logging
+import os
 
 from swh.core import config
+from swh.core.api import RPCServerApp
+from swh.core.api import encode_data_server as encode_data
+from swh.core.api import error_handler
 from swh.storage import get_storage as get_swhstorage
-from swh.core.api import RPCServerApp, error_handler, encode_data_server as encode_data
 
+from ..exc import StorageArgumentException
 from ..interface import StorageInterface
 from ..metrics import timed
-from ..exc import StorageArgumentException
-
-from .serializers import ENCODERS, DECODERS
+from .serializers import DECODERS, ENCODERS
 
 
 def get_storage():

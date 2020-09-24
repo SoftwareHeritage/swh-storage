@@ -6,10 +6,8 @@
 from collections import namedtuple
 from typing import List
 
-from swh.storage.cassandra import converters
-
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-
+from swh.storage.cassandra import converters
 
 # Test purposes
 field_names: List[str] = list(DEFAULT_ALGORITHMS)

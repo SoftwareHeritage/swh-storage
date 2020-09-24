@@ -26,14 +26,12 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
-
 from swh.storage import get_storage
 from swh.storage.interface import PagedResult
 from swh.storage.migrate_extrinsic_metadata import (
     handle_row,
     pypi_project_from_filename,
 )
-
 
 FETCHER = MetadataFetcher(
     name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",

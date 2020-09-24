@@ -12,21 +12,14 @@ from typing import Any, Container, Dict, Optional
 import attr
 import pytest
 
-from swh.model.hashutil import hash_to_hex, MultiHash, DEFAULT_ALGORITHMS
-
+from swh.journal.client import JournalClient
+from swh.journal.serializers import key_to_kafka, value_to_kafka
+from swh.journal.tests.journal_data import DUPLICATE_CONTENTS, TEST_OBJECTS
+from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_hex
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.replay import process_replay_objects
-
-from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.journal.client import JournalClient
-
-from swh.journal.tests.journal_data import (
-    TEST_OBJECTS,
-    DUPLICATE_CONTENTS,
-)
-
 
 UTC = datetime.timezone.utc
 

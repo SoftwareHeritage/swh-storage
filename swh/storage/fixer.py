@@ -6,8 +6,8 @@
 import copy
 import datetime
 import logging
-
 from typing import Any, Dict, List, Optional
+
 from swh.model.identifiers import normalize_timestamp
 
 logger = logging.getLogger(__name__)

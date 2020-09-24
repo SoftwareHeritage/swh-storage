@@ -4,52 +4,25 @@
 # See top-level LICENSE file for more information
 
 import glob
+from os import environ, path
 
-from os import path, environ
+import subprocess
 from typing import Union
 
 import pytest
-
-import swh.storage
-
 from pytest_postgresql import factories
-from pytest_postgresql.janitor import DatabaseJanitor, psycopg2, Version
+from pytest_postgresql.janitor import DatabaseJanitor, Version, psycopg2
 
 from swh.core.utils import numfile_sortkey as sortkey
+import swh.storage
 from swh.storage import get_storage
-
 from swh.storage.tests.storage_data import StorageData
-
 
 SQL_DIR = path.join(path.dirname(swh.storage.__file__), "sql")
 
 environ["LC_ALL"] = "C.UTF-8"
 
 DUMP_FILES = path.join(SQL_DIR, "*.sql")
-
-
-@pytest.fixture
-def swh_storage_backend_config(postgresql_proc, swh_storage_postgresql):
-    """Basic pg storage configuration with no journal collaborator
-    (to avoid pulling optional dependency on clients of this fixture)
-
-    """
-    yield {
-        "cls": "local",
-        "db": "postgresql://{user}@{host}:{port}/{dbname}".format(
-            host=postgresql_proc.host,
-            port=postgresql_proc.port,
-            user="postgres",
-            dbname="tests",
-        ),
-        "objstorage": {"cls": "memory", "args": {}},
-        "check_config": {"check_write": True},
-    }
-
-
-@pytest.fixture
-def swh_storage(swh_storage_backend_config):
-    return get_storage(**swh_storage_backend_config)
 
 
 # the postgres_fact factory fixture below is mostly a copy of the code
@@ -97,7 +70,26 @@ def postgresql_fact(process_fixture_name, db_name=None, dump_files=DUMP_FILES):
     return postgresql_factory
 
 
-swh_storage_postgresql = postgresql_fact("postgresql_proc")
+swh_storage_postgresql = postgresql_fact("postgresql_proc", db_name="storage")
+
+
+@pytest.fixture
+def swh_storage_backend_config(swh_storage_postgresql):
+    """Basic pg storage configuration with no journal collaborator
+    (to avoid pulling optional dependency on clients of this fixture)
+
+    """
+    yield {
+        "cls": "local",
+        "db": swh_storage_postgresql.dsn,
+        "objstorage": {"cls": "memory", "args": {}},
+        "check_config": {"check_write": True},
+    }
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend_config):
+    return get_storage(**swh_storage_backend_config)
 
 
 # This version of the DatabaseJanitor implement a different setup/teardown
@@ -119,16 +111,24 @@ class SwhDatabaseJanitor(DatabaseJanitor):
         self.dump_files = sorted(glob.glob(dump_files), key=sortkey)
 
     def db_setup(self):
-        with psycopg2.connect(
-            dbname=self.db_name, user=self.user, host=self.host, port=self.port,
-        ) as cnx:
-            with cnx.cursor() as cur:
-                for fname in self.dump_files:
-                    with open(fname) as fobj:
-                        sql = fobj.read().replace("concurrently", "").strip()
-                        if sql:
-                            cur.execute(sql)
-            cnx.commit()
+        conninfo = (
+            f"host={self.host} user={self.user} port={self.port} dbname={self.db_name}"
+        )
+
+        for fname in self.dump_files:
+            subprocess.check_call(
+                [
+                    "psql",
+                    "--quiet",
+                    "--no-psqlrc",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-d",
+                    conninfo,
+                    "-f",
+                    fname,
+                ]
+            )
 
     def db_reset(self):
         with psycopg2.connect(

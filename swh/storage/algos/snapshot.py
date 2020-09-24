@@ -13,11 +13,10 @@ from swh.model.model import (
     Snapshot,
     TargetType,
 )
-
 from swh.storage.algos.origin import (
-    origin_get_latest_visit_status,
-    iter_origin_visits,
     iter_origin_visit_statuses,
+    iter_origin_visits,
+    origin_get_latest_visit_status,
 )
 from swh.storage.interface import ListOrder, StorageInterface
 

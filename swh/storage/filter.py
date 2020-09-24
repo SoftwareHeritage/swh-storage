@@ -6,14 +6,7 @@
 
 from typing import Dict, Iterable, List, Set
 
-from swh.model.model import (
-    Content,
-    SkippedContent,
-    Directory,
-    Revision,
-    Sha1Git,
-)
-
+from swh.model.model import Content, Directory, Revision, Sha1Git, SkippedContent
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 

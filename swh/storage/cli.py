@@ -7,12 +7,11 @@
 # control
 import logging
 import os
-
 from typing import Dict, Optional
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS
+from swh.core.cli import CONTEXT_SETTINGS, swh as swh_cli_group
 
 try:
     from systemd.daemon import notify
@@ -20,7 +19,7 @@ except ImportError:
     notify = None
 
 
-@click.group(name="storage", context_settings=CONTEXT_SETTINGS)
+@swh_cli_group.group(name="storage", context_settings=CONTEXT_SETTINGS)
 @click.option(
     "--config-file",
     "-C",

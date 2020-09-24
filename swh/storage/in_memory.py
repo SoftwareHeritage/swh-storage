@@ -3,11 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import defaultdict
 import datetime
 import functools
 import random
-
-from collections import defaultdict
 from typing import (
     Any,
     Dict,
@@ -22,18 +21,13 @@ from typing import (
     Union,
 )
 
-from swh.model.model import (
-    Content,
-    SkippedContent,
-    Sha1Git,
-)
-
+from swh.model.model import Content, Sha1Git, SkippedContent
 from swh.storage.cassandra import CassandraStorage
 from swh.storage.cassandra.model import (
     BaseRow,
     ContentRow,
-    DirectoryRow,
     DirectoryEntryRow,
+    DirectoryRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
@@ -42,18 +36,17 @@ from swh.storage.cassandra.model import (
     OriginVisitStatusRow,
     RawExtrinsicMetadataRow,
     ReleaseRow,
-    RevisionRow,
     RevisionParentRow,
+    RevisionRow,
     SkippedContentRow,
-    SnapshotRow,
     SnapshotBranchRow,
+    SnapshotRow,
 )
 from swh.storage.interface import ListOrder
 from swh.storage.objstorage import ObjStorage
 
 from .common import origin_url_to_sha1
 from .writer import JournalWriter
-
 
 TRow = TypeVar("TRow", bound=BaseRow)
 

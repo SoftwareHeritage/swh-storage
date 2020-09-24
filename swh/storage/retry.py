@@ -5,32 +5,25 @@
 
 import logging
 import traceback
-
 from typing import Dict, Iterable, List, Optional
 
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_random_exponential,
-)
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from swh.model.model import (
     Content,
-    SkippedContent,
     Directory,
-    Revision,
-    Release,
-    Snapshot,
-    OriginVisit,
     MetadataAuthority,
     MetadataFetcher,
+    OriginVisit,
     RawExtrinsicMetadata,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
 )
-
 from swh.storage import get_storage
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
-
 
 logger = logging.getLogger(__name__)
 

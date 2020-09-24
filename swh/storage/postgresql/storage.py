@@ -4,65 +4,55 @@
 # See top-level LICENSE file for more information
 
 import base64
+from collections import defaultdict
 import contextlib
+from contextlib import contextmanager
 import datetime
 import itertools
-
-from collections import defaultdict
-from contextlib import contextmanager
-from typing import (
-    Any,
-    Counter,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Counter, Dict, Iterable, List, Optional, Tuple, Union
 
 import attr
 import psycopg2
-import psycopg2.pool
 import psycopg2.errors
+import psycopg2.pool
 
-from swh.core.api.serializers import msgpack_loads, msgpack_dumps
-from swh.core.db.common import db_transaction_generator, db_transaction
+from swh.core.api.serializers import msgpack_dumps, msgpack_loads
+from swh.core.db.common import db_transaction, db_transaction_generator
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.model.identifiers import SWHID
 from swh.model.model import (
+    SHA1_SIZE,
     Content,
     Directory,
-    Origin,
-    OriginVisit,
-    OriginVisitStatus,
-    Revision,
-    Release,
-    SkippedContent,
-    Sha1,
-    Sha1Git,
-    Snapshot,
-    SnapshotBranch,
-    TargetType,
-    SHA1_SIZE,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
     RawExtrinsicMetadata,
+    Release,
+    Revision,
+    Sha1,
+    Sha1Git,
+    SkippedContent,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
 )
-from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.storage.exc import StorageArgumentException, StorageDBError, HashCollision
+from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBError
 from swh.storage.interface import (
+    VISIT_STATUSES,
     ListOrder,
     PagedResult,
     PartialBranches,
-    VISIT_STATUSES,
 )
-from swh.storage.metrics import timed, send_metric, process_metrics
+from swh.storage.metrics import process_metrics, send_metric, timed
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import (
-    get_partition_bounds_bytes,
     extract_collision_hash,
+    get_partition_bounds_bytes,
     map_optional,
     now,
 )
@@ -70,7 +60,6 @@ from swh.storage.writer import JournalWriter
 
 from . import converters
 from .db import Db
-
 
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000

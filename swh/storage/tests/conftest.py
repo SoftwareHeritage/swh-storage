@@ -3,10 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import pytest
 import multiprocessing.util
 
 from hypothesis import settings
+import pytest
 
 try:
     import pytest_cov.embed

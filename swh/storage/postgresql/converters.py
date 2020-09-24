@@ -4,8 +4,7 @@
 # See top-level LICENSE file for more information
 
 import datetime
-
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
 from swh.core.utils import encode_with_unescape
 from swh.model.identifiers import parse_swhid
@@ -25,7 +24,6 @@ from swh.model.model import (
 )
 
 from ..utils import map_optional
-
 
 DEFAULT_AUTHOR = {
     "fullname": None,

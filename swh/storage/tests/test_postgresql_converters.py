@@ -12,7 +12,6 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
-
 from swh.storage.postgresql import converters
 
 

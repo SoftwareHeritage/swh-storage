@@ -3,10 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import heapq
-
 from abc import ABCMeta, abstractmethod
 from collections import deque
+import heapq
 
 _revs_walker_classes = {}
 

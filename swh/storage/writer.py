@@ -8,18 +8,18 @@ from typing import Any, Dict, Iterable
 from attr import evolve
 
 from swh.model.model import (
+    Content,
+    Directory,
+    MetadataAuthority,
+    MetadataFetcher,
     Origin,
     OriginVisit,
     OriginVisitStatus,
-    Snapshot,
-    Directory,
-    Revision,
-    Release,
-    Content,
-    SkippedContent,
     RawExtrinsicMetadata,
-    MetadataFetcher,
-    MetadataAuthority,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
 )
 
 try:

@@ -46,7 +46,7 @@ from swh.model.model import (
     Sha1Git,
 )
 from swh.storage import get_storage
-from swh.storage.algos.origin import iter_origin_visits, iter_origin_visit_statuses
+from swh.storage.algos.origin import iter_origin_visit_statuses, iter_origin_visits
 from swh.storage.algos.snapshot import snapshot_get_all_branches
 
 # XML namespaces and fields for metadata coming from the deposit:

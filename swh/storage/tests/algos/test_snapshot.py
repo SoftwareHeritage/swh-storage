@@ -7,9 +7,8 @@ from hypothesis import given
 import pytest
 
 from swh.model.collections import ImmutableDict
-from swh.model.hypothesis_strategies import snapshots, branch_names, branch_targets
+from swh.model.hypothesis_strategies import branch_names, branch_targets, snapshots
 from swh.model.model import OriginVisit, OriginVisitStatus, Snapshot
-
 from swh.storage.algos.snapshot import (
     snapshot_get_all_branches,
     snapshot_get_latest,

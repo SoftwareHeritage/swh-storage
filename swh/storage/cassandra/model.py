@@ -25,7 +25,6 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, TypeVar
 
 from swh.model.model import Person, TimestampWithTimezone
 
-
 MAGIC_NULL_PK = b"<null>"
 """
 NULLs (or all-empty blobs) are not allowed in primary keys; instead we use a

@@ -9,7 +9,8 @@
 import copy
 import datetime
 import json
-from unittest.mock import call, Mock, patch as _patch
+from unittest.mock import Mock, call
+from unittest.mock import patch as _patch
 
 import attr
 import pytest
@@ -33,11 +34,9 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
-
 from swh.storage import get_storage
 from swh.storage.interface import ListOrder, PagedResult
-from swh.storage.migrate_extrinsic_metadata import handle_row, debian_origins_from_row
-
+from swh.storage.migrate_extrinsic_metadata import debian_origins_from_row, handle_row
 
 FETCHER = MetadataFetcher(
     name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",

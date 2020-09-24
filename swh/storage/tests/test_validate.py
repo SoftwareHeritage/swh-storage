@@ -4,11 +4,9 @@
 # See top-level LICENSE file for more information
 
 import attr
-
 import pytest
 
 from swh.model.hashutil import hash_to_hex
-
 from swh.storage import get_storage
 from swh.storage.exc import StorageArgumentException
 

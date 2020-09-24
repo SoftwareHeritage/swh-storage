@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 import datetime
-
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
@@ -16,21 +15,21 @@ from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     Directory,
-    Origin,
-    OriginVisit,
-    OriginVisitStatus,
-    Revision,
-    Release,
-    Snapshot,
-    SkippedContent,
-    SnapshotBranch,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
     MetadataTargetType,
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
     RawExtrinsicMetadata,
+    Release,
+    Revision,
     Sha1,
     Sha1Git,
+    SkippedContent,
+    Snapshot,
+    SnapshotBranch,
 )
 
 

@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import importlib
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List
 import warnings
 
 if TYPE_CHECKING:
