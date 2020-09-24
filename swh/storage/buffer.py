@@ -4,20 +4,20 @@
 # See top-level LICENSE file for more information
 
 from functools import partial
-from typing import Collection, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
 from swh.core.utils import grouper
 from swh.model.model import BaseModel, Content, SkippedContent
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
-OBJECT_TYPES: List[str] = [
+OBJECT_TYPES: Tuple[str, ...] = (
     "content",
     "skipped_content",
     "directory",
     "revision",
     "release",
-]
+)
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "content": 10000,
@@ -74,7 +74,7 @@ class BufferingProxyStorage:
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, contents: Collection[Content]) -> Dict:
+    def content_add(self, contents: Sequence[Content]) -> Dict:
         """Push contents to write to the storage in the buffer.
 
         Following policies apply:
@@ -95,7 +95,7 @@ class BufferingProxyStorage:
 
         return stats
 
-    def skipped_content_add(self, contents: Collection[SkippedContent]) -> Dict:
+    def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict:
         return self.object_add(
             contents,
             object_type="skipped_content",
@@ -103,7 +103,7 @@ class BufferingProxyStorage:
         )
 
     def object_add(
-        self, objects: Collection[BaseModel], *, object_type: str, keys: Iterable[str],
+        self, objects: Sequence[BaseModel], *, object_type: str, keys: Iterable[str],
     ) -> Dict[str, int]:
         """Push objects to write to the storage in the buffer. Flushes the
         buffer to the storage if the threshold is hit.
@@ -118,11 +118,8 @@ class BufferingProxyStorage:
 
         return {}
 
-    def flush(self, object_types: Optional[List[str]] = None) -> Dict[str, int]:
+    def flush(self, object_types: Sequence[str] = OBJECT_TYPES) -> Dict[str, int]:
         summary: Dict[str, int] = self.storage.flush(object_types)
-        if object_types is None:
-            object_types = OBJECT_TYPES
-
         for object_type in object_types:
             buffer_ = self._objects[object_type]
             batches = grouper(buffer_.values(), n=self._buffer_thresholds[object_type])
@@ -135,7 +132,7 @@ class BufferingProxyStorage:
 
         return summary
 
-    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
+    def clear_buffers(self, object_types: Sequence[str] = OBJECT_TYPES) -> None:
         """Clear objects from current buffer.
 
         WARNING:
@@ -145,13 +142,10 @@ class BufferingProxyStorage:
             you want to continue your processing.
 
         """
-        if object_types is None:
-            object_types = OBJECT_TYPES
-
         for object_type in object_types:
             buffer_ = self._objects[object_type]
             buffer_.clear()
             if object_type == "content":
                 self._contents_size = 0
 
-        return self.storage.clear_buffers(object_types)
+        self.storage.clear_buffers(object_types)

@@ -248,13 +248,13 @@ class TestPgStorage:
         """Calling clear buffers on real storage does nothing
 
         """
-        assert swh_storage.clear_buffers() is None
+        assert swh_storage.clear_buffers([]) is None
 
     def test_flush(self, swh_storage):
         """Calling clear buffers on real storage does nothing
 
         """
-        assert swh_storage.flush() == {}
+        assert swh_storage.flush([]) == {}
 
     def test_dbversion(self, swh_storage):
         with swh_storage.db() as db:
