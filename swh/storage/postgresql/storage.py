@@ -1396,13 +1396,13 @@ class Storage:
             return None
         return MetadataAuthority.from_dict(dict(zip(db.metadata_authority_cols, row)))
 
-    def clear_buffers(self, object_types: Sequence[str]) -> None:
+    def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Sequence[str]) -> Dict[str, int]:
+    def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:
         return {}
 
     def _get_authority_id(self, authority: MetadataAuthority, db, cur):

@@ -1314,11 +1314,11 @@ class CassandraStorage:
         else:
             return None
 
-    def clear_buffers(self, object_types: Sequence[str]) -> None:
+    def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Sequence[str]) -> Dict[str, int]:
+    def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:
         return {}
