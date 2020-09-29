@@ -19,7 +19,7 @@ import logging
 from typing import Any, Callable, Dict
 
 from swh.core.db import BaseDb
-from swh.journal.writer.kafka import KafkaJournalWriter
+from swh.journal.writer import get_journal_writer
 from swh.model.model import (
     BaseModel,
     Directory,
@@ -526,7 +526,10 @@ class JournalBackfiller:
         )
 
         db = BaseDb.connect(self.config["storage"]["db"])
-        writer = KafkaJournalWriter(**self.config["journal_writer"])
+        writer = get_journal_writer(
+            cls="kafka",
+            **self.config["journal_writer"]
+        )
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):
