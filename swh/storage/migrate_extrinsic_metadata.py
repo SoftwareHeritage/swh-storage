@@ -615,12 +615,20 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 raw_extrinsic_metadata = metadata["extrinsic"]["raw"]
 
                 # this is actually intrinsic, ignore it
-                del raw_extrinsic_metadata["version"]
+                if "version" in raw_extrinsic_metadata:
+                    del raw_extrinsic_metadata["version"]
 
                 # Copy the URL to the original_artifacts metadata
                 assert len(metadata["original_artifact"]) == 1
-                assert "url" not in metadata["original_artifact"][0]
-                metadata["original_artifact"][0]["url"] = raw_extrinsic_metadata["url"]
+                if "url" in metadata["original_artifact"][0]:
+                    assert (
+                        metadata["original_artifact"][0]["url"]
+                        == raw_extrinsic_metadata["url"]
+                    ), row
+                else:
+                    metadata["original_artifact"][0]["url"] = raw_extrinsic_metadata[
+                        "url"
+                    ]
                 del raw_extrinsic_metadata["url"]
 
                 assert (
