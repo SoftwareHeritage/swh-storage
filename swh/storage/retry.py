@@ -43,6 +43,8 @@ def should_retry_adding(retry_state) -> bool:
         if isinstance(error, StorageArgumentException):
             # Exception is due to an invalid argument
             return False
+        elif isinstance(error, KeyboardInterrupt):
+            return False
         else:
             # Other exception
             module = getattr(error, "__module__", None)
