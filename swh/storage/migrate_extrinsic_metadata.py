@@ -62,7 +62,7 @@ REVISION_COLS = ["id", "date", "committer_date", "type", "message", "metadata"]
 DEPOSIT_COLS = [
     "deposit.id",
     "deposit.external_id",
-    "deposit.swh_id_context",
+    "deposit.swhid_context",
     "deposit.status",
     "deposit_request.metadata",
     "deposit_request.date",
@@ -394,9 +394,9 @@ def handle_deposit_row(
         date = deposit_request["deposit_request.date"]
         dates.add(date)
 
-        assert deposit_request["deposit.swh_id_context"], deposit_request
+        assert deposit_request["deposit.swhid_context"], deposit_request
         external_identifiers.add(deposit_request["deposit.external_id"])
-        swhids.add(deposit_request["deposit.swh_id_context"])
+        swhids.add(deposit_request["deposit.swhid_context"])
 
         # Client of the deposit
         provider_urls.add(deposit_request["deposit_client.provider_url"])
