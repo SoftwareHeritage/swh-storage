@@ -114,6 +114,15 @@ def test_pypi_project_from_filename():
         ("LitReview-0.6989ev.tar.gz", "LitReview"),
         ("django_options-r5.tar.gz", "django_options"),
         ("ddlib-2013-11-07.tar.gz", "ddlib"),
+        ("python-morfeusz-0.3000+py3k.tar.gz", "python-morfeusz"),
+        ("gaepytz-2011h.zip", "gaepytz"),
+        ("ftldat-r3.tar.gz", "ftldat"),
+        ("tigretoolbox-0.0.0-py2.7-linux-x86_64.egg", None),
+        (
+            "Greater than, equal, or less Library-0.1.tar.gz",
+            "Greater-than-equal-or-less-Library",
+        ),
+        ("upstart--main-.-VLazy.object.at.0x104ba8b50-.tar.gz", "upstart"),
     ]
 
     for (filename, project) in files:

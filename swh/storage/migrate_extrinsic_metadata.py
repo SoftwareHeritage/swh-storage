@@ -115,14 +115,16 @@ deposit_revision_message_re = re.compile(
 
 # not reliable, because PyPI allows arbitrary names
 def pypi_project_from_filename(filename):
-    if filename == "mongomotor-0.13.0.n.tar.gz":
+    if filename.endswith(".egg"):
+        return None
+    elif filename == "mongomotor-0.13.0.n.tar.gz":
         return "mongomotor"
     elif re.match(r"datahaven-rev[0-9]+\.tar\.gz", filename):
         return "datahaven"
     elif re.match(r"Dtls-[0-9]\.[0-9]\.[0-9]\.sdist_with_openssl\..*", filename):
         return "Dtls"
-    elif re.match("pytz-20[0-9][0-9][a-z].tar.gz", filename):
-        return "pytz"
+    elif re.match(r"(gae)?pytz-20[0-9][0-9][a-z]\.(tar\.gz|zip)", filename):
+        return filename.split("-", 1)[0]
     elif filename.startswith(("powny-", "obedient.powny-",)):
         return filename.split("-")[0]
     elif filename.startswith("devpi-theme-16-"):
@@ -150,6 +152,10 @@ def pypi_project_from_filename(filename):
         return "LitReview"
     elif filename.startswith("django_options-r"):
         return "django_options"
+    elif filename == "Greater than, equal, or less Library-0.1.tar.gz":
+        return "Greater-than-equal-or-less-Library"
+    elif filename.startswith("upstart--main-"):
+        return "upstart"
     filename = filename.replace(" ", "-")
 
     match = re.match(
@@ -171,7 +177,7 @@ def pypi_project_from_filename(filename):
         r"([.-]?(alpha|beta|dev|post|pre|rc)(\.?[0-9]+)?)*"  # development status
         r"([.-]?20[012][0-9]{5,9})?"  # date
         r"([.-]g?[0-9a-f]+)?"  # git commit
-        r"(-py(thon)?[23](\.?[0-9]{1,2})?)?"  # python version
+        r"([-+]py(thon)?(3k|[23](\.?[0-9]{1,2})?))?"  # python version
         r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
         filename,
         re.I,
@@ -196,6 +202,18 @@ def pypi_project_from_filename(filename):
         r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
         filename,
         re.I,
+    )
+    if match:
+        return match.group("project_name")
+
+    # If that still doesn't work, give one last chance if there's only one
+    # dash or underscore in the name
+
+    match = re.match(
+        r"^(?P<project_name>[^_-]+)"  # project name
+        r"[_-][^_-]+"  # version
+        r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
+        filename,
     )
     assert match, filename
     return match.group("project_name")
