@@ -108,8 +108,8 @@ AUTHORITIES = {
 # Regular expression for the format of revision messages written by the
 # deposit loader
 deposit_revision_message_re = re.compile(
-    b"(?P<client>[a-z]*): "
-    b"Deposit (?P<deposit_id>[0-9]+) in collection (?P<collection>[a-z]+).*"
+    b"(?P<client>[a-z-]*): "
+    b"Deposit (?P<deposit_id>[0-9]+) in collection (?P<collection>[a-z-]+).*"
 )
 
 
