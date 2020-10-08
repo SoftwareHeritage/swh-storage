@@ -453,7 +453,7 @@ def _format_range_bound(bound):
         return str(bound)
 
 
-MANDATORY_KEYS = ["storage_dbconn", "journal_writer"]
+MANDATORY_KEYS = ["storage", "journal_writer"]
 
 
 class JournalBackfiller:
@@ -478,6 +478,12 @@ class JournalBackfiller:
             raise ValueError(
                 "Configuration error: The following keys must be"
                 " provided: %s" % (",".join(missing_keys),)
+            )
+
+        if "cls" not in config["storage"] or config["storage"]["cls"] != "local":
+            raise ValueError(
+                "swh storage backfiller must be configured to use a local"
+                " (PostgreSQL) storage"
             )
 
     def parse_arguments(self, object_type, start_object, end_object):
@@ -519,7 +525,7 @@ class JournalBackfiller:
             object_type, start_object, end_object
         )
 
-        db = BaseDb.connect(self.config["storage_dbconn"])
+        db = BaseDb.connect(self.config["storage"]["db"])
         writer = KafkaJournalWriter(**self.config["journal_writer"])
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object

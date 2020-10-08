@@ -21,7 +21,7 @@ TEST_CONFIG = {
         "prefix": "swh.tmp_journal.new",
         "client_id": "swh.journal.client.test",
     },
-    "storage_dbconn": "service=swh-dev",
+    "storage": {"cls": "local", "db": "service=swh-dev"},
 }
 
 
@@ -212,7 +212,7 @@ def test_backfiller(
             "client_id": "kafka_writer-2",
             "prefix": prefix2,
         },
-        "storage_dbconn": swh_storage_backend_config["db"],
+        "storage": swh_storage_backend_config,
     }
 
     # Backfilling
