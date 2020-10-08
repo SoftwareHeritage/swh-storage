@@ -453,7 +453,7 @@ def _format_range_bound(bound):
         return str(bound)
 
 
-MANDATORY_KEYS = ["brokers", "storage_dbconn", "prefix", "client_id"]
+MANDATORY_KEYS = ["storage_dbconn", "journal_writer"]
 
 
 class JournalBackfiller:
@@ -520,11 +520,7 @@ class JournalBackfiller:
         )
 
         db = BaseDb.connect(self.config["storage_dbconn"])
-        writer = KafkaJournalWriter(
-            brokers=self.config["brokers"],
-            prefix=self.config["prefix"],
-            client_id=self.config["client_id"],
-        )
+        writer = KafkaJournalWriter(**self.config["journal_writer"])
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):
