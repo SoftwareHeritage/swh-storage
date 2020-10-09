@@ -217,3 +217,79 @@ def test_cran_without_revision_date():
             ]
         ),
     ]
+
+
+def test_cran_with_new_original_artifacts_format():
+    original_artifacts = [
+        {
+            "url": "https://cran.r-project.org/src/contrib/r2mlm_0.1.0.tar.gz",
+            "length": 346563,
+            "filename": "r2mlm_0.1.0.tar.gz",
+            "checksums": {
+                "sha1": "25c06b4af523c35a7813b58dd0db414e79848501",
+                "sha256": "c887fe6c4f78c94b2279759052e12d639cf80225b444c1f67931c6aa6f0faf23",
+            },
+        }
+    ]
+
+    row = {
+        "id": b'."7\x82\xeeK\xa1R\xe4\xc8\x86\xf7\x97\x97bA\xc3\x9a\x9a\xab',
+        "date": None,
+        "committer_date": None,
+        "type": "tar",
+        "message": b"0.1.0",
+        "metadata": {
+            "extrinsic": {
+                "raw": {
+                    "url": "https://cran.r-project.org/src/contrib/r2mlm_0.1.0.tar.gz"
+                },
+                "when": "2020-09-25T14:04:20.926667+00:00",
+                "provider": "https://cran.r-project.org/package=r2mlm",
+            },
+            "intrinsic": {
+                "raw": {
+                    "URL": "https://github.com/mkshaw/r2mlm",
+                    "Type": "Package",
+                    "Title": "R-Squared Measures for Multilevel Models",
+                    "Author": "Mairead Shaw [aut, cre],\n  Jason Rights [aut],\n  Sonya Sterba [aut],\n  Jessica Flake [aut]",
+                    # ...
+                },
+                "tool": "DESCRIPTION",
+            },
+            "original_artifact": original_artifacts,
+        },
+    }
+
+    origin_url = "https://cran.r-project.org/package=r2mlm"
+
+    storage = Mock()
+
+    def origin_get(urls):
+        assert urls == [origin_url]
+        return [Origin(url=origin_url)]
+
+    storage.origin_get.side_effect = origin_get
+    deposit_cur = None
+    handle_row(row, storage, deposit_cur, dry_run=False)
+
+    assert storage.method_calls == [
+        call.origin_get([origin_url]),
+        call.raw_extrinsic_metadata_add(
+            [
+                RawExtrinsicMetadata(
+                    type=MetadataTargetType.REVISION,
+                    id=parse_swhid(
+                        "swh:1:rev:2e223782ee4ba152e4c886f797976241c39a9aab"
+                    ),
+                    discovery_date=datetime.datetime(
+                        2020, 9, 25, 14, 4, 20, 926667, tzinfo=datetime.timezone.utc,
+                    ),
+                    authority=SWH_AUTHORITY,
+                    fetcher=FETCHER,
+                    format="original-artifacts-json",
+                    metadata=json.dumps(original_artifacts).encode(),
+                    origin=origin_url,
+                ),
+            ]
+        ),
+    ]
