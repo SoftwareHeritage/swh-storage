@@ -24,7 +24,7 @@ STORAGES = [
         (
             "local",
             DbStorage,
-            {"db": "postgresql://db", "objstorage": {"cls": "memory", "args": {}}},
+            {"db": "postgresql://db", "objstorage": {"cls": "memory"}},
         ),
         ("filter", FilteringProxyStorage, {"storage": {"cls": "memory"}}),
         ("buffer", BufferingProxyStorage, {"storage": {"cls": "memory"}}),
@@ -64,7 +64,7 @@ def test_get_storage_failure():
 
     """
     with pytest.raises(ValueError, match="Unknown storage class `unknown`"):
-        get_storage("unknown", args=[])
+        get_storage("unknown")
 
 
 def test_get_storage_pipeline():
@@ -123,11 +123,7 @@ def test_get_storage_local_check_config(mock_pool, monkeypatch):
     mock_pool.ThreadedConnectionPool.return_value = None
     check_backend_check_config(
         monkeypatch,
-        {
-            "cls": "local",
-            "db": "postgresql://db",
-            "objstorage": {"cls": "memory", "args": {}},
-        },
+        {"cls": "local", "db": "postgresql://db", "objstorage": {"cls": "memory"}},
         backend_storage_cls=DbStorage,
     )
 

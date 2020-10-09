@@ -5,7 +5,6 @@
 
 import glob
 from os import environ, path
-
 import subprocess
 from typing import Union
 
@@ -82,7 +81,7 @@ def swh_storage_backend_config(swh_storage_postgresql):
     yield {
         "cls": "local",
         "db": swh_storage_postgresql.dsn,
-        "objstorage": {"cls": "memory", "args": {}},
+        "objstorage": {"cls": "memory"},
         "check_config": {"check_write": True},
     }
 

@@ -817,3 +817,21 @@ def test_retrying_proxy_swh_storage_snapshot_add_failure(
         swh_storage.snapshot_add([sample_snap])
 
     assert mock_memory.call_count == 1
+
+
+def test_retrying_proxy_swh_storage_keyboardinterrupt(swh_storage, sample_data, mocker):
+    """Unfiltered errors are raising without retry
+
+    """
+    mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
+    mock_memory.side_effect = KeyboardInterrupt()
+
+    sample_content = sample_data.content
+
+    content = swh_storage.content_get_data(sample_content.sha1)
+    assert content is None
+
+    with pytest.raises(KeyboardInterrupt):
+        swh_storage.content_add([sample_content])
+
+    assert mock_memory.call_count == 1

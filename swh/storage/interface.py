@@ -5,7 +5,7 @@
 
 import datetime
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union
 
 from typing_extensions import Protocol, TypedDict, runtime_checkable
 
@@ -1185,7 +1185,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("clear/buffer")
-    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
+    def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """For backend storages (pg, storage, in-memory), this is a noop operation. For proxy
         storages (especially filter, buffer), this is an operation which cleans internal
         state.
@@ -1193,7 +1193,7 @@ class StorageInterface(Protocol):
         """
 
     @remote_api_endpoint("flush")
-    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
+    def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:
         """For backend storages (pg, storage, in-memory), this is expected to be a noop
         operation. For proxy storages (especially buffer), this is expected to trigger
         actual writes to the backend.

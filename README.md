@@ -111,13 +111,11 @@ A typical configuration `storage.yml` file is:
 ```
 storage:
   cls: local
-  args:
-    db: "dbname=softwareheritage-dev user=<user> password=<pwd>"
-    objstorage:
-      cls: pathslicing
-      args:
-        root: /tmp/swh-storage/
-        slicing: 0:2/2:4/4:6
+  db: "dbname=softwareheritage-dev user=<user> password=<pwd>"
+  objstorage:
+    cls: pathslicing
+    root: /tmp/swh-storage/
+    slicing: 0:2/2:4/4:6
 ```
 
 which means, this uses:
@@ -175,8 +173,7 @@ configuration.
 ```
 storage:
   cls: remote
-  args:
-    url: http://localhost:5002/
+  url: http://localhost:5002/
 ```
 
 You could directly define a local storage with the following snippet:
@@ -184,11 +181,9 @@ You could directly define a local storage with the following snippet:
 ```
 storage:
   cls: local
-  args:
-    db: service=swh-dev
-    objstorage:
-      cls: pathslicing
-      args:
-        root: /home/storage/swh-storage/
-        slicing: 0:2/2:4/4:6
+  db: service=swh-dev
+  objstorage:
+    cls: pathslicing
+    root: /home/storage/swh-storage/
+    slicing: 0:2/2:4/4:6
 ```

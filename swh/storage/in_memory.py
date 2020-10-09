@@ -620,7 +620,7 @@ class InMemoryStorage(CassandraStorage):
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
-        self.objstorage = ObjStorage({"cls": "memory", "args": {}})
+        self.objstorage = ObjStorage({"cls": "memory"})
 
     def check_config(self, *, check_write: bool) -> bool:
         return True

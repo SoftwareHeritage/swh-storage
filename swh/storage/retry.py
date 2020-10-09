@@ -5,7 +5,7 @@
 
 import logging
 import traceback
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
@@ -42,6 +42,8 @@ def should_retry_adding(retry_state) -> bool:
         error = attempt.exception()
         if isinstance(error, StorageArgumentException):
             # Exception is due to an invalid argument
+            return False
+        elif isinstance(error, KeyboardInterrupt):
             return False
         else:
             # Other exception
@@ -129,12 +131,3 @@ class RetryingProxyStorage:
     @swh_retry
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
         return self.storage.snapshot_add(snapshots)
-
-    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
-        return self.storage.clear_buffers(object_types)
-
-    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
-        """Specific case for buffer proxy storage failing to flush data
-
-        """
-        return self.storage.flush(object_types)

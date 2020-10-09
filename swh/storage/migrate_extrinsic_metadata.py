@@ -62,7 +62,7 @@ REVISION_COLS = ["id", "date", "committer_date", "type", "message", "metadata"]
 DEPOSIT_COLS = [
     "deposit.id",
     "deposit.external_id",
-    "deposit.swh_id_context",
+    "deposit.swhid_context",
     "deposit.status",
     "deposit_request.metadata",
     "deposit_request.date",
@@ -108,16 +108,111 @@ AUTHORITIES = {
 # Regular expression for the format of revision messages written by the
 # deposit loader
 deposit_revision_message_re = re.compile(
-    b"(?P<client>[a-z]*): "
-    b"Deposit (?P<deposit_id>[0-9]+) in collection (?P<collection>[a-z]+).*"
+    b"(?P<client>[a-z-]*): "
+    b"Deposit (?P<deposit_id>[0-9]+) in collection (?P<collection>[a-z-]+).*"
 )
 
 
 # not reliable, because PyPI allows arbitrary names
 def pypi_project_from_filename(filename):
+    if filename.endswith(".egg"):
+        return None
+    elif filename == "mongomotor-0.13.0.n.tar.gz":
+        return "mongomotor"
+    elif re.match(r"datahaven-rev[0-9]+\.tar\.gz", filename):
+        return "datahaven"
+    elif re.match(r"Dtls-[0-9]\.[0-9]\.[0-9]\.sdist_with_openssl\..*", filename):
+        return "Dtls"
+    elif re.match(r"(gae)?pytz-20[0-9][0-9][a-z]\.(tar\.gz|zip)", filename):
+        return filename.split("-", 1)[0]
+    elif filename.startswith(("powny-", "obedient.powny-",)):
+        return filename.split("-")[0]
+    elif filename.startswith("devpi-theme-16-"):
+        return "devpi-theme-16"
+    elif re.match("[^-]+-[0-9]+.tar.gz", filename):
+        return filename.split("-")[0]
+    elif filename == "ohai-1!0.tar.gz":
+        return "ohai"
+    elif filename == "collective.topicitemsevent-0.1dvl.tar.gz":
+        return "collective.topicitemsevent"
+    elif filename.startswith(
+        ("SpiNNStorageHandlers-1!", "sPyNNakerExternalDevicesPlugin-1!")
+    ):
+        return filename.split("-")[0]
+    elif filename.startswith("limnoria-201"):
+        return "limnoria"
+    elif filename.startswith("pytz-20"):
+        return "pytz"
+    elif filename.startswith("youtube_dl_server-alpha."):
+        return "youtube_dl_server"
+    elif filename == "json-extensions-b76bc7d.tar.gz":
+        return "json-extensions"
+    elif filename == "LitReview-0.6989ev.tar.gz":
+        # typo of "dev"
+        return "LitReview"
+    elif filename.startswith("django_options-r"):
+        return "django_options"
+    elif filename == "Greater than, equal, or less Library-0.1.tar.gz":
+        return "Greater-than-equal-or-less-Library"
+    elif filename.startswith("upstart--main-"):
+        return "upstart"
+    filename = filename.replace(" ", "-")
+
     match = re.match(
-        r"^(?P<project_name>[a-zA-Z0-9_.-]+)"
-        r"-[0-9.]+([a-z]+[0-9]+)?(dev|\.dev[0-9]+)?(-[a-z][a-z0-9]*)?\.(tar\.gz|zip)$",
+        r"^(?P<project_name>[a-z_.-]+)"  # project name
+        r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
+        filename,
+        re.I,
+    )
+    if match:
+        return match.group("project_name")
+
+    # First try with a rather strict format, but that allows accidentally
+    # matching the version as part of the package name
+    match = re.match(
+        r"^(?P<project_name>[a-z0-9_.]+?([-_][a-z][a-z0-9.]+?)*?)"  # project name
+        r"-v?"
+        r"([0-9]+!)?"  # epoch
+        r"[0-9_.]+([a-z]+[0-9]+)?"  # "main" version
+        r"([.-]?(alpha|beta|dev|post|pre|rc)(\.?[0-9]+)?)*"  # development status
+        r"([.-]?20[012][0-9]{5,9})?"  # date
+        r"([.-]g?[0-9a-f]+)?"  # git commit
+        r"([-+]py(thon)?(3k|[23](\.?[0-9]{1,2})?))?"  # python version
+        r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
+        filename,
+        re.I,
+    )
+    if match:
+        return match.group("project_name")
+
+    # If that doesn't work, give up on trying to parse version suffixes,
+    # and just find the first version-like occurrence in the file name
+
+    match = re.match(
+        r"^(?P<project_name>[a-z0-9_.-]+?)"  # project name
+        r"[-_.]v?"
+        r"([0-9]+!)?"  # epoch
+        r"("  # "main" version
+        r"[0-9_]+\.[0-9_.]+([a-z]+[0-9]+)?"  # classic version number
+        r"|20[012][0-9]{5,9}"  # date as integer
+        r"|20[012][0-9]-[01][0-9]-[0-3][0-9]"  # date as ISO 8601
+        r")"  # end of "main" version
+        r"[a-z]?(dev|pre)?"  # direct version suffix
+        r"([._-].*)?"  # extra suffixes
+        r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
+        filename,
+        re.I,
+    )
+    if match:
+        return match.group("project_name")
+
+    # If that still doesn't work, give one last chance if there's only one
+    # dash or underscore in the name
+
+    match = re.match(
+        r"^(?P<project_name>[^_-]+)"  # project name
+        r"[_-][^_-]+"  # version
+        r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
         filename,
     )
     assert match, filename
@@ -228,10 +323,17 @@ _origins = set()
 
 
 def assert_origin_exists(storage, origin):
-    assert (
-        hashlib.sha1(origin.encode()).digest() in _origins  # very fast
-        or storage.origin_get([origin])[0] is not None  # slow, but up to date
-    ), origin
+    assert check_origin_exists(storage, origin), origin
+
+
+def check_origin_exists(storage, origin):
+    return (
+        (
+            hashlib.sha1(origin.encode()).digest() in _origins  # very fast
+            or storage.origin_get([origin])[0] is not None  # slow, but up to date
+        ),
+        origin,
+    )
 
 
 def load_metadata(
@@ -310,9 +412,9 @@ def handle_deposit_row(
         date = deposit_request["deposit_request.date"]
         dates.add(date)
 
-        assert deposit_request["deposit.swh_id_context"], deposit_request
+        assert deposit_request["deposit.swhid_context"], deposit_request
         external_identifiers.add(deposit_request["deposit.external_id"])
-        swhids.add(deposit_request["deposit.swh_id_context"])
+        swhids.add(deposit_request["deposit.swhid_context"])
 
         # Client of the deposit
         provider_urls.add(deposit_request["deposit_client.provider_url"])
@@ -531,12 +633,20 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 raw_extrinsic_metadata = metadata["extrinsic"]["raw"]
 
                 # this is actually intrinsic, ignore it
-                del raw_extrinsic_metadata["version"]
+                if "version" in raw_extrinsic_metadata:
+                    del raw_extrinsic_metadata["version"]
 
                 # Copy the URL to the original_artifacts metadata
                 assert len(metadata["original_artifact"]) == 1
-                assert "url" not in metadata["original_artifact"][0]
-                metadata["original_artifact"][0]["url"] = raw_extrinsic_metadata["url"]
+                if "url" in metadata["original_artifact"][0]:
+                    assert (
+                        metadata["original_artifact"][0]["url"]
+                        == raw_extrinsic_metadata["url"]
+                    ), row
+                else:
+                    metadata["original_artifact"][0]["url"] = raw_extrinsic_metadata[
+                        "url"
+                    ]
                 del raw_extrinsic_metadata["url"]
 
                 assert (
@@ -764,7 +874,23 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             # necessarily match the package name on pypi. Therefore, we need
             # to check it.
             if not _check_revision_in_origin(storage, origin, row["id"]):
-                origin = None
+                origin_with_dashes = origin.replace("_", "-")
+                # if the file name contains underscores but we can't find
+                # a matching origin, also try with dashes. It's common for package
+                # names containing underscores to use dashes on pypi.
+                if (
+                    "_" in origin
+                    and check_origin_exists(storage, origin_with_dashes)
+                    and _check_revision_in_origin(
+                        storage, origin_with_dashes, row["id"]
+                    )
+                ):
+                    origin = origin_with_dashes
+                else:
+                    print(
+                        f"revision {row['id'].hex()} false positive of origin {origin}."
+                    )
+                    origin = None
 
             if "project" in metadata:
                 # pypi loader format 2

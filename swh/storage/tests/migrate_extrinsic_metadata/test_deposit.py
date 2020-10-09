@@ -139,7 +139,7 @@ def test_deposit_1():
         {
             "deposit.id": 467,
             "deposit.external_id": "check-deposit-2020-03-11T11:07:18.424476",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -152,7 +152,7 @@ def test_deposit_1():
         {
             "deposit.id": 467,
             "deposit.external_id": "check-deposit-2020-03-11T11:07:18.424476",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -300,7 +300,7 @@ def test_deposit_2_without_xmlns():
         {
             "deposit.id": 82,
             "deposit.external_id": "hal-01243573",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -313,7 +313,7 @@ def test_deposit_2_without_xmlns():
         {
             "deposit.id": 82,
             "deposit.external_id": "hal-01243573",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -460,7 +460,7 @@ def test_deposit_2_with_xmlns():
         {
             "deposit.id": 687,
             "deposit.external_id": "check-deposit-2020-06-26T13:50:07.564420",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -473,7 +473,7 @@ def test_deposit_2_with_xmlns():
         {
             "deposit.id": 687,
             "deposit.external_id": "check-deposit-2020-06-26T13:50:07.564420",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -608,7 +608,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         {
             "deposit.id": 268,
             "deposit.external_id": "f80482de-90a8-4c32-bce4-6f6918d492ff",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -621,7 +621,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         {
             "deposit.id": 268,
             "deposit.external_id": "f80482de-90a8-4c32-bce4-6f6918d492ff",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -634,7 +634,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         {
             "deposit.id": 268,
             "deposit.external_id": "f80482de-90a8-4c32-bce4-6f6918d492ff",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -647,7 +647,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         {
             "deposit.id": 268,
             "deposit.external_id": "f80482de-90a8-4c32-bce4-6f6918d492ff",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -847,7 +847,7 @@ def test_deposit_4_without_xmlns():
         {
             "deposit.id": 79,
             "deposit.external_id": "hal-01243573",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -860,7 +860,7 @@ def test_deposit_4_without_xmlns():
         {
             "deposit.id": 79,
             "deposit.external_id": "hal-01243573",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -953,7 +953,7 @@ def test_deposit_4_wrong_origin():
         {
             "deposit.id": 75,
             "deposit.external_id": "hal-01588781",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -966,7 +966,7 @@ def test_deposit_4_wrong_origin():
         {
             "deposit.id": 75,
             "deposit.external_id": "hal-01588781",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
@@ -1082,7 +1082,7 @@ def test_deposit_missing_metadata_in_revision():
         {
             "deposit.id": 229,
             "deposit.external_id": "hal-01243573",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
@@ -1095,7 +1095,7 @@ def test_deposit_missing_metadata_in_revision():
         {
             "deposit.id": 229,
             "deposit.external_id": "hal-01243573",
-            "deposit.swh_id_context": swhid,
+            "deposit.swhid_context": swhid,
             "deposit.status": "success",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(

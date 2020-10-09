@@ -16,10 +16,12 @@ from swh.storage.replay import process_replay_objects
 from swh.storage.tests.test_replay import check_replayed
 
 TEST_CONFIG = {
-    "brokers": ["localhost"],
-    "prefix": "swh.tmp_journal.new",
-    "client_id": "swh.journal.client.test",
-    "storage_dbconn": "service=swh-dev",
+    "journal_writer": {
+        "brokers": ["localhost"],
+        "prefix": "swh.tmp_journal.new",
+        "client_id": "swh.journal.client.test",
+    },
+    "storage": {"cls": "local", "db": "service=swh-dev"},
 }
 
 
@@ -205,10 +207,12 @@ def test_backfiller(
 
     # now apply the backfiller on the storage to fill the journal under prefix2
     backfiller_config = {
-        "brokers": [kafka_server],
-        "client_id": "kafka_writer-2",
-        "prefix": prefix2,
-        "storage_dbconn": swh_storage_backend_config["db"],
+        "journal_writer": {
+            "brokers": [kafka_server],
+            "client_id": "kafka_writer-2",
+            "prefix": prefix2,
+        },
+        "storage": swh_storage_backend_config,
     }
 
     # Backfilling
