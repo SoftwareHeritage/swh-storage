@@ -169,8 +169,8 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
         hosts=hosts,
         port=port,
         keyspace=keyspace,
-        journal_writer={"cls": "memory",},
-        objstorage={"cls": "memory", "args": {},},
+        journal_writer={"cls": "memory"},
+        objstorage={"cls": "memory"},
     )
 
     yield storage_config
