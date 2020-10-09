@@ -1,3 +1,14 @@
+swh-storage (0.16.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.16.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-10-09 18:23:24 +0200)
+  * Upstream changes:     - Release swh.storage v0.16.0     - Updates to
+    the intrinsic metadata migration script     - Various improvements
+    to the buffer storage     - Update swh storage backfill to use
+    common configuration keys
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 09 Oct 2020 16:33:11 +0000
+
 swh-storage (0.15.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.15.3     - (tagged by Nicolas Dandrimont
