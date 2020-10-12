@@ -543,6 +543,167 @@ def test_deposit_2_with_xmlns():
     ]
 
 
+def test_deposit_2_with_json_in_json_and_no_xmlns():
+    """New formats introduced in https://forge.softwareheritage.org/D4105 ,
+    where the raw metadata is itself JSONed inside the metadata JSON tree
+    and https://forge.softwareheritage.org/D4065 where the @xmlns declarations
+    are stripped before being sent to the deposit DB"""
+    extrinsic_metadata = {
+        "id": "hal-02960679",
+        "author": {"name": "HAL", "email": "hal@ccsd.cnrs.fr"},
+        "client": "hal",
+        "codemeta:url": "https://hal.archives-ouvertes.fr/hal-02960679",
+        "codemeta:name": "Compressive Spectral Clustering Toolbox",
+        "codemeta:author": [
+            {"codemeta:name": "Nicolas Tremblay", "codemeta:affiliation": "PANAMA"},
+            {"codemeta:name": "Gilles Puy", "codemeta:affiliation": "PANAMA"},
+            {"codemeta:name": "R{\\'e}mi Gribonval", "codemeta:affiliation": "PANAMA"},
+            {"codemeta:name": "Pierre Vandergheynst"},
+        ],
+        # ...
+    }
+
+    original_artifacts = [
+        {
+            "url": "https://deposit.softwareheritage.org/1/private/1037/raw/",
+            "length": 4546913,
+            "filename": "archive.zip",
+            "checksums": {
+                "sha1": "01a0069c626a383de9a17ace40ecfd588e5c4f26",
+                "sha256": "c780a6de91286c70ceecc69fe0c6d201d3fe944aa89e193f3a89ae85dc25c3b1",
+            },
+        }
+    ]
+
+    row = {
+        "id": b"J\x9dc{\xa5\x07\xa2\xb93e%\x04(\xe6\xe3\xf0!\xf1\x94\xd0",
+        "date": datetime.datetime(2016, 1, 29, 0, 0, tzinfo=datetime.timezone.utc),
+        "committer_date": datetime.datetime(
+            2020, 10, 8, 0, 0, tzinfo=datetime.timezone.utc
+        ),
+        "type": "tar",
+        "message": b"hal: Deposit 1037 in collection hal",
+        "metadata": {
+            "extrinsic": {
+                "raw": {
+                    "origin": {
+                        "url": "https://hal.archives-ouvertes.fr/hal-02960679",
+                        "type": "deposit",
+                    },
+                    "origin_metadata": {
+                        "tool": {
+                            "name": "swh-deposit",
+                            "version": "0.2.0",
+                            "configuration": {"sword_version": "2"},
+                        },
+                        "metadata": json.dumps(extrinsic_metadata),
+                        "provider": {
+                            "metadata": {},
+                            "provider_url": "https://hal.archives-ouvertes.fr/",
+                            "provider_name": "hal",
+                            "provider_type": "deposit_client",
+                        },
+                    },
+                },
+                "when": "2020-10-09T13:38:25.888646+00:00",
+                "provider": "https://deposit.softwareheritage.org/1/private/1037/meta/",
+            },
+            "original_artifact": original_artifacts,
+        },
+    }
+
+    swhid = (
+        "swh:1:dir:8bfdf74037ae1c51335995891c6226e0f85e46e2"
+        ";origin=https://hal.archives-ouvertes.fr/hal-02960679"
+        ";visit=swh:1:snp:bc4a2ddf84dd0cc13d74e1970a1471c2574ed6aa"
+        ";anchor=swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
+        ";path=/"
+    )
+    deposit_rows = [
+        {
+            "deposit.id": 1037,
+            "deposit.external_id": "hal-02960679",
+            "deposit.swhid_context": swhid,
+            "deposit.status": "done",
+            "deposit_request.metadata": None,
+            "deposit_request.date": datetime.datetime(
+                2020, 10, 9, 13, 38, 8, 269611, tzinfo=datetime.timezone.utc,
+            ),
+            "deposit_client.provider_url": "https://hal.archives-ouvertes.fr/",
+            "deposit_collection.name": "hal",
+            "auth_user.username": "hal",
+        },
+        {
+            "deposit.id": 1037,
+            "deposit.external_id": "hal-02960679",
+            "deposit.swhid_context": swhid,
+            "deposit.status": "done",
+            "deposit_request.metadata": extrinsic_metadata,
+            "deposit_request.date": datetime.datetime(
+                2020, 10, 9, 13, 38, 7, 394544, tzinfo=datetime.timezone.utc,
+            ),
+            "deposit_client.provider_url": "https://hal.archives-ouvertes.fr/",
+            "deposit_collection.name": "hal",
+            "auth_user.username": "hal",
+        },
+    ]
+
+    origin_url = "https://hal.archives-ouvertes.fr/hal-02960679"
+
+    storage = Mock()
+
+    def origin_get(urls):
+        assert urls == [origin_url]
+        return [Origin(url=origin_url)]
+
+    storage.origin_get.side_effect = origin_get
+    deposit_cur = get_mock_deposit_cur(deposit_rows)
+    handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
+
+    deposit_cur.execute.assert_called_once()
+    deposit_cur.__iter__.assert_called_once()
+
+    assert storage.method_calls == [
+        call.origin_get([origin_url]),
+        call.raw_extrinsic_metadata_add(
+            [
+                RawExtrinsicMetadata(
+                    type=MetadataTargetType.REVISION,
+                    id=parse_swhid(
+                        "swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
+                    ),
+                    discovery_date=datetime.datetime(
+                        2020, 10, 9, 13, 38, 7, 394544, tzinfo=datetime.timezone.utc
+                    ),
+                    authority=HAL_AUTHORITY,
+                    fetcher=FETCHER,
+                    format="sword-v2-atom-codemeta-v2-in-json",
+                    metadata=json.dumps(extrinsic_metadata).encode(),
+                    origin=origin_url,
+                ),
+            ]
+        ),
+        call.raw_extrinsic_metadata_add(
+            [
+                RawExtrinsicMetadata(
+                    type=MetadataTargetType.REVISION,
+                    id=parse_swhid(
+                        "swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
+                    ),
+                    discovery_date=datetime.datetime(
+                        2020, 10, 9, 13, 38, 25, 888646, tzinfo=datetime.timezone.utc
+                    ),
+                    authority=SWH_AUTHORITY,
+                    fetcher=FETCHER,
+                    format="original-artifacts-json",
+                    metadata=json.dumps(original_artifacts).encode(),
+                    origin=origin_url,
+                ),
+            ]
+        ),
+    ]
+
+
 def test_deposit_3_and_wrong_external_id_in_metadata():
     extrinsic_metadata = {
         "title": "VTune Perf tool",

@@ -426,13 +426,20 @@ def handle_deposit_row(
                 assert metadata["@xmlns"] == ATOM_NS
                 assert metadata["@xmlns:codemeta"] in (CODEMETA_NS, [CODEMETA_NS])
                 format = NEW_DEPOSIT_FORMAT
-            else:
-                assert "{http://www.w3.org/2005/Atom}id" in metadata
+            elif "{http://www.w3.org/2005/Atom}id" in metadata:
                 assert (
                     "{https://doi.org/10.5063/SCHEMA/CODEMETA-2.0}author" in metadata
                     or "{http://www.w3.org/2005/Atom}author" in metadata
                 )
                 format = OLD_DEPOSIT_FORMAT
+            else:
+                # new format introduced in
+                # https://forge.softwareheritage.org/D4065
+                # it's the same as the first case, but with the @xmlns
+                # declarations stripped
+                assert "id" in metadata
+                assert "codemeta:author" in metadata
+                format = NEW_DEPOSIT_FORMAT
             metadata_entries.append((date, format, metadata))
 
     if discovery_date is None:
@@ -722,18 +729,28 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                     actual_metadata = metadata["extrinsic"]["raw"]["origin_metadata"][
                         "metadata"
                     ]
+                    if isinstance(actual_metadata, str):
+                        # new format introduced in
+                        # https://forge.softwareheritage.org/D4105
+                        actual_metadata = json.loads(actual_metadata)
                     if "@xmlns" in actual_metadata:
                         assert actual_metadata["@xmlns"] == ATOM_NS
                         assert actual_metadata["@xmlns:codemeta"] in (
                             CODEMETA_NS,
                             [CODEMETA_NS],
                         )
-                    else:
-                        assert "{http://www.w3.org/2005/Atom}id" in actual_metadata
+                    elif "{http://www.w3.org/2005/Atom}id" in actual_metadata:
                         assert (
                             "{https://doi.org/10.5063/SCHEMA/CODEMETA-2.0}author"
                             in actual_metadata
                         )
+                    else:
+                        # new format introduced in
+                        # https://forge.softwareheritage.org/D4065
+                        # it's the same as the first case, but with the @xmlns
+                        # declarations stripped
+                        assert "id" in actual_metadata
+                        assert "codemeta:author" in actual_metadata
 
                     (origin, discovery_date) = handle_deposit_row(
                         row, discovery_date, origin, storage, deposit_cur, dry_run
