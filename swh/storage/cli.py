@@ -11,7 +11,8 @@ from typing import Dict, Optional
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS, swh as swh_cli_group
+from swh.core.cli import CONTEXT_SETTINGS
+from swh.core.cli import swh as swh_cli_group
 
 try:
     from systemd.daemon import notify

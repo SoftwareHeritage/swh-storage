@@ -9,7 +9,18 @@ import itertools
 import json
 import random
 import re
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import attr
 
@@ -1303,11 +1314,11 @@ class CassandraStorage:
         else:
             return None
 
-    def clear_buffers(self, object_types: Optional[List[str]] = None) -> None:
+    def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing
 
         """
         return None
 
-    def flush(self, object_types: Optional[List[str]] = None) -> Dict:
+    def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:
         return {}

@@ -1,7 +1,6 @@
 click
 flask
 psycopg2
-vcversioner
 aiohttp
 tenacity
 cassandra-driver!=3.21.0,>=3.19.0
@@ -11,7 +10,7 @@ mypy_extensions
 iso8601
 swh.core[db,http]>=0.3
 swh.model>=0.6.6
-swh.objstorage>=0.0.40
+swh.objstorage>=0.2.2
 
 [journal]
 swh.journal>=0.4

@@ -397,3 +397,9 @@ def test_buffering_proxy_storage_clear(sample_data):
     assert len(storage._objects["directory"]) == 0
     assert len(storage._objects["revision"]) == 0
     assert len(storage._objects["release"]) == 0
+
+
+def test_buffer_proxy_with_default_args():
+    storage = get_storage_with_buffer_config()
+
+    assert storage is not None
