@@ -5,7 +5,7 @@
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from swh.core import config
 from swh.core.api import RPCServerApp
@@ -79,7 +79,7 @@ def refresh_stat_counters():
 api_cfg = None
 
 
-def load_and_check_config(config_path: str) -> Dict[str, Any]:
+def load_and_check_config(config_path: Optional[str]) -> Dict[str, Any]:
     """Check the minimal configuration is set to run the api or raise an
        error explanation.
 
@@ -106,7 +106,7 @@ def load_and_check_config(config_path: str) -> Dict[str, Any]:
     return cfg
 
 
-def make_app_from_configfile():
+def make_app_from_configfile() -> StorageServerApp:
     """Run the WSGI app from the webserver, loading the configuration from
        a configuration file.
 
