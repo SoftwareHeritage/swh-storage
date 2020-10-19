@@ -101,7 +101,7 @@ def load_and_check_config(config_path: str) -> Dict[str, Any]:
 
     cfg = config.read(config_path)
     if "storage" not in cfg:
-        raise KeyError("Missing '%storage' configuration")
+        raise KeyError("Missing 'storage' configuration")
 
     return cfg
 

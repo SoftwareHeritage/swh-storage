@@ -48,7 +48,7 @@ def test_load_and_check_config_inexistent_file():
 def test_load_and_check_config_wrong_configuration(tmpdir):
     """Wrong configuration raises"""
     config_path = prepare_config_file(tmpdir, "something: useless")
-    with pytest.raises(KeyError, match="Missing '%storage' configuration"):
+    with pytest.raises(KeyError, match="Missing 'storage' configuration"):
         load_and_check_config(config_path)
 
 
