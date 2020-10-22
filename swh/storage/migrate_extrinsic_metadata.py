@@ -452,7 +452,10 @@ def handle_deposit_row(
                 # https://forge.softwareheritage.org/D4065
                 # it's the same as the first case, but with the @xmlns
                 # declarations stripped
-                assert "id" in metadata
+                # Most of them should have the "id", but some revisions,
+                # like 4d3890004fade1f4ec3bf7004a4af0c490605128, are missing
+                # this field
+                assert "id" in metadata or "title" in metadata
                 assert "codemeta:author" in metadata
                 format = NEW_DEPOSIT_FORMAT
             metadata_entries.append((date, format, metadata))
@@ -764,7 +767,10 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                         # https://forge.softwareheritage.org/D4065
                         # it's the same as the first case, but with the @xmlns
                         # declarations stripped
-                        assert "id" in actual_metadata
+                        # Most of them should have the "id", but some revisions,
+                        # like 4d3890004fade1f4ec3bf7004a4af0c490605128, are missing
+                        # this field
+                        assert "id" in actual_metadata or "title" in actual_metadata
                         assert "codemeta:author" in actual_metadata
 
                     (origin, discovery_date) = handle_deposit_row(
