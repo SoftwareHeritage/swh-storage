@@ -234,6 +234,30 @@ def pypi_project_from_filename(filename):
     return match.group("project_name")
 
 
+def pypi_origin_from_filename(storage, rev_id: bytes, filename: str) -> Optional[str]:
+    project_name = pypi_project_from_filename(filename)
+    origin = f"https://pypi.org/project/{project_name}/"
+    # But unfortunately, the filename is user-provided, and doesn't
+    # necessarily match the package name on pypi. Therefore, we need
+    # to check it.
+    if not _check_revision_in_origin(storage, origin, rev_id):
+        origin_with_dashes = origin.replace("_", "-")
+        # if the file name contains underscores but we can't find
+        # a matching origin, also try with dashes. It's common for package
+        # names containing underscores to use dashes on pypi.
+        if (
+            "_" in origin
+            and check_origin_exists(storage, origin_with_dashes)
+            and _check_revision_in_origin(storage, origin_with_dashes, rev_id)
+        ):
+            origin = origin_with_dashes
+        else:
+            print(f"revision {rev_id.hex()} false positive of origin {origin}.")
+            return None
+
+    return origin
+
+
 def cran_package_from_url(filename):
     match = re.match(
         r"^https://cran\.r-project\.org/src/contrib/"
@@ -907,39 +931,12 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
             assert len(metadata["original_artifact"]) == 1
 
-            project_name = pypi_project_from_filename(
-                metadata["original_artifact"][0]["filename"]
+            origin = pypi_origin_from_filename(
+                storage, row["id"], metadata["original_artifact"][0]["filename"]
             )
-            origin = f"https://pypi.org/project/{project_name}/"
-            # But unfortunately, the filename is user-provided, and doesn't
-            # necessarily match the package name on pypi. Therefore, we need
-            # to check it.
-            if not _check_revision_in_origin(storage, origin, row["id"]):
-                origin_with_dashes = origin.replace("_", "-")
-                # if the file name contains underscores but we can't find
-                # a matching origin, also try with dashes. It's common for package
-                # names containing underscores to use dashes on pypi.
-                if (
-                    "_" in origin
-                    and check_origin_exists(storage, origin_with_dashes)
-                    and _check_revision_in_origin(
-                        storage, origin_with_dashes, row["id"]
-                    )
-                ):
-                    origin = origin_with_dashes
-                else:
-                    print(
-                        f"revision {row['id'].hex()} false positive of origin {origin}."
-                    )
-                    origin = None
 
             if "project" in metadata:
                 # pypi loader format 2
-
-                # same reason as above, we can't do this:
-                #   if metadata["project"]:
-                #       assert metadata["project"]["name"] == project_name
-
                 load_metadata(
                     storage,
                     row["id"],
