@@ -115,6 +115,7 @@ deposit_revision_message_re = re.compile(
 
 # not reliable, because PyPI allows arbitrary names
 def pypi_project_from_filename(filename):
+    original_filename = filename
     if filename.endswith(".egg"):
         return None
     elif filename == "mongomotor-0.13.0.n.tar.gz":
@@ -156,6 +157,20 @@ def pypi_project_from_filename(filename):
         return "Greater-than-equal-or-less-Library"
     elif filename.startswith("upstart--main-"):
         return "upstart"
+    elif filename == "duckduckpy0.1.tar.gz":
+        return "duckduckpy"
+    elif filename == "QUI for MPlayer snapshot_9-14-2011.zip":
+        return "QUI-for-MPlayer"
+    elif filename == "Eddy's Memory Game-1.0.zip":
+        return "Eddy-s-Memory-Game"
+    elif filename == "jekyll2nikola-0-0-1.tar.gz":
+        return "jekyll2nikola"
+    elif filename.startswith("ore.workflowed"):
+        return "ore.workflowed"
+    elif re.match("instancemanager-[0-9]*", filename):
+        return "instancemanager"
+    elif filename == "OrzMC_W&L-1.0.0.tar.gz":
+        return "OrzMC-W-L"
     filename = filename.replace(" ", "-")
 
     match = re.match(
@@ -215,7 +230,7 @@ def pypi_project_from_filename(filename):
         r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
         filename,
     )
-    assert match, filename
+    assert match, original_filename
     return match.group("project_name")
 
 

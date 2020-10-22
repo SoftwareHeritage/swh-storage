@@ -123,6 +123,13 @@ def test_pypi_project_from_filename():
             "Greater-than-equal-or-less-Library",
         ),
         ("upstart--main-.-VLazy.object.at.0x104ba8b50-.tar.gz", "upstart"),
+        ("duckduckpy0.1.tar.gz", "duckduckpy"),
+        ("QUI for MPlayer snapshot_9-14-2011.zip", "QUI-for-MPlayer"),
+        ("Eddy's Memory Game-1.0.zip", "Eddy-s-Memory-Game"),
+        ("jekyll2nikola-0-0-1.tar.gz", "jekyll2nikola"),
+        ("ore.workflowed-0-6-2.tar.gz", "ore.workflowed"),
+        ("instancemanager-1.0rc-r34317.tar.gz", "instancemanager"),
+        ("OrzMC_W&L-1.0.0.tar.gz", "OrzMC-W-L"),
     ]
 
     for (filename, project) in files:
