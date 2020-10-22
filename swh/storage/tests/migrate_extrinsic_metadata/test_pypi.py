@@ -177,7 +177,7 @@ def test_pypi_origin_from_project_name(mocker):
         code = 200
 
         def read(self):
-            return b'{"name": "ProjectName"}'
+            return b'{"info": {"name": "ProjectName"}}'
 
     mock_urlopen = mocker.patch(
         "swh.storage.migrate_extrinsic_metadata.urlopen", return_value=response(),

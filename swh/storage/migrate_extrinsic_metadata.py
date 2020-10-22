@@ -259,7 +259,7 @@ def pypi_origin_from_filename(storage, rev_id: bytes, filename: str) -> Optional
         # nope; PyPI couldn't correct the wrong project name
         return None
     assert resp.code == 200, resp.code
-    project_name = json.load(resp)["name"]
+    project_name = json.load(resp)["info"]["name"]
     origin = pypi_origin_from_project_name(project_name)
 
     if _check_revision_in_origin(storage, origin, rev_id):
