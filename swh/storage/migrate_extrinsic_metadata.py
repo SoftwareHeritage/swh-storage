@@ -29,7 +29,9 @@ import re
 import sys
 import time
 from typing import Any, Dict, Optional
+from urllib.error import HTTPError
 from urllib.parse import unquote, urlparse
+from urllib.request import urlopen
 
 import iso8601
 import psycopg2
@@ -234,28 +236,39 @@ def pypi_project_from_filename(filename):
     return match.group("project_name")
 
 
+def pypi_origin_from_project_name(project_name: str) -> str:
+    return f"https://pypi.org/project/{project_name}/"
+
+
 def pypi_origin_from_filename(storage, rev_id: bytes, filename: str) -> Optional[str]:
     project_name = pypi_project_from_filename(filename)
-    origin = f"https://pypi.org/project/{project_name}/"
+    origin = pypi_origin_from_project_name(project_name)
     # But unfortunately, the filename is user-provided, and doesn't
     # necessarily match the package name on pypi. Therefore, we need
     # to check it.
-    if not _check_revision_in_origin(storage, origin, rev_id):
-        origin_with_dashes = origin.replace("_", "-")
-        # if the file name contains underscores but we can't find
-        # a matching origin, also try with dashes. It's common for package
-        # names containing underscores to use dashes on pypi.
-        if (
-            "_" in origin
-            and check_origin_exists(storage, origin_with_dashes)
-            and _check_revision_in_origin(storage, origin_with_dashes, rev_id)
-        ):
-            origin = origin_with_dashes
-        else:
-            print(f"revision {rev_id.hex()} false positive of origin {origin}.")
-            return None
+    if _check_revision_in_origin(storage, origin, rev_id):
+        return origin
 
-    return origin
+    # if the origin we guessed does not exist, query the PyPI API with the
+    # project name we guessed. If only the capitalisation and dash/underscores
+    # are wrong (by far the most common case), PyPI kindly corrects them.
+    try:
+        resp = urlopen(f"https://pypi.org/pypi/{project_name}/json/")
+    except HTTPError as e:
+        assert e.code == 404
+        # nope; PyPI couldn't correct the wrong project name
+        return None
+    assert resp.code == 200, resp.code
+    project_name = json.load(resp)["name"]
+    origin = pypi_origin_from_project_name(project_name)
+
+    if _check_revision_in_origin(storage, origin, rev_id):
+        return origin
+    else:
+        # The origin exists, but the revision does not belong in it.
+        # This happens sometimes, as the filename we guessed the origin
+        # from is user-provided.
+        return None
 
 
 def cran_package_from_url(filename):
