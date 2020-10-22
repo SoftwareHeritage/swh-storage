@@ -680,7 +680,10 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
                 del metadata["extrinsic"]
 
-            elif provider.startswith("https://nix-community.github.io/nixpkgs-swh/"):
+            elif (
+                provider.startswith("https://nix-community.github.io/nixpkgs-swh/")
+                or provider == "https://guix.gnu.org/sources.json"
+            ):
                 # nixguix loader
                 origin = provider
                 assert_origin_exists(storage, origin)
