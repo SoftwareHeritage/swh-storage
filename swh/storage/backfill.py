@@ -526,10 +526,7 @@ class JournalBackfiller:
         )
 
         db = BaseDb.connect(self.config["storage"]["db"])
-        writer = get_journal_writer(
-            cls="kafka",
-            **self.config["journal_writer"]
-        )
+        writer = get_journal_writer(cls="kafka", **self.config["journal_writer"])
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):
