@@ -87,7 +87,7 @@ def test_nixguix():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
                     ),
                     discovery_date=datetime.datetime(
@@ -105,7 +105,7 @@ def test_nixguix():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
                     ),
                     discovery_date=datetime.datetime(

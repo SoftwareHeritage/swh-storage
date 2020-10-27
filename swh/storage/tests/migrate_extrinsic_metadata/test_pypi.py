@@ -281,7 +281,7 @@ def test_pypi_1():
         results=[
             RawExtrinsicMetadata(
                 type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                target=revision_swhid,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
@@ -300,7 +300,7 @@ def test_pypi_1():
         results=[
             RawExtrinsicMetadata(
                 type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                target=revision_swhid,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
@@ -401,7 +401,7 @@ def test_pypi_2(mocker):
         results=[
             RawExtrinsicMetadata(
                 type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                target=revision_swhid,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
@@ -420,7 +420,7 @@ def test_pypi_2(mocker):
         results=[
             RawExtrinsicMetadata(
                 type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                target=revision_swhid,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
@@ -508,7 +508,7 @@ def test_pypi_3(mocker):
         results=[
             RawExtrinsicMetadata(
                 type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                target=revision_swhid,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),
@@ -618,7 +618,7 @@ def test_pypi_good_origin():
         results=[
             RawExtrinsicMetadata(
                 type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                target=revision_swhid,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),

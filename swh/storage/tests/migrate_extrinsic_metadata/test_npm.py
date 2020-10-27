@@ -139,7 +139,7 @@ def test_npm_1():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:000002a49bba17ca8cf37f5f3d16aaacf95360fc"
                     ),
                     discovery_date=datetime.datetime(
@@ -157,7 +157,7 @@ def test_npm_1():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:000002a49bba17ca8cf37f5f3d16aaacf95360fc"
                     ),
                     discovery_date=datetime.datetime(
@@ -241,7 +241,7 @@ def test_npm_2_unscoped():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:000004aeed09ee089c781264c04d2564fd58feb5"
                     ),
                     discovery_date=datetime.datetime(
@@ -259,7 +259,7 @@ def test_npm_2_unscoped():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:000004aeed09ee089c781264c04d2564fd58feb5"
                     ),
                     discovery_date=datetime.datetime(
@@ -339,7 +339,7 @@ def test_npm_2_scoped():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:00002019c5775874bced007a529bd3b78bf60457"
                     ),
                     discovery_date=datetime.datetime(
@@ -357,7 +357,7 @@ def test_npm_2_scoped():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:00002019c5775874bced007a529bd3b78bf60457"
                     ),
                     discovery_date=datetime.datetime(

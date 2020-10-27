@@ -89,7 +89,7 @@ def test_gnu():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:001c71458e405b25baccc80b99f6634dff9d2b18"
                     ),
                     discovery_date=datetime.datetime(

@@ -183,7 +183,7 @@ def test_deposit_1():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:022310df16fd9e4d4f81fe36a142e82db977c01d"
                     ),
                     discovery_date=datetime.datetime(
@@ -201,7 +201,7 @@ def test_deposit_1():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:022310df16fd9e4d4f81fe36a142e82db977c01d"
                     ),
                     discovery_date=datetime.datetime(
@@ -346,7 +346,7 @@ def test_deposit_2_without_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0116cab71964d59c8570b4c5729b28bdd63c9b46"
                     ),
                     discovery_date=datetime.datetime(
@@ -364,7 +364,7 @@ def test_deposit_2_without_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0116cab71964d59c8570b4c5729b28bdd63c9b46"
                     ),
                     discovery_date=datetime.datetime(
@@ -508,7 +508,7 @@ def test_deposit_2_with_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0122966e509317aece6a41d0f088da733cc09d0f"
                     ),
                     discovery_date=datetime.datetime(
@@ -526,7 +526,7 @@ def test_deposit_2_with_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0122966e509317aece6a41d0f088da733cc09d0f"
                     ),
                     discovery_date=datetime.datetime(
@@ -669,7 +669,7 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
                     ),
                     discovery_date=datetime.datetime(
@@ -687,7 +687,7 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
                     ),
                     discovery_date=datetime.datetime(
@@ -841,7 +841,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:09356053c49ad0f9e62e51c29d3e617c791140df"
                     ),
                     discovery_date=datetime.datetime(
@@ -859,7 +859,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:09356053c49ad0f9e62e51c29d3e617c791140df"
                     ),
                     discovery_date=datetime.datetime(
@@ -877,7 +877,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:09356053c49ad0f9e62e51c29d3e617c791140df"
                     ),
                     discovery_date=datetime.datetime(
@@ -1054,7 +1054,7 @@ def test_deposit_4_without_xmlns():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:03987f056eaf4596cd20d7b2ee01c9b84ceddfa8"
                     ),
                     discovery_date=datetime.datetime(
@@ -1160,7 +1160,7 @@ def test_deposit_4_wrong_origin():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:2d7bce631fc791080311eb835c47428e586a6ea4"
                     ),
                     discovery_date=datetime.datetime(
@@ -1291,7 +1291,7 @@ def test_deposit_missing_metadata_in_revision():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:034076f3f41ee1204eb9f64082cbe6e950d7bb8a"
                     ),
                     discovery_date=datetime.datetime(
@@ -1309,7 +1309,7 @@ def test_deposit_missing_metadata_in_revision():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:034076f3f41ee1204eb9f64082cbe6e950d7bb8a"
                     ),
                     discovery_date=datetime.datetime(

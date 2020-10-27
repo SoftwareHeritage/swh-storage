@@ -402,7 +402,7 @@ def load_metadata(
     revision_swhid = SWHID(object_type="revision", object_id=hash_to_hex(revision_id))
     obj = RawExtrinsicMetadata(
         type=MetadataTargetType.REVISION,
-        id=revision_swhid,
+        target=revision_swhid,
         discovery_date=discovery_date,
         authority=authority,
         fetcher=FETCHER,

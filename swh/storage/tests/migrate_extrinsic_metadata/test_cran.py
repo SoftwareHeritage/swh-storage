@@ -115,7 +115,7 @@ def test_cran():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:000361aa33842cbdea5fa6e77db696b937ebd269"
                     ),
                     discovery_date=datetime.datetime(
@@ -202,7 +202,7 @@ def test_cran_without_revision_date():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0000d4ef5e166122aee6862ad38a18ce5386cc3e"
                     ),
                     discovery_date=datetime.datetime(
@@ -278,7 +278,7 @@ def test_cran_with_new_original_artifacts_format():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:2e223782ee4ba152e4c886f797976241c39a9aab"
                     ),
                     discovery_date=datetime.datetime(

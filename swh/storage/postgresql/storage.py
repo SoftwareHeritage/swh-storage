@@ -1246,7 +1246,7 @@ class Storage:
 
             db.raw_extrinsic_metadata_add(
                 type=metadata_entry.type.value,
-                id=str(metadata_entry.id),
+                id=str(metadata_entry.target),
                 discovery_date=metadata_entry.discovery_date,
                 authority_id=authority_id,
                 fetcher_id=fetcher_id,

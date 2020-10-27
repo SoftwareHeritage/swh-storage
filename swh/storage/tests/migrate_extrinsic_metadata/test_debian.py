@@ -431,7 +431,7 @@ def test_debian_with_extrinsic():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:0000036c311ef33a281b05688f6eadcfc0943aee"
                     ),
                     discovery_date=datetime.datetime(
@@ -546,7 +546,7 @@ def test_debian_without_extrinsic():
             [
                 RawExtrinsicMetadata(
                     type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
+                    target=parse_swhid(
                         "swh:1:rev:000001c28c8fca01b904de92a2640a866ce03cb7"
                     ),
                     discovery_date=datetime.datetime(
