@@ -37,6 +37,9 @@ SWH_AUTHORITY = MetadataAuthority(
     metadata={},
 )
 
+DIRECTORY_ID = b"a" * 20
+DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+
 
 def test_npm_package_from_source_url():
     package_urls = [
@@ -101,6 +104,7 @@ def test_npm_1():
 
     row = {
         "id": b"\x00\x00\x02\xa4\x9b\xba\x17\xca\x8c\xf3\x7f_=\x16\xaa\xac\xf9S`\xfc",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2020, 2, 22, 6, 5, 45, tzinfo=datetime.timezone.utc),
         "committer_date": datetime.datetime(
             2020, 2, 22, 6, 5, 45, tzinfo=datetime.timezone.utc
@@ -138,10 +142,8 @@ def test_npm_1():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    target=parse_swhid(
-                        "swh:1:rev:000002a49bba17ca8cf37f5f3d16aaacf95360fc"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 2, 27, 1, 35, 47, 965375, tzinfo=datetime.timezone.utc,
                     ),
@@ -150,16 +152,17 @@ def test_npm_1():
                     format="replicate-npm-package-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:000002a49bba17ca8cf37f5f3d16aaacf95360fc"
+                    ),
                 ),
             ]
         ),
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    target=parse_swhid(
-                        "swh:1:rev:000002a49bba17ca8cf37f5f3d16aaacf95360fc"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 2, 27, 1, 35, 47, 965375, tzinfo=datetime.timezone.utc,
                     ),
@@ -168,6 +171,9 @@ def test_npm_1():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:000002a49bba17ca8cf37f5f3d16aaacf95360fc"
+                    ),
                 ),
             ]
         ),
@@ -212,6 +218,7 @@ def test_npm_2_unscoped():
 
     row = {
         "id": b"\x00\x00\x04\xae\xed\t\xee\x08\x9cx\x12d\xc0M%d\xfdX\xfe\xb5",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2016, 12, 23, 7, 21, 29, tzinfo=datetime.timezone.utc
         ),
@@ -240,10 +247,8 @@ def test_npm_2_unscoped():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    target=parse_swhid(
-                        "swh:1:rev:000004aeed09ee089c781264c04d2564fd58feb5"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2016, 12, 23, 7, 21, 29, tzinfo=datetime.timezone.utc,
                     ),
@@ -252,16 +257,17 @@ def test_npm_2_unscoped():
                     format="replicate-npm-package-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:000004aeed09ee089c781264c04d2564fd58feb5"
+                    ),
                 ),
             ]
         ),
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    target=parse_swhid(
-                        "swh:1:rev:000004aeed09ee089c781264c04d2564fd58feb5"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2016, 12, 23, 7, 21, 29, tzinfo=datetime.timezone.utc,
                     ),
@@ -270,6 +276,9 @@ def test_npm_2_unscoped():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:000004aeed09ee089c781264c04d2564fd58feb5"
+                    ),
                 ),
             ]
         ),
@@ -312,6 +321,7 @@ def test_npm_2_scoped():
 
     row = {
         "id": b"\x00\x00 \x19\xc5wXt\xbc\xed\x00zR\x9b\xd3\xb7\x8b\xf6\x04W",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2019, 6, 7, 19, 56, 4, tzinfo=datetime.timezone.utc),
         "committer_date": datetime.datetime(
             2019, 6, 7, 19, 56, 4, tzinfo=datetime.timezone.utc
@@ -338,10 +348,8 @@ def test_npm_2_scoped():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    target=parse_swhid(
-                        "swh:1:rev:00002019c5775874bced007a529bd3b78bf60457"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 6, 7, 19, 56, 4, tzinfo=datetime.timezone.utc,
                     ),
@@ -350,16 +358,17 @@ def test_npm_2_scoped():
                     format="replicate-npm-package-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:00002019c5775874bced007a529bd3b78bf60457"
+                    ),
                 ),
             ]
         ),
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    target=parse_swhid(
-                        "swh:1:rev:00002019c5775874bced007a529bd3b78bf60457"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 6, 7, 19, 56, 4, tzinfo=datetime.timezone.utc,
                     ),
@@ -368,6 +377,9 @@ def test_npm_2_scoped():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:00002019c5775874bced007a529bd3b78bf60457"
+                    ),
                 ),
             ]
         ),

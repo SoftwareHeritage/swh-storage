@@ -45,6 +45,9 @@ SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY, url="https://softwareheritage.org/",
 )
 
+DIRECTORY_ID = b"a" * 20
+DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+
 
 def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
@@ -231,6 +234,7 @@ def test_pypi_1():
 
     row = {
         "id": b"\x00\x00\x07a{S\xe7\xb1E\x8fi]\xd0}\xe4\xceU\xaf\x15\x17",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2019, 11, 11, 6, 21, 20, tzinfo=datetime.timezone.utc,
         ),
@@ -276,12 +280,12 @@ def test_pypi_1():
 
     revision_swhid = parse_swhid("swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517")
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                target=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
@@ -290,17 +294,18 @@ def test_pypi_1():
                 format="pypi-project-json",
                 metadata=json.dumps(extrinsic_metadata).encode(),
                 origin=origin_url,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                target=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
@@ -309,6 +314,7 @@ def test_pypi_1():
                 format="original-artifacts-json",
                 metadata=json.dumps(original_artifacts).encode(),
                 origin=origin_url,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
@@ -364,6 +370,7 @@ def test_pypi_2(mocker):
 
     row = {
         "id": b"\x00\x00\x04\xd68,J\xd4\xc0Q\x92fbl6U\x1f\x0eQ\xca",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc
         ),
@@ -396,12 +403,12 @@ def test_pypi_2(mocker):
 
     revision_swhid = parse_swhid("swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca")
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                target=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
@@ -410,17 +417,18 @@ def test_pypi_2(mocker):
                 format="pypi-project-json",
                 metadata=json.dumps(extrinsic_metadata).encode(),
                 origin=None,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                target=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
@@ -429,6 +437,7 @@ def test_pypi_2(mocker):
                 format="original-artifacts-json",
                 metadata=json.dumps(dest_original_artifacts).encode(),
                 origin=None,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
@@ -473,6 +482,7 @@ def test_pypi_3(mocker):
 
     row = {
         "id": b"N\xa9\x91|\xdfS\xcd\x13SJ\x04.N\xb3x{\x86\xc84\xd2",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc),
         "committer_date": datetime.datetime(
             2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc
@@ -500,15 +510,15 @@ def test_pypi_3(mocker):
     revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
 
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(results=[], next_page_token=None,)
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                target=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),
@@ -517,6 +527,7 @@ def test_pypi_3(mocker):
                 format="original-artifacts-json",
                 metadata=json.dumps(dest_original_artifacts).encode(),
                 origin=None,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
@@ -556,6 +567,7 @@ def test_pypi_good_origin():
     revision_id = b"N\xa9\x91|\xdfS\xcd\x13SJ\x04.N\xb3x{\x86\xc84\xd2"
     row = {
         "id": revision_id,
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc),
         "committer_date": datetime.datetime(
             2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc
@@ -610,15 +622,15 @@ def test_pypi_good_origin():
     revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
 
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(results=[], next_page_token=None,)
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                target=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),
@@ -627,6 +639,7 @@ def test_pypi_good_origin():
                 format="original-artifacts-json",
                 metadata=json.dumps(dest_original_artifacts).encode(),
                 origin=origin_url,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,

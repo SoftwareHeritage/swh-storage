@@ -58,7 +58,15 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 ATOM_KEYS = ["id", "author", "external_identifier", "title"]
 
 # columns of the revision table (of the storage DB)
-REVISION_COLS = ["id", "date", "committer_date", "type", "message", "metadata"]
+REVISION_COLS = [
+    "id",
+    "directory",
+    "date",
+    "committer_date",
+    "type",
+    "message",
+    "metadata",
+]
 
 # columns of the tables of the deposit DB
 DEPOSIT_COLS = [
@@ -391,6 +399,7 @@ def check_origin_exists(storage, origin):
 def load_metadata(
     storage,
     revision_id,
+    directory_id,
     discovery_date: datetime.datetime,
     metadata: Dict[str, Any],
     format: str,
@@ -399,16 +408,20 @@ def load_metadata(
     dry_run: bool,
 ):
     """Does the actual loading to swh-storage."""
+    directory_swhid = SWHID(
+        object_type="directory", object_id=hash_to_hex(directory_id)
+    )
     revision_swhid = SWHID(object_type="revision", object_id=hash_to_hex(revision_id))
     obj = RawExtrinsicMetadata(
-        type=MetadataTargetType.REVISION,
-        target=revision_swhid,
+        type=MetadataTargetType.DIRECTORY,
+        target=directory_swhid,
         discovery_date=discovery_date,
         authority=authority,
         fetcher=FETCHER,
         format=format,
         metadata=json.dumps(metadata).encode(),
         origin=origin,
+        revision=revision_swhid,
     )
     if not dry_run:
         storage.raw_extrinsic_metadata_add([obj])
@@ -582,6 +595,7 @@ def handle_deposit_row(
         load_metadata(
             storage,
             row["id"],
+            row["directory"],
             date,
             metadata,
             format,
@@ -642,6 +656,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["extrinsic"]["raw"],
                     NPM_FORMAT,
@@ -665,6 +680,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["extrinsic"]["raw"],
                     PYPI_FORMAT,
@@ -733,6 +749,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["extrinsic"]["raw"],
                     NIXGUIX_FORMAT,
@@ -837,6 +854,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             load_metadata(
                 storage,
                 row["id"],
+                row["directory"],
                 discovery_date,
                 metadata["package"],
                 NPM_FORMAT,
@@ -953,6 +971,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["project"],
                     PYPI_FORMAT,
@@ -1048,6 +1067,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             load_metadata(
                 storage,
                 row["id"],
+                row["directory"],
                 discovery_date,
                 metadata["original_artifact"],
                 ORIGINAL_ARTIFACT_FORMAT,
