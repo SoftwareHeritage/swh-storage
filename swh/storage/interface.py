@@ -1100,7 +1100,7 @@ class StorageInterface(Protocol):
     def raw_extrinsic_metadata_get(
         self,
         type: MetadataTargetType,
-        id: Union[str, SWHID],
+        target: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
@@ -1110,7 +1110,7 @@ class StorageInterface(Protocol):
 
         Args:
             type: one of the values of swh.model.model.MetadataTargetType
-            id: an URL if type is 'origin', else a core SWHID
+            target: an URL if type is 'origin', else a core SWHID
             authority: a dict containing keys `type` and `url`.
             after: minimum discovery_date for a result to be returned
             page_token: opaque token, used to get the next page of results

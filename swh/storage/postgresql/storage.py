@@ -1274,7 +1274,7 @@ class Storage:
     def raw_extrinsic_metadata_get(
         self,
         type: MetadataTargetType,
-        id: Union[str, SWHID],
+        target: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
@@ -1283,16 +1283,16 @@ class Storage:
         cur=None,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if type == MetadataTargetType.ORIGIN:
-            if isinstance(id, SWHID):
+            if isinstance(target, SWHID):
                 raise StorageArgumentException(
                     f"raw_extrinsic_metadata_get called with type='origin', "
-                    f"but provided id is an SWHID: {id!r}"
+                    f"but provided target is a SWHID: {target!r}"
                 )
         else:
-            if not isinstance(id, SWHID):
+            if not isinstance(target, SWHID):
                 raise StorageArgumentException(
                     f"raw_extrinsic_metadata_get called with type!='origin', "
-                    f"but provided id is not an SWHID: {id!r}"
+                    f"but provided target is not a SWHID: {target!r}"
                 )
 
         if page_token:
@@ -1310,12 +1310,12 @@ class Storage:
             return PagedResult(next_page_token=None, results=[],)
 
         rows = db.raw_extrinsic_metadata_get(
-            type, str(id), authority_id, after_time, after_fetcher, limit + 1, cur,
+            type, str(target), authority_id, after_time, after_fetcher, limit + 1, cur,
         )
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
-            assert str(id) == row["raw_extrinsic_metadata.target"]
+            assert str(target) == row["raw_extrinsic_metadata.target"]
             results.append(converters.db_to_raw_extrinsic_metadata(row))
 
         if len(results) > limit:
