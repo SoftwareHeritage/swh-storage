@@ -1148,7 +1148,7 @@ class CassandraStorage:
             try:
                 row = RawExtrinsicMetadataRow(
                     type=metadata_entry.type.value,
-                    id=str(metadata_entry.target),
+                    target=str(metadata_entry.target),
                     authority_type=metadata_entry.authority.type.value,
                     authority_url=metadata_entry.authority.url,
                     discovery_date=metadata_entry.discovery_date,
@@ -1222,7 +1222,7 @@ class CassandraStorage:
         for entry in entries:
             discovery_date = entry.discovery_date.replace(tzinfo=datetime.timezone.utc)
 
-            assert str(id) == entry.id
+            assert str(id) == entry.target
 
             result = RawExtrinsicMetadata(
                 type=MetadataTargetType(entry.type),

@@ -573,24 +573,26 @@ class InMemoryCqlRunner:
 
     def raw_extrinsic_metadata_get_after_date(
         self,
-        id: str,
+        target: str,
         authority_type: str,
         authority_url: str,
         after: datetime.datetime,
     ) -> Iterable[RawExtrinsicMetadataRow]:
-        metadata = self.raw_extrinsic_metadata_get(id, authority_type, authority_url)
+        metadata = self.raw_extrinsic_metadata_get(
+            target, authority_type, authority_url
+        )
         return (m for m in metadata if m.discovery_date > after)
 
     def raw_extrinsic_metadata_get_after_date_and_fetcher(
         self,
-        id: str,
+        target: str,
         authority_type: str,
         authority_url: str,
         after_date: datetime.datetime,
         after_fetcher_name: str,
         after_fetcher_version: str,
     ) -> Iterable[RawExtrinsicMetadataRow]:
-        metadata = self._raw_extrinsic_metadata.get_from_partition_key((id,))
+        metadata = self._raw_extrinsic_metadata.get_from_partition_key((target,))
         after_tuple = (after_date, after_fetcher_name, after_fetcher_version)
         return (
             m
@@ -601,9 +603,9 @@ class InMemoryCqlRunner:
         )
 
     def raw_extrinsic_metadata_get(
-        self, id: str, authority_type: str, authority_url: str
+        self, target: str, authority_type: str, authority_url: str
     ) -> Iterable[RawExtrinsicMetadataRow]:
-        metadata = self._raw_extrinsic_metadata.get_from_partition_key((id,))
+        metadata = self._raw_extrinsic_metadata.get_from_partition_key((target,))
         return (
             m
             for m in metadata
