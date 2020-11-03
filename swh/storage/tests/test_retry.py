@@ -472,13 +472,13 @@ def test_retrying_proxy_storage_raw_extrinsic_metadata_add(swh_storage, sample_d
     """
     origin = sample_data.origin
     ori_meta = sample_data.origin_metadata1
-    assert origin.url == ori_meta.id
+    assert origin.url == ori_meta.target
     swh_storage.origin_add([origin])
     swh_storage.metadata_authority_add([sample_data.metadata_authority])
     swh_storage.metadata_fetcher_add([sample_data.metadata_fetcher])
 
     origin_metadata = swh_storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.ORIGIN, ori_meta.id, ori_meta.authority
+        MetadataTargetType.ORIGIN, ori_meta.target, ori_meta.authority
     )
     assert origin_metadata.next_page_token is None
     assert not origin_metadata.results
@@ -486,7 +486,7 @@ def test_retrying_proxy_storage_raw_extrinsic_metadata_add(swh_storage, sample_d
     swh_storage.raw_extrinsic_metadata_add([ori_meta])
 
     origin_metadata = swh_storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.ORIGIN, ori_meta.id, ori_meta.authority
+        MetadataTargetType.ORIGIN, ori_meta.target, ori_meta.authority
     )
     assert origin_metadata
 
@@ -499,7 +499,7 @@ def test_retrying_proxy_storage_raw_extrinsic_metadata_add_with_retry(
     """
     origin = sample_data.origin
     ori_meta = sample_data.origin_metadata1
-    assert origin.url == ori_meta.id
+    assert origin.url == ori_meta.target
     swh_storage.origin_add([origin])
     swh_storage.metadata_authority_add([sample_data.metadata_authority])
     swh_storage.metadata_fetcher_add([sample_data.metadata_fetcher])
@@ -541,7 +541,7 @@ def test_retrying_proxy_swh_storage_raw_extrinsic_metadata_add_failure(
 
     origin = sample_data.origin
     ori_meta = sample_data.origin_metadata1
-    assert origin.url == ori_meta.id
+    assert origin.url == ori_meta.target
     swh_storage.origin_add([origin])
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):

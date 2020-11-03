@@ -19,7 +19,7 @@ import logging
 from typing import Any, Callable, Dict
 
 from swh.core.db import BaseDb
-from swh.journal.writer.kafka import KafkaJournalWriter
+from swh.journal.writer import get_journal_writer
 from swh.model.model import (
     BaseModel,
     Directory,
@@ -46,7 +46,7 @@ PARTITION_KEY = {
     "directory": "id",
     "metadata_authority": "type, url",
     "metadata_fetcher": "name, version",
-    "raw_extrinsic_metadata": "id",
+    "raw_extrinsic_metadata": "target",
     "revision": "revision.id",
     "release": "release.id",
     "snapshot": "id",
@@ -80,7 +80,7 @@ COLUMNS = {
     "metadata_fetcher": ["name", "version", "metadata",],
     "raw_extrinsic_metadata": [
         "raw_extrinsic_metadata.type",
-        "raw_extrinsic_metadata.id",
+        "raw_extrinsic_metadata.target",
         "metadata_authority.type",
         "metadata_authority.url",
         "metadata_fetcher.name",
@@ -526,7 +526,7 @@ class JournalBackfiller:
         )
 
         db = BaseDb.connect(self.config["storage"]["db"])
-        writer = KafkaJournalWriter(**self.config["journal_writer"])
+        writer = get_journal_writer(cls="kafka", **self.config["journal_writer"])
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):

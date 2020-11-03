@@ -464,7 +464,7 @@ class StorageData:
 
     content_metadata1 = RawExtrinsicMetadata(
         type=MetadataTargetType.CONTENT,
-        id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
+        target=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
         origin=origin.url,
         discovery_date=datetime.datetime(
             2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
@@ -476,7 +476,7 @@ class StorageData:
     )
     content_metadata2 = RawExtrinsicMetadata(
         type=MetadataTargetType.CONTENT,
-        id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
+        target=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
         origin=origin2.url,
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
@@ -488,7 +488,7 @@ class StorageData:
     )
     content_metadata3 = RawExtrinsicMetadata(
         type=MetadataTargetType.CONTENT,
-        id=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
+        target=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),
@@ -513,7 +513,7 @@ class StorageData:
 
     origin_metadata1 = RawExtrinsicMetadata(
         type=MetadataTargetType.ORIGIN,
-        id=origin.url,
+        target=origin.url,
         discovery_date=datetime.datetime(
             2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
         ),
@@ -524,7 +524,7 @@ class StorageData:
     )
     origin_metadata2 = RawExtrinsicMetadata(
         type=MetadataTargetType.ORIGIN,
-        id=origin.url,
+        target=origin.url,
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),
@@ -535,7 +535,7 @@ class StorageData:
     )
     origin_metadata3 = RawExtrinsicMetadata(
         type=MetadataTargetType.ORIGIN,
-        id=origin.url,
+        target=origin.url,
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),

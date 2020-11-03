@@ -3368,7 +3368,7 @@ class TestStorage:
 
         content1_swhid = SWHID(object_type="content", object_id=content.sha1_git)
         content2_swhid = SWHID(object_type="content", object_id=content2.sha1_git)
-        content2_metadata = attr.evolve(content1_metadata2, id=content2_swhid)
+        content2_metadata = attr.evolve(content1_metadata2, target=content2_swhid)
 
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
@@ -3606,7 +3606,7 @@ class TestStorage:
 
         assert swh_storage.origin_add([origin, origin2]) == {"origin:add": 2}
 
-        origin2_metadata = attr.evolve(origin1_metadata2, id=origin2.url)
+        origin2_metadata = attr.evolve(origin1_metadata2, target=origin2.url)
 
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
@@ -3782,7 +3782,7 @@ class TestStorage:
 
         with pytest.raises(StorageArgumentException, match="SWHID"):
             swh_storage.raw_extrinsic_metadata_get(
-                MetadataTargetType.ORIGIN, content_metadata.id, authority,
+                MetadataTargetType.ORIGIN, content_metadata.target, authority,
             )
 
 

@@ -36,6 +36,9 @@ NIX_UNSTABLE_AUTHORITY = MetadataAuthority(
     metadata={},
 )
 
+DIRECTORY_ID = b"a" * 20
+DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+
 
 def test_nixguix():
     extrinsic_metadata = {
@@ -55,6 +58,7 @@ def test_nixguix():
 
     row = {
         "id": b"\x00\x01\xbaM\xd0S\x94\x85\x02\x11\xd7\xb3\x85M\x99\x13\xd2:\xe3y",
+        "directory": DIRECTORY_ID,
         "date": None,
         "committer_date": None,
         "type": "tar",
@@ -86,10 +90,8 @@ def test_nixguix():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 6, 3, 11, 25, 5, 259341, tzinfo=datetime.timezone.utc
                     ),
@@ -98,16 +100,17 @@ def test_nixguix():
                     format="nixguix-sources-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
+                    ),
                 ),
             ]
         ),
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 6, 3, 11, 25, 5, 259341, tzinfo=datetime.timezone.utc
                     ),
@@ -116,6 +119,9 @@ def test_nixguix():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
+                    ),
                 ),
             ]
         ),

@@ -29,7 +29,9 @@ import re
 import sys
 import time
 from typing import Any, Dict, Optional
+from urllib.error import HTTPError
 from urllib.parse import unquote, urlparse
+from urllib.request import urlopen
 
 import iso8601
 import psycopg2
@@ -56,7 +58,15 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 ATOM_KEYS = ["id", "author", "external_identifier", "title"]
 
 # columns of the revision table (of the storage DB)
-REVISION_COLS = ["id", "date", "committer_date", "type", "message", "metadata"]
+REVISION_COLS = [
+    "id",
+    "directory",
+    "date",
+    "committer_date",
+    "type",
+    "message",
+    "metadata",
+]
 
 # columns of the tables of the deposit DB
 DEPOSIT_COLS = [
@@ -115,6 +125,7 @@ deposit_revision_message_re = re.compile(
 
 # not reliable, because PyPI allows arbitrary names
 def pypi_project_from_filename(filename):
+    original_filename = filename
     if filename.endswith(".egg"):
         return None
     elif filename == "mongomotor-0.13.0.n.tar.gz":
@@ -156,6 +167,20 @@ def pypi_project_from_filename(filename):
         return "Greater-than-equal-or-less-Library"
     elif filename.startswith("upstart--main-"):
         return "upstart"
+    elif filename == "duckduckpy0.1.tar.gz":
+        return "duckduckpy"
+    elif filename == "QUI for MPlayer snapshot_9-14-2011.zip":
+        return "QUI-for-MPlayer"
+    elif filename == "Eddy's Memory Game-1.0.zip":
+        return "Eddy-s-Memory-Game"
+    elif filename == "jekyll2nikola-0-0-1.tar.gz":
+        return "jekyll2nikola"
+    elif filename.startswith("ore.workflowed"):
+        return "ore.workflowed"
+    elif re.match("instancemanager-[0-9]*", filename):
+        return "instancemanager"
+    elif filename == "OrzMC_W&L-1.0.0.tar.gz":
+        return "OrzMC-W-L"
     filename = filename.replace(" ", "-")
 
     match = re.match(
@@ -215,8 +240,43 @@ def pypi_project_from_filename(filename):
         r"\.(tar\.gz|tar\.bz2|tgz|zip)$",  # extension
         filename,
     )
-    assert match, filename
+    assert match, original_filename
     return match.group("project_name")
+
+
+def pypi_origin_from_project_name(project_name: str) -> str:
+    return f"https://pypi.org/project/{project_name}/"
+
+
+def pypi_origin_from_filename(storage, rev_id: bytes, filename: str) -> Optional[str]:
+    project_name = pypi_project_from_filename(filename)
+    origin = pypi_origin_from_project_name(project_name)
+    # But unfortunately, the filename is user-provided, and doesn't
+    # necessarily match the package name on pypi. Therefore, we need
+    # to check it.
+    if _check_revision_in_origin(storage, origin, rev_id):
+        return origin
+
+    # if the origin we guessed does not exist, query the PyPI API with the
+    # project name we guessed. If only the capitalisation and dash/underscores
+    # are wrong (by far the most common case), PyPI kindly corrects them.
+    try:
+        resp = urlopen(f"https://pypi.org/pypi/{project_name}/json/")
+    except HTTPError as e:
+        assert e.code == 404
+        # nope; PyPI couldn't correct the wrong project name
+        return None
+    assert resp.code == 200, resp.code
+    project_name = json.load(resp)["info"]["name"]
+    origin = pypi_origin_from_project_name(project_name)
+
+    if _check_revision_in_origin(storage, origin, rev_id):
+        return origin
+    else:
+        # The origin exists, but the revision does not belong in it.
+        # This happens sometimes, as the filename we guessed the origin
+        # from is user-provided.
+        return None
 
 
 def cran_package_from_url(filename):
@@ -339,6 +399,7 @@ def check_origin_exists(storage, origin):
 def load_metadata(
     storage,
     revision_id,
+    directory_id,
     discovery_date: datetime.datetime,
     metadata: Dict[str, Any],
     format: str,
@@ -347,16 +408,20 @@ def load_metadata(
     dry_run: bool,
 ):
     """Does the actual loading to swh-storage."""
+    directory_swhid = SWHID(
+        object_type="directory", object_id=hash_to_hex(directory_id)
+    )
     revision_swhid = SWHID(object_type="revision", object_id=hash_to_hex(revision_id))
     obj = RawExtrinsicMetadata(
-        type=MetadataTargetType.REVISION,
-        id=revision_swhid,
+        type=MetadataTargetType.DIRECTORY,
+        target=directory_swhid,
         discovery_date=discovery_date,
         authority=authority,
         fetcher=FETCHER,
         format=format,
         metadata=json.dumps(metadata).encode(),
         origin=origin,
+        revision=revision_swhid,
     )
     if not dry_run:
         storage.raw_extrinsic_metadata_add([obj])
@@ -426,13 +491,23 @@ def handle_deposit_row(
                 assert metadata["@xmlns"] == ATOM_NS
                 assert metadata["@xmlns:codemeta"] in (CODEMETA_NS, [CODEMETA_NS])
                 format = NEW_DEPOSIT_FORMAT
-            else:
-                assert "{http://www.w3.org/2005/Atom}id" in metadata
+            elif "{http://www.w3.org/2005/Atom}id" in metadata:
                 assert (
                     "{https://doi.org/10.5063/SCHEMA/CODEMETA-2.0}author" in metadata
                     or "{http://www.w3.org/2005/Atom}author" in metadata
                 )
                 format = OLD_DEPOSIT_FORMAT
+            else:
+                # new format introduced in
+                # https://forge.softwareheritage.org/D4065
+                # it's the same as the first case, but with the @xmlns
+                # declarations stripped
+                # Most of them should have the "id", but some revisions,
+                # like 4d3890004fade1f4ec3bf7004a4af0c490605128, are missing
+                # this field
+                assert "id" in metadata or "title" in metadata
+                assert "codemeta:author" in metadata
+                format = NEW_DEPOSIT_FORMAT
             metadata_entries.append((date, format, metadata))
 
     if discovery_date is None:
@@ -520,6 +595,7 @@ def handle_deposit_row(
         load_metadata(
             storage,
             row["id"],
+            row["directory"],
             date,
             metadata,
             format,
@@ -580,6 +656,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["extrinsic"]["raw"],
                     NPM_FORMAT,
@@ -603,6 +680,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["extrinsic"]["raw"],
                     PYPI_FORMAT,
@@ -655,7 +733,10 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
                 del metadata["extrinsic"]
 
-            elif provider.startswith("https://nix-community.github.io/nixpkgs-swh/"):
+            elif (
+                provider.startswith("https://nix-community.github.io/nixpkgs-swh/")
+                or provider == "https://guix.gnu.org/sources.json"
+            ):
                 # nixguix loader
                 origin = provider
                 assert_origin_exists(storage, origin)
@@ -668,6 +749,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["extrinsic"]["raw"],
                     NIXGUIX_FORMAT,
@@ -722,18 +804,31 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                     actual_metadata = metadata["extrinsic"]["raw"]["origin_metadata"][
                         "metadata"
                     ]
+                    if isinstance(actual_metadata, str):
+                        # new format introduced in
+                        # https://forge.softwareheritage.org/D4105
+                        actual_metadata = json.loads(actual_metadata)
                     if "@xmlns" in actual_metadata:
                         assert actual_metadata["@xmlns"] == ATOM_NS
                         assert actual_metadata["@xmlns:codemeta"] in (
                             CODEMETA_NS,
                             [CODEMETA_NS],
                         )
-                    else:
-                        assert "{http://www.w3.org/2005/Atom}id" in actual_metadata
+                    elif "{http://www.w3.org/2005/Atom}id" in actual_metadata:
                         assert (
                             "{https://doi.org/10.5063/SCHEMA/CODEMETA-2.0}author"
                             in actual_metadata
                         )
+                    else:
+                        # new format introduced in
+                        # https://forge.softwareheritage.org/D4065
+                        # it's the same as the first case, but with the @xmlns
+                        # declarations stripped
+                        # Most of them should have the "id", but some revisions,
+                        # like 4d3890004fade1f4ec3bf7004a4af0c490605128, are missing
+                        # this field
+                        assert "id" in actual_metadata or "title" in actual_metadata
+                        assert "codemeta:author" in actual_metadata
 
                     (origin, discovery_date) = handle_deposit_row(
                         row, discovery_date, origin, storage, deposit_cur, dry_run
@@ -759,6 +854,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             load_metadata(
                 storage,
                 row["id"],
+                row["directory"],
                 discovery_date,
                 metadata["package"],
                 NPM_FORMAT,
@@ -866,42 +962,16 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
             assert len(metadata["original_artifact"]) == 1
 
-            project_name = pypi_project_from_filename(
-                metadata["original_artifact"][0]["filename"]
+            origin = pypi_origin_from_filename(
+                storage, row["id"], metadata["original_artifact"][0]["filename"]
             )
-            origin = f"https://pypi.org/project/{project_name}/"
-            # But unfortunately, the filename is user-provided, and doesn't
-            # necessarily match the package name on pypi. Therefore, we need
-            # to check it.
-            if not _check_revision_in_origin(storage, origin, row["id"]):
-                origin_with_dashes = origin.replace("_", "-")
-                # if the file name contains underscores but we can't find
-                # a matching origin, also try with dashes. It's common for package
-                # names containing underscores to use dashes on pypi.
-                if (
-                    "_" in origin
-                    and check_origin_exists(storage, origin_with_dashes)
-                    and _check_revision_in_origin(
-                        storage, origin_with_dashes, row["id"]
-                    )
-                ):
-                    origin = origin_with_dashes
-                else:
-                    print(
-                        f"revision {row['id'].hex()} false positive of origin {origin}."
-                    )
-                    origin = None
 
             if "project" in metadata:
                 # pypi loader format 2
-
-                # same reason as above, we can't do this:
-                #   if metadata["project"]:
-                #       assert metadata["project"]["name"] == project_name
-
                 load_metadata(
                     storage,
                     row["id"],
+                    row["directory"],
                     discovery_date,
                     metadata["project"],
                     PYPI_FORMAT,
@@ -997,6 +1067,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             load_metadata(
                 storage,
                 row["id"],
+                row["directory"],
                 discovery_date,
                 metadata["original_artifact"],
                 ORIGINAL_ARTIFACT_FORMAT,

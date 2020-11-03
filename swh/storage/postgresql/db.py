@@ -28,7 +28,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 163
+    current_version = 164
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -1133,7 +1133,7 @@ class Db(BaseDb):
 
     _raw_extrinsic_metadata_insert_cols = [
         "type",
-        "id",
+        "target",
         "authority_id",
         "fetcher_id",
         "discovery_date",
@@ -1148,12 +1148,12 @@ class Db(BaseDb):
         INSERT INTO raw_extrinsic_metadata
             ({', '.join(_raw_extrinsic_metadata_insert_cols)})
         VALUES ({', '.join('%s' for _ in _raw_extrinsic_metadata_insert_cols)})
-        ON CONFLICT (id, authority_id, discovery_date, fetcher_id)
+        ON CONFLICT (target, authority_id, discovery_date, fetcher_id)
         DO NOTHING
     """
 
     raw_extrinsic_metadata_get_cols = [
-        "raw_extrinsic_metadata.id",
+        "raw_extrinsic_metadata.target",
         "raw_extrinsic_metadata.type",
         "discovery_date",
         "metadata_authority.type",
@@ -1175,13 +1175,13 @@ class Db(BaseDb):
         INNER JOIN metadata_authority
             ON (metadata_authority.id=authority_id)
         INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id)
-        WHERE raw_extrinsic_metadata.id=%s AND authority_id=%s
+        WHERE raw_extrinsic_metadata.target=%s AND authority_id=%s
     """
 
     def raw_extrinsic_metadata_add(
         self,
         type: str,
-        id: str,
+        target: str,
         discovery_date: datetime.datetime,
         authority_id: int,
         fetcher_id: int,
@@ -1199,7 +1199,7 @@ class Db(BaseDb):
         query = self._raw_extrinsic_metadata_insert_query
         args: Dict[str, Any] = dict(
             type=type,
-            id=id,
+            target=target,
             authority_id=authority_id,
             fetcher_id=fetcher_id,
             discovery_date=discovery_date,
@@ -1221,7 +1221,7 @@ class Db(BaseDb):
     def raw_extrinsic_metadata_get(
         self,
         type: str,
-        id: str,
+        target: str,
         authority_id: int,
         after_time: Optional[datetime.datetime],
         after_fetcher: Optional[int],
@@ -1229,7 +1229,7 @@ class Db(BaseDb):
         cur,
     ):
         query_parts = [self._raw_extrinsic_metadata_select_query]
-        args = [id, authority_id]
+        args = [target, authority_id]
 
         if after_fetcher is not None:
             assert after_time
