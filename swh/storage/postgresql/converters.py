@@ -296,7 +296,7 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
 
 def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
     type_ = MetadataTargetType(row["raw_extrinsic_metadata.type"])
-    target = row["raw_extrinsic_metadata.id"]
+    target = row["raw_extrinsic_metadata.target"]
     if type_ != MetadataTargetType.ORIGIN:
         target = parse_swhid(target)
     return RawExtrinsicMetadata(

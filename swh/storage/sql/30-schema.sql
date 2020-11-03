@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(163, now(), 'Work In Progress');
+      values(164, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -429,7 +429,7 @@ comment on column metadata_authority.metadata is 'Other metadata about authority
 create table raw_extrinsic_metadata
 (
   type           text          not null,
-  id             text          not null,
+  target         text          not null,
 
   -- metadata source
   authority_id   bigint        not null,
@@ -452,7 +452,7 @@ create table raw_extrinsic_metadata
 
 comment on table raw_extrinsic_metadata is 'keeps all metadata found concerning an object';
 comment on column raw_extrinsic_metadata.type is 'the type of object (content/directory/revision/release/snapshot/origin) the metadata is on';
-comment on column raw_extrinsic_metadata.id is 'the SWHID or origin URL for which the metadata was found';
+comment on column raw_extrinsic_metadata.target is 'the SWHID or origin URL for which the metadata was found';
 comment on column raw_extrinsic_metadata.discovery_date is 'the date of retrieval';
 comment on column raw_extrinsic_metadata.authority_id is 'the metadata provider: github, openhub, deposit, etc.';
 comment on column raw_extrinsic_metadata.fetcher_id is 'the tool used for extracting metadata: loaders, crawlers, etc.';

@@ -1246,7 +1246,7 @@ class Storage:
 
             db.raw_extrinsic_metadata_add(
                 type=metadata_entry.type.value,
-                id=str(metadata_entry.target),
+                target=str(metadata_entry.target),
                 discovery_date=metadata_entry.discovery_date,
                 authority_id=authority_id,
                 fetcher_id=fetcher_id,
@@ -1315,7 +1315,7 @@ class Storage:
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
         for row in rows:
-            assert str(id) == row["raw_extrinsic_metadata.id"]
+            assert str(id) == row["raw_extrinsic_metadata.target"]
             results.append(converters.db_to_raw_extrinsic_metadata(row))
 
         if len(results) > limit:
