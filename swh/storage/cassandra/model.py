@@ -236,7 +236,7 @@ class MetadataFetcherRow(BaseRow):
 @dataclasses.dataclass
 class RawExtrinsicMetadataRow(BaseRow):
     TABLE = "raw_extrinsic_metadata"
-    PARTITION_KEY = ("id",)
+    PARTITION_KEY = ("target",)
     CLUSTERING_KEY = (
         "authority_type",
         "authority_url",
@@ -246,7 +246,7 @@ class RawExtrinsicMetadataRow(BaseRow):
     )
 
     type: str
-    id: str
+    target: str
 
     authority_type: str
     authority_url: str

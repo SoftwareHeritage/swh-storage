@@ -1,8 +1,16 @@
-swh-storage (0.16.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.17.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.17.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-11-03 18:09:53 +0100)
+  * Upstream changes:     - Release swh.storage v0.17.0     - Migrate
+    all raw extrinsic metadata attributes from id to target     - Add an
+    `algos` function to resolve branch aliases     - Prepare updates to
+    make swh.journal more generic     - Improve api server
+    initialization     - Various updates to the
+    migrate_extrinsic_metadata script, notably writing     - most
+    metadata on directories instead of revisions
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Sat, 17 Oct 2020 10:00:13 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 03 Nov 2020 17:20:45 +0000
 
 swh-storage (0.16.0-1~swh1) unstable-swh; urgency=medium
 

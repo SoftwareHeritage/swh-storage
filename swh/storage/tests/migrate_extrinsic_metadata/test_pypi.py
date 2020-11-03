@@ -9,6 +9,7 @@
 import copy
 import datetime
 import json
+import urllib.error
 
 import attr
 
@@ -30,6 +31,7 @@ from swh.storage import get_storage
 from swh.storage.interface import PagedResult
 from swh.storage.migrate_extrinsic_metadata import (
     handle_row,
+    pypi_origin_from_filename,
     pypi_project_from_filename,
 )
 
@@ -42,6 +44,9 @@ PYPI_AUTHORITY = MetadataAuthority(
 SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY, url="https://softwareheritage.org/",
 )
+
+DIRECTORY_ID = b"a" * 20
+DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
 
 
 def now():
@@ -123,10 +128,74 @@ def test_pypi_project_from_filename():
             "Greater-than-equal-or-less-Library",
         ),
         ("upstart--main-.-VLazy.object.at.0x104ba8b50-.tar.gz", "upstart"),
+        ("duckduckpy0.1.tar.gz", "duckduckpy"),
+        ("QUI for MPlayer snapshot_9-14-2011.zip", "QUI-for-MPlayer"),
+        ("Eddy's Memory Game-1.0.zip", "Eddy-s-Memory-Game"),
+        ("jekyll2nikola-0-0-1.tar.gz", "jekyll2nikola"),
+        ("ore.workflowed-0-6-2.tar.gz", "ore.workflowed"),
+        ("instancemanager-1.0rc-r34317.tar.gz", "instancemanager"),
+        ("OrzMC_W&L-1.0.0.tar.gz", "OrzMC-W-L"),
     ]
 
     for (filename, project) in files:
         assert pypi_project_from_filename(filename) == project
+
+
+def test_pypi_origin_from_project_name(mocker):
+    origin_url = "https://pypi.org/project/ProjectName/"
+
+    storage = get_storage("memory")
+
+    revision_id = b"41" * 10
+    snapshot_id = b"42" * 10
+    storage.origin_add([Origin(url=origin_url)])
+    storage.origin_visit_add(
+        [OriginVisit(origin=origin_url, visit=1, date=now(), type="pypi")]
+    )
+    storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin_url,
+                visit=1,
+                date=now(),
+                status="partial",
+                snapshot=snapshot_id,
+            )
+        ]
+    )
+    storage.snapshot_add(
+        [
+            Snapshot(
+                id=snapshot_id,
+                branches={
+                    b"foo": SnapshotBranch(
+                        target_type=TargetType.REVISION, target=revision_id,
+                    )
+                },
+            )
+        ]
+    )
+
+    class response:
+        code = 200
+
+        def read(self):
+            return b'{"info": {"name": "ProjectName"}}'
+
+    mock_urlopen = mocker.patch(
+        "swh.storage.migrate_extrinsic_metadata.urlopen", return_value=response(),
+    )
+
+    assert (
+        pypi_origin_from_filename(storage, revision_id, "ProjectName-1.0.0.tar.gz")
+        == origin_url
+    )
+    mock_urlopen.assert_not_called()
+    assert (
+        pypi_origin_from_filename(storage, revision_id, "projectname-1.0.0.tar.gz")
+        == origin_url
+    )
+    mock_urlopen.assert_called_once_with("https://pypi.org/pypi/projectname/json/")
 
 
 def test_pypi_1():
@@ -165,6 +234,7 @@ def test_pypi_1():
 
     row = {
         "id": b"\x00\x00\x07a{S\xe7\xb1E\x8fi]\xd0}\xe4\xceU\xaf\x15\x17",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2019, 11, 11, 6, 21, 20, tzinfo=datetime.timezone.utc,
         ),
@@ -210,12 +280,12 @@ def test_pypi_1():
 
     revision_swhid = parse_swhid("swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517")
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
@@ -224,17 +294,18 @@ def test_pypi_1():
                 format="pypi-project-json",
                 metadata=json.dumps(extrinsic_metadata).encode(),
                 origin=origin_url,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
                 ),
@@ -243,15 +314,21 @@ def test_pypi_1():
                 format="original-artifacts-json",
                 metadata=json.dumps(original_artifacts).encode(),
                 origin=origin_url,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
     )
 
 
-def test_pypi_2():
+def test_pypi_2(mocker):
     """Tests loading a revision generated by an old PyPI loader that
     does not have a provider, but has 'project' metadata."""
+
+    mocker.patch(
+        "swh.storage.migrate_extrinsic_metadata.urlopen",
+        side_effect=urllib.error.HTTPError(None, 404, "Not Found", None, None),
+    )
 
     extrinsic_metadata = {
         "name": "jupyterhub-simx",
@@ -293,6 +370,7 @@ def test_pypi_2():
 
     row = {
         "id": b"\x00\x00\x04\xd68,J\xd4\xc0Q\x92fbl6U\x1f\x0eQ\xca",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc
         ),
@@ -325,12 +403,12 @@ def test_pypi_2():
 
     revision_swhid = parse_swhid("swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca")
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
@@ -339,17 +417,18 @@ def test_pypi_2():
                 format="pypi-project-json",
                 metadata=json.dumps(extrinsic_metadata).encode(),
                 origin=None,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
                 ),
@@ -358,15 +437,21 @@ def test_pypi_2():
                 format="original-artifacts-json",
                 metadata=json.dumps(dest_original_artifacts).encode(),
                 origin=None,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
     )
 
 
-def test_pypi_3():
+def test_pypi_3(mocker):
     """Tests loading a revision generated by a very old PyPI loader that
     does not have a provider or has 'project' metadata."""
+
+    mocker.patch(
+        "swh.storage.migrate_extrinsic_metadata.urlopen",
+        side_effect=urllib.error.HTTPError(None, 404, "Not Found", None, None),
+    )
 
     source_original_artifact = {
         "url": "https://files.pythonhosted.org/packages/34/4f/30087f22eaae8ad7077a28ce157342745a2977e264b8a8e4e7f804a8aa5e/PyPDFLite-0.1.32.tar.gz",
@@ -397,6 +482,7 @@ def test_pypi_3():
 
     row = {
         "id": b"N\xa9\x91|\xdfS\xcd\x13SJ\x04.N\xb3x{\x86\xc84\xd2",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc),
         "committer_date": datetime.datetime(
             2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc
@@ -424,15 +510,15 @@ def test_pypi_3():
     revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
 
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(results=[], next_page_token=None,)
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),
@@ -441,6 +527,7 @@ def test_pypi_3():
                 format="original-artifacts-json",
                 metadata=json.dumps(dest_original_artifacts).encode(),
                 origin=None,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
@@ -480,6 +567,7 @@ def test_pypi_good_origin():
     revision_id = b"N\xa9\x91|\xdfS\xcd\x13SJ\x04.N\xb3x{\x86\xc84\xd2"
     row = {
         "id": revision_id,
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc),
         "committer_date": datetime.datetime(
             2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc
@@ -534,15 +622,15 @@ def test_pypi_good_origin():
     revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
 
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=PYPI_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(results=[], next_page_token=None,)
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.REVISION, revision_swhid, authority=SWH_AUTHORITY,
+        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.REVISION,
-                id=revision_swhid,
+                type=MetadataTargetType.DIRECTORY,
+                target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
                 ),
@@ -551,6 +639,7 @@ def test_pypi_good_origin():
                 format="original-artifacts-json",
                 metadata=json.dumps(dest_original_artifacts).encode(),
                 origin=origin_url,
+                revision=revision_swhid,
             ),
         ],
         next_page_token=None,
