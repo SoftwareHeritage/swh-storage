@@ -38,7 +38,7 @@ class ValidatingProxyStorage:
 
     def _check_hashes(self, objects: Iterable):
         for obj in objects:
-            id_ = hash_to_bytes(obj.__class__.compute_hash(obj.to_dict()))
+            id_ = hash_to_bytes(obj.compute_hash())
             if id_ != obj.id:
                 raise StorageArgumentException(
                     f"Object has id {hash_to_hex(obj.id)}, "

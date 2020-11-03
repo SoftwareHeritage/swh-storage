@@ -6,13 +6,19 @@
 from hypothesis import given
 import pytest
 
-from swh.model.collections import ImmutableDict
 from swh.model.hypothesis_strategies import branch_names, branch_targets, snapshots
-from swh.model.model import OriginVisit, OriginVisitStatus, Snapshot
+from swh.model.model import (
+    OriginVisit,
+    OriginVisitStatus,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
+)
 from swh.storage.algos.snapshot import (
     snapshot_get_all_branches,
     snapshot_get_latest,
     snapshot_id_get_from_revision,
+    snapshot_resolve_alias,
     visits_and_snapshots_get_from_revision,
 )
 from swh.storage.utils import now
@@ -37,9 +43,7 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
 @given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
 def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
     snapshot = Snapshot(
-        branches=ImmutableDict(
-            (b"%s%05d" % (branch_name, i), branch_target) for i in range(10000)
-        ),
+        branches={b"%s%05d" % (branch_name, i): branch_target for i in range(10000)},
     )
 
     swh_storage.snapshot_add([snapshot])
@@ -265,3 +269,129 @@ def test_visit_and_snapshot_get_from_revision(swh_storage, sample_data):
         visits_and_snapshots_get_from_revision(swh_storage, origin.url, revision1.id)
     )
     assert res == [(ov1, ovs1, complete_snapshot)]
+
+
+def test_snapshot_resolve_aliases_unknown_snapshot(swh_storage):
+    assert snapshot_resolve_alias(swh_storage, b"foo", b"HEAD") is None
+
+
+def test_snapshot_resolve_aliases_no_aliases(swh_storage):
+    snapshot = Snapshot(branches={})
+    swh_storage.snapshot_add([snapshot])
+
+    assert snapshot_resolve_alias(swh_storage, snapshot.id, b"HEAD") == ([], None)
+
+
+def test_snapshot_resolve_alias(swh_storage, sample_data):
+    rev_branch_name = b"revision_branch"
+    rel_branch_name = b"release_branch"
+    rev_alias1_name = b"rev_alias1"
+    rev_alias2_name = b"rev_alias2"
+    rev_alias3_name = b"rev_alias3"
+    rel_alias_name = b"rel_alias"
+    rev_branch_info = SnapshotBranch(
+        target=sample_data.revisions[0].id, target_type=TargetType.REVISION,
+    )
+    rel_branch_info = SnapshotBranch(
+        target=sample_data.releases[0].id, target_type=TargetType.RELEASE,
+    )
+    rev_alias1_branch_info = SnapshotBranch(
+        target=rev_branch_name, target_type=TargetType.ALIAS
+    )
+    rev_alias2_branch_info = SnapshotBranch(
+        target=rev_alias1_name, target_type=TargetType.ALIAS
+    )
+
+    rev_alias3_branch_info = SnapshotBranch(
+        target=rev_alias2_name, target_type=TargetType.ALIAS
+    )
+    rel_alias_branch_info = SnapshotBranch(
+        target=rel_branch_name, target_type=TargetType.ALIAS
+    )
+
+    snapshot = Snapshot(
+        branches={
+            rev_branch_name: rev_branch_info,
+            rel_branch_name: rel_branch_info,
+            rev_alias1_name: rev_alias1_branch_info,
+            rev_alias2_name: rev_alias2_branch_info,
+            rev_alias3_name: rev_alias3_branch_info,
+            rel_alias_name: rel_alias_branch_info,
+        }
+    )
+    swh_storage.snapshot_add([snapshot])
+
+    for alias_name, expected_branches in (
+        (rev_alias1_name, ([rev_alias1_branch_info], rev_branch_info)),
+        (
+            rev_alias2_name,
+            ([rev_alias2_branch_info, rev_alias1_branch_info], rev_branch_info),
+        ),
+        (
+            rev_alias3_name,
+            (
+                [
+                    rev_alias3_branch_info,
+                    rev_alias2_branch_info,
+                    rev_alias1_branch_info,
+                ],
+                rev_branch_info,
+            ),
+        ),
+        (rel_alias_name, ([rel_alias_branch_info], rel_branch_info)),
+    ):
+        branches = snapshot_resolve_alias(swh_storage, snapshot.id, alias_name)
+        assert branches == expected_branches
+
+
+def test_snapshot_resolve_alias_dangling_branch(swh_storage):
+    dangling_branch_name = b"dangling_branch"
+    alias_name = b"rev_alias"
+
+    alias_branch_info = SnapshotBranch(
+        target=dangling_branch_name, target_type=TargetType.ALIAS
+    )
+
+    snapshot = Snapshot(
+        branches={dangling_branch_name: None, alias_name: alias_branch_info,}
+    )
+    swh_storage.snapshot_add([snapshot])
+
+    branches = snapshot_resolve_alias(swh_storage, snapshot.id, alias_name)
+    assert branches == ([alias_branch_info], None)
+
+
+def test_snapshot_resolve_alias_cycle_found(swh_storage):
+    alias1_name = b"alias_1"
+    alias2_name = b"alias_2"
+    alias3_name = b"alias_3"
+    alias4_name = b"alias_4"
+
+    alias1_branch_info = SnapshotBranch(
+        target=alias2_name, target_type=TargetType.ALIAS
+    )
+    alias2_branch_info = SnapshotBranch(
+        target=alias3_name, target_type=TargetType.ALIAS
+    )
+    alias3_branch_info = SnapshotBranch(
+        target=alias4_name, target_type=TargetType.ALIAS
+    )
+    alias4_branch_info = SnapshotBranch(
+        target=alias2_name, target_type=TargetType.ALIAS
+    )
+
+    snapshot = Snapshot(
+        branches={
+            alias1_name: alias1_branch_info,
+            alias2_name: alias2_branch_info,
+            alias3_name: alias3_branch_info,
+            alias4_name: alias4_branch_info,
+        }
+    )
+    swh_storage.snapshot_add([snapshot])
+
+    branches = snapshot_resolve_alias(swh_storage, snapshot.id, alias1_name)
+    assert branches == (
+        [alias1_branch_info, alias2_branch_info, alias3_branch_info],
+        alias4_branch_info,
+    )

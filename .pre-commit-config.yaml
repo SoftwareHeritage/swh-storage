@@ -16,7 +16,7 @@ repos:
   hooks:
   - id: codespell
     exclude: TODO
-    args: [-L iff]
+    args: [-L iff, -L gae]
 
 - repo: local
   hooks:

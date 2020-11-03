@@ -296,12 +296,12 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
 
 def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
     type_ = MetadataTargetType(row["raw_extrinsic_metadata.type"])
-    id_ = row["raw_extrinsic_metadata.id"]
+    target = row["raw_extrinsic_metadata.target"]
     if type_ != MetadataTargetType.ORIGIN:
-        id_ = parse_swhid(id_)
+        target = parse_swhid(target)
     return RawExtrinsicMetadata(
         type=type_,
-        id=id_,
+        target=target,
         authority=MetadataAuthority(
             type=MetadataAuthorityType(row["metadata_authority.type"]),
             url=row["metadata_authority.url"],

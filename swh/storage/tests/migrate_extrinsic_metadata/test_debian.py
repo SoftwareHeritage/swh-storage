@@ -47,6 +47,9 @@ SWH_AUTHORITY = MetadataAuthority(
     metadata={},
 )
 
+DIRECTORY_ID = b"a" * 20
+DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+
 
 def now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
@@ -112,6 +115,7 @@ def test_debian_origins_from_row():
 
     revision_row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "directory": DIRECTORY_ID,
         "metadata": {
             # ...
             "original_artifact": [
@@ -141,6 +145,7 @@ def test_debian_origins_from_row__no_result():
 
     revision_row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "directory": DIRECTORY_ID,
         "metadata": {"original_artifact": [{"filename": "kalgebra_19.12.1-1.dsc",},]},
     }
 
@@ -243,6 +248,7 @@ def test_debian_origins_from_row__check_revisions():
 
     revision_row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "directory": DIRECTORY_ID,
         "metadata": {"original_artifact": [{"filename": "kalgebra_19.12.1-1.dsc",},]},
     }
 
@@ -358,6 +364,7 @@ def test_debian_with_extrinsic():
 
     row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2020, 1, 26, 22, 3, 24, tzinfo=datetime.timezone.utc,
         ),
@@ -430,10 +437,8 @@ def test_debian_with_extrinsic():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:0000036c311ef33a281b05688f6eadcfc0943aee"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 1, 26, 22, 3, 24, tzinfo=datetime.timezone.utc,
                     ),
@@ -442,6 +447,9 @@ def test_debian_with_extrinsic():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:0000036c311ef33a281b05688f6eadcfc0943aee"
+                    ),
                 ),
             ]
         ),
@@ -505,6 +513,7 @@ def test_debian_without_extrinsic():
 
     row = {
         "id": b"\x00\x00\x01\xc2\x8c\x8f\xca\x01\xb9\x04\xde\x92\xa2d\n\x86l\xe0<\xb7",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(
             2011, 3, 31, 20, 17, 41, tzinfo=datetime.timezone.utc
         ),
@@ -545,10 +554,8 @@ def test_debian_without_extrinsic():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:000001c28c8fca01b904de92a2640a866ce03cb7"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2011, 3, 31, 20, 17, 41, tzinfo=datetime.timezone.utc
                     ),
@@ -557,6 +564,9 @@ def test_debian_without_extrinsic():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:000001c28c8fca01b904de92a2640a866ce03cb7"
+                    ),
                 ),
             ]
         )

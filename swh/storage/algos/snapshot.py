@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple, cast
 
 from swh.model.hashutil import hash_to_hex
 from swh.model.model import (
@@ -11,6 +11,7 @@ from swh.model.model import (
     OriginVisitStatus,
     Sha1Git,
     Snapshot,
+    SnapshotBranch,
     TargetType,
 )
 from swh.storage.algos.origin import (
@@ -164,3 +165,56 @@ def visits_and_snapshots_get_from_revision(
                     and branch.target == revision_id
                 ):  # snapshot found
                     yield (visit, visit_status, snapshot)
+
+
+def snapshot_resolve_alias(
+    storage: StorageInterface, snapshot_id: Sha1Git, alias_name: bytes
+) -> Optional[Tuple[List[SnapshotBranch], Optional[SnapshotBranch]]]:
+    """
+    Resolve snapshot branch alias to its real target.
+
+    Args:
+        storage: Storage instance
+        snapshot_id: snapshot identifier
+        alias_name: name of the branch alias to resolve
+
+    Returns:
+        A tuple whose first member is the list of followed branches until the alias
+        got resolved to a branch whose target type is not an alias, and second member
+        the real targeted branch.
+        If a dangling branch is encountered during the resolve process, second member of
+        the tuple will be None.
+        If the target type of the tuple second member is an alias, it means that
+        a cycle has been detected during the resolve process.
+    """
+    snapshot = storage.snapshot_get_branches(
+        snapshot_id, branches_from=alias_name, branches_count=1
+    )
+    if snapshot is None:
+        return None
+
+    if alias_name not in snapshot["branches"]:
+        return ([], None)
+
+    branch_info = snapshot["branches"][alias_name]
+    branches = [branch_info]
+
+    seen_aliases = {alias_name}
+
+    while (
+        branch_info is not None
+        and branch_info.target_type == TargetType.ALIAS
+        and branch_info.target not in seen_aliases
+    ):
+        alias_target = branch_info.target
+        snapshot = storage.snapshot_get_branches(
+            snapshot_id, branches_from=alias_target, branches_count=1
+        )
+        assert snapshot is not None
+        if alias_target not in snapshot["branches"]:
+            break
+        seen_aliases.add(alias_target)
+        branch_info = snapshot["branches"][alias_target]
+        branches.append(branch_info)
+
+    return (cast(List[SnapshotBranch], branches[:-1]), branches[-1])

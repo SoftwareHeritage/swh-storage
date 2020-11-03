@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS metadata_fetcher (
 
 CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
     type            text,
-    id              text,
+    target          text,
 
     -- metadata source
     authority_type  text,
@@ -228,8 +228,8 @@ CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
     path            blob,
     directory       text,
 
-    PRIMARY KEY ((id), authority_type, authority_url, discovery_date,
-                       fetcher_name, fetcher_version)
+    PRIMARY KEY ((target), authority_type, authority_url, discovery_date,
+                           fetcher_name, fetcher_version)
 );
 
 

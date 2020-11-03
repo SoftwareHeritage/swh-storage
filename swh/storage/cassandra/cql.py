@@ -900,11 +900,11 @@ class CqlRunner:
 
     @_prepared_select_statement(
         RawExtrinsicMetadataRow,
-        "WHERE id=? AND authority_url=? AND discovery_date>? AND authority_type=?",
+        "WHERE target=? AND authority_url=? AND discovery_date>? AND authority_type=?",
     )
     def raw_extrinsic_metadata_get_after_date(
         self,
-        id: str,
+        target: str,
         authority_type: str,
         authority_url: str,
         after: datetime.datetime,
@@ -914,18 +914,18 @@ class CqlRunner:
         return map(
             RawExtrinsicMetadataRow.from_dict,
             self._execute_with_retries(
-                statement, [id, authority_url, after, authority_type]
+                statement, [target, authority_url, after, authority_type]
             ),
         )
 
     @_prepared_select_statement(
         RawExtrinsicMetadataRow,
-        "WHERE id=? AND authority_type=? AND authority_url=? "
+        "WHERE target=? AND authority_type=? AND authority_url=? "
         "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)",
     )
     def raw_extrinsic_metadata_get_after_date_and_fetcher(
         self,
-        id: str,
+        target: str,
         authority_type: str,
         authority_url: str,
         after_date: datetime.datetime,
@@ -939,7 +939,7 @@ class CqlRunner:
             self._execute_with_retries(
                 statement,
                 [
-                    id,
+                    target,
                     authority_type,
                     authority_url,
                     after_date,
@@ -950,14 +950,17 @@ class CqlRunner:
         )
 
     @_prepared_select_statement(
-        RawExtrinsicMetadataRow, "WHERE id=? AND authority_url=? AND authority_type=?"
+        RawExtrinsicMetadataRow,
+        "WHERE target=? AND authority_url=? AND authority_type=?",
     )
     def raw_extrinsic_metadata_get(
-        self, id: str, authority_type: str, authority_url: str, *, statement
+        self, target: str, authority_type: str, authority_url: str, *, statement
     ) -> Iterable[RawExtrinsicMetadataRow]:
         return map(
             RawExtrinsicMetadataRow.from_dict,
-            self._execute_with_retries(statement, [id, authority_url, authority_type]),
+            self._execute_with_retries(
+                statement, [target, authority_url, authority_type]
+            ),
         )
 
     ##########################

@@ -1148,7 +1148,7 @@ class CassandraStorage:
             try:
                 row = RawExtrinsicMetadataRow(
                     type=metadata_entry.type.value,
-                    id=str(metadata_entry.id),
+                    target=str(metadata_entry.target),
                     authority_type=metadata_entry.authority.type.value,
                     authority_url=metadata_entry.authority.url,
                     discovery_date=metadata_entry.discovery_date,
@@ -1171,23 +1171,23 @@ class CassandraStorage:
     def raw_extrinsic_metadata_get(
         self,
         type: MetadataTargetType,
-        id: Union[str, SWHID],
+        target: Union[str, SWHID],
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if type == MetadataTargetType.ORIGIN:
-            if isinstance(id, SWHID):
+            if isinstance(target, SWHID):
                 raise StorageArgumentException(
                     f"raw_extrinsic_metadata_get called with type='origin', "
-                    f"but provided id is an SWHID: {id!r}"
+                    f"but provided target is a SWHID: {target!r}"
                 )
         else:
-            if not isinstance(id, SWHID):
+            if not isinstance(target, SWHID):
                 raise StorageArgumentException(
                     f"raw_extrinsic_metadata_get called with type!='origin', "
-                    f"but provided id is not an SWHID: {id!r}"
+                    f"but provided target is not a SWHID: {target!r}"
                 )
 
         if page_token is not None:
@@ -1199,7 +1199,7 @@ class CassandraStorage:
                     "page_token is inconsistent with the value of 'after'."
                 )
             entries = self._cql_runner.raw_extrinsic_metadata_get_after_date_and_fetcher(  # noqa
-                str(id),
+                str(target),
                 authority.type.value,
                 authority.url,
                 after_date,
@@ -1208,11 +1208,11 @@ class CassandraStorage:
             )
         elif after is not None:
             entries = self._cql_runner.raw_extrinsic_metadata_get_after_date(
-                str(id), authority.type.value, authority.url, after
+                str(target), authority.type.value, authority.url, after
             )
         else:
             entries = self._cql_runner.raw_extrinsic_metadata_get(
-                str(id), authority.type.value, authority.url
+                str(target), authority.type.value, authority.url
             )
 
         if limit:
@@ -1222,11 +1222,11 @@ class CassandraStorage:
         for entry in entries:
             discovery_date = entry.discovery_date.replace(tzinfo=datetime.timezone.utc)
 
-            assert str(id) == entry.id
+            assert str(target) == entry.target
 
             result = RawExtrinsicMetadata(
                 type=MetadataTargetType(entry.type),
-                id=id,
+                target=target,
                 authority=MetadataAuthority(
                     type=MetadataAuthorityType(entry.authority_type),
                     url=entry.authority_url,

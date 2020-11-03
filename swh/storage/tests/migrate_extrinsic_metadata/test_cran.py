@@ -31,6 +31,9 @@ SWH_AUTHORITY = MetadataAuthority(
     metadata={},
 )
 
+DIRECTORY_ID = b"a" * 20
+DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+
 
 def test_cran_package_from_url():
     files = [
@@ -67,6 +70,7 @@ def test_cran():
 
     row = {
         "id": b"\x00\x03a\xaa3\x84,\xbd\xea_\xa6\xe7}\xb6\x96\xb97\xeb\xd2i",
+        "directory": DIRECTORY_ID,
         "date": datetime.datetime(2020, 5, 5, 0, 0, tzinfo=datetime.timezone.utc,),
         "committer_date": datetime.datetime(
             2020, 5, 5, 0, 0, tzinfo=datetime.timezone.utc,
@@ -114,10 +118,8 @@ def test_cran():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:000361aa33842cbdea5fa6e77db696b937ebd269"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 5, 7, 15, 27, 38, 652281, tzinfo=datetime.timezone.utc,
                     ),
@@ -126,6 +128,9 @@ def test_cran():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:000361aa33842cbdea5fa6e77db696b937ebd269"
+                    ),
                 ),
             ]
         ),
@@ -158,6 +163,7 @@ def test_cran_without_revision_date():
 
     row = {
         "id": b'\x00\x00\xd4\xef^\x16a"\xae\xe6\x86*\xd3\x8a\x18\xceS\x86\xcc>',
+        "directory": DIRECTORY_ID,
         "date": None,
         "committer_date": None,
         "type": "tar",
@@ -201,10 +207,8 @@ def test_cran_without_revision_date():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:0000d4ef5e166122aee6862ad38a18ce5386cc3e"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 4, 30, 11, 1, 57, 832481, tzinfo=datetime.timezone.utc,
                     ),
@@ -213,6 +217,9 @@ def test_cran_without_revision_date():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:0000d4ef5e166122aee6862ad38a18ce5386cc3e"
+                    ),
                 ),
             ]
         ),
@@ -234,6 +241,7 @@ def test_cran_with_new_original_artifacts_format():
 
     row = {
         "id": b'."7\x82\xeeK\xa1R\xe4\xc8\x86\xf7\x97\x97bA\xc3\x9a\x9a\xab',
+        "directory": DIRECTORY_ID,
         "date": None,
         "committer_date": None,
         "type": "tar",
@@ -277,10 +285,8 @@ def test_cran_with_new_original_artifacts_format():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.REVISION,
-                    id=parse_swhid(
-                        "swh:1:rev:2e223782ee4ba152e4c886f797976241c39a9aab"
-                    ),
+                    type=MetadataTargetType.DIRECTORY,
+                    target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 9, 25, 14, 4, 20, 926667, tzinfo=datetime.timezone.utc,
                     ),
@@ -289,6 +295,9 @@ def test_cran_with_new_original_artifacts_format():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
+                    revision=parse_swhid(
+                        "swh:1:rev:2e223782ee4ba152e4c886f797976241c39a9aab"
+                    ),
                 ),
             ]
         ),
