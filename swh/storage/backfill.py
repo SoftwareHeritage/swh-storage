@@ -19,7 +19,6 @@ import logging
 from typing import Any, Callable, Dict
 
 from swh.core.db import BaseDb
-from swh.journal.writer import get_journal_writer
 from swh.model.model import (
     BaseModel,
     Directory,
@@ -37,6 +36,7 @@ from swh.storage.postgresql.converters import (
     db_to_revision,
 )
 from swh.storage.replay import object_converter_fn
+from swh.storage.writer import JournalWriter
 
 logger = logging.getLogger(__name__)
 
@@ -526,7 +526,9 @@ class JournalBackfiller:
         )
 
         db = BaseDb.connect(self.config["storage"]["db"])
-        writer = get_journal_writer(cls="kafka", **self.config["journal_writer"])
+        writer = JournalWriter({"cls": "kafka", **self.config["journal_writer"]})
+        assert writer.journal is not None
+
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):
@@ -540,9 +542,9 @@ class JournalBackfiller:
             for obj in fetch(db, object_type, start=range_start, end=range_end,):
                 if dry_run:
                     continue
-                writer.write_addition(object_type=object_type, object_=obj)
+                writer.write_addition(object_type, obj)
 
-            writer.producer.flush()
+            writer.journal.producer.flush()
 
 
 if __name__ == "__main__":
