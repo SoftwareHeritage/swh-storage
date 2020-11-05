@@ -348,17 +348,32 @@ def test_snapshot_resolve_alias_dangling_branch(swh_storage):
     dangling_branch_name = b"dangling_branch"
     alias_name = b"rev_alias"
 
-    alias_branch_info = SnapshotBranch(
+    alias_branch = SnapshotBranch(
         target=dangling_branch_name, target_type=TargetType.ALIAS
     )
 
     snapshot = Snapshot(
-        branches={dangling_branch_name: None, alias_name: alias_branch_info,}
+        branches={dangling_branch_name: None, alias_name: alias_branch,}
     )
     swh_storage.snapshot_add([snapshot])
 
     branches = snapshot_resolve_alias(swh_storage, snapshot.id, alias_name)
-    assert branches == ([alias_branch_info], None)
+    assert branches == ([alias_branch], None)
+
+
+def test_snapshot_resolve_alias_missing_branch(swh_storage):
+    missing_branch_name = b"missing_branch"
+    alias_name = b"rev_alias"
+
+    alias_branch = SnapshotBranch(
+        target=missing_branch_name, target_type=TargetType.ALIAS
+    )
+
+    snapshot = Snapshot(id=b"42" * 10, branches={alias_name: alias_branch,})
+    swh_storage.snapshot_add([snapshot])
+
+    branches = snapshot_resolve_alias(swh_storage, snapshot.id, alias_name)
+    assert branches == ([alias_branch], None)
 
 
 def test_snapshot_resolve_alias_cycle_found(swh_storage):
