@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterator, List, Optional, Tuple, cast
+from typing import Iterator, List, Optional, Tuple
 
 from swh.model.hashutil import hash_to_hex
 from swh.model.model import (
@@ -196,25 +196,23 @@ def snapshot_resolve_alias(
     if alias_name not in snapshot["branches"]:
         return ([], None)
 
-    branch_info = snapshot["branches"][alias_name]
-    branches = [branch_info]
+    last_branch = snapshot["branches"][alias_name]
+    branches = []
 
     seen_aliases = {alias_name}
 
     while (
-        branch_info is not None
-        and branch_info.target_type == TargetType.ALIAS
-        and branch_info.target not in seen_aliases
+        last_branch is not None
+        and last_branch.target_type == TargetType.ALIAS
+        and last_branch.target not in seen_aliases
     ):
-        alias_target = branch_info.target
+        branches.append(last_branch)
+        alias_target = last_branch.target
         snapshot = storage.snapshot_get_branches(
             snapshot_id, branches_from=alias_target, branches_count=1
         )
         assert snapshot is not None
-        if alias_target not in snapshot["branches"]:
-            break
+        last_branch = snapshot["branches"].get(alias_target)
         seen_aliases.add(alias_target)
-        branch_info = snapshot["branches"][alias_target]
-        branches.append(branch_info)
 
-    return (cast(List[SnapshotBranch], branches[:-1]), branches[-1])
+    return (branches, last_branch)
