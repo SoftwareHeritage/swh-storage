@@ -1130,7 +1130,17 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
 def main(storage_dbconn, storage_url, deposit_dbconn, first_id, dry_run):
     storage_db = BaseDb.connect(storage_dbconn)
     deposit_db = BaseDb.connect(deposit_dbconn)
-    storage = get_storage("remote", url=storage_url)
+    storage = get_storage(
+        "pipeline",
+        steps=[
+            {"cls": "retry"},
+            {
+                "cls": "local",
+                "db": storage_dbconn,
+                "objstorage": {"cls": "memory", "args": {}},
+            },
+        ],
+    )
 
     if not dry_run:
         create_fetchers(storage_db)
