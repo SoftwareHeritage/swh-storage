@@ -181,6 +181,10 @@ def pypi_project_from_filename(filename):
         return "instancemanager"
     elif filename == "OrzMC_W&L-1.0.0.tar.gz":
         return "OrzMC-W-L"
+    elif filename == "use0mk.tar.gz":
+        return "use0mk"
+    elif filename == "play-0-develop-1-gd67cd85.tar.gz":
+        return "play"
     filename = filename.replace(" ", "-")
 
     match = re.match(
