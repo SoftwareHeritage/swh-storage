@@ -703,13 +703,14 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 else:
                     package_name = cran_package_from_url(provider)
                     origin = f"https://cran.r-project.org/package={package_name}"
-                # TODO https://forge.softwareheritage.org/T2536
                 assert origin is not None
+
+                # Ideally we should assert the origin exists, but we can't:
+                # https://forge.softwareheritage.org/T2536
                 if (
                     hashlib.sha1(origin.encode()).digest() not in _origins
                     and storage.origin_get([origin])[0] is None
                 ):
-                    print("MISSING CRAN ORIGIN", hash_to_hex(row["id"]), origin)
                     return
 
                 raw_extrinsic_metadata = metadata["extrinsic"]["raw"]
