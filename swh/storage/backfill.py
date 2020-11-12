@@ -539,12 +539,15 @@ class JournalBackfiller:
                 _format_range_bound(range_end),
             )
 
-            for obj in fetch(db, object_type, start=range_start, end=range_end,):
-                if dry_run:
-                    continue
-                writer.write_addition(object_type, obj)
+            objects = fetch(db, object_type, start=range_start, end=range_end)
 
-            writer.journal.producer.flush()
+            if not dry_run:
+                writer.write_additions(object_type, objects)
+            else:
+                # only consume the objects iterator to check for any potential
+                # decoding/encoding errors
+                for obj in objects:
+                    pass
 
 
 if __name__ == "__main__":
