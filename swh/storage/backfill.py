@@ -442,7 +442,7 @@ def fetch(db, obj_type, start, end):
             else:
                 record = object_converter_fn[obj_type](record)
 
-            logger.debug("record: %s" % record)
+            logger.debug("record: %s", record)
             yield record
 
 
