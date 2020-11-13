@@ -303,7 +303,7 @@ class CassandraStorage:
         self, contents: List[Sha1Git]
     ) -> Iterable[Sha1Git]:
         return self.content_missing(
-            [{"sha1_git": c for c in contents}], key_hash="sha1_git"
+            [{"sha1_git": c} for c in contents], key_hash="sha1_git"
         )
 
     def content_get_random(self) -> Sha1Git:

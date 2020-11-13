@@ -5,22 +5,9 @@
 
 import logging
 import traceback
-from typing import Dict, Iterable, List
 
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
-from swh.model.model import (
-    Content,
-    Directory,
-    MetadataAuthority,
-    MetadataFetcher,
-    OriginVisit,
-    RawExtrinsicMetadata,
-    Release,
-    Revision,
-    SkippedContent,
-    Snapshot,
-)
 from swh.storage import get_storage
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
@@ -53,7 +40,7 @@ def should_retry_adding(retry_state) -> bool:
             else:
                 error_name = error.__class__.__name__
             logger.warning(
-                "Retry adding a batch",
+                "Retrying RPC call",
                 exc_info=False,
                 extra={
                     "swh_type": "storage_retry",
@@ -74,6 +61,14 @@ swh_retry = retry(
 )
 
 
+def retry_function(storage, attribute_name):
+    @swh_retry
+    def newf(*args, **kwargs):
+        return getattr(storage, attribute_name)(*args, **kwargs)
+
+    return newf
+
+
 class RetryingProxyStorage:
     """Storage implementation which retries adding objects when it specifically
        fails (hash collision, integrity error).
@@ -82,52 +77,11 @@ class RetryingProxyStorage:
 
     def __init__(self, storage):
         self.storage: StorageInterface = get_storage(**storage)
-
-    def __getattr__(self, key):
-        if key == "storage":
-            raise AttributeError(key)
-        return getattr(self.storage, key)
-
-    @swh_retry
-    def content_add(self, content: List[Content]) -> Dict:
-        return self.storage.content_add(content)
-
-    @swh_retry
-    def content_add_metadata(self, content: List[Content]) -> Dict:
-        return self.storage.content_add_metadata(content)
-
-    @swh_retry
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
-        return self.storage.skipped_content_add(content)
-
-    @swh_retry
-    def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
-        return self.storage.origin_visit_add(visits)
-
-    @swh_retry
-    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> None:
-        return self.storage.metadata_fetcher_add(fetchers)
-
-    @swh_retry
-    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
-        return self.storage.metadata_authority_add(authorities)
-
-    @swh_retry
-    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata],) -> None:
-        return self.storage.raw_extrinsic_metadata_add(metadata)
-
-    @swh_retry
-    def directory_add(self, directories: List[Directory]) -> Dict:
-        return self.storage.directory_add(directories)
-
-    @swh_retry
-    def revision_add(self, revisions: List[Revision]) -> Dict:
-        return self.storage.revision_add(revisions)
-
-    @swh_retry
-    def release_add(self, releases: List[Release]) -> Dict:
-        return self.storage.release_add(releases)
-
-    @swh_retry
-    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
-        return self.storage.snapshot_add(snapshots)
+        for attribute_name in dir(StorageInterface):
+            if attribute_name.startswith("_"):
+                continue
+            attribute = getattr(self.storage, attribute_name)
+            if hasattr(attribute, "__call__"):
+                setattr(
+                    self, attribute_name, retry_function(self.storage, attribute_name)
+                )

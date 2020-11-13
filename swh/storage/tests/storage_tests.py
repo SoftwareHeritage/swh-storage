@@ -499,13 +499,22 @@ class TestStorage:
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
         missing_cont = sample_data.skipped_content
+        missing_cont2 = sample_data.skipped_content2
 
         swh_storage.content_add([cont, cont2])
 
-        contents = [cont.sha1_git, cont2.sha1_git, missing_cont.sha1_git]
+        contents = [
+            cont.sha1_git,
+            cont2.sha1_git,
+            missing_cont.sha1_git,
+            missing_cont2.sha1_git,
+        ]
 
         missing_contents = swh_storage.content_missing_per_sha1_git(contents)
-        assert list(missing_contents) == [missing_cont.sha1_git]
+        assert list(missing_contents) == [missing_cont.sha1_git, missing_cont2.sha1_git]
+
+        missing_contents = swh_storage.content_missing_per_sha1_git([])
+        assert list(missing_contents) == []
 
     def test_content_get_partition(self, swh_storage, swh_contents):
         """content_get_partition paginates results if limit exceeded"""
