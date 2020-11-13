@@ -1,8 +1,13 @@
-swh-storage (0.17.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.17.2-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.17.2     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2020-11-13 11:56:37 +0100)
+  * Upstream changes:     - Release swh.storage 0.17.2     - Future-
+    proof get_journal_writer by setting the value_sanitizer argument
+    - migrate_extrinsic_metadata improvements     - backfill: only flush
+    on every batch
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 06 Nov 2020 14:50:58 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 13 Nov 2020 11:05:35 +0000
 
 swh-storage (0.17.1-1~swh1) unstable-swh; urgency=medium
 

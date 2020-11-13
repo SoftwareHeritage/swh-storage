@@ -181,6 +181,10 @@ def pypi_project_from_filename(filename):
         return "instancemanager"
     elif filename == "OrzMC_W&L-1.0.0.tar.gz":
         return "OrzMC-W-L"
+    elif filename == "use0mk.tar.gz":
+        return "use0mk"
+    elif filename == "play-0-develop-1-gd67cd85.tar.gz":
+        return "play"
     filename = filename.replace(" ", "-")
 
     match = re.match(
@@ -699,13 +703,14 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 else:
                     package_name = cran_package_from_url(provider)
                     origin = f"https://cran.r-project.org/package={package_name}"
-                # TODO https://forge.softwareheritage.org/T2536
                 assert origin is not None
+
+                # Ideally we should assert the origin exists, but we can't:
+                # https://forge.softwareheritage.org/T2536
                 if (
                     hashlib.sha1(origin.encode()).digest() not in _origins
                     and storage.origin_get([origin])[0] is None
                 ):
-                    print("MISSING CRAN ORIGIN", hash_to_hex(row["id"]), origin)
                     return
 
                 raw_extrinsic_metadata = metadata["extrinsic"]["raw"]
@@ -1130,7 +1135,17 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
 def main(storage_dbconn, storage_url, deposit_dbconn, first_id, dry_run):
     storage_db = BaseDb.connect(storage_dbconn)
     deposit_db = BaseDb.connect(deposit_dbconn)
-    storage = get_storage("remote", url=storage_url)
+    storage = get_storage(
+        "pipeline",
+        steps=[
+            {"cls": "retry"},
+            {
+                "cls": "local",
+                "db": storage_dbconn,
+                "objstorage": {"cls": "memory", "args": {}},
+            },
+        ],
+    )
 
     if not dry_run:
         create_fetchers(storage_db)

@@ -19,7 +19,6 @@ import logging
 from typing import Any, Callable, Dict
 
 from swh.core.db import BaseDb
-from swh.journal.writer import get_journal_writer
 from swh.model.model import (
     BaseModel,
     Directory,
@@ -37,6 +36,7 @@ from swh.storage.postgresql.converters import (
     db_to_revision,
 )
 from swh.storage.replay import object_converter_fn
+from swh.storage.writer import JournalWriter
 
 logger = logging.getLogger(__name__)
 
@@ -442,7 +442,7 @@ def fetch(db, obj_type, start, end):
             else:
                 record = object_converter_fn[obj_type](record)
 
-            logger.debug("record: %s" % record)
+            logger.debug("record: %s", record)
             yield record
 
 
@@ -526,7 +526,9 @@ class JournalBackfiller:
         )
 
         db = BaseDb.connect(self.config["storage"]["db"])
-        writer = get_journal_writer(cls="kafka", **self.config["journal_writer"])
+        writer = JournalWriter({"cls": "kafka", **self.config["journal_writer"]})
+        assert writer.journal is not None
+
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):
@@ -537,12 +539,15 @@ class JournalBackfiller:
                 _format_range_bound(range_end),
             )
 
-            for obj in fetch(db, object_type, start=range_start, end=range_end,):
-                if dry_run:
-                    continue
-                writer.write_addition(object_type=object_type, object_=obj)
+            objects = fetch(db, object_type, start=range_start, end=range_end)
 
-            writer.producer.flush()
+            if not dry_run:
+                writer.write_additions(object_type, objects)
+            else:
+                # only consume the objects iterator to check for any potential
+                # decoding/encoding errors
+                for obj in objects:
+                    pass
 
 
 if __name__ == "__main__":

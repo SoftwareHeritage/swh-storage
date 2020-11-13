@@ -29,6 +29,15 @@ except ImportError:
     # mypy limitation, see https://github.com/python/mypy/issues/1153
 
 
+def model_object_dict_sanitizer(
+    object_type: str, object_dict: Dict[str, Any]
+) -> Dict[str, str]:
+    object_dict = object_dict.copy()
+    if object_type == "content":
+        object_dict.pop("data", None)
+    return object_dict
+
+
 class JournalWriter:
     """Journal writer storage collaborator. It's in charge of adding objects to
     the journal.
@@ -42,13 +51,19 @@ class JournalWriter:
                     "You need the swh.journal package to use the "
                     "journal_writer feature"
                 )
-            self.journal = get_journal_writer(**journal_writer)
+            self.journal = get_journal_writer(
+                value_sanitizer=model_object_dict_sanitizer, **journal_writer
+            )
         else:
             self.journal = None
 
-    def write_additions(self, obj_type, values) -> None:
+    def write_addition(self, object_type, value) -> None:
         if self.journal:
-            self.journal.write_additions(obj_type, values)
+            self.journal.write_addition(object_type, value)
+
+    def write_additions(self, object_type, values) -> None:
+        if self.journal:
+            self.journal.write_additions(object_type, values)
 
     def content_add(self, contents: Iterable[Content]) -> None:
         """Add contents to the journal. Drop the data field if provided.
