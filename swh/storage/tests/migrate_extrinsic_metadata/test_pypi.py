@@ -135,6 +135,8 @@ def test_pypi_project_from_filename():
         ("ore.workflowed-0-6-2.tar.gz", "ore.workflowed"),
         ("instancemanager-1.0rc-r34317.tar.gz", "instancemanager"),
         ("OrzMC_W&L-1.0.0.tar.gz", "OrzMC-W-L"),
+        ("use0mk.tar.gz", "use0mk"),
+        ("play-0-develop-1-gd67cd85.tar.gz", "play"),
     ]
 
     for (filename, project) in files:
