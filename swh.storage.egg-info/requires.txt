@@ -22,7 +22,6 @@ SQLAlchemy
 hypothesis>=3.11.0
 pytest
 pytest-mock
-pytest-postgresql>=2.1.0
 sqlalchemy-stubs
 swh.model[testing]>=0.0.50
 pytz
