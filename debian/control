@@ -17,16 +17,16 @@ Build-Depends: debhelper (>= 9),
                python3-mypy-extensions,
                python3-psycopg2 (>= 2.8),
                python3-pytest,
-               python3-pytest-postgresql,
                python3-pytest-mock,
                python3-requests,
                python3-setuptools,
                python3-setuptools-scm,
                python3-sqlalchemy (>= 1.0),
-               python3-swh.core (>= 0.1),
+               python3-swh.core (>= 0.9),
                python3-swh.journal (>= 0.2),
                python3-swh.model (>= 0.4),
                python3-swh.objstorage (>= 0.0.40~),
+               python3-swh.core.db.pytestplugin (>= 0.9),
                python3-typing-extensions (>= 3.7.4~),
                python3-tenacity
 Standards-Version: 3.9.6
@@ -34,7 +34,7 @@ Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
 
 Package: python3-swh.storage
 Architecture: all
-Depends: python3-swh.core (>= 0.1),
+Depends: python3-swh.core (>= 0.9),
          python3-swh.model (>= 0.4),
          python3-swh.objstorage (>= 0.0.40~),
          python3-psycopg2 (>= 2.8),
