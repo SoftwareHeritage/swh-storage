@@ -16,7 +16,7 @@ the journal.
 """
 
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 from swh.core.db import BaseDb
 from swh.model.model import (
@@ -256,13 +256,13 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
         branches = {}
         for name, *row in cur:
             branch_d = dict(zip(columns[1:], row))
-            if branch_d["target"] or branch_d["target_type"]:
-                branch = None
-            else:
-                branch = SnapshotBranch(
+            if branch_d["target"] is not None and branch_d["target_type"] is not None:
+                branch: Optional[SnapshotBranch] = SnapshotBranch(
                     target=branch_d["target"],
                     target_type=TargetType(branch_d["target_type"]),
                 )
+            else:
+                branch = None
             branches[name] = branch
 
     return Snapshot(id=snapshot_d["id"], branches=branches,)

@@ -1,8 +1,15 @@
-swh-storage (0.17.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.18.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.18.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2020-11-23 14:46:41
+    +0100)
+  * Upstream changes:     - v0.18.0     - requirements-test.txt: Drop no
+    longer needed pytest-postgresql requirement     - backfill: Reverse
+    flawed logic in SnapshotBranch generation     -
+    migrate_extrinsic_metadata: don't crash when deb revisions aren't
+    referenced by any snapshot
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 13 Nov 2020 11:13:32 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 23 Nov 2020 13:52:32 +0000
 
 swh-storage (0.17.2-1~swh1) unstable-swh; urgency=medium
 
