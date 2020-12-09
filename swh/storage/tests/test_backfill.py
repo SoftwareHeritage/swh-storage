@@ -206,6 +206,7 @@ RANGE_GENERATORS = {
     "content": lambda start, end: [(None, None)],
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: [(None, None)],
+    "extid": lambda start, end: [(None, None)],
     "metadata_authority": lambda start, end: [(None, None)],
     "metadata_fetcher": lambda start, end: [(None, None)],
     "revision": lambda start, end: [(None, None)],

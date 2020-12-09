@@ -41,6 +41,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             "content",
             "skipped_content",
             "directory",
+            "extid",
             "metadata_authority",
             "metadata_fetcher",
             "revision",
@@ -71,6 +72,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         for obj_type in (
             "content",
             "directory",
+            "extid",
             "metadata_authority",
             "metadata_fetcher",
             "origin",
@@ -127,6 +129,7 @@ def test_storage_direct_writer_anonymized(
         for obj_type in (
             "content",
             "directory",
+            "extid",
             "metadata_authority",
             "metadata_fetcher",
             "origin",

@@ -24,6 +24,7 @@ from swh.model.model import (
     BaseModel,
     Directory,
     DirectoryEntry,
+    ExtID,
     RawExtrinsicMetadata,
     Release,
     Revision,
@@ -32,6 +33,7 @@ from swh.model.model import (
     TargetType,
 )
 from swh.storage.postgresql.converters import (
+    db_to_extid,
     db_to_raw_extrinsic_metadata,
     db_to_release,
     db_to_revision,
@@ -45,6 +47,7 @@ PARTITION_KEY = {
     "content": "sha1",
     "skipped_content": "sha1",
     "directory": "id",
+    "extid": "target",
     "metadata_authority": "type, url",
     "metadata_fetcher": "name, version",
     "raw_extrinsic_metadata": "target",
@@ -77,8 +80,20 @@ COLUMNS = {
         "reason",
     ],
     "directory": ["id", "dir_entries", "file_entries", "rev_entries"],
+    "extid": ["extid_type", "extid", "target_type", "target"],
     "metadata_authority": ["type", "url", "metadata",],
     "metadata_fetcher": ["name", "version", "metadata",],
+    "origin": ["url"],
+    "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
+    "origin_visit_status": [
+        ("origin_visit_status.visit", "visit"),
+        ("origin.url", "origin"),
+        ("origin_visit_status.date", "date"),
+        "type",
+        "snapshot",
+        "status",
+        "metadata",
+    ],
     "raw_extrinsic_metadata": [
         "raw_extrinsic_metadata.type",
         "raw_extrinsic_metadata.target",
@@ -141,17 +156,6 @@ COLUMNS = {
         ("a.fullname", "author_fullname"),
     ],
     "snapshot": ["id", "object_id"],
-    "origin": ["url"],
-    "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
-    "origin_visit_status": [
-        ("origin_visit_status.visit", "visit"),
-        ("origin.url", "origin"),
-        ("origin_visit_status.date", "date"),
-        "type",
-        "snapshot",
-        "status",
-        "metadata",
-    ],
 }
 
 
@@ -212,11 +216,19 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
 def raw_extrinsic_metadata_converter(
     db: BaseDb, metadata: Dict[str, Any]
 ) -> RawExtrinsicMetadata:
-    """Convert revision from the flat representation to swh model
+    """Convert a raw extrinsic metadata from the flat representation to swh model
        compatible objects.
 
     """
     return db_to_raw_extrinsic_metadata(metadata)
+
+
+def extid_converter(db: BaseDb, extid: Dict[str, Any]) -> ExtID:
+    """Convert an extid from the flat representation to swh model
+       compatible objects.
+
+    """
+    return db_to_extid(extid)
 
 
 def revision_converter(db: BaseDb, revision_d: Dict[str, Any]) -> Revision:
@@ -272,6 +284,7 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
 
 CONVERTERS: Dict[str, Callable[[BaseDb, Dict[str, Any]], BaseModel]] = {
     "directory": directory_converter,
+    "extid": extid_converter,
     "raw_extrinsic_metadata": raw_extrinsic_metadata_converter,
     "revision": revision_converter,
     "release": release_converter,
@@ -433,6 +446,7 @@ RANGE_GENERATORS = {
     "content": lambda start, end: byte_ranges(24, start, end),
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: byte_ranges(24, start, end),
+    "extid": lambda start, end: byte_ranges(24, start, end),
     "revision": lambda start, end: byte_ranges(24, start, end),
     "release": lambda start, end: byte_ranges(16, start, end),
     "raw_extrinsic_metadata": raw_extrinsic_metadata_target_ranges,

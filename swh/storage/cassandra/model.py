@@ -280,3 +280,14 @@ class ObjectCountRow(BaseRow):
     partition_key: int
     object_type: str
     count: int
+
+
+@dataclasses.dataclass
+class ExtIDRow(BaseRow):
+    TABLE = "extid"
+    PARTITION_KEY = ("target", "target_type", "extid", "extid_type")
+
+    extid_type: str
+    extid: bytes
+    target_type: str
+    target: bytes

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -19,11 +19,12 @@ import psycopg2.pool
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID
+from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.model.model import (
     SHA1_SIZE,
     Content,
     Directory,
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -632,6 +633,55 @@ class Storage:
     @db_transaction()
     def revision_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.revision_get_random(cur)
+
+    @timed
+    @db_transaction()
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes], db=None, cur=None
+    ) -> List[Optional[ExtID]]:
+        extids = []
+        for row in db.extid_get_from_extid_list(id_type, ids, cur):
+            extids.append(
+                converters.db_to_extid(dict(zip(db.extid_cols, row)))
+                if row[0] is not None
+                else None
+            )
+        return extids
+
+    @timed
+    @db_transaction()
+    def extid_get_from_target(
+        self, target_type: ObjectType, ids: List[Sha1Git], db=None, cur=None
+    ) -> List[Optional[ExtID]]:
+        extids = []
+        for row in db.extid_get_from_swhid_list(target_type.value, ids, cur):
+            extids.append(
+                converters.db_to_extid(dict(zip(db.extid_cols, row)))
+                if row[0] is not None
+                else None
+            )
+        return extids
+
+    @timed
+    @db_transaction()
+    def extid_add(self, ids: List[ExtID], db=None, cur=None) -> Dict[str, int]:
+        extid = [
+            {
+                "extid": extid.extid,
+                "extid_type": extid.extid_type,
+                "target": extid.target.object_id,
+                "target_type": extid.target.object_type.name.lower(),  # arghh
+            }
+            for extid in ids
+        ]
+        db.mktemp("extid", cur)
+
+        db.copy_to(extid, "tmp_extid", db.extid_cols, cur)
+
+        # move metadata in place
+        db.extid_add_from_temp(cur)
+
+        return {"extid:add": len(extid)}
 
     @timed
     @process_metrics

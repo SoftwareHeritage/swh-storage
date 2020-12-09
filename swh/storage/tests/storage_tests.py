@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -19,9 +19,11 @@ import pytest
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
+from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
+    ExtID,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -1059,6 +1061,171 @@ class TestStorage:
             revision2.id,
             revision3.id,
         }
+
+    def test_extid_add_git(self, swh_storage, sample_data):
+
+        gitids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+        nullids = [None] * len(gitids)
+        extids = [
+            ExtID(
+                extid=gitid,
+                extid_type="git",
+                target=CoreSWHID(object_id=gitid, object_type=ObjectType.REVISION,),
+            )
+            for gitid in gitids
+        ]
+
+        assert swh_storage.extid_get_from_extid("git", gitids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == nullids
+
+        summary = swh_storage.extid_add(extids)
+        assert summary == {"extid:add": len(gitids)}
+
+        assert swh_storage.extid_get_from_extid("git", gitids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
+
+        assert swh_storage.extid_get_from_extid("hg", gitids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, gitids) == nullids
+
+    def test_extid_add_hg(self, swh_storage, sample_data):
+        def get_node(revision):
+            node = None
+            if revision.extra_headers:
+                node = dict(revision.extra_headers).get(b"node")
+            if node is None and revision.metadata:
+                node = hash_to_bytes(revision.metadata.get("node"))
+            return node
+
+        swhids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "hg"
+        ]
+        extids = [
+            get_node(revision)
+            for revision in sample_data.revisions
+            if revision.type.value == "hg"
+        ]
+        nullids = [None] * len(swhids)
+
+        assert swh_storage.extid_get_from_extid("hg", extids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == nullids
+
+        extid_objs = [
+            ExtID(
+                extid=hgid,
+                extid_type="hg",
+                target=CoreSWHID(object_id=swhid, object_type=ObjectType.REVISION,),
+            )
+            for hgid, swhid in zip(extids, swhids)
+        ]
+        summary = swh_storage.extid_add(extid_objs)
+        assert summary == {"extid:add": len(swhids)}
+
+        assert swh_storage.extid_get_from_extid("hg", extids) == extid_objs
+        assert (
+            swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == extid_objs
+        )
+
+        assert swh_storage.extid_get_from_extid("git", extids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, swhids) == nullids
+
+    def test_extid_add_twice(self, swh_storage, sample_data):
+
+        gitids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+
+        extids = [
+            ExtID(
+                extid=gitid,
+                extid_type="git",
+                target=CoreSWHID(object_id=gitid, object_type=ObjectType.REVISION,),
+            )
+            for gitid in gitids
+        ]
+        summary = swh_storage.extid_add(extids)
+        assert summary == {"extid:add": len(gitids)}
+
+        # add them again, should be noop
+        summary = swh_storage.extid_add(extids)
+        # assert summary == {"extid:add": 0}
+        assert swh_storage.extid_get_from_extid("git", gitids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
+
+    def test_extid_add_extid_unicity(self, swh_storage, sample_data):
+
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+        nullids = [None] * len(ids)
+
+        extids = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids)
+
+        # try to add "modified-extid" versions, should be noops
+        extids2 = [
+            ExtID(
+                extid=extid,
+                extid_type="hg",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids2)
+
+        assert swh_storage.extid_get_from_extid("git", ids) == extids
+        assert swh_storage.extid_get_from_extid("hg", ids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
+
+    def test_extid_add_target_unicity(self, swh_storage, sample_data):
+
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+        nullids = [None] * len(ids)
+
+        extids = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids)
+
+        # try to add "modified" versions, should be noops
+        extids2 = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.RELEASE,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids2)
+
+        assert swh_storage.extid_get_from_extid("git", ids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, ids) == nullids
 
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]

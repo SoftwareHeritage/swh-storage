@@ -11,10 +11,11 @@ from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
-from swh.model.identifiers import ExtendedSWHID
+from swh.model.identifiers import ExtendedSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -497,6 +498,52 @@ class StorageInterface(Protocol):
         Returns:
             list of revision object (if the revision exists or None otherwise)
 
+        """
+        ...
+
+    @remote_api_endpoint("extid/from_extid")
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes]
+    ) -> List[Optional[ExtID]]:
+        """Get ExtID objects from external IDs
+
+        Args:
+            id_type: type of the given external identifiers (e.g. 'mercurial')
+            ids: list of external IDs
+
+        Returns:
+            list of ExtID objects (if the ext ID is known, None otherwise)
+
+        """
+        ...
+
+    @remote_api_endpoint("extid/from_target")
+    def extid_get_from_target(
+        self, target_type: ObjectType, ids: List[Sha1Git]
+    ) -> List[Optional[ExtID]]:
+        """Get ExtID objects from target IDs and target_type
+
+        Args:
+            target_type: type the SWH object
+            ids: list of target IDs
+
+        Returns:
+            list of ExtID objects (if the SWH ID is known, None otherwise)
+
+        """
+        ...
+
+    @remote_api_endpoint("extid/add")
+    def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
+        """Add a series of ExtID objects
+
+        Args:
+            ids: list of ExtID objects
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                extid:add: New ExtID objects actually stored in db
         """
         ...
 

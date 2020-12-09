@@ -198,6 +198,7 @@ def _check_replayed(
         "contents",
         "skipped_contents",
         "directories",
+        "extid",
         "revisions",
         "releases",
         "snapshots",

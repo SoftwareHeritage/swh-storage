@@ -13,6 +13,7 @@ from swh.core.db import BaseDb
 from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
+from swh.model.identifiers import ObjectType
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus
 from swh.storage.interface import ListOrder
 
@@ -28,7 +29,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 167
+    current_version = 168
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -74,6 +75,10 @@ class Db(BaseDb):
 
     @stored_procedure("swh_revision_add")
     def revision_add_from_temp(self, cur=None):
+        pass
+
+    @stored_procedure("swh_extid_add")
+    def extid_add_from_temp(self, cur=None):
         pass
 
     @stored_procedure("swh_release_add")
@@ -810,6 +815,51 @@ class Db(BaseDb):
             """
             % query_keys,
             ((sortkey, id) for sortkey, id in enumerate(revisions)),
+        )
+
+    extid_cols = ["extid", "extid_type", "target", "target_type"]
+
+    def extid_get_from_extid_list(self, extid_type, ids, cur=None):
+        cur = self._cursor(cur)
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "extid") for k in self.extid_cols
+        )
+        sql = """
+            SELECT %s
+            FROM (VALUES %%s) as t(sortkey, extid, extid_type)
+            LEFT JOIN extid USING (extid, extid_type)
+            ORDER BY sortkey
+            """ % (
+            query_keys,
+        )
+
+        yield from execute_values_generator(
+            cur,
+            sql,
+            (((sortkey, extid, extid_type) for sortkey, extid in enumerate(ids))),
+        )
+
+    def extid_get_from_swhid_list(self, target_type, ids, cur=None):
+        cur = self._cursor(cur)
+        target_type = ObjectType(
+            target_type
+        ).name.lower()  # aka "rev" -> "revision", ...
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "extid") for k in self.extid_cols
+        )
+        sql = """
+            SELECT %s
+            FROM (VALUES %%s) as t(sortkey, target, target_type)
+            LEFT JOIN extid USING (target, target_type)
+            ORDER BY sortkey
+            """ % (
+            query_keys,
+        )
+        yield from execute_values_generator(
+            cur,
+            sql,
+            (((sortkey, target, target_type) for sortkey, target in enumerate(ids))),
+            template=b"(%s,%s,%s::object_type)",
         )
 
     def revision_log(self, root_revisions, limit=None, cur=None):

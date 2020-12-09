@@ -8,8 +8,11 @@ from typing import Any, Dict, Optional
 import warnings
 
 from swh.core.utils import encode_with_unescape
-from swh.model.identifiers import CoreSWHID, ExtendedSWHID, origin_identifier
+from swh.model.identifiers import CoreSWHID, ExtendedSWHID
+from swh.model.identifiers import ObjectType as SwhidObjectType
+from swh.model.identifiers import origin_identifier
 from swh.model.model import (
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -321,4 +324,15 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
         revision=map_optional(CoreSWHID.from_string, row["revision"]),
         path=row["path"],
         directory=map_optional(CoreSWHID.from_string, row["directory"]),
+    )
+
+
+def db_to_extid(row) -> ExtID:
+    return ExtID(
+        extid=row["extid"],
+        extid_type=row["extid_type"],
+        target=CoreSWHID(
+            object_id=row["target"],
+            object_type=SwhidObjectType[row["target_type"].upper()],
+        ),
     )

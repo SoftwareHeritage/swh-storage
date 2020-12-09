@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(167, now(), 'Work In Progress');
+      values(168, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -499,3 +499,19 @@ comment on column object_counts_bucketed.bucket_start is 'Lower bound (inclusive
 comment on column object_counts_bucketed.bucket_end is 'Upper bound (exclusive) for the bucket';
 comment on column object_counts_bucketed.value is 'Count of objects in the bucket';
 comment on column object_counts_bucketed.last_update is 'Last update for the object count in this bucket';
+
+
+-- The ExtID (typ. original VCS) <-> swhid relation table
+create table extid
+(
+  extid_type  text not null,
+  extid       bytea not null,
+  target_type object_type not null,
+  target      sha1_git not null
+);
+
+comment on table extid is 'Correspondance SWH object (SWHID) <-> original revision id (vcs id)';
+comment on column extid.extid_type is 'ExtID type';
+comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg revision)';
+comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
+comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';

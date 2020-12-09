@@ -549,6 +549,23 @@ end
 $$;
 
 
+-- Create entries in extid from tmp_extid
+-- operates in bulk: 0. swh_mktemp(extid), 1. COPY to tmp_extid,
+-- 2. call this function
+create or replace function swh_extid_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into extid (extid_type, extid, target_type, target)
+        select distinct t.extid_type, t.extid, t.target_type, t.target
+        from tmp_extid t
+		on conflict do nothing;
+    return;
+end
+$$;
+
+
 -- Create entries in person from tmp_release
 create or replace function swh_person_add_from_release()
     returns void

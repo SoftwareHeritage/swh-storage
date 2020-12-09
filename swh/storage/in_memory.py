@@ -21,6 +21,7 @@ from typing import (
     Union,
 )
 
+from swh.model.identifiers import ExtendedSWHID
 from swh.model.model import Content, Sha1Git, SkippedContent
 from swh.storage.cassandra import CassandraStorage
 from swh.storage.cassandra.model import (
@@ -28,6 +29,7 @@ from swh.storage.cassandra.model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
@@ -164,6 +166,7 @@ class InMemoryCqlRunner:
         self._metadata_authorities = Table(MetadataAuthorityRow)
         self._metadata_fetchers = Table(MetadataFetcherRow)
         self._raw_extrinsic_metadata = Table(RawExtrinsicMetadataRow)
+        self._extid = Table(ExtIDRow)
         self._stat_counters = defaultdict(int)
 
     def increment_counter(self, object_type: str, nb: int):
@@ -610,6 +613,49 @@ class InMemoryCqlRunner:
             m
             for m in metadata
             if m.authority_type == authority_type and m.authority_url == authority_url
+        )
+
+    #########################
+    # 'extid' table
+    #########################
+    def _extid_add_finalize(self, extid: ExtIDRow) -> None:
+        self._extid.insert(extid)
+        self.increment_counter("extid", 1)
+
+    def extid_add_prepare(self, extid: ExtIDRow):
+        finalizer = functools.partial(self._extid_add_finalize, extid)
+        return (self._extid.token(self._extid.partition_key(extid)), finalizer)
+
+    def extid_index_add_one(self, extid: ExtIDRow, token: int) -> None:
+        pass
+
+    def extid_get_from_pk(
+        self, extid_type: str, extid: bytes, target: ExtendedSWHID,
+    ) -> Optional[ExtIDRow]:
+        primary_key = self._extid.primary_key_from_dict(
+            dict(
+                extid_type=extid_type,
+                extid=extid,
+                target_type=target.object_type.value,
+                target=target.object_id,
+            )
+        )
+        return self._extid.get_from_primary_key(primary_key)
+
+    def extid_get_from_extid(self, extid_type: str, extid: bytes) -> Iterable[ExtIDRow]:
+        return (
+            row
+            for pk, row in self._extid.iter_all()
+            if row.extid_type == extid_type and row.extid == extid
+        )
+
+    def extid_get_from_target(
+        self, target_type: str, target: bytes
+    ) -> Iterable[ExtIDRow]:
+        return (
+            row
+            for pk, row in self._extid.iter_all()
+            if row.target_type == target_type and row.target == target
         )
 
 

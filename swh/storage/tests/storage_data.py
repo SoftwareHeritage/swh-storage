@@ -10,11 +10,13 @@ import attr
 
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
-from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
+from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
     Directory,
     DirectoryEntry,
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -433,7 +435,7 @@ class StorageData:
         directory=directory.id,
         metadata=None,
         extra_headers=(
-            (b"node", hash_to_bytes("7f294a01c49065a90b3fe8b4ad49f08ce9656ef6")),
+            (b"node", hash_to_bytes("f4160af0485c85823d9e829bae2c00b00a2e6297")),
         ),
         synthetic=False,
     )
@@ -680,4 +682,30 @@ class StorageData:
         origin_metadata1,
         origin_metadata2,
         origin_metadata3,
+    )
+
+    extid1 = ExtID(
+        target=CoreSWHID(object_type=SwhidObjectType.REVISION, object_id=revision.id),
+        extid_type="git",
+        extid=revision.id,
+    )
+
+    extid2 = ExtID(
+        target=CoreSWHID(
+            object_type=SwhidObjectType.REVISION, object_id=hg_revision.id
+        ),
+        extid_type="mercurial",
+        extid=hash_to_bytes("a316dfb434af2b451c1f393496b7eaeda343f543"),
+    )
+
+    extid3 = ExtID(
+        target=CoreSWHID(object_type=SwhidObjectType.DIRECTORY, object_id=directory.id),
+        extid_type="directory",
+        extid=b"something",
+    )
+
+    extids: Tuple[ExtID, ...] = (
+        extid1,
+        extid2,
+        extid3,
     )
