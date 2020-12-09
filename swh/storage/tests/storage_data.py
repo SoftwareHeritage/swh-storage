@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -311,7 +311,139 @@ class StorageData:
         extra_headers=(),
         synthetic=False,
     )
-    revisions: Tuple[Revision, ...] = (revision, revision2, revision3, revision4)
+    git_revisions: Tuple[Revision, ...] = (revision, revision2, revision3, revision4)
+
+    hg_revision = Revision(
+        id=hash_to_bytes("951c9503541e7beaf002d7aebf2abd1629084c68"),
+        message=b"hello",
+        author=Person(
+            name=b"Nicolas Dandrimont",
+            email=b"nicolas@example.com",
+            fullname=b"Nicolas Dandrimont <nicolas@example.com> ",
+        ),
+        date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1234567890, microseconds=0),
+            offset=120,
+            negative_utc=False,
+        ),
+        committer=Person(
+            name=b"St\xc3fano Zacchiroli",
+            email=b"stefano@example.com",
+            fullname=b"St\xc3fano Zacchiroli <stefano@example.com>",
+        ),
+        committer_date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1123456789, microseconds=0),
+            offset=120,
+            negative_utc=False,
+        ),
+        parents=(),
+        type=RevisionType.MERCURIAL,
+        directory=directory.id,
+        metadata={
+            "checksums": {"sha1": "tarball-sha1", "sha256": "tarball-sha256",},
+            "signed-off-by": "some-dude",
+            "node": "a316dfb434af2b451c1f393496b7eaeda343f543",
+        },
+        extra_headers=(),
+        synthetic=True,
+    )
+    hg_revision2 = Revision(
+        id=hash_to_bytes("df4afb063236300eb13b96a0d7fff03f7b7cbbaf"),
+        message=b"hello again",
+        author=Person(
+            name=b"Roberto Dicosmo",
+            email=b"roberto@example.com",
+            fullname=b"Roberto Dicosmo <roberto@example.com>",
+        ),
+        date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            offset=-720,
+            negative_utc=False,
+        ),
+        committer=Person(
+            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+        ),
+        committer_date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1123456789, microseconds=220000,),
+            offset=0,
+            negative_utc=False,
+        ),
+        parents=tuple([hg_revision.id]),
+        type=RevisionType.MERCURIAL,
+        directory=directory2.id,
+        metadata=None,
+        extra_headers=(
+            (b"node", hash_to_bytes("fa1b7c84a9b40605b67653700f268349a6d6aca1")),
+        ),
+        synthetic=False,
+    )
+    hg_revision3 = Revision(
+        id=hash_to_bytes("84d8e7081b47ebb88cad9fa1f25de5f330872a37"),
+        message=b"a simple revision with no parents this time",
+        author=Person(
+            name=b"Roberto Dicosmo",
+            email=b"roberto@example.com",
+            fullname=b"Roberto Dicosmo <roberto@example.com>",
+        ),
+        date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            offset=-720,
+            negative_utc=False,
+        ),
+        committer=Person(
+            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+        ),
+        committer_date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1127351742, microseconds=220000,),
+            offset=0,
+            negative_utc=False,
+        ),
+        parents=tuple([hg_revision.id, hg_revision2.id]),
+        type=RevisionType.MERCURIAL,
+        directory=directory2.id,
+        metadata=None,
+        extra_headers=(
+            (b"node", hash_to_bytes("7f294a01c49065a90b3fe8b4ad49f08ce9656ef6")),
+        ),
+        synthetic=True,
+    )
+    hg_revision4 = Revision(
+        id=hash_to_bytes("42070a39e5387e9b99bb3d83674e3a4a1ff39b69"),
+        message=b"parent of self.revision2",
+        author=Person(
+            name=b"me", email=b"me@soft.heri", fullname=b"me <me@soft.heri>",
+        ),
+        date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            offset=-720,
+            negative_utc=False,
+        ),
+        committer=Person(
+            name=b"committer-dude",
+            email=b"committer@dude.com",
+            fullname=b"committer-dude <committer@dude.com>",
+        ),
+        committer_date=TimestampWithTimezone(
+            timestamp=Timestamp(seconds=1244567843, microseconds=220000,),
+            offset=-720,
+            negative_utc=False,
+        ),
+        parents=tuple([hg_revision3.id]),
+        type=RevisionType.MERCURIAL,
+        directory=directory.id,
+        metadata=None,
+        extra_headers=(
+            (b"node", hash_to_bytes("7f294a01c49065a90b3fe8b4ad49f08ce9656ef6")),
+        ),
+        synthetic=False,
+    )
+    hg_revisions: Tuple[Revision, ...] = (
+        hg_revision,
+        hg_revision2,
+        hg_revision3,
+        hg_revision4,
+    )
+    revisions: Tuple[Revision, ...] = git_revisions + hg_revisions
 
     origins: Tuple[Origin, ...] = (
         Origin(url="https://github.com/user1/repo1"),
