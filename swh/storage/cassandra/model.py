@@ -200,6 +200,12 @@ class OriginVisitStatusRow(BaseRow):
     metadata: str
     snapshot: bytes
 
+    @classmethod
+    def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
+        d = d.copy()
+        d.pop("type", None)
+        return cls(**d)  # type: ignore
+
 
 @dataclasses.dataclass
 class OriginRow(BaseRow):
