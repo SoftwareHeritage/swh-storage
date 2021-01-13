@@ -1426,25 +1426,28 @@ class TestStorage:
         )[0]
 
         ovs1 = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit1,
+            type=ov1.type,
             status="created",
             snapshot=None,
         )
 
         ovs2 = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit2,
+            type=ov1.type,
             status="partial",
             snapshot=None,
         )
 
         ovs3 = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit3,
+            type=ov1.type,
             status="full",
             snapshot=sample_data.snapshot.id,
             metadata={},
@@ -1770,16 +1773,18 @@ class TestStorage:
         assert ov2 == origin_visit2
 
         ovs1 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit,
+            type=ov1.type,
             status="created",
             snapshot=None,
         )
         ovs2 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=date_visit2,
+            type=ov2.type,
             status="created",
             snapshot=None,
         )
@@ -1850,16 +1855,18 @@ class TestStorage:
         )
 
         ovs1 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=sample_data.date_visit1,
+            type=ov1.type,
             status="created",
             snapshot=None,
         )
         ovs2 = OriginVisitStatus(
-            origin=origin2.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=sample_data.date_visit2,
+            type=ov2.type,
             status="created",
             snapshot=None,
         )
@@ -1869,6 +1876,7 @@ class TestStorage:
             origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit_now,
+            type=ov1.type,
             status="full",
             snapshot=snapshot.id,
         )
@@ -1878,6 +1886,7 @@ class TestStorage:
             origin=ov2.origin,
             visit=ov2.visit,
             date=date_visit_now,
+            type=ov2.type,
             status="ongoing",
             snapshot=None,
             metadata={"intrinsic": "something"},
@@ -1930,9 +1939,10 @@ class TestStorage:
         )[0]
 
         ovs1 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=sample_data.date_visit1,
+            type=ov1.type,
             status="created",
             snapshot=None,
         )
@@ -1941,6 +1951,7 @@ class TestStorage:
             origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit_now,
+            type=ov1.type,
             status="full",
             snapshot=snapshot.id,
         )
@@ -2186,9 +2197,10 @@ class TestStorage:
         # Add snapshot to visit1; require_snapshot=True makes it return first visit
         swh_storage.snapshot_add([complete_snapshot])
         visit_status_with_snapshot = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=round_to_milliseconds(now()),
+            type=ov1.type,
             status="ongoing",
             snapshot=complete_snapshot.id,
         )
@@ -2227,9 +2239,10 @@ class TestStorage:
         assert actual_visit is None
 
         visit_status1_full = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=round_to_milliseconds(now()),
+            type=ov1.type,
             status="full",
             snapshot=complete_snapshot.id,
         )
@@ -2255,9 +2268,10 @@ class TestStorage:
         swh_storage.snapshot_add([empty_snapshot])
 
         visit_status2_full = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=round_to_milliseconds(now()),
+            type=ov2.type,
             status="ongoing",
             snapshot=empty_snapshot.id,
         )
@@ -2284,9 +2298,10 @@ class TestStorage:
 
         # Add snapshot to visit3 (same date as visit2)
         visit_status3_with_snapshot = OriginVisitStatus(
-            origin=origin.url,
+            origin=ov3.origin,
             visit=ov3.visit,
             date=round_to_milliseconds(now()),
+            type=ov3.type,
             status="ongoing",
             snapshot=complete_snapshot.id,
         )
@@ -2434,31 +2449,35 @@ class TestStorage:
         assert sample_data.date_visit2 < date_now
 
         ovs1 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=sample_data.date_visit1,
+            type=ov1.type,
             status="partial",
             snapshot=None,
         )
         ovs2 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=sample_data.date_visit2,
+            type=ov1.type,
             status="ongoing",
             snapshot=None,
         )
         ovs3 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=sample_data.date_visit2
             + datetime.timedelta(minutes=1),  # to not be ignored
+            type=ov2.type,
             status="ongoing",
             snapshot=None,
         )
         ovs4 = OriginVisitStatus(
-            origin=origin1.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=date_now,
+            type=ov2.type,
             status="full",
             snapshot=snapshot.id,
             metadata={"something": "wicked"},
@@ -2559,9 +2578,10 @@ class TestStorage:
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
-                    origin=origin.url,
+                    origin=ov1.origin,
                     visit=ov1.visit,
                     date=date_now,
+                    type=ov1.type,
                     status="full",
                     snapshot=empty_snapshot.id,
                 )
@@ -2573,8 +2593,9 @@ class TestStorage:
 
         ovs1 = OriginVisitStatus.from_dict(
             {
-                "origin": origin.url,
+                "origin": ov1.origin,
                 "date": sample_data.date_visit1,
+                "type": ov1.type,
                 "visit": ov1.visit,
                 "status": "created",
                 "snapshot": None,
@@ -2583,8 +2604,9 @@ class TestStorage:
         )
         ovs2 = OriginVisitStatus.from_dict(
             {
-                "origin": origin.url,
+                "origin": ov1.origin,
                 "date": date_now,
+                "type": ov1.type,
                 "visit": ov1.visit,
                 "status": "full",
                 "metadata": None,

@@ -888,6 +888,7 @@ class CassandraStorage:
                     origin=visit.origin,
                     visit=visit.visit,
                     date=visit.date,
+                    type=visit.type,
                     status="created",
                     snapshot=None,
                 )
@@ -897,6 +898,14 @@ class CassandraStorage:
 
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status"""
+        if visit_status.type is None:
+            origin_row = self._cql_runner.origin_visit_get_one(
+                visit_status.origin, visit_status.visit
+            )
+            if origin_row is None:
+                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
+            visit_status = attr.evolve(visit_status, type=origin_row.type)
+
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(
             converters.visit_status_to_row(visit_status)
@@ -929,6 +938,9 @@ class CassandraStorage:
             "origin": visit["origin"],
             # but keep the date of the creation of the origin visit
             "date": visit["date"],
+            # We use the visit type from origin visit
+            # if it's not present on the origin visit status
+            "type": visit_status.type or visit["type"],
         }
 
     def _origin_visit_get_latest_status(self, visit: OriginVisit) -> OriginVisitStatus:
