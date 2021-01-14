@@ -99,6 +99,17 @@ _______________________________ summary ________________________________
   congratulations :)
 ```
 
+Note: it is possible to set the `JAVA_HOME` environment variable to specify the
+version of the JVM to be used by Cassandra. For example, at the time of writing
+this, Cassandra does not support java 14, so one may want to use for example
+java 11:
+
+```
+(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-14-openjdk-amd64/bin/java
+(swh) :~/swh-storage$ tox
+[...]
+```
+
 ## Development
 
 The storage server can be locally started. It requires a configuration file and

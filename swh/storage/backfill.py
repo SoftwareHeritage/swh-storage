@@ -504,7 +504,7 @@ class JournalBackfiller:
                 % (object_type, ", ".join(COLUMNS.keys()))
             )
 
-        if object_type in ["origin", "origin_visit"]:
+        if object_type in ["origin", "origin_visit", "origin_visit_status"]:
             if start_object:
                 start_object = int(start_object)
             else:
