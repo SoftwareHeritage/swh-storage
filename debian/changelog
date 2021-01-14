@@ -1,3 +1,19 @@
+swh-storage (0.19.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.19.0     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2021-01-14 11:09:17 +0100)
+  * Upstream changes:     - v0.19.0     - * 2021-01-12 Adapt cassandra
+    storage to ignore the new OriginVisitStatus.type field     - * 2021-
+    01-08 Allow to use the JAVA_HOME environment for cassandra tests
+    - * 2021-01-13 Enforce hypothesis <6 to prevent test breakage     -
+    * 2021-01-08 Make the CREATE_TABLES_QUERIES in cassandra/schema.py
+    an explicit list     - * 2020-12-18 Add a cli section in the doc
+    - * 2020-11-24 storage.backfill: Allow cli run for
+    origin_visit_status as well     - * 2020-11-24 conftest: Reference
+    swh.core.db.pytest_plugin
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 14 Jan 2021 10:18:31 +0000
+
 swh-storage (0.18.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.18.0     - (tagged by Antoine R. Dumont
