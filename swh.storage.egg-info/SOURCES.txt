@@ -28,6 +28,7 @@ docs/.gitignore
 docs/Makefile
 docs/Makefile.local
 docs/archive-copies.rst
+docs/cli.rst
 docs/conf.py
 docs/extrinsic-metadata-specification.rst
 docs/index.rst

@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -102,6 +102,14 @@ def cassandra_cluster(tmpdir_factory):
         stdout = stderr = subprocess.DEVNULL
 
     cassandra_bin = os.environ.get("SWH_CASSANDRA_BIN", "/usr/sbin/cassandra")
+    env = {
+        "MAX_HEAP_SIZE": "300M",
+        "HEAP_NEWSIZE": "50M",
+        "JVM_OPTS": "-Xlog:gc=error:file=%s/gc.log" % cassandra_log,
+    }
+    if "JAVA_HOME" in os.environ:
+        env["JAVA_HOME"] = os.environ["JAVA_HOME"]
+
     proc = subprocess.Popen(
         [
             cassandra_bin,
@@ -111,11 +119,7 @@ def cassandra_cluster(tmpdir_factory):
             "-Dcassandra-foreground=yes",
         ],
         start_new_session=True,
-        env={
-            "MAX_HEAP_SIZE": "300M",
-            "HEAP_NEWSIZE": "50M",
-            "JVM_OPTS": "-Xlog:gc=error:file=%s/gc.log" % cassandra_log,
-        },
+        env=env,
         stdout=stdout,
         stderr=stderr,
     )

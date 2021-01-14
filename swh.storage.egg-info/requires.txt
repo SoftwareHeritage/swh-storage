@@ -19,7 +19,7 @@ swh.journal>=0.5.1
 SQLAlchemy
 
 [testing]
-hypothesis>=3.11.0
+hypothesis<6,>=3.11.0
 pytest
 pytest-mock
 sqlalchemy-stubs
