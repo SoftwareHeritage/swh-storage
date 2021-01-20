@@ -301,6 +301,7 @@ create table origin_visit_status
   origin   bigint not null,
   visit    bigint not null,
   date     timestamptz not null,
+  type     text,
   status   origin_visit_state not null,
   metadata jsonb,
   snapshot sha1_git
@@ -309,6 +310,7 @@ create table origin_visit_status
 comment on column origin_visit_status.origin is 'Origin concerned by the visit update';
 comment on column origin_visit_status.visit is 'Visit concerned by the visit update';
 comment on column origin_visit_status.date is 'Visit update timestamp';
+comment on column origin_visit_status.type is 'Type of loader that did the visit (hg, git, ...)';
 comment on column origin_visit_status.status is 'Visit status (ongoing, failed, full)';
 comment on column origin_visit_status.metadata is 'Optional origin visit metadata';
 comment on column origin_visit_status.snapshot is 'Optional, possibly partial, snapshot of the origin visit. It can be partial.';

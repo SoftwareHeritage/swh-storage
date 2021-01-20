@@ -129,9 +129,10 @@ def test_snapshot_get_latest(swh_storage, sample_data):
     swh_storage.origin_visit_status_add(
         [
             OriginVisitStatus(
-                origin=origin.url,
+                origin=ov1.origin,
                 visit=ov1.visit,
                 date=date_now,
+                type=ov1.type,
                 status="full",
                 snapshot=complete_snapshot.id,
             )
@@ -174,16 +175,18 @@ def test_snapshot_id_get_from_revision(swh_storage, sample_data):
     # Add complete_snapshot to visit1 which targets revision1
     ovs1, ovs2 = [
         OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit2,
+            type=ov1.type,
             status="partial",
             snapshot=complete_snapshot.id,
         ),
         OriginVisitStatus(
-            origin=origin.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=now(),
+            type=ov2.type,
             status="full",
             snapshot=empty_snapshot.id,
         ),
@@ -232,16 +235,18 @@ def test_visit_and_snapshot_get_from_revision(swh_storage, sample_data):
     # Add complete_snapshot to visit1 which targets revision1
     ovs1, ovs2 = [
         OriginVisitStatus(
-            origin=origin.url,
+            origin=ov1.origin,
             visit=ov1.visit,
             date=date_visit2,
+            type=ov1.type,
             status="partial",
             snapshot=complete_snapshot.id,
         ),
         OriginVisitStatus(
-            origin=origin.url,
+            origin=ov2.origin,
             visit=ov2.visit,
             date=now(),
+            type=ov2.type,
             status="full",
             snapshot=empty_snapshot.id,
         ),

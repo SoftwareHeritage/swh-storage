@@ -89,33 +89,37 @@ def init_storage_with_origin_visits(swh_storage, sample_data):
 
     # origin visit status 1 for origin visit 1
     ovs11 = OriginVisitStatus(
-        origin=origin1.url,
+        origin=ov1.origin,
         visit=ov1.visit,
         date=ov1.date + datetime.timedelta(seconds=10),  # so it's not ignored
+        type=ov1.type,
         status="partial",
         snapshot=None,
     )
     # origin visit status 2 for origin visit 1
     ovs12 = OriginVisitStatus(
-        origin=origin1.url,
+        origin=ov1.origin,
         visit=ov1.visit,
         date=sample_data.date_visit2,
+        type=ov1.type,
         status="ongoing",
         snapshot=None,
     )
     # origin visit status 1 for origin visit 2
     ovs21 = OriginVisitStatus(
-        origin=origin2.url,
+        origin=ov2.origin,
         visit=ov2.visit,
         date=ov2.date + datetime.timedelta(seconds=10),  # so it's not ignored
+        type=ov2.type,
         status="ongoing",
         snapshot=None,
     )
     # origin visit status 2 for origin visit 2
     ovs22 = OriginVisitStatus(
-        origin=origin2.url,
+        origin=ov2.origin,
         visit=ov2.visit,
         date=date_now,
+        type=ov2.type,
         status="full",
         snapshot=snapshot.id,
         metadata={"something": "wicked"},
@@ -309,9 +313,10 @@ def test_iter_origin_visit_status(swh_storage, sample_data):
     date_past = now() - datetime.timedelta(weeks=20)
 
     ovs1 = OriginVisitStatus(
-        origin=origin1.url,
+        origin=ov1.origin,
         visit=ov1.visit,
         date=ov1.date,
+        type=ov1.type,
         status="created",
         snapshot=None,
     )
@@ -321,9 +326,10 @@ def test_iter_origin_visit_status(swh_storage, sample_data):
 
         new_visit_statuses.append(
             OriginVisitStatus(
-                origin=origin1.url,
+                origin=ov1.origin,
                 visit=ov1.visit,
                 date=status_date,
+                type=ov1.type,
                 status="created",
                 snapshot=None,
             )
