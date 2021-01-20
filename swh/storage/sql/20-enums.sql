@@ -18,6 +18,8 @@ create type origin_visit_state as enum (
   'created',
   'ongoing',
   'full',
-  'partial'
+  'partial',
+  'not_found',
+  'failed'
 );
-comment on type origin_visit_state IS 'Possible origin visit values';
+comment on type origin_visit_state IS 'Possible origin visit status values';
