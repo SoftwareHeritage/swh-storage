@@ -9,11 +9,11 @@ typing-extensions
 mypy_extensions
 iso8601
 swh.core[db,http]>=0.5
-swh.model>=0.7.2
+swh.model>=0.10.0
 swh.objstorage>=0.2.2
 
 [journal]
-swh.journal>=0.5.1
+swh.journal>=0.6.2
 
 [schemata]
 SQLAlchemy
@@ -26,4 +26,4 @@ sqlalchemy-stubs
 swh.model[testing]>=0.0.50
 pytz
 pytest-xdist
-swh.journal>=0.5.1
+swh.journal>=0.6.2

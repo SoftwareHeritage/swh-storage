@@ -48,14 +48,14 @@ class TestLocalStorage:
 class TestStorageRaceConditions:
     @pytest.mark.xfail
     def test_content_add_race(self, swh_storage, sample_data):
-        content = sample_data.content
+        content = attr.evolve(sample_data.content, ctime=now())
 
         results = queue.Queue()
 
         def thread():
             try:
                 with db_transaction(swh_storage) as (db, cur):
-                    ret = swh_storage.content_add([content], db=db, cur=cur)
+                    ret = swh_storage._content_add_metadata(db, cur, [content])
                 results.put((threading.get_ident(), "data", ret))
             except Exception as e:
                 results.put((threading.get_ident(), "exc", e))

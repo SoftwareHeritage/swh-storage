@@ -844,6 +844,7 @@ class Storage:
                 origin=visit.origin,
                 visit=visit.visit,
                 date=visit.date,
+                type=visit.type,
                 status="created",
                 snapshot=None,
             )
@@ -867,13 +868,27 @@ class Storage:
     def origin_visit_status_add(
         self, visit_statuses: List[OriginVisitStatus], db=None, cur=None,
     ) -> None:
+        visit_statuses_ = []
+
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get([visit_status.origin], db=db, cur=cur)[0]
             if not origin_url:
                 raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
 
-        for visit_status in visit_statuses:
+            if visit_status.type is None:
+                origin_visit = self.origin_visit_get_by(
+                    visit_status.origin, visit_status.visit, db=db, cur=cur
+                )
+                assert origin_visit is not None
+
+                origin_visit_status = attr.evolve(visit_status, type=origin_visit.type)
+            else:
+                origin_visit_status = visit_status
+
+            visit_statuses_.append(origin_visit_status)
+
+        for visit_status in visit_statuses_:
             self._origin_visit_status_add(visit_status, db, cur)
 
     @timed
@@ -1036,6 +1051,7 @@ class Storage:
                     origin=row_d["origin"],
                     visit=row_d["visit"],
                     date=row_d["date"],
+                    type=row_d["type"],
                     status=row_d["status"],
                     snapshot=row_d["snapshot"],
                     metadata=row_d["metadata"],

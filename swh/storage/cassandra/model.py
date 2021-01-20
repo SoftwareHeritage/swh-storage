@@ -196,14 +196,13 @@ class OriginVisitStatusRow(BaseRow):
     origin: str
     visit: int
     date: datetime.datetime
+    type: str
     status: str
     metadata: str
     snapshot: bytes
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
-        d = d.copy()
-        d.pop("type", None)
         return cls(**d)  # type: ignore
 
 

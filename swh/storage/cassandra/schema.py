@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS origin_visit_status (
     origin          text,
     visit           bigint,
     date            timestamp,
+    type            text,
     status          ascii,
     metadata        text,
     snapshot        blob,
