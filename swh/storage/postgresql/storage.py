@@ -1084,6 +1084,7 @@ class Storage:
                 origin=row_d["origin"],
                 visit=row_d["visit"],
                 date=row_d["date"],
+                type=row_d["type"],
                 status=row_d["status"],
                 metadata=row_d["metadata"],
                 snapshot=row_d["snapshot"],
