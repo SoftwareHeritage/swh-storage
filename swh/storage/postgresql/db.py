@@ -515,7 +515,7 @@ class Db(BaseDb):
         "o.url AS origin",
         "ovs.visit",
         "ovs.date",
-        "ovs.type",
+        "ov.type AS type",  # To remove when origin_visit_status.type is populated
         "ovs.status",
         "ovs.snapshot",
         "ovs.metadata",
@@ -548,6 +548,7 @@ class Db(BaseDb):
             "SELECT %s" % ", ".join(self.origin_visit_status_select_cols),
             "FROM origin_visit_status ovs ",
             "INNER JOIN origin o ON o.id = ovs.origin",
+            "INNER JOIN origin_visit ov using (origin, visit)",
         ]
         query_parts.append("WHERE o.url = %s")
         query_params: List[Any] = [origin_url]
@@ -586,6 +587,7 @@ class Db(BaseDb):
             f"SELECT {', '.join(self.origin_visit_status_select_cols)} "
             "FROM origin_visit_status ovs ",
             "INNER JOIN origin o ON o.id = ovs.origin ",
+            "INNER JOIN origin_visit ov using (origin, visit)",
         ]
         query_parts.append("WHERE o.url = %s AND ovs.visit = %s ")
         query_params: List[Any] = [origin, visit]
