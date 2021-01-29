@@ -1596,11 +1596,11 @@ class TestStorage:
         assert stats["origin"] == len(origins)
         assert stats["origin_visit"] == len(origins) * len(visits)
 
-        random_ov, random_ovs = swh_storage.origin_visit_status_get_random(visit_type)
-        assert random_ov and random_ovs
-        assert random_ov.origin is not None
-        assert random_ov.origin == random_ovs.origin
-        assert random_ov.origin in [o.url for o in origins]
+        random_ovs = swh_storage.origin_visit_status_get_random(visit_type)
+        assert random_ovs
+        assert random_ovs.origin is not None
+        assert random_ovs.origin in [o.url for o in origins]
+        assert random_ovs.type is not None
 
     def test_origin_visit_status_get_random_nothing_found(
         self, swh_storage, sample_data
