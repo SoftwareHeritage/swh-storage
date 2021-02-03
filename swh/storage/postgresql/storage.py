@@ -1070,16 +1070,10 @@ class Storage:
     @db_transaction()
     def origin_visit_status_get_random(
         self, type: str, db=None, cur=None
-    ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
+    ) -> Optional[OriginVisitStatus]:
         row = db.origin_visit_get_random(type, cur)
         if row is not None:
             row_d = dict(zip(db.origin_visit_get_cols, row))
-            visit = OriginVisit(
-                origin=row_d["origin"],
-                visit=row_d["visit"],
-                date=row_d["date"],
-                type=row_d["type"],
-            )
             visit_status = OriginVisitStatus(
                 origin=row_d["origin"],
                 visit=row_d["visit"],
@@ -1089,7 +1083,7 @@ class Storage:
                 metadata=row_d["metadata"],
                 snapshot=row_d["snapshot"],
             )
-            return visit, visit_status
+            return visit_status
         return None
 
     @timed

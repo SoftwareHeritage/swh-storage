@@ -159,26 +159,24 @@ def test_origin_get_latest_visit_status_filter_type(swh_storage, sample_data):
     )
 
     # Two visits, both with no snapshot, take the most recent
-    actual_ov1, actual_ovs12 = origin_get_latest_visit_status(
+    actual_ovs12 = origin_get_latest_visit_status(
         swh_storage, origin1.url, type=sample_data.type_visit1
     )
-    assert isinstance(actual_ov1, OriginVisit)
     assert isinstance(actual_ovs12, OriginVisitStatus)
-    assert actual_ov1.origin == ov1.origin
-    assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs12 == ovs12
+    assert actual_ovs12.origin == ov1.origin
+    assert actual_ovs12.visit == ov1.visit
+    assert actual_ovs12.type == sample_data.type_visit1
 
     # take the most recent visit with type_visit2
-    actual_ov2, actual_ovs22 = origin_get_latest_visit_status(
+    actual_ovs22 = origin_get_latest_visit_status(
         swh_storage, origin2.url, type=sample_data.type_visit2
     )
-    assert isinstance(actual_ov2, OriginVisit)
     assert isinstance(actual_ovs22, OriginVisitStatus)
-    assert actual_ov2.origin == ov2.origin
-    assert actual_ov2.visit == ov2.visit
-    assert actual_ov2.type == sample_data.type_visit2
     assert actual_ovs22 == ovs22
+    assert actual_ovs22.origin == ov2.origin
+    assert actual_ovs22.visit == ov2.visit
+    assert actual_ovs22.type == sample_data.type_visit2
 
 
 def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data):
@@ -196,38 +194,37 @@ def test_origin_get_latest_visit_status_filter_status(swh_storage, sample_data):
     )
 
     # only 1 partial for that visit
-    actual_ov1, actual_ovs11 = origin_get_latest_visit_status(
+    actual_ovs11 = origin_get_latest_visit_status(
         swh_storage, origin1.url, allowed_statuses=["partial"]
     )
-    assert actual_ov1.origin == ov1.origin
-    assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs11 == ovs11
+    assert actual_ovs11.origin == ov1.origin
+    assert actual_ovs11.visit == ov1.visit
+    assert actual_ovs11.type == sample_data.type_visit1
 
     # both status exist, take the latest one
-    actual_ov1, actual_ovs12 = origin_get_latest_visit_status(
+    actual_ovs12 = origin_get_latest_visit_status(
         swh_storage, origin1.url, allowed_statuses=["partial", "ongoing"]
     )
-    assert actual_ov1.origin == ov1.origin
-    assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs12 == ovs12
+    assert actual_ovs12.origin == ov1.origin
+    assert actual_ovs12.visit == ov1.visit
+    assert actual_ovs12.type == sample_data.type_visit1
 
-    assert isinstance(actual_ov1, OriginVisit)
     assert isinstance(actual_ovs12, OriginVisitStatus)
-    assert actual_ov1.origin == ov1.origin
-    assert actual_ov1.visit == ov1.visit
-    assert actual_ov1.type == sample_data.type_visit1
     assert actual_ovs12 == ovs12
+    assert actual_ovs12.origin == ov1.origin
+    assert actual_ovs12.visit == ov1.visit
+    assert actual_ovs12.type == sample_data.type_visit1
 
     # take the most recent visit with type_visit2
-    actual_ov2, actual_ovs22 = origin_get_latest_visit_status(
+    actual_ovs22 = origin_get_latest_visit_status(
         swh_storage, origin2.url, allowed_statuses=["full"]
     )
-    assert actual_ov2.origin == ov2.origin
-    assert actual_ov2.visit == ov2.visit
-    assert actual_ov2.type == sample_data.type_visit2
     assert actual_ovs22 == ovs22
+    assert actual_ovs22.origin == ov2.origin
+    assert actual_ovs22.visit == ov2.visit
+    assert actual_ovs22.type == sample_data.type_visit2
 
 
 def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data):
@@ -243,13 +240,13 @@ def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data
     )
 
     # visit status with partial status visit elected
-    actual_ov2, actual_ovs22 = origin_get_latest_visit_status(
+    actual_ovs22 = origin_get_latest_visit_status(
         swh_storage, origin2.url, require_snapshot=True
     )
-    assert actual_ov2.origin == ov2.origin
-    assert actual_ov2.visit == ov2.visit
-    assert actual_ov2.type == ov2.type
     assert actual_ovs22 == ovs22
+    assert actual_ovs22.origin == ov2.origin
+    assert actual_ovs22.visit == ov2.visit
+    assert actual_ovs22.type == ov2.type
 
     date_now = now()
 
@@ -259,13 +256,13 @@ def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data
     )
 
     # Requiring the latest visit with a snapshot, we still find the previous visit
-    ov2, ovs22 = origin_get_latest_visit_status(
+    ovs22 = origin_get_latest_visit_status(
         swh_storage, origin2.url, require_snapshot=True
     )
-    assert actual_ov2.origin == ov2.origin
-    assert actual_ov2.visit == ov2.visit
-    assert actual_ov2.type == ov2.type
     assert actual_ovs22 == ovs22
+    assert actual_ovs22.origin == ov2.origin
+    assert actual_ovs22.visit == ov2.visit
+    assert actual_ovs22.type == ov2.type
 
 
 def test_iter_origin_visits(swh_storage, sample_data):

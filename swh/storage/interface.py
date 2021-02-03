@@ -924,15 +924,12 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("origin/visit_status/get_random")
-    def origin_visit_status_get_random(
-        self, type: str
-    ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
+    def origin_visit_status_get_random(self, type: str) -> Optional[OriginVisitStatus]:
         """Randomly select one successful origin visit with <type>
         made in the last 3 months.
 
         Returns:
-            One random tuple of (OriginVisit, OriginVisitStatus) matching the
-            selection criteria
+            One random OriginVisitStatus matching the selection criteria
 
         """
         ...
