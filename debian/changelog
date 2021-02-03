@@ -1,8 +1,14 @@
-swh-storage (0.21.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.22.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.22.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-02-03 12:09:29
+    +0100)
+  * Upstream changes:     - v0.22.0     - storage: Make
+    origin_get_latest_visit_status return OriginVisitStatus     -
+    storage: Change origin_visit_status_get_random interface to return
+    visit_status     - Write introduction to swh-storage
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 28 Jan 2021 13:24:27 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 03 Feb 2021 11:15:27 +0000
 
 swh-storage (0.21.1-1~swh1) unstable-swh; urgency=medium
 

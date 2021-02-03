@@ -28,10 +28,14 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
     `storage_args`.
 
     Args:
-        storage (dict): dictionary with keys:
-        - cls (str): storage's class, either local, remote, memory, filter,
-            buffer
-        - args (dict): dictionary with keys
+        cls (str): storage's class, can be:
+          - ``local`` to use a postgresql database
+          - ``cassandra`` to use a cassandra database
+          - ``remote`` to connect to a swh-storage server
+          - ``memory`` for an in-memory storage, useful for fast tests
+          - ``filter``, ``buffer``, ... to use specific storage "proxies", see their
+            respective documentations
+        args (dict): dictionary with keys
 
     Returns:
         an instance of swh.storage.Storage or compatible class

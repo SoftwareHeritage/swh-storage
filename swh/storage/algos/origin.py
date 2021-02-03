@@ -1,9 +1,9 @@
-# Copyright (C) 2019-2020  The Software Heritage developers
+# Copyright (C) 2019-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional
 
 from swh.core.api.classes import stream_results
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
@@ -30,7 +30,7 @@ def origin_get_latest_visit_status(
     type: Optional[str] = None,
     allowed_statuses: Optional[List[str]] = None,
     require_snapshot: bool = False,
-) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
+) -> Optional[OriginVisitStatus]:
     """Get the latest origin visit (and status) of an origin. Optionally, a combination of
     criteria can be provided, origin type, allowed statuses or if a visit has a
     snapshot.
@@ -61,7 +61,7 @@ def origin_get_latest_visit_status(
         allowed_statuses=allowed_statuses,
         require_snapshot=require_snapshot,
     )
-    result: Optional[Tuple[OriginVisit, OriginVisitStatus]] = None
+    result: Optional[OriginVisitStatus] = None
     if visit:
         assert visit.visit is not None
         visit_status = storage.origin_visit_status_get_latest(
@@ -71,7 +71,7 @@ def origin_get_latest_visit_status(
             require_snapshot=require_snapshot,
         )
         if visit_status:
-            result = visit, visit_status
+            result = visit_status
     return result
 
 
