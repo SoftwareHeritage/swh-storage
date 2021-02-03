@@ -1105,9 +1105,7 @@ class CassandraStorage:
             return None
         return converters.row_to_visit_status(rows[0])
 
-    def origin_visit_status_get_random(
-        self, type: str
-    ) -> Optional[Tuple[OriginVisit, OriginVisitStatus]]:
+    def origin_visit_status_get_random(self, type: str) -> Optional[OriginVisitStatus]:
         back_in_the_day = now() - datetime.timedelta(weeks=12)  # 3 months back
 
         # Random position to start iteration at
@@ -1119,7 +1117,7 @@ class CassandraStorage:
             visit = converters.row_to_visit(row)
             visit_status = self._origin_visit_get_latest_status(visit)
             if visit.date > back_in_the_day and visit_status.status == "full":
-                return visit, visit_status
+                return visit_status
         return None
 
     def stat_counters(self):

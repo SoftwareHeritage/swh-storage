@@ -81,14 +81,12 @@ def snapshot_get_latest(
         The snapshot object if one is found matching the criteria or None.
 
     """
-    visit_and_status = origin_get_latest_visit_status(
+    visit_status = origin_get_latest_visit_status(
         storage, origin, allowed_statuses=allowed_statuses, require_snapshot=True,
     )
-
-    if not visit_and_status:
+    if not visit_status:
         return None
 
-    _, visit_status = visit_and_status
     snapshot_id = visit_status.snapshot
     if not snapshot_id:
         return None
