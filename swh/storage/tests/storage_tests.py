@@ -28,6 +28,7 @@ from swh.model.model import (
     OriginVisit,
     OriginVisitStatus,
     Person,
+    RawExtrinsicMetadata,
     Revision,
     SkippedContent,
     Snapshot,
@@ -37,7 +38,12 @@ from swh.storage import get_storage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import ListOrder, PagedResult, StorageInterface
-from swh.storage.utils import content_hex_hashes, now, round_to_milliseconds
+from swh.storage.utils import (
+    content_hex_hashes,
+    now,
+    remove_keys,
+    round_to_milliseconds,
+)
 
 
 def transform_entries(
@@ -3410,8 +3416,12 @@ class TestStorage:
             object_type="content", object_id=hash_to_bytes(content.sha1_git)
         )
 
-        new_content_metadata2 = attr.evolve(
-            content_metadata2, format="new-format", metadata=b"new-metadata",
+        new_content_metadata2 = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(content_metadata2.to_dict(), ("id",)),  # recompute id
+                "format": "new-format",
+                "metadata": b"new-metadata",
+            }
         )
 
         swh_storage.metadata_fetcher_add([fetcher])
@@ -3445,7 +3455,12 @@ class TestStorage:
 
         content1_swhid = SWHID(object_type="content", object_id=content.sha1_git)
         content2_swhid = SWHID(object_type="content", object_id=content2.sha1_git)
-        content2_metadata = attr.evolve(content1_metadata2, target=content2_swhid)
+        content2_metadata = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(content1_metadata2.to_dict(), ("id",)),  # recompute id
+                "target": str(content2_swhid),
+            }
+        )
 
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
@@ -3565,10 +3580,12 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
         swh_storage.metadata_authority_add([authority])
 
-        new_content_metadata2 = attr.evolve(
-            content_metadata2,
-            discovery_date=content_metadata2.discovery_date,
-            fetcher=attr.evolve(fetcher2, metadata=None),
+        new_content_metadata2 = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(content_metadata2.to_dict(), ("id",)),  # recompute id
+                "discovery_date": content_metadata2.discovery_date,
+                "fetcher": attr.evolve(fetcher2, metadata=None).to_dict(),
+            }
         )
 
         swh_storage.raw_extrinsic_metadata_add(
@@ -3589,6 +3606,7 @@ class TestStorage:
             page_token=result.next_page_token,
         )
         assert result.next_page_token is None
+        assert result.results[0].to_dict() == new_content_metadata2.to_dict()
         assert result.results == [new_content_metadata2]
 
     def test_content_metadata_get__invalid_id(self, swh_storage, sample_data):
@@ -3647,8 +3665,12 @@ class TestStorage:
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        new_origin_metadata2 = attr.evolve(
-            origin_metadata2, format="new-format", metadata=b"new-metadata",
+        new_origin_metadata2 = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(origin_metadata2.to_dict(), ("id",)),  # recompute id
+                "format": "new-format",
+                "metadata": b"new-metadata",
+            }
         )
 
         swh_storage.metadata_fetcher_add([fetcher])
@@ -3683,7 +3705,12 @@ class TestStorage:
 
         assert swh_storage.origin_add([origin, origin2]) == {"origin:add": 2}
 
-        origin2_metadata = attr.evolve(origin1_metadata2, target=origin2.url)
+        origin2_metadata = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(origin1_metadata2.to_dict(), ("id",)),  # recompute id
+                "target": origin2.url,
+            }
+        )
 
         swh_storage.metadata_authority_add([authority, authority2])
         swh_storage.metadata_fetcher_add([fetcher, fetcher2])
@@ -3798,10 +3825,12 @@ class TestStorage:
         swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
         swh_storage.metadata_authority_add([authority])
 
-        new_origin_metadata2 = attr.evolve(
-            origin_metadata2,
-            discovery_date=origin_metadata2.discovery_date,
-            fetcher=attr.evolve(fetcher2, metadata=None),
+        new_origin_metadata2 = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(origin_metadata2.to_dict(), ("id",)),  # recompute id
+                "discovery_date": origin_metadata2.discovery_date,
+                "fetcher": attr.evolve(fetcher2, metadata=None).to_dict(),
+            }
         )
 
         swh_storage.raw_extrinsic_metadata_add([origin_metadata, new_origin_metadata2])

@@ -61,7 +61,8 @@ from swh.storage.writer import JournalWriter
 
 from . import converters
 from ..exc import HashCollision, StorageArgumentException
-from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
+from ..utils import remove_keys
+from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .cql import CqlRunner
 from .model import (
     ContentRow,
