@@ -656,8 +656,7 @@ class Db(BaseDb):
             SELECT %s
             FROM origin_visit ov
             INNER JOIN origin o ON o.id = ov.origin
-            INNER JOIN origin_visit_status ovs
-            ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+            INNER JOIN origin_visit_status ovs USING (origin, visit)
             WHERE o.url = %%s AND ov.visit = %%s
             ORDER BY ovs.date DESC
             LIMIT 1
@@ -719,8 +718,7 @@ class Db(BaseDb):
             "SELECT %s" % ", ".join(self.origin_visit_select_cols),
             "FROM origin_visit ov ",
             "INNER JOIN origin o ON o.id = ov.origin",
-            "INNER JOIN origin_visit_status ovs ",
-            "ON o.id = ovs.origin AND ov.visit = ovs.visit ",
+            "INNER JOIN origin_visit_status ovs USING (origin, visit)",
         ]
         query_parts.append("WHERE o.url = %s")
         query_params: List[Any] = [origin_id]
@@ -758,8 +756,7 @@ class Db(BaseDb):
         query = f"""select {columns}
                     from origin_visit ov
                     inner join origin o on ov.origin=o.id
-                    inner join origin_visit_status ovs
-                      on ov.origin = ovs.origin and ov.visit = ovs.visit
+                    inner join origin_visit_status ovs using (origin, visit)
                     where ovs.status='full'
                       and ov.type=%s
                       and ov.date > now() - '3 months'::interval
@@ -1022,8 +1019,7 @@ class Db(BaseDb):
                    WHERE EXISTS (
                      SELECT 1
                      FROM origin_visit ov
-                     INNER JOIN origin_visit_status ovs
-                       ON ov.origin = ovs.origin AND ov.visit = ovs.visit
+                     INNER JOIN origin_visit_status ovs USING (origin, visit)
                      INNER JOIN snapshot ON ovs.snapshot=snapshot.id
                      WHERE ov.origin=o.id
                      )
