@@ -3,6 +3,9 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from typing import Optional
+from unittest.mock import Mock
+
 from swh.storage import get_storage
 from swh.storage.buffer import BufferingProxyStorage
 
@@ -508,3 +511,48 @@ def test_buffer_flush_stats(sample_data) -> None:
     assert s["revision:add"] > 0
     assert s["release:add"] > 0
     assert s["snapshot:add"] > 0
+
+
+def test_buffer_operation_order(sample_data) -> None:
+    storage = get_storage_with_buffer_config()
+
+    # Wrap the inner storage in a mock to track all method calls.
+    storage.storage = mocked_storage = Mock(wraps=storage.storage)
+
+    # Simulate a loader: add contents, directories, revisions, releases, then
+    # snapshots.
+    storage.content_add(sample_data.contents)
+    storage.skipped_content_add(sample_data.skipped_contents)
+    storage.directory_add(sample_data.directories)
+    storage.revision_add(sample_data.revisions)
+    storage.release_add(sample_data.releases)
+    storage.snapshot_add(sample_data.snapshots)
+
+    # Check that nothing has been flushed yet
+    assert mocked_storage.method_calls == []
+
+    # Flush all the things
+    storage.flush()
+
+    methods_called = [c[0] for c in mocked_storage.method_calls]
+    prev = -1
+    for method in [
+        "content_add",
+        "skipped_content_add",
+        "directory_add",
+        "revision_add",
+        "release_add",
+        "snapshot_add",
+        "flush",
+    ]:
+        try:
+            cur: Optional[int] = methods_called.index(method)
+        except ValueError:
+            cur = None
+
+        assert cur is not None, "Method %s not called" % method
+        assert cur > prev, "Method %s called out of order; all calls were: %s" % (
+            method,
+            methods_called,
+        )
+        prev = cur

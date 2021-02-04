@@ -133,7 +133,7 @@ class BufferingProxyStorage:
     def flush(
         self, object_types: Sequence[LObjectType] = OBJECT_TYPES
     ) -> Dict[str, int]:
-        summary: Dict[str, int] = self.storage.flush(object_types)
+        summary: Dict[str, int] = {}
 
         def update_summary(stats):
             for k, v in stats.items():
@@ -146,6 +146,10 @@ class BufferingProxyStorage:
                 add_fn = getattr(self.storage, "%s_add" % object_type)
                 stats = add_fn(list(batch))
                 update_summary(stats)
+
+        # Flush underlying storage
+        stats = self.storage.flush(object_types)
+        update_summary(stats)
 
         self.clear_buffers(object_types)
 
