@@ -1343,7 +1343,14 @@ class Db(BaseDb):
 
     def dbversion(self):
         with self.transaction() as cur:
-            cur.execute(f"SELECT {', '.join(self.dbversion_cols)} FROM dbversion")
+            cur.execute(
+                f"""
+                SELECT {', '.join(self.dbversion_cols)}
+                FROM dbversion
+                ORDER BY version DESC
+                LIMIT 1
+                """
+            )
             return dict(zip(self.dbversion_cols, cur.fetchone()))
 
     def check_dbversion(self):
