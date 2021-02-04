@@ -13,13 +13,16 @@ from swh.model.model import BaseModel, Content, SkippedContent
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
-LObjectType = Literal["content", "skipped_content", "directory", "revision", "release"]
+LObjectType = Literal[
+    "content", "skipped_content", "directory", "revision", "release", "snapshot"
+]
 OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "content",
     "skipped_content",
     "directory",
     "revision",
     "release",
+    "snapshot",
 )
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
@@ -29,6 +32,7 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "directory": 25000,
     "revision": 100000,
     "release": 100000,
+    "snapshot": 25000,
 }
 
 
@@ -55,6 +59,7 @@ class BufferingProxyStorage:
               directory: 5000
               revision: 1000
               release: 10000
+              snapshot: 5000
 
     """
 

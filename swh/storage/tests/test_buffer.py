@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2021 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -336,6 +336,74 @@ def test_buffering_proxy_storage_release_deduplicate(sample_data) -> None:
     assert s == {}
 
 
+def test_buffering_proxy_storage_snapshot_threshold_not_hit(sample_data) -> None:
+    snapshots = sample_data.snapshots
+    threshold = 10
+
+    assert len(snapshots) < threshold
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"snapshot": threshold,}  # configuration set
+    )
+    s = storage.snapshot_add(snapshots)
+    assert s == {}
+
+    snapshot_ids = [r.id for r in snapshots]
+    missing_snapshots = storage.snapshot_missing(snapshot_ids)
+    assert list(missing_snapshots) == snapshot_ids
+
+    s = storage.flush()
+    assert s == {
+        "snapshot:add": len(snapshots),
+    }
+
+    missing_snapshots = storage.snapshot_missing(snapshot_ids)
+    assert list(missing_snapshots) == []
+
+
+def test_buffering_proxy_storage_snapshot_threshold_hit(sample_data) -> None:
+    snapshots = sample_data.snapshots
+    threshold = 2
+    assert len(snapshots) > threshold
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"snapshot": threshold,}  # configuration set
+    )
+
+    s = storage.snapshot_add(snapshots)
+    assert s == {
+        "snapshot:add": len(snapshots),
+    }
+
+    snapshot_ids = [r.id for r in snapshots]
+    missing_snapshots = storage.snapshot_missing(snapshot_ids)
+    assert list(missing_snapshots) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_snapshot_deduplicate(sample_data) -> None:
+    snapshots = sample_data.snapshots[:2]
+    storage = get_storage_with_buffer_config(min_batch_size={"snapshot": 2,})
+
+    s = storage.snapshot_add([snapshots[0], snapshots[0]])
+    assert s == {}
+
+    s = storage.snapshot_add([snapshots[0]])
+    assert s == {}
+
+    s = storage.snapshot_add([snapshots[1]])
+    assert s == {
+        "snapshot:add": 1 + 1,
+    }
+
+    missing_snapshots = storage.snapshot_missing([r.id for r in snapshots])
+    assert list(missing_snapshots) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
 def test_buffering_proxy_storage_clear(sample_data) -> None:
     """Clear operation on buffer
 
@@ -351,6 +419,8 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert 0 < len(revisions) < threshold
     releases = sample_data.releases
     assert 0 < len(releases) < threshold
+    snapshots = sample_data.snapshots
+    assert 0 < len(snapshots) < threshold
 
     storage = get_storage_with_buffer_config(
         min_batch_size={
@@ -372,12 +442,15 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert s == {}
     s = storage.release_add(releases)
     assert s == {}
+    s = storage.snapshot_add(snapshots)
+    assert s == {}
 
     assert len(storage._objects["content"]) == len(contents)
     assert len(storage._objects["skipped_content"]) == len(skipped_contents)
     assert len(storage._objects["directory"]) == len(directories)
     assert len(storage._objects["revision"]) == len(revisions)
     assert len(storage._objects["release"]) == len(releases)
+    assert len(storage._objects["snapshot"]) == len(snapshots)
 
     # clear only content from the buffer
     s = storage.clear_buffers(["content"])  # type: ignore
@@ -390,6 +463,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["directory"]) == len(directories)
     assert len(storage._objects["revision"]) == len(revisions)
     assert len(storage._objects["release"]) == len(releases)
+    assert len(storage._objects["snapshot"]) == len(snapshots)
 
     # clear current buffer from all object types
     s = storage.clear_buffers()  # type: ignore
@@ -400,6 +474,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["directory"]) == 0
     assert len(storage._objects["revision"]) == 0
     assert len(storage._objects["release"]) == 0
+    assert len(storage._objects["snapshot"]) == 0
 
 
 def test_buffer_proxy_with_default_args() -> None:
