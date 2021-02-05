@@ -268,7 +268,7 @@ alter table metadata_authority add primary key using index metadata_authority_pk
 create unique index concurrently raw_extrinsic_metadata_pkey on raw_extrinsic_metadata(id);
 alter table raw_extrinsic_metadata add primary key using index raw_extrinsic_metadata_pkey;
 
-create unique index concurrently raw_extrinsic_metadata_content_authority_date_fetcher on raw_extrinsic_metadata(target, authority_id, discovery_date, fetcher_id);
+create index concurrently raw_extrinsic_metadata_content_authority_date on raw_extrinsic_metadata(target, authority_id, discovery_date);
 
 \if :dbflavor_default
   alter table raw_extrinsic_metadata add constraint raw_extrinsic_metadata_authority_fkey foreign key (authority_id) references metadata_authority(id) not valid;

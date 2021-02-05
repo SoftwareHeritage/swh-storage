@@ -29,7 +29,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 171
+    current_version = 172
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -1226,7 +1226,7 @@ class Db(BaseDb):
         INSERT INTO raw_extrinsic_metadata
             ({', '.join(_raw_extrinsic_metadata_insert_cols)})
         VALUES ({', '.join('%s' for _ in _raw_extrinsic_metadata_insert_cols)})
-        ON CONFLICT (target, authority_id, discovery_date, fetcher_id)
+        ON CONFLICT (id)
         DO NOTHING
     """
 

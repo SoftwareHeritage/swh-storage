@@ -1196,6 +1196,7 @@ class CassandraStorage:
 
             try:
                 row = RawExtrinsicMetadataRow(
+                    id=metadata_entry.id,
                     type=metadata_entry.target.object_type.name.lower(),
                     target=str(metadata_entry.target),
                     authority_type=metadata_entry.authority.type.value,
@@ -1226,20 +1227,13 @@ class CassandraStorage:
         limit: int = 1000,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if page_token is not None:
-            (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
-                base64.b64decode(page_token)
-            )
+            (after_date, id_) = msgpack_loads(base64.b64decode(page_token))
             if after and after_date < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
                 )
-            entries = self._cql_runner.raw_extrinsic_metadata_get_after_date_and_fetcher(  # noqa
-                str(target),
-                authority.type.value,
-                authority.url,
-                after_date,
-                after_fetcher_name,
-                after_fetcher_url,
+            entries = self._cql_runner.raw_extrinsic_metadata_get_after_date_and_id(
+                str(target), authority.type.value, authority.url, after_date, id_,
             )
         elif after is not None:
             entries = self._cql_runner.raw_extrinsic_metadata_get_after_date(
@@ -1287,13 +1281,7 @@ class CassandraStorage:
             assert len(results) == limit
             last_result = results[-1]
             next_page_token: Optional[str] = base64.b64encode(
-                msgpack_dumps(
-                    (
-                        last_result.discovery_date,
-                        last_result.fetcher.name,
-                        last_result.fetcher.version,
-                    )
-                )
+                msgpack_dumps((last_result.discovery_date, last_result.id,))
             ).decode()
         else:
             next_page_token = None
