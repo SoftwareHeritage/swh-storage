@@ -1312,6 +1312,7 @@ class Storage:
             fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
             db.raw_extrinsic_metadata_add(
+                id=metadata_entry.id,
                 type=metadata_entry.target.object_type.name.lower(),
                 target=str(metadata_entry.target),
                 discovery_date=metadata_entry.discovery_date,

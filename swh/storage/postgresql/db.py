@@ -29,7 +29,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 170
+    current_version = 171
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -1209,6 +1209,7 @@ class Db(BaseDb):
     """The list of context columns for all artifact types."""
 
     _raw_extrinsic_metadata_insert_cols = [
+        "id",
         "type",
         "target",
         "authority_id",
@@ -1257,6 +1258,7 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_add(
         self,
+        id: bytes,
         type: str,
         target: str,
         discovery_date: datetime.datetime,
@@ -1275,6 +1277,7 @@ class Db(BaseDb):
     ):
         query = self._raw_extrinsic_metadata_insert_query
         args: Dict[str, Any] = dict(
+            id=id,
             type=type,
             target=target,
             authority_id=authority_id,

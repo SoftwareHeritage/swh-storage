@@ -264,6 +264,10 @@ alter table metadata_authority add primary key using index metadata_authority_pk
 
 
 -- raw_extrinsic_metadata
+
+create unique index concurrently raw_extrinsic_metadata_pkey on raw_extrinsic_metadata(id);
+alter table raw_extrinsic_metadata add primary key using index raw_extrinsic_metadata_pkey;
+
 create unique index concurrently raw_extrinsic_metadata_content_authority_date_fetcher on raw_extrinsic_metadata(target, authority_id, discovery_date, fetcher_id);
 
 \if :dbflavor_default
