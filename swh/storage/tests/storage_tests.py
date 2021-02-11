@@ -1748,6 +1748,52 @@ class TestStorage:
         assert actual_page.next_page_token is None
         assert actual_page.results == [origin2]
 
+    def test_origin_search_no_visit_types(self, swh_storage, sample_data):
+        origin = sample_data.origins[0]
+        swh_storage.origin_add([origin])
+        actual_page = swh_storage.origin_search(origin.url, visit_types=["git"])
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
+
+    def test_origin_search_with_visit_types(self, swh_storage, sample_data):
+        origin, origin2 = sample_data.origins[:2]
+        swh_storage.origin_add([origin, origin2])
+        swh_storage.origin_visit_add(
+            [
+                OriginVisit(origin=origin.url, date=now(), type="git"),
+                OriginVisit(origin=origin2.url, date=now(), type="svn"),
+            ]
+        )
+        actual_page = swh_storage.origin_search(origin.url, visit_types=["git"])
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin]
+
+        actual_page = swh_storage.origin_search(origin2.url, visit_types=["svn"])
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [origin2]
+
+    def test_origin_search_multiple_visit_types(self, swh_storage, sample_data):
+        origin = sample_data.origins[0]
+        swh_storage.origin_add([origin])
+
+        def _add_visit_type(visit_type):
+            swh_storage.origin_visit_add(
+                [OriginVisit(origin=origin.url, date=now(), type=visit_type)]
+            )
+
+        def _check_visit_types(visit_types):
+            actual_page = swh_storage.origin_search(origin.url, visit_types=visit_types)
+            assert actual_page.next_page_token is None
+            assert actual_page.results == [origin]
+
+        _add_visit_type("git")
+        _check_visit_types(["git"])
+        _check_visit_types(["git", "hg"])
+
+        _add_visit_type("hg")
+        _check_visit_types(["hg"])
+        _check_visit_types(["git", "hg"])
+
     def test_origin_visit_add(self, swh_storage, sample_data):
         origin1 = sample_data.origins[1]
         swh_storage.origin_add([origin1])
