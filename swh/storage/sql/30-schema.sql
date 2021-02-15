@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(166, now(), 'Work In Progress');
+      values(167, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -301,7 +301,7 @@ create table origin_visit_status
   origin   bigint not null,
   visit    bigint not null,
   date     timestamptz not null,
-  type     text,
+  type     text not null,
   status   origin_visit_state not null,
   metadata jsonb,
   snapshot sha1_git

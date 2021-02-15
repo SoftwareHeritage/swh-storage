@@ -312,6 +312,7 @@ def test_storage_play_anonymized(
     worker_fn = functools.partial(process_replay_objects, storage=dst_storage)
 
     nb_inserted = replayer.process(worker_fn)
+    replayer.consumer.commit()
     assert nb_sent == nb_inserted
     check_replayed(storage, dst_storage, expected_anonymized=True)
 
@@ -319,7 +320,7 @@ def test_storage_play_anonymized(
     dst_storage = get_storage(cls="memory")
     replayer = JournalClient(
         brokers=kafka_server,
-        group_id=kafka_consumer_group,
+        group_id=f"{kafka_consumer_group}-2",
         prefix=kafka_prefix,
         stop_after_objects=nb_sent,
         privileged=True,
@@ -327,6 +328,7 @@ def test_storage_play_anonymized(
     worker_fn = functools.partial(process_replay_objects, storage=dst_storage)
 
     nb_inserted = replayer.process(worker_fn)
+    replayer.consumer.commit()
     assert nb_sent == nb_inserted
     check_replayed(storage, dst_storage, expected_anonymized=False)
 
