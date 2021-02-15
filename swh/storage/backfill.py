@@ -146,7 +146,7 @@ COLUMNS = {
         ("origin_visit_status.visit", "visit"),
         ("origin.url", "origin"),
         ("origin_visit_status.date", "date"),
-        ("origin_visit.type", "type"),
+        "type",
         "snapshot",
         "status",
         "metadata",
@@ -161,13 +161,7 @@ JOINS = {
         "person c on revision.committer=c.id",
     ],
     "origin_visit": ["origin on origin_visit.origin=origin.id"],
-    "origin_visit_status": [
-        "origin on origin_visit_status.origin=origin.id",
-        # Joining on origin_visit to be able to  backfill before the
-        # origin_visit_status.type is populated by a migration script
-        # TODO remove this when origin_visit_status.type is fully populated
-        "origin_visit using (origin, visit)",
-    ],
+    "origin_visit_status": ["origin on origin_visit_status.origin=origin.id",],
     "raw_extrinsic_metadata": [
         "metadata_authority on "
         "raw_extrinsic_metadata.authority_id=metadata_authority.id",

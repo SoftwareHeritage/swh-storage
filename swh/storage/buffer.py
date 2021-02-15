@@ -13,13 +13,16 @@ from swh.model.model import BaseModel, Content, SkippedContent
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
-LObjectType = Literal["content", "skipped_content", "directory", "revision", "release"]
+LObjectType = Literal[
+    "content", "skipped_content", "directory", "revision", "release", "snapshot"
+]
 OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "content",
     "skipped_content",
     "directory",
     "revision",
     "release",
+    "snapshot",
 )
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
@@ -29,6 +32,7 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "directory": 25000,
     "revision": 100000,
     "release": 100000,
+    "snapshot": 25000,
 }
 
 
@@ -55,6 +59,7 @@ class BufferingProxyStorage:
               directory: 5000
               revision: 1000
               release: 10000
+              snapshot: 5000
 
     """
 
@@ -128,14 +133,23 @@ class BufferingProxyStorage:
     def flush(
         self, object_types: Sequence[LObjectType] = OBJECT_TYPES
     ) -> Dict[str, int]:
-        summary: Dict[str, int] = self.storage.flush(object_types)
+        summary: Dict[str, int] = {}
+
+        def update_summary(stats):
+            for k, v in stats.items():
+                summary[k] = v + summary.get(k, 0)
+
         for object_type in object_types:
             buffer_ = self._objects[object_type]
             batches = grouper(buffer_.values(), n=self._buffer_thresholds[object_type])
             for batch in batches:
                 add_fn = getattr(self.storage, "%s_add" % object_type)
                 stats = add_fn(list(batch))
-                summary = {k: v + summary.get(k, 0) for k, v in stats.items()}
+                update_summary(stats)
+
+        # Flush underlying storage
+        stats = self.storage.flush(object_types)
+        update_summary(stats)
 
         self.clear_buffers(object_types)
 

@@ -908,12 +908,12 @@ class Storage:
                 f"{','.join(VISIT_STATUSES)} authorized"
             )
 
-        row = db.origin_visit_status_get_latest(
+        row_d = db.origin_visit_status_get_latest(
             origin_url, visit, allowed_statuses, require_snapshot, cur=cur
         )
-        if not row:
+        if not row_d:
             return None
-        return OriginVisitStatus.from_dict(row)
+        return OriginVisitStatus(**row_d)
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1046,17 +1046,7 @@ class Storage:
             origin, visit, date_from=date_from, order=order, limit=limit + 1, cur=cur,
         ):
             row_d = dict(zip(db.origin_visit_status_cols, row))
-            visit_statuses.append(
-                OriginVisitStatus(
-                    origin=row_d["origin"],
-                    visit=row_d["visit"],
-                    date=row_d["date"],
-                    type=row_d["type"],
-                    status=row_d["status"],
-                    snapshot=row_d["snapshot"],
-                    metadata=row_d["metadata"],
-                )
-            )
+            visit_statuses.append(OriginVisitStatus(**row_d))
 
         if len(visit_statuses) > limit:
             # last visit status date is the next page token
@@ -1073,17 +1063,8 @@ class Storage:
     ) -> Optional[OriginVisitStatus]:
         row = db.origin_visit_get_random(type, cur)
         if row is not None:
-            row_d = dict(zip(db.origin_visit_get_cols, row))
-            visit_status = OriginVisitStatus(
-                origin=row_d["origin"],
-                visit=row_d["visit"],
-                date=row_d["date"],
-                type=row_d["type"],
-                status=row_d["status"],
-                metadata=row_d["metadata"],
-                snapshot=row_d["snapshot"],
-            )
-            return visit_status
+            row_d = dict(zip(db.origin_visit_status_cols, row))
+            return OriginVisitStatus(**row_d)
         return None
 
     @timed
