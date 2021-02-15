@@ -1,3 +1,20 @@
+swh-storage (0.23.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.23.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-02-15 15:20:21
+    +0100)
+  * Upstream changes:     - v0.23.0     - storage: Refactor
+    OriginVisitStatus instantiation     - db: Unify sql joins on
+    origin_visit_status using "USING"     - storage.postgresql: Use
+    origin_visit_status.type value as source     - test_replay: Fix hang
+    since confluent-kafka 1.6 release     - postgresql: Fix dbversion()
+    to return the max version instead of a random one.     - buffer:
+    ensure objects are flushed in topological order     - Return an
+    accurate summary from buffer's flush() method     - buffer: add
+    support for snapshots     - buffer: add type annotations for tests
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 15 Feb 2021 14:39:04 +0000
+
 swh-storage (0.22.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.22.0     - (tagged by Antoine R. Dumont
