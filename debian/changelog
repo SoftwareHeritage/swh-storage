@@ -1,8 +1,25 @@
-swh-storage (0.22.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.23.0-1~swh2) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * Fix dependency issue
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 03 Feb 2021 11:20:05 +0000
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Tue, 16 Feb 2021 14:34:57 +0100
+
+swh-storage (0.23.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.23.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-02-15 15:20:21
+    +0100)
+  * Upstream changes:     - v0.23.0     - storage: Refactor
+    OriginVisitStatus instantiation     - db: Unify sql joins on
+    origin_visit_status using "USING"     - storage.postgresql: Use
+    origin_visit_status.type value as source     - test_replay: Fix hang
+    since confluent-kafka 1.6 release     - postgresql: Fix dbversion()
+    to return the max version instead of a random one.     - buffer:
+    ensure objects are flushed in topological order     - Return an
+    accurate summary from buffer's flush() method     - buffer: add
+    support for snapshots     - buffer: add type annotations for tests
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 15 Feb 2021 14:39:04 +0000
 
 swh-storage (0.22.0-1~swh1) unstable-swh; urgency=medium
 
@@ -487,7 +504,7 @@ swh-storage (0.10.1-1~swh1) unstable-swh; urgency=medium
     (@ardumont) <ardumont@softwareheritage.org> on 2020-07-08 14:32:52
     +0200)
   * Upstream changes:     - v0.10.1     - extract-pytest-fixture Move
-    sharable fixtures out of conftest into a dedicated pytest plugin
+    shareable fixtures out of conftest into a dedicated pytest plugin
     - Migrate from vcversioner to setuptools-scm
 
  -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Jul 2020 12:39:15 +0000
@@ -809,7 +826,7 @@ swh-storage (0.0.183-1~swh1) unstable-swh; urgency=medium
     erroneous HashCollisions by using the same ctime for all rows.     -
     Enable black     - origin_visit_update: ensure it raises a
     StorageArgumentException     - Adapt cassandra backend to validating
-    model types     - tests: many refactoring improvments     - tests:
+    model types     - tests: many refactoring improvements     - tests:
     Shut down cassandra connection before closing the fixture down     -
     Add more type annotations
 
@@ -1567,7 +1584,7 @@ swh-storage (0.0.112-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.112
   * in-memory storage: Align with existing storage
-  * docstring: Improvments and adapt according to api
+  * docstring: Improvements and adapt according to api
   * doc: update index to match new swh-doc format
   * Increase test coverage for stat_counters + fix its bugs.
 
@@ -1586,7 +1603,7 @@ swh-storage (0.0.110-1~swh1) unstable-swh; urgency=medium
   * v0.0.110
   * storage: Open content_get_range endpoint
   * tests: Start using hypothesis for tests generation
-  * Improvments: Remove SQLisms from the tests and API
+  * Improvements: Remove SQLisms from the tests and API
   * docs: Document metadata providers
 
  -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 16 Nov 2018 11:53:14 +0100
@@ -2131,7 +2148,7 @@ swh-storage (0.0.43-1~swh1) unstable-swh; urgency=medium
 swh-storage (0.0.42-1~swh1) unstable-swh; urgency=medium
 
   * Add an object storage multiplexer to allow transition between
-    multiple versions of objet storages.
+    multiple versions of object storages.
 
  -- Quentin Campos <qcampos@etud.u-pem.fr>  Tue, 21 Jun 2016 15:03:52 +0200
 

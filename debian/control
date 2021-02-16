@@ -29,6 +29,12 @@ Build-Depends: debhelper (>= 9),
                python3-swh.core.db.pytestplugin (>= 0.9),
                python3-typing-extensions (>= 3.7.4~),
                python3-tenacity
+# Only the jre 11 is supported with cassandra. Unfortunately, some other jre packages
+# are pulled, so we prevent those from being installed.
+# Related to https://forge.softwareheritage.org/T3053#58819
+Build-Conflicts: openjdk-17-jre-headless,
+                 openjdk-16-jre-headless,
+                 openjdk-15-jre-headless,
 Standards-Version: 3.9.6
 Homepage: https://forge.softwareheritage.org/diffusion/DSTO/
 

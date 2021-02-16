@@ -1,7 +1,9 @@
 #!/usr/bin/make -f
 
+# To activate more logs
+# export SWH_CASSANDRA_LOGS=1
 export PYBUILD_NAME=swh.storage
-export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not network" \
+export PYBUILD_TEST_ARGS=-x -v -m "not db and not fs and not network" \
 	--hypothesis-profile=fast ./swh/storage/tests \
 	-p no:pytest_swh_storage
 
