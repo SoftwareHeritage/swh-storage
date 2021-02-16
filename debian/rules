@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 export PYBUILD_NAME=swh.storage
-export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not network" \
+export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not network and not cassandra" \
 	--hypothesis-profile=fast ./swh/storage/tests \
 	-p no:pytest_swh_storage
 
