@@ -498,7 +498,7 @@ swh-storage (0.10.1-1~swh1) unstable-swh; urgency=medium
     (@ardumont) <ardumont@softwareheritage.org> on 2020-07-08 14:32:52
     +0200)
   * Upstream changes:     - v0.10.1     - extract-pytest-fixture Move
-    sharable fixtures out of conftest into a dedicated pytest plugin
+    shareable fixtures out of conftest into a dedicated pytest plugin
     - Migrate from vcversioner to setuptools-scm
 
  -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Jul 2020 12:39:15 +0000
@@ -820,7 +820,7 @@ swh-storage (0.0.183-1~swh1) unstable-swh; urgency=medium
     erroneous HashCollisions by using the same ctime for all rows.     -
     Enable black     - origin_visit_update: ensure it raises a
     StorageArgumentException     - Adapt cassandra backend to validating
-    model types     - tests: many refactoring improvments     - tests:
+    model types     - tests: many refactoring improvements     - tests:
     Shut down cassandra connection before closing the fixture down     -
     Add more type annotations
 
@@ -1578,7 +1578,7 @@ swh-storage (0.0.112-1~swh1) unstable-swh; urgency=medium
 
   * v0.0.112
   * in-memory storage: Align with existing storage
-  * docstring: Improvments and adapt according to api
+  * docstring: Improvements and adapt according to api
   * doc: update index to match new swh-doc format
   * Increase test coverage for stat_counters + fix its bugs.
 
@@ -1597,7 +1597,7 @@ swh-storage (0.0.110-1~swh1) unstable-swh; urgency=medium
   * v0.0.110
   * storage: Open content_get_range endpoint
   * tests: Start using hypothesis for tests generation
-  * Improvments: Remove SQLisms from the tests and API
+  * Improvements: Remove SQLisms from the tests and API
   * docs: Document metadata providers
 
  -- Antoine R. Dumont (@ardumont) <antoine.romain.dumont@gmail.com>  Fri, 16 Nov 2018 11:53:14 +0100
@@ -2142,7 +2142,7 @@ swh-storage (0.0.43-1~swh1) unstable-swh; urgency=medium
 swh-storage (0.0.42-1~swh1) unstable-swh; urgency=medium
 
   * Add an object storage multiplexer to allow transition between
-    multiple versions of objet storages.
+    multiple versions of object storages.
 
  -- Quentin Campos <qcampos@etud.u-pem.fr>  Tue, 21 Jun 2016 15:03:52 +0200
 
