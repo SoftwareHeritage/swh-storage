@@ -2,10 +2,12 @@ Source: swh-storage
 Maintainer: Software Heritage developers <swh-devel@inria.fr>
 Section: python
 Priority: optional
+# Please, let the dependency openjdk-11-jre before cassandra to avoid build issues
+# Related to https://forge.softwareheritage.org/T3053#58815
 Build-Depends: debhelper (>= 9),
                dh-python (>= 2),
-               cassandra,
                openjdk-11-jre,
+               cassandra,
                python3-aiohttp,
                python3-all,
                python3-cassandra,

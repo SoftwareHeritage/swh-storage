@@ -1,6 +1,5 @@
 #!/usr/bin/make -f
 
-export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 # To activate more logs
 # export SWH_CASSANDRA_LOGS=1
 export PYBUILD_NAME=swh.storage
