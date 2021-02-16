@@ -1,3 +1,13 @@
+swh-storage (0.23.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.23.1     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-02-16 17:19:00
+    +0100)
+  * Upstream changes:     - v0.23.1     - Switch anonymized replayer
+    test to use pytest parametrization
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 16 Feb 2021 16:28:25 +0000
+
 swh-storage (0.23.0-1~swh2) unstable-swh; urgency=medium
 
   * Fix dependency issue
