@@ -1,8 +1,9 @@
 #!/usr/bin/make -f
 
+# export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 export SWH_CASSANDRA_LOGS=1
 export PYBUILD_NAME=swh.storage
-export PYBUILD_TEST_ARGS=-v -m "not db and not fs and not network" \
+export PYBUILD_TEST_ARGS=-x -v -m "not db and not fs and not network" \
 	--hypothesis-profile=fast ./swh/storage/tests \
 	-p no:pytest_swh_storage
 
