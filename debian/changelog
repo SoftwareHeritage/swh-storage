@@ -1,3 +1,9 @@
+swh-storage (0.23.0-1~swh2) unstable-swh; urgency=medium
+
+  * Fix dependency issue
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Tue, 16 Feb 2021 14:34:57 +0100
+
 swh-storage (0.23.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.23.0     - (tagged by Antoine R. Dumont
