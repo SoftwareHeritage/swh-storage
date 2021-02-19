@@ -24,6 +24,7 @@ from typing import (
 
 import attr
 
+from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import SWHID, parse_swhid
@@ -818,6 +819,7 @@ class CassandraStorage:
         limit: int = 50,
         regexp: bool = False,
         with_visit: bool = False,
+        visit_types: Optional[List[str]] = None,
     ) -> PagedResult[Origin]:
         # TODO: remove this endpoint, swh-search should be used instead.
         next_page_token = None
@@ -832,6 +834,18 @@ class CassandraStorage:
 
         if with_visit:
             origin_rows = [row for row in origin_rows if row.next_visit_id > 1]
+
+        if visit_types:
+
+            def _has_visit_types(origin, visit_types):
+                for origin_visit in stream_results(self.origin_visit_get, origin):
+                    if origin_visit.type in visit_types:
+                        return True
+                return False
+
+            origin_rows = [
+                row for row in origin_rows if _has_visit_types(row.url, visit_types)
+            ]
 
         origins = [Origin(url=row.url) for row in origin_rows]
 

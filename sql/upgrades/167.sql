@@ -6,6 +6,11 @@
 insert into dbversion(version, release, description)
       values(167, now(), 'Work In Progress');
 
--- Data migrated, all values populated now
+-- (blocking) Data migrated, all values populated now, so we can add the constraint
+-- alter table origin_visit_status alter column type set not null;
+
+-- (unblocking) functionally equivalent constraint
 alter table origin_visit_status
-  alter column type set not null;
+  add constraint type_not_null check (type is not null) not valid;
+
+alter table origin_visit_status validate constraint type_not_null;

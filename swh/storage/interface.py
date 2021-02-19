@@ -1003,6 +1003,7 @@ class StorageInterface(Protocol):
         limit: int = 50,
         regexp: bool = False,
         with_visit: bool = False,
+        visit_types: Optional[List[str]] = None,
     ) -> PagedResult[Origin]:
         """Search for origins whose urls contain a provided string pattern
         or match a provided regular expression.
@@ -1015,6 +1016,8 @@ class StorageInterface(Protocol):
             regexp: if True, consider the provided pattern as a regular
                 expression and return origins whose urls match it
             with_visit: if True, filter out origins with no visit
+            visit_types: Only origins having any of the provided visit types
+                (e.g. git, svn, pypi) will be returned
 
         Yields:
             PagedResult of Origin
