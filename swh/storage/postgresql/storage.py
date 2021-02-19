@@ -1147,6 +1147,7 @@ class Storage:
         limit: int = 50,
         regexp: bool = False,
         with_visit: bool = False,
+        visit_types: Optional[List[str]] = None,
         db=None,
         cur=None,
     ) -> PagedResult[Origin]:
@@ -1156,7 +1157,7 @@ class Storage:
         origins = []
         # Take one more origin so we can reuse it as the next page token if any
         for origin in db.origin_search(
-            url_pattern, offset, limit + 1, regexp, with_visit, cur
+            url_pattern, offset, limit + 1, regexp, with_visit, visit_types, cur
         ):
             row_d = dict(zip(db.origin_cols, origin))
             origins.append(Origin(url=row_d["url"]))

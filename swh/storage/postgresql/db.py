@@ -982,6 +982,7 @@ class Db(BaseDb):
         limit=50,
         regexp=False,
         with_visit=False,
+        visit_types=None,
         cur=None,
     ):
         """
@@ -1014,16 +1015,28 @@ class Db(BaseDb):
             FROM filtered_origins AS o
             """
 
-        if with_visit:
-            query += """
-                   WHERE EXISTS (
-                     SELECT 1
-                     FROM origin_visit ov
-                     INNER JOIN origin_visit_status ovs USING (origin, visit)
-                     INNER JOIN snapshot ON ovs.snapshot=snapshot.id
-                     WHERE ov.origin=o.id
-                     )
-            """
+        if with_visit or visit_types:
+            visit_predicat = (
+                """
+                INNER JOIN origin_visit_status ovs USING (origin, visit)
+                INNER JOIN snapshot ON ovs.snapshot=snapshot.id
+                """
+                if with_visit
+                else ""
+            )
+
+            type_predicat = (
+                f"AND ov.type=any(ARRAY{visit_types})" if visit_types else ""
+            )
+
+            query += f"""
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM origin_visit ov
+                    {visit_predicat}
+                    WHERE ov.origin=o.id {type_predicat}
+                )
+                """
 
         if not count:
             query += "OFFSET %s LIMIT %s"
@@ -1038,6 +1051,7 @@ class Db(BaseDb):
         limit: int = 50,
         regexp: bool = False,
         with_visit: bool = False,
+        visit_types: Optional[List[str]] = None,
         cur=None,
     ):
         """Search for origins whose urls contain a provided string pattern
@@ -1060,6 +1074,7 @@ class Db(BaseDb):
             limit=limit,
             regexp=regexp,
             with_visit=with_visit,
+            visit_types=visit_types,
             cur=cur,
         )
         yield from cur
