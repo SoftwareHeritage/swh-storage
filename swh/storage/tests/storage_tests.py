@@ -19,11 +19,9 @@ import pytest
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
-from swh.model.identifiers import SWHID
 from swh.model.model import (
     Content,
     Directory,
-    MetadataTargetType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -3380,17 +3378,13 @@ class TestStorage:
         authority = sample_data.metadata_authority
         content_metadata = sample_data.content_metadata[:2]
 
-        content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content.sha1_git)
-        )
-
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
         swh_storage.raw_extrinsic_metadata_add(content_metadata)
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content_swhid, authority
+            content.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
         assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == list(
@@ -3412,9 +3406,6 @@ class TestStorage:
         fetcher = sample_data.metadata_fetcher
         authority = sample_data.metadata_authority
         content_metadata, content_metadata2 = sample_data.content_metadata[:2]
-        content_swhid = SWHID(
-            object_type="content", object_id=hash_to_bytes(content.sha1_git)
-        )
 
         new_content_metadata2 = RawExtrinsicMetadata.from_dict(
             {
@@ -3431,7 +3422,7 @@ class TestStorage:
         swh_storage.raw_extrinsic_metadata_add([new_content_metadata2])
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content_swhid, authority
+            content.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
 
@@ -3453,12 +3444,10 @@ class TestStorage:
             content1_metadata3,
         ) = sample_data.content_metadata[:3]
 
-        content1_swhid = SWHID(object_type="content", object_id=content.sha1_git)
-        content2_swhid = SWHID(object_type="content", object_id=content2.sha1_git)
         content2_metadata = RawExtrinsicMetadata.from_dict(
             {
                 **remove_keys(content1_metadata2.to_dict(), ("id",)),  # recompute id
-                "target": str(content2_swhid),
+                "target": str(content2.swhid()),
             }
         )
 
@@ -3475,7 +3464,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content1_swhid, authority
+            content.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
         assert [content1_metadata1, content1_metadata2] == list(
@@ -3483,7 +3472,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content1_swhid, authority2
+            content.swhid().to_extended(), authority2
         )
         assert result.next_page_token is None
         assert [content1_metadata3] == list(
@@ -3491,7 +3480,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content2_swhid, authority
+            content2.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
         assert [content2_metadata] == list(result.results,)
@@ -3502,16 +3491,13 @@ class TestStorage:
         authority = sample_data.metadata_authority
         content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
-        content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
-
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
         swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT,
-            content_swhid,
+            content.swhid().to_extended(),
             authority,
             after=content_metadata.discovery_date - timedelta(seconds=1),
         )
@@ -3521,8 +3507,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT,
-            content_swhid,
+            content.swhid().to_extended(),
             authority,
             after=content_metadata.discovery_date,
         )
@@ -3530,8 +3515,7 @@ class TestStorage:
         assert result.results == [content_metadata2]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT,
-            content_swhid,
+            content.swhid().to_extended(),
             authority,
             after=content_metadata2.discovery_date,
         )
@@ -3544,24 +3528,19 @@ class TestStorage:
         authority = sample_data.metadata_authority
         content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
-        content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
-
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
         swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
-        swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content_swhid, authority
-        )
+        swh_storage.raw_extrinsic_metadata_get(content.swhid().to_extended(), authority)
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content_swhid, authority, limit=1
+            content.swhid().to_extended(), authority, limit=1
         )
         assert result.next_page_token is not None
         assert result.results == [content_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT,
-            content_swhid,
+            content.swhid().to_extended(),
             authority,
             limit=1,
             page_token=result.next_page_token,
@@ -3574,8 +3553,6 @@ class TestStorage:
         fetcher1, fetcher2 = sample_data.fetchers[:2]
         authority = sample_data.metadata_authority
         content_metadata, content_metadata2 = sample_data.content_metadata[:2]
-
-        content_swhid = SWHID(object_type="content", object_id=content.sha1_git)
 
         swh_storage.metadata_fetcher_add([fetcher1, fetcher2])
         swh_storage.metadata_authority_add([authority])
@@ -3593,14 +3570,13 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT, content_swhid, authority, limit=1
+            content.swhid().to_extended(), authority, limit=1
         )
         assert result.next_page_token is not None
         assert result.results == [content_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.CONTENT,
-            content_swhid,
+            content.swhid().to_extended(),
             authority,
             limit=1,
             page_token=result.next_page_token,
@@ -3608,21 +3584,6 @@ class TestStorage:
         assert result.next_page_token is None
         assert result.results[0].to_dict() == new_content_metadata2.to_dict()
         assert result.results == [new_content_metadata2]
-
-    def test_content_metadata_get__invalid_id(self, swh_storage, sample_data):
-        origin = sample_data.origin
-        fetcher = sample_data.metadata_fetcher
-        authority = sample_data.metadata_authority
-        content_metadata, content_metadata2 = sample_data.content_metadata[:2]
-
-        swh_storage.metadata_fetcher_add([fetcher])
-        swh_storage.metadata_authority_add([authority])
-        swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
-
-        with pytest.raises(StorageArgumentException, match="SWHID"):
-            swh_storage.raw_extrinsic_metadata_get(
-                MetadataTargetType.CONTENT, origin.url, authority
-            )
 
     def test_origin_metadata_add(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3638,7 +3599,7 @@ class TestStorage:
         swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority
+            Origin(origin.url).swhid(), authority
         )
         assert result.next_page_token is None
         assert list(sorted(result.results, key=lambda x: x.discovery_date)) == [
@@ -3680,7 +3641,7 @@ class TestStorage:
         swh_storage.raw_extrinsic_metadata_add([new_origin_metadata2])
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority
+            Origin(origin.url).swhid(), authority
         )
         assert result.next_page_token is None
 
@@ -3708,7 +3669,7 @@ class TestStorage:
         origin2_metadata = RawExtrinsicMetadata.from_dict(
             {
                 **remove_keys(origin1_metadata2.to_dict(), ("id",)),  # recompute id
-                "target": origin2.url,
+                "target": str(Origin(origin2.url).swhid()),
             }
         )
 
@@ -3720,7 +3681,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority
+            Origin(origin.url).swhid(), authority
         )
         assert result.next_page_token is None
         assert [origin1_metadata1, origin1_metadata2] == list(
@@ -3728,7 +3689,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority2
+            Origin(origin.url).swhid(), authority2
         )
         assert result.next_page_token is None
         assert [origin1_metadata3] == list(
@@ -3736,7 +3697,7 @@ class TestStorage:
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin2.url, authority
+            Origin(origin2.url).swhid(), authority
         )
         assert result.next_page_token is None
         assert [origin2_metadata] == list(result.results,)
@@ -3754,8 +3715,7 @@ class TestStorage:
         swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin.url,
+            Origin(origin.url).swhid(),
             authority,
             after=origin_metadata.discovery_date - timedelta(seconds=1),
         )
@@ -3766,17 +3726,13 @@ class TestStorage:
         ]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin.url,
-            authority,
-            after=origin_metadata.discovery_date,
+            Origin(origin.url).swhid(), authority, after=origin_metadata.discovery_date,
         )
         assert result.next_page_token is None
         assert result.results == [origin_metadata2]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin.url,
+            Origin(origin.url).swhid(),
             authority,
             after=origin_metadata2.discovery_date,
         )
@@ -3795,19 +3751,16 @@ class TestStorage:
 
         swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-        swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority
-        )
+        swh_storage.raw_extrinsic_metadata_get(Origin(origin.url).swhid(), authority)
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority, limit=1
+            Origin(origin.url).swhid(), authority, limit=1
         )
         assert result.next_page_token is not None
         assert result.results == [origin_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin.url,
+            Origin(origin.url).swhid(),
             authority,
             limit=1,
             page_token=result.next_page_token,
@@ -3836,14 +3789,13 @@ class TestStorage:
         swh_storage.raw_extrinsic_metadata_add([origin_metadata, new_origin_metadata2])
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN, origin.url, authority, limit=1
+            Origin(origin.url).swhid(), authority, limit=1
         )
         assert result.next_page_token is not None
         assert result.results == [origin_metadata]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            MetadataTargetType.ORIGIN,
-            origin.url,
+            Origin(origin.url).swhid(),
             authority,
             limit=1,
             page_token=result.next_page_token,
@@ -3872,24 +3824,6 @@ class TestStorage:
 
         with pytest.raises(StorageArgumentException, match="fetcher"):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
-
-    def test_origin_metadata_get__invalid_id_type(self, swh_storage, sample_data):
-        origin = sample_data.origin
-        authority = sample_data.metadata_authority
-        fetcher = sample_data.metadata_fetcher
-        origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
-        content_metadata = sample_data.content_metadata[0]
-        assert swh_storage.origin_add([origin]) == {"origin:add": 1}
-
-        swh_storage.metadata_fetcher_add([fetcher])
-        swh_storage.metadata_authority_add([authority])
-
-        swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
-
-        with pytest.raises(StorageArgumentException, match="SWHID"):
-            swh_storage.raw_extrinsic_metadata_get(
-                MetadataTargetType.ORIGIN, content_metadata.target, authority,
-            )
 
 
 class TestStorageGeneratedData:

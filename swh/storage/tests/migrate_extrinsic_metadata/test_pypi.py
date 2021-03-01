@@ -13,12 +13,11 @@ import urllib.error
 
 import attr
 
-from swh.model.identifiers import parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -46,7 +45,9 @@ SWH_AUTHORITY = MetadataAuthority(
 )
 
 DIRECTORY_ID = b"a" * 20
-DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+DIRECTORY_SWHID = ExtendedSWHID(
+    object_type=ExtendedObjectType.DIRECTORY, object_id=DIRECTORY_ID
+)
 
 
 def now():
@@ -280,13 +281,14 @@ def test_pypi_1():
     deposit_cur = None
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    revision_swhid = parse_swhid("swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517")
+    revision_swhid = CoreSWHID.from_string(
+        "swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517"
+    )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
+        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.DIRECTORY,
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
@@ -302,11 +304,10 @@ def test_pypi_1():
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.DIRECTORY,
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
@@ -403,13 +404,14 @@ def test_pypi_2(mocker):
 
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    revision_swhid = parse_swhid("swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca")
+    revision_swhid = CoreSWHID.from_string(
+        "swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca"
+    )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
+        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.DIRECTORY,
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
@@ -425,11 +427,10 @@ def test_pypi_2(mocker):
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.DIRECTORY,
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
@@ -509,17 +510,18 @@ def test_pypi_3(mocker):
     deposit_cur = None
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
+    revision_swhid = CoreSWHID.from_string(
+        "swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2"
+    )
 
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
+        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(results=[], next_page_token=None,)
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.DIRECTORY,
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
@@ -621,17 +623,18 @@ def test_pypi_good_origin():
     deposit_cur = None
     handle_row(copy.deepcopy(row), storage, deposit_cur, dry_run=False)
 
-    revision_swhid = parse_swhid("swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2")
+    revision_swhid = CoreSWHID.from_string(
+        "swh:1:rev:4ea9917cdf53cd13534a042e4eb3787b86c834d2"
+    )
 
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
+        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
     ) == PagedResult(results=[], next_page_token=None,)
     assert storage.raw_extrinsic_metadata_get(
-        MetadataTargetType.DIRECTORY, DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
-                type=MetadataTargetType.DIRECTORY,
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
                     2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,

@@ -15,12 +15,11 @@ from unittest.mock import patch as _patch
 import attr
 import pytest
 
-from swh.model.identifiers import parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -48,7 +47,9 @@ SWH_AUTHORITY = MetadataAuthority(
 )
 
 DIRECTORY_ID = b"a" * 20
-DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+DIRECTORY_SWHID = ExtendedSWHID(
+    object_type=ExtendedObjectType.DIRECTORY, object_id=DIRECTORY_ID
+)
 
 
 def now():
@@ -437,7 +438,6 @@ def test_debian_with_extrinsic():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 1, 26, 22, 3, 24, tzinfo=datetime.timezone.utc,
@@ -447,7 +447,7 @@ def test_debian_with_extrinsic():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0000036c311ef33a281b05688f6eadcfc0943aee"
                     ),
                 ),
@@ -554,7 +554,6 @@ def test_debian_without_extrinsic():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2011, 3, 31, 20, 17, 41, tzinfo=datetime.timezone.utc
@@ -564,7 +563,7 @@ def test_debian_without_extrinsic():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:000001c28c8fca01b904de92a2640a866ce03cb7"
                     ),
                 ),

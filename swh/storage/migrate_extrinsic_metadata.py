@@ -38,12 +38,17 @@ import psycopg2
 
 from swh.core.db import BaseDb
 from swh.model.hashutil import hash_to_hex
-from swh.model.identifiers import SWHID, parse_swhid
+from swh.model.identifiers import (
+    CoreSWHID,
+    ExtendedObjectType,
+    ExtendedSWHID,
+    ObjectType,
+    QualifiedSWHID,
+)
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     RawExtrinsicMetadata,
     Sha1Git,
 )
@@ -412,12 +417,11 @@ def load_metadata(
     dry_run: bool,
 ):
     """Does the actual loading to swh-storage."""
-    directory_swhid = SWHID(
-        object_type="directory", object_id=hash_to_hex(directory_id)
+    directory_swhid = ExtendedSWHID(
+        object_type=ExtendedObjectType.DIRECTORY, object_id=directory_id
     )
-    revision_swhid = SWHID(object_type="revision", object_id=hash_to_hex(revision_id))
+    revision_swhid = CoreSWHID(object_type=ObjectType.REVISION, object_id=revision_id)
     obj = RawExtrinsicMetadata(
-        type=MetadataTargetType.DIRECTORY,
         target=directory_swhid,
         discovery_date=discovery_date,
         authority=authority,
@@ -564,7 +568,7 @@ def handle_deposit_row(
         assert_origin_exists(storage, origin)
 
     # check the origin we computed matches the one in the deposit db
-    swhid_origin = parse_swhid(swhid).metadata["origin"]
+    swhid_origin = QualifiedSWHID.from_string(swhid).origin
     if origin is not None:
         # explicit list of mistakes that happened in the past, but shouldn't
         # happen again:
