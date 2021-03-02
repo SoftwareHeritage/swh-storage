@@ -5,7 +5,6 @@
 
 
 import hashlib
-from typing import Any, Dict, Tuple
 
 TOKEN_BEGIN = -(2 ** 63)
 """Minimum value returned by the CQL function token()"""
@@ -15,7 +14,3 @@ TOKEN_END = 2 ** 63 - 1
 
 def hash_url(url: str) -> bytes:
     return hashlib.sha1(url.encode("ascii")).digest()
-
-
-def remove_keys(d: Dict[str, Any], keys: Tuple[str, ...]) -> Dict[str, Any]:
-    return {k: v for (k, v) in d.items() if k not in keys}

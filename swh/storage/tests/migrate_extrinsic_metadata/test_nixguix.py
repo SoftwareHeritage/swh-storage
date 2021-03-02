@@ -11,12 +11,11 @@ import datetime
 import json
 from unittest.mock import Mock, call
 
-from swh.model.identifiers import parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     RawExtrinsicMetadata,
 )
@@ -37,7 +36,9 @@ NIX_UNSTABLE_AUTHORITY = MetadataAuthority(
 )
 
 DIRECTORY_ID = b"a" * 20
-DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+DIRECTORY_SWHID = ExtendedSWHID(
+    object_type=ExtendedObjectType.DIRECTORY, object_id=DIRECTORY_ID
+)
 
 
 def test_nixguix():
@@ -90,7 +91,6 @@ def test_nixguix():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 6, 3, 11, 25, 5, 259341, tzinfo=datetime.timezone.utc
@@ -100,7 +100,7 @@ def test_nixguix():
                     format="nixguix-sources-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
                     ),
                 ),
@@ -109,7 +109,6 @@ def test_nixguix():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 6, 3, 11, 25, 5, 259341, tzinfo=datetime.timezone.utc
@@ -119,7 +118,7 @@ def test_nixguix():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0001ba4dd05394850211d7b3854d9913d23ae379"
                     ),
                 ),

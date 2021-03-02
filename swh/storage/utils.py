@@ -98,6 +98,11 @@ def content_bytes_hashes(content: Dict[str, str]) -> Dict[str, bytes]:
     return {algo: hash_to_bytes(content[algo]) for algo in DEFAULT_ALGORITHMS}
 
 
+def remove_keys(d: Dict[T1, T2], keys: Tuple[T1, ...]) -> Dict[T1, T2]:
+    """Returns a copy of ``d`` minus the given keys."""
+    return {k: v for (k, v) in d.items() if k not in keys}
+
+
 def round_to_milliseconds(date):
     """Round datetime to milliseconds before insertion, so equality doesn't fail after a
     round-trip through a DB (eg. Cassandra)

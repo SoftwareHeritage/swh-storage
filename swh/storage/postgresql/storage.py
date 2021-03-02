@@ -9,7 +9,7 @@ import contextlib
 from contextlib import contextmanager
 import datetime
 import itertools
-from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import attr
 import psycopg2
@@ -19,7 +19,7 @@ import psycopg2.pool
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.model.identifiers import SWHID
+from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     SHA1_SIZE,
     Content,
@@ -27,7 +27,6 @@ from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -1232,13 +1231,13 @@ class Storage:
     ) -> None:
         metadata = list(metadata)
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
-        counter = Counter[MetadataTargetType]()
+        counter = Counter[ExtendedObjectType]()
         for metadata_entry in metadata:
             authority_id = self._get_authority_id(metadata_entry.authority, db, cur)
             fetcher_id = self._get_fetcher_id(metadata_entry.fetcher, db, cur)
 
             db.raw_extrinsic_metadata_add(
-                type=metadata_entry.type.value,
+                type=metadata_entry.target.object_type.name.lower(),
                 target=str(metadata_entry.target),
                 discovery_date=metadata_entry.discovery_date,
                 authority_id=authority_id,
@@ -1254,20 +1253,19 @@ class Storage:
                 directory=map_optional(str, metadata_entry.directory),
                 cur=cur,
             )
-            counter[metadata_entry.type] += 1
+            counter[metadata_entry.target.object_type] += 1
 
         for (type, count) in counter.items():
             send_metric(
                 f"{type.value}_metadata:add",
                 count=count,
-                method_name=f"{type.value}_metadata_add",
+                method_name=f"{type.name.lower()}_metadata_add",
             )
 
     @db_transaction()
     def raw_extrinsic_metadata_get(
         self,
-        type: MetadataTargetType,
-        target: Union[str, SWHID],
+        target: ExtendedSWHID,
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
@@ -1275,19 +1273,6 @@ class Storage:
         db=None,
         cur=None,
     ) -> PagedResult[RawExtrinsicMetadata]:
-        if type == MetadataTargetType.ORIGIN:
-            if isinstance(target, SWHID):
-                raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with type='origin', "
-                    f"but provided target is a SWHID: {target!r}"
-                )
-        else:
-            if not isinstance(target, SWHID):
-                raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with type!='origin', "
-                    f"but provided target is not a SWHID: {target!r}"
-                )
-
         if page_token:
             (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
             if after and after_time < after:
