@@ -9,8 +9,8 @@ from typing import Tuple
 import attr
 
 from swh.model import from_disk
-from swh.model.hashutil import hash_to_bytes, hash_to_hex
-from swh.model.identifiers import parse_swhid
+from swh.model.hashutil import hash_to_bytes
+from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -18,7 +18,6 @@ from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     ObjectType,
     Origin,
     OriginVisit,
@@ -463,8 +462,9 @@ class StorageData:
     snapshots: Tuple[Snapshot, ...] = (snapshot, empty_snapshot, complete_snapshot)
 
     content_metadata1 = RawExtrinsicMetadata(
-        type=MetadataTargetType.CONTENT,
-        target=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
+        target=ExtendedSWHID(
+            object_type=ExtendedObjectType.CONTENT, object_id=content.sha1_git
+        ),
         origin=origin.url,
         discovery_date=datetime.datetime(
             2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
@@ -475,8 +475,9 @@ class StorageData:
         metadata=b'{"foo": "bar"}',
     )
     content_metadata2 = RawExtrinsicMetadata(
-        type=MetadataTargetType.CONTENT,
-        target=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
+        target=ExtendedSWHID(
+            object_type=ExtendedObjectType.CONTENT, object_id=content.sha1_git
+        ),
         origin=origin2.url,
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
@@ -487,8 +488,9 @@ class StorageData:
         metadata=b"foo: bar",
     )
     content_metadata3 = RawExtrinsicMetadata(
-        type=MetadataTargetType.CONTENT,
-        target=parse_swhid(f"swh:1:cnt:{hash_to_hex(content.sha1_git)}"),
+        target=ExtendedSWHID(
+            object_type=ExtendedObjectType.CONTENT, object_id=content.sha1_git
+        ),
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),
@@ -498,10 +500,10 @@ class StorageData:
         metadata=b"foo: bar",
         origin=origin.url,
         visit=42,
-        snapshot=parse_swhid(f"swh:1:snp:{hash_to_hex(snapshot.id)}"),
-        release=parse_swhid(f"swh:1:rel:{hash_to_hex(release.id)}"),
-        revision=parse_swhid(f"swh:1:rev:{hash_to_hex(revision.id)}"),
-        directory=parse_swhid(f"swh:1:dir:{hash_to_hex(directory.id)}"),
+        snapshot=snapshot.swhid(),
+        release=release.swhid(),
+        revision=revision.swhid(),
+        directory=directory.swhid(),
         path=b"/foo/bar",
     )
 
@@ -512,8 +514,7 @@ class StorageData:
     )
 
     origin_metadata1 = RawExtrinsicMetadata(
-        type=MetadataTargetType.ORIGIN,
-        target=origin.url,
+        target=Origin(origin.url).swhid(),
         discovery_date=datetime.datetime(
             2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
         ),
@@ -523,8 +524,7 @@ class StorageData:
         metadata=b'{"foo": "bar"}',
     )
     origin_metadata2 = RawExtrinsicMetadata(
-        type=MetadataTargetType.ORIGIN,
-        target=origin.url,
+        target=Origin(origin.url).swhid(),
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),
@@ -534,8 +534,7 @@ class StorageData:
         metadata=b"foo: bar",
     )
     origin_metadata3 = RawExtrinsicMetadata(
-        type=MetadataTargetType.ORIGIN,
-        target=origin.url,
+        target=Origin(origin.url).swhid(),
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),

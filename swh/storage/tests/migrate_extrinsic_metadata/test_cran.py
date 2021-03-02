@@ -11,12 +11,11 @@ import datetime
 import json
 from unittest.mock import Mock, call
 
-from swh.model.identifiers import parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     RawExtrinsicMetadata,
 )
@@ -32,7 +31,9 @@ SWH_AUTHORITY = MetadataAuthority(
 )
 
 DIRECTORY_ID = b"a" * 20
-DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+DIRECTORY_SWHID = ExtendedSWHID(
+    object_type=ExtendedObjectType.DIRECTORY, object_id=DIRECTORY_ID
+)
 
 
 def test_cran_package_from_url():
@@ -118,7 +119,6 @@ def test_cran():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 5, 7, 15, 27, 38, 652281, tzinfo=datetime.timezone.utc,
@@ -128,7 +128,7 @@ def test_cran():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:000361aa33842cbdea5fa6e77db696b937ebd269"
                     ),
                 ),
@@ -207,7 +207,6 @@ def test_cran_without_revision_date():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 4, 30, 11, 1, 57, 832481, tzinfo=datetime.timezone.utc,
@@ -217,7 +216,7 @@ def test_cran_without_revision_date():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0000d4ef5e166122aee6862ad38a18ce5386cc3e"
                     ),
                 ),
@@ -285,7 +284,6 @@ def test_cran_with_new_original_artifacts_format():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 9, 25, 14, 4, 20, 926667, tzinfo=datetime.timezone.utc,
@@ -295,7 +293,7 @@ def test_cran_with_new_original_artifacts_format():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:2e223782ee4ba152e4c886f797976241c39a9aab"
                     ),
                 ),

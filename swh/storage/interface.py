@@ -5,20 +5,19 @@
 
 import datetime
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar
 
 from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
-from swh.model.identifiers import SWHID
+from swh.model.identifiers import ExtendedSWHID
 from swh.model.model import (
     Content,
     Directory,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -1099,8 +1098,7 @@ class StorageInterface(Protocol):
     @remote_api_endpoint("raw_extrinsic_metadata/get")
     def raw_extrinsic_metadata_get(
         self,
-        type: MetadataTargetType,
-        target: Union[str, SWHID],
+        target: ExtendedSWHID,
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
@@ -1109,8 +1107,7 @@ class StorageInterface(Protocol):
         """Retrieve list of all raw_extrinsic_metadata entries for the id
 
         Args:
-            type: one of the values of swh.model.model.MetadataTargetType
-            target: an URL if type is 'origin', else a core SWHID
+            target: the SWHID of the objects to find metadata on
             authority: a dict containing keys `type` and `url`.
             after: minimum discovery_date for a result to be returned
             page_token: opaque token, used to get the next page of results
