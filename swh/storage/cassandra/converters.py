@@ -21,7 +21,7 @@ from swh.model.model import (
     Sha1Git,
 )
 
-from .common import remove_keys
+from ..utils import remove_keys
 from .model import OriginVisitRow, OriginVisitStatusRow, ReleaseRow, RevisionRow
 
 

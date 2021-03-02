@@ -1,8 +1,12 @@
-swh-storage (0.23.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.24.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.24.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-03-02 10:00:23 +0100)
+  * Upstream changes:     - v0.24.0     - * storage_tests: recompute ids
+    when evolving RawExtrinsicMetadata objects.     - *
+    RawExtrinsicMetadata: update to use the API in swh-model 1.0.0
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 19 Feb 2021 11:03:48 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 02 Mar 2021 09:11:15 +0000
 
 swh-storage (0.23.2-1~swh1) unstable-swh; urgency=medium
 

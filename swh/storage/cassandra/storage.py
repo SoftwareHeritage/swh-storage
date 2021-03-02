@@ -27,7 +27,7 @@ import attr
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.identifiers import SWHID, parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedSWHID
 from swh.model.model import (
     Content,
     Directory,
@@ -35,7 +35,6 @@ from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -61,7 +60,8 @@ from swh.storage.writer import JournalWriter
 
 from . import converters
 from ..exc import HashCollision, StorageArgumentException
-from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
+from ..utils import remove_keys
+from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .cql import CqlRunner
 from .model import (
     ContentRow,
@@ -1171,7 +1171,7 @@ class CassandraStorage:
 
             try:
                 row = RawExtrinsicMetadataRow(
-                    type=metadata_entry.type.value,
+                    type=metadata_entry.target.object_type.name.lower(),
                     target=str(metadata_entry.target),
                     authority_type=metadata_entry.authority.type.value,
                     authority_url=metadata_entry.authority.url,
@@ -1194,26 +1194,12 @@ class CassandraStorage:
 
     def raw_extrinsic_metadata_get(
         self,
-        type: MetadataTargetType,
-        target: Union[str, SWHID],
+        target: ExtendedSWHID,
         authority: MetadataAuthority,
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> PagedResult[RawExtrinsicMetadata]:
-        if type == MetadataTargetType.ORIGIN:
-            if isinstance(target, SWHID):
-                raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with type='origin', "
-                    f"but provided target is a SWHID: {target!r}"
-                )
-        else:
-            if not isinstance(target, SWHID):
-                raise StorageArgumentException(
-                    f"raw_extrinsic_metadata_get called with type!='origin', "
-                    f"but provided target is not a SWHID: {target!r}"
-                )
-
         if page_token is not None:
             (after_date, after_fetcher_name, after_fetcher_url) = msgpack_loads(
                 base64.b64decode(page_token)
@@ -1249,7 +1235,6 @@ class CassandraStorage:
             assert str(target) == entry.target
 
             result = RawExtrinsicMetadata(
-                type=MetadataTargetType(entry.type),
                 target=target,
                 authority=MetadataAuthority(
                     type=MetadataAuthorityType(entry.authority_type),
@@ -1263,11 +1248,11 @@ class CassandraStorage:
                 metadata=entry.metadata,
                 origin=entry.origin,
                 visit=entry.visit,
-                snapshot=map_optional(parse_swhid, entry.snapshot),
-                release=map_optional(parse_swhid, entry.release),
-                revision=map_optional(parse_swhid, entry.revision),
+                snapshot=map_optional(CoreSWHID.from_string, entry.snapshot),
+                release=map_optional(CoreSWHID.from_string, entry.release),
+                revision=map_optional(CoreSWHID.from_string, entry.revision),
                 path=entry.path,
-                directory=map_optional(parse_swhid, entry.directory),
+                directory=map_optional(CoreSWHID.from_string, entry.directory),
             )
 
             results.append(result)

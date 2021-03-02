@@ -44,7 +44,8 @@ from swh.model.model import (
 )
 from swh.storage.interface import ListOrder
 
-from .common import TOKEN_BEGIN, TOKEN_END, hash_url, remove_keys
+from ..utils import remove_keys
+from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .model import (
     MAGIC_NULL_PK,
     BaseRow,

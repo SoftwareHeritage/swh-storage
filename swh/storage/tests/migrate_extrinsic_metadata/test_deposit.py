@@ -11,12 +11,11 @@ import datetime
 import json
 from unittest.mock import MagicMock, Mock, call
 
-from swh.model.identifiers import parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     Origin,
     RawExtrinsicMetadata,
 )
@@ -51,7 +50,9 @@ INTEL_AUTHORITY = MetadataAuthority(
 )
 
 DIRECTORY_ID = b"a" * 20
-DIRECTORY_SWHID = parse_swhid("swh:1:dir:" + DIRECTORY_ID.hex())
+DIRECTORY_SWHID = ExtendedSWHID(
+    object_type=ExtendedObjectType.DIRECTORY, object_id=DIRECTORY_ID
+)
 
 
 def get_mock_deposit_cur(row_dicts):
@@ -186,7 +187,6 @@ def test_deposit_1():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 3, 11, 11, 7, 18, 688410, tzinfo=datetime.timezone.utc
@@ -196,7 +196,7 @@ def test_deposit_1():
                     format="sword-v2-atom-codemeta-v2-in-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:022310df16fd9e4d4f81fe36a142e82db977c01d"
                     ),
                 ),
@@ -205,7 +205,6 @@ def test_deposit_1():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 3, 11, 11, 11, 36, 336283, tzinfo=datetime.timezone.utc
@@ -215,7 +214,7 @@ def test_deposit_1():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:022310df16fd9e4d4f81fe36a142e82db977c01d"
                     ),
                 ),
@@ -352,7 +351,6 @@ def test_deposit_2_without_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2018, 1, 17, 12, 54, 0, 413748, tzinfo=datetime.timezone.utc
@@ -362,7 +360,7 @@ def test_deposit_2_without_xmlns():
                     format="sword-v2-atom-codemeta-v2-in-json-with-expanded-namespaces",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0116cab71964d59c8570b4c5729b28bdd63c9b46"
                     ),
                 ),
@@ -371,7 +369,6 @@ def test_deposit_2_without_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 5, 15, 14, 27, 21, 462270, tzinfo=datetime.timezone.utc
@@ -381,7 +378,7 @@ def test_deposit_2_without_xmlns():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0116cab71964d59c8570b4c5729b28bdd63c9b46"
                     ),
                 ),
@@ -517,7 +514,6 @@ def test_deposit_2_with_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 6, 26, 13, 50, 8, 216113, tzinfo=datetime.timezone.utc
@@ -527,7 +523,7 @@ def test_deposit_2_with_xmlns():
                     format="sword-v2-atom-codemeta-v2-in-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0122966e509317aece6a41d0f088da733cc09d0f"
                     ),
                 ),
@@ -536,7 +532,6 @@ def test_deposit_2_with_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 6, 26, 13, 50, 22, 640625, tzinfo=datetime.timezone.utc
@@ -546,7 +541,7 @@ def test_deposit_2_with_xmlns():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:0122966e509317aece6a41d0f088da733cc09d0f"
                     ),
                 ),
@@ -681,7 +676,6 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 10, 9, 13, 38, 7, 394544, tzinfo=datetime.timezone.utc
@@ -691,7 +685,7 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
                     format="sword-v2-atom-codemeta-v2-in-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
                     ),
                 ),
@@ -700,7 +694,6 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2020, 10, 9, 13, 38, 25, 888646, tzinfo=datetime.timezone.utc
@@ -710,7 +703,7 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
                     format="original-artifacts-json",
                     metadata=json.dumps(original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:4a9d637ba507a2b93365250428e6e3f021f194d0"
                     ),
                 ),
@@ -856,7 +849,6 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 5, 14, 7, 49, 36, 775072, tzinfo=datetime.timezone.utc
@@ -866,7 +858,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
                     format="sword-v2-atom-codemeta-v2-in-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:09356053c49ad0f9e62e51c29d3e617c791140df"
                     ),
                 ),
@@ -875,7 +867,6 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 5, 14, 7, 28, 33, 210100, tzinfo=datetime.timezone.utc
@@ -885,7 +876,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
                     format="sword-v2-atom-codemeta-v2-in-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:09356053c49ad0f9e62e51c29d3e617c791140df"
                     ),
                 ),
@@ -894,7 +885,6 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 5, 14, 7, 49, 36, 775072, tzinfo=datetime.timezone.utc
@@ -904,7 +894,7 @@ def test_deposit_3_and_wrong_external_id_in_metadata():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:09356053c49ad0f9e62e51c29d3e617c791140df"
                     ),
                 ),
@@ -1075,7 +1065,6 @@ def test_deposit_4_without_xmlns():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2018, 1, 17, 12, 49, 30, 645576, tzinfo=datetime.timezone.utc
@@ -1085,7 +1074,7 @@ def test_deposit_4_without_xmlns():
                     format="sword-v2-atom-codemeta-v2-in-json-with-expanded-namespaces",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:03987f056eaf4596cd20d7b2ee01c9b84ceddfa8"
                     ),
                 ),
@@ -1183,7 +1172,6 @@ def test_deposit_4_wrong_origin():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2018, 1, 10, 13, 14, 50, 555143, tzinfo=datetime.timezone.utc
@@ -1193,7 +1181,7 @@ def test_deposit_4_wrong_origin():
                     format="sword-v2-atom-codemeta-v2-in-json-with-expanded-namespaces",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:2d7bce631fc791080311eb835c47428e586a6ea4"
                     ),
                 ),
@@ -1316,7 +1304,6 @@ def test_deposit_missing_metadata_in_revision():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 2, 25, 15, 49, 12, 302745, tzinfo=datetime.timezone.utc
@@ -1326,7 +1313,7 @@ def test_deposit_missing_metadata_in_revision():
                     format="sword-v2-atom-codemeta-v2-in-json",
                     metadata=json.dumps(extrinsic_metadata).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:034076f3f41ee1204eb9f64082cbe6e950d7bb8a"
                     ),
                 ),
@@ -1335,7 +1322,6 @@ def test_deposit_missing_metadata_in_revision():
         call.raw_extrinsic_metadata_add(
             [
                 RawExtrinsicMetadata(
-                    type=MetadataTargetType.DIRECTORY,
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
                         2019, 2, 25, 15, 54, 30, 102072, tzinfo=datetime.timezone.utc
@@ -1345,7 +1331,7 @@ def test_deposit_missing_metadata_in_revision():
                     format="original-artifacts-json",
                     metadata=json.dumps(dest_original_artifacts).encode(),
                     origin=origin_url,
-                    revision=parse_swhid(
+                    revision=CoreSWHID.from_string(
                         "swh:1:rev:034076f3f41ee1204eb9f64082cbe6e950d7bb8a"
                     ),
                 ),

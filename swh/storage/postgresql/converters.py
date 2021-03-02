@@ -7,12 +7,11 @@ import datetime
 from typing import Any, Dict, Optional
 
 from swh.core.utils import encode_with_unescape
-from swh.model.identifiers import parse_swhid
+from swh.model.identifiers import CoreSWHID, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
-    MetadataTargetType,
     ObjectType,
     Person,
     RawExtrinsicMetadata,
@@ -295,13 +294,8 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
 
 
 def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
-    type_ = MetadataTargetType(row["raw_extrinsic_metadata.type"])
-    target = row["raw_extrinsic_metadata.target"]
-    if type_ != MetadataTargetType.ORIGIN:
-        target = parse_swhid(target)
     return RawExtrinsicMetadata(
-        type=type_,
-        target=target,
+        target=ExtendedSWHID.from_string(row["raw_extrinsic_metadata.target"]),
         authority=MetadataAuthority(
             type=MetadataAuthorityType(row["metadata_authority.type"]),
             url=row["metadata_authority.url"],
@@ -314,9 +308,9 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
         metadata=row["raw_extrinsic_metadata.metadata"],
         origin=row["origin"],
         visit=row["visit"],
-        snapshot=map_optional(parse_swhid, row["snapshot"]),
-        release=map_optional(parse_swhid, row["release"]),
-        revision=map_optional(parse_swhid, row["revision"]),
+        snapshot=map_optional(CoreSWHID.from_string, row["snapshot"]),
+        release=map_optional(CoreSWHID.from_string, row["release"]),
+        revision=map_optional(CoreSWHID.from_string, row["revision"]),
         path=row["path"],
-        directory=map_optional(parse_swhid, row["directory"]),
+        directory=map_optional(CoreSWHID.from_string, row["directory"]),
     )
