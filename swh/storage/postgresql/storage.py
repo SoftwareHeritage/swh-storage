@@ -816,6 +816,8 @@ class Storage:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
+        branch_name_include_substring: Optional[bytes] = None,
+        branch_name_exclude_prefix: Optional[bytes] = None,
         db=None,
         cur=None,
     ) -> Optional[PartialBranches]:
@@ -834,6 +836,8 @@ class Storage:
                 # optimal performances
                 branches_count=max(branches_count + 1, 10),
                 target_types=target_types,
+                branch_name_include_substring=branch_name_include_substring,
+                branch_name_exclude_prefix=branch_name_exclude_prefix,
                 cur=cur,
             )
         )

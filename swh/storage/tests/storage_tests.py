@@ -32,6 +32,7 @@ from swh.model.model import (
     Revision,
     SkippedContent,
     Snapshot,
+    SnapshotBranch,
     TargetType,
 )
 from swh.storage import get_storage
@@ -3158,6 +3159,132 @@ class TestStorage:
 
         assert len(branches) == 1
         assert alias1 in branches
+
+    def test_snapshot_add_get_by_branches_name_pattern(self, swh_storage, sample_data):
+        snapshot = Snapshot(
+            branches={
+                b"refs/heads/master": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"refs/heads/incoming": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"refs/pull/1": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"refs/pull/2": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"dangling": None,
+                b"\xaa\xff": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xaa\xff\x00": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xff\xff": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xff\xff\x00": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+
+        for include_pattern, exclude_prefix, nb_results in (
+            (b"pull", None, 2),
+            (b"incoming", None, 1),
+            (b"dangling", None, 1),
+            (None, b"refs/heads/", 7),
+            (b"refs", b"refs/heads/master", 3),
+            (b"refs", b"refs/heads/master", 3),
+            (None, b"\xaa\xff", 7),
+            (None, b"\xff\xff", 7),
+        ):
+            branches = swh_storage.snapshot_get_branches(
+                snapshot.id,
+                branch_name_include_substring=include_pattern,
+                branch_name_exclude_prefix=exclude_prefix,
+            )["branches"]
+
+            expected_branches = [
+                branch_name
+                for branch_name in snapshot.branches
+                if (include_pattern is None or include_pattern in branch_name)
+                and (
+                    exclude_prefix is None or not branch_name.startswith(exclude_prefix)
+                )
+            ]
+            assert sorted(branches) == sorted(expected_branches)
+            assert len(branches) == nb_results
+
+    def test_snapshot_add_get_by_branches_name_pattern_filtered_paginated(
+        self, swh_storage, sample_data
+    ):
+        pattern = b"foo"
+        nb_branches_by_target_type = 10
+        branches = {}
+        for i in range(nb_branches_by_target_type):
+            branches[f"branch/directory/bar{i}".encode()] = SnapshotBranch(
+                target=sample_data.directory.id, target_type=TargetType.DIRECTORY,
+            )
+            branches[f"branch/revision/bar{i}".encode()] = SnapshotBranch(
+                target=sample_data.revision.id, target_type=TargetType.REVISION,
+            )
+            branches[f"branch/directory/{pattern}{i}".encode()] = SnapshotBranch(
+                target=sample_data.directory.id, target_type=TargetType.DIRECTORY,
+            )
+            branches[f"branch/revision/{pattern}{i}".encode()] = SnapshotBranch(
+                target=sample_data.revision.id, target_type=TargetType.REVISION,
+            )
+
+        snapshot = Snapshot(branches=branches)
+        swh_storage.snapshot_add([snapshot])
+
+        branches_count = nb_branches_by_target_type // 2
+
+        for target_type in (
+            TargetType.DIRECTORY,
+            TargetType.REVISION,
+        ):
+            target_type_str = target_type.value
+            partial_branches = swh_storage.snapshot_get_branches(
+                snapshot.id,
+                branch_name_include_substring=pattern,
+                target_types=[target_type_str],
+                branches_count=branches_count,
+            )
+            branches = partial_branches["branches"]
+
+            expected_branches = [
+                branch_name
+                for branch_name, branch_data in snapshot.branches.items()
+                if pattern in branch_name and branch_data.target_type == target_type
+            ][:branches_count]
+
+            assert sorted(branches) == sorted(expected_branches)
+            assert (
+                partial_branches["next_branch"]
+                == f"branch/{target_type_str}/{pattern}{branches_count}".encode()
+            )
+
+            partial_branches = swh_storage.snapshot_get_branches(
+                snapshot.id,
+                branch_name_include_substring=pattern,
+                target_types=[target_type_str],
+                branches_from=partial_branches["next_branch"],
+            )
+            branches = partial_branches["branches"]
+
+            expected_branches = [
+                branch_name
+                for branch_name, branch_data in snapshot.branches.items()
+                if pattern in branch_name and branch_data.target_type == target_type
+            ][branches_count:]
+
+            assert sorted(branches) == sorted(expected_branches)
+            assert partial_branches["next_branch"] is None
 
     def test_snapshot_add_get(self, swh_storage, sample_data):
         snapshot = sample_data.snapshot

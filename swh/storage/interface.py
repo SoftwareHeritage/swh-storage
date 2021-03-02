@@ -748,6 +748,8 @@ class StorageInterface(Protocol):
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
+        branch_name_include_substring: Optional[bytes] = None,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[PartialBranches]:
         """Get the content, possibly partial, of a snapshot with the given id
 
@@ -764,6 +766,10 @@ class StorageInterface(Protocol):
                 target types of branch to return (possible values that can be
                 contained in that list are `'content', 'directory',
                 'revision', 'release', 'snapshot', 'alias'`)
+            branch_name_include_substring: if provided, only return branches whose name
+                contains given substring
+            branch_name_exclude_prefix: if provided, do not return branches whose name
+                contains given prefix
 
         Returns:
             dict: None if the snapshot does not exist;

@@ -681,6 +681,8 @@ class CassandraStorage:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
+        branch_name_include_substring: Optional[bytes] = None,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[PartialBranches]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
@@ -691,7 +693,10 @@ class CassandraStorage:
         while len(branches) < branches_count + 1:
             new_branches = list(
                 self._cql_runner.snapshot_branch_get(
-                    snapshot_id, branches_from, branches_count + 1
+                    snapshot_id,
+                    branches_from,
+                    branches_count + 1,
+                    branch_name_exclude_prefix,
                 )
             )
 
@@ -708,6 +713,18 @@ class CassandraStorage:
                     branch
                     for branch in new_branches_filtered
                     if branch.target is not None and branch.target_type in target_types
+                ]
+
+            # Filter by branches_name_pattern
+            if branch_name_include_substring:
+                new_branches_filtered = [
+                    branch
+                    for branch in new_branches_filtered
+                    if branch.name is not None
+                    and (
+                        branch_name_include_substring is None
+                        or branch_name_include_substring in branch.name
+                    )
                 ]
 
             branches.extend(new_branches_filtered)

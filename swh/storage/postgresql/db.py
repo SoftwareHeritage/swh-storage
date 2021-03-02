@@ -29,7 +29,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 168
+    current_version = 169
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -259,17 +259,29 @@ class Db(BaseDb):
         branches_from=b"",
         branches_count=None,
         target_types=None,
+        branch_name_include_substring=None,
+        branch_name_exclude_prefix=None,
         cur=None,
     ):
         cur = self._cursor(cur)
         query = """\
-           SELECT %s
-           FROM swh_snapshot_get_by_id(%%s, %%s, %%s, %%s :: snapshot_target[])
+        SELECT %s
+        FROM swh_snapshot_get_by_id(%%s, %%s, %%s, %%s :: snapshot_target[], %%s, %%s)
         """ % ", ".join(
             self.snapshot_get_cols
         )
 
-        cur.execute(query, (snapshot_id, branches_from, branches_count, target_types))
+        cur.execute(
+            query,
+            (
+                snapshot_id,
+                branches_from,
+                branches_count,
+                target_types,
+                branch_name_include_substring,
+                branch_name_exclude_prefix,
+            ),
+        )
 
         yield from cur
 

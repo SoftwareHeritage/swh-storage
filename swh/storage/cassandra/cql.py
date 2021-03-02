@@ -630,13 +630,61 @@ class CqlRunner:
     @_prepared_select_statement(
         SnapshotBranchRow, "WHERE snapshot_id = ? AND name >= ? LIMIT ?"
     )
-    def snapshot_branch_get(
+    def snapshot_branch_get_from_name(
         self, snapshot_id: Sha1Git, from_: bytes, limit: int, *, statement
     ) -> Iterable[SnapshotBranchRow]:
         return map(
             SnapshotBranchRow.from_dict,
             self._execute_with_retries(statement, [snapshot_id, from_, limit]),
         )
+
+    @_prepared_select_statement(
+        SnapshotBranchRow, "WHERE snapshot_id = ? AND name >= ? AND name < ? LIMIT ?"
+    )
+    def snapshot_branch_get_range(
+        self,
+        snapshot_id: Sha1Git,
+        from_: bytes,
+        before: bytes,
+        limit: int,
+        *,
+        statement,
+    ) -> Iterable[SnapshotBranchRow]:
+        return map(
+            SnapshotBranchRow.from_dict,
+            self._execute_with_retries(statement, [snapshot_id, from_, before, limit]),
+        )
+
+    def snapshot_branch_get(
+        self,
+        snapshot_id: Sha1Git,
+        from_: bytes,
+        limit: int,
+        branch_name_exclude_prefix: Optional[bytes] = None,
+    ) -> Iterable[SnapshotBranchRow]:
+        prefix = branch_name_exclude_prefix
+        if prefix is None:
+            return self.snapshot_branch_get_from_name(snapshot_id, from_, limit)
+        else:
+            # get branches before the exclude prefix
+            branches = list(
+                self.snapshot_branch_get_range(snapshot_id, from_, prefix, limit)
+            )
+            nb_branches = len(branches)
+            # no need to execute that part if limit is reached
+            # or if each bit of the prefix equals 1
+            if nb_branches < limit and prefix.replace(b"\xff", b"") != b"":
+                next_prefix_int = int.from_bytes(prefix, byteorder="big") + 1
+                next_prefix = next_prefix_int.to_bytes(
+                    (next_prefix_int.bit_length() + 7) // 8, byteorder="big"
+                )
+                # get branches after the exclude prefix and update list to return
+                branches.extend(
+                    self.snapshot_branch_get_from_name(
+                        snapshot_id, next_prefix, limit - nb_branches
+                    )
+                )
+            return branches
 
     ##########################
     # 'origin' table

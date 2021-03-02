@@ -402,11 +402,18 @@ class InMemoryCqlRunner:
         return counts
 
     def snapshot_branch_get(
-        self, snapshot_id: Sha1Git, from_: bytes, limit: int
+        self,
+        snapshot_id: Sha1Git,
+        from_: bytes,
+        limit: int,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Iterable[SnapshotBranchRow]:
         count = 0
         for branch in self._snapshot_branches.get_from_partition_key((snapshot_id,)):
-            if branch.name >= from_:
+            prefix = branch_name_exclude_prefix
+            if branch.name >= from_ and (
+                prefix is None or not branch.name.startswith(prefix)
+            ):
                 count += 1
                 yield branch
             if count >= limit:

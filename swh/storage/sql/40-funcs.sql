@@ -674,7 +674,9 @@ create type snapshot_result as (
 
 create or replace function swh_snapshot_get_by_id(id sha1_git,
     branches_from bytea default '', branches_count bigint default null,
-    target_types snapshot_target[] default NULL)
+    target_types snapshot_target[] default NULL,
+    branch_name_include_substring bytea default NULL,
+    branch_name_exclude_prefix bytea default NULL)
   returns setof snapshot_result
   language sql
   stable
@@ -697,6 +699,8 @@ as $$
   select snapshot_id, name, target, target_type
     from filtered_snapshot_branches
     where name >= branches_from
+        and (branch_name_include_substring is null or name like '%'||branch_name_include_substring||'%')
+        and (branch_name_exclude_prefix is null or name not like branch_name_exclude_prefix||'%')
     order by name limit branches_count;
 $$;
 
