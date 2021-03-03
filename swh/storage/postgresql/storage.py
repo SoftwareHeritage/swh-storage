@@ -779,7 +779,10 @@ class Storage:
             db.snapshot_get_by_id(
                 snapshot_id,
                 branches_from=branches_from,
-                branches_count=branches_count + 1,
+                # the underlying SQL query can be quite expensive to execute for small
+                # branches_count value, so we ensure a minimum branches limit of 10 for
+                # optimal performances
+                branches_count=max(branches_count + 1, 10),
                 target_types=target_types,
                 cur=cur,
             )
@@ -799,7 +802,9 @@ class Storage:
             branches[name] = branch
 
         if len(fetched_branches) > branches_count:
-            next_branch = dict(zip(db.snapshot_get_cols, fetched_branches[-1]))["name"]
+            next_branch = dict(
+                zip(db.snapshot_get_cols, fetched_branches[branches_count])
+            )["name"]
 
         if branches:
             return PartialBranches(
