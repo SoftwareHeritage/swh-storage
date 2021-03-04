@@ -7,13 +7,7 @@
 
 from typing import Callable, Dict, List, Tuple
 
-from swh.model.identifiers import (
-    SWHID,
-    CoreSWHID,
-    ExtendedSWHID,
-    QualifiedSWHID,
-    parse_swhid,
-)
+from swh.model.identifiers import CoreSWHID, ExtendedSWHID, QualifiedSWHID
 import swh.model.model as model
 from swh.storage import interface
 
@@ -41,7 +35,6 @@ def _decode_storage_enum(d):
 
 ENCODERS: List[Tuple[type, str, Callable]] = [
     (model.BaseModel, "model", _encode_model_object),
-    (SWHID, "swhid", str),
     (CoreSWHID, "core_swhid", str),
     (ExtendedSWHID, "extended_swhid", str),
     (QualifiedSWHID, "qualified_swhid", str),
@@ -51,7 +44,6 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
 
 
 DECODERS: Dict[str, Callable] = {
-    "swhid": parse_swhid,
     "core_swhid": CoreSWHID.from_string,
     "extended_swhid": ExtendedSWHID.from_string,
     "qualified_swhid": QualifiedSWHID.from_string,
