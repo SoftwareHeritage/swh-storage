@@ -36,6 +36,7 @@ from swh.storage import get_storage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import ListOrder, PagedResult, StorageInterface
+from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import (
     content_hex_hashes,
     now,
@@ -424,7 +425,10 @@ class TestStorage:
         assert missing == [cont2.hashes()]
 
     @pytest.mark.property_based
-    @settings(deadline=None)  # this test is very slow
+    @settings(
+        deadline=None,  # this test is very slow
+        suppress_health_check=function_scoped_fixture_check,
+    )
     @given(
         strategies.sets(
             elements=strategies.sampled_from(["sha256", "sha1_git", "blake2s256"]),
@@ -455,6 +459,7 @@ class TestStorage:
             ) == set(missing_per_hash[hash])
 
     @pytest.mark.property_based
+    @settings(suppress_health_check=function_scoped_fixture_check,)
     @given(
         strategies.sets(
             elements=strategies.sampled_from(["sha256", "sha1_git", "blake2s256"]),
@@ -3951,7 +3956,9 @@ class TestStorageGeneratedData:
         )
         assert swh_storage.origin_count("github", regexp=True, with_visit=True) == 1
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow] + function_scoped_fixture_check,
+    )
     @given(strategies.lists(objects(split_content=True), max_size=2))
     def test_add_arbitrary(self, swh_storage, objects):
         for (obj_type, obj) in objects:

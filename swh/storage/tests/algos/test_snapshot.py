@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from hypothesis import given
+from hypothesis import given, settings
 import pytest
 
 from swh.model.hypothesis_strategies import branch_names, branch_targets, snapshots
@@ -21,6 +21,7 @@ from swh.storage.algos.snapshot import (
     snapshot_resolve_alias,
     visits_and_snapshots_get_from_revision,
 )
+from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import now
 
 
@@ -32,6 +33,7 @@ def swh_storage_backend_config():
     }
 
 
+@settings(suppress_health_check=function_scoped_fixture_check)
 @given(snapshot=snapshots(min_size=0, max_size=10, only_objects=False))
 def test_snapshot_small(swh_storage, snapshot):  # noqa
     swh_storage.snapshot_add([snapshot])
@@ -40,6 +42,7 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
     assert snapshot == returned_snapshot
 
 
+@settings(suppress_health_check=function_scoped_fixture_check)
 @given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
 def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
     snapshot = Snapshot(
