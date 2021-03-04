@@ -5,7 +5,7 @@
 
 import multiprocessing.util
 
-from hypothesis import settings
+from hypothesis import HealthCheck, settings
 import pytest
 
 try:
@@ -18,6 +18,13 @@ from typing import Iterable
 from swh.model.model import BaseContent, Origin
 from swh.model.tests.generate_testdata import gen_contents, gen_origins
 from swh.storage.interface import StorageInterface
+
+# we use getattr here to keep mypy happy regardless hypothesis version
+function_scoped_fixture_check = (
+    [getattr(HealthCheck, "function_scoped_fixture")]
+    if hasattr(HealthCheck, "function_scoped_fixture")
+    else []
+)
 
 # define tests profile. Full documentation is at:
 # https://hypothesis.readthedocs.io/en/latest/settings.html#settings-profiles

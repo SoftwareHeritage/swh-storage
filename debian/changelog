@@ -1,8 +1,13 @@
-swh-storage (0.24.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.24.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.24.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-03-04 23:32:36 +0100)
+  * Upstream changes:     - v0.24.1     - * tests: Drop hypothesis < 6
+    requirement     - * Remove the remaining references to the
+    deprecated SWHID class     - * postgresql: Ensure a minimum limit
+    for the snapshot branches query
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 02 Mar 2021 09:16:10 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Mar 2021 22:39:03 +0000
 
 swh-storage (0.24.0-1~swh1) unstable-swh; urgency=medium
 
