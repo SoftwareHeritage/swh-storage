@@ -389,11 +389,17 @@ class InMemoryCqlRunner:
     def snapshot_branch_add_one(self, branch: SnapshotBranchRow) -> None:
         self._snapshot_branches.insert(branch)
 
-    def snapshot_count_branches(self, snapshot_id: Sha1Git) -> Dict[Optional[str], int]:
+    def snapshot_count_branches(
+        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
+    ) -> Dict[Optional[str], int]:
         """Returns a dictionary from type names to the number of branches
         of that type."""
         counts: Dict[Optional[str], int] = defaultdict(int)
         for branch in self._snapshot_branches.get_from_partition_key((snapshot_id,)):
+            if branch_name_exclude_prefix and branch.name.startswith(
+                branch_name_exclude_prefix
+            ):
+                continue
             if branch.target_type is None:
                 target_type = None
             else:

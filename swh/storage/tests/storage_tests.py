@@ -2953,6 +2953,57 @@ class TestStorage:
         }
         assert snp_size == expected_snp_size
 
+    def test_snapshot_add_count_branches_with_filtering(self, swh_storage, sample_data):
+        complete_snapshot = sample_data.snapshots[2]
+
+        actual_result = swh_storage.snapshot_add([complete_snapshot])
+        assert actual_result == {"snapshot:add": 1}
+
+        snp_size = swh_storage.snapshot_count_branches(
+            complete_snapshot.id, branch_name_exclude_prefix=b"release"
+        )
+
+        expected_snp_size = {
+            "alias": 1,
+            "content": 1,
+            "directory": 2,
+            "revision": 1,
+            "snapshot": 1,
+            None: 1,
+        }
+        assert snp_size == expected_snp_size
+
+    def test_snapshot_add_count_branches_with_filtering_edge_cases(
+        self, swh_storage, sample_data
+    ):
+        snapshot = Snapshot(
+            branches={
+                b"\xaa\xff": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xaa\xff\x00": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xff\xff": SnapshotBranch(
+                    target=sample_data.release.id, target_type=TargetType.RELEASE,
+                ),
+                b"\xff\xff\x00": SnapshotBranch(
+                    target=sample_data.release.id, target_type=TargetType.RELEASE,
+                ),
+                b"dangling": None,
+            },
+        )
+
+        swh_storage.snapshot_add([snapshot])
+
+        assert swh_storage.snapshot_count_branches(
+            snapshot.id, branch_name_exclude_prefix=b"\xaa\xff"
+        ) == {None: 1, "release": 2}
+
+        assert swh_storage.snapshot_count_branches(
+            snapshot.id, branch_name_exclude_prefix=b"\xff\xff"
+        ) == {None: 1, "revision": 2}
+
     def test_snapshot_add_get_paginated(self, swh_storage, sample_data):
         complete_snapshot = sample_data.snapshots[2]
 

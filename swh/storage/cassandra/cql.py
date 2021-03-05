@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 import dataclasses
 import datetime
 import functools
@@ -200,6 +201,19 @@ def _prepared_select_statements(
         return newf
 
     return decorator
+
+
+def _next_bytes_value(value: bytes) -> bytes:
+    """Returns the next bytes value by incrementing the integer
+    representation of the provided value and converting it back
+    to bytes.
+
+    For instance when prefix is b"abcd", it returns b"abce".
+    """
+    next_value_int = int.from_bytes(value, byteorder="big") + 1
+    return next_value_int.to_bytes(
+        (next_value_int.bit_length() + 7) // 8, byteorder="big"
+    )
 
 
 class CqlRunner:
@@ -616,16 +630,50 @@ class CqlRunner:
     @_prepared_statement(
         "SELECT ascii_bins_count(target_type) AS counts "
         "FROM snapshot_branch "
-        "WHERE snapshot_id = ? "
+        "WHERE snapshot_id = ? AND name >= ?"
     )
+    def snapshot_count_branches_from_name(
+        self, snapshot_id: Sha1Git, from_: bytes, *, statement
+    ) -> Dict[Optional[str], int]:
+        row = self._execute_with_retries(statement, [snapshot_id, from_]).one()
+        (nb_none, counts) = row["counts"]
+        return {None: nb_none, **counts}
+
+    @_prepared_statement(
+        "SELECT ascii_bins_count(target_type) AS counts "
+        "FROM snapshot_branch "
+        "WHERE snapshot_id = ? AND name < ?"
+    )
+    def snapshot_count_branches_before_name(
+        self, snapshot_id: Sha1Git, before: bytes, *, statement,
+    ) -> Dict[Optional[str], int]:
+        row = self._execute_with_retries(statement, [snapshot_id, before]).one()
+        (nb_none, counts) = row["counts"]
+        return {None: nb_none, **counts}
+
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, *, statement
+        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Dict[Optional[str], int]:
         """Returns a dictionary from type names to the number of branches
         of that type."""
-        row = self._execute_with_retries(statement, [snapshot_id]).one()
-        (nb_none, counts) = row["counts"]
-        return {None: nb_none, **counts}
+        prefix = branch_name_exclude_prefix
+        if prefix is None:
+            return self.snapshot_count_branches_from_name(snapshot_id, b"")
+        else:
+            # counts branches before exclude prefix
+            counts = Counter(
+                self.snapshot_count_branches_before_name(snapshot_id, prefix)
+            )
+
+            # no need to execute that part if each bit of the prefix equals 1
+            if prefix.replace(b"\xff", b"") != b"":
+                # counts branches after exclude prefix and update counters
+                counts.update(
+                    self.snapshot_count_branches_from_name(
+                        snapshot_id, _next_bytes_value(prefix)
+                    )
+                )
+            return counts
 
     @_prepared_select_statement(
         SnapshotBranchRow, "WHERE snapshot_id = ? AND name >= ? LIMIT ?"
@@ -674,14 +722,10 @@ class CqlRunner:
             # no need to execute that part if limit is reached
             # or if each bit of the prefix equals 1
             if nb_branches < limit and prefix.replace(b"\xff", b"") != b"":
-                next_prefix_int = int.from_bytes(prefix, byteorder="big") + 1
-                next_prefix = next_prefix_int.to_bytes(
-                    (next_prefix_int.bit_length() + 7) // 8, byteorder="big"
-                )
                 # get branches after the exclude prefix and update list to return
                 branches.extend(
                     self.snapshot_branch_get_from_name(
-                        snapshot_id, next_prefix, limit - nb_branches
+                        snapshot_id, _next_bytes_value(prefix), limit - nb_branches
                     )
                 )
             return branches

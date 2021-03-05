@@ -667,13 +667,16 @@ class CassandraStorage:
         }
 
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git
+        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[Dict[Optional[str], int]]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
             # being added.
             return None
-        return self._cql_runner.snapshot_count_branches(snapshot_id)
+
+        return self._cql_runner.snapshot_count_branches(
+            snapshot_id, branch_name_exclude_prefix
+        )
 
     def snapshot_get_branches(
         self,
