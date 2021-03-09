@@ -11,7 +11,12 @@ import pytest
 from swh.journal.client import JournalClient
 from swh.journal.tests.journal_data import TEST_OBJECTS
 from swh.storage import get_storage
-from swh.storage.backfill import PARTITION_KEY, JournalBackfiller, compute_query
+from swh.storage.backfill import (
+    PARTITION_KEY,
+    JournalBackfiller,
+    byte_ranges,
+    compute_query,
+)
 from swh.storage.replay import process_replay_objects
 from swh.storage.tests.test_replay import check_replayed
 
@@ -163,6 +168,22 @@ left join person a on release.author=a.id
 where (release.id) >= %s and (release.id) < %s
     """  # noqa
     )
+
+
+@pytest.mark.parametrize("numbits", [2, 3, 8, 16])
+def test_byte_ranges(numbits):
+    ranges = list(byte_ranges(numbits))
+
+    assert len(ranges) == 2 ** numbits
+    assert ranges[0][0] is None
+    assert ranges[-1][1] is None
+
+    bounds = []
+    for i, (left, right) in enumerate(zip(ranges[:-1], ranges[1:])):
+        assert left[1] == right[0], f"Mismatched bounds in {i}th range"
+        bounds.append(left[1])
+
+    assert bounds == sorted(bounds)
 
 
 RANGE_GENERATORS = {
