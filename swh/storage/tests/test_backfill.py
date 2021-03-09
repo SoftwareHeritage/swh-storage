@@ -16,6 +16,7 @@ from swh.storage.backfill import (
     JournalBackfiller,
     byte_ranges,
     compute_query,
+    raw_extrinsic_metadata_target_ranges,
 )
 from swh.storage.replay import process_replay_objects
 from swh.storage.tests.test_replay import check_replayed
@@ -176,6 +177,20 @@ def test_byte_ranges(numbits):
 
     assert len(ranges) == 2 ** numbits
     assert ranges[0][0] is None
+    assert ranges[-1][1] is None
+
+    bounds = []
+    for i, (left, right) in enumerate(zip(ranges[:-1], ranges[1:])):
+        assert left[1] == right[0], f"Mismatched bounds in {i}th range"
+        bounds.append(left[1])
+
+    assert bounds == sorted(bounds)
+
+
+def test_raw_extrinsic_metadata_target_ranges():
+    ranges = list(raw_extrinsic_metadata_target_ranges())
+
+    assert ranges[0][0] == ""
     assert ranges[-1][1] is None
 
     bounds = []

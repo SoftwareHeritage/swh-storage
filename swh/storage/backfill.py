@@ -19,6 +19,7 @@ import logging
 from typing import Any, Callable, Dict, Optional
 
 from swh.core.db import BaseDb
+from swh.model.identifiers import ExtendedObjectType
 from swh.model.model import (
     BaseModel,
     Directory,
@@ -343,6 +344,81 @@ def byte_ranges(numbits, start_object=None, end_object=None):
             yield to_bytes(start), to_bytes(end)
 
 
+def raw_extrinsic_metadata_target_ranges(start_object=None, end_object=None):
+    """Generate ranges of values for the `target` attribute of `raw_extrinsic_metadata`
+    objects.
+
+    This generates one range for all values before the first SWHID (which would
+    correspond to raw origin URLs), then a number of hex-based ranges for each
+    known type of SWHID (2**12 ranges for directories, 2**8 ranges for all other
+    types). Finally, it generates one extra range for values above all possible
+    SWHIDs.
+    """
+    if start_object is None:
+        start_object = ""
+
+    swhid_target_types = sorted(type.value for type in ExtendedObjectType)
+
+    first_swhid = f"swh:1:{swhid_target_types[0]}:"
+
+    # Generate a range for url targets, if the starting object is before SWHIDs
+    if start_object < first_swhid:
+        yield start_object, (
+            first_swhid
+            if end_object is None or end_object >= first_swhid
+            else end_object
+        )
+
+    if end_object is not None and end_object <= first_swhid:
+        return
+
+    # Prime the following loop, which uses the upper bound of the previous range
+    # as lower bound, to account for potential targets between two valid types
+    # of SWHIDs (even though they would eventually be rejected by the
+    # RawExtrinsicMetadata parser, they /might/ exist...)
+    end_swhid = first_swhid
+
+    # Generate ranges for swhid targets
+    for target_type in swhid_target_types:
+        finished = False
+        base_swhid = f"swh:1:{target_type}:"
+        last_swhid = base_swhid + ("f" * 40)
+
+        if start_object > last_swhid:
+            continue
+
+        # Generate 2**8 or 2**12 ranges
+        for _, end in byte_ranges(12 if target_type == "dir" else 8):
+            # Reuse previous uppper bound
+            start_swhid = end_swhid
+
+            # Use last_swhid for this object type if on the last byte range
+            end_swhid = (base_swhid + end.hex()) if end is not None else last_swhid
+
+            # Ignore out of bounds ranges
+            if start_object >= end_swhid:
+                continue
+
+            # Potentially clamp start of range to the first object requested
+            start_swhid = max(start_swhid, start_object)
+
+            # Handle ending the loop early if the last requested object id is in
+            # the current range
+            if end_object is not None and end_swhid >= end_object:
+                end_swhid = end_object
+                finished = True
+
+            yield start_swhid, end_swhid
+
+            if finished:
+                return
+
+    # Generate one final range for potential raw origin URLs after the last
+    # valid SWHID
+    start_swhid = max(start_object, end_swhid)
+    yield start_swhid, end_object
+
+
 def integer_ranges(start, end, block_size=1000):
     for start in range(start, end, block_size):
         if start == 0:
@@ -359,6 +435,7 @@ RANGE_GENERATORS = {
     "directory": lambda start, end: byte_ranges(24, start, end),
     "revision": lambda start, end: byte_ranges(24, start, end),
     "release": lambda start, end: byte_ranges(16, start, end),
+    "raw_extrinsic_metadata": raw_extrinsic_metadata_target_ranges,
     "snapshot": lambda start, end: byte_ranges(16, start, end),
     "origin": integer_ranges,
     "origin_visit": integer_ranges,
