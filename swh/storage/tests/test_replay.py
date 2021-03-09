@@ -204,6 +204,7 @@ def _check_replayed(
         "origins",
         "origin_visits",
         "origin_visit_statuses",
+        "raw_extrinsic_metadata",
     ):
         if exclude and attr_ in exclude:
             continue
@@ -351,6 +352,7 @@ def check_replayed(src, dst, expected_anonymized=False):
         "snapshots",
         "origins",
         "origin_visit_statuses",
+        "raw_extrinsic_metadata",
     ):
         expected_objects = [
             (id, nullify_ctime(maybe_anonymize(attr_, obj)))

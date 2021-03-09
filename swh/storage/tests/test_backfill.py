@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import functools
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -223,6 +224,7 @@ def test_backfiller(
     kafka_prefix: str,
     kafka_consumer_group: str,
     kafka_server: str,
+    caplog,
 ):
     prefix1 = f"{kafka_prefix}-1"
     prefix2 = f"{kafka_prefix}-2"
@@ -256,6 +258,9 @@ def test_backfiller(
     for object_type in TEST_OBJECTS:
         backfiller.run(object_type, None, None)
 
+    # Trace log messages for unhandled object types in the replayer
+    caplog.set_level(logging.DEBUG, "swh.storage.replay")
+
     # now check journal content are the same under both topics
     # use the replayer scaffolding to fill storages to make is a bit easier
     # Replaying #1
@@ -282,3 +287,8 @@ def test_backfiller(
 
     # Compare storages
     check_replayed(sto1, sto2)
+
+    for record in caplog.records:
+        assert (
+            "this should not happen" not in record.message
+        ), "Replayer ignored some message types, see captured logging"
