@@ -11,9 +11,9 @@ from hypothesis import given
 from hypothesis.strategies import lists
 
 from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
-from swh.journal.tests.journal_data import TEST_OBJECTS
 from swh.model.hypothesis_strategies import objects
 from swh.model.model import Origin, OriginVisit, Person
+from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
 

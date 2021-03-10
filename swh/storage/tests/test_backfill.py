@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from swh.journal.client import JournalClient
-from swh.journal.tests.journal_data import TEST_OBJECTS
+from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.backfill import (
     PARTITION_KEY,

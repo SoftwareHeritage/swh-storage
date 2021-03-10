@@ -14,8 +14,8 @@ import pytest
 
 from swh.journal.client import JournalClient
 from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.journal.tests.journal_data import DUPLICATE_CONTENTS, TEST_OBJECTS
 from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_hex
+from swh.model.tests.swh_model_data import DUPLICATE_CONTENTS, TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.in_memory import InMemoryStorage
