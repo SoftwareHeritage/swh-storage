@@ -59,7 +59,7 @@ def test_config_ko_unknown_object_type():
 
     error = (
         "Object type unknown-object-type is not supported. "
-        "The only possible values are %s" % (", ".join(PARTITION_KEY))
+        "The only possible values are %s" % (", ".join(sorted(PARTITION_KEY)))
     )
     assert e.value.args[0] == error
 

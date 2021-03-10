@@ -579,7 +579,7 @@ class JournalBackfiller:
             raise ValueError(
                 "Object type %s is not supported. "
                 "The only possible values are %s"
-                % (object_type, ", ".join(COLUMNS.keys()))
+                % (object_type, ", ".join(sorted(COLUMNS.keys())))
             )
 
         if object_type in ["origin", "origin_visit", "origin_visit_status"]:
