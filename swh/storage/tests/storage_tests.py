@@ -11,6 +11,7 @@ import itertools
 import math
 import random
 from typing import Any, ClassVar, Dict, Iterator, Optional
+from unittest.mock import MagicMock
 
 import attr
 from hypothesis import HealthCheck, given, settings, strategies
@@ -374,6 +375,25 @@ class TestStorage:
             cont1.hashes(),
             cont1b.hashes(),
         ]
+
+    def test_content_add_objstorage_first(self, swh_storage, sample_data):
+        """Tests the objstorage is written to before the DB and journal"""
+        cont = sample_data.content
+
+        swh_storage.objstorage.content_add = MagicMock(side_effect=Exception("Oops"))
+
+        # Try to add, but the objstorage crashes
+        try:
+            swh_storage.content_add([cont])
+        except Exception:
+            pass
+
+        # The DB must be written to after the objstorage, so the DB should be
+        # unchanged if the objstorage crashed
+        assert swh_storage.content_get_data(cont.sha1) is None
+
+        # The journal too
+        assert list(swh_storage.journal_writer.journal.objects) == []
 
     def test_skipped_content_add(self, swh_storage, sample_data):
         contents = sample_data.skipped_contents[:2]

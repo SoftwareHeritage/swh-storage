@@ -215,6 +215,11 @@ class Storage:
 
         contents = [attr.evolve(c, ctime=ctime) for c in content]
 
+        # Must add to the objstorage before the DB and journal. Otherwise:
+        # 1. in case of a crash the DB may "believe" we have the content, but
+        #    we didn't have time to write to the objstorage before the crash
+        # 2. the objstorage mirroring, which reads from the journal, may attempt to
+        #    read from the objstorage before we finished writing it
         objstorage_summary = self.objstorage.content_add(contents)
 
         with self.db() as db:

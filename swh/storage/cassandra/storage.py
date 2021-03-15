@@ -122,19 +122,21 @@ class CassandraStorage:
             c for c in contents if not self._cql_runner.content_get_from_pk(c.to_dict())
         ]
 
-        self.journal_writer.content_add(contents)
-
         if with_data:
             # First insert to the objstorage, if the endpoint is
             # `content_add` (as opposed to `content_add_metadata`).
-            # TODO: this should probably be done in concurrently to inserting
-            # in index tables (but still before the main table; so an entry is
-            # only added to the main table after everything else was
-            # successfully inserted.
+
+            # Must add to the objstorage before the DB and journal. Otherwise:
+            # 1. in case of a crash the DB may "believe" we have the content, but
+            #    we didn't have time to write to the objstorage before the crash
+            # 2. the objstorage mirroring, which reads from the journal, may attempt to
+            #    read from the objstorage before we finished writing it
             summary = self.objstorage.content_add(
                 c for c in contents if c.status != "absent"
             )
             content_add_bytes = summary["content:add:bytes"]
+
+        self.journal_writer.content_add(contents)
 
         content_add = 0
         for content in contents:

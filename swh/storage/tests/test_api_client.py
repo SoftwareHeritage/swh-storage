@@ -58,6 +58,7 @@ def swh_storage(swh_rpc_client, app_server):
 
     journal_writer = getattr(storage, "journal_writer", None)
     storage.journal_writer = app_server.storage.journal_writer
+    storage.objstorage = app_server.storage.objstorage
     yield storage
     storage.journal_writer = journal_writer
 
