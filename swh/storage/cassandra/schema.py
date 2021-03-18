@@ -221,6 +221,21 @@ CREATE TABLE IF NOT EXISTS object_count (
     count           counter,
     PRIMARY KEY ((partition_key), object_type)
 );""",
+    """
+CREATE TABLE IF NOT EXISTS extid (
+    extid_type      ascii,
+    extid           blob,
+    target_type     ascii,
+    target          blob,
+    PRIMARY KEY ((extid_type, extid), target_type, target)
+);""",
+    """
+CREATE TABLE IF NOT EXISTS extid_by_target (
+    target_type     ascii,
+    target          blob,
+    target_token    bigint, -- value of token(pk) on the "primary" table
+    PRIMARY KEY ((target_type, target), target_token)
+);""",
 ]
 
 CONTENT_INDEX_TEMPLATE = """
@@ -255,6 +270,8 @@ TABLES = [
     "origin_visit_status",
     "metadata_authority",
     "metadata_fetcher",
+    "extid",
+    "extid_by_target",
 ]
 
 HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]

@@ -17,7 +17,7 @@ import pytest
 from swh.core.api.classes import stream_results
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
-from swh.storage.cassandra.model import ContentRow
+from swh.storage.cassandra.model import ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import HASH_ALGORITHMS, TABLES
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -380,6 +380,37 @@ class TestCassandraStorage(_TestStorage):
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):
         pass
+
+    def test_extid_murmur3_collision(self, swh_storage, mocker, sample_data):
+        """The Murmur3 token is used as link from index table to the main
+        table; and non-matching extid with colliding murmur3-hash
+        are filtered-out when reading the main table.
+        This test checks the extid methods do filter out these collision.
+        """
+        swh_storage.extid_add(sample_data.extids)
+
+        # For any token, always return all extids, i.e. make as if all tokens
+        # for all extid entries collide
+        def mock_egft(token):
+            return [
+                ExtIDRow(
+                    extid_type=extid.extid_type,
+                    extid=extid.extid,
+                    target_type=extid.target.object_type.value,
+                    target=extid.target.object_id,
+                )
+                for extid in sample_data.extids
+            ]
+
+        mocker.patch.object(
+            swh_storage._cql_runner, "extid_get_from_token", mock_egft,
+        )
+
+        for extid in sample_data.extids:
+            extids = swh_storage.extid_get_from_target(
+                target_type=extid.target.object_type, ids=[extid.target.object_id]
+            )
+            assert extids == [extid]
 
     @pytest.mark.skip(
         'The "person" table of the pgsql is a legacy thing, and not '

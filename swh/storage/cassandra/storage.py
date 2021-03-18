@@ -28,10 +28,12 @@ from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import CoreSWHID, ExtendedSWHID
+from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
     Directory,
     DirectoryEntry,
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -67,6 +69,7 @@ from .model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
     OriginRow,
@@ -119,19 +122,21 @@ class CassandraStorage:
             c for c in contents if not self._cql_runner.content_get_from_pk(c.to_dict())
         ]
 
-        self.journal_writer.content_add(contents)
-
         if with_data:
             # First insert to the objstorage, if the endpoint is
             # `content_add` (as opposed to `content_add_metadata`).
-            # TODO: this should probably be done in concurrently to inserting
-            # in index tables (but still before the main table; so an entry is
-            # only added to the main table after everything else was
-            # successfully inserted.
+
+            # Must add to the objstorage before the DB and journal. Otherwise:
+            # 1. in case of a crash the DB may "believe" we have the content, but
+            #    we didn't have time to write to the objstorage before the crash
+            # 2. the objstorage mirroring, which reads from the journal, may attempt to
+            #    read from the objstorage before we finished writing it
             summary = self.objstorage.content_add(
                 c for c in contents if c.status != "absent"
             )
             content_add_bytes = summary["content:add:bytes"]
+
+        self.journal_writer.content_add(contents)
 
         content_add = 0
         for content in contents:
@@ -664,13 +669,16 @@ class CassandraStorage:
         }
 
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git
+        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[Dict[Optional[str], int]]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
             # being added.
             return None
-        return self._cql_runner.snapshot_count_branches(snapshot_id)
+
+        return self._cql_runner.snapshot_count_branches(
+            snapshot_id, branch_name_exclude_prefix
+        )
 
     def snapshot_get_branches(
         self,
@@ -678,6 +686,8 @@ class CassandraStorage:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
+        branch_name_include_substring: Optional[bytes] = None,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[PartialBranches]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
@@ -688,7 +698,10 @@ class CassandraStorage:
         while len(branches) < branches_count + 1:
             new_branches = list(
                 self._cql_runner.snapshot_branch_get(
-                    snapshot_id, branches_from, branches_count + 1
+                    snapshot_id,
+                    branches_from,
+                    branches_count + 1,
+                    branch_name_exclude_prefix,
                 )
             )
 
@@ -705,6 +718,18 @@ class CassandraStorage:
                     branch
                     for branch in new_branches_filtered
                     if branch.target is not None and branch.target_type in target_types
+                ]
+
+            # Filter by branches_name_pattern
+            if branch_name_include_substring:
+                new_branches_filtered = [
+                    branch
+                    for branch in new_branches_filtered
+                    if branch.name is not None
+                    and (
+                        branch_name_include_substring is None
+                        or branch_name_include_substring in branch.name
+                    )
                 ]
 
             branches.extend(new_branches_filtered)
@@ -1323,6 +1348,87 @@ class CassandraStorage:
         else:
             return None
 
+    # ExtID tables
+    def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
+        extids = [
+            extid
+            for extid in ids
+            if not self._cql_runner.extid_get_from_pk(
+                extid_type=extid.extid_type, extid=extid.extid, target=extid.target,
+            )
+        ]
+
+        self.journal_writer.extid_add(extids)
+
+        inserted = 0
+        for extid in extids:
+            extidrow = ExtIDRow(
+                extid_type=extid.extid_type,
+                extid=extid.extid,
+                target_type=extid.target.object_type.value,
+                target=extid.target.object_id,
+            )
+            (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
+            if (
+                self.extid_get_from_extid(extid.extid_type, [extid.extid])[0]
+                or self.extid_get_from_target(
+                    extid.target.object_type, [extid.target.object_id]
+                )[0]
+            ):
+                # on conflict do nothing...
+                continue
+            self._cql_runner.extid_index_add_one(extidrow, token)
+            insertion_finalizer()
+            inserted += 1
+        return {"extid:add": inserted}
+
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes]
+    ) -> List[Optional[ExtID]]:
+        result: List[Optional[ExtID]] = []
+        for extid in ids:
+            extidrows = list(self._cql_runner.extid_get_from_extid(id_type, extid))
+            assert len(extidrows) <= 1
+            if extidrows:
+                result.append(
+                    ExtID(
+                        extid_type=extidrows[0].extid_type,
+                        extid=extidrows[0].extid,
+                        target=CoreSWHID(
+                            object_type=extidrows[0].target_type,
+                            object_id=extidrows[0].target,
+                        ),
+                    )
+                )
+            else:
+                result.append(None)
+        return result
+
+    def extid_get_from_target(
+        self, target_type: SwhidObjectType, ids: List[Sha1Git]
+    ) -> List[Optional[ExtID]]:
+        result: List[Optional[ExtID]] = []
+        for target in ids:
+            extidrows = list(
+                self._cql_runner.extid_get_from_target(target_type.value, target)
+            )
+            assert len(extidrows) <= 1
+            if extidrows:
+                result.append(
+                    ExtID(
+                        extid_type=extidrows[0].extid_type,
+                        extid=extidrows[0].extid,
+                        target=CoreSWHID(
+                            object_type=SwhidObjectType(extidrows[0].target_type),
+                            object_id=extidrows[0].target,
+                        ),
+                    )
+                )
+            else:
+                result.append(None)
+        return result
+
+    # Misc
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing
 

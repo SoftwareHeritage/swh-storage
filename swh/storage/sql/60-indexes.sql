@@ -281,3 +281,7 @@ alter table object_counts add primary key using index object_counts_pkey;
 -- object_counts_bucketed
 create unique index concurrently object_counts_bucketed_pkey on object_counts_bucketed(line);
 alter table object_counts_bucketed add primary key using index object_counts_bucketed_pkey;
+
+-- extid
+create unique index concurrently on extid(extid_type, extid);
+create unique index concurrently on extid(target_type, target);

@@ -11,9 +11,9 @@ from hypothesis import given
 from hypothesis.strategies import lists
 
 from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
-from swh.journal.tests.journal_data import TEST_OBJECTS
 from swh.model.hypothesis_strategies import objects
 from swh.model.model import Origin, OriginVisit, Person
+from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
 
@@ -41,6 +41,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             "content",
             "skipped_content",
             "directory",
+            "extid",
             "metadata_authority",
             "metadata_fetcher",
             "revision",
@@ -71,6 +72,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         for obj_type in (
             "content",
             "directory",
+            "extid",
             "metadata_authority",
             "metadata_fetcher",
             "origin",
@@ -127,6 +129,7 @@ def test_storage_direct_writer_anonymized(
         for obj_type in (
             "content",
             "directory",
+            "extid",
             "metadata_authority",
             "metadata_fetcher",
             "origin",

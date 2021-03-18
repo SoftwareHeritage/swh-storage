@@ -11,10 +11,11 @@ from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
-from swh.model.identifiers import ExtendedSWHID
+from swh.model.identifiers import ExtendedSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -500,6 +501,52 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("extid/from_extid")
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes]
+    ) -> List[Optional[ExtID]]:
+        """Get ExtID objects from external IDs
+
+        Args:
+            id_type: type of the given external identifiers (e.g. 'mercurial')
+            ids: list of external IDs
+
+        Returns:
+            list of ExtID objects (if the ext ID is known, None otherwise)
+
+        """
+        ...
+
+    @remote_api_endpoint("extid/from_target")
+    def extid_get_from_target(
+        self, target_type: ObjectType, ids: List[Sha1Git]
+    ) -> List[Optional[ExtID]]:
+        """Get ExtID objects from target IDs and target_type
+
+        Args:
+            target_type: type the SWH object
+            ids: list of target IDs
+
+        Returns:
+            list of ExtID objects (if the SWH ID is known, None otherwise)
+
+        """
+        ...
+
+    @remote_api_endpoint("extid/add")
+    def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
+        """Add a series of ExtID objects
+
+        Args:
+            ids: list of ExtID objects
+
+        Returns:
+            Summary dict of keys with associated count as values
+
+                extid:add: New ExtID objects actually stored in db
+        """
+        ...
+
     @remote_api_endpoint("revision/log")
     def revision_log(
         self, revisions: List[Sha1Git], limit: Optional[int] = None
@@ -680,12 +727,14 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("snapshot/count_branches")
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git
+        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[Dict[Optional[str], int]]:
         """Count the number of branches in the snapshot with the given id
 
         Args:
             snapshot_id: snapshot identifier
+            branch_name_exclude_prefix: if provided, do not count branches whose name
+                starts with given prefix
 
         Returns:
             A dict whose keys are the target types of branches and values their
@@ -701,6 +750,8 @@ class StorageInterface(Protocol):
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
+        branch_name_include_substring: Optional[bytes] = None,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[PartialBranches]:
         """Get the content, possibly partial, of a snapshot with the given id
 
@@ -717,6 +768,10 @@ class StorageInterface(Protocol):
                 target types of branch to return (possible values that can be
                 contained in that list are `'content', 'directory',
                 'revision', 'release', 'snapshot', 'alias'`)
+            branch_name_include_substring: if provided, only return branches whose name
+                contains given substring
+            branch_name_exclude_prefix: if provided, do not return branches whose name
+                contains given prefix
 
         Returns:
             dict: None if the snapshot does not exist;
