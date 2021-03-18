@@ -4,14 +4,21 @@
 # See top-level LICENSE file for more information
 
 import functools
+import logging
 from unittest.mock import patch
 
 import pytest
 
 from swh.journal.client import JournalClient
-from swh.journal.tests.journal_data import TEST_OBJECTS
+from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
-from swh.storage.backfill import PARTITION_KEY, JournalBackfiller, compute_query
+from swh.storage.backfill import (
+    PARTITION_KEY,
+    JournalBackfiller,
+    byte_ranges,
+    compute_query,
+    raw_extrinsic_metadata_target_ranges,
+)
 from swh.storage.replay import process_replay_objects
 from swh.storage.tests.test_replay import check_replayed
 
@@ -52,7 +59,7 @@ def test_config_ko_unknown_object_type():
 
     error = (
         "Object type unknown-object-type is not supported. "
-        "The only possible values are %s" % (", ".join(PARTITION_KEY))
+        "The only possible values are %s" % (", ".join(sorted(PARTITION_KEY)))
     )
     assert e.value.args[0] == error
 
@@ -165,10 +172,41 @@ where (release.id) >= %s and (release.id) < %s
     )
 
 
+@pytest.mark.parametrize("numbits", [2, 3, 8, 16])
+def test_byte_ranges(numbits):
+    ranges = list(byte_ranges(numbits))
+
+    assert len(ranges) == 2 ** numbits
+    assert ranges[0][0] is None
+    assert ranges[-1][1] is None
+
+    bounds = []
+    for i, (left, right) in enumerate(zip(ranges[:-1], ranges[1:])):
+        assert left[1] == right[0], f"Mismatched bounds in {i}th range"
+        bounds.append(left[1])
+
+    assert bounds == sorted(bounds)
+
+
+def test_raw_extrinsic_metadata_target_ranges():
+    ranges = list(raw_extrinsic_metadata_target_ranges())
+
+    assert ranges[0][0] == ""
+    assert ranges[-1][1] is None
+
+    bounds = []
+    for i, (left, right) in enumerate(zip(ranges[:-1], ranges[1:])):
+        assert left[1] == right[0], f"Mismatched bounds in {i}th range"
+        bounds.append(left[1])
+
+    assert bounds == sorted(bounds)
+
+
 RANGE_GENERATORS = {
     "content": lambda start, end: [(None, None)],
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: [(None, None)],
+    "extid": lambda start, end: [(None, None)],
     "metadata_authority": lambda start, end: [(None, None)],
     "metadata_fetcher": lambda start, end: [(None, None)],
     "revision": lambda start, end: [(None, None)],
@@ -187,6 +225,7 @@ def test_backfiller(
     kafka_prefix: str,
     kafka_consumer_group: str,
     kafka_server: str,
+    caplog,
 ):
     prefix1 = f"{kafka_prefix}-1"
     prefix2 = f"{kafka_prefix}-2"
@@ -220,6 +259,9 @@ def test_backfiller(
     for object_type in TEST_OBJECTS:
         backfiller.run(object_type, None, None)
 
+    # Trace log messages for unhandled object types in the replayer
+    caplog.set_level(logging.DEBUG, "swh.storage.replay")
+
     # now check journal content are the same under both topics
     # use the replayer scaffolding to fill storages to make is a bit easier
     # Replaying #1
@@ -246,3 +288,8 @@ def test_backfiller(
 
     # Compare storages
     check_replayed(sto1, sto2)
+
+    for record in caplog.records:
+        assert (
+            "this should not happen" not in record.message
+        ), "Replayer ignored some message types, see captured logging"

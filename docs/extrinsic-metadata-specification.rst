@@ -136,7 +136,7 @@ The storage API offers three endpoints to manipulate origin metadata:
   The authority and fetcher must be known to the storage before using this
   endpoint.
   `format` is a text field indicating the format of the content of the
-  `metadata` byte string.
+  `metadata` byte string, see `extrinsic-metadata-formats`_.
 
 * Getting latest metadata::
 
@@ -259,3 +259,87 @@ The dictionary may be empty, if metadata is fully independent from context.
 
 In all cases, ``visit`` should only be provided if ``origin`` is
 (as visit ids are only unique with respect to an origin).
+
+
+.. _extrinsic-metadata-formats:
+
+Extrinsic metadata format
+-------------------------
+
+Here is a list of all the metadata format stored:
+
+``pypi-project-json``
+    The metadata is a release entry from a PyPI project's
+    JSON file, extracted and re-serialized.
+``replicate-npm-package-json``
+    ditto, but from a replicate.npmjs.com project
+``nixguix-sources-json``
+    ditto, but from https://nix-community.github.io/nixpkgs-swh/
+``original-artifacts-json``
+    tarball data, see below
+``sword-v2-atom-codemeta``
+    XML Atom document, with Codemeta metadata,
+    as sent by a deposit client, see the
+    :ref:`Deposit protocol reference <deposit-protocol>`.
+``sword-v2-atom-codemeta-v2``
+    Deprecated alias of ``sword-v2-atom-codemeta``
+``sword-v2-atom-codemeta-v2-in-json``
+    Deprecated, JSON serialization of a ``sword-v2-atom-codemeta`` document.
+``xml-deposit-info``
+    Information about a deposit, to identify the provenance of
+    a metadata object sent via swh-deposit, see below
+
+Details on some of these formats:
+
+
+original-artifacts-json
+^^^^^^^^^^^^^^^^^^^^^^^
+
+This is a loosely defined format, originally used as a ``metadata`` column
+on the ``revision`` table that changed over the years.
+
+It is a JSON array, and each entry is a JSON object representing an archive
+(tarball, zipball, ...) that was unpackaged by the SWH loader
+before loading its content in Software Heritage.
+
+When writing this specification, it was stabilized to this format::
+
+   [
+      {
+         "length": <int>,
+         "filename": "<original filename>",
+         "checksums": {
+             "sha1": "<hex-encoded string>",
+             "sha256": "<hex-encoded string>",
+         },
+         "url": "<URL the archive was downloaded from>"
+      },
+      ...
+   ]
+
+Older ``original-artifacts-json`` were migrated to use this format,
+but may be missing some of the keys.
+
+
+xml-deposit-info
+^^^^^^^^^^^^^^^^
+
+Deposits with code objects are loaded as their own origin, so we can
+look them up in the deposit database from their metadata (which hold the
+origin as a context).
+
+This is not true for metadata-only deposits, because we don't create an
+origin for them; so we need to store this information somewhere.
+The naive solution would be to insert them in the Atom entry provided by
+the client, but it means altering a document before we archive it, which
+potentially corrupts it or loses part of the data.
+
+Therefore, on each metadata-only deposit, the deposit creates an extra
+"metametadata" object, with the original metadata object as target,
+and using this format::
+
+   <deposit xmlns="https://www.softwareheritage.org/schema/2018/deposit">
+       <deposit_id>{{ deposit.id }}</deposit_id>
+       <deposit_client>{{ deposit.client.provider_url }}</deposit_client>
+       <deposit_collection>{{ deposit.collection.name }}</deposit_collection>
+   </deposit>

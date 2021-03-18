@@ -7,7 +7,8 @@
 
 from typing import Callable, Dict, List, Tuple
 
-from swh.model.identifiers import CoreSWHID, ExtendedSWHID, QualifiedSWHID
+import swh.model.identifiers as identifiers
+from swh.model.identifiers import CoreSWHID, ExtendedSWHID, ObjectType, QualifiedSWHID
 import swh.model.model as model
 from swh.storage import interface
 
@@ -29,6 +30,10 @@ def _decode_model_enum(d):
     return getattr(model, d.pop("__type__"))(d["value"])
 
 
+def _decode_identifiers_enum(d):
+    return getattr(identifiers, d.pop("__type__"))(d["value"])
+
+
 def _decode_storage_enum(d):
     return getattr(interface, d.pop("__type__"))(d["value"])
 
@@ -38,6 +43,7 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
     (CoreSWHID, "core_swhid", str),
     (ExtendedSWHID, "extended_swhid", str),
     (QualifiedSWHID, "qualified_swhid", str),
+    (ObjectType, "identifiers_enum", _encode_enum),
     (model.MetadataAuthorityType, "model_enum", _encode_enum),
     (interface.ListOrder, "storage_enum", _encode_enum),
 ]
@@ -48,6 +54,7 @@ DECODERS: Dict[str, Callable] = {
     "extended_swhid": ExtendedSWHID.from_string,
     "qualified_swhid": QualifiedSWHID.from_string,
     "model": lambda d: getattr(model, d.pop("__type__")).from_dict(d),
+    "identifiers_enum": _decode_identifiers_enum,
     "model_enum": _decode_model_enum,
     "storage_enum": _decode_storage_enum,
 }

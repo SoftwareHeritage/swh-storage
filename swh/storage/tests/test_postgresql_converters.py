@@ -1,8 +1,13 @@
-# Copyright (C) 2015  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
+
+import pytest
+
+from swh.model.identifiers import ExtendedSWHID
 from swh.model.model import (
     ObjectType,
     Person,
@@ -163,4 +168,33 @@ def test_db_to_release():
         synthetic=True,
         target=b"revision-id",
         target_type=ObjectType.REVISION,
+    )
+
+
+def test_db_to_raw_extrinsic_metadata_raw_target():
+    row = {
+        "raw_extrinsic_metadata.target": "https://example.com/origin",
+        "metadata_authority.type": "forge",
+        "metadata_authority.url": "https://example.com",
+        "metadata_fetcher.name": "swh.lister",
+        "metadata_fetcher.version": "1.0.0",
+        "discovery_date": datetime.datetime(
+            2021, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
+        ),
+        "format": "text/plain",
+        "raw_extrinsic_metadata.metadata": b"metadata",
+        "origin": None,
+        "visit": None,
+        "snapshot": None,
+        "release": None,
+        "revision": None,
+        "path": None,
+        "directory": None,
+    }
+
+    with pytest.deprecated_call():
+        computed_rem = converters.db_to_raw_extrinsic_metadata(row)
+
+    assert computed_rem.target == ExtendedSWHID.from_string(
+        "swh:1:ori:5a7439b0b93a5d230b6a67b8e7e0f7dc3c9f6c70"
     )

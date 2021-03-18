@@ -10,6 +10,7 @@ from attr import evolve
 from swh.model.model import (
     Content,
     Directory,
+    ExtID,
     MetadataAuthority,
     MetadataFetcher,
     Origin,
@@ -115,3 +116,6 @@ class JournalWriter:
 
     def metadata_authority_add(self, authorities: Iterable[MetadataAuthority]) -> None:
         self.write_additions("metadata_authority", authorities)
+
+    def extid_add(self, extids: Iterable[ExtID]) -> None:
+        self.write_additions("extid", extids)

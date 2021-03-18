@@ -549,6 +549,23 @@ end
 $$;
 
 
+-- Create entries in extid from tmp_extid
+-- operates in bulk: 0. swh_mktemp(extid), 1. COPY to tmp_extid,
+-- 2. call this function
+create or replace function swh_extid_add()
+    returns void
+    language plpgsql
+as $$
+begin
+    insert into extid (extid_type, extid, target_type, target)
+        select distinct t.extid_type, t.extid, t.target_type, t.target
+        from tmp_extid t
+		on conflict do nothing;
+    return;
+end
+$$;
+
+
 -- Create entries in person from tmp_release
 create or replace function swh_person_add_from_release()
     returns void
@@ -657,7 +674,9 @@ create type snapshot_result as (
 
 create or replace function swh_snapshot_get_by_id(id sha1_git,
     branches_from bytea default '', branches_count bigint default null,
-    target_types snapshot_target[] default NULL)
+    target_types snapshot_target[] default NULL,
+    branch_name_include_substring bytea default NULL,
+    branch_name_exclude_prefix bytea default NULL)
   returns setof snapshot_result
   language sql
   stable
@@ -680,6 +699,8 @@ as $$
   select snapshot_id, name, target, target_type
     from filtered_snapshot_branches
     where name >= branches_from
+        and (branch_name_include_substring is null or name like '%'||branch_name_include_substring||'%')
+        and (branch_name_exclude_prefix is null or name not like branch_name_exclude_prefix||'%')
     order by name limit branches_count;
 $$;
 
@@ -688,13 +709,15 @@ create type snapshot_size as (
   count bigint
 );
 
-create or replace function swh_snapshot_count_branches(id sha1_git)
+create or replace function swh_snapshot_count_branches(id sha1_git,
+    branch_name_exclude_prefix bytea default NULL)
   returns setof snapshot_size
   language sql
   stable
 as $$
   SELECT target_type, count(name)
-  from swh_snapshot_get_by_id(swh_snapshot_count_branches.id)
+  from swh_snapshot_get_by_id(swh_snapshot_count_branches.id,
+    branch_name_exclude_prefix => swh_snapshot_count_branches.branch_name_exclude_prefix)
   group by target_type;
 $$;
 

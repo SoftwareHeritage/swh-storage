@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -19,11 +19,12 @@ import psycopg2.pool
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID
+from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.model.model import (
     SHA1_SIZE,
     Content,
     Directory,
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -214,6 +215,11 @@ class Storage:
 
         contents = [attr.evolve(c, ctime=ctime) for c in content]
 
+        # Must add to the objstorage before the DB and journal. Otherwise:
+        # 1. in case of a crash the DB may "believe" we have the content, but
+        #    we didn't have time to write to the objstorage before the crash
+        # 2. the objstorage mirroring, which reads from the journal, may attempt to
+        #    read from the objstorage before we finished writing it
         objstorage_summary = self.objstorage.content_add(contents)
 
         with self.db() as db:
@@ -634,6 +640,55 @@ class Storage:
         return db.revision_get_random(cur)
 
     @timed
+    @db_transaction()
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes], db=None, cur=None
+    ) -> List[Optional[ExtID]]:
+        extids = []
+        for row in db.extid_get_from_extid_list(id_type, ids, cur):
+            extids.append(
+                converters.db_to_extid(dict(zip(db.extid_cols, row)))
+                if row[0] is not None
+                else None
+            )
+        return extids
+
+    @timed
+    @db_transaction()
+    def extid_get_from_target(
+        self, target_type: ObjectType, ids: List[Sha1Git], db=None, cur=None
+    ) -> List[Optional[ExtID]]:
+        extids = []
+        for row in db.extid_get_from_swhid_list(target_type.value, ids, cur):
+            extids.append(
+                converters.db_to_extid(dict(zip(db.extid_cols, row)))
+                if row[0] is not None
+                else None
+            )
+        return extids
+
+    @timed
+    @db_transaction()
+    def extid_add(self, ids: List[ExtID], db=None, cur=None) -> Dict[str, int]:
+        extid = [
+            {
+                "extid": extid.extid,
+                "extid_type": extid.extid_type,
+                "target": extid.target.object_id,
+                "target_type": extid.target.object_type.name.lower(),  # arghh
+            }
+            for extid in ids
+        ]
+        db.mktemp("extid", cur)
+
+        db.copy_to(extid, "tmp_extid", db.extid_cols, cur)
+
+        # move metadata in place
+        db.extid_add_from_temp(cur)
+
+        return {"extid:add": len(extid)}
+
+    @timed
     @process_metrics
     @db_transaction()
     def release_add(self, releases: List[Release], db=None, cur=None) -> Dict:
@@ -754,9 +809,20 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, db=None, cur=None
+        self,
+        snapshot_id: Sha1Git,
+        branch_name_exclude_prefix: Optional[bytes] = None,
+        db=None,
+        cur=None,
     ) -> Optional[Dict[Optional[str], int]]:
-        return dict([bc for bc in db.snapshot_count_branches(snapshot_id, cur)])
+        return dict(
+            [
+                bc
+                for bc in db.snapshot_count_branches(
+                    snapshot_id, branch_name_exclude_prefix, cur,
+                )
+            ]
+        )
 
     @timed
     @db_transaction(statement_timeout=2000)
@@ -766,6 +832,8 @@ class Storage:
         branches_from: bytes = b"",
         branches_count: int = 1000,
         target_types: Optional[List[str]] = None,
+        branch_name_include_substring: Optional[bytes] = None,
+        branch_name_exclude_prefix: Optional[bytes] = None,
         db=None,
         cur=None,
     ) -> Optional[PartialBranches]:
@@ -784,6 +852,8 @@ class Storage:
                 # optimal performances
                 branches_count=max(branches_count + 1, 10),
                 target_types=target_types,
+                branch_name_include_substring=branch_name_include_substring,
+                branch_name_exclude_prefix=branch_name_exclude_prefix,
                 cur=cur,
             )
         )

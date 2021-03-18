@@ -19,10 +19,12 @@ import logging
 from typing import Any, Callable, Dict, Optional
 
 from swh.core.db import BaseDb
+from swh.model.identifiers import ExtendedObjectType
 from swh.model.model import (
     BaseModel,
     Directory,
     DirectoryEntry,
+    ExtID,
     RawExtrinsicMetadata,
     Release,
     Revision,
@@ -31,6 +33,7 @@ from swh.model.model import (
     TargetType,
 )
 from swh.storage.postgresql.converters import (
+    db_to_extid,
     db_to_raw_extrinsic_metadata,
     db_to_release,
     db_to_revision,
@@ -44,6 +47,7 @@ PARTITION_KEY = {
     "content": "sha1",
     "skipped_content": "sha1",
     "directory": "id",
+    "extid": "target",
     "metadata_authority": "type, url",
     "metadata_fetcher": "name, version",
     "raw_extrinsic_metadata": "target",
@@ -76,8 +80,20 @@ COLUMNS = {
         "reason",
     ],
     "directory": ["id", "dir_entries", "file_entries", "rev_entries"],
+    "extid": ["extid_type", "extid", "target_type", "target"],
     "metadata_authority": ["type", "url", "metadata",],
     "metadata_fetcher": ["name", "version", "metadata",],
+    "origin": ["url"],
+    "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
+    "origin_visit_status": [
+        ("origin_visit_status.visit", "visit"),
+        ("origin.url", "origin"),
+        ("origin_visit_status.date", "date"),
+        "type",
+        "snapshot",
+        "status",
+        "metadata",
+    ],
     "raw_extrinsic_metadata": [
         "raw_extrinsic_metadata.type",
         "raw_extrinsic_metadata.target",
@@ -140,17 +156,6 @@ COLUMNS = {
         ("a.fullname", "author_fullname"),
     ],
     "snapshot": ["id", "object_id"],
-    "origin": ["url"],
-    "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
-    "origin_visit_status": [
-        ("origin_visit_status.visit", "visit"),
-        ("origin.url", "origin"),
-        ("origin_visit_status.date", "date"),
-        "type",
-        "snapshot",
-        "status",
-        "metadata",
-    ],
 }
 
 
@@ -211,11 +216,19 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
 def raw_extrinsic_metadata_converter(
     db: BaseDb, metadata: Dict[str, Any]
 ) -> RawExtrinsicMetadata:
-    """Convert revision from the flat representation to swh model
+    """Convert a raw extrinsic metadata from the flat representation to swh model
        compatible objects.
 
     """
     return db_to_raw_extrinsic_metadata(metadata)
+
+
+def extid_converter(db: BaseDb, extid: Dict[str, Any]) -> ExtID:
+    """Convert an extid from the flat representation to swh model
+       compatible objects.
+
+    """
+    return db_to_extid(extid)
 
 
 def revision_converter(db: BaseDb, revision_d: Dict[str, Any]) -> Revision:
@@ -271,6 +284,7 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
 
 CONVERTERS: Dict[str, Callable[[BaseDb, Dict[str, Any]], BaseModel]] = {
     "directory": directory_converter,
+    "extid": extid_converter,
     "raw_extrinsic_metadata": raw_extrinsic_metadata_converter,
     "revision": revision_converter,
     "release": release_converter,
@@ -343,6 +357,81 @@ def byte_ranges(numbits, start_object=None, end_object=None):
             yield to_bytes(start), to_bytes(end)
 
 
+def raw_extrinsic_metadata_target_ranges(start_object=None, end_object=None):
+    """Generate ranges of values for the `target` attribute of `raw_extrinsic_metadata`
+    objects.
+
+    This generates one range for all values before the first SWHID (which would
+    correspond to raw origin URLs), then a number of hex-based ranges for each
+    known type of SWHID (2**12 ranges for directories, 2**8 ranges for all other
+    types). Finally, it generates one extra range for values above all possible
+    SWHIDs.
+    """
+    if start_object is None:
+        start_object = ""
+
+    swhid_target_types = sorted(type.value for type in ExtendedObjectType)
+
+    first_swhid = f"swh:1:{swhid_target_types[0]}:"
+
+    # Generate a range for url targets, if the starting object is before SWHIDs
+    if start_object < first_swhid:
+        yield start_object, (
+            first_swhid
+            if end_object is None or end_object >= first_swhid
+            else end_object
+        )
+
+    if end_object is not None and end_object <= first_swhid:
+        return
+
+    # Prime the following loop, which uses the upper bound of the previous range
+    # as lower bound, to account for potential targets between two valid types
+    # of SWHIDs (even though they would eventually be rejected by the
+    # RawExtrinsicMetadata parser, they /might/ exist...)
+    end_swhid = first_swhid
+
+    # Generate ranges for swhid targets
+    for target_type in swhid_target_types:
+        finished = False
+        base_swhid = f"swh:1:{target_type}:"
+        last_swhid = base_swhid + ("f" * 40)
+
+        if start_object > last_swhid:
+            continue
+
+        # Generate 2**8 or 2**12 ranges
+        for _, end in byte_ranges(12 if target_type == "dir" else 8):
+            # Reuse previous uppper bound
+            start_swhid = end_swhid
+
+            # Use last_swhid for this object type if on the last byte range
+            end_swhid = (base_swhid + end.hex()) if end is not None else last_swhid
+
+            # Ignore out of bounds ranges
+            if start_object >= end_swhid:
+                continue
+
+            # Potentially clamp start of range to the first object requested
+            start_swhid = max(start_swhid, start_object)
+
+            # Handle ending the loop early if the last requested object id is in
+            # the current range
+            if end_object is not None and end_swhid >= end_object:
+                end_swhid = end_object
+                finished = True
+
+            yield start_swhid, end_swhid
+
+            if finished:
+                return
+
+    # Generate one final range for potential raw origin URLs after the last
+    # valid SWHID
+    start_swhid = max(start_object, end_swhid)
+    yield start_swhid, end_object
+
+
 def integer_ranges(start, end, block_size=1000):
     for start in range(start, end, block_size):
         if start == 0:
@@ -357,8 +446,10 @@ RANGE_GENERATORS = {
     "content": lambda start, end: byte_ranges(24, start, end),
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: byte_ranges(24, start, end),
+    "extid": lambda start, end: byte_ranges(24, start, end),
     "revision": lambda start, end: byte_ranges(24, start, end),
     "release": lambda start, end: byte_ranges(16, start, end),
+    "raw_extrinsic_metadata": raw_extrinsic_metadata_target_ranges,
     "snapshot": lambda start, end: byte_ranges(16, start, end),
     "origin": integer_ranges,
     "origin_visit": integer_ranges,
@@ -502,7 +593,7 @@ class JournalBackfiller:
             raise ValueError(
                 "Object type %s is not supported. "
                 "The only possible values are %s"
-                % (object_type, ", ".join(COLUMNS.keys()))
+                % (object_type, ", ".join(sorted(COLUMNS.keys())))
             )
 
         if object_type in ["origin", "origin_visit", "origin_visit_status"]:
