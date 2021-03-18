@@ -17,6 +17,7 @@ from swh.model.model import (
     BaseModel,
     Content,
     Directory,
+    ExtID,
     MetadataAuthority,
     MetadataFetcher,
     Origin,
@@ -50,6 +51,7 @@ object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
     "metadata_authority": MetadataAuthority.from_dict,
     "metadata_fetcher": MetadataFetcher.from_dict,
     "raw_extrinsic_metadata": RawExtrinsicMetadata.from_dict,
+    "extid": ExtID.from_dict,
 }
 
 
@@ -137,7 +139,23 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
         storage.origin_add(origins)
         method = getattr(storage, f"{object_type}_add")
         method(model_objs)
-    elif object_type in ("directory", "revision", "release", "snapshot", "origin",):
+    elif object_type == "raw_extrinsic_metadata":
+        converted = [RawExtrinsicMetadata.from_dict(o) for o in objects]
+        authorities = {emd.authority for emd in converted}
+        fetchers = {emd.fetcher for emd in converted}
+        storage.metadata_authority_add(authorities)
+        storage.metadata_fetcher_add(fetchers)
+        storage.raw_extrinsic_metadata_add(converted)
+    elif object_type in (
+        "directory",
+        "extid",
+        "revision",
+        "release",
+        "snapshot",
+        "origin",
+        "metadata_fetcher",
+        "metadata_authority",
+    ):
         method = getattr(storage, object_type + "_add")
         method([object_converter_fn[object_type](o) for o in objects])
     else:

@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 import dataclasses
 import datetime
 import functools
@@ -34,6 +35,7 @@ from tenacity import (
     wait_random_exponential,
 )
 
+from swh.model.identifiers import CoreSWHID
 from swh.model.model import (
     Content,
     Person,
@@ -52,6 +54,7 @@ from .model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
@@ -198,6 +201,19 @@ def _prepared_select_statements(
         return newf
 
     return decorator
+
+
+def _next_bytes_value(value: bytes) -> bytes:
+    """Returns the next bytes value by incrementing the integer
+    representation of the provided value and converting it back
+    to bytes.
+
+    For instance when prefix is b"abcd", it returns b"abce".
+    """
+    next_value_int = int.from_bytes(value, byteorder="big") + 1
+    return next_value_int.to_bytes(
+        (next_value_int.bit_length() + 7) // 8, byteorder="big"
+    )
 
 
 class CqlRunner:
@@ -614,27 +630,105 @@ class CqlRunner:
     @_prepared_statement(
         "SELECT ascii_bins_count(target_type) AS counts "
         "FROM snapshot_branch "
-        "WHERE snapshot_id = ? "
+        "WHERE snapshot_id = ? AND name >= ?"
     )
+    def snapshot_count_branches_from_name(
+        self, snapshot_id: Sha1Git, from_: bytes, *, statement
+    ) -> Dict[Optional[str], int]:
+        row = self._execute_with_retries(statement, [snapshot_id, from_]).one()
+        (nb_none, counts) = row["counts"]
+        return {None: nb_none, **counts}
+
+    @_prepared_statement(
+        "SELECT ascii_bins_count(target_type) AS counts "
+        "FROM snapshot_branch "
+        "WHERE snapshot_id = ? AND name < ?"
+    )
+    def snapshot_count_branches_before_name(
+        self, snapshot_id: Sha1Git, before: bytes, *, statement,
+    ) -> Dict[Optional[str], int]:
+        row = self._execute_with_retries(statement, [snapshot_id, before]).one()
+        (nb_none, counts) = row["counts"]
+        return {None: nb_none, **counts}
+
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, *, statement
+        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Dict[Optional[str], int]:
         """Returns a dictionary from type names to the number of branches
         of that type."""
-        row = self._execute_with_retries(statement, [snapshot_id]).one()
-        (nb_none, counts) = row["counts"]
-        return {None: nb_none, **counts}
+        prefix = branch_name_exclude_prefix
+        if prefix is None:
+            return self.snapshot_count_branches_from_name(snapshot_id, b"")
+        else:
+            # counts branches before exclude prefix
+            counts = Counter(
+                self.snapshot_count_branches_before_name(snapshot_id, prefix)
+            )
+
+            # no need to execute that part if each bit of the prefix equals 1
+            if prefix.replace(b"\xff", b"") != b"":
+                # counts branches after exclude prefix and update counters
+                counts.update(
+                    self.snapshot_count_branches_from_name(
+                        snapshot_id, _next_bytes_value(prefix)
+                    )
+                )
+            return counts
 
     @_prepared_select_statement(
         SnapshotBranchRow, "WHERE snapshot_id = ? AND name >= ? LIMIT ?"
     )
-    def snapshot_branch_get(
+    def snapshot_branch_get_from_name(
         self, snapshot_id: Sha1Git, from_: bytes, limit: int, *, statement
     ) -> Iterable[SnapshotBranchRow]:
         return map(
             SnapshotBranchRow.from_dict,
             self._execute_with_retries(statement, [snapshot_id, from_, limit]),
         )
+
+    @_prepared_select_statement(
+        SnapshotBranchRow, "WHERE snapshot_id = ? AND name >= ? AND name < ? LIMIT ?"
+    )
+    def snapshot_branch_get_range(
+        self,
+        snapshot_id: Sha1Git,
+        from_: bytes,
+        before: bytes,
+        limit: int,
+        *,
+        statement,
+    ) -> Iterable[SnapshotBranchRow]:
+        return map(
+            SnapshotBranchRow.from_dict,
+            self._execute_with_retries(statement, [snapshot_id, from_, before, limit]),
+        )
+
+    def snapshot_branch_get(
+        self,
+        snapshot_id: Sha1Git,
+        from_: bytes,
+        limit: int,
+        branch_name_exclude_prefix: Optional[bytes] = None,
+    ) -> Iterable[SnapshotBranchRow]:
+        prefix = branch_name_exclude_prefix
+        if prefix is None:
+            return self.snapshot_branch_get_from_name(snapshot_id, from_, limit)
+        else:
+            # get branches before the exclude prefix
+            branches = list(
+                self.snapshot_branch_get_range(snapshot_id, from_, prefix, limit)
+            )
+            nb_branches = len(branches)
+            # no need to execute that part if limit is reached
+            # or if each bit of the prefix equals 1
+            if nb_branches < limit and prefix.replace(b"\xff", b"") != b"":
+                # get branches after the exclude prefix and update list to return
+                branches.extend(
+                    self.snapshot_branch_get_from_name(
+                        snapshot_id, _next_bytes_value(prefix), limit - nb_branches
+                    )
+                )
+            return branches
 
     ##########################
     # 'origin' table
@@ -962,6 +1056,105 @@ class CqlRunner:
             self._execute_with_retries(
                 statement, [target, authority_url, authority_type]
             ),
+        )
+
+    ##########################
+    # 'extid' table
+    ##########################
+    def _extid_add_finalize(self, statement: BoundStatement) -> None:
+        """Returned currified by extid_add_prepare, to be called when the
+        extid row should be added to the primary table."""
+        self._execute_with_retries(statement, None)
+        self._increment_counter("extid", 1)
+
+    @_prepared_insert_statement(ExtIDRow)
+    def extid_add_prepare(
+        self, extid: ExtIDRow, *, statement
+    ) -> Tuple[int, Callable[[], None]]:
+        statement = statement.bind(dataclasses.astuple(extid))
+        token_class = self._cluster.metadata.token_map.token_class
+        token = token_class.from_key(statement.routing_key).value
+        assert TOKEN_BEGIN <= token <= TOKEN_END
+
+        # Function to be called after the indexes contain their respective
+        # row
+        finalizer = functools.partial(self._extid_add_finalize, statement)
+
+        return (token, finalizer)
+
+    @_prepared_select_statement(
+        ExtIDRow, "WHERE extid_type=? AND extid=? AND target_type=? AND target=?",
+    )
+    def extid_get_from_pk(
+        self, extid_type: str, extid: bytes, target: CoreSWHID, *, statement,
+    ) -> Optional[ExtIDRow]:
+        rows = list(
+            self._execute_with_retries(
+                statement,
+                [extid_type, extid, target.object_type.value, target.object_id],
+            ),
+        )
+        assert len(rows) <= 1
+        if rows:
+            return ExtIDRow(**rows[0])
+        else:
+            return None
+
+    @_prepared_select_statement(
+        ExtIDRow, "WHERE token(extid_type, extid) = ?",
+    )
+    def extid_get_from_token(self, token: int, *, statement) -> Iterable[ExtIDRow]:
+        return map(ExtIDRow.from_dict, self._execute_with_retries(statement, [token]),)
+
+    @_prepared_select_statement(
+        ExtIDRow, "WHERE extid_type=? AND extid=?",
+    )
+    def extid_get_from_extid(
+        self, extid_type: str, extid: bytes, *, statement
+    ) -> Iterable[ExtIDRow]:
+        return map(
+            ExtIDRow.from_dict,
+            self._execute_with_retries(statement, [extid_type, extid]),
+        )
+
+    def extid_get_from_target(
+        self, target_type: str, target: bytes
+    ) -> Iterable[ExtIDRow]:
+        for token in self._extid_get_tokens_from_target(target_type, target):
+            if token is not None:
+                for extid in self.extid_get_from_token(token):
+                    # re-check the extid against target (in case of murmur3 collision)
+                    if (
+                        extid is not None
+                        and extid.target_type == target_type
+                        and extid.target == target
+                    ):
+                        yield extid
+
+    ##########################
+    # 'extid_by_*' tables
+    ##########################
+
+    def extid_index_add_one(self, extid: ExtIDRow, token: int) -> None:
+        """Adds a row mapping extid[target_type, target] to the token of the ExtID in
+        the main 'extid' table."""
+        query = (
+            "INSERT INTO extid_by_target (target_type, target, target_token) "
+            "VALUES (%s, %s, %s)"
+        )
+        self._execute_with_retries(query, [extid.target_type, extid.target, token])
+
+    def _extid_get_tokens_from_target(
+        self, target_type: str, target: bytes
+    ) -> Iterable[int]:
+        query = (
+            "SELECT target_token "
+            "FROM extid_by_target "
+            "WHERE target_type = %s AND target = %s"
+        )
+        return (
+            row["target_token"]
+            for row in self._execute_with_retries(query, [target_type, target])
         )
 
     ##########################

@@ -5,10 +5,14 @@
 
 import datetime
 from typing import Any, Dict, Optional
+import warnings
 
 from swh.core.utils import encode_with_unescape
 from swh.model.identifiers import CoreSWHID, ExtendedSWHID
+from swh.model.identifiers import ObjectType as SwhidObjectType
+from swh.model.identifiers import origin_identifier
 from swh.model.model import (
+    ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -294,8 +298,15 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
 
 
 def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
+    target = row["raw_extrinsic_metadata.target"]
+    if not target.startswith("swh:1:"):
+        warnings.warn(
+            "Fetching raw_extrinsic_metadata row with URL target", DeprecationWarning
+        )
+        target = "swh:1:ori:" + origin_identifier({"url": target})
+
     return RawExtrinsicMetadata(
-        target=ExtendedSWHID.from_string(row["raw_extrinsic_metadata.target"]),
+        target=ExtendedSWHID.from_string(target),
         authority=MetadataAuthority(
             type=MetadataAuthorityType(row["metadata_authority.type"]),
             url=row["metadata_authority.url"],
@@ -313,4 +324,15 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
         revision=map_optional(CoreSWHID.from_string, row["revision"]),
         path=row["path"],
         directory=map_optional(CoreSWHID.from_string, row["directory"]),
+    )
+
+
+def db_to_extid(row) -> ExtID:
+    return ExtID(
+        extid=row["extid"],
+        extid_type=row["extid_type"],
+        target=CoreSWHID(
+            object_id=row["target"],
+            object_type=SwhidObjectType[row["target_type"].upper()],
+        ),
     )

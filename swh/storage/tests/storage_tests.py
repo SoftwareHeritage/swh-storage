@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ import itertools
 import math
 import random
 from typing import Any, ClassVar, Dict, Iterator, Optional
+from unittest.mock import MagicMock
 
 import attr
 from hypothesis import HealthCheck, given, settings, strategies
@@ -19,9 +20,11 @@ import pytest
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
 from swh.model.hypothesis_strategies import objects
+from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
+    ExtID,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -30,6 +33,7 @@ from swh.model.model import (
     Revision,
     SkippedContent,
     Snapshot,
+    SnapshotBranch,
     TargetType,
 )
 from swh.storage import get_storage
@@ -371,6 +375,25 @@ class TestStorage:
             cont1.hashes(),
             cont1b.hashes(),
         ]
+
+    def test_content_add_objstorage_first(self, swh_storage, sample_data):
+        """Tests the objstorage is written to before the DB and journal"""
+        cont = sample_data.content
+
+        swh_storage.objstorage.content_add = MagicMock(side_effect=Exception("Oops"))
+
+        # Try to add, but the objstorage crashes
+        try:
+            swh_storage.content_add([cont])
+        except Exception:
+            pass
+
+        # The DB must be written to after the objstorage, so the DB should be
+        # unchanged if the objstorage crashed
+        assert swh_storage.content_get_data(cont.sha1) is None
+
+        # The journal too
+        assert list(swh_storage.journal_writer.journal.objects) == []
 
     def test_skipped_content_add(self, swh_storage, sample_data):
         contents = sample_data.skipped_contents[:2]
@@ -1059,6 +1082,171 @@ class TestStorage:
             revision2.id,
             revision3.id,
         }
+
+    def test_extid_add_git(self, swh_storage, sample_data):
+
+        gitids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+        nullids = [None] * len(gitids)
+        extids = [
+            ExtID(
+                extid=gitid,
+                extid_type="git",
+                target=CoreSWHID(object_id=gitid, object_type=ObjectType.REVISION,),
+            )
+            for gitid in gitids
+        ]
+
+        assert swh_storage.extid_get_from_extid("git", gitids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == nullids
+
+        summary = swh_storage.extid_add(extids)
+        assert summary == {"extid:add": len(gitids)}
+
+        assert swh_storage.extid_get_from_extid("git", gitids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
+
+        assert swh_storage.extid_get_from_extid("hg", gitids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, gitids) == nullids
+
+    def test_extid_add_hg(self, swh_storage, sample_data):
+        def get_node(revision):
+            node = None
+            if revision.extra_headers:
+                node = dict(revision.extra_headers).get(b"node")
+            if node is None and revision.metadata:
+                node = hash_to_bytes(revision.metadata.get("node"))
+            return node
+
+        swhids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "hg"
+        ]
+        extids = [
+            get_node(revision)
+            for revision in sample_data.revisions
+            if revision.type.value == "hg"
+        ]
+        nullids = [None] * len(swhids)
+
+        assert swh_storage.extid_get_from_extid("hg", extids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == nullids
+
+        extid_objs = [
+            ExtID(
+                extid=hgid,
+                extid_type="hg",
+                target=CoreSWHID(object_id=swhid, object_type=ObjectType.REVISION,),
+            )
+            for hgid, swhid in zip(extids, swhids)
+        ]
+        summary = swh_storage.extid_add(extid_objs)
+        assert summary == {"extid:add": len(swhids)}
+
+        assert swh_storage.extid_get_from_extid("hg", extids) == extid_objs
+        assert (
+            swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == extid_objs
+        )
+
+        assert swh_storage.extid_get_from_extid("git", extids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, swhids) == nullids
+
+    def test_extid_add_twice(self, swh_storage, sample_data):
+
+        gitids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+
+        extids = [
+            ExtID(
+                extid=gitid,
+                extid_type="git",
+                target=CoreSWHID(object_id=gitid, object_type=ObjectType.REVISION,),
+            )
+            for gitid in gitids
+        ]
+        summary = swh_storage.extid_add(extids)
+        assert summary == {"extid:add": len(gitids)}
+
+        # add them again, should be noop
+        summary = swh_storage.extid_add(extids)
+        # assert summary == {"extid:add": 0}
+        assert swh_storage.extid_get_from_extid("git", gitids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
+
+    def test_extid_add_extid_unicity(self, swh_storage, sample_data):
+
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+        nullids = [None] * len(ids)
+
+        extids = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids)
+
+        # try to add "modified-extid" versions, should be noops
+        extids2 = [
+            ExtID(
+                extid=extid,
+                extid_type="hg",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids2)
+
+        assert swh_storage.extid_get_from_extid("git", ids) == extids
+        assert swh_storage.extid_get_from_extid("hg", ids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
+
+    def test_extid_add_target_unicity(self, swh_storage, sample_data):
+
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+        nullids = [None] * len(ids)
+
+        extids = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids)
+
+        # try to add "modified" versions, should be noops
+        extids2 = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.RELEASE,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids2)
+
+        assert swh_storage.extid_get_from_extid("git", ids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, ids) == nullids
 
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]
@@ -2785,6 +2973,57 @@ class TestStorage:
         }
         assert snp_size == expected_snp_size
 
+    def test_snapshot_add_count_branches_with_filtering(self, swh_storage, sample_data):
+        complete_snapshot = sample_data.snapshots[2]
+
+        actual_result = swh_storage.snapshot_add([complete_snapshot])
+        assert actual_result == {"snapshot:add": 1}
+
+        snp_size = swh_storage.snapshot_count_branches(
+            complete_snapshot.id, branch_name_exclude_prefix=b"release"
+        )
+
+        expected_snp_size = {
+            "alias": 1,
+            "content": 1,
+            "directory": 2,
+            "revision": 1,
+            "snapshot": 1,
+            None: 1,
+        }
+        assert snp_size == expected_snp_size
+
+    def test_snapshot_add_count_branches_with_filtering_edge_cases(
+        self, swh_storage, sample_data
+    ):
+        snapshot = Snapshot(
+            branches={
+                b"\xaa\xff": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xaa\xff\x00": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xff\xff": SnapshotBranch(
+                    target=sample_data.release.id, target_type=TargetType.RELEASE,
+                ),
+                b"\xff\xff\x00": SnapshotBranch(
+                    target=sample_data.release.id, target_type=TargetType.RELEASE,
+                ),
+                b"dangling": None,
+            },
+        )
+
+        swh_storage.snapshot_add([snapshot])
+
+        assert swh_storage.snapshot_count_branches(
+            snapshot.id, branch_name_exclude_prefix=b"\xaa\xff"
+        ) == {None: 1, "release": 2}
+
+        assert swh_storage.snapshot_count_branches(
+            snapshot.id, branch_name_exclude_prefix=b"\xff\xff"
+        ) == {None: 1, "revision": 2}
+
     def test_snapshot_add_get_paginated(self, swh_storage, sample_data):
         complete_snapshot = sample_data.snapshots[2]
 
@@ -2991,6 +3230,132 @@ class TestStorage:
 
         assert len(branches) == 1
         assert alias1 in branches
+
+    def test_snapshot_add_get_by_branches_name_pattern(self, swh_storage, sample_data):
+        snapshot = Snapshot(
+            branches={
+                b"refs/heads/master": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"refs/heads/incoming": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"refs/pull/1": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"refs/pull/2": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"dangling": None,
+                b"\xaa\xff": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xaa\xff\x00": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xff\xff": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+                b"\xff\xff\x00": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+
+        for include_pattern, exclude_prefix, nb_results in (
+            (b"pull", None, 2),
+            (b"incoming", None, 1),
+            (b"dangling", None, 1),
+            (None, b"refs/heads/", 7),
+            (b"refs", b"refs/heads/master", 3),
+            (b"refs", b"refs/heads/master", 3),
+            (None, b"\xaa\xff", 7),
+            (None, b"\xff\xff", 7),
+        ):
+            branches = swh_storage.snapshot_get_branches(
+                snapshot.id,
+                branch_name_include_substring=include_pattern,
+                branch_name_exclude_prefix=exclude_prefix,
+            )["branches"]
+
+            expected_branches = [
+                branch_name
+                for branch_name in snapshot.branches
+                if (include_pattern is None or include_pattern in branch_name)
+                and (
+                    exclude_prefix is None or not branch_name.startswith(exclude_prefix)
+                )
+            ]
+            assert sorted(branches) == sorted(expected_branches)
+            assert len(branches) == nb_results
+
+    def test_snapshot_add_get_by_branches_name_pattern_filtered_paginated(
+        self, swh_storage, sample_data
+    ):
+        pattern = b"foo"
+        nb_branches_by_target_type = 10
+        branches = {}
+        for i in range(nb_branches_by_target_type):
+            branches[f"branch/directory/bar{i}".encode()] = SnapshotBranch(
+                target=sample_data.directory.id, target_type=TargetType.DIRECTORY,
+            )
+            branches[f"branch/revision/bar{i}".encode()] = SnapshotBranch(
+                target=sample_data.revision.id, target_type=TargetType.REVISION,
+            )
+            branches[f"branch/directory/{pattern}{i}".encode()] = SnapshotBranch(
+                target=sample_data.directory.id, target_type=TargetType.DIRECTORY,
+            )
+            branches[f"branch/revision/{pattern}{i}".encode()] = SnapshotBranch(
+                target=sample_data.revision.id, target_type=TargetType.REVISION,
+            )
+
+        snapshot = Snapshot(branches=branches)
+        swh_storage.snapshot_add([snapshot])
+
+        branches_count = nb_branches_by_target_type // 2
+
+        for target_type in (
+            TargetType.DIRECTORY,
+            TargetType.REVISION,
+        ):
+            target_type_str = target_type.value
+            partial_branches = swh_storage.snapshot_get_branches(
+                snapshot.id,
+                branch_name_include_substring=pattern,
+                target_types=[target_type_str],
+                branches_count=branches_count,
+            )
+            branches = partial_branches["branches"]
+
+            expected_branches = [
+                branch_name
+                for branch_name, branch_data in snapshot.branches.items()
+                if pattern in branch_name and branch_data.target_type == target_type
+            ][:branches_count]
+
+            assert sorted(branches) == sorted(expected_branches)
+            assert (
+                partial_branches["next_branch"]
+                == f"branch/{target_type_str}/{pattern}{branches_count}".encode()
+            )
+
+            partial_branches = swh_storage.snapshot_get_branches(
+                snapshot.id,
+                branch_name_include_substring=pattern,
+                target_types=[target_type_str],
+                branches_from=partial_branches["next_branch"],
+            )
+            branches = partial_branches["branches"]
+
+            expected_branches = [
+                branch_name
+                for branch_name, branch_data in snapshot.branches.items()
+                if pattern in branch_name and branch_data.target_type == target_type
+            ][branches_count:]
+
+            assert sorted(branches) == sorted(expected_branches)
+            assert partial_branches["next_branch"] is None
 
     def test_snapshot_add_get(self, swh_storage, sample_data):
         snapshot = sample_data.snapshot
