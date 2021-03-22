@@ -188,6 +188,8 @@ CREATE TABLE IF NOT EXISTS metadata_fetcher (
 );""",
     """
 CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
+    id              blob,
+
     type            text,
     target          text,
 
@@ -211,8 +213,33 @@ CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
     path            blob,
     directory       text,
 
-    PRIMARY KEY ((target), authority_type, authority_url, discovery_date,
-                           fetcher_name, fetcher_version)
+    PRIMARY KEY ((target), authority_type, authority_url, discovery_date, id)
+
+    -- An explanation is in order for this primary key:
+    --
+    -- Intuitively, the primary key should only be 'id', because two metadata
+    -- entries are the same iff the id is the same; and 'id' is used for
+    -- deduplication.
+    --
+    -- However, we also want to query by
+    -- (target, authority_type, authority_url, discovery_date)
+    -- The naive solution to this would be an extra table, to use as index;
+    -- but it means 1. extra code to keep them in sync 2. overhead when writing
+    -- 3. overhead + random reads (instead of linear) when reading.
+    --
+    -- Therefore, we use a single table for both, by adding the column
+    -- we want to query with before the id.
+    -- It solves both a) the query/order issues and b) the uniqueness issue because:
+    --
+    -- a) adding the id at the end of the primary key does not change the rows' order:
+    --    for two different rows, id1 != id2, so
+    --    (target1, ..., date1) < (target2, ..., date2)
+    --    <=> (target1, ..., date1, id1) < (target2, ..., date2, id2)
+    --
+    -- b) the id is a hash of all the columns, so:
+    --    rows are the same
+    --    <=> id1 == id2
+    --    <=> (target1, ..., date1, id1) == (target2, ..., date2, id2)
 );""",
     """
 CREATE TABLE IF NOT EXISTS object_count (

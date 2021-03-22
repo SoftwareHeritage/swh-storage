@@ -246,9 +246,10 @@ class RawExtrinsicMetadataRow(BaseRow):
         "authority_type",
         "authority_url",
         "discovery_date",
-        "fetcher_name",
-        "fetcher_version",
+        "id",
     )
+
+    id: bytes
 
     type: str
     target: str
