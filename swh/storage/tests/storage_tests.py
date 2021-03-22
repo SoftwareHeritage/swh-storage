@@ -3771,37 +3771,28 @@ class TestStorage:
             assert obj in actual_objects
 
     def test_content_metadata_add_duplicate(self, swh_storage, sample_data):
-        """Duplicates should be silently updated."""
+        """Duplicates should be silently ignored."""
         content = sample_data.content
         fetcher = sample_data.metadata_fetcher
         authority = sample_data.metadata_authority
         content_metadata, content_metadata2 = sample_data.content_metadata[:2]
 
-        new_content_metadata2 = RawExtrinsicMetadata.from_dict(
-            {
-                **remove_keys(content_metadata2.to_dict(), ("id",)),  # recompute id
-                "format": "new-format",
-                "metadata": b"new-metadata",
-            }
-        )
-
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
         swh_storage.raw_extrinsic_metadata_add([content_metadata, content_metadata2])
-        swh_storage.raw_extrinsic_metadata_add([new_content_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([content_metadata2, content_metadata])
 
         result = swh_storage.raw_extrinsic_metadata_get(
             content.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
 
-        expected_results1 = (content_metadata, new_content_metadata2)
-        expected_results2 = (content_metadata, content_metadata2)
+        expected_results = (content_metadata, content_metadata2)
 
-        assert tuple(sorted(result.results, key=lambda x: x.discovery_date,)) in (
-            expected_results1,  # cassandra
-            expected_results2,  # postgresql
+        assert (
+            tuple(sorted(result.results, key=lambda x: x.discovery_date,))
+            == expected_results
         )
 
     def test_content_metadata_get(self, swh_storage, sample_data):
@@ -3996,19 +3987,11 @@ class TestStorage:
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
         assert swh_storage.origin_add([origin]) == {"origin:add": 1}
 
-        new_origin_metadata2 = RawExtrinsicMetadata.from_dict(
-            {
-                **remove_keys(origin_metadata2.to_dict(), ("id",)),  # recompute id
-                "format": "new-format",
-                "metadata": b"new-metadata",
-            }
-        )
-
         swh_storage.metadata_fetcher_add([fetcher])
         swh_storage.metadata_authority_add([authority])
 
         swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
-        swh_storage.raw_extrinsic_metadata_add([new_origin_metadata2])
+        swh_storage.raw_extrinsic_metadata_add([origin_metadata2, origin_metadata])
 
         result = swh_storage.raw_extrinsic_metadata_get(
             Origin(origin.url).swhid(), authority
@@ -4016,12 +3999,11 @@ class TestStorage:
         assert result.next_page_token is None
 
         # which of the two behavior happens is backend-specific.
-        expected_results1 = (origin_metadata, new_origin_metadata2)
-        expected_results2 = (origin_metadata, origin_metadata2)
+        expected_results = (origin_metadata, origin_metadata2)
 
-        assert tuple(sorted(result.results, key=lambda x: x.discovery_date,)) in (
-            expected_results1,  # cassandra
-            expected_results2,  # postgresql
+        assert (
+            tuple(sorted(result.results, key=lambda x: x.discovery_date,))
+            == expected_results
         )
 
     def test_origin_metadata_get(self, swh_storage, sample_data):

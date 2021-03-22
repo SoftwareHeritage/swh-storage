@@ -1,8 +1,11 @@
-swh-storage (0.25.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.26.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.26.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2021-03-22 14:44:35 +0100)
+  * Upstream changes:     - Release swh.storage v0.26.0     - Move
+    raw_extrinsic_metadata deduplication to use a new id column.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 18 Mar 2021 13:07:29 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 22 Mar 2021 21:53:39 +0000
 
 swh-storage (0.25.0-1~swh1) unstable-swh; urgency=medium
 

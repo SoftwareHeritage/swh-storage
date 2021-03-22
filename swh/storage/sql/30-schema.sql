@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(170, now(), 'Work In Progress');
+      values(172, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -430,6 +430,8 @@ comment on column metadata_authority.metadata is 'Other metadata about authority
 -- Extrinsic metadata on a DAG objects and origins.
 create table raw_extrinsic_metadata
 (
+  id             sha1_git      not null,
+
   type           text          not null,
   target         text          not null,
 
