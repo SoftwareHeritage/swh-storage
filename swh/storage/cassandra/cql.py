@@ -1016,16 +1016,15 @@ class CqlRunner:
     @_prepared_select_statement(
         RawExtrinsicMetadataRow,
         "WHERE target=? AND authority_type=? AND authority_url=? "
-        "AND (discovery_date, fetcher_name, fetcher_version) > (?, ?, ?)",
+        "AND (discovery_date, id) > (?, ?)",
     )
-    def raw_extrinsic_metadata_get_after_date_and_fetcher(
+    def raw_extrinsic_metadata_get_after_date_and_id(
         self,
         target: str,
         authority_type: str,
         authority_url: str,
         after_date: datetime.datetime,
-        after_fetcher_name: str,
-        after_fetcher_version: str,
+        after_id: bytes,
         *,
         statement,
     ) -> Iterable[RawExtrinsicMetadataRow]:
@@ -1033,14 +1032,7 @@ class CqlRunner:
             RawExtrinsicMetadataRow.from_dict,
             self._execute_with_retries(
                 statement,
-                [
-                    target,
-                    authority_type,
-                    authority_url,
-                    after_date,
-                    after_fetcher_name,
-                    after_fetcher_version,
-                ],
+                [target, authority_type, authority_url, after_date, after_id,],
             ),
         )
 
