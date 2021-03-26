@@ -1090,7 +1090,6 @@ class TestStorage:
             for revision in sample_data.revisions
             if revision.type.value == "git"
         ]
-        nullids = [None] * len(gitids)
         extids = [
             ExtID(
                 extid=gitid,
@@ -1100,8 +1099,8 @@ class TestStorage:
             for gitid in gitids
         ]
 
-        assert swh_storage.extid_get_from_extid("git", gitids) == nullids
-        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == nullids
+        assert swh_storage.extid_get_from_extid("git", gitids) == []
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == []
 
         summary = swh_storage.extid_add(extids)
         assert summary == {"extid:add": len(gitids)}
@@ -1109,8 +1108,8 @@ class TestStorage:
         assert swh_storage.extid_get_from_extid("git", gitids) == extids
         assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
 
-        assert swh_storage.extid_get_from_extid("hg", gitids) == nullids
-        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, gitids) == nullids
+        assert swh_storage.extid_get_from_extid("hg", gitids) == []
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, gitids) == []
 
     def test_extid_add_hg(self, swh_storage, sample_data):
         def get_node(revision):
@@ -1131,10 +1130,9 @@ class TestStorage:
             for revision in sample_data.revisions
             if revision.type.value == "hg"
         ]
-        nullids = [None] * len(swhids)
 
-        assert swh_storage.extid_get_from_extid("hg", extids) == nullids
-        assert swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == nullids
+        assert swh_storage.extid_get_from_extid("hg", extids) == []
+        assert swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == []
 
         extid_objs = [
             ExtID(
@@ -1152,8 +1150,8 @@ class TestStorage:
             swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == extid_objs
         )
 
-        assert swh_storage.extid_get_from_extid("git", extids) == nullids
-        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, swhids) == nullids
+        assert swh_storage.extid_get_from_extid("git", extids) == []
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, swhids) == []
 
     def test_extid_add_twice(self, swh_storage, sample_data):
 
@@ -1180,14 +1178,13 @@ class TestStorage:
         assert swh_storage.extid_get_from_extid("git", gitids) == extids
         assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
 
-    def test_extid_add_extid_unicity(self, swh_storage, sample_data):
+    def test_extid_add_extid_multicity(self, swh_storage, sample_data):
 
         ids = [
             revision.id
             for revision in sample_data.revisions
             if revision.type.value == "git"
         ]
-        nullids = [None] * len(ids)
 
         extids = [
             ExtID(
@@ -1199,7 +1196,7 @@ class TestStorage:
         ]
         swh_storage.extid_add(extids)
 
-        # try to add "modified-extid" versions, should be noops
+        # try to add "modified-extid" versions, should be added
         extids2 = [
             ExtID(
                 extid=extid,
@@ -1211,17 +1208,19 @@ class TestStorage:
         swh_storage.extid_add(extids2)
 
         assert swh_storage.extid_get_from_extid("git", ids) == extids
-        assert swh_storage.extid_get_from_extid("hg", ids) == nullids
-        assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
+        assert swh_storage.extid_get_from_extid("hg", ids) == extids2
+        assert set(swh_storage.extid_get_from_target(ObjectType.REVISION, ids)) == {
+            *extids,
+            *extids2,
+        }
 
-    def test_extid_add_target_unicity(self, swh_storage, sample_data):
+    def test_extid_add_target_multicity(self, swh_storage, sample_data):
 
         ids = [
             revision.id
             for revision in sample_data.revisions
             if revision.type.value == "git"
         ]
-        nullids = [None] * len(ids)
 
         extids = [
             ExtID(
@@ -1233,7 +1232,7 @@ class TestStorage:
         ]
         swh_storage.extid_add(extids)
 
-        # try to add "modified" versions, should be noops
+        # try to add "modified" versions, should be added
         extids2 = [
             ExtID(
                 extid=extid,
@@ -1244,9 +1243,9 @@ class TestStorage:
         ]
         swh_storage.extid_add(extids2)
 
-        assert swh_storage.extid_get_from_extid("git", ids) == extids
+        assert set(swh_storage.extid_get_from_extid("git", ids)) == {*extids, *extids2}
         assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
-        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, ids) == nullids
+        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, ids) == extids2
 
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]

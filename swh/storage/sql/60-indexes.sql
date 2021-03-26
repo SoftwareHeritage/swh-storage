@@ -287,5 +287,7 @@ create unique index concurrently object_counts_bucketed_pkey on object_counts_bu
 alter table object_counts_bucketed add primary key using index object_counts_bucketed_pkey;
 
 -- extid
-create unique index concurrently on extid(extid_type, extid);
-create unique index concurrently on extid(target_type, target);
+
+-- used to query by (extid_type, extid) + to deduplicate the whole row
+create unique index concurrently on extid(extid_type, extid, target_type, target);
+create index concurrently on extid(target_type, target);

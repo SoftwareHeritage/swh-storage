@@ -502,9 +502,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("extid/from_extid")
-    def extid_get_from_extid(
-        self, id_type: str, ids: List[bytes]
-    ) -> List[Optional[ExtID]]:
+    def extid_get_from_extid(self, id_type: str, ids: List[bytes]) -> List[ExtID]:
         """Get ExtID objects from external IDs
 
         Args:
@@ -512,7 +510,7 @@ class StorageInterface(Protocol):
             ids: list of external IDs
 
         Returns:
-            list of ExtID objects (if the ext ID is known, None otherwise)
+            list of ExtID objects
 
         """
         ...
@@ -520,7 +518,7 @@ class StorageInterface(Protocol):
     @remote_api_endpoint("extid/from_target")
     def extid_get_from_target(
         self, target_type: ObjectType, ids: List[Sha1Git]
-    ) -> List[Optional[ExtID]]:
+    ) -> List[ExtID]:
         """Get ExtID objects from target IDs and target_type
 
         Args:
@@ -528,7 +526,7 @@ class StorageInterface(Protocol):
             ids: list of target IDs
 
         Returns:
-            list of ExtID objects (if the SWH ID is known, None otherwise)
+            list of ExtID objects
 
         """
         ...
