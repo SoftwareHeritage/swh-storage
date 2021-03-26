@@ -954,7 +954,11 @@ class Storage:
                 origin_visit = self.origin_visit_get_by(
                     visit_status.origin, visit_status.visit, db=db, cur=cur
                 )
-                assert origin_visit is not None
+                if origin_visit is None:
+                    raise StorageArgumentException(
+                        f"Unknown origin visit {visit_status.visit} "
+                        f"of origin {visit_status.origin}"
+                    )
 
                 origin_visit_status = attr.evolve(visit_status, type=origin_visit.type)
             else:

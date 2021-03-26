@@ -938,12 +938,15 @@ class CassandraStorage:
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status"""
         if visit_status.type is None:
-            origin_row = self._cql_runner.origin_visit_get_one(
+            visit_row = self._cql_runner.origin_visit_get_one(
                 visit_status.origin, visit_status.visit
             )
-            if origin_row is None:
-                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
-            visit_status = attr.evolve(visit_status, type=origin_row.type)
+            if visit_row is None:
+                raise StorageArgumentException(
+                    f"Unknown origin visit {visit_status.visit} "
+                    f"of origin {visit_status.origin}"
+                )
+            visit_status = attr.evolve(visit_status, type=visit_row.type)
 
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(

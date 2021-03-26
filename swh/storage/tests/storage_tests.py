@@ -1606,6 +1606,33 @@ class TestStorage:
         assert actual_page.next_page_token is None
         assert actual_page.results == []
 
+    def test_origin_visit_status_add_unknown_type(self, swh_storage, sample_data):
+        ov = OriginVisit(
+            origin=sample_data.origin.url,
+            date=now(),
+            type=sample_data.type_visit1,
+            visit=42,
+        )
+        ovs = OriginVisitStatus(
+            origin=ov.origin,
+            visit=ov.visit,
+            date=now(),
+            status="created",
+            snapshot=None,
+        )
+
+        with pytest.raises(StorageArgumentException):
+            swh_storage.origin_visit_status_add([ovs])
+
+        swh_storage.origin_add([sample_data.origin])
+
+        with pytest.raises(StorageArgumentException):
+            swh_storage.origin_visit_status_add([ovs])
+
+        swh_storage.origin_visit_add([ov])
+
+        swh_storage.origin_visit_status_add([ovs])
+
     def test_origin_visit_status_get_all(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
