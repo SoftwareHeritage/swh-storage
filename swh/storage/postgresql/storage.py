@@ -643,28 +643,22 @@ class Storage:
     @db_transaction()
     def extid_get_from_extid(
         self, id_type: str, ids: List[bytes], db=None, cur=None
-    ) -> List[Optional[ExtID]]:
+    ) -> List[ExtID]:
         extids = []
         for row in db.extid_get_from_extid_list(id_type, ids, cur):
-            extids.append(
-                converters.db_to_extid(dict(zip(db.extid_cols, row)))
-                if row[0] is not None
-                else None
-            )
+            if row[0] is not None:
+                extids.append(converters.db_to_extid(dict(zip(db.extid_cols, row))))
         return extids
 
     @timed
     @db_transaction()
     def extid_get_from_target(
         self, target_type: ObjectType, ids: List[Sha1Git], db=None, cur=None
-    ) -> List[Optional[ExtID]]:
+    ) -> List[ExtID]:
         extids = []
         for row in db.extid_get_from_swhid_list(target_type.value, ids, cur):
-            extids.append(
-                converters.db_to_extid(dict(zip(db.extid_cols, row)))
-                if row[0] is not None
-                else None
-            )
+            if row[0] is not None:
+                extids.append(converters.db_to_extid(dict(zip(db.extid_cols, row))))
         return extids
 
     @timed
@@ -954,7 +948,11 @@ class Storage:
                 origin_visit = self.origin_visit_get_by(
                     visit_status.origin, visit_status.visit, db=db, cur=cur
                 )
-                assert origin_visit is not None
+                if origin_visit is None:
+                    raise StorageArgumentException(
+                        f"Unknown origin visit {visit_status.visit} "
+                        f"of origin {visit_status.origin}"
+                    )
 
                 origin_visit_status = attr.evolve(visit_status, type=origin_visit.type)
             else:
