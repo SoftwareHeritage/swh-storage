@@ -938,12 +938,15 @@ class CassandraStorage:
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
         """Add an origin visit status"""
         if visit_status.type is None:
-            origin_row = self._cql_runner.origin_visit_get_one(
+            visit_row = self._cql_runner.origin_visit_get_one(
                 visit_status.origin, visit_status.visit
             )
-            if origin_row is None:
-                raise StorageArgumentException(f"Unknown origin {visit_status.origin}")
-            visit_status = attr.evolve(visit_status, type=origin_row.type)
+            if visit_row is None:
+                raise StorageArgumentException(
+                    f"Unknown origin visit {visit_status.visit} "
+                    f"of origin {visit_status.origin}"
+                )
+            visit_status = attr.evolve(visit_status, type=visit_row.type)
 
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(
@@ -1357,63 +1360,46 @@ class CassandraStorage:
                 target=extid.target.object_id,
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
-            if (
-                self.extid_get_from_extid(extid.extid_type, [extid.extid])[0]
-                or self.extid_get_from_target(
-                    extid.target.object_type, [extid.target.object_id]
-                )[0]
-            ):
-                # on conflict do nothing...
-                continue
             self._cql_runner.extid_index_add_one(extidrow, token)
             insertion_finalizer()
             inserted += 1
         return {"extid:add": inserted}
 
-    def extid_get_from_extid(
-        self, id_type: str, ids: List[bytes]
-    ) -> List[Optional[ExtID]]:
-        result: List[Optional[ExtID]] = []
+    def extid_get_from_extid(self, id_type: str, ids: List[bytes]) -> List[ExtID]:
+        result: List[ExtID] = []
         for extid in ids:
             extidrows = list(self._cql_runner.extid_get_from_extid(id_type, extid))
-            assert len(extidrows) <= 1
-            if extidrows:
-                result.append(
-                    ExtID(
-                        extid_type=extidrows[0].extid_type,
-                        extid=extidrows[0].extid,
-                        target=CoreSWHID(
-                            object_type=extidrows[0].target_type,
-                            object_id=extidrows[0].target,
-                        ),
-                    )
+            result.extend(
+                ExtID(
+                    extid_type=extidrow.extid_type,
+                    extid=extidrow.extid,
+                    target=CoreSWHID(
+                        object_type=extidrow.target_type, object_id=extidrow.target,
+                    ),
                 )
-            else:
-                result.append(None)
+                for extidrow in extidrows
+            )
         return result
 
     def extid_get_from_target(
         self, target_type: SwhidObjectType, ids: List[Sha1Git]
-    ) -> List[Optional[ExtID]]:
-        result: List[Optional[ExtID]] = []
+    ) -> List[ExtID]:
+        result: List[ExtID] = []
         for target in ids:
             extidrows = list(
                 self._cql_runner.extid_get_from_target(target_type.value, target)
             )
-            assert len(extidrows) <= 1
-            if extidrows:
-                result.append(
-                    ExtID(
-                        extid_type=extidrows[0].extid_type,
-                        extid=extidrows[0].extid,
-                        target=CoreSWHID(
-                            object_type=SwhidObjectType(extidrows[0].target_type),
-                            object_id=extidrows[0].target,
-                        ),
-                    )
+            result.extend(
+                ExtID(
+                    extid_type=extidrow.extid_type,
+                    extid=extidrow.extid,
+                    target=CoreSWHID(
+                        object_type=SwhidObjectType(extidrow.target_type),
+                        object_id=extidrow.target,
+                    ),
                 )
-            else:
-                result.append(None)
+                for extidrow in extidrows
+            )
         return result
 
     # Misc
