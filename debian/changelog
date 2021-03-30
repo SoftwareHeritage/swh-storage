@@ -1,8 +1,11 @@
-swh-storage (0.27.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.27.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.27.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-03-30 17:47:03 +0200)
+  * Upstream changes:     - v0.27.1     - * buffer: Add support for
+    'extid'
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 29 Mar 2021 12:49:21 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 30 Mar 2021 15:59:01 +0000
 
 swh-storage (0.27.0-1~swh1) unstable-swh; urgency=medium
 

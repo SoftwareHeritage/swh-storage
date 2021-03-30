@@ -161,6 +161,70 @@ def test_buffering_proxy_storage_skipped_content_deduplicate(sample_data):
     assert s == {}
 
 
+def test_buffering_proxy_storage_extid_threshold_not_hit(sample_data) -> None:
+    extid = sample_data.extid1
+    storage = get_storage_with_buffer_config(min_batch_size={"extid": 10,})
+    s = storage.extid_add([extid])
+    assert s == {}
+
+    present_extids = storage.extid_get_from_target(
+        extid.target.object_type, [extid.target.object_id]
+    )
+    assert list(present_extids) == []
+
+    s = storage.flush()
+    assert s == {
+        "extid:add": 1,
+    }
+
+    present_extids = storage.extid_get_from_target(
+        extid.target.object_type, [extid.target.object_id]
+    )
+    assert list(present_extids) == [extid]
+
+
+def test_buffering_proxy_storage_extid_threshold_hit(sample_data) -> None:
+    extid = sample_data.extid1
+    storage = get_storage_with_buffer_config(min_batch_size={"extid": 1,})
+    s = storage.extid_add([extid])
+    assert s == {
+        "extid:add": 1,
+    }
+
+    present_extids = storage.extid_get_from_target(
+        extid.target.object_type, [extid.target.object_id]
+    )
+    assert list(present_extids) == [extid]
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_extid_deduplicate(sample_data) -> None:
+    extids = sample_data.extids[:2]
+    storage = get_storage_with_buffer_config(min_batch_size={"extid": 2,})
+
+    s = storage.extid_add([extids[0], extids[0]])
+    assert s == {}
+
+    s = storage.extid_add([extids[0]])
+    assert s == {}
+
+    s = storage.extid_add([extids[1]])
+    assert s == {
+        "extid:add": 1 + 1,
+    }
+
+    for extid in extids:
+        present_extids = storage.extid_get_from_target(
+            extid.target.object_type, [extid.target.object_id]
+        )
+        assert list(present_extids) == [extid]
+
+    s = storage.flush()
+    assert s == {}
+
+
 def test_buffering_proxy_storage_directory_threshold_not_hit(sample_data) -> None:
     directory = sample_data.directory
     storage = get_storage_with_buffer_config(min_batch_size={"directory": 10,})
