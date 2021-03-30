@@ -14,7 +14,13 @@ from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
 LObjectType = Literal[
-    "content", "skipped_content", "directory", "revision", "release", "snapshot"
+    "content",
+    "skipped_content",
+    "directory",
+    "revision",
+    "release",
+    "snapshot",
+    "extid",
 ]
 OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "content",
@@ -23,6 +29,7 @@ OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "revision",
     "release",
     "snapshot",
+    "extid",
 )
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
@@ -33,6 +40,7 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "revision": 100000,
     "release": 100000,
     "snapshot": 25000,
+    "extid": 10000,
 }
 
 
