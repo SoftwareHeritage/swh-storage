@@ -14,14 +14,38 @@ import pytest
 
 from swh.journal.client import JournalClient
 from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_hex
-from swh.model.tests.swh_model_data import DUPLICATE_CONTENTS, TEST_OBJECTS
+from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes, hash_to_hex
+from swh.model.model import Revision, RevisionType
+from swh.model.tests.swh_model_data import (
+    COMMITTERS,
+    DATES,
+    DUPLICATE_CONTENTS,
+    REVISIONS,
+)
+from swh.model.tests.swh_model_data import TEST_OBJECTS as _TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.replay import process_replay_objects
 
 UTC = datetime.timezone.utc
+
+TEST_OBJECTS = _TEST_OBJECTS.copy()
+TEST_OBJECTS["revision"] = list(_TEST_OBJECTS["revision"]) + [
+    Revision(
+        id=hash_to_bytes("a569b03ebe6e5f9f2f6077355c40d89bd6986d0c"),
+        message=b"hello again",
+        date=DATES[1],
+        committer=COMMITTERS[1],
+        author=COMMITTERS[0],
+        committer_date=DATES[0],
+        type=RevisionType.GIT,
+        directory=b"\x03" * 20,
+        synthetic=False,
+        metadata={"something": "interesting"},
+        parents=(REVISIONS[0].id,),
+    ),
+]
 
 
 def nullify_ctime(obj):
@@ -212,6 +236,10 @@ def check_replayed(
                     author=row.author.anonymize(),
                     committer=row.committer.anonymize(),
                 )
+        if attr == "revisions":
+            # the replayer should now drop the metadata attribute; see
+            # swh/storgae/replay.py:_insert_objects()
+            row.metadata = "null"
 
         return row
 
