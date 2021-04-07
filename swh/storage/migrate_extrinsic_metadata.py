@@ -836,7 +836,11 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                         # Most of them should have the "id", but some revisions,
                         # like 4d3890004fade1f4ec3bf7004a4af0c490605128, are missing
                         # this field
-                        assert "id" in actual_metadata or "title" in actual_metadata
+                        assert (
+                            "id" in actual_metadata
+                            or "title" in actual_metadata
+                            or "atom:title" in actual_metadata
+                        )
                         assert "codemeta:author" in actual_metadata
 
                     (origin, discovery_date) = handle_deposit_row(
