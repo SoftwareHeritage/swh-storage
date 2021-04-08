@@ -14,14 +14,38 @@ import pytest
 
 from swh.journal.client import JournalClient
 from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_hex
-from swh.model.tests.swh_model_data import DUPLICATE_CONTENTS, TEST_OBJECTS
+from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes, hash_to_hex
+from swh.model.model import Revision, RevisionType
+from swh.model.tests.swh_model_data import (
+    COMMITTERS,
+    DATES,
+    DUPLICATE_CONTENTS,
+    REVISIONS,
+)
+from swh.model.tests.swh_model_data import TEST_OBJECTS as _TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.replay import process_replay_objects
 
 UTC = datetime.timezone.utc
+
+TEST_OBJECTS = _TEST_OBJECTS.copy()
+TEST_OBJECTS["revision"] = list(_TEST_OBJECTS["revision"]) + [
+    Revision(
+        id=hash_to_bytes("a569b03ebe6e5f9f2f6077355c40d89bd6986d0c"),
+        message=b"hello again",
+        date=DATES[1],
+        committer=COMMITTERS[1],
+        author=COMMITTERS[0],
+        committer_date=DATES[0],
+        type=RevisionType.GIT,
+        directory=b"\x03" * 20,
+        synthetic=False,
+        metadata={"something": "interesting"},
+        parents=(REVISIONS[0].id,),
+    ),
+]
 
 
 def nullify_ctime(obj):
@@ -85,7 +109,9 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
     nb_inserted = replayer.process(worker_fn)
     assert nb_sent == nb_inserted
 
-    _check_replayed(src, dst)
+    assert isinstance(src, InMemoryStorage)  # needed to help mypy
+    assert isinstance(dst, InMemoryStorage)
+    check_replayed(src, dst)
 
     collision = 0
     for record in caplog.records:
@@ -165,7 +191,9 @@ def test_storage_play_with_collision(replayer_storage_and_client, caplog):
         assert expected_content_hashes in actual_colliding_hashes
 
     # all objects from the src should exists in the dst storage
-    _check_replayed(src, dst, exclude=["contents"])
+    assert isinstance(src, InMemoryStorage)  # needed to help mypy
+    assert isinstance(dst, InMemoryStorage)  # needed to help mypy
+    check_replayed(src, dst, exclude=["contents"])
     # but the dst has one content more (one of the 2 colliding ones)
     assert (
         len(list(src._cql_runner._contents.iter_all()))
@@ -188,12 +216,33 @@ def test_replay_skipped_content_bwcompat(replayer_storage_and_client):
 # utility functions
 
 
-def _check_replayed(
-    src: InMemoryStorage, dst: InMemoryStorage, exclude: Optional[Container] = None
+def check_replayed(
+    src: InMemoryStorage,
+    dst: InMemoryStorage,
+    exclude: Optional[Container] = None,
+    expected_anonymized=False,
 ):
-    """Simple utility function to compare the content of 2 in_memory storages
+    """Simple utility function to compare the content of 2 in_memory storages"""
 
-    """
+    def fix_expected(attr, row):
+        if expected_anonymized:
+            if attr == "releases":
+                row = dataclasses.replace(
+                    row, author=row.author and row.author.anonymize()
+                )
+            elif attr == "revisions":
+                row = dataclasses.replace(
+                    row,
+                    author=row.author.anonymize(),
+                    committer=row.committer.anonymize(),
+                )
+        if attr == "revisions":
+            # the replayer should now drop the metadata attribute; see
+            # swh/storgae/replay.py:_insert_objects()
+            row.metadata = "null"
+
+        return row
+
     for attr_ in (
         "contents",
         "skipped_contents",
@@ -210,7 +259,7 @@ def _check_replayed(
         if exclude and attr_ in exclude:
             continue
         expected_objects = [
-            (id, nullify_ctime(obj))
+            (id, nullify_ctime(fix_expected(attr_, obj)))
             for id, obj in sorted(getattr(src._cql_runner, f"_{attr_}").iter_all())
         ]
         got_objects = [
@@ -321,46 +370,6 @@ def test_storage_play_anonymized(
     assert nb_sent == nb_inserted
     # Check the contents of the destination storage, and whether the anonymization was
     # properly used
+    assert isinstance(storage, InMemoryStorage)  # needed to help mypy
+    assert isinstance(dst_storage, InMemoryStorage)
     check_replayed(storage, dst_storage, expected_anonymized=not privileged)
-
-
-def check_replayed(src, dst, expected_anonymized=False):
-    """Simple utility function to compare the content of 2 in_memory storages
-
-    If expected_anonymized is True, objects from the source storage are anonymized
-    before comparing with the destination storage.
-
-    """
-
-    def maybe_anonymize(attr_, row):
-        if expected_anonymized:
-            if attr_ == "releases":
-                row = dataclasses.replace(row, author=row.author.anonymize())
-            elif attr_ == "revisions":
-                row = dataclasses.replace(
-                    row,
-                    author=row.author.anonymize(),
-                    committer=row.committer.anonymize(),
-                )
-        return row
-
-    for attr_ in (
-        "contents",
-        "skipped_contents",
-        "directories",
-        "revisions",
-        "releases",
-        "snapshots",
-        "origins",
-        "origin_visit_statuses",
-        "raw_extrinsic_metadata",
-    ):
-        expected_objects = [
-            (id, nullify_ctime(maybe_anonymize(attr_, obj)))
-            for id, obj in sorted(getattr(src._cql_runner, f"_{attr_}").iter_all())
-        ]
-        got_objects = [
-            (id, nullify_ctime(obj))
-            for id, obj in sorted(getattr(dst._cql_runner, f"_{attr_}").iter_all())
-        ]
-        assert got_objects == expected_objects, f"Mismatch object list for {attr_}"

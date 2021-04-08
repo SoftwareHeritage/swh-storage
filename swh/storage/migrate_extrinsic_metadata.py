@@ -1115,7 +1115,7 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
                 while True:
                     cur.execute(
                         f"SELECT {', '.join(REVISION_COLS)} FROM revision "
-                        f"WHERE id > %s AND metadata IS NOT NULL "
+                        f"WHERE id > %s AND metadata IS NOT NULL AND type != 'git'"
                         f"ORDER BY id LIMIT 1000",
                         (after_id,),
                     )

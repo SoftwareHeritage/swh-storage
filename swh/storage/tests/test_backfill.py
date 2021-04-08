@@ -19,6 +19,7 @@ from swh.storage.backfill import (
     compute_query,
     raw_extrinsic_metadata_target_ranges,
 )
+from swh.storage.in_memory import InMemoryStorage
 from swh.storage.replay import process_replay_objects
 from swh.storage.tests.test_replay import check_replayed
 
@@ -287,6 +288,8 @@ def test_backfiller(
     replayer2.process(worker_fn2)
 
     # Compare storages
+    assert isinstance(sto1, InMemoryStorage)  # needed to help mypy
+    assert isinstance(sto2, InMemoryStorage)
     check_replayed(sto1, sto2)
 
     for record in caplog.records:
