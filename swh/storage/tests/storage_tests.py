@@ -1111,6 +1111,14 @@ class TestStorage:
         assert swh_storage.extid_get_from_extid("hg", gitids) == []
         assert swh_storage.extid_get_from_target(ObjectType.RELEASE, gitids) == []
 
+        # check ExtIDs have been added to the journal
+        extids_in_journal = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "extid"
+        ]
+        assert extids == extids_in_journal
+
     def test_extid_add_hg(self, swh_storage, sample_data):
         def get_node(revision):
             node = None
@@ -1152,6 +1160,14 @@ class TestStorage:
 
         assert swh_storage.extid_get_from_extid("git", extids) == []
         assert swh_storage.extid_get_from_target(ObjectType.RELEASE, swhids) == []
+
+        # check ExtIDs have been added to the journal
+        extids_in_journal = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "extid"
+        ]
+        assert extid_objs == extids_in_journal
 
     def test_extid_add_twice(self, swh_storage, sample_data):
 
