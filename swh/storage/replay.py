@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Any, Callable, Dict, Iterable, List
+from typing import Any, Callable, Container, Dict, Iterable, List
 
 try:
     from systemd.daemon import notify
@@ -103,6 +103,11 @@ def collision_aware_content_add(
             logger.error("Collision detected: %(collision)s", {"collision": collision})
 
 
+def dict_key_dropper(d: Dict, keys_to_drop: Container) -> Dict:
+    """Returns a copy of the dict d without any key listed in keys_to_drop"""
+    return {k: v for (k, v) in d.items() if k not in keys_to_drop}
+
+
 def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
     """Insert objects of type object_type in the storage.
 
@@ -146,6 +151,18 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
         storage.metadata_authority_add(authorities)
         storage.metadata_fetcher_add(fetchers)
         storage.raw_extrinsic_metadata_add(converted)
+    elif object_type == "revision":
+        # drop the metadata field from the revision (is any); this field is
+        # about to be dropped from the data model (in favor of
+        # raw_extrinsic_metadata) and there can be bogus values in the existing
+        # journal (metadata with \0000 in it)
+        method = getattr(storage, object_type + "_add")
+        method(
+            [
+                object_converter_fn[object_type](dict_key_dropper(o, ("metadata",)))
+                for o in objects
+            ]
+        )
     elif object_type in (
         "directory",
         "extid",

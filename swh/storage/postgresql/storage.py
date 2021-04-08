@@ -675,6 +675,8 @@ class Storage:
         ]
         db.mktemp("extid", cur)
 
+        self.journal_writer.extid_add(ids)
+
         db.copy_to(extid, "tmp_extid", db.extid_cols, cur)
 
         # move metadata in place
