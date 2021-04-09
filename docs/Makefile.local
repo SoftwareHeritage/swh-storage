@@ -4,6 +4,7 @@ assets: sql-autodoc images
 
 sql-autodoc:
 	make -C ../sql/ doc
+	cp ../sql/doc/sql/db-schema.svg images/
 
 images:
 	make -C images/
