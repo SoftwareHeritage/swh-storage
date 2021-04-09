@@ -9,7 +9,7 @@ Postgres DB schema
 ------------------
 
 .. _swh-storage-db-schema:
-.. figure:: ../sql/doc/sql/db-schema.svg
+.. figure:: images/db-schema.svg
    :width: 1024px
    :align: center
 
