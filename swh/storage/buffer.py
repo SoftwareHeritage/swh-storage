@@ -94,9 +94,10 @@ class BufferingProxyStorage:
         """Push contents to write to the storage in the buffer.
 
         Following policies apply:
-            - if the buffer's threshold is hit, flush content to the storage.
-            - otherwise, if the total size of buffered contents's threshold is hit,
-            flush content to the storage.
+
+        - if the buffer's threshold is hit, flush content to the storage.
+        - otherwise, if the total size of buffered contents's threshold is hit,
+          flush content to the storage.
 
         """
         stats = self.object_add(
