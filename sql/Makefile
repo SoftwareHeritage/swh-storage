@@ -16,9 +16,7 @@ all:
 
 createdb: createdb-stamp
 createdb-stamp: $(SQL_FILES)
-ifeq ($(PIFPAF),)
 	-dropdb $(PGDATABASE)
-endif
 	createdb $(PGDATABASE)
 ifeq ($(PIFPAF),)
 	touch $@
