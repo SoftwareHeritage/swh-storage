@@ -1124,29 +1124,29 @@ class CqlRunner:
                         yield extid
 
     ##########################
-    # 'extid_by_*' tables
+    # 'extid_by_target' table
     ##########################
 
-    def extid_index_add_one(self, extid: ExtIDRow, token: int) -> None:
+    @_prepared_statement(
+        "INSERT INTO extid_by_target (target_type, target, target_token) "
+        "VALUES (?, ?, ?)"
+    )
+    def extid_index_add_one(self, extid: ExtIDRow, token: int, *, statement) -> None:
         """Adds a row mapping extid[target_type, target] to the token of the ExtID in
         the main 'extid' table."""
-        query = (
-            "INSERT INTO extid_by_target (target_type, target, target_token) "
-            "VALUES (%s, %s, %s)"
-        )
-        self._execute_with_retries(query, [extid.target_type, extid.target, token])
+        self._execute_with_retries(statement, [extid.target_type, extid.target, token])
 
+    @_prepared_statement(
+        "SELECT target_token "
+        "FROM extid_by_target "
+        "WHERE target_type = ? AND target = ?"
+    )
     def _extid_get_tokens_from_target(
-        self, target_type: str, target: bytes
+        self, target_type: str, target: bytes, *, statement
     ) -> Iterable[int]:
-        query = (
-            "SELECT target_token "
-            "FROM extid_by_target "
-            "WHERE target_type = %s AND target = %s"
-        )
         return (
             row["target_token"]
-            for row in self._execute_with_retries(query, [target_type, target])
+            for row in self._execute_with_retries(statement, [target_type, target])
         )
 
     ##########################
