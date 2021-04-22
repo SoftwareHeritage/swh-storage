@@ -69,6 +69,7 @@ from .model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDByTargetRow,
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
@@ -1354,14 +1355,19 @@ class CassandraStorage:
 
         inserted = 0
         for extid in extids:
+            target_type = extid.target.object_type.value
+            target = extid.target.object_id
             extidrow = ExtIDRow(
                 extid_type=extid.extid_type,
                 extid=extid.extid,
-                target_type=extid.target.object_type.value,
-                target=extid.target.object_id,
+                target_type=target_type,
+                target=target,
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
-            self._cql_runner.extid_index_add_one(extidrow, token)
+            indexrow = ExtIDByTargetRow(
+                target_type=target_type, target=target, target_token=token,
+            )
+            self._cql_runner.extid_index_add_one(indexrow)
             insertion_finalizer()
             inserted += 1
         return {"extid:add": inserted}
