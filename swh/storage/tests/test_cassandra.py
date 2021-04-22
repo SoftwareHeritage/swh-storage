@@ -4,26 +4,29 @@
 # See top-level LICENSE file for more information
 
 import datetime
+import itertools
 import os
 import signal
 import socket
 import subprocess
 import time
-from typing import Dict
+from typing import Any, Dict
 
 import attr
 import pytest
 
 from swh.core.api.classes import stream_results
+from swh.model.model import Directory, DirectoryEntry, Snapshot
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
 from swh.storage.cassandra.model import ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import HASH_ALGORITHMS, TABLES
+from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
-from swh.storage.utils import now
+from swh.storage.utils import now, remove_keys
 
 CONFIG_TEMPLATE = """
 data_file_directories:
@@ -448,3 +451,105 @@ class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
     @pytest.mark.skip("Not supported by Cassandra")
     def test_origin_count_with_visit_with_visits_no_snapshot(self):
         pass
+
+
+@pytest.mark.parametrize(
+    "allow_overwrite,object_type",
+    itertools.product(
+        [False, True],
+        # Note the absence of "content", it's tested above.
+        ["directory", "revision", "release", "snapshot", "origin", "extid"],
+    ),
+)
+def test_allow_overwrite(
+    allow_overwrite: bool, object_type: str, swh_storage_backend_config
+):
+    if object_type in ("origin", "extid"):
+        pytest.skip(
+            f"test_disallow_overwrite not implemented for {object_type} objects, "
+            f"because all their columns are in the primary key."
+        )
+    swh_storage = get_storage(
+        allow_overwrite=allow_overwrite, **swh_storage_backend_config
+    )
+
+    # directory_ls joins with content and directory table, and needs those to return
+    # non-None entries:
+    if object_type == "directory":
+        swh_storage.directory_add([StorageData.directory5])
+        swh_storage.content_add([StorageData.content, StorageData.content2])
+
+    obj1: Any
+    obj2: Any
+
+    # Get two test objects
+    if object_type == "directory":
+        (obj1, obj2, *_) = StorageData.directories
+    elif object_type == "snapshot":
+        # StorageData.snapshots[1] is the empty snapshot, which is the corner case
+        # that makes this test succeed for the wrong reasons
+        obj1 = StorageData.snapshot
+        obj2 = StorageData.complete_snapshot
+    else:
+        (obj1, obj2, *_) = getattr(StorageData, (object_type + "s"))
+
+    # Let's make both objects have the same hash, but different content
+    obj1 = attr.evolve(obj1, id=obj2.id)
+
+    # Get the methods used to add and get these objects
+    add = getattr(swh_storage, object_type + "_add")
+    if object_type == "directory":
+
+        def get(ids):
+            return [
+                Directory(
+                    id=ids[0],
+                    entries=tuple(
+                        map(
+                            lambda entry: DirectoryEntry(
+                                name=entry["name"],
+                                type=entry["type"],
+                                target=entry["sha1_git"],
+                                perms=entry["perms"],
+                            ),
+                            swh_storage.directory_ls(ids[0]),
+                        )
+                    ),
+                )
+            ]
+
+    elif object_type == "snapshot":
+
+        def get(ids):
+            return [
+                Snapshot.from_dict(
+                    remove_keys(swh_storage.snapshot_get(ids[0]), ("next_branch",))
+                )
+            ]
+
+    else:
+        get = getattr(swh_storage, object_type + "_get")
+
+    # Add the first object
+    add([obj1])
+
+    # It should be returned as-is
+    assert get([obj1.id]) == [obj1]
+
+    # Add the second object
+    add([obj2])
+
+    if allow_overwrite:
+        # obj1 was overwritten by obj2
+        expected = obj2
+    else:
+        # obj2 was not written, because obj1 already exists and has the same hash
+        expected = obj1
+
+    if allow_overwrite and object_type in ("directory", "snapshot"):
+        # TODO
+        pytest.xfail(
+            "directory entries and snapshot branches are concatenated "
+            "instead of being replaced"
+        )
+    assert get([obj1.id]) == [expected]

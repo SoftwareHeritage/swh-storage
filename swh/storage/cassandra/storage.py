@@ -90,10 +90,45 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 
 class CassandraStorage:
-    def __init__(self, hosts, keyspace, objstorage, port=9042, journal_writer=None):
-        self._cql_runner: CqlRunner = CqlRunner(hosts, keyspace, port)
+    def __init__(
+        self,
+        hosts,
+        keyspace,
+        objstorage,
+        port=9042,
+        journal_writer=None,
+        allow_overwrite=False,
+    ):
+        """
+        A backend of swh-storage backed by Cassandra
+
+        Args:
+            hosts: Seed Cassandra nodes, to start connecting to the cluster
+            keyspace: Name of the Cassandra database to use
+            objstorage: Passed as argument to :class:`ObjStorage`
+            port: Cassandra port
+            journal_writer: Passed as argument to :class:`JournalWriter`
+            allow_overwrite: Whether ``*_add`` functions will check if an object
+                already exists in the database before sending it in an INSERT.
+                ``False`` is the default as it is more efficient when there is
+                a moderately high probability the object is already known,
+                but ``True`` can be useful to overwrite existing objects
+                (eg. when applying a schema update),
+                or when the database is known to be mostly empty.
+                Note that a ``False`` value does not guarantee there won't be
+                any overwrite.
+        """
+        self._hosts = hosts
+        self._keyspace = keyspace
+        self._port = port
+        self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(objstorage)
+        self._allow_overwrite = allow_overwrite
+
+    def _set_cql_runner(self):
+        """Used by tests when they need to reset the CqlRunner"""
+        self._cql_runner: CqlRunner = CqlRunner(self._hosts, self._keyspace, self._port)
 
     def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
@@ -120,9 +155,12 @@ class CassandraStorage:
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
         # Filter-out content already in the database.
-        contents = [
-            c for c in contents if not self._cql_runner.content_get_from_pk(c.to_dict())
-        ]
+        if not self._allow_overwrite:
+            contents = [
+                c
+                for c in contents
+                if not self._cql_runner.content_get_from_pk(c.to_dict())
+            ]
 
         if with_data:
             # First insert to the objstorage, if the endpoint is
@@ -151,27 +189,28 @@ class CassandraStorage:
             # The proper way to do it would probably be a BATCH, but this
             # would be inefficient because of the number of partitions we
             # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
-            for algo in {"sha1", "sha1_git"}:
-                collisions = []
-                # Get tokens of 'content' rows with the same value for
-                # sha1/sha1_git
-                rows = self._content_get_from_hash(algo, content.get_hash(algo))
-                for row in rows:
-                    if getattr(row, algo) != content.get_hash(algo):
-                        # collision of token(partition key), ignore this
-                        # row
-                        continue
+            if not self._allow_overwrite:
+                for algo in {"sha1", "sha1_git"}:
+                    collisions = []
+                    # Get tokens of 'content' rows with the same value for
+                    # sha1/sha1_git
+                    rows = self._content_get_from_hash(algo, content.get_hash(algo))
+                    for row in rows:
+                        if getattr(row, algo) != content.get_hash(algo):
+                            # collision of token(partition key), ignore this
+                            # row
+                            continue
 
-                    for other_algo in HASH_ALGORITHMS:
-                        if getattr(row, other_algo) != content.get_hash(other_algo):
-                            # This hash didn't match; discard the row.
-                            collisions.append(
-                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
-                            )
+                        for other_algo in HASH_ALGORITHMS:
+                            if getattr(row, other_algo) != content.get_hash(other_algo):
+                                # This hash didn't match; discard the row.
+                                collisions.append(
+                                    {k: getattr(row, k) for k in HASH_ALGORITHMS}
+                                )
 
-                if collisions:
-                    collisions.append(content.hashes())
-                    raise HashCollision(algo, content.get_hash(algo), collisions)
+                    if collisions:
+                        collisions.append(content.hashes())
+                        raise HashCollision(algo, content.get_hash(algo), collisions)
 
             (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
                 ContentRow(**remove_keys(content.to_dict(), ("data",)))
@@ -324,11 +363,12 @@ class CassandraStorage:
 
     def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict[str, int]:
         # Filter-out content already in the database.
-        contents = [
-            c
-            for c in contents
-            if not self._cql_runner.skipped_content_get_from_pk(c.to_dict())
-        ]
+        if not self._allow_overwrite:
+            contents = [
+                c
+                for c in contents
+                if not self._cql_runner.skipped_content_get_from_pk(c.to_dict())
+            ]
 
         self.journal_writer.skipped_content_add(contents)
 
@@ -360,9 +400,10 @@ class CassandraStorage:
 
     def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
         to_add = {d.id: d for d in directories}.values()
-        # Filter out directories that are already inserted.
-        missing = self.directory_missing([dir_.id for dir_ in to_add])
-        directories = [dir_ for dir_ in directories if dir_.id in missing]
+        if not self._allow_overwrite:
+            # Filter out directories that are already inserted.
+            missing = self.directory_missing([dir_.id for dir_ in to_add])
+            directories = [dir_ for dir_ in directories if dir_.id in missing]
 
         self.journal_writer.directory_add(directories)
 
@@ -485,9 +526,10 @@ class CassandraStorage:
 
     def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         # Filter-out revisions already in the database
-        to_add = {r.id: r for r in revisions}.values()
-        missing = self.revision_missing([rev.id for rev in to_add])
-        revisions = [rev for rev in revisions if rev.id in missing]
+        if not self._allow_overwrite:
+            to_add = {r.id: r for r in revisions}.values()
+            missing = self.revision_missing([rev.id for rev in to_add])
+            revisions = [rev for rev in revisions if rev.id in missing]
         self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
@@ -596,9 +638,10 @@ class CassandraStorage:
         return revision.id
 
     def release_add(self, releases: List[Release]) -> Dict[str, int]:
-        to_add = {r.id: r for r in releases}.values()
-        missing = set(self.release_missing([rel.id for rel in to_add]))
-        releases = [rel for rel in to_add if rel.id in missing]
+        if not self._allow_overwrite:
+            to_add = {r.id: r for r in releases}.values()
+            missing = set(self.release_missing([rel.id for rel in to_add]))
+            releases = [rel for rel in to_add if rel.id in missing]
         self.journal_writer.release_add(releases)
 
         for release in releases:
@@ -625,9 +668,10 @@ class CassandraStorage:
         return release.id
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
-        to_add = {s.id: s for s in snapshots}.values()
-        missing = self._cql_runner.snapshot_missing([snp.id for snp in to_add])
-        snapshots = [snp for snp in snapshots if snp.id in missing]
+        if not self._allow_overwrite:
+            to_add = {s.id: s for s in snapshots}.values()
+            missing = self._cql_runner.snapshot_missing([snp.id for snp in to_add])
+            snapshots = [snp for snp in snapshots if snp.id in missing]
 
         for snapshot in snapshots:
             self.journal_writer.snapshot_add([snapshot])
@@ -896,8 +940,9 @@ class CassandraStorage:
         )
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
-        to_add = {o.url: o for o in origins}.values()
-        origins = [ori for ori in to_add if self.origin_get_one(ori.url) is None]
+        if not self._allow_overwrite:
+            to_add = {o.url: o for o in origins}.values()
+            origins = [ori for ori in to_add if self.origin_get_one(ori.url) is None]
 
         self.journal_writer.origin_add(origins)
         for origin in origins:
@@ -1358,13 +1403,16 @@ class CassandraStorage:
 
     # ExtID tables
     def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
-        extids = [
-            extid
-            for extid in ids
-            if not self._cql_runner.extid_get_from_pk(
-                extid_type=extid.extid_type, extid=extid.extid, target=extid.target,
-            )
-        ]
+        if not self._allow_overwrite:
+            extids = [
+                extid
+                for extid in ids
+                if not self._cql_runner.extid_get_from_pk(
+                    extid_type=extid.extid_type, extid=extid.extid, target=extid.target,
+                )
+            ]
+        else:
+            extids = list(ids)
 
         self.journal_writer.extid_add(extids)
 
