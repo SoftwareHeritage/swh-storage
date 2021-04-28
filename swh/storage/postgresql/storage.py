@@ -210,7 +210,7 @@ class Storage:
 
     @timed
     @process_metrics
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         ctime = now()
 
         contents = [attr.evolve(c, ctime=ctime) for c in content]
@@ -419,7 +419,7 @@ class Storage:
     @db_transaction()
     def skipped_content_add(
         self, content: List[SkippedContent], db=None, cur=None
-    ) -> Dict:
+    ) -> Dict[str, int]:
         ctime = now()
         content = [attr.evolve(c, ctime=ctime) for c in content]
 
@@ -457,7 +457,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def directory_add(self, directories: List[Directory], db=None, cur=None) -> Dict:
+    def directory_add(
+        self, directories: List[Directory], db=None, cur=None
+    ) -> Dict[str, int]:
         summary = {"directory:add": 0}
 
         dirs = set()
@@ -548,7 +550,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def revision_add(self, revisions: List[Revision], db=None, cur=None) -> Dict:
+    def revision_add(
+        self, revisions: List[Revision], db=None, cur=None
+    ) -> Dict[str, int]:
         summary = {"revision:add": 0}
 
         revisions_missing = set(
@@ -687,7 +691,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict:
+    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict[str, int]:
         summary = {"release:add": 0}
 
         release_ids = set(release.id for release in releases)
@@ -743,7 +747,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def snapshot_add(self, snapshots: List[Snapshot], db=None, cur=None) -> Dict:
+    def snapshot_add(
+        self, snapshots: List[Snapshot], db=None, cur=None
+    ) -> Dict[str, int]:
         created_temp_table = False
 
         count = 0

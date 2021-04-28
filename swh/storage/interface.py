@@ -74,7 +74,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add")
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         """Add content blobs to the storage
 
         Args:
@@ -297,7 +297,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/skipped/add")
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
         """Add contents to the skipped_content list, which contains
         (partial) information about content missing from the archive.
 
@@ -350,7 +350,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("directory/add")
-    def directory_add(self, directories: List[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
         """Add directories to the storage
 
         Args:
@@ -436,7 +436,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("revision/add")
-    def revision_add(self, revisions: List[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         """Add revisions to the storage
 
         Args:
@@ -587,7 +587,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("release/add")
-    def release_add(self, releases: List[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict[str, int]:
         """Add releases to the storage
 
         Args:
@@ -652,7 +652,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("snapshot/add")
-    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
         """Add snapshots to the storage.
 
         Args:

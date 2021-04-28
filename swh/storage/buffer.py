@@ -90,7 +90,7 @@ class BufferingProxyStorage:
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, contents: Sequence[Content]) -> Dict:
+    def content_add(self, contents: Sequence[Content]) -> Dict[str, int]:
         """Push contents to write to the storage in the buffer.
 
         Following policies apply:
@@ -112,7 +112,7 @@ class BufferingProxyStorage:
 
         return stats
 
-    def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict:
+    def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict[str, int]:
         return self.object_add(
             contents,
             object_type="skipped_content",

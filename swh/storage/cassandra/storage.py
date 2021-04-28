@@ -117,7 +117,7 @@ class CassandraStorage:
                 if getattr(row, algo) == hash_:
                     yield row
 
-    def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
+    def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
         # Filter-out content already in the database.
         contents = [
             c for c in contents if not self._cql_runner.content_get_from_pk(c.to_dict())
@@ -192,7 +192,7 @@ class CassandraStorage:
 
         return summary
 
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         to_add = {
             (c.sha1, c.sha1_git, c.sha256, c.blake2s256): c for c in content
         }.values()
@@ -206,7 +206,7 @@ class CassandraStorage:
             "content_update is not supported by the Cassandra backend"
         )
 
-    def content_add_metadata(self, content: List[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict[str, int]:
         return self._content_add(content, with_data=False)
 
     def content_get_data(self, content: Sha1) -> Optional[bytes]:
@@ -321,7 +321,7 @@ class CassandraStorage:
         assert content, "Could not find any content"
         return content.sha1_git
 
-    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
+    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict[str, int]:
         # Filter-out content already in the database.
         contents = [
             c
@@ -346,7 +346,7 @@ class CassandraStorage:
 
         return {"skipped_content:add": len(contents)}
 
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
@@ -357,7 +357,7 @@ class CassandraStorage:
             if not self._cql_runner.skipped_content_get_from_pk(content):
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
-    def directory_add(self, directories: List[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
         to_add = {d.id: d for d in directories}.values()
         # Filter out directories that are already inserted.
         missing = self.directory_missing([dir_.id for dir_ in to_add])
@@ -482,7 +482,7 @@ class CassandraStorage:
         assert directory, "Could not find any directory"
         return directory.id
 
-    def revision_add(self, revisions: List[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         # Filter-out revisions already in the database
         to_add = {r.id: r for r in revisions}.values()
         missing = self.revision_missing([rev.id for rev in to_add])
@@ -594,7 +594,7 @@ class CassandraStorage:
         assert revision, "Could not find any revision"
         return revision.id
 
-    def release_add(self, releases: List[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict[str, int]:
         to_add = {r.id: r for r in releases}.values()
         missing = set(self.release_missing([rel.id for rel in to_add]))
         releases = [rel for rel in to_add if rel.id in missing]
@@ -623,7 +623,7 @@ class CassandraStorage:
         assert release, "Could not find any release"
         return release.id
 
-    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
         to_add = {s.id: s for s in snapshots}.values()
         missing = self._cql_runner.snapshot_missing([snp.id for snp in to_add])
         snapshots = [snp for snp in snapshots if snp.id in missing]
