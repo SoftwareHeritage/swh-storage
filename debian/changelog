@@ -1,3 +1,11 @@
+swh-storage (0.27.4-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.27.4     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2021-04-29 14:38:49 +0200)
+  * Upstream changes:     - version 0.27.4
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 29 Apr 2021 13:04:46 +0000
+
 swh-storage (0.27.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.27.3     - (tagged by Antoine Lambert
