@@ -4,5 +4,5 @@ Command-line interface
 ======================
 
 .. click:: swh.storage.cli:storage
-  :prog: swh storage
-  :nested: full
+   :prog: swh storage
+   :nested: full

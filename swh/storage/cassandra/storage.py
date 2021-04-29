@@ -69,6 +69,7 @@ from .model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDByTargetRow,
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
@@ -192,7 +193,10 @@ class CassandraStorage:
         return summary
 
     def content_add(self, content: List[Content]) -> Dict:
-        contents = [attr.evolve(c, ctime=now()) for c in content]
+        to_add = {
+            (c.sha1, c.sha1_git, c.sha256, c.blake2s256): c for c in content
+        }.values()
+        contents = [attr.evolve(c, ctime=now()) for c in to_add]
         return self._content_add(list(contents), with_data=True)
 
     def content_update(
@@ -354,8 +358,9 @@ class CassandraStorage:
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
     def directory_add(self, directories: List[Directory]) -> Dict:
+        to_add = {d.id: d for d in directories}.values()
         # Filter out directories that are already inserted.
-        missing = self.directory_missing([dir_.id for dir_ in directories])
+        missing = self.directory_missing([dir_.id for dir_ in to_add])
         directories = [dir_ for dir_ in directories if dir_.id in missing]
 
         self.journal_writer.directory_add(directories)
@@ -479,7 +484,8 @@ class CassandraStorage:
 
     def revision_add(self, revisions: List[Revision]) -> Dict:
         # Filter-out revisions already in the database
-        missing = self.revision_missing([rev.id for rev in revisions])
+        to_add = {r.id: r for r in revisions}.values()
+        missing = self.revision_missing([rev.id for rev in to_add])
         revisions = [rev for rev in revisions if rev.id in missing]
         self.journal_writer.revision_add(revisions)
 
@@ -589,20 +595,16 @@ class CassandraStorage:
         return revision.id
 
     def release_add(self, releases: List[Release]) -> Dict:
-        to_add = []
-        for rel in releases:
-            if rel not in to_add:
-                to_add.append(rel)
+        to_add = {r.id: r for r in releases}.values()
         missing = set(self.release_missing([rel.id for rel in to_add]))
-        to_add = [rel for rel in to_add if rel.id in missing]
+        releases = [rel for rel in to_add if rel.id in missing]
+        self.journal_writer.release_add(releases)
 
-        self.journal_writer.release_add(to_add)
-
-        for release in to_add:
+        for release in releases:
             if release:
                 self._cql_runner.release_add_one(converters.release_to_db(release))
 
-        return {"release:add": len(to_add)}
+        return {"release:add": len(releases)}
 
     def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.release_missing(releases)
@@ -622,7 +624,8 @@ class CassandraStorage:
         return release.id
 
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
-        missing = self._cql_runner.snapshot_missing([snp.id for snp in snapshots])
+        to_add = {s.id: s for s in snapshots}.values()
+        missing = self._cql_runner.snapshot_missing([snp.id for snp in to_add])
         snapshots = [snp for snp in snapshots if snp.id in missing]
 
         for snapshot in snapshots:
@@ -892,16 +895,15 @@ class CassandraStorage:
         )
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
-        to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
-        # keep only one occurrence of each given origin while keeping the list
-        # sorted as originally given
-        to_add = sorted(set(to_add), key=to_add.index)
-        self.journal_writer.origin_add(to_add)
-        for origin in to_add:
+        to_add = {o.url: o for o in origins}.values()
+        origins = [ori for ori in to_add if self.origin_get_one(ori.url) is None]
+
+        self.journal_writer.origin_add(origins)
+        for origin in origins:
             self._cql_runner.origin_add_one(
                 OriginRow(sha1=hash_url(origin.url), url=origin.url, next_visit_id=1)
             )
-        return {"origin:add": len(to_add)}
+        return {"origin:add": len(origins)}
 
     def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
@@ -1353,14 +1355,19 @@ class CassandraStorage:
 
         inserted = 0
         for extid in extids:
+            target_type = extid.target.object_type.value
+            target = extid.target.object_id
             extidrow = ExtIDRow(
                 extid_type=extid.extid_type,
                 extid=extid.extid,
-                target_type=extid.target.object_type.value,
-                target=extid.target.object_id,
+                target_type=target_type,
+                target=target,
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
-            self._cql_runner.extid_index_add_one(extidrow, token)
+            indexrow = ExtIDByTargetRow(
+                target_type=target_type, target=target, target_token=token,
+            )
+            self._cql_runner.extid_index_add_one(indexrow)
             insertion_finalizer()
             inserted += 1
         return {"extid:add": inserted}

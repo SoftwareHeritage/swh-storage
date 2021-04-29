@@ -114,8 +114,9 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
     journal (eg. due to a downtime of this later).
 
     The configuration file requires the following entries:
+
     - brokers: a list of kafka endpoints (the journal) in which entries will be
-               added.
+      added.
     - storage_dbconn: URL to connect to the storage DB.
     - prefix: the prefix of the topics (topics will be <prefix>.<object_type>).
     - client_id: the kafka client ID.

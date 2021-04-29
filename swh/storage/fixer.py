@@ -9,6 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from swh.model.identifiers import normalize_timestamp
+from swh.model.model import Origin
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,27 @@ def _fix_origin_visit(visit: Dict) -> Dict:
     return visit
 
 
+def _fix_raw_extrinsic_metadata(obj_dict: Dict) -> Dict:
+    """Fix legacy RawExtrinsicMetadata with type which is no longer part of the model.
+
+    >>> _fix_raw_extrinsic_metadata({
+    ...     'type': 'directory',
+    ...     'target': 'swh:1:dir:460a586d1c95d120811eaadb398d534e019b5243',
+    ... })
+    {'target': 'swh:1:dir:460a586d1c95d120811eaadb398d534e019b5243'}
+    >>> _fix_raw_extrinsic_metadata({
+    ...     'type': 'origin',
+    ...     'target': 'https://inria.halpreprod.archives-ouvertes.fr/hal-01667309',
+    ... })
+    {'target': 'swh:1:ori:155291d5b9ada4570672510509f93fcfd9809882'}
+
+    """
+    o = obj_dict.copy()
+    if o.pop("type", None) == "origin":
+        o["target"] = str(Origin(o["target"]).swhid())
+    return o
+
+
 def fix_objects(object_type: str, objects: List[Dict]) -> List[Dict]:
     """
     Fix legacy objects from the journal to bring them up to date with the
@@ -304,5 +326,7 @@ def fix_objects(object_type: str, objects: List[Dict]) -> List[Dict]:
         return [_fix_origin(v) for v in objects]
     elif object_type == "origin_visit":
         return [_fix_origin_visit(v) for v in objects]
+    elif object_type == "raw_extrinsic_metadata":
+        return [_fix_raw_extrinsic_metadata(v) for v in objects]
     else:
         return objects
