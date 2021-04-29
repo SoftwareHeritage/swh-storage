@@ -5,7 +5,7 @@
 
 from functools import partial
 import logging
-from typing import Dict, Iterable, Mapping, Sequence, Tuple, cast
+from typing import Dict, Iterable, List, Mapping, Sequence, Tuple, cast
 
 from typing_extensions import Literal
 
@@ -14,6 +14,10 @@ from swh.model.model import (
     BaseModel,
     Content,
     Directory,
+    MetadataAuthority,
+    MetadataFetcher,
+    Origin,
+    OriginVisitStatus,
     RawExtrinsicMetadata,
     Release,
     Revision,
@@ -25,7 +29,6 @@ from swh.storage.interface import StorageInterface
 logger = logging.getLogger(__name__)
 
 LObjectType = Literal[
-    "raw_extrinsic_metadata",
     "content",
     "skipped_content",
     "directory",
@@ -33,11 +36,15 @@ LObjectType = Literal[
     "release",
     "snapshot",
     "extid",
+    "raw_extrinsic_metadata",
+    "origin",
+    "origin_visit_status",
+    "metadata_fetcher",
+    "metadata_authority",
 ]
 
 # In the order objects are flushed
 OBJECT_TYPES: Tuple[LObjectType, ...] = (
-    "raw_extrinsic_metadata",
     "content",
     "skipped_content",
     "directory",
@@ -45,6 +52,11 @@ OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "release",
     "snapshot",
     "extid",
+    "origin",
+    "origin_visit_status",
+    "raw_extrinsic_metadata",
+    "metadata_fetcher",
+    "metadata_authority",
 )
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
@@ -53,6 +65,11 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "skipped_content": 10000,
     "directory": 25000,
     "directory_entries": 200000,
+    "extid": 10000,
+    "metadata_fetcher": 1000,
+    "metadata_authority": 1000,
+    "origin": 100000,
+    "origin_visit_status": 10000,
     "raw_extrinsic_metadata": 1000,
     "revision": 100000,
     "revision_parents": 200000,
@@ -60,7 +77,6 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "release": 100000,
     "release_bytes": 100 * 1024 * 1024,
     "snapshot": 25000,
-    "extid": 10000,
 }
 
 
@@ -211,6 +227,38 @@ class BufferingProxyStorage:
                 return self.flush(["raw_extrinsic_metadata", "content", "directory"])
 
         return stats
+
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
+        return self.object_add(
+            origins,
+            object_type="origin",
+            keys=["url"],
+        )
+
+    def origin_visit_status_add(
+        self, visit_statuses: List[OriginVisitStatus]
+    ) -> Dict[str, int]:
+        return self.object_add(
+            visit_statuses,
+            object_type="origin_visit_status",
+            keys=["origin", "visit", "date"],
+        )
+
+    def metadata_authority_add(
+        self, authorities: List[MetadataAuthority]
+    ) -> Dict[str, int]:
+        return self.object_add(
+            authorities,
+            object_type="metadata_authority",
+            keys=["type", "url"],
+        )
+
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> Dict[str, int]:
+        return self.object_add(
+            fetchers,
+            object_type="metadata_fetcher",
+            keys=["name", "version"],
+        )
 
     def revision_add(self, revisions: Sequence[Revision]) -> Dict[str, int]:
         stats = self.object_add(revisions, object_type="revision", keys=["id"])

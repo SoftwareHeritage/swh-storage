@@ -7,7 +7,16 @@
 from typing import Dict, Iterable, List
 
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
-from swh.model.model import Content, Directory, Release, Revision, Snapshot
+from swh.model.model import (
+    Content,
+    Directory,
+    ExtID,
+    Origin,
+    RawExtrinsicMetadata,
+    Release,
+    Revision,
+    Snapshot,
+)
 from swh.storage import get_storage
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
@@ -69,3 +78,17 @@ class ValidatingProxyStorage:
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
         self._check_hashes(snapshots)
         return self.storage.snapshot_add(snapshots)
+
+    def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
+        self._check_hashes(origins)
+        return self.storage.origin_add(origins)
+
+    def raw_extrinsic_metadata_add(
+        self, metadata: List[RawExtrinsicMetadata]
+    ) -> Dict[str, int]:
+        self._check_hashes(metadata)
+        return self.storage.raw_extrinsic_metadata_add(metadata)
+
+    def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
+        self._check_hashes(ids)
+        return self.storage.extid_add(ids)

@@ -774,15 +774,13 @@ def test_buffer_flush_stats(sample_data) -> None:
 def test_buffer_operation_order(sample_data) -> None:
     storage = get_storage_with_buffer_config()
 
-    # not buffered (because they happen rarely)
-    storage.metadata_authority_add(sample_data.authorities)
-    storage.metadata_fetcher_add(sample_data.fetchers)
-
     # Wrap the inner storage in a mock to track all method calls.
     storage.storage = mocked_storage = Mock(wraps=storage.storage)
 
     # Simulate a loader: add origin metadata, contents, directories, revisions,
     # releases, snapshots, then content metadata.
+    storage.metadata_authority_add(sample_data.authorities)
+    storage.metadata_fetcher_add(sample_data.fetchers)
     storage.raw_extrinsic_metadata_add(sample_data.origin_metadata)
     storage.content_add(sample_data.contents)
     storage.skipped_content_add(sample_data.skipped_contents)

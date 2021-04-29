@@ -136,3 +136,72 @@ def test_validating_proxy_storage_snapshot(swh_storage, sample_data):
     }
 
     assert swh_storage.snapshot_missing([sample_snapshot.id]) == []
+
+
+def test_validating_proxy_storage_origin(swh_storage, sample_data):
+    sample = sample_data.origin
+    sample.compute_hash()
+    id_ = hash_to_hex(sample.id)
+
+    assert list(swh_storage.origin_get_by_sha1([sample.id])) == [None]
+
+    with pytest.raises(StorageArgumentException, match=f"should be {id_}"):
+        s = swh_storage.origin_add([attr.evolve(sample, id=b"a" * 20)])
+
+    assert list(swh_storage.origin_get_by_sha1([sample.id])) == [None]
+
+    s = swh_storage.origin_add([sample])
+    assert s == {
+        "origin:add": 1,
+    }
+
+    assert list(swh_storage.origin_get_by_sha1([sample.id])) == [{"url": sample.url}]
+
+
+def test_validating_proxy_storage_raw_extrinsic_metadata(swh_storage, sample_data):
+    sample = sample_data.origin_metadata1
+    swh_storage.metadata_fetcher_add([sample.fetcher])
+    swh_storage.metadata_authority_add([sample.authority])
+    sample.compute_hash()
+    id_ = hash_to_hex(sample.id)
+
+    # XXX: yes this API is inconsistent with most other xxx_get() methods
+    assert list(swh_storage.raw_extrinsic_metadata_get_by_ids([sample.id])) == []
+
+    with pytest.raises(StorageArgumentException, match=f"should be {id_}"):
+        s = swh_storage.raw_extrinsic_metadata_add([attr.evolve(sample, id=b"a" * 20)])
+
+    assert list(swh_storage.raw_extrinsic_metadata_get_by_ids([sample.id])) == []
+
+    s = swh_storage.raw_extrinsic_metadata_add([sample])
+    assert s == {
+        "ori_metadata:add": 1,
+    }
+
+    assert list(swh_storage.raw_extrinsic_metadata_get_by_ids([sample.id])) == [sample]
+
+
+def test_validating_proxy_storage_extid(swh_storage, sample_data):
+    sample = sample_data.extid1
+    sample.compute_hash()
+    id_ = hash_to_hex(sample.id)
+
+    assert (
+        list(swh_storage.extid_get_from_extid(sample.extid_type, [sample.extid])) == []
+    )
+
+    with pytest.raises(StorageArgumentException, match=f"should be {id_}"):
+        s = swh_storage.extid_add([attr.evolve(sample, id=b"a" * 20)])
+
+    assert (
+        list(swh_storage.extid_get_from_extid(sample.extid_type, [sample.extid])) == []
+    )
+
+    s = swh_storage.extid_add([sample])
+    assert s == {
+        "extid:add": 1,
+    }
+
+    assert list(
+        swh_storage.extid_get_from_extid(sample.extid_type, [sample.extid])
+    ) == [sample]
