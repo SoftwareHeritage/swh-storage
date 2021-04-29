@@ -113,7 +113,9 @@ class StorageData:
     )
     skipped_contents: Tuple[SkippedContent, ...] = (skipped_content, skipped_content2)
 
-    directory5 = Directory(entries=())
+    directory5 = Directory(
+        id=hash_to_bytes("4b825dc642cb6eb9a060e54bf8d69288fbee4904"), entries=(),
+    )
     directory = Directory(
         id=hash_to_bytes("5256e856a0a0898966d6ba14feb4388b8b82d302"),
         entries=tuple(
@@ -147,7 +149,7 @@ class StorageData:
         ),
     )
     directory3 = Directory(
-        id=hash_to_bytes("4ea8c6b2f54445e5dd1a9d5bb2afd875d66f3150"),
+        id=hash_to_bytes("13089e6e544f78df7c9a40a3059050d10dee686a"),
         entries=tuple(
             [
                 DirectoryEntry(
@@ -172,7 +174,7 @@ class StorageData:
         ),
     )
     directory4 = Directory(
-        id=hash_to_bytes("377aa5fcd944fbabf502dbfda55cd14d33c8c3c6"),
+        id=hash_to_bytes("cd5dfd9c09d9e99ed123bc7937a0d5fddc3cd531"),
         entries=tuple(
             [
                 DirectoryEntry(
@@ -230,7 +232,7 @@ class StorageData:
         synthetic=True,
     )
     revision2 = Revision(
-        id=hash_to_bytes("df7a6f6a99671fb7f7343641aff983a314ef6161"),
+        id=hash_to_bytes("a646dd94c912829659b22a1e7e143d2fa5ebde1b"),
         message=b"hello again",
         author=Person(
             name=b"Roberto Dicosmo",
@@ -258,7 +260,7 @@ class StorageData:
         synthetic=False,
     )
     revision3 = Revision(
-        id=hash_to_bytes("2cbd7bb22c653bbb23a29657852a50a01b591d46"),
+        id=hash_to_bytes("beb2844dff30658e27573cb46eb55980e974b391"),
         message=b"a simple revision with no parents this time",
         author=Person(
             name=b"Roberto Dicosmo",
@@ -286,7 +288,7 @@ class StorageData:
         synthetic=True,
     )
     revision4 = Revision(
-        id=hash_to_bytes("88cd5126fc958ed70089d5340441a1c2477bcc20"),
+        id=hash_to_bytes("ae860aec43700c7f5a295e2ef47e2ae41b535dfe"),
         message=b"parent of self.revision2",
         author=Person(
             name=b"me", email=b"me@soft.heri", fullname=b"me <me@soft.heri>",
@@ -410,7 +412,7 @@ class StorageData:
         synthetic=True,
     )
     hg_revision4 = Revision(
-        id=hash_to_bytes("42070a39e5387e9b99bb3d83674e3a4a1ff39b69"),
+        id=hash_to_bytes("4683324ba26dfe941a72cc7552e86eaaf7c27fe3"),
         message=b"parent of self.revision2",
         author=Person(
             name=b"me", email=b"me@soft.heri", fullname=b"me <me@soft.heri>",
@@ -520,7 +522,7 @@ class StorageData:
         synthetic=True,
     )
     release2 = Release(
-        id=hash_to_bytes("6902bd4c82b7d19a421d224aedab2b74197e420d"),
+        id=hash_to_bytes("db81a26783a3f4a9db07b4759ffc37621f159bb2"),
         name=b"v0.0.2",
         author=Person(
             name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
@@ -536,7 +538,7 @@ class StorageData:
         synthetic=False,
     )
     release3 = Release(
-        id=hash_to_bytes("3e9050196aa288264f2a9d279d6abab8b158448b"),
+        id=hash_to_bytes("1c5d42e603ce2eea44917fadca76c78bad76aeb9"),
         name=b"v0.0.2",
         author=Person(
             name=b"tony",
@@ -568,7 +570,7 @@ class StorageData:
         id=hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e"), branches={},
     )
     complete_snapshot = Snapshot(
-        id=hash_to_bytes("a56ce2d81c190023bb99a3a36279307522cb85f6"),
+        id=hash_to_bytes("db99fda25b43dc5cd90625ee4b0744751799c917"),
         branches={
             b"directory": SnapshotBranch(
                 target=directory.id, target_type=TargetType.DIRECTORY,

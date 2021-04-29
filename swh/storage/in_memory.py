@@ -29,6 +29,7 @@ from swh.storage.cassandra.model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDByTargetRow,
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
@@ -638,7 +639,7 @@ class InMemoryCqlRunner:
         finalizer = functools.partial(self._extid_add_finalize, extid)
         return (self._extid.token(self._extid.partition_key(extid)), finalizer)
 
-    def extid_index_add_one(self, extid: ExtIDRow, token: int) -> None:
+    def extid_index_add_one(self, row: ExtIDByTargetRow) -> None:
         pass
 
     def extid_get_from_pk(
