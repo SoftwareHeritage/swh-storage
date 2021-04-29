@@ -260,7 +260,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def content_add_metadata(self, content: List[Content], db=None, cur=None) -> Dict:
+    def content_add_metadata(
+        self, content: List[Content], db=None, cur=None
+    ) -> Dict[str, int]:
         missing = self.content_missing(
             (c.to_dict() for c in content), key_hash="sha1_git", db=db, cur=cur,
         )
@@ -935,15 +937,13 @@ class Storage:
         """Add an origin visit status"""
         self.journal_writer.origin_visit_status_add([visit_status])
         db.origin_visit_status_add(visit_status, cur=cur)
-        send_metric(
-            "origin_visit_status:add", count=1, method_name="origin_visit_status"
-        )
 
     @timed
+    @process_metrics
     @db_transaction()
     def origin_visit_status_add(
         self, visit_statuses: List[OriginVisitStatus], db=None, cur=None,
-    ) -> None:
+    ) -> Dict[str, int]:
         visit_statuses_ = []
 
         # First round to check existence (fail early if any is ko)
@@ -970,6 +970,7 @@ class Storage:
 
         for visit_status in visit_statuses_:
             self._origin_visit_status_add(visit_status, db, cur)
+        return {"origin_visit_status:add": len(visit_statuses_)}
 
     @timed
     @db_transaction()
@@ -1306,10 +1307,12 @@ class Storage:
         for key in keys:
             cur.execute("select * from swh_update_counter(%s)", (key,))
 
+    @timed
+    @process_metrics
     @db_transaction()
     def raw_extrinsic_metadata_add(
         self, metadata: List[RawExtrinsicMetadata], db, cur,
-    ) -> None:
+    ) -> Dict[str, int]:
         metadata = list(metadata)
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
         counter = Counter[ExtendedObjectType]()
@@ -1337,12 +1340,9 @@ class Storage:
             )
             counter[metadata_entry.target.object_type] += 1
 
-        for (type, count) in counter.items():
-            send_metric(
-                f"{type.value}_metadata:add",
-                count=count,
-                method_name=f"{type.name.lower()}_metadata_add",
-            )
+        return {
+            f"{type.value}_metadata:add": count for (type, count) in counter.items()
+        }
 
     @db_transaction()
     def raw_extrinsic_metadata_get(
@@ -1396,10 +1396,11 @@ class Storage:
         return PagedResult(next_page_token=next_page_token, results=results,)
 
     @timed
+    @process_metrics
     @db_transaction()
     def metadata_fetcher_add(
         self, fetchers: List[MetadataFetcher], db=None, cur=None
-    ) -> None:
+    ) -> Dict[str, int]:
         fetchers = list(fetchers)
         self.journal_writer.metadata_fetcher_add(fetchers)
         count = 0
@@ -1412,7 +1413,7 @@ class Storage:
                 fetcher.name, fetcher.version, dict(fetcher.metadata), cur=cur
             )
             count += 1
-        send_metric("metadata_fetcher:add", count=count, method_name="metadata_fetcher")
+        return {"metadata_fetcher:add": count}
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1425,10 +1426,11 @@ class Storage:
         return MetadataFetcher.from_dict(dict(zip(db.metadata_fetcher_cols, row)))
 
     @timed
+    @process_metrics
     @db_transaction()
     def metadata_authority_add(
         self, authorities: List[MetadataAuthority], db=None, cur=None
-    ) -> None:
+    ) -> Dict[str, int]:
         authorities = list(authorities)
         self.journal_writer.metadata_authority_add(authorities)
         count = 0
@@ -1442,9 +1444,7 @@ class Storage:
                 authority.type.value, authority.url, dict(authority.metadata), cur=cur
             )
             count += 1
-        send_metric(
-            "metadata_authority:add", count=count, method_name="metadata_authority"
-        )
+        return {"metadata_authority:add": count}
 
     @timed
     @db_transaction()

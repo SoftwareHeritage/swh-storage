@@ -12,6 +12,7 @@ import re
 from typing import (
     Any,
     Callable,
+    Counter,
     Dict,
     Iterable,
     List,
@@ -27,7 +28,7 @@ import attr
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.identifiers import CoreSWHID, ExtendedSWHID
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
@@ -955,7 +956,9 @@ class CassandraStorage:
             converters.visit_status_to_row(visit_status)
         )
 
-    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus]) -> None:
+    def origin_visit_status_add(
+        self, visit_statuses: List[OriginVisitStatus]
+    ) -> Dict[str, int]:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get_one(visit_status.origin)
@@ -964,6 +967,7 @@ class CassandraStorage:
 
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
+        return {"origin_visit_status:add": len(visit_statuses)}
 
     def _origin_visit_apply_status(
         self, visit: Dict[str, Any], visit_status: OriginVisitStatusRow
@@ -1183,8 +1187,11 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata]) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: List[RawExtrinsicMetadata]
+    ) -> Dict[str, int]:
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
+        counter = Counter[ExtendedObjectType]()
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
@@ -1220,8 +1227,12 @@ class CassandraStorage:
                     directory=map_optional(str, metadata_entry.directory),
                 )
                 self._cql_runner.raw_extrinsic_metadata_add(row)
+                counter[metadata_entry.target.object_type] += 1
             except TypeError as e:
                 raise StorageArgumentException(*e.args)
+        return {
+            f"{type.value}_metadata:add": count for (type, count) in counter.items()
+        }
 
     def raw_extrinsic_metadata_get(
         self,
@@ -1293,7 +1304,7 @@ class CassandraStorage:
 
         return PagedResult(next_page_token=next_page_token, results=results,)
 
-    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> Dict[str, int]:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
@@ -1303,6 +1314,7 @@ class CassandraStorage:
                     metadata=json.dumps(map_optional(dict, fetcher.metadata)),
                 )
             )
+        return {"metadata_fetcher:add": len(fetchers)}
 
     def metadata_fetcher_get(
         self, name: str, version: str
@@ -1317,7 +1329,9 @@ class CassandraStorage:
         else:
             return None
 
-    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
+    def metadata_authority_add(
+        self, authorities: List[MetadataAuthority]
+    ) -> Dict[str, int]:
         self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
@@ -1327,6 +1341,7 @@ class CassandraStorage:
                     metadata=json.dumps(map_optional(dict, authority.metadata)),
                 )
             )
+        return {"metadata_authority:add": len(authorities)}
 
     def metadata_authority_get(
         self, type: MetadataAuthorityType, url: str

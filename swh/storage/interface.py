@@ -134,7 +134,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add_metadata")
-    def content_add_metadata(self, content: List[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict[str, int]:
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -810,7 +810,9 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("origin/visit_status/add")
-    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus],) -> None:
+    def origin_visit_status_add(
+        self, visit_statuses: List[OriginVisitStatus],
+    ) -> Dict[str, int]:
         """Add origin visit statuses.
 
         If there is already a status for the same origin and visit id at the same
@@ -1132,7 +1134,9 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("raw_extrinsic_metadata/add")
-    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata],) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: List[RawExtrinsicMetadata],
+    ) -> Dict[str, int]:
         """Add extrinsic metadata on objects (contents, directories, ...).
 
         The authority and fetcher must be known to the storage before
@@ -1173,7 +1177,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("metadata_fetcher/add")
-    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> Dict[str, int]:
         """Add new metadata fetchers to the storage.
 
         Their `name` and `version` together are unique identifiers of this
@@ -1205,7 +1209,9 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("metadata_authority/add")
-    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
+    def metadata_authority_add(
+        self, authorities: List[MetadataAuthority]
+    ) -> Dict[str, int]:
         """Add new metadata authorities to the storage.
 
         Their `type` and `url` together are unique identifiers of this
