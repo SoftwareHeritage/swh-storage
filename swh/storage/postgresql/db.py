@@ -971,10 +971,11 @@ class Db(BaseDb):
     def origin_add(self, url, cur=None):
         """Insert a new origin and return the new identifier."""
         insert = """INSERT INTO origin (url) values (%s)
-                    RETURNING url"""
+                    ON CONFLICT DO NOTHING
+                    """
 
         cur.execute(insert, (url,))
-        return cur.fetchone()[0]
+        return cur.rowcount
 
     origin_cols = ["url"]
 
