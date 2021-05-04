@@ -29,7 +29,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 173
+    current_version = 174
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -1329,16 +1329,14 @@ class Db(BaseDb):
         cur.execute(" ".join(query_parts), args)
         yield from cur
 
-    metadata_fetcher_cols = ["name", "version", "metadata"]
+    metadata_fetcher_cols = ["name", "version"]
 
-    def metadata_fetcher_add(
-        self, name: str, version: str, metadata: bytes, cur=None
-    ) -> None:
+    def metadata_fetcher_add(self, name: str, version: str, cur=None) -> None:
         cur = self._cursor(cur)
         cur.execute(
-            "INSERT INTO metadata_fetcher (name, version, metadata) "
-            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            (name, version, jsonize(metadata)),
+            "INSERT INTO metadata_fetcher (name, version) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (name, version),
         )
 
     def metadata_fetcher_get(self, name: str, version: str, cur=None):
@@ -1365,16 +1363,14 @@ class Db(BaseDb):
         else:
             return None
 
-    metadata_authority_cols = ["type", "url", "metadata"]
+    metadata_authority_cols = ["type", "url"]
 
-    def metadata_authority_add(
-        self, type: str, url: str, metadata: bytes, cur=None
-    ) -> None:
+    def metadata_authority_add(self, type: str, url: str, cur=None) -> None:
         cur = self._cursor(cur)
         cur.execute(
-            "INSERT INTO metadata_authority (type, url, metadata) "
-            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            (type, url, jsonize(metadata)),
+            "INSERT INTO metadata_authority (type, url) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (type, url),
         )
 
     def metadata_authority_get(self, type: str, url: str, cur=None):

@@ -1405,13 +1405,7 @@ class Storage:
         self.journal_writer.metadata_fetcher_add(fetchers)
         count = 0
         for fetcher in fetchers:
-            if fetcher.metadata is None:
-                raise StorageArgumentException(
-                    "MetadataFetcher.metadata may not be None in metadata_fetcher_add."
-                )
-            db.metadata_fetcher_add(
-                fetcher.name, fetcher.version, dict(fetcher.metadata), cur=cur
-            )
+            db.metadata_fetcher_add(fetcher.name, fetcher.version, cur=cur)
             count += 1
         return {"metadata_fetcher:add": count}
 
@@ -1435,14 +1429,7 @@ class Storage:
         self.journal_writer.metadata_authority_add(authorities)
         count = 0
         for authority in authorities:
-            if authority.metadata is None:
-                raise StorageArgumentException(
-                    "MetadataAuthority.metadata may not be None in "
-                    "metadata_authority_add."
-                )
-            db.metadata_authority_add(
-                authority.type.value, authority.url, dict(authority.metadata), cur=cur
-            )
+            db.metadata_authority_add(authority.type.value, authority.url, cur=cur)
             count += 1
         return {"metadata_authority:add": count}
 

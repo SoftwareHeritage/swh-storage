@@ -6,7 +6,6 @@
 import base64
 import datetime
 import itertools
-import json
 import random
 import re
 from typing import (
@@ -1353,11 +1352,7 @@ class CassandraStorage:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
-                MetadataFetcherRow(
-                    name=fetcher.name,
-                    version=fetcher.version,
-                    metadata=json.dumps(map_optional(dict, fetcher.metadata)),
-                )
+                MetadataFetcherRow(name=fetcher.name, version=fetcher.version,)
             )
         return {"metadata_fetcher:add": len(fetchers)}
 
@@ -1366,11 +1361,7 @@ class CassandraStorage:
     ) -> Optional[MetadataFetcher]:
         fetcher = self._cql_runner.metadata_fetcher_get(name, version)
         if fetcher:
-            return MetadataFetcher(
-                name=fetcher.name,
-                version=fetcher.version,
-                metadata=json.loads(fetcher.metadata),
-            )
+            return MetadataFetcher(name=fetcher.name, version=fetcher.version,)
         else:
             return None
 
@@ -1380,11 +1371,7 @@ class CassandraStorage:
         self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
-                MetadataAuthorityRow(
-                    url=authority.url,
-                    type=authority.type.value,
-                    metadata=json.dumps(map_optional(dict, authority.metadata)),
-                )
+                MetadataAuthorityRow(url=authority.url, type=authority.type.value,)
             )
         return {"metadata_authority:add": len(authorities)}
 
@@ -1394,9 +1381,7 @@ class CassandraStorage:
         authority = self._cql_runner.metadata_authority_get(type.value, url)
         if authority:
             return MetadataAuthority(
-                type=MetadataAuthorityType(authority.type),
-                url=authority.url,
-                metadata=json.loads(authority.metadata),
+                type=MetadataAuthorityType(authority.type), url=authority.url,
             )
         else:
             return None

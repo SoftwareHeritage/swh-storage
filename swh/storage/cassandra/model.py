@@ -242,7 +242,6 @@ class MetadataAuthorityRow(BaseRow):
 
     url: str
     type: str
-    metadata: str
 
 
 @dataclasses.dataclass
@@ -253,7 +252,6 @@ class MetadataFetcherRow(BaseRow):
 
     name: str
     version: str
-    metadata: str
 
 
 @dataclasses.dataclass
