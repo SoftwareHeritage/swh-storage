@@ -51,6 +51,13 @@ class TenaciousProxyStorage:
     mirror stack), where insertion errors are mostly unexpected (which explains
     the low default ratio errors/window_size).
 
+    Conversely, it should not be used in a loader configuration, as it may
+    drop objects without stopping the loader, which leads to holes in the graph.
+
+    Deployments using this proxy should carefully monitor their logs to check any
+    failure is expected (because the failed object is corrupted),
+    not because of transient errors or issues with the storage backend.
+
     Sample configuration use case for tenacious storage:
 
     .. code-block:: yaml
