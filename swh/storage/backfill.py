@@ -81,8 +81,8 @@ COLUMNS = {
     ],
     "directory": ["id", "dir_entries", "file_entries", "rev_entries"],
     "extid": ["extid_type", "extid", "target_type", "target"],
-    "metadata_authority": ["type", "url", "metadata",],
-    "metadata_fetcher": ["name", "version", "metadata",],
+    "metadata_authority": ["type", "url"],
+    "metadata_fetcher": ["name", "version"],
     "origin": ["url"],
     "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
     "origin_visit_status": [

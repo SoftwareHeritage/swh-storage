@@ -18,7 +18,7 @@ environ["LC_ALL"] = "C.UTF-8"
 
 
 swh_storage_postgresql = postgresql_fact(
-    "postgresql_proc", db_name="storage", dump_files=path.join(SQL_DIR, "*.sql")
+    "postgresql_proc", dbname="storage", dump_files=path.join(SQL_DIR, "*.sql")
 )
 
 

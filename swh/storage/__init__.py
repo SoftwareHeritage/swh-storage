@@ -20,6 +20,7 @@ STORAGE_IMPLEMENTATIONS = {
     "retry": ".retry.RetryingProxyStorage",
     "cassandra": ".cassandra.CassandraStorage",
     "validate": ".validate.ValidatingProxyStorage",
+    "tenacious": ".tenacious.TenaciousProxyStorage",
 }
 
 

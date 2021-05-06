@@ -2176,7 +2176,8 @@ class TestStorage:
             snapshot=None,
             metadata={"intrinsic": "something"},
         )
-        swh_storage.origin_visit_status_add([visit_status1, visit_status2])
+        stats = swh_storage.origin_visit_status_add([visit_status1, visit_status2])
+        assert stats == {"origin_visit_status:add": 2}
 
         visit = swh_storage.origin_visit_get_latest(origin1.url, require_snapshot=True)
         visit_status = swh_storage.origin_visit_status_get_latest(
@@ -2241,9 +2242,12 @@ class TestStorage:
             snapshot=snapshot.id,
         )
 
-        swh_storage.origin_visit_status_add([visit_status1])
+        stats = swh_storage.origin_visit_status_add([visit_status1])
+        assert stats == {"origin_visit_status:add": 1}
         # second call will ignore existing entries (will send to storage though)
-        swh_storage.origin_visit_status_add([visit_status1])
+        stats = swh_storage.origin_visit_status_add([visit_status1])
+        # ...so the storage still returns it as an addition
+        assert stats == {"origin_visit_status:add": 1}
 
         visit_status = swh_storage.origin_visit_status_get_latest(ov1.origin, ov1.visit)
         assert visit_status == visit_status1

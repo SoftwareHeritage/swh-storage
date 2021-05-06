@@ -225,6 +225,7 @@ sql/upgrades/170.sql
 sql/upgrades/171.sql
 sql/upgrades/172.sql
 sql/upgrades/173.sql
+sql/upgrades/174.sql
 swh/__init__.py
 swh.storage.egg-info/PKG-INFO
 swh.storage.egg-info/SOURCES.txt
@@ -249,6 +250,7 @@ swh/storage/py.typed
 swh/storage/pytest_plugin.py
 swh/storage/replay.py
 swh/storage/retry.py
+swh/storage/tenacious.py
 swh/storage/utils.py
 swh/storage/validate.py
 swh/storage/writer.py
@@ -289,6 +291,7 @@ swh/storage/tests/test_backfill.py
 swh/storage/tests/test_buffer.py
 swh/storage/tests/test_cassandra.py
 swh/storage/tests/test_cassandra_converters.py
+swh/storage/tests/test_cassandra_migration.py
 swh/storage/tests/test_cli.py
 swh/storage/tests/test_exception.py
 swh/storage/tests/test_filter.py
@@ -305,6 +308,7 @@ swh/storage/tests/test_revision_bw_compat.py
 swh/storage/tests/test_serializers.py
 swh/storage/tests/test_server.py
 swh/storage/tests/test_storage_data.py
+swh/storage/tests/test_tenacious.py
 swh/storage/tests/test_utils.py
 swh/storage/tests/test_validate.py
 swh/storage/tests/algos/__init__.py

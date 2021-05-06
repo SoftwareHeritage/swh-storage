@@ -678,6 +678,7 @@ class InMemoryStorage(CassandraStorage):
     def __init__(self, journal_writer=None):
         self.reset()
         self.journal_writer = JournalWriter(journal_writer)
+        self._allow_overwrite = False
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
