@@ -176,14 +176,12 @@ CREATE TABLE IF NOT EXISTS origin (
 CREATE TABLE IF NOT EXISTS metadata_authority (
     url             text,
     type            ascii,
-    metadata        text,
     PRIMARY KEY ((url), type)
 );""",
     """
 CREATE TABLE IF NOT EXISTS metadata_fetcher (
     name            ascii,
     version         ascii,
-    metadata        text,
     PRIMARY KEY ((name), version)
 );""",
     """

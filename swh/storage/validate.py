@@ -45,7 +45,7 @@ class ValidatingProxyStorage:
                     f"but it should be {hash_to_hex(id_)}: {obj}"
                 )
 
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         for cont in content:
             hashes = MultiHash.from_data(cont.data).digest()
             if hashes != cont.hashes():
@@ -54,18 +54,18 @@ class ValidatingProxyStorage:
                 )
         return self.storage.content_add(content)
 
-    def directory_add(self, directories: List[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
         self._check_hashes(directories)
         return self.storage.directory_add(directories)
 
-    def revision_add(self, revisions: List[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         self._check_hashes(revisions)
         return self.storage.revision_add(revisions)
 
-    def release_add(self, releases: List[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict[str, int]:
         self._check_hashes(releases)
         return self.storage.release_add(releases)
 
-    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
         self._check_hashes(snapshots)
         return self.storage.snapshot_add(snapshots)

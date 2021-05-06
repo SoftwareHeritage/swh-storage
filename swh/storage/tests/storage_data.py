@@ -460,26 +460,18 @@ class StorageData:
     origin, origin2 = origins[:2]
 
     metadata_authority = MetadataAuthority(
-        type=MetadataAuthorityType.DEPOSIT_CLIENT,
-        url="http://hal.inria.example.com/",
-        metadata={"location": "France"},
+        type=MetadataAuthorityType.DEPOSIT_CLIENT, url="http://hal.inria.example.com/",
     )
     metadata_authority2 = MetadataAuthority(
-        type=MetadataAuthorityType.REGISTRY,
-        url="http://wikidata.example.com/",
-        metadata={},
+        type=MetadataAuthorityType.REGISTRY, url="http://wikidata.example.com/",
     )
     authorities: Tuple[MetadataAuthority, ...] = (
         metadata_authority,
         metadata_authority2,
     )
 
-    metadata_fetcher = MetadataFetcher(
-        name="swh-deposit", version="0.0.1", metadata={"sword_version": "2"},
-    )
-    metadata_fetcher2 = MetadataFetcher(
-        name="swh-example", version="0.0.1", metadata={},
-    )
+    metadata_fetcher = MetadataFetcher(name="swh-deposit", version="0.0.1",)
+    metadata_fetcher2 = MetadataFetcher(name="swh-example", version="0.0.1",)
     fetchers: Tuple[MetadataFetcher, ...] = (metadata_fetcher, metadata_fetcher2)
 
     date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
@@ -605,8 +597,8 @@ class StorageData:
         discovery_date=datetime.datetime(
             2015, 1, 1, 21, 0, 0, tzinfo=datetime.timezone.utc
         ),
-        authority=attr.evolve(metadata_authority, metadata=None),
-        fetcher=attr.evolve(metadata_fetcher, metadata=None),
+        authority=metadata_authority,
+        fetcher=metadata_fetcher,
         format="json",
         metadata=b'{"foo": "bar"}',
     )
@@ -618,8 +610,8 @@ class StorageData:
         discovery_date=datetime.datetime(
             2017, 1, 1, 22, 0, 0, tzinfo=datetime.timezone.utc
         ),
-        authority=attr.evolve(metadata_authority, metadata=None),
-        fetcher=attr.evolve(metadata_fetcher, metadata=None),
+        authority=metadata_authority,
+        fetcher=metadata_fetcher,
         format="yaml",
         metadata=b"foo: bar",
     )
