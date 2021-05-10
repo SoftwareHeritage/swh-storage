@@ -16,7 +16,7 @@ import attr
 import pytest
 
 from swh.core.api.classes import stream_results
-from swh.model.model import Directory, DirectoryEntry, Snapshot
+from swh.model.model import Directory, DirectoryEntry, Snapshot, SnapshotBranch
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
 from swh.storage.cassandra.model import ContentRow, ExtIDRow
@@ -414,6 +414,83 @@ class TestCassandraStorage(_TestStorage):
                 target_type=extid.target.object_type, ids=[extid.target.object_id]
             )
             assert extids == [extid]
+
+    def test_directory_add_atomic(self, swh_storage, sample_data, mocker):
+        """Checks that a crash occurring after some directory entries were written
+        does not cause the directory to be (partially) visible.
+        ie. checks directories are added somewhat atomically."""
+        # Disable the journal writer, it would detect the CrashyEntry exception too
+        # early for this test to be relevant
+        swh_storage.journal_writer.journal = None
+
+        class MyException(Exception):
+            pass
+
+        class CrashyEntry(DirectoryEntry):
+            def __init__(self):
+                pass
+
+            def to_dict(self):
+                raise MyException()
+
+        directory = sample_data.directory3
+        entries = directory.entries
+        directory = attr.evolve(directory, entries=entries + (CrashyEntry(),))
+
+        with pytest.raises(MyException):
+            swh_storage.directory_add([directory])
+
+        # This should have written some of the entries to the database:
+        entry_rows = swh_storage._cql_runner.directory_entry_get([directory.id])
+        assert {row.name for row in entry_rows} == {entry.name for entry in entries}
+
+        # BUT, because not all the entries were written, the directory should
+        # be considered not written.
+        assert swh_storage.directory_missing([directory.id]) == [directory.id]
+        assert list(swh_storage.directory_ls(directory.id)) == []
+
+    def test_snapshot_add_atomic(self, swh_storage, sample_data, mocker):
+        """Checks that a crash occurring after some snapshot branches were written
+        does not cause the snapshot to be (partially) visible.
+        ie. checks snapshots are added somewhat atomically."""
+        # Disable the journal writer, it would detect the CrashyBranch exception too
+        # early for this test to be relevant
+        swh_storage.journal_writer.journal = None
+
+        class MyException(Exception):
+            pass
+
+        class CrashyBranch(SnapshotBranch):
+            def __getattribute__(self, name):
+                if name == "target" and should_raise:
+                    raise MyException()
+                else:
+                    return super().__getattribute__(name)
+
+        snapshot = sample_data.complete_snapshot
+        branches = snapshot.branches
+
+        should_raise = False  # just so that we can construct the object
+        crashy_branch = CrashyBranch.from_dict(branches[b"directory"].to_dict())
+        should_raise = True
+
+        snapshot = attr.evolve(
+            snapshot, branches={**branches, b"crashy": crashy_branch,},
+        )
+
+        with pytest.raises(MyException):
+            swh_storage.snapshot_add([snapshot])
+
+        # This should have written some of the branches to the database:
+        branch_rows = swh_storage._cql_runner.snapshot_branch_get(snapshot.id, b"", 10)
+        assert {row.name for row in branch_rows} == set(branches)
+
+        # BUT, because not all the branches were written, the snapshot should
+        # be considered not written.
+        assert swh_storage.snapshot_missing([snapshot.id]) == [snapshot.id]
+        assert swh_storage.snapshot_get(snapshot.id) is None
+        assert swh_storage.snapshot_count_branches(snapshot.id) is None
+        assert swh_storage.snapshot_get_branches(snapshot.id) is None
 
     @pytest.mark.skip(
         'The "person" table of the pgsql is a legacy thing, and not '
