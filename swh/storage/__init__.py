@@ -12,10 +12,12 @@ if TYPE_CHECKING:
 
 
 STORAGE_IMPLEMENTATIONS = {
-    "local": ".postgresql.storage.Storage",
     "remote": ".api.client.RemoteStorage",
     "memory": ".in_memory.InMemoryStorage",
     "cassandra": ".cassandra.CassandraStorage",
+    "postgresql": ".postgresql.storage.Storage",
+    # deprecated
+    "local": ".postgresql.storage.Storage",
     # proxy storages
     "filter": ".proxies.filter.FilteringProxyStorage",
     "buffer": ".proxies.buffer.BufferingProxyStorage",
@@ -56,6 +58,12 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
 
     if cls == "pipeline":
         return get_storage_pipeline(**kwargs)
+
+    if cls == "local":
+        warnings.warn(
+            'The "local" storage class is deprecated, use "postgresql" instead.',
+            DeprecationWarning,
+        )
 
     class_path = STORAGE_IMPLEMENTATIONS.get(cls)
     if class_path is None:
