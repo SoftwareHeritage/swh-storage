@@ -13,6 +13,7 @@ from swh.core.db import BaseDb
 from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
+from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import ObjectType
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
 from swh.storage.interface import ListOrder
@@ -113,16 +114,18 @@ class Db(BaseDb):
         "origin",
     ]
 
-    def content_get_metadata_from_sha1s(self, sha1s, cur=None):
+    def content_get_metadata_from_hashes(
+        self, hashes: List[bytes], algo: str, cur=None
+    ):
         cur = self._cursor(cur)
+        assert algo in DEFAULT_ALGORITHMS
+        query = f"""
+            select {", ".join(self.content_get_metadata_keys)}
+            from (values %s) as t (hash)
+            inner join content on (content.{algo}=hash)
+        """
         yield from execute_values_generator(
-            cur,
-            """
-            select t.sha1, %s from (values %%s) as t (sha1)
-            inner join content using (sha1)
-            """
-            % ", ".join(self.content_get_metadata_keys[1:]),
-            ((sha1,) for sha1 in sha1s),
+            cur, query, ((hash_,) for hash_ in hashes),
         )
 
     def content_get_range(self, start, end, limit=None, cur=None):

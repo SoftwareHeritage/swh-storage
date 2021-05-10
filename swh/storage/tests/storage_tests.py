@@ -19,7 +19,7 @@ import pytest
 
 from swh.core.api.classes import stream_results
 from swh.model import from_disk
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
@@ -635,12 +635,15 @@ class TestStorage:
         for content in actual_contents:
             assert content in expected_contents
 
-    def test_content_get(self, swh_storage, sample_data):
+    @pytest.mark.parametrize("algo", DEFAULT_ALGORITHMS)
+    def test_content_get(self, swh_storage, sample_data, algo):
         cont1, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_contents = swh_storage.content_get([cont1.sha1, cont2.sha1])
+        actual_contents = swh_storage.content_get(
+            [getattr(cont1, algo), getattr(cont2, algo)], algo
+        )
 
         # we only retrieve the metadata so no data nor ctime within
         expected_contents = [attr.evolve(c, data=None) for c in [cont1, cont2]]
@@ -649,7 +652,8 @@ class TestStorage:
         for content in actual_contents:
             assert content.ctime is None
 
-    def test_content_get_missing_sha1(self, swh_storage, sample_data):
+    @pytest.mark.parametrize("algo", DEFAULT_ALGORITHMS)
+    def test_content_get_missing(self, swh_storage, sample_data, algo):
         cont1, cont2 = sample_data.contents[:2]
         assert cont1.sha1 != cont2.sha1
         missing_cont = sample_data.skipped_content
@@ -657,7 +661,8 @@ class TestStorage:
         swh_storage.content_add([cont1, cont2])
 
         actual_contents = swh_storage.content_get(
-            [cont1.sha1, cont2.sha1, missing_cont.sha1]
+            [getattr(cont1, algo), getattr(cont2, algo), getattr(missing_cont, algo)],
+            algo,
         )
 
         expected_contents = [

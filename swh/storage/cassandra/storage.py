@@ -6,6 +6,7 @@
 import base64
 import datetime
 import itertools
+import operator
 import random
 import re
 from typing import (
@@ -293,17 +294,25 @@ class CassandraStorage:
         assert len(contents) <= limit
         return PagedResult(results=contents, next_page_token=next_page_token)
 
-    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
-        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
-        for sha1 in contents:
-            # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1
-            # matches the argument, from the index table ('content_by_sha1')
-            for row in self._content_get_from_hash("sha1", sha1):
+    def content_get(
+        self, contents: List[bytes], algo: str = "sha1"
+    ) -> List[Optional[Content]]:
+        if algo not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "algo should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        key = operator.attrgetter(algo)
+        contents_by_hash: Dict[Sha1, Optional[Content]] = {}
+        for hash_ in contents:
+            # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1/sha1_git
+            # matches the argument, from the index table ('content_by_*')
+            for row in self._content_get_from_hash(algo, hash_):
                 row_d = row.to_dict()
                 row_d.pop("ctime")
                 content = Content(**row_d)
-                contents_by_sha1[content.sha1] = content
-        return [contents_by_sha1.get(sha1) for sha1 in contents]
+                contents_by_hash[key(content)] = content
+        return [contents_by_hash.get(hash_) for hash_ in contents]
 
     def content_find(self, content: Dict[str, Any]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.

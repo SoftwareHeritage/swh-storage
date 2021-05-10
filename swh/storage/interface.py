@@ -203,11 +203,15 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/metadata")
-    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
+    def content_get(
+        self, contents: List[bytes], algo: str = "sha1"
+    ) -> List[Optional[Content]]:
         """Retrieve content metadata in bulk
 
         Args:
             content: List of content identifiers
+            algo: one of the checksum algorithm in
+              :data:`swh.model.hashutil.DEFAULT_ALGORITHMS`
 
         Returns:
             List of contents model objects when they exist, None otherwise.
