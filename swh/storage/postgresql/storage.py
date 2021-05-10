@@ -24,6 +24,7 @@ from swh.model.model import (
     SHA1_SIZE,
     Content,
     Directory,
+    DirectoryEntry,
     ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -548,6 +549,31 @@ class Storage:
     @db_transaction()
     def directory_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.directory_get_random(cur)
+
+    @db_transaction()
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        if list(self.directory_missing([directory_id], db=db, cur=cur)):
+            return None
+
+        if page_token is not None:
+            raise StorageArgumentException("Unsupported page token")
+
+        # TODO: actually paginate
+        rows = db.directory_get_entries(directory_id, cur=cur)
+        return PagedResult(
+            results=[
+                DirectoryEntry(**dict(zip(db.directory_get_entries_cols, row)))
+                for row in rows
+            ],
+            next_page_token=None,
+        )
 
     @timed
     @process_metrics

@@ -6,6 +6,7 @@
 from collections import defaultdict
 import datetime
 import functools
+import itertools
 import random
 from typing import (
     Any,
@@ -300,6 +301,16 @@ class InMemoryCqlRunner:
     ) -> Iterable[DirectoryEntryRow]:
         for id_ in directory_ids:
             yield from self._directory_entries.get_from_partition_key((id_,))
+
+    def directory_entry_get_from_name(
+        self, directory_id: Sha1Git, from_: bytes, limit: int
+    ) -> Iterable[DirectoryEntryRow]:
+        # Get all entries
+        entries = self._directory_entries.get_from_partition_key((directory_id,))
+        # Filter out the ones before from_
+        entries = itertools.dropwhile(lambda entry: entry.name < from_, entries)
+        # Apply limit
+        return itertools.islice(entries, limit)
 
     ##########################
     # 'revision' table

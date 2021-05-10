@@ -14,7 +14,7 @@ from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
 from swh.model.identifiers import ObjectType
-from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus
+from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
 from swh.storage.interface import ListOrder
 
 logger = logging.getLogger(__name__)
@@ -402,6 +402,15 @@ class Db(BaseDb):
         if set(data) == {None}:
             return None
         return data
+
+    directory_get_entries_cols = ["type", "target", "name", "perms"]
+
+    def directory_get_entries(self, directory: Sha1Git, cur=None) -> List[Tuple]:
+        cur = self._cursor(cur)
+        cur.execute(
+            "SELECT * FROM swh_directory_get_entries(%s::sha1_git)", (directory,)
+        )
+        return list(cur)
 
     def directory_get_random(self, cur=None):
         return self._get_random_row_from_table("directory", ["id"], "id", cur)

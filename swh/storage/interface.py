@@ -15,6 +15,7 @@ from swh.model.identifiers import ExtendedSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
+    DirectoryEntry,
     ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -423,6 +424,31 @@ class StorageInterface(Protocol):
         Returns:
             The corresponding directory entry as dict if found, None otherwise.
 
+        """
+        ...
+
+    @remote_api_endpoint("directory/get_entries")
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        """Get the content, possibly partial, of a directory with the given id
+
+        The entries of the directory are not guaranteed to be returned in any
+        particular order.
+
+        The number of results is not guaranteed to be lower than the ``limit``.
+
+        Args:
+            directory_id: dentifier of the directory
+            page_token: opaque string used to get the next results of a search
+            limit: Number of entries to return
+
+        Returns:
+            None if the directory does not exist; a page of DirectoryEntry
+              objects otherwise.
         """
         ...
 

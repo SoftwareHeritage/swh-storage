@@ -448,6 +448,7 @@ class TestCassandraStorage(_TestStorage):
         # be considered not written.
         assert swh_storage.directory_missing([directory.id]) == [directory.id]
         assert list(swh_storage.directory_ls(directory.id)) == []
+        assert swh_storage.directory_get_entries(directory.id) is None
 
     def test_snapshot_add_atomic(self, swh_storage, sample_data, mocker):
         """Checks that a crash occurring after some snapshot branches were written

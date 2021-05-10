@@ -518,6 +518,30 @@ class CassandraStorage:
     ) -> Iterable[Dict[str, Any]]:
         yield from self._directory_ls(directory, recursive)
 
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        if self.directory_missing([directory_id]):
+            return None
+
+        entries_from: bytes = page_token or b""
+        rows = self._cql_runner.directory_entry_get_from_name(
+            directory_id, entries_from, limit + 1
+        )
+        entries = [
+            DirectoryEntry.from_dict(remove_keys(row.to_dict(), ("directory_id",)))
+            for row in rows
+        ]
+        if len(entries) > limit:
+            last_entry = entries.pop()
+            next_page_token = last_entry.name
+        else:
+            next_page_token = None
+        return PagedResult(results=entries, next_page_token=next_page_token)
+
     def directory_get_random(self) -> Sha1Git:
         directory = self._cql_runner.directory_get_random()
         assert directory, "Could not find any directory"
