@@ -15,12 +15,13 @@ STORAGE_IMPLEMENTATIONS = {
     "local": ".postgresql.storage.Storage",
     "remote": ".api.client.RemoteStorage",
     "memory": ".in_memory.InMemoryStorage",
-    "filter": ".filter.FilteringProxyStorage",
-    "buffer": ".buffer.BufferingProxyStorage",
-    "retry": ".retry.RetryingProxyStorage",
     "cassandra": ".cassandra.CassandraStorage",
-    "validate": ".validate.ValidatingProxyStorage",
-    "tenacious": ".tenacious.TenaciousProxyStorage",
+    # proxy storages
+    "filter": ".proxies.filter.FilteringProxyStorage",
+    "buffer": ".proxies.buffer.BufferingProxyStorage",
+    "retry": ".proxies.retry.RetryingProxyStorage",
+    "validate": ".proxies.validate.ValidatingProxyStorage",
+    "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
 }
 
 

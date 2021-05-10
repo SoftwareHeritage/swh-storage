@@ -14,7 +14,7 @@ from swh.model import model
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.in_memory import InMemoryStorage
-from swh.storage.tenacious import TenaciousProxyStorage
+from swh.storage.proxies.tenacious import TenaciousProxyStorage
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,

@@ -7,7 +7,7 @@ from typing import Optional
 from unittest.mock import Mock
 
 from swh.storage import get_storage
-from swh.storage.buffer import BufferingProxyStorage
+from swh.storage.proxies.buffer import BufferingProxyStorage
 
 
 def get_storage_with_buffer_config(**buffer_config) -> BufferingProxyStorage:
