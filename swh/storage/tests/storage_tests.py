@@ -17,8 +17,9 @@ import attr
 from hypothesis import HealthCheck, given, settings, strategies
 import pytest
 
+from swh.core.api.classes import stream_results
 from swh.model import from_disk
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
@@ -634,12 +635,15 @@ class TestStorage:
         for content in actual_contents:
             assert content in expected_contents
 
-    def test_content_get(self, swh_storage, sample_data):
+    @pytest.mark.parametrize("algo", DEFAULT_ALGORITHMS)
+    def test_content_get(self, swh_storage, sample_data, algo):
         cont1, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont1, cont2])
 
-        actual_contents = swh_storage.content_get([cont1.sha1, cont2.sha1])
+        actual_contents = swh_storage.content_get(
+            [getattr(cont1, algo), getattr(cont2, algo)], algo
+        )
 
         # we only retrieve the metadata so no data nor ctime within
         expected_contents = [attr.evolve(c, data=None) for c in [cont1, cont2]]
@@ -648,7 +652,8 @@ class TestStorage:
         for content in actual_contents:
             assert content.ctime is None
 
-    def test_content_get_missing_sha1(self, swh_storage, sample_data):
+    @pytest.mark.parametrize("algo", DEFAULT_ALGORITHMS)
+    def test_content_get_missing(self, swh_storage, sample_data, algo):
         cont1, cont2 = sample_data.contents[:2]
         assert cont1.sha1 != cont2.sha1
         missing_cont = sample_data.skipped_content
@@ -656,7 +661,8 @@ class TestStorage:
         swh_storage.content_add([cont1, cont2])
 
         actual_contents = swh_storage.content_get(
-            [cont1.sha1, cont2.sha1, missing_cont.sha1]
+            [getattr(cont1, algo), getattr(cont2, algo), getattr(missing_cont, algo)],
+            algo,
         )
 
         expected_contents = [
@@ -908,6 +914,37 @@ class TestStorage:
                 dir2.id, [entry.name]
             )
             assert actual_entry is None
+
+    def test_directory_get_entries_pagination(self, swh_storage, sample_data):
+        # Note: this test assumes entries are returned in lexicographic order,
+        # which is not actually guaranteed by the interface.
+        dir_ = sample_data.directory3
+        entries = sorted(dir_.entries, key=lambda entry: entry.name)
+        swh_storage.directory_add(sample_data.directories)
+
+        # No pagination needed
+        actual_data = swh_storage.directory_get_entries(dir_.id)
+        assert actual_data == PagedResult(results=entries, next_page_token=None)
+
+        # A little pagination
+        actual_data = swh_storage.directory_get_entries(dir_.id, limit=2)
+        assert actual_data.results == entries[0:2]
+        assert actual_data.next_page_token is not None
+
+        actual_data = swh_storage.directory_get_entries(
+            dir_.id, page_token=actual_data.next_page_token
+        )
+        assert actual_data == PagedResult(results=entries[2:], next_page_token=None)
+
+    @pytest.mark.parametrize("limit", [1, 2, 3, 4, 5])
+    def test_directory_get_entries(self, swh_storage, sample_data, limit):
+        dir_ = sample_data.directory3
+        swh_storage.directory_add(sample_data.directories)
+
+        actual_data = list(
+            stream_results(swh_storage.directory_get_entries, dir_.id, limit=limit,)
+        )
+        assert sorted(actual_data) == sorted(dir_.entries)
 
     def test_directory_get_random(self, swh_storage, sample_data):
         dir1, dir2, dir3 = sample_data.directories[:3]

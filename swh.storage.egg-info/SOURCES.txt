@@ -235,11 +235,9 @@ swh.storage.egg-info/requires.txt
 swh.storage.egg-info/top_level.txt
 swh/storage/__init__.py
 swh/storage/backfill.py
-swh/storage/buffer.py
 swh/storage/cli.py
 swh/storage/common.py
 swh/storage/exc.py
-swh/storage/filter.py
 swh/storage/fixer.py
 swh/storage/in_memory.py
 swh/storage/interface.py
@@ -249,10 +247,7 @@ swh/storage/objstorage.py
 swh/storage/py.typed
 swh/storage/pytest_plugin.py
 swh/storage/replay.py
-swh/storage/retry.py
-swh/storage/tenacious.py
 swh/storage/utils.py
-swh/storage/validate.py
 swh/storage/writer.py
 swh/storage/algos/__init__.py
 swh/storage/algos/diff.py
@@ -275,6 +270,11 @@ swh/storage/postgresql/__init__.py
 swh/storage/postgresql/converters.py
 swh/storage/postgresql/db.py
 swh/storage/postgresql/storage.py
+swh/storage/proxies/buffer.py
+swh/storage/proxies/filter.py
+swh/storage/proxies/retry.py
+swh/storage/proxies/tenacious.py
+swh/storage/proxies/validate.py
 swh/storage/sql/10-superuser-init.sql
 swh/storage/sql/15-flavor.sql
 swh/storage/sql/20-enums.sql

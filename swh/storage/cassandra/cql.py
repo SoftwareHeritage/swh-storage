@@ -625,6 +625,17 @@ class CqlRunner:
             self._execute_with_retries(statement, [directory_ids]),
         )
 
+    @_prepared_select_statement(
+        DirectoryEntryRow, "WHERE directory_id = ? AND name >= ? LIMIT ?"
+    )
+    def directory_entry_get_from_name(
+        self, directory_id: Sha1Git, from_: bytes, limit: int, *, statement
+    ) -> Iterable[DirectoryEntryRow]:
+        return map(
+            DirectoryEntryRow.from_dict,
+            self._execute_with_retries(statement, [directory_id, from_, limit]),
+        )
+
     ##########################
     # 'snapshot' table
     ##########################

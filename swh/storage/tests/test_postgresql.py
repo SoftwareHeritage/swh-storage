@@ -12,7 +12,7 @@ import attr
 import pytest
 
 from swh.storage.postgresql.db import Db
-from swh.storage.tests.storage_tests import TestStorage  # noqa
+from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
 
@@ -22,6 +22,14 @@ def db_transaction(storage):
     with storage.db() as db:
         with db.transaction() as cur:
             yield db, cur
+
+
+class TestStorage(_TestStorage):
+    @pytest.mark.skip(
+        "Directory pagination is not implemented in the postgresql backend yet."
+    )
+    def test_directory_get_entries_pagination(self):
+        pass
 
 
 @pytest.mark.db
