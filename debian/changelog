@@ -1,3 +1,17 @@
+swh-storage (0.29.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.29.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-05-11 15:04:58 +0200)
+  * Upstream changes:     - v0.29.0     - * Make the
+    TenaciousProxyStorage retry when a single object add fails     - *
+    Move all proxy storages in swh/storage/proxies/     - * Deprecate
+    the "local" storage cls in favor of "postgresql"     - * cassandra:
+    Add tests checking directory_add and snapshot_add are atomic.     -
+    * Add endpoint directory_get_entries, to quickly list a directory's
+    entries     - * content_get: Add support for queries by sha1_git
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 11 May 2021 13:12:42 +0000
+
 swh-storage (0.28.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.28.0     - (tagged by Valentin Lorentz
