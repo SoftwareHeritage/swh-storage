@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 from contextlib import contextmanager
 from unittest.mock import patch
 
@@ -13,7 +14,7 @@ from swh.model import model
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.in_memory import InMemoryStorage
-from swh.storage.tenacious import TenaciousProxyStorage
+from swh.storage.proxies.tenacious import TenaciousProxyStorage
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -182,6 +183,14 @@ class LimitedInMemoryStorage(InMemoryStorage):
     # forbidden are 'bad1' and 'bad2' arguments of `testdata`
     forbidden = [x[0][2] for x in testdata] + [x[0][3] for x in testdata]
 
+    def __init__(self, *args, **kw):
+        self.add_calls = Counter()
+        super().__init__(*args, **kw)
+
+    def reset(self):
+        super().reset()
+        self.add_calls.clear()
+
     def content_add(self, contents):
         return self._maybe_add(super().content_add, "content", contents)
 
@@ -206,7 +215,7 @@ class LimitedInMemoryStorage(InMemoryStorage):
         return self._maybe_add(super().snapshot_add, "snapshot", snapshots)
 
     def _maybe_add(self, add_func, object_type, objects):
-        # forbidden = [c.id for c in collections[object_type]]
+        self.add_calls[object_type] += 1
         if any(c in self.forbidden for c in objects):
             raise ValueError(
                 f"{object_type} is forbidden",
@@ -228,9 +237,18 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
 
     add_func = getattr(storage, f"{object_type}_add")
 
+    # Note: when checking the LimitedInMemoryStorage.add_calls counter, it's
+    # hard to guess the exact number of calls in the end (depends on the size
+    # of batch and the position of bad objects in this batch). So we will only
+    # check a lower limit of the form (n + m), where n is the minimum expected
+    # number of additions (due to the batch begin split), and m is the fact
+    # that bad objects are tried (individually) several (3) times before giving
+    # up. So for one bad object, m is 3; for 2 bad objects, m is 6, etc.
+
     s = add_func(objects)
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 0
+    assert storage.add_calls[object_type] == (1 + 0)
     in_memory.reset()
     tenacious.reset()
 
@@ -238,6 +256,8 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func(objects + [bad1])
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 1
+
+    assert storage.add_calls[object_type] >= (2 + 3)
     in_memory.reset()
     tenacious.reset()
 
@@ -245,6 +265,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func(objects + [bad1, bad2])
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 2
+    assert storage.add_calls[object_type] >= (3 + 6)
     in_memory.reset()
     tenacious.reset()
 
@@ -252,6 +273,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func([bad1] + objects)
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 1
+    assert storage.add_calls[object_type] >= (2 + 3)
     in_memory.reset()
     tenacious.reset()
 
@@ -259,6 +281,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func([bad1, bad2] + objects)
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 2
+    assert storage.add_calls[object_type] >= (3 + 6)
     in_memory.reset()
     tenacious.reset()
 
@@ -266,6 +289,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func(objects[: size // 2] + [bad1] + objects[size // 2 :])
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 1
+    assert storage.add_calls[object_type] >= (3 + 3)
     in_memory.reset()
     tenacious.reset()
 
@@ -273,6 +297,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func(objects[: size // 2] + [bad1, bad2] + objects[size // 2 :])
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 2
+    assert storage.add_calls[object_type] >= (3 + 6)
     in_memory.reset()
     tenacious.reset()
 
@@ -286,6 +311,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     )
     assert s.get(f"{object_type}:add", 0) == size
     assert s.get(f"{object_type}:add:errors", 0) == 2
+    assert storage.add_calls[object_type] >= (3 + 6)
     in_memory.reset()
     tenacious.reset()
 
@@ -293,6 +319,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func([bad1])
     assert s.get(f"{object_type}:add", 0) == 0
     assert s.get(f"{object_type}:add:errors", 0) == 1
+    assert storage.add_calls[object_type] == (0 + 3)
     in_memory.reset()
     tenacious.reset()
 
@@ -300,6 +327,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
     s = add_func([bad1, bad2])
     assert s.get(f"{object_type}:add", 0) == 0
     assert s.get(f"{object_type}:add:errors", 0) == 2
+    assert storage.add_calls[object_type] == (1 + 6)
     in_memory.reset()
     tenacious.reset()
 

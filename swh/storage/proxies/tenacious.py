@@ -7,7 +7,7 @@ from collections import Counter, deque
 from functools import partial
 import logging
 from typing import Counter as CounterT
-from typing import Deque, Dict, Iterable, List
+from typing import Deque, Dict, Iterable, List, Optional
 
 from swh.model.model import BaseModel
 from swh.storage import get_storage
@@ -47,6 +47,9 @@ class TenaciousProxyStorage:
     Also provides a error-rate limit feature: if more than n errors occurred during the
     insertion of the last p (window_size) objects, stop accepting any insertion.
 
+    The number of insertion retries for a single object can be specified via
+    the 'retries' parameter.
+
     This proxy is mainly intended to be used in a replayer configuration (aka a
     mirror stack), where insertion errors are mostly unexpected (which explains
     the low default ratio errors/window_size).
@@ -84,7 +87,12 @@ class TenaciousProxyStorage:
         "origin_add",
     )
 
-    def __init__(self, storage, error_rate_limit=None):
+    def __init__(
+        self,
+        storage,
+        error_rate_limit: Optional[Dict[str, int]] = None,
+        retries: int = 3,
+    ):
         self.storage = get_storage(**storage)
         if error_rate_limit is None:
             error_rate_limit = {"errors": 10, "window_size": 1000}
@@ -93,6 +101,7 @@ class TenaciousProxyStorage:
         self.rate_queue = RateQueue(
             size=error_rate_limit["window_size"], max_errors=error_rate_limit["errors"],
         )
+        self._single_object_retries: int = retries
 
     def __getattr__(self, key):
         if key in self.tenacious_methods:
@@ -109,7 +118,10 @@ class TenaciousProxyStorage:
 
         # list of lists of objects; note this to_add list is consumed from the tail
         to_add: List[List[BaseModel]] = [list(objects)]
+        n_objs: int = len(to_add[0])
+
         results: CounterT[str] = Counter()
+        retries: int = self._single_object_retries
 
         while to_add:
             if self.rate_queue.limit_reached():
@@ -134,14 +146,28 @@ class TenaciousProxyStorage:
                     # reinsert objs split in 2 parts at the end of to_add
                     to_add.append(objs[(len(objs) // 2) :])
                     to_add.append(objs[: (len(objs) // 2)])
+                    # each time we append a batch in the to_add bag, reset the
+                    # one-object-batch retries counter
+                    retries = self._single_object_retries
                 else:
-                    logger.error(
-                        f"{func_name}: failed to insert an object, excluding {objs}"
-                    )
-                    # logger.error(f"Exception: {exc}")
-                    logger.exception(f"Exception was: {exc}")
-                    results.update({f"{object_type}:add:errors": 1})
-                    self.rate_queue.add_error()
+                    retries -= 1
+                    if retries:
+                        logger.info(
+                            f"{func_name}: failed to insert an {object_type}, retrying"
+                        )
+                        # give it another chance
+                        to_add.append(objs)
+                    else:
+                        logger.error(
+                            f"{func_name}: failed to insert an object, "
+                            f"excluding {objs} (from a batch of {n_objs})"
+                        )
+                        logger.exception(f"Exception was: {exc}")
+                        results.update({f"{object_type}:add:errors": 1})
+                        self.rate_queue.add_error()
+                        # reset the retries counter (needed in case the next
+                        # batch is also 1 element only)
+                        retries = self._single_object_retries
         return dict(results)
 
     def reset(self):

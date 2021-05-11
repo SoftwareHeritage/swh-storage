@@ -9,6 +9,7 @@ import contextlib
 from contextlib import contextmanager
 import datetime
 import itertools
+import operator
 from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import attr
@@ -24,6 +25,7 @@ from swh.model.model import (
     SHA1_SIZE,
     Content,
     Directory,
+    DirectoryEntry,
     ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -318,15 +320,23 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def content_get(
-        self, contents: List[Sha1], db=None, cur=None
+        self, contents: List[bytes], algo: str = "sha1", db=None, cur=None
     ) -> List[Optional[Content]]:
-        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
-        for row in db.content_get_metadata_from_sha1s(contents, cur):
+        contents_by_hash: Dict[bytes, Optional[Content]] = {}
+        if algo not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "algo should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        rows = db.content_get_metadata_from_hashes(contents, algo, cur)
+        key = operator.attrgetter(algo)
+
+        for row in rows:
             row_d = dict(zip(db.content_get_metadata_keys, row))
             content = Content(**row_d)
-            contents_by_sha1[content.sha1] = content
+            contents_by_hash[key(content)] = content
 
-        return [contents_by_sha1.get(sha1) for sha1 in contents]
+        return [contents_by_hash.get(sha1) for sha1 in contents]
 
     @timed
     @db_transaction_generator()
@@ -548,6 +558,31 @@ class Storage:
     @db_transaction()
     def directory_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.directory_get_random(cur)
+
+    @db_transaction()
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        if list(self.directory_missing([directory_id], db=db, cur=cur)):
+            return None
+
+        if page_token is not None:
+            raise StorageArgumentException("Unsupported page token")
+
+        # TODO: actually paginate
+        rows = db.directory_get_entries(directory_id, cur=cur)
+        return PagedResult(
+            results=[
+                DirectoryEntry(**dict(zip(db.directory_get_entries_cols, row)))
+                for row in rows
+            ],
+            next_page_token=None,
+        )
 
     @timed
     @process_metrics
