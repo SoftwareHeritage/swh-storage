@@ -1,6 +1,7 @@
 # Depends: postgresql-client, postgresql-autodoc
 
-DBNAME = softwareheritage-dev
+# When running with pifpaf, $PGDATABASE is already set in the environment
+PGDATABASE ?= softwareheritage-dev
 DOCDIR = autodoc
 
 SQL_FILES = $(sort $(wildcard $(CURDIR)/../swh/storage/sql/*.sql))
@@ -15,10 +16,8 @@ all:
 
 createdb: createdb-stamp
 createdb-stamp: $(SQL_FILES)
-ifeq ($(PIFPAF),)
-	-dropdb $(DBNAME)
-endif
-	createdb $(DBNAME)
+	-dropdb $(PGDATABASE)
+	createdb $(PGDATABASE)
 ifeq ($(PIFPAF),)
 	touch $@
 else
@@ -27,7 +26,7 @@ endif
 
 filldb: filldb-stamp
 filldb-stamp: createdb-stamp
-	cat $(SQL_FILES) | $(PSQL) $(DBNAME)
+	cat $(SQL_FILES) | $(PSQL) $(PGDATABASE)
 ifeq ($(PIFPAF),)
 	touch $@
 else
@@ -35,18 +34,18 @@ else
 endif
 
 dropdb:
-	-dropdb $(DBNAME)
+	-dropdb $(PGDATABASE)
 
 dumpdb: swh.dump
 swh.dump: filldb-stamp
-	pg_dump -Fc $(DBNAME) > $@
+	pg_dump -Fc $(PGDATABASE) > $@
 
 $(DOCDIR):
 	test -d $(DOCDIR)/ || mkdir $(DOCDIR)
 
 doc: autodoc-stamp $(DOCDIR)/db-schema.pdf $(DOCDIR)/db-schema.svg
 autodoc-stamp: filldb-stamp $(DOCDIR)
-	postgresql_autodoc -d $(DBNAME) -f $(DOCDIR)/db-schema
+	postgresql_autodoc -d $(PGDATABASE) -f $(DOCDIR)/db-schema
 	cp -a $(DOCDIR)/db-schema.dot $(DOCDIR)/db-schema.dot.orig
 ifeq ($(PIFPAF),)
 	touch $@

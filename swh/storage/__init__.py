@@ -12,14 +12,18 @@ if TYPE_CHECKING:
 
 
 STORAGE_IMPLEMENTATIONS = {
-    "local": ".postgresql.storage.Storage",
     "remote": ".api.client.RemoteStorage",
     "memory": ".in_memory.InMemoryStorage",
-    "filter": ".filter.FilteringProxyStorage",
-    "buffer": ".buffer.BufferingProxyStorage",
-    "retry": ".retry.RetryingProxyStorage",
     "cassandra": ".cassandra.CassandraStorage",
-    "validate": ".validate.ValidatingProxyStorage",
+    "postgresql": ".postgresql.storage.Storage",
+    # deprecated
+    "local": ".postgresql.storage.Storage",
+    # proxy storages
+    "filter": ".proxies.filter.FilteringProxyStorage",
+    "buffer": ".proxies.buffer.BufferingProxyStorage",
+    "retry": ".proxies.retry.RetryingProxyStorage",
+    "validate": ".proxies.validate.ValidatingProxyStorage",
+    "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
 }
 
 
@@ -28,13 +32,14 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
     `storage_args`.
 
     Args:
-        cls (str): storage's class, can be:
-          - ``local`` to use a postgresql database
-          - ``cassandra`` to use a cassandra database
-          - ``remote`` to connect to a swh-storage server
-          - ``memory`` for an in-memory storage, useful for fast tests
-          - ``filter``, ``buffer``, ... to use specific storage "proxies", see their
-            respective documentations
+        cls (str):
+          storage's class, can be:
+            - ``local`` to use a postgresql database
+            - ``cassandra`` to use a cassandra database
+            - ``remote`` to connect to a swh-storage server
+            - ``memory`` for an in-memory storage, useful for fast tests
+            - ``filter``, ``buffer``, ... to use specific storage "proxies", see their
+              respective documentations
         args (dict): dictionary with keys
 
     Returns:
@@ -53,6 +58,12 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
 
     if cls == "pipeline":
         return get_storage_pipeline(**kwargs)
+
+    if cls == "local":
+        warnings.warn(
+            'The "local" storage class is deprecated, use "postgresql" instead.',
+            DeprecationWarning,
+        )
 
     class_path = STORAGE_IMPLEMENTATIONS.get(cls)
     if class_path is None:

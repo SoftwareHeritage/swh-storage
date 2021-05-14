@@ -6,12 +6,13 @@
 import base64
 import datetime
 import itertools
-import json
+import operator
 import random
 import re
 from typing import (
     Any,
     Callable,
+    Counter,
     Dict,
     Iterable,
     List,
@@ -27,7 +28,7 @@ import attr
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.identifiers import CoreSWHID, ExtendedSWHID
+from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
@@ -69,6 +70,7 @@ from .model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDByTargetRow,
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
@@ -88,10 +90,45 @@ BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 
 class CassandraStorage:
-    def __init__(self, hosts, keyspace, objstorage, port=9042, journal_writer=None):
-        self._cql_runner: CqlRunner = CqlRunner(hosts, keyspace, port)
+    def __init__(
+        self,
+        hosts,
+        keyspace,
+        objstorage,
+        port=9042,
+        journal_writer=None,
+        allow_overwrite=False,
+    ):
+        """
+        A backend of swh-storage backed by Cassandra
+
+        Args:
+            hosts: Seed Cassandra nodes, to start connecting to the cluster
+            keyspace: Name of the Cassandra database to use
+            objstorage: Passed as argument to :class:`ObjStorage`
+            port: Cassandra port
+            journal_writer: Passed as argument to :class:`JournalWriter`
+            allow_overwrite: Whether ``*_add`` functions will check if an object
+                already exists in the database before sending it in an INSERT.
+                ``False`` is the default as it is more efficient when there is
+                a moderately high probability the object is already known,
+                but ``True`` can be useful to overwrite existing objects
+                (eg. when applying a schema update),
+                or when the database is known to be mostly empty.
+                Note that a ``False`` value does not guarantee there won't be
+                any overwrite.
+        """
+        self._hosts = hosts
+        self._keyspace = keyspace
+        self._port = port
+        self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(objstorage)
+        self._allow_overwrite = allow_overwrite
+
+    def _set_cql_runner(self):
+        """Used by tests when they need to reset the CqlRunner"""
+        self._cql_runner: CqlRunner = CqlRunner(self._hosts, self._keyspace, self._port)
 
     def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
@@ -116,11 +153,14 @@ class CassandraStorage:
                 if getattr(row, algo) == hash_:
                     yield row
 
-    def _content_add(self, contents: List[Content], with_data: bool) -> Dict:
+    def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
         # Filter-out content already in the database.
-        contents = [
-            c for c in contents if not self._cql_runner.content_get_from_pk(c.to_dict())
-        ]
+        if not self._allow_overwrite:
+            contents = [
+                c
+                for c in contents
+                if not self._cql_runner.content_get_from_pk(c.to_dict())
+            ]
 
         if with_data:
             # First insert to the objstorage, if the endpoint is
@@ -149,27 +189,28 @@ class CassandraStorage:
             # The proper way to do it would probably be a BATCH, but this
             # would be inefficient because of the number of partitions we
             # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
-            for algo in {"sha1", "sha1_git"}:
-                collisions = []
-                # Get tokens of 'content' rows with the same value for
-                # sha1/sha1_git
-                rows = self._content_get_from_hash(algo, content.get_hash(algo))
-                for row in rows:
-                    if getattr(row, algo) != content.get_hash(algo):
-                        # collision of token(partition key), ignore this
-                        # row
-                        continue
+            if not self._allow_overwrite:
+                for algo in {"sha1", "sha1_git"}:
+                    collisions = []
+                    # Get tokens of 'content' rows with the same value for
+                    # sha1/sha1_git
+                    rows = self._content_get_from_hash(algo, content.get_hash(algo))
+                    for row in rows:
+                        if getattr(row, algo) != content.get_hash(algo):
+                            # collision of token(partition key), ignore this
+                            # row
+                            continue
 
-                    for other_algo in HASH_ALGORITHMS:
-                        if getattr(row, other_algo) != content.get_hash(other_algo):
-                            # This hash didn't match; discard the row.
-                            collisions.append(
-                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
-                            )
+                        for other_algo in HASH_ALGORITHMS:
+                            if getattr(row, other_algo) != content.get_hash(other_algo):
+                                # This hash didn't match; discard the row.
+                                collisions.append(
+                                    {k: getattr(row, k) for k in HASH_ALGORITHMS}
+                                )
 
-                if collisions:
-                    collisions.append(content.hashes())
-                    raise HashCollision(algo, content.get_hash(algo), collisions)
+                    if collisions:
+                        collisions.append(content.hashes())
+                        raise HashCollision(algo, content.get_hash(algo), collisions)
 
             (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
                 ContentRow(**remove_keys(content.to_dict(), ("data",)))
@@ -191,8 +232,11 @@ class CassandraStorage:
 
         return summary
 
-    def content_add(self, content: List[Content]) -> Dict:
-        contents = [attr.evolve(c, ctime=now()) for c in content]
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
+        to_add = {
+            (c.sha1, c.sha1_git, c.sha256, c.blake2s256): c for c in content
+        }.values()
+        contents = [attr.evolve(c, ctime=now()) for c in to_add]
         return self._content_add(list(contents), with_data=True)
 
     def content_update(
@@ -202,7 +246,7 @@ class CassandraStorage:
             "content_update is not supported by the Cassandra backend"
         )
 
-    def content_add_metadata(self, content: List[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict[str, int]:
         return self._content_add(content, with_data=False)
 
     def content_get_data(self, content: Sha1) -> Optional[bytes]:
@@ -250,17 +294,25 @@ class CassandraStorage:
         assert len(contents) <= limit
         return PagedResult(results=contents, next_page_token=next_page_token)
 
-    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
-        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
-        for sha1 in contents:
-            # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1
-            # matches the argument, from the index table ('content_by_sha1')
-            for row in self._content_get_from_hash("sha1", sha1):
+    def content_get(
+        self, contents: List[bytes], algo: str = "sha1"
+    ) -> List[Optional[Content]]:
+        if algo not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "algo should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        key = operator.attrgetter(algo)
+        contents_by_hash: Dict[Sha1, Optional[Content]] = {}
+        for hash_ in contents:
+            # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1/sha1_git
+            # matches the argument, from the index table ('content_by_*')
+            for row in self._content_get_from_hash(algo, hash_):
                 row_d = row.to_dict()
                 row_d.pop("ctime")
                 content = Content(**row_d)
-                contents_by_sha1[content.sha1] = content
-        return [contents_by_sha1.get(sha1) for sha1 in contents]
+                contents_by_hash[key(content)] = content
+        return [contents_by_hash.get(hash_) for hash_ in contents]
 
     def content_find(self, content: Dict[str, Any]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
@@ -317,13 +369,14 @@ class CassandraStorage:
         assert content, "Could not find any content"
         return content.sha1_git
 
-    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict:
+    def _skipped_content_add(self, contents: List[SkippedContent]) -> Dict[str, int]:
         # Filter-out content already in the database.
-        contents = [
-            c
-            for c in contents
-            if not self._cql_runner.skipped_content_get_from_pk(c.to_dict())
-        ]
+        if not self._allow_overwrite:
+            contents = [
+                c
+                for c in contents
+                if not self._cql_runner.skipped_content_get_from_pk(c.to_dict())
+            ]
 
         self.journal_writer.skipped_content_add(contents)
 
@@ -342,7 +395,7 @@ class CassandraStorage:
 
         return {"skipped_content:add": len(contents)}
 
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
@@ -353,10 +406,12 @@ class CassandraStorage:
             if not self._cql_runner.skipped_content_get_from_pk(content):
                 yield {algo: content[algo] for algo in DEFAULT_ALGORITHMS}
 
-    def directory_add(self, directories: List[Directory]) -> Dict:
-        # Filter out directories that are already inserted.
-        missing = self.directory_missing([dir_.id for dir_ in directories])
-        directories = [dir_ for dir_ in directories if dir_.id in missing]
+    def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
+        to_add = {d.id: d for d in directories}.values()
+        if not self._allow_overwrite:
+            # Filter out directories that are already inserted.
+            missing = self.directory_missing([dir_.id for dir_ in to_add])
+            directories = [dir_ for dir_ in directories if dir_.id in missing]
 
         self.journal_writer.directory_add(directories)
 
@@ -472,15 +527,41 @@ class CassandraStorage:
     ) -> Iterable[Dict[str, Any]]:
         yield from self._directory_ls(directory, recursive)
 
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        if self.directory_missing([directory_id]):
+            return None
+
+        entries_from: bytes = page_token or b""
+        rows = self._cql_runner.directory_entry_get_from_name(
+            directory_id, entries_from, limit + 1
+        )
+        entries = [
+            DirectoryEntry.from_dict(remove_keys(row.to_dict(), ("directory_id",)))
+            for row in rows
+        ]
+        if len(entries) > limit:
+            last_entry = entries.pop()
+            next_page_token = last_entry.name
+        else:
+            next_page_token = None
+        return PagedResult(results=entries, next_page_token=next_page_token)
+
     def directory_get_random(self) -> Sha1Git:
         directory = self._cql_runner.directory_get_random()
         assert directory, "Could not find any directory"
         return directory.id
 
-    def revision_add(self, revisions: List[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         # Filter-out revisions already in the database
-        missing = self.revision_missing([rev.id for rev in revisions])
-        revisions = [rev for rev in revisions if rev.id in missing]
+        if not self._allow_overwrite:
+            to_add = {r.id: r for r in revisions}.values()
+            missing = self.revision_missing([rev.id for rev in to_add])
+            revisions = [rev for rev in revisions if rev.id in missing]
         self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
@@ -588,21 +669,18 @@ class CassandraStorage:
         assert revision, "Could not find any revision"
         return revision.id
 
-    def release_add(self, releases: List[Release]) -> Dict:
-        to_add = []
-        for rel in releases:
-            if rel not in to_add:
-                to_add.append(rel)
-        missing = set(self.release_missing([rel.id for rel in to_add]))
-        to_add = [rel for rel in to_add if rel.id in missing]
+    def release_add(self, releases: List[Release]) -> Dict[str, int]:
+        if not self._allow_overwrite:
+            to_add = {r.id: r for r in releases}.values()
+            missing = set(self.release_missing([rel.id for rel in to_add]))
+            releases = [rel for rel in to_add if rel.id in missing]
+        self.journal_writer.release_add(releases)
 
-        self.journal_writer.release_add(to_add)
-
-        for release in to_add:
+        for release in releases:
             if release:
                 self._cql_runner.release_add_one(converters.release_to_db(release))
 
-        return {"release:add": len(to_add)}
+        return {"release:add": len(releases)}
 
     def release_missing(self, releases: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.release_missing(releases)
@@ -621,9 +699,11 @@ class CassandraStorage:
         assert release, "Could not find any release"
         return release.id
 
-    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
-        missing = self._cql_runner.snapshot_missing([snp.id for snp in snapshots])
-        snapshots = [snp for snp in snapshots if snp.id in missing]
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
+        if not self._allow_overwrite:
+            to_add = {s.id: s for s in snapshots}.values()
+            missing = self._cql_runner.snapshot_missing([snp.id for snp in to_add])
+            snapshots = [snp for snp in snapshots if snp.id in missing]
 
         for snapshot in snapshots:
             self.journal_writer.snapshot_add([snapshot])
@@ -892,16 +972,16 @@ class CassandraStorage:
         )
 
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
-        to_add = [ori for ori in origins if self.origin_get_one(ori.url) is None]
-        # keep only one occurrence of each given origin while keeping the list
-        # sorted as originally given
-        to_add = sorted(set(to_add), key=to_add.index)
-        self.journal_writer.origin_add(to_add)
-        for origin in to_add:
+        if not self._allow_overwrite:
+            to_add = {o.url: o for o in origins}.values()
+            origins = [ori for ori in to_add if self.origin_get_one(ori.url) is None]
+
+        self.journal_writer.origin_add(origins)
+        for origin in origins:
             self._cql_runner.origin_add_one(
                 OriginRow(sha1=hash_url(origin.url), url=origin.url, next_visit_id=1)
             )
-        return {"origin:add": len(to_add)}
+        return {"origin:add": len(origins)}
 
     def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         for visit in visits:
@@ -953,7 +1033,9 @@ class CassandraStorage:
             converters.visit_status_to_row(visit_status)
         )
 
-    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus]) -> None:
+    def origin_visit_status_add(
+        self, visit_statuses: List[OriginVisitStatus]
+    ) -> Dict[str, int]:
         # First round to check existence (fail early if any is ko)
         for visit_status in visit_statuses:
             origin_url = self.origin_get_one(visit_status.origin)
@@ -962,6 +1044,7 @@ class CassandraStorage:
 
         for visit_status in visit_statuses:
             self._origin_visit_status_add(visit_status)
+        return {"origin_visit_status:add": len(visit_statuses)}
 
     def _origin_visit_apply_status(
         self, visit: Dict[str, Any], visit_status: OriginVisitStatusRow
@@ -1181,8 +1264,11 @@ class CassandraStorage:
     def refresh_stat_counters(self):
         pass
 
-    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata]) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: List[RawExtrinsicMetadata]
+    ) -> Dict[str, int]:
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
+        counter = Counter[ExtendedObjectType]()
         for metadata_entry in metadata:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
@@ -1218,8 +1304,12 @@ class CassandraStorage:
                     directory=map_optional(str, metadata_entry.directory),
                 )
                 self._cql_runner.raw_extrinsic_metadata_add(row)
+                counter[metadata_entry.target.object_type] += 1
             except TypeError as e:
                 raise StorageArgumentException(*e.args)
+        return {
+            f"{type.value}_metadata:add": count for (type, count) in counter.items()
+        }
 
     def raw_extrinsic_metadata_get(
         self,
@@ -1291,40 +1381,32 @@ class CassandraStorage:
 
         return PagedResult(next_page_token=next_page_token, results=results,)
 
-    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> Dict[str, int]:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
-                MetadataFetcherRow(
-                    name=fetcher.name,
-                    version=fetcher.version,
-                    metadata=json.dumps(map_optional(dict, fetcher.metadata)),
-                )
+                MetadataFetcherRow(name=fetcher.name, version=fetcher.version,)
             )
+        return {"metadata_fetcher:add": len(fetchers)}
 
     def metadata_fetcher_get(
         self, name: str, version: str
     ) -> Optional[MetadataFetcher]:
         fetcher = self._cql_runner.metadata_fetcher_get(name, version)
         if fetcher:
-            return MetadataFetcher(
-                name=fetcher.name,
-                version=fetcher.version,
-                metadata=json.loads(fetcher.metadata),
-            )
+            return MetadataFetcher(name=fetcher.name, version=fetcher.version,)
         else:
             return None
 
-    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
+    def metadata_authority_add(
+        self, authorities: List[MetadataAuthority]
+    ) -> Dict[str, int]:
         self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
-                MetadataAuthorityRow(
-                    url=authority.url,
-                    type=authority.type.value,
-                    metadata=json.dumps(map_optional(dict, authority.metadata)),
-                )
+                MetadataAuthorityRow(url=authority.url, type=authority.type.value,)
             )
+        return {"metadata_authority:add": len(authorities)}
 
     def metadata_authority_get(
         self, type: MetadataAuthorityType, url: str
@@ -1332,35 +1414,41 @@ class CassandraStorage:
         authority = self._cql_runner.metadata_authority_get(type.value, url)
         if authority:
             return MetadataAuthority(
-                type=MetadataAuthorityType(authority.type),
-                url=authority.url,
-                metadata=json.loads(authority.metadata),
+                type=MetadataAuthorityType(authority.type), url=authority.url,
             )
         else:
             return None
 
     # ExtID tables
     def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
-        extids = [
-            extid
-            for extid in ids
-            if not self._cql_runner.extid_get_from_pk(
-                extid_type=extid.extid_type, extid=extid.extid, target=extid.target,
-            )
-        ]
+        if not self._allow_overwrite:
+            extids = [
+                extid
+                for extid in ids
+                if not self._cql_runner.extid_get_from_pk(
+                    extid_type=extid.extid_type, extid=extid.extid, target=extid.target,
+                )
+            ]
+        else:
+            extids = list(ids)
 
         self.journal_writer.extid_add(extids)
 
         inserted = 0
         for extid in extids:
+            target_type = extid.target.object_type.value
+            target = extid.target.object_id
             extidrow = ExtIDRow(
                 extid_type=extid.extid_type,
                 extid=extid.extid,
-                target_type=extid.target.object_type.value,
-                target=extid.target.object_id,
+                target_type=target_type,
+                target=target,
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
-            self._cql_runner.extid_index_add_one(extidrow, token)
+            indexrow = ExtIDByTargetRow(
+                target_type=target_type, target=target, target_token=token,
+            )
+            self._cql_runner.extid_index_add_one(indexrow)
             insertion_finalizer()
             inserted += 1
         return {"extid:add": inserted}

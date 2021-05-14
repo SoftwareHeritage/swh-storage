@@ -13,8 +13,9 @@ from swh.core.db import BaseDb
 from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
+from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.identifiers import ObjectType
-from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus
+from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
 from swh.storage.interface import ListOrder
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 173
+    current_version = 175
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -113,16 +114,18 @@ class Db(BaseDb):
         "origin",
     ]
 
-    def content_get_metadata_from_sha1s(self, sha1s, cur=None):
+    def content_get_metadata_from_hashes(
+        self, hashes: List[bytes], algo: str, cur=None
+    ):
         cur = self._cursor(cur)
+        assert algo in DEFAULT_ALGORITHMS
+        query = f"""
+            select {", ".join(self.content_get_metadata_keys)}
+            from (values %s) as t (hash)
+            inner join content on (content.{algo}=hash)
+        """
         yield from execute_values_generator(
-            cur,
-            """
-            select t.sha1, %s from (values %%s) as t (sha1)
-            inner join content using (sha1)
-            """
-            % ", ".join(self.content_get_metadata_keys[1:]),
-            ((sha1,) for sha1 in sha1s),
+            cur, query, ((hash_,) for hash_ in hashes),
         )
 
     def content_get_range(self, start, end, limit=None, cur=None):
@@ -402,6 +405,15 @@ class Db(BaseDb):
         if set(data) == {None}:
             return None
         return data
+
+    directory_get_entries_cols = ["type", "target", "name", "perms"]
+
+    def directory_get_entries(self, directory: Sha1Git, cur=None) -> List[Tuple]:
+        cur = self._cursor(cur)
+        cur.execute(
+            "SELECT * FROM swh_directory_get_entries(%s::sha1_git)", (directory,)
+        )
+        return list(cur)
 
     def directory_get_random(self, cur=None):
         return self._get_random_row_from_table("directory", ["id"], "id", cur)
@@ -971,10 +983,11 @@ class Db(BaseDb):
     def origin_add(self, url, cur=None):
         """Insert a new origin and return the new identifier."""
         insert = """INSERT INTO origin (url) values (%s)
-                    RETURNING url"""
+                    ON CONFLICT DO NOTHING
+                    """
 
         cur.execute(insert, (url,))
-        return cur.fetchone()[0]
+        return cur.rowcount
 
     origin_cols = ["url"]
 
@@ -1328,16 +1341,14 @@ class Db(BaseDb):
         cur.execute(" ".join(query_parts), args)
         yield from cur
 
-    metadata_fetcher_cols = ["name", "version", "metadata"]
+    metadata_fetcher_cols = ["name", "version"]
 
-    def metadata_fetcher_add(
-        self, name: str, version: str, metadata: bytes, cur=None
-    ) -> None:
+    def metadata_fetcher_add(self, name: str, version: str, cur=None) -> None:
         cur = self._cursor(cur)
         cur.execute(
-            "INSERT INTO metadata_fetcher (name, version, metadata) "
-            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            (name, version, jsonize(metadata)),
+            "INSERT INTO metadata_fetcher (name, version) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (name, version),
         )
 
     def metadata_fetcher_get(self, name: str, version: str, cur=None):
@@ -1364,16 +1375,14 @@ class Db(BaseDb):
         else:
             return None
 
-    metadata_authority_cols = ["type", "url", "metadata"]
+    metadata_authority_cols = ["type", "url"]
 
-    def metadata_authority_add(
-        self, type: str, url: str, metadata: bytes, cur=None
-    ) -> None:
+    def metadata_authority_add(self, type: str, url: str, cur=None) -> None:
         cur = self._cursor(cur)
         cur.execute(
-            "INSERT INTO metadata_authority (type, url, metadata) "
-            "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-            (type, url, jsonize(metadata)),
+            "INSERT INTO metadata_authority (type, url) "
+            "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (type, url),
         )
 
     def metadata_authority_get(self, type: str, url: str, cur=None):

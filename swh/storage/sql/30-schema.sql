@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(173, now(), 'Work In Progress');
+      values(175, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -401,30 +401,26 @@ create table metadata_fetcher
 (
   id            serial  not null,
   name          text    not null,
-  version       text    not null,
-  metadata      jsonb   not null
+  version       text    not null
 );
 
 comment on table metadata_fetcher is 'Tools used to retrieve metadata';
 comment on column metadata_fetcher.id is 'Internal identifier of the fetcher';
 comment on column metadata_fetcher.name is 'Fetcher name';
 comment on column metadata_fetcher.version is 'Fetcher version';
-comment on column metadata_fetcher.metadata is 'Extra information about the fetcher';
 
 
 create table metadata_authority
 (
   id            serial  not null,
   type          text    not null,
-  url           text    not null,
-  metadata      jsonb   not null
+  url           text    not null
 );
 
 comment on table metadata_authority is 'Metadata authority information';
 comment on column metadata_authority.id is 'Internal identifier of the authority';
 comment on column metadata_authority.type is 'Type of authority (deposit_client/forge/registry)';
 comment on column metadata_authority.url is 'Authority''s uri';
-comment on column metadata_authority.metadata is 'Other metadata about authority';
 
 
 -- Extrinsic metadata on a DAG objects and origins.

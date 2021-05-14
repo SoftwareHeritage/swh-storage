@@ -8,21 +8,17 @@ deprecated
 typing-extensions
 mypy_extensions
 iso8601
-swh.core[db,http]>=0.5
+swh.core[db,http]>=0.14.0
 swh.model>=2.1.0
 swh.objstorage>=0.2.2
 
 [journal]
 swh.journal>=0.6.2
 
-[schemata]
-SQLAlchemy
-
 [testing]
 hypothesis>=3.11.0
 pytest
 pytest-mock
-sqlalchemy-stubs
 swh.model[testing]>=0.0.50
 pytz
 pytest-xdist

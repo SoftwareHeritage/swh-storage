@@ -18,7 +18,7 @@ def monkeypatch_sleep(monkeypatch, swh_storage):
     """In test context, we don't want to wait, make test faster
 
     """
-    from swh.storage.retry import RetryingProxyStorage
+    from swh.storage.proxies.retry import RetryingProxyStorage
 
     for method_name, method in RetryingProxyStorage.__dict__.items():
         if "_add" in method_name or "_update" in method_name:

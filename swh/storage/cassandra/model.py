@@ -35,6 +35,19 @@ special value that can't possibly be a valid hash.
 T = TypeVar("T", bound="BaseRow")
 
 
+def content_index_table_name(algo: str, skipped_content: bool) -> str:
+    """Given an algorithm name, returns the name of one of the 'content_by_*'
+    and 'skipped_content_by_*' tables that serve as index for the 'content'
+    and 'skipped_content' tables based on this algorithm's hashes.
+
+    For now it is a simple substitution, but future versions may append a version
+    number to it, if needed for schema updates."""
+    if skipped_content:
+        return f"skipped_content_by_{algo}"
+    else:
+        return f"content_by_{algo}"
+
+
 class BaseRow:
     TABLE: ClassVar[str]
     PARTITION_KEY: ClassVar[Tuple[str, ...]]
@@ -55,7 +68,12 @@ class BaseRow:
 @dataclasses.dataclass
 class ContentRow(BaseRow):
     TABLE = "content"
-    PARTITION_KEY = ("sha1", "sha1_git", "sha256", "blake2s256")
+    PARTITION_KEY: ClassVar[Tuple[str, ...]] = (
+        "sha1",
+        "sha1_git",
+        "sha256",
+        "blake2s256",
+    )
 
     sha1: bytes
     sha1_git: bytes
@@ -224,7 +242,6 @@ class MetadataAuthorityRow(BaseRow):
 
     url: str
     type: str
-    metadata: str
 
 
 @dataclasses.dataclass
@@ -235,7 +252,6 @@ class MetadataFetcherRow(BaseRow):
 
     name: str
     version: str
-    metadata: str
 
 
 @dataclasses.dataclass
@@ -292,3 +308,14 @@ class ExtIDRow(BaseRow):
     extid: bytes
     target_type: str
     target: bytes
+
+
+@dataclasses.dataclass
+class ExtIDByTargetRow(BaseRow):
+    TABLE = "extid_by_target"
+    PARTITION_KEY = ("target_type", "target")
+    CLUSTERING_KEY = ("target_token",)
+
+    target_type: str
+    target: bytes
+    target_token: int

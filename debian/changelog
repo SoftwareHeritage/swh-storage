@@ -1,8 +1,48 @@
-swh-storage (0.27.3-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.29.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.29.1     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2021-05-14 18:31:52 +0200)
+  * Upstream changes:     - Release swh.storage 0.29.1     - Add missing
+    db migration
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 09 Apr 2021 13:12:13 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 14 May 2021 16:59:42 +0000
+
+swh-storage (0.29.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.29.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-05-11 15:04:58 +0200)
+  * Upstream changes:     - v0.29.0     - * Make the
+    TenaciousProxyStorage retry when a single object add fails     - *
+    Move all proxy storages in swh/storage/proxies/     - * Deprecate
+    the "local" storage cls in favor of "postgresql"     - * cassandra:
+    Add tests checking directory_add and snapshot_add are atomic.     -
+    * Add endpoint directory_get_entries, to quickly list a directory's
+    entries     - * content_get: Add support for queries by sha1_git
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 11 May 2021 13:12:42 +0000
+
+swh-storage (0.28.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.28.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-05-06 15:52:03 +0200)
+  * Upstream changes:     - v0.28.0     - * Normalize all
+    Storage.xxx_add() methods to return a summary     - * cassandra: Add
+    'check_missing' option, to allow updating objects     - * cassandra:
+    Add a test of a 'complex' migration, with a PK update     - * Add a
+    new TenaciousProxyStorage     - * Make postgresql's origin_add not
+    raise an error in case of conflict     - * Stop storing
+    authority/fetcher metadata.     - * tenacious: Document potential
+    issues about objects being dropped     - * Use swh.core 0.14
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 06 May 2021 14:06:51 +0000
+
+swh-storage (0.27.4-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.27.4     - (tagged by Antoine Lambert
+    <antoine.lambert@inria.fr> on 2021-04-29 14:38:49 +0200)
+  * Upstream changes:     - version 0.27.4
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 29 Apr 2021 13:04:46 +0000
 
 swh-storage (0.27.3-1~swh1) unstable-swh; urgency=medium
 

@@ -90,13 +90,14 @@ class BufferingProxyStorage:
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, contents: Sequence[Content]) -> Dict:
+    def content_add(self, contents: Sequence[Content]) -> Dict[str, int]:
         """Push contents to write to the storage in the buffer.
 
         Following policies apply:
-            - if the buffer's threshold is hit, flush content to the storage.
-            - otherwise, if the total size of buffered contents's threshold is hit,
-            flush content to the storage.
+
+        - if the buffer's threshold is hit, flush content to the storage.
+        - otherwise, if the total size of buffered contents's threshold is hit,
+          flush content to the storage.
 
         """
         stats = self.object_add(
@@ -111,7 +112,7 @@ class BufferingProxyStorage:
 
         return stats
 
-    def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict:
+    def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict[str, int]:
         return self.object_add(
             contents,
             object_type="skipped_content",

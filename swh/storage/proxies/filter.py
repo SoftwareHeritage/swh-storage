@@ -37,25 +37,25 @@ class FilteringProxyStorage:
             raise AttributeError(key)
         return getattr(self.storage, key)
 
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         contents_to_add = self._filter_missing_contents(content)
         return self.storage.content_add(
             [x for x in content if x.sha256 in contents_to_add]
         )
 
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
         contents_to_add = self._filter_missing_skipped_contents(content)
         return self.storage.skipped_content_add(
             [x for x in content if x.sha1_git is None or x.sha1_git in contents_to_add]
         )
 
-    def directory_add(self, directories: List[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
         missing_ids = self._filter_missing_ids("directory", (d.id for d in directories))
         return self.storage.directory_add(
             [d for d in directories if d.id in missing_ids]
         )
 
-    def revision_add(self, revisions: List[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         missing_ids = self._filter_missing_ids("revision", (r.id for r in revisions))
         return self.storage.revision_add([r for r in revisions if r.id in missing_ids])
 

@@ -15,6 +15,7 @@ from swh.model.identifiers import ExtendedSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
+    DirectoryEntry,
     ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -74,7 +75,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add")
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         """Add content blobs to the storage
 
         Args:
@@ -134,7 +135,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/add_metadata")
-    def content_add_metadata(self, content: List[Content]) -> Dict:
+    def content_add_metadata(self, content: List[Content]) -> Dict[str, int]:
         """Add content metadata to the storage (like `content_add`, but
         without inserting to the objstorage).
 
@@ -202,11 +203,15 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/metadata")
-    def content_get(self, contents: List[Sha1]) -> List[Optional[Content]]:
+    def content_get(
+        self, contents: List[bytes], algo: str = "sha1"
+    ) -> List[Optional[Content]]:
         """Retrieve content metadata in bulk
 
         Args:
             content: List of content identifiers
+            algo: one of the checksum algorithm in
+              :data:`swh.model.hashutil.DEFAULT_ALGORITHMS`
 
         Returns:
             List of contents model objects when they exist, None otherwise.
@@ -297,7 +302,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/skipped/add")
-    def skipped_content_add(self, content: List[SkippedContent]) -> Dict:
+    def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
         """Add contents to the skipped_content list, which contains
         (partial) information about content missing from the archive.
 
@@ -350,7 +355,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("directory/add")
-    def directory_add(self, directories: List[Directory]) -> Dict:
+    def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
         """Add directories to the storage
 
         Args:
@@ -426,6 +431,31 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("directory/get_entries")
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        """Get the content, possibly partial, of a directory with the given id
+
+        The entries of the directory are not guaranteed to be returned in any
+        particular order.
+
+        The number of results is not guaranteed to be lower than the ``limit``.
+
+        Args:
+            directory_id: dentifier of the directory
+            page_token: opaque string used to get the next results of a search
+            limit: Number of entries to return
+
+        Returns:
+            None if the directory does not exist; a page of DirectoryEntry
+              objects otherwise.
+        """
+        ...
+
     @remote_api_endpoint("directory/get_random")
     def directory_get_random(self) -> Sha1Git:
         """Finds a random directory id.
@@ -436,7 +466,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("revision/add")
-    def revision_add(self, revisions: List[Revision]) -> Dict:
+    def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         """Add revisions to the storage
 
         Args:
@@ -587,7 +617,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("release/add")
-    def release_add(self, releases: List[Release]) -> Dict:
+    def release_add(self, releases: List[Release]) -> Dict[str, int]:
         """Add releases to the storage
 
         Args:
@@ -652,7 +682,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("snapshot/add")
-    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict:
+    def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
         """Add snapshots to the storage.
 
         Args:
@@ -810,7 +840,9 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("origin/visit_status/add")
-    def origin_visit_status_add(self, visit_statuses: List[OriginVisitStatus],) -> None:
+    def origin_visit_status_add(
+        self, visit_statuses: List[OriginVisitStatus],
+    ) -> Dict[str, int]:
         """Add origin visit statuses.
 
         If there is already a status for the same origin and visit id at the same
@@ -1132,7 +1164,9 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("raw_extrinsic_metadata/add")
-    def raw_extrinsic_metadata_add(self, metadata: List[RawExtrinsicMetadata],) -> None:
+    def raw_extrinsic_metadata_add(
+        self, metadata: List[RawExtrinsicMetadata],
+    ) -> Dict[str, int]:
         """Add extrinsic metadata on objects (contents, directories, ...).
 
         The authority and fetcher must be known to the storage before
@@ -1173,7 +1207,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("metadata_fetcher/add")
-    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> None:
+    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> Dict[str, int]:
         """Add new metadata fetchers to the storage.
 
         Their `name` and `version` together are unique identifiers of this
@@ -1205,7 +1239,9 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("metadata_authority/add")
-    def metadata_authority_add(self, authorities: List[MetadataAuthority]) -> None:
+    def metadata_authority_add(
+        self, authorities: List[MetadataAuthority]
+    ) -> Dict[str, int]:
         """Add new metadata authorities to the storage.
 
         Their `type` and `url` together are unique identifiers of this

@@ -9,6 +9,7 @@ import contextlib
 from contextlib import contextmanager
 import datetime
 import itertools
+import operator
 from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import attr
@@ -24,6 +25,7 @@ from swh.model.model import (
     SHA1_SIZE,
     Content,
     Directory,
+    DirectoryEntry,
     ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
@@ -210,7 +212,7 @@ class Storage:
 
     @timed
     @process_metrics
-    def content_add(self, content: List[Content]) -> Dict:
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         ctime = now()
 
         contents = [attr.evolve(c, ctime=ctime) for c in content]
@@ -260,7 +262,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def content_add_metadata(self, content: List[Content], db=None, cur=None) -> Dict:
+    def content_add_metadata(
+        self, content: List[Content], db=None, cur=None
+    ) -> Dict[str, int]:
         missing = self.content_missing(
             (c.to_dict() for c in content), key_hash="sha1_git", db=db, cur=cur,
         )
@@ -316,15 +320,23 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def content_get(
-        self, contents: List[Sha1], db=None, cur=None
+        self, contents: List[bytes], algo: str = "sha1", db=None, cur=None
     ) -> List[Optional[Content]]:
-        contents_by_sha1: Dict[Sha1, Optional[Content]] = {}
-        for row in db.content_get_metadata_from_sha1s(contents, cur):
+        contents_by_hash: Dict[bytes, Optional[Content]] = {}
+        if algo not in DEFAULT_ALGORITHMS:
+            raise StorageArgumentException(
+                "algo should be one of {','.join(DEFAULT_ALGORITHMS)}"
+            )
+
+        rows = db.content_get_metadata_from_hashes(contents, algo, cur)
+        key = operator.attrgetter(algo)
+
+        for row in rows:
             row_d = dict(zip(db.content_get_metadata_keys, row))
             content = Content(**row_d)
-            contents_by_sha1[content.sha1] = content
+            contents_by_hash[key(content)] = content
 
-        return [contents_by_sha1.get(sha1) for sha1 in contents]
+        return [contents_by_hash.get(sha1) for sha1 in contents]
 
     @timed
     @db_transaction_generator()
@@ -419,7 +431,7 @@ class Storage:
     @db_transaction()
     def skipped_content_add(
         self, content: List[SkippedContent], db=None, cur=None
-    ) -> Dict:
+    ) -> Dict[str, int]:
         ctime = now()
         content = [attr.evolve(c, ctime=ctime) for c in content]
 
@@ -457,7 +469,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def directory_add(self, directories: List[Directory], db=None, cur=None) -> Dict:
+    def directory_add(
+        self, directories: List[Directory], db=None, cur=None
+    ) -> Dict[str, int]:
         summary = {"directory:add": 0}
 
         dirs = set()
@@ -545,10 +559,37 @@ class Storage:
     def directory_get_random(self, db=None, cur=None) -> Sha1Git:
         return db.directory_get_random(cur)
 
+    @db_transaction()
+    def directory_get_entries(
+        self,
+        directory_id: Sha1Git,
+        page_token: Optional[bytes] = None,
+        limit: int = 1000,
+        db=None,
+        cur=None,
+    ) -> Optional[PagedResult[DirectoryEntry]]:
+        if list(self.directory_missing([directory_id], db=db, cur=cur)):
+            return None
+
+        if page_token is not None:
+            raise StorageArgumentException("Unsupported page token")
+
+        # TODO: actually paginate
+        rows = db.directory_get_entries(directory_id, cur=cur)
+        return PagedResult(
+            results=[
+                DirectoryEntry(**dict(zip(db.directory_get_entries_cols, row)))
+                for row in rows
+            ],
+            next_page_token=None,
+        )
+
     @timed
     @process_metrics
     @db_transaction()
-    def revision_add(self, revisions: List[Revision], db=None, cur=None) -> Dict:
+    def revision_add(
+        self, revisions: List[Revision], db=None, cur=None
+    ) -> Dict[str, int]:
         summary = {"revision:add": 0}
 
         revisions_missing = set(
@@ -687,7 +728,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict:
+    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict[str, int]:
         summary = {"release:add": 0}
 
         release_ids = set(release.id for release in releases)
@@ -743,7 +784,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def snapshot_add(self, snapshots: List[Snapshot], db=None, cur=None) -> Dict:
+    def snapshot_add(
+        self, snapshots: List[Snapshot], db=None, cur=None
+    ) -> Dict[str, int]:
         created_temp_table = False
 
         count = 0
@@ -929,15 +972,13 @@ class Storage:
         """Add an origin visit status"""
         self.journal_writer.origin_visit_status_add([visit_status])
         db.origin_visit_status_add(visit_status, cur=cur)
-        send_metric(
-            "origin_visit_status:add", count=1, method_name="origin_visit_status"
-        )
 
     @timed
+    @process_metrics
     @db_transaction()
     def origin_visit_status_add(
         self, visit_statuses: List[OriginVisitStatus], db=None, cur=None,
-    ) -> None:
+    ) -> Dict[str, int]:
         visit_statuses_ = []
 
         # First round to check existence (fail early if any is ko)
@@ -964,6 +1005,7 @@ class Storage:
 
         for visit_status in visit_statuses_:
             self._origin_visit_status_add(visit_status, db, cur)
+        return {"origin_visit_status:add": len(visit_statuses_)}
 
     @timed
     @db_transaction()
@@ -1300,10 +1342,12 @@ class Storage:
         for key in keys:
             cur.execute("select * from swh_update_counter(%s)", (key,))
 
+    @timed
+    @process_metrics
     @db_transaction()
     def raw_extrinsic_metadata_add(
         self, metadata: List[RawExtrinsicMetadata], db, cur,
-    ) -> None:
+    ) -> Dict[str, int]:
         metadata = list(metadata)
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
         counter = Counter[ExtendedObjectType]()
@@ -1331,12 +1375,9 @@ class Storage:
             )
             counter[metadata_entry.target.object_type] += 1
 
-        for (type, count) in counter.items():
-            send_metric(
-                f"{type.value}_metadata:add",
-                count=count,
-                method_name=f"{type.name.lower()}_metadata_add",
-            )
+        return {
+            f"{type.value}_metadata:add": count for (type, count) in counter.items()
+        }
 
     @db_transaction()
     def raw_extrinsic_metadata_get(
@@ -1390,23 +1431,18 @@ class Storage:
         return PagedResult(next_page_token=next_page_token, results=results,)
 
     @timed
+    @process_metrics
     @db_transaction()
     def metadata_fetcher_add(
         self, fetchers: List[MetadataFetcher], db=None, cur=None
-    ) -> None:
+    ) -> Dict[str, int]:
         fetchers = list(fetchers)
         self.journal_writer.metadata_fetcher_add(fetchers)
         count = 0
         for fetcher in fetchers:
-            if fetcher.metadata is None:
-                raise StorageArgumentException(
-                    "MetadataFetcher.metadata may not be None in metadata_fetcher_add."
-                )
-            db.metadata_fetcher_add(
-                fetcher.name, fetcher.version, dict(fetcher.metadata), cur=cur
-            )
+            db.metadata_fetcher_add(fetcher.name, fetcher.version, cur=cur)
             count += 1
-        send_metric("metadata_fetcher:add", count=count, method_name="metadata_fetcher")
+        return {"metadata_fetcher:add": count}
 
     @timed
     @db_transaction(statement_timeout=500)
@@ -1419,26 +1455,18 @@ class Storage:
         return MetadataFetcher.from_dict(dict(zip(db.metadata_fetcher_cols, row)))
 
     @timed
+    @process_metrics
     @db_transaction()
     def metadata_authority_add(
         self, authorities: List[MetadataAuthority], db=None, cur=None
-    ) -> None:
+    ) -> Dict[str, int]:
         authorities = list(authorities)
         self.journal_writer.metadata_authority_add(authorities)
         count = 0
         for authority in authorities:
-            if authority.metadata is None:
-                raise StorageArgumentException(
-                    "MetadataAuthority.metadata may not be None in "
-                    "metadata_authority_add."
-                )
-            db.metadata_authority_add(
-                authority.type.value, authority.url, dict(authority.metadata), cur=cur
-            )
+            db.metadata_authority_add(authority.type.value, authority.url, cur=cur)
             count += 1
-        send_metric(
-            "metadata_authority:add", count=count, method_name="metadata_authority"
-        )
+        return {"metadata_authority:add": count}
 
     @timed
     @db_transaction()

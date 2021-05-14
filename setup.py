@@ -55,7 +55,6 @@ setup(
     install_requires=parse_requirements() + parse_requirements("swh"),
     extras_require={
         "testing": (parse_requirements("test") + parse_requirements("swh-journal")),
-        "schemata": ["SQLAlchemy"],
         "journal": parse_requirements("swh-journal"),
     },
     include_package_data=True,

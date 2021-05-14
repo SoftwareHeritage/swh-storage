@@ -6,6 +6,7 @@
 from collections import defaultdict
 import datetime
 import functools
+import itertools
 import random
 from typing import (
     Any,
@@ -29,6 +30,7 @@ from swh.storage.cassandra.model import (
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
+    ExtIDByTargetRow,
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
@@ -299,6 +301,16 @@ class InMemoryCqlRunner:
     ) -> Iterable[DirectoryEntryRow]:
         for id_ in directory_ids:
             yield from self._directory_entries.get_from_partition_key((id_,))
+
+    def directory_entry_get_from_name(
+        self, directory_id: Sha1Git, from_: bytes, limit: int
+    ) -> Iterable[DirectoryEntryRow]:
+        # Get all entries
+        entries = self._directory_entries.get_from_partition_key((directory_id,))
+        # Filter out the ones before from_
+        entries = itertools.dropwhile(lambda entry: entry.name < from_, entries)
+        # Apply limit
+        return itertools.islice(entries, limit)
 
     ##########################
     # 'revision' table
@@ -638,7 +650,7 @@ class InMemoryCqlRunner:
         finalizer = functools.partial(self._extid_add_finalize, extid)
         return (self._extid.token(self._extid.partition_key(extid)), finalizer)
 
-    def extid_index_add_one(self, extid: ExtIDRow, token: int) -> None:
+    def extid_index_add_one(self, row: ExtIDByTargetRow) -> None:
         pass
 
     def extid_get_from_pk(
@@ -677,6 +689,7 @@ class InMemoryStorage(CassandraStorage):
     def __init__(self, journal_writer=None):
         self.reset()
         self.journal_writer = JournalWriter(journal_writer)
+        self._allow_overwrite = False
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
