@@ -20,6 +20,7 @@ from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage  # noqa
+from swh.storage.utils import now
 
 data = StorageData()
 collections = {
@@ -67,6 +68,10 @@ class TestTenaciousStorage(_TestStorage):
 
     @pytest.mark.skip(reason="No collision with the tenacious storage")
     def test_content_add_collision(self, swh_storage, sample_data):
+        pass
+
+    @pytest.mark.skip(reason="No collision with the tenacious storage")
+    def test_content_add_metadata_collision(self, swh_storage, sample_data):
         pass
 
     @pytest.mark.skip("content_update is not implemented")
@@ -127,13 +132,23 @@ def popid(d):
 testdata = [
     pytest.param(
         "content",
+        "content_add",
         list(TEST_OBJECTS["content"]),
         attr.evolve(model.Content.from_data(data=b"too big"), length=1000),
         attr.evolve(model.Content.from_data(data=b"to fail"), length=1000),
         id="content",
     ),
     pytest.param(
+        "content",
+        "content_add_metadata",
+        [attr.evolve(cnt, ctime=now()) for cnt in TEST_OBJECTS["content"]],
+        attr.evolve(model.Content.from_data(data=b"too big"), length=1000, ctime=now()),
+        attr.evolve(model.Content.from_data(data=b"to fail"), length=1000, ctime=now()),
+        id="content_metadata",
+    ),
+    pytest.param(
         "skipped_content",
+        "skipped_content_add",
         list(TEST_OBJECTS["skipped_content"]),
         attr.evolve(
             model.SkippedContent.from_data(data=b"too big", reason="too big"),
@@ -147,6 +162,7 @@ testdata = [
     ),
     pytest.param(
         "directory",
+        "directory_add",
         list(TEST_OBJECTS["directory"]),
         data.directory,
         data.directory2,
@@ -154,6 +170,7 @@ testdata = [
     ),
     pytest.param(
         "revision",
+        "revision_add",
         list(TEST_OBJECTS["revision"]),
         data.revision,
         data.revision2,
@@ -161,6 +178,7 @@ testdata = [
     ),
     pytest.param(
         "release",
+        "release_add",
         list(TEST_OBJECTS["release"]),
         data.release,
         data.release2,
@@ -168,20 +186,26 @@ testdata = [
     ),
     pytest.param(
         "snapshot",
+        "snapshot_add",
         list(TEST_OBJECTS["snapshot"]),
         data.snapshot,
         data.complete_snapshot,
         id="snapshot",
     ),
     pytest.param(
-        "origin", list(TEST_OBJECTS["origin"]), data.origin, data.origin2, id="origin",
+        "origin",
+        "origin_add",
+        list(TEST_OBJECTS["origin"]),
+        data.origin,
+        data.origin2,
+        id="origin",
     ),
 ]
 
 
 class LimitedInMemoryStorage(InMemoryStorage):
     # forbidden are 'bad1' and 'bad2' arguments of `testdata`
-    forbidden = [x[0][2] for x in testdata] + [x[0][3] for x in testdata]
+    forbidden = [x[0][3] for x in testdata] + [x[0][4] for x in testdata]
 
     def __init__(self, *args, **kw):
         self.add_calls = Counter()
@@ -193,6 +217,9 @@ class LimitedInMemoryStorage(InMemoryStorage):
 
     def content_add(self, contents):
         return self._maybe_add(super().content_add, "content", contents)
+
+    def content_add_metadata(self, contents):
+        return self._maybe_add(super().content_add_metadata, "content", contents)
 
     def skipped_content_add(self, skipped_contents):
         return self._maybe_add(
@@ -225,8 +252,8 @@ class LimitedInMemoryStorage(InMemoryStorage):
 
 
 @patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage)
-@pytest.mark.parametrize("object_type, objects, bad1, bad2", testdata)
-def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
+@pytest.mark.parametrize("object_type, add_func_name, objects, bad1, bad2", testdata)
+def test_tenacious_proxy_storage(object_type, add_func_name, objects, bad1, bad2):
     storage = get_tenacious_storage()
     tenacious = storage.storage
     in_memory = tenacious.storage
@@ -235,7 +262,7 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
 
     size = len(objects)
 
-    add_func = getattr(storage, f"{object_type}_add")
+    add_func = getattr(storage, add_func_name)
 
     # Note: when checking the LimitedInMemoryStorage.add_calls counter, it's
     # hard to guess the exact number of calls in the end (depends on the size
@@ -333,8 +360,10 @@ def test_tenacious_proxy_storage(object_type, objects, bad1, bad2):
 
 
 @patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage)
-@pytest.mark.parametrize("object_type, objects, bad1, bad2", testdata)
-def test_tenacious_proxy_storage_rate_limit(object_type, objects, bad1, bad2):
+@pytest.mark.parametrize("object_type, add_func_name, objects, bad1, bad2", testdata)
+def test_tenacious_proxy_storage_rate_limit(
+    object_type, add_func_name, objects, bad1, bad2
+):
     storage = get_tenacious_storage(error_rate_limit={"errors": 1, "window_size": 3})
     tenacious = storage.storage
     in_memory = tenacious.storage
@@ -343,7 +372,7 @@ def test_tenacious_proxy_storage_rate_limit(object_type, objects, bad1, bad2):
 
     size = len(objects)
 
-    add_func = getattr(storage, f"{object_type}_add")
+    add_func = getattr(storage, add_func_name)
 
     # with no insertion failure, no impact
     s = add_func(objects)
