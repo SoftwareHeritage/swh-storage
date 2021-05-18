@@ -3,39 +3,56 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import os
+
+_use_scylla = bool(os.environ.get("SWH_USE_SCYLLADB", ""))
+
+UDF_LANGUAGE = "lua" if _use_scylla else "java"
+
+if UDF_LANGUAGE == "java":
+    # For Cassandra
+    CREATE_TABLES_QUERIES = [
+        """
+        CREATE OR REPLACE FUNCTION ascii_bins_count_sfunc (
+            state tuple<int, map<ascii, int>>, -- (nb_none, map<target_type, nb>)
+            bin_name ascii
+        )
+        CALLED ON NULL INPUT
+        RETURNS tuple<int, map<ascii, int>>
+        LANGUAGE java AS
+        $$
+            if (bin_name == null) {
+                state.setInt(0, state.getInt(0) + 1);
+            }
+            else {
+                Map<String, Integer> counters = state.getMap(
+                    1, String.class, Integer.class);
+                Integer nb = counters.get(bin_name);
+                if (nb == null) {
+                    nb = 0;
+                }
+                counters.put(bin_name, nb + 1);
+                state.setMap(1, counters, String.class, Integer.class);
+            }
+            return state;
+        $$;""",
+        """
+        CREATE OR REPLACE AGGREGATE ascii_bins_count ( ascii )
+        SFUNC ascii_bins_count_sfunc
+        STYPE tuple<int, map<ascii, int>>
+        INITCOND (0, {})
+        ;""",
+    ]
+elif UDF_LANGUAGE == "lua":
+    # For ScyllaDB
+    # TODO: this is not implementable yet, because ScyllaDB does not support
+    # user-defined aggregates. https://github.com/scylladb/scylla/issues/7201
+    CREATE_TABLES_QUERIES = []
+else:
+    assert False, f"{UDF_LANGUAGE} must be 'lua' or 'java'"
 
 CREATE_TABLES_QUERIES = [
-    """
-CREATE OR REPLACE FUNCTION ascii_bins_count_sfunc (
-    state tuple<int, map<ascii, int>>, -- (nb_none, map<target_type, nb>)
-    bin_name ascii
-)
-CALLED ON NULL INPUT
-RETURNS tuple<int, map<ascii, int>>
-LANGUAGE java AS
-$$
-    if (bin_name == null) {
-        state.setInt(0, state.getInt(0) + 1);
-    }
-    else {
-        Map<String, Integer> counters = state.getMap(
-            1, String.class, Integer.class);
-        Integer nb = counters.get(bin_name);
-        if (nb == null) {
-            nb = 0;
-        }
-        counters.put(bin_name, nb + 1);
-        state.setMap(1, counters, String.class, Integer.class);
-    }
-    return state;
-$$
-;""",
-    """
-CREATE OR REPLACE AGGREGATE ascii_bins_count ( ascii )
-SFUNC ascii_bins_count_sfunc
-STYPE tuple<int, map<ascii, int>>
-INITCOND (0, {})
-;""",
+    *CREATE_TABLES_QUERIES,
     """
 CREATE TYPE IF NOT EXISTS microtimestamp (
     seconds             bigint,
@@ -162,7 +179,9 @@ CREATE TABLE IF NOT EXISTS origin_visit_status (
     metadata        text,
     snapshot        blob,
     PRIMARY KEY ((origin), visit, date)
-);""",
+)
+WITH CLUSTERING ORDER BY (visit DESC, date DESC)
+;""",  # 'WITH CLUSTERING ORDER BY' is optional with Cassandra 4, but ScyllaDB needs it
     """
 CREATE TABLE IF NOT EXISTS origin (
     sha1            blob PRIMARY KEY,

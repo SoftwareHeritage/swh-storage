@@ -980,7 +980,9 @@ class CqlRunner:
         return next(self.origin_visit_status_get(origin, visit), None)
 
     @_prepared_select_statement(
-        OriginVisitStatusRow, "WHERE origin = ? AND visit = ? ORDER BY date DESC"
+        OriginVisitStatusRow,
+        # 'visit DESC,' is optional with Cassandra 4, but ScyllaDB needs it
+        "WHERE origin = ? AND visit = ? ORDER BY visit DESC, date DESC",
     )
     def origin_visit_status_get(
         self, origin: str, visit: int, *, statement,
@@ -1059,8 +1061,12 @@ class CqlRunner:
 
     @_prepared_select_statement(
         RawExtrinsicMetadataRow,
-        "WHERE target=? AND authority_type=? AND authority_url=? "
-        "AND (discovery_date, id) > (?, ?)",
+        # This is equivalent to:
+        #   WHERE target=? AND authority_type = ? AND authority_url = ? "
+        #   AND (discovery_date, id) > (?, ?)"
+        # but it needs to be written this way to work with ScyllaDB.
+        "WHERE target=? AND (authority_type, authority_url) <= (?, ?) "
+        "AND (authority_type, authority_url, discovery_date, id) > (?, ?, ?, ?)",
     )
     def raw_extrinsic_metadata_get_after_date_and_id(
         self,
@@ -1076,7 +1082,15 @@ class CqlRunner:
             RawExtrinsicMetadataRow.from_dict,
             self._execute_with_retries(
                 statement,
-                [target, authority_type, authority_url, after_date, after_id,],
+                [
+                    target,
+                    authority_type,
+                    authority_url,
+                    authority_type,
+                    authority_url,
+                    after_date,
+                    after_id,
+                ],
             ),
         )
 

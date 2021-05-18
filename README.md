@@ -121,7 +121,7 @@ A typical configuration `storage.yml` file is:
 
 ```
 storage:
-  cls: local
+  cls: postgresql
   db: "dbname=softwareheritage-dev user=<user> password=<pwd>"
   objstorage:
     cls: pathslicing
@@ -187,14 +187,37 @@ storage:
   url: http://localhost:5002/
 ```
 
-You could directly define a local storage with the following snippet:
+You could directly define a postgresql storage with the following snippet:
 
 ```
 storage:
-  cls: local
+  cls: postgresql
   db: service=swh-dev
   objstorage:
     cls: pathslicing
     root: /home/storage/swh-storage/
     slicing: 0:2/2:4/4:6
 ```
+
+## Cassandra
+
+As an alternative to PostgreSQL, swh-storage can use Cassandra as a database backend.
+It can be used like this:
+
+```
+storage:
+  cls: cassandra
+  hosts:
+    - localhost
+  objstorage:
+    cls: pathslicing
+    root: /home/storage/swh-storage/
+    slicing: 0:2/2:4/4:6
+```
+
+The Cassandra swh-storage implementation supports both Cassandra >= 4.0-alpha2
+and ScyllaDB >= 4.4 (and possibly earlier versions, but this is untested).
+
+While the main code supports both transparently, running tests
+or configuring the schema requires specific code when using ScyllaDB,
+enabled by setting the `SWH_USE_SCYLLADB=1` environment variable.
