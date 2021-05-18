@@ -76,16 +76,17 @@ class TenaciousProxyStorage:
 
     """
 
-    tenacious_methods = (
-        "content_add",
-        "skipped_content_add",
-        "directory_add",
-        "revision_add",
-        "extid_add",
-        "release_add",
-        "snapshot_add",
-        "origin_add",
-    )
+    tenacious_methods: Dict[str, str] = {
+        "content_add": "content",
+        "content_add_metadata": "content",
+        "skipped_content_add": "skipped_content",
+        "directory_add": "directory",
+        "revision_add": "revision",
+        "extid_add": "extid",
+        "release_add": "release",
+        "snapshot_add": "snapshot",
+        "origin_add": "origin",
+    }
 
     def __init__(
         self,
@@ -114,7 +115,7 @@ class TenaciousProxyStorage:
 
         """
         add_function = getattr(self.storage, func_name)
-        object_type = func_name[:-4]  # remove the _add suffix
+        object_type = self.tenacious_methods[func_name]
 
         # list of lists of objects; note this to_add list is consumed from the tail
         to_add: List[List[BaseModel]] = [list(objects)]
