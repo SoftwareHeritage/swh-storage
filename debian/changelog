@@ -1,8 +1,10 @@
-swh-storage (0.29.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.30.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.30.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2021-05-18 16:34:25 +0200)
+  * Upstream changes:     - v0.30.0
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 14 May 2021 17:05:44 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 18 May 2021 14:45:21 +0000
 
 swh-storage (0.29.1-1~swh1) unstable-swh; urgency=medium
 
