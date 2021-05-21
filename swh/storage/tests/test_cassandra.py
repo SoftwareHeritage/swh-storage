@@ -127,19 +127,22 @@ def cassandra_cluster(tmpdir_factory):
         stderr=stderr,
     )
 
-    running = wait_for_peer("127.0.0.1", native_transport_port)
+    listening = wait_for_peer("127.0.0.1", native_transport_port)
 
-    if running:
+    if listening:
         yield (["127.0.0.1"], native_transport_port)
 
-    if not running or os.environ.get("SWH_CASSANDRA_LOG"):
+    if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
         debug_log_path = str(cassandra_log.join("debug.log"))
         if os.path.exists(debug_log_path):
             with open(debug_log_path) as fd:
                 print(fd.read())
 
-    if not running:
-        raise Exception("cassandra process stopped unexpectedly.")
+    if not listening:
+        if proc.poll() is None:
+            raise Exception("cassandra process unexpectedly not listening.")
+        else:
+            raise Exception("cassandra process unexpectedly stopped.")
 
     pgrp = os.getpgid(proc.pid)
     os.killpg(pgrp, signal.SIGKILL)
