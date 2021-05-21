@@ -635,7 +635,7 @@ class TestStorage:
         for content in actual_contents:
             assert content in expected_contents
 
-    @pytest.mark.parametrize("algo", DEFAULT_ALGORITHMS)
+    @pytest.mark.parametrize("algo", sorted(DEFAULT_ALGORITHMS))
     def test_content_get(self, swh_storage, sample_data, algo):
         cont1, cont2 = sample_data.contents[:2]
 
@@ -652,7 +652,7 @@ class TestStorage:
         for content in actual_contents:
             assert content.ctime is None
 
-    @pytest.mark.parametrize("algo", DEFAULT_ALGORITHMS)
+    @pytest.mark.parametrize("algo", sorted(DEFAULT_ALGORITHMS))
     def test_content_get_missing(self, swh_storage, sample_data, algo):
         cont1, cont2 = sample_data.contents[:2]
         assert cont1.sha1 != cont2.sha1

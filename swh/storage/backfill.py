@@ -572,7 +572,10 @@ class JournalBackfiller:
                 " provided: %s" % (",".join(missing_keys),)
             )
 
-        if "cls" not in config["storage"] or config["storage"]["cls"] != "local":
+        if "cls" not in config["storage"] or config["storage"]["cls"] not in (
+            "local",
+            "postgresql",
+        ):
             raise ValueError(
                 "swh storage backfiller must be configured to use a local"
                 " (PostgreSQL) storage"

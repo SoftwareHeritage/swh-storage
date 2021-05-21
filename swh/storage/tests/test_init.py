@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Software Heritage developers
+# Copyright (C) 2019-2021 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -22,7 +22,7 @@ STORAGES = [
         ("remote", client.RemoteStorage, {"url": "url"}),
         ("memory", InMemoryStorage, {}),
         (
-            "local",
+            "postgresql",
             DbStorage,
             {"db": "postgresql://db", "objstorage": {"cls": "memory"}},
         ),
@@ -106,7 +106,8 @@ def test_get_storage_pipeline_legacy_args():
 
 # the "remote" and "pipeline" cases are tested in dedicated test functions below
 @pytest.mark.parametrize(
-    "cls,real_class,kwargs", [x for x in STORAGES if x.id not in ("remote", "local")]
+    "cls,real_class,kwargs",
+    [x for x in STORAGES if x.id not in ("remote", "local", "postgresql")],
 )
 def test_get_storage_check_config(cls, real_class, kwargs, monkeypatch):
     """Instantiating an existing storage with check_config should be ok
@@ -116,14 +117,15 @@ def test_get_storage_check_config(cls, real_class, kwargs, monkeypatch):
 
 
 @patch("swh.storage.postgresql.storage.psycopg2.pool")
-def test_get_storage_local_check_config(mock_pool, monkeypatch):
+@pytest.mark.parametrize("clazz", ["local", "postgresql"])
+def test_get_storage_local_check_config(mock_pool, monkeypatch, clazz):
     """Instantiating a local storage with check_config should be ok
 
     """
     mock_pool.ThreadedConnectionPool.return_value = None
     check_backend_check_config(
         monkeypatch,
-        {"cls": "local", "db": "postgresql://db", "objstorage": {"cls": "memory"}},
+        {"cls": clazz, "db": "postgresql://db", "objstorage": {"cls": "memory"}},
         backend_storage_cls=DbStorage,
     )
 
