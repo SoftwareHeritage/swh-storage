@@ -62,6 +62,7 @@ from .model import (
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
+    RawExtrinsicMetadataByIdRow,
     RawExtrinsicMetadataRow,
     ReleaseRow,
     RevisionParentRow,
@@ -1030,6 +1031,23 @@ class CqlRunner:
             return MetadataFetcherRow.from_dict(rows[0])
         else:
             return None
+
+    #########################
+    # 'raw_extrinsic_metadata_by_id' table
+    #########################
+
+    @_prepared_insert_statement(RawExtrinsicMetadataByIdRow)
+    def raw_extrinsic_metadata_by_id_add(self, row, *, statement):
+        self._add_one(statement, row)
+
+    @_prepared_select_statement(RawExtrinsicMetadataByIdRow, "WHERE id IN ?")
+    def raw_extrinsic_metadata_get_by_ids(
+        self, ids: List[Sha1Git], *, statement
+    ) -> Iterable[RawExtrinsicMetadataByIdRow]:
+        return map(
+            RawExtrinsicMetadataByIdRow.from_dict,
+            self._execute_with_retries(statement, [ids]),
+        )
 
     #########################
     # 'raw_extrinsic_metadata' table

@@ -4029,6 +4029,41 @@ class TestStorage:
         assert result.results[0].to_dict() == new_content_metadata2.to_dict()
         assert result.results == [new_content_metadata2]
 
+    def test_content_metadata_get_by_ids(self, swh_storage, sample_data):
+        content, content2 = sample_data.contents[:2]
+        fetcher, fetcher2 = sample_data.fetchers[:2]
+        authority, authority2 = sample_data.authorities[:2]
+        (
+            content1_metadata1,
+            content1_metadata2,
+            content1_metadata3,
+        ) = sample_data.content_metadata[:3]
+
+        content2_metadata = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(content1_metadata2.to_dict(), ("id",)),  # recompute id
+                "target": str(content2.swhid()),
+            }
+        )
+
+        swh_storage.metadata_authority_add([authority, authority2])
+        swh_storage.metadata_fetcher_add([fetcher, fetcher2])
+
+        swh_storage.raw_extrinsic_metadata_add(
+            [
+                content1_metadata1,
+                content1_metadata2,
+                content1_metadata3,
+                content2_metadata,
+            ]
+        )
+
+        assert set(
+            swh_storage.raw_extrinsic_metadata_get_by_ids(
+                [content1_metadata1.id, b"\x00" * 20, content2_metadata.id]
+            )
+        ) == {content1_metadata1, content2_metadata}
+
     def test_origin_metadata_add(self, swh_storage, sample_data):
         origin = sample_data.origin
         fetcher = sample_data.metadata_fetcher

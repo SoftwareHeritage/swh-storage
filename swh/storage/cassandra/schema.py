@@ -259,6 +259,14 @@ CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
     --    <=> (target1, ..., date1, id1) == (target2, ..., date2, id2)
 );""",
     """
+CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata_by_id (
+    id              blob,
+    target          text,
+    authority_type  text,
+    authority_url   text,
+    PRIMARY KEY ((id))
+);""",
+    """
 CREATE TABLE IF NOT EXISTS object_count (
     partition_key   smallint,  -- Constant, must always be 0
     object_type     ascii,

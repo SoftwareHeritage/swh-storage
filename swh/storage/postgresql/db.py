@@ -1266,7 +1266,6 @@ class Db(BaseDb):
         INNER JOIN metadata_authority
             ON (metadata_authority.id=authority_id)
         INNER JOIN metadata_fetcher ON (metadata_fetcher.id=fetcher_id)
-        WHERE raw_extrinsic_metadata.target=%s AND authority_id=%s
     """
 
     def raw_extrinsic_metadata_add(
@@ -1322,6 +1321,7 @@ class Db(BaseDb):
         cur,
     ):
         query_parts = [self._raw_extrinsic_metadata_select_query]
+        query_parts.append("WHERE raw_extrinsic_metadata.target=%s AND authority_id=%s")
         args = [target, authority_id]
 
         if after_fetcher is not None:
@@ -1340,6 +1340,15 @@ class Db(BaseDb):
 
         cur.execute(" ".join(query_parts), args)
         yield from cur
+
+    def raw_extrinsic_metadata_get_by_ids(self, ids: List[Sha1Git], cur=None):
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur,
+            self._raw_extrinsic_metadata_select_query
+            + "INNER JOIN (VALUES %s) AS t(id) ON t.id = raw_extrinsic_metadata.id",
+            [(id_,) for id_ in ids],
+        )
 
     metadata_fetcher_cols = ["name", "version"]
 

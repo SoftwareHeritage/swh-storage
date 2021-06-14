@@ -1191,7 +1191,7 @@ class StorageInterface(Protocol):
         page_token: Optional[bytes] = None,
         limit: int = 1000,
     ) -> PagedResult[RawExtrinsicMetadata]:
-        """Retrieve list of all raw_extrinsic_metadata entries for the id
+        """Retrieve list of all raw_extrinsic_metadata entries targeting the id
 
         Args:
             target: the SWHID of the objects to find metadata on
@@ -1202,6 +1202,20 @@ class StorageInterface(Protocol):
 
         Returns:
             PagedResult of RawExtrinsicMetadata
+
+        """
+        ...
+
+    @remote_api_endpoint("raw_extrinsic_metadata/get_by_ids")
+    def raw_extrinsic_metadata_get_by_ids(
+        self, ids: List[Sha1Git]
+    ) -> List[RawExtrinsicMetadata]:
+        """Retrieve list of raw_extrinsic_metadata entries of the given id
+        (unlike raw_extrinsic_metadata_get, which returns metadata entries
+        **targeting** the id)
+
+        Args:
+            ids: list of hashes of RawExtrinsicMetadata objects
 
         """
         ...
