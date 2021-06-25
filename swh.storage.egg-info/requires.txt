@@ -22,4 +22,8 @@ pytest-mock
 swh.model[testing]>=0.0.50
 pytz
 pytest-xdist
+types-python-dateutil
+types-pytz
+types-pyyaml
+types-requests
 swh.journal>=0.6.2

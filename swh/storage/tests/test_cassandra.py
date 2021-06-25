@@ -6,6 +6,7 @@
 import datetime
 import itertools
 import os
+import resource
 import signal
 import socket
 import subprocess
@@ -58,6 +59,15 @@ trickle_fsync: false
 commitlog_sync_period_in_ms: 100000
 """
 
+SCYLLA_EXTRA_CONFIG_TEMPLATE = """
+experimental_features:
+    - udf
+view_hints_directory: {data_dir}/view_hints
+prometheus_port: 0  # disable prometheus server
+start_rpc: false  # disable thrift server
+api_port: {api_port}
+"""
+
 
 def free_port():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,7 +78,7 @@ def free_port():
 
 
 def wait_for_peer(addr, port):
-    wait_until = time.time() + 20
+    wait_until = time.time() + 60
     while time.time() < wait_until:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -89,13 +99,29 @@ def cassandra_cluster(tmpdir_factory):
     native_transport_port = free_port()
     storage_port = free_port()
     jmx_port = free_port()
+    api_port = free_port()
 
-    with open(str(cassandra_conf.join("cassandra.yaml")), "w") as fd:
+    use_scylla = bool(os.environ.get("SWH_USE_SCYLLADB", ""))
+
+    cassandra_bin = os.environ.get(
+        "SWH_CASSANDRA_BIN", "/usr/bin/scylla" if use_scylla else "/usr/sbin/cassandra"
+    )
+
+    if use_scylla:
+        os.makedirs(cassandra_conf.join("conf"))
+        config_path = cassandra_conf.join("conf/scylla.yaml")
+        config_template = CONFIG_TEMPLATE + SCYLLA_EXTRA_CONFIG_TEMPLATE
+    else:
+        config_path = cassandra_conf.join("cassandra.yaml")
+        config_template = CONFIG_TEMPLATE
+
+    with open(str(config_path), "w") as fd:
         fd.write(
-            CONFIG_TEMPLATE.format(
+            config_template.format(
                 data_dir=str(cassandra_data),
                 storage_port=storage_port,
                 native_transport_port=native_transport_port,
+                api_port=api_port,
             )
         )
 
@@ -104,7 +130,6 @@ def cassandra_cluster(tmpdir_factory):
     else:
         stdout = stderr = subprocess.DEVNULL
 
-    cassandra_bin = os.environ.get("SWH_CASSANDRA_BIN", "/usr/sbin/cassandra")
     env = {
         "MAX_HEAP_SIZE": "300M",
         "HEAP_NEWSIZE": "50M",
@@ -113,19 +138,36 @@ def cassandra_cluster(tmpdir_factory):
     if "JAVA_HOME" in os.environ:
         env["JAVA_HOME"] = os.environ["JAVA_HOME"]
 
-    proc = subprocess.Popen(
-        [
-            cassandra_bin,
-            "-Dcassandra.config=file://%s/cassandra.yaml" % cassandra_conf,
-            "-Dcassandra.logdir=%s" % cassandra_log,
-            "-Dcassandra.jmx.local.port=%d" % jmx_port,
-            "-Dcassandra-foreground=yes",
-        ],
-        start_new_session=True,
-        env=env,
-        stdout=stdout,
-        stderr=stderr,
-    )
+    if use_scylla:
+        env = {
+            **env,
+            "SCYLLA_HOME": cassandra_conf,
+        }
+        # prevent "NOFILE rlimit too low (recommended setting 200000,
+        # minimum setting 10000; refusing to start."
+        resource.setrlimit(resource.RLIMIT_NOFILE, (200000, 200000))
+
+        proc = subprocess.Popen(
+            [cassandra_bin, "--developer-mode=1",],
+            start_new_session=True,
+            env=env,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    else:
+        proc = subprocess.Popen(
+            [
+                cassandra_bin,
+                "-Dcassandra.config=file://%s/cassandra.yaml" % cassandra_conf,
+                "-Dcassandra.logdir=%s" % cassandra_log,
+                "-Dcassandra.jmx.local.port=%d" % jmx_port,
+                "-Dcassandra-foreground=yes",
+            ],
+            start_new_session=True,
+            env=env,
+            stdout=stdout,
+            stderr=stderr,
+        )
 
     listening = wait_for_peer("127.0.0.1", native_transport_port)
 

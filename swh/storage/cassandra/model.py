@@ -289,6 +289,18 @@ class RawExtrinsicMetadataRow(BaseRow):
 
 
 @dataclasses.dataclass
+class RawExtrinsicMetadataByIdRow(BaseRow):
+    TABLE = "raw_extrinsic_metadata_by_id"
+    PARTITION_KEY = ("id",)
+    CLUSTERING_KEY = ()
+
+    id: bytes
+    target: str
+    authority_type: str
+    authority_url: str
+
+
+@dataclasses.dataclass
 class ObjectCountRow(BaseRow):
     TABLE = "object_count"
     PARTITION_KEY = ("partition_key",)
