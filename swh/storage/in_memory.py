@@ -38,6 +38,7 @@ from swh.storage.cassandra.model import (
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
+    RawExtrinsicMetadataByIdRow,
     RawExtrinsicMetadataRow,
     ReleaseRow,
     RevisionParentRow,
@@ -168,6 +169,7 @@ class InMemoryCqlRunner:
         self._metadata_authorities = Table(MetadataAuthorityRow)
         self._metadata_fetchers = Table(MetadataFetcherRow)
         self._raw_extrinsic_metadata = Table(RawExtrinsicMetadataRow)
+        self._raw_extrinsic_metadata_by_id = Table(RawExtrinsicMetadataByIdRow)
         self._extid = Table(ExtIDRow)
         self._stat_counters = defaultdict(int)
 
@@ -590,6 +592,25 @@ class InMemoryCqlRunner:
 
     def metadata_fetcher_get(self, name, version) -> Optional[MetadataAuthorityRow]:
         return self._metadata_fetchers.get_from_primary_key((name, version))
+
+    #########################
+    # 'raw_extrinsic_metadata_by_id' table
+    #########################
+
+    def raw_extrinsic_metadata_by_id_add(
+        self, row: RawExtrinsicMetadataByIdRow
+    ) -> None:
+        self._raw_extrinsic_metadata_by_id.insert(row)
+
+    def raw_extrinsic_metadata_get_by_ids(
+        self, ids
+    ) -> List[RawExtrinsicMetadataByIdRow]:
+        results = []
+        for id_ in ids:
+            result = self._raw_extrinsic_metadata_by_id.get_from_primary_key((id_,))
+            if result:
+                results.append(result)
+        return results
 
     #########################
     # 'raw_extrinsic_metadata' table

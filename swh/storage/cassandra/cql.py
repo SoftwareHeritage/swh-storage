@@ -62,6 +62,7 @@ from .model import (
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
+    RawExtrinsicMetadataByIdRow,
     RawExtrinsicMetadataRow,
     ReleaseRow,
     RevisionParentRow,
@@ -980,7 +981,9 @@ class CqlRunner:
         return next(self.origin_visit_status_get(origin, visit), None)
 
     @_prepared_select_statement(
-        OriginVisitStatusRow, "WHERE origin = ? AND visit = ? ORDER BY date DESC"
+        OriginVisitStatusRow,
+        # 'visit DESC,' is optional with Cassandra 4, but ScyllaDB needs it
+        "WHERE origin = ? AND visit = ? ORDER BY visit DESC, date DESC",
     )
     def origin_visit_status_get(
         self, origin: str, visit: int, *, statement,
@@ -1030,6 +1033,23 @@ class CqlRunner:
             return None
 
     #########################
+    # 'raw_extrinsic_metadata_by_id' table
+    #########################
+
+    @_prepared_insert_statement(RawExtrinsicMetadataByIdRow)
+    def raw_extrinsic_metadata_by_id_add(self, row, *, statement):
+        self._add_one(statement, row)
+
+    @_prepared_select_statement(RawExtrinsicMetadataByIdRow, "WHERE id IN ?")
+    def raw_extrinsic_metadata_get_by_ids(
+        self, ids: List[Sha1Git], *, statement
+    ) -> Iterable[RawExtrinsicMetadataByIdRow]:
+        return map(
+            RawExtrinsicMetadataByIdRow.from_dict,
+            self._execute_with_retries(statement, [ids]),
+        )
+
+    #########################
     # 'raw_extrinsic_metadata' table
     #########################
 
@@ -1059,8 +1079,12 @@ class CqlRunner:
 
     @_prepared_select_statement(
         RawExtrinsicMetadataRow,
-        "WHERE target=? AND authority_type=? AND authority_url=? "
-        "AND (discovery_date, id) > (?, ?)",
+        # This is equivalent to:
+        #   WHERE target=? AND authority_type = ? AND authority_url = ? "
+        #   AND (discovery_date, id) > (?, ?)"
+        # but it needs to be written this way to work with ScyllaDB.
+        "WHERE target=? AND (authority_type, authority_url) <= (?, ?) "
+        "AND (authority_type, authority_url, discovery_date, id) > (?, ?, ?, ?)",
     )
     def raw_extrinsic_metadata_get_after_date_and_id(
         self,
@@ -1076,7 +1100,15 @@ class CqlRunner:
             RawExtrinsicMetadataRow.from_dict,
             self._execute_with_retries(
                 statement,
-                [target, authority_type, authority_url, after_date, after_id,],
+                [
+                    target,
+                    authority_type,
+                    authority_url,
+                    authority_type,
+                    authority_url,
+                    after_date,
+                    after_id,
+                ],
             ),
         )
 
