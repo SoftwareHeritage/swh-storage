@@ -1430,6 +1430,17 @@ class Storage:
 
         return PagedResult(next_page_token=next_page_token, results=results,)
 
+    @db_transaction()
+    def raw_extrinsic_metadata_get_by_ids(
+        self, ids: List[Sha1Git], db=None, cur=None,
+    ) -> List[RawExtrinsicMetadata]:
+        return [
+            converters.db_to_raw_extrinsic_metadata(
+                dict(zip(db.raw_extrinsic_metadata_get_cols, row))
+            )
+            for row in db.raw_extrinsic_metadata_get_by_ids(ids)
+        ]
+
     @timed
     @process_metrics
     @db_transaction()

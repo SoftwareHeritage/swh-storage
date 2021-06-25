@@ -12,17 +12,29 @@ import attr
 
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import (
+    CoreSWHID,
+    ExtendedSWHID,
+    MetadataAuthority,
+    MetadataAuthorityType,
+    MetadataFetcher,
     ObjectType,
     OriginVisit,
     OriginVisitStatus,
+    RawExtrinsicMetadata,
     Release,
     Revision,
     RevisionType,
     Sha1Git,
 )
 
-from ..utils import remove_keys
-from .model import OriginVisitRow, OriginVisitStatusRow, ReleaseRow, RevisionRow
+from ..utils import map_optional, remove_keys
+from .model import (
+    OriginVisitRow,
+    OriginVisitStatusRow,
+    RawExtrinsicMetadataRow,
+    ReleaseRow,
+    RevisionRow,
+)
 
 
 def revision_to_db(revision: Revision) -> RevisionRow:
@@ -111,3 +123,25 @@ def row_to_visit_status(row: OriginVisitStatusRow) -> OriginVisitStatus:
 def visit_status_to_row(status: OriginVisitStatus) -> OriginVisitStatusRow:
     d = status.to_dict()
     return OriginVisitStatusRow.from_dict({**d, "metadata": json.dumps(d["metadata"])})
+
+
+def row_to_raw_extrinsic_metadata(row: RawExtrinsicMetadataRow) -> RawExtrinsicMetadata:
+    discovery_date = row.discovery_date.replace(tzinfo=datetime.timezone.utc)
+
+    return RawExtrinsicMetadata(
+        target=ExtendedSWHID.from_string(row.target),
+        authority=MetadataAuthority(
+            type=MetadataAuthorityType(row.authority_type), url=row.authority_url,
+        ),
+        fetcher=MetadataFetcher(name=row.fetcher_name, version=row.fetcher_version,),
+        discovery_date=discovery_date,
+        format=row.format,
+        metadata=row.metadata,
+        origin=row.origin,
+        visit=row.visit,
+        snapshot=map_optional(CoreSWHID.from_string, row.snapshot),
+        release=map_optional(CoreSWHID.from_string, row.release),
+        revision=map_optional(CoreSWHID.from_string, row.revision),
+        path=row.path,
+        directory=map_optional(CoreSWHID.from_string, row.directory),
+    )

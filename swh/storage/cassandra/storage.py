@@ -27,7 +27,7 @@ import attr
 
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.model.hashutil import DEFAULT_ALGORITHMS
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_hex
 from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
@@ -77,6 +77,7 @@ from .model import (
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
+    RawExtrinsicMetadataByIdRow,
     RawExtrinsicMetadataRow,
     RevisionParentRow,
     SkippedContentRow,
@@ -1303,10 +1304,22 @@ class CassandraStorage:
                     path=metadata_entry.path,
                     directory=map_optional(str, metadata_entry.directory),
                 )
-                self._cql_runner.raw_extrinsic_metadata_add(row)
-                counter[metadata_entry.target.object_type] += 1
             except TypeError as e:
                 raise StorageArgumentException(*e.args)
+
+            # Add to the index first
+            self._cql_runner.raw_extrinsic_metadata_by_id_add(
+                RawExtrinsicMetadataByIdRow(
+                    id=row.id,
+                    target=row.target,
+                    authority_type=row.authority_type,
+                    authority_url=row.authority_url,
+                )
+            )
+
+            # Then to the main table
+            self._cql_runner.raw_extrinsic_metadata_add(row)
+            counter[metadata_entry.target.object_type] += 1
         return {
             f"{type.value}_metadata:add": count for (type, count) in counter.items()
         }
@@ -1342,32 +1355,9 @@ class CassandraStorage:
 
         results = []
         for entry in entries:
-            discovery_date = entry.discovery_date.replace(tzinfo=datetime.timezone.utc)
-
             assert str(target) == entry.target
 
-            result = RawExtrinsicMetadata(
-                target=target,
-                authority=MetadataAuthority(
-                    type=MetadataAuthorityType(entry.authority_type),
-                    url=entry.authority_url,
-                ),
-                fetcher=MetadataFetcher(
-                    name=entry.fetcher_name, version=entry.fetcher_version,
-                ),
-                discovery_date=discovery_date,
-                format=entry.format,
-                metadata=entry.metadata,
-                origin=entry.origin,
-                visit=entry.visit,
-                snapshot=map_optional(CoreSWHID.from_string, entry.snapshot),
-                release=map_optional(CoreSWHID.from_string, entry.release),
-                revision=map_optional(CoreSWHID.from_string, entry.revision),
-                path=entry.path,
-                directory=map_optional(CoreSWHID.from_string, entry.directory),
-            )
-
-            results.append(result)
+            results.append(converters.row_to_raw_extrinsic_metadata(entry))
 
         if len(results) > limit:
             results.pop()
@@ -1380,6 +1370,28 @@ class CassandraStorage:
             next_page_token = None
 
         return PagedResult(next_page_token=next_page_token, results=results,)
+
+    def raw_extrinsic_metadata_get_by_ids(
+        self, ids: List[Sha1Git]
+    ) -> List[RawExtrinsicMetadata]:
+        keys = self._cql_runner.raw_extrinsic_metadata_get_by_ids(ids)
+
+        results: Set[RawExtrinsicMetadata] = set()
+        for key in keys:
+            candidates = self._cql_runner.raw_extrinsic_metadata_get(
+                key.target, key.authority_type, key.authority_url
+            )
+            candidates = [
+                candidate for candidate in candidates if candidate.id == key.id
+            ]
+            if len(candidates) > 1:
+                raise Exception(
+                    "Found multiple RawExtrinsicMetadata objects with the same id: "
+                    + hash_to_hex(key.id)
+                )
+            results.update(map(converters.row_to_raw_extrinsic_metadata, candidates))
+
+        return list(results)
 
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> Dict[str, int]:
         self.journal_writer.metadata_fetcher_add(fetchers)
