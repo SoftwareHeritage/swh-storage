@@ -1350,7 +1350,7 @@ class Db(BaseDb):
             [(id_,) for id_ in ids],
         )
 
-    def raw_extrinsic_metadata_get_authorities(self, id: Sha1Git, cur=None):
+    def raw_extrinsic_metadata_get_authorities(self, id: str, cur=None):
         cur = self._cursor(cur)
         cur.execute(
             """
