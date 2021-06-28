@@ -1441,6 +1441,20 @@ class Storage:
             for row in db.raw_extrinsic_metadata_get_by_ids(ids)
         ]
 
+    @db_transaction()
+    def raw_extrinsic_metadata_get_authorities(
+        self, target: ExtendedSWHID, db=None, cur=None,
+    ) -> List[MetadataAuthority]:
+        return [
+            MetadataAuthority(
+                type=MetadataAuthorityType(authority_type), url=authority_url
+            )
+            for (
+                authority_type,
+                authority_url,
+            ) in db.raw_extrinsic_metadata_get_authorities(str(target), cur)
+        ]
+
     @timed
     @process_metrics
     @db_transaction()

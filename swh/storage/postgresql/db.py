@@ -1350,6 +1350,21 @@ class Db(BaseDb):
             [(id_,) for id_ in ids],
         )
 
+    def raw_extrinsic_metadata_get_authorities(self, id: Sha1Git, cur=None):
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            SELECT
+                DISTINCT metadata_authority.type, metadata_authority.url
+            FROM raw_extrinsic_metadata
+            INNER JOIN metadata_authority
+                ON (metadata_authority.id=authority_id)
+            WHERE raw_extrinsic_metadata.target = %s
+            """,
+            (id,),
+        )
+        yield from cur
+
     metadata_fetcher_cols = ["name", "version"]
 
     def metadata_fetcher_add(self, name: str, version: str, cur=None) -> None:

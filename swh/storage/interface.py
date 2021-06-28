@@ -1220,6 +1220,13 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("raw_extrinsic_metadata/get_authorities")
+    def raw_extrinsic_metadata_get_authorities(
+        self, target: ExtendedSWHID
+    ) -> List[MetadataAuthority]:
+        """Returns all authorities that provided metadata on the given object."""
+        ...
+
     @remote_api_endpoint("metadata_fetcher/add")
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> Dict[str, int]:
         """Add new metadata fetchers to the storage.

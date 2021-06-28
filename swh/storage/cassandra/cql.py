@@ -1126,6 +1126,18 @@ class CqlRunner:
             ),
         )
 
+    @_prepared_statement(
+        "SELECT authority_type, authority_url FROM raw_extrinsic_metadata "
+        "WHERE target = ?"
+    )
+    def raw_extrinsic_metadata_get_authorities(
+        self, target: str, *, statement
+    ) -> Iterable[Tuple[str, str]]:
+        return (
+            (entry["authority_type"], entry["authority_url"])
+            for entry in self._execute_with_retries(statement, [target])
+        )
+
     ##########################
     # 'extid' table
     ##########################
