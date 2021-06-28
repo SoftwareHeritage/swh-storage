@@ -1412,23 +1412,23 @@ class TestStorage:
         }
 
     def test_origin_add(self, swh_storage, sample_data):
-        origins = list(sample_data.origins[:2])
+        origins = list(sample_data.origins)
         origin_urls = [o.url for o in origins]
 
-        assert swh_storage.origin_get(origin_urls) == [None, None]
+        assert swh_storage.origin_get(origin_urls) == [None] * len(origins)
 
         stats = swh_storage.origin_add(origins)
-        assert stats == {"origin:add": 2}
+        assert stats == {"origin:add": len(origin_urls)}
 
         actual_origins = swh_storage.origin_get(origin_urls)
         assert actual_origins == origins
 
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origins[0]), ("origin", origins[1]),]
+            [("origin", origin) for origin in origins]
         )
 
         swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["origin"] == 2
+        assert swh_storage.stat_counters()["origin"] == len(origins)
 
     def test_origin_add_twice(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
@@ -4431,6 +4431,10 @@ class TestStorageGeneratedData:
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(origin=obj.origin, date=obj.date, type=obj.type,)
                 swh_storage.origin_visit_add([visit])
+            elif obj.object_type == "raw_extrinsic_metadata":
+                swh_storage.metadata_authority_add([obj.authority])
+                swh_storage.metadata_fetcher_add([obj.fetcher])
+                swh_storage.raw_extrinsic_metadata_add([obj])
             else:
                 method = getattr(swh_storage, obj_type + "_add")
                 try:
