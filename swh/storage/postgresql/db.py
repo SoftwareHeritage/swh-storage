@@ -1312,7 +1312,6 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_get(
         self,
-        type: str,
         target: str,
         authority_id: int,
         after_time: Optional[datetime.datetime],
