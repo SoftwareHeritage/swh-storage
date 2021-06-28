@@ -13,4 +13,4 @@ TOKEN_END = 2 ** 63 - 1
 
 
 def hash_url(url: str) -> bytes:
-    return hashlib.sha1(url.encode("ascii")).digest()
+    return hashlib.sha1(url.encode("utf8")).digest()

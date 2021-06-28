@@ -1,8 +1,11 @@
-swh-storage (0.31.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.32.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.32.0     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2021-06-28 15:35:44 +0200)
+  * Upstream changes:     - v0.32.0     - * cassandra: Add support for
+    non-ASCII origin 'URLs'.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 25 Jun 2021 09:31:58 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 28 Jun 2021 16:20:21 +0000
 
 swh-storage (0.31.0-1~swh1) unstable-swh; urgency=medium
 

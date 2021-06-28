@@ -456,6 +456,7 @@ class StorageData:
         Origin(url="https://gitlab.com/user1/repo1"),
         Origin(url="https://gitlab.com/user2/repo1"),
         Origin(url="https://forge.softwareheritage.org/source/repo1"),
+        Origin(url="https://example.рф/🏛️.txt"),
     )
     origin, origin2 = origins[:2]
 
