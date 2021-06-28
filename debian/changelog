@@ -1,3 +1,9 @@
+swh-storage (0.32.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 28 Jun 2021 16:26:08 +0000
+
 swh-storage (0.32.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.32.0     - (tagged by Vincent SELLIER
