@@ -1312,7 +1312,6 @@ class Db(BaseDb):
 
     def raw_extrinsic_metadata_get(
         self,
-        type: str,
         target: str,
         authority_id: int,
         after_time: Optional[datetime.datetime],
@@ -1349,6 +1348,21 @@ class Db(BaseDb):
             + "INNER JOIN (VALUES %s) AS t(id) ON t.id = raw_extrinsic_metadata.id",
             [(id_,) for id_ in ids],
         )
+
+    def raw_extrinsic_metadata_get_authorities(self, id: str, cur=None):
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            SELECT
+                DISTINCT metadata_authority.type, metadata_authority.url
+            FROM raw_extrinsic_metadata
+            INNER JOIN metadata_authority
+                ON (metadata_authority.id=authority_id)
+            WHERE raw_extrinsic_metadata.target = %s
+            """,
+            (id,),
+        )
+        yield from cur
 
     metadata_fetcher_cols = ["name", "version"]
 

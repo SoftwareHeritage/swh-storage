@@ -660,6 +660,12 @@ class InMemoryCqlRunner:
             if m.authority_type == authority_type and m.authority_url == authority_url
         )
 
+    def raw_extrinsic_metadata_get_authorities(
+        self, target: str
+    ) -> Iterable[Tuple[str, str]]:
+        metadata = self._raw_extrinsic_metadata.get_from_partition_key((target,))
+        return ((m.authority_type, m.authority_url) for m in metadata)
+
     #########################
     # 'extid' table
     #########################
