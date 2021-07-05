@@ -146,7 +146,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def check_config(self, *, check_write: bool, db=None, cur=None) -> bool:
+    def check_config(self, *, check_write: bool, db: Db, cur=None) -> bool:
 
         if not self.objstorage.check_config(check_write=check_write):
             return False
@@ -247,7 +247,7 @@ class Storage:
     @timed
     @db_transaction()
     def content_update(
-        self, contents: List[Dict[str, Any]], keys: List[str] = [], db=None, cur=None
+        self, contents: List[Dict[str, Any]], keys: List[str] = [], *, db: Db, cur=None
     ) -> None:
         # TODO: Add a check on input keys. How to properly implement
         # this? We don't know yet the new columns.
@@ -263,7 +263,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def content_add_metadata(
-        self, content: List[Content], db=None, cur=None
+        self, content: List[Content], *, db: Db, cur=None
     ) -> Dict[str, int]:
         missing = self.content_missing(
             (c.to_dict() for c in content), key_hash="sha1_git", db=db, cur=cur,
@@ -290,7 +290,8 @@ class Storage:
         nb_partitions: int,
         page_token: Optional[str] = None,
         limit: int = 1000,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> PagedResult[Content]:
         if limit is None:
@@ -320,7 +321,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def content_get(
-        self, contents: List[bytes], algo: str = "sha1", db=None, cur=None
+        self, contents: List[bytes], algo: str = "sha1", *, db: Db, cur=None
     ) -> List[Optional[Content]]:
         contents_by_hash: Dict[bytes, Optional[Content]] = {}
         if algo not in DEFAULT_ALGORITHMS:
@@ -341,7 +342,12 @@ class Storage:
     @timed
     @db_transaction_generator()
     def content_missing(
-        self, contents: List[Dict[str, Any]], key_hash: str = "sha1", db=None, cur=None
+        self,
+        contents: List[Dict[str, Any]],
+        key_hash: str = "sha1",
+        *,
+        db: Db,
+        cur=None,
     ) -> Iterable[bytes]:
         if key_hash not in DEFAULT_ALGORITHMS:
             raise StorageArgumentException(
@@ -357,7 +363,7 @@ class Storage:
     @timed
     @db_transaction_generator()
     def content_missing_per_sha1(
-        self, contents: List[bytes], db=None, cur=None
+        self, contents: List[bytes], *, db: Db, cur=None
     ) -> Iterable[bytes]:
         for obj in db.content_missing_per_sha1(contents, cur):
             yield obj[0]
@@ -365,14 +371,16 @@ class Storage:
     @timed
     @db_transaction_generator()
     def content_missing_per_sha1_git(
-        self, contents: List[bytes], db=None, cur=None
+        self, contents: List[bytes], *, db: Db, cur=None
     ) -> Iterable[Sha1Git]:
         for obj in db.content_missing_per_sha1_git(contents, cur):
             yield obj[0]
 
     @timed
     @db_transaction()
-    def content_find(self, content: Dict[str, Any], db=None, cur=None) -> List[Content]:
+    def content_find(
+        self, content: Dict[str, Any], *, db: Db, cur=None
+    ) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
                 "content keys must contain at least one "
@@ -394,7 +402,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def content_get_random(self, db=None, cur=None) -> Sha1Git:
+    def content_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.content_get_random(cur)
 
     @staticmethod
@@ -430,7 +438,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def skipped_content_add(
-        self, content: List[SkippedContent], db=None, cur=None
+        self, content: List[SkippedContent], *, db: Db, cur=None
     ) -> Dict[str, int]:
         ctime = now()
         content = [attr.evolve(c, ctime=ctime) for c in content]
@@ -460,7 +468,7 @@ class Storage:
     @timed
     @db_transaction_generator()
     def skipped_content_missing(
-        self, contents: List[Dict[str, Any]], db=None, cur=None
+        self, contents: List[Dict[str, Any]], *, db: Db, cur=None
     ) -> Iterable[Dict[str, Any]]:
         contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
@@ -470,7 +478,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def directory_add(
-        self, directories: List[Directory], db=None, cur=None
+        self, directories: List[Directory], *, db: Db, cur=None
     ) -> Dict[str, int]:
         summary = {"directory:add": 0}
 
@@ -528,7 +536,7 @@ class Storage:
     @timed
     @db_transaction_generator()
     def directory_missing(
-        self, directories: List[Sha1Git], db=None, cur=None
+        self, directories: List[Sha1Git], *, db: Db, cur=None
     ) -> Iterable[Sha1Git]:
         for obj in db.directory_missing_from_list(directories, cur):
             yield obj[0]
@@ -536,7 +544,7 @@ class Storage:
     @timed
     @db_transaction_generator(statement_timeout=20000)
     def directory_ls(
-        self, directory: Sha1Git, recursive: bool = False, db=None, cur=None
+        self, directory: Sha1Git, recursive: bool = False, *, db: Db, cur=None
     ) -> Iterable[Dict[str, Any]]:
         if recursive:
             res_gen = db.directory_walk(directory, cur=cur)
@@ -549,14 +557,14 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=2000)
     def directory_entry_get_by_path(
-        self, directory: Sha1Git, paths: List[bytes], db=None, cur=None
+        self, directory: Sha1Git, paths: List[bytes], *, db: Db, cur=None
     ) -> Optional[Dict[str, Any]]:
         res = db.directory_entry_get_by_path(directory, paths, cur)
         return dict(zip(db.directory_ls_cols, res)) if res else None
 
     @timed
     @db_transaction()
-    def directory_get_random(self, db=None, cur=None) -> Sha1Git:
+    def directory_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.directory_get_random(cur)
 
     @db_transaction()
@@ -565,7 +573,8 @@ class Storage:
         directory_id: Sha1Git,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> Optional[PagedResult[DirectoryEntry]]:
         if list(self.directory_missing([directory_id], db=db, cur=cur)):
@@ -588,7 +597,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def revision_add(
-        self, revisions: List[Revision], db=None, cur=None
+        self, revisions: List[Revision], *, db: Db, cur=None
     ) -> Dict[str, int]:
         summary = {"revision:add": 0}
 
@@ -611,7 +620,7 @@ class Storage:
 
         db_revisions_filtered = list(map(converters.revision_to_db, revisions_filtered))
 
-        parents_filtered: List[bytes] = []
+        parents_filtered: List[Dict[str, Any]] = []
 
         with convert_validation_exceptions():
             db.copy_to(
@@ -636,7 +645,7 @@ class Storage:
     @timed
     @db_transaction_generator()
     def revision_missing(
-        self, revisions: List[Sha1Git], db=None, cur=None
+        self, revisions: List[Sha1Git], *, db: Db, cur=None
     ) -> Iterable[Sha1Git]:
         if not revisions:
             return None
@@ -647,7 +656,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=1000)
     def revision_get(
-        self, revision_ids: List[Sha1Git], db=None, cur=None
+        self, revision_ids: List[Sha1Git], *, db: Db, cur=None
     ) -> List[Optional[Revision]]:
         revisions = []
         for line in db.revision_get_from_list(revision_ids, cur):
@@ -659,7 +668,7 @@ class Storage:
     @timed
     @db_transaction_generator(statement_timeout=2000)
     def revision_log(
-        self, revisions: List[Sha1Git], limit: Optional[int] = None, db=None, cur=None
+        self, revisions: List[Sha1Git], limit: Optional[int] = None, *, db: Db, cur=None
     ) -> Iterable[Optional[Dict[str, Any]]]:
         for line in db.revision_log(revisions, limit, cur):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
@@ -671,19 +680,19 @@ class Storage:
     @timed
     @db_transaction_generator(statement_timeout=2000)
     def revision_shortlog(
-        self, revisions: List[Sha1Git], limit: Optional[int] = None, db=None, cur=None
+        self, revisions: List[Sha1Git], limit: Optional[int] = None, *, db: Db, cur=None
     ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         yield from db.revision_shortlog(revisions, limit, cur)
 
     @timed
     @db_transaction()
-    def revision_get_random(self, db=None, cur=None) -> Sha1Git:
+    def revision_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.revision_get_random(cur)
 
     @timed
     @db_transaction()
     def extid_get_from_extid(
-        self, id_type: str, ids: List[bytes], db=None, cur=None
+        self, id_type: str, ids: List[bytes], *, db: Db, cur=None
     ) -> List[ExtID]:
         extids = []
         for row in db.extid_get_from_extid_list(id_type, ids, cur):
@@ -694,7 +703,7 @@ class Storage:
     @timed
     @db_transaction()
     def extid_get_from_target(
-        self, target_type: ObjectType, ids: List[Sha1Git], db=None, cur=None
+        self, target_type: ObjectType, ids: List[Sha1Git], *, db: Db, cur=None
     ) -> List[ExtID]:
         extids = []
         for row in db.extid_get_from_swhid_list(target_type.value, ids, cur):
@@ -704,7 +713,7 @@ class Storage:
 
     @timed
     @db_transaction()
-    def extid_add(self, ids: List[ExtID], db=None, cur=None) -> Dict[str, int]:
+    def extid_add(self, ids: List[ExtID], *, db: Db, cur=None) -> Dict[str, int]:
         extid = [
             {
                 "extid": extid.extid,
@@ -728,7 +737,9 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def release_add(self, releases: List[Release], db=None, cur=None) -> Dict[str, int]:
+    def release_add(
+        self, releases: List[Release], *, db: Db, cur=None
+    ) -> Dict[str, int]:
         summary = {"release:add": 0}
 
         release_ids = set(release.id for release in releases)
@@ -757,7 +768,7 @@ class Storage:
     @timed
     @db_transaction_generator()
     def release_missing(
-        self, releases: List[Sha1Git], db=None, cur=None
+        self, releases: List[Sha1Git], *, db: Db, cur=None
     ) -> Iterable[Sha1Git]:
         if not releases:
             return
@@ -768,7 +779,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def release_get(
-        self, releases: List[Sha1Git], db=None, cur=None
+        self, releases: List[Sha1Git], *, db: Db, cur=None
     ) -> List[Optional[Release]]:
         rels = []
         for release in db.release_get_from_list(releases, cur):
@@ -778,14 +789,14 @@ class Storage:
 
     @timed
     @db_transaction()
-    def release_get_random(self, db=None, cur=None) -> Sha1Git:
+    def release_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.release_get_random(cur)
 
     @timed
     @process_metrics
     @db_transaction()
     def snapshot_add(
-        self, snapshots: List[Snapshot], db=None, cur=None
+        self, snapshots: List[Snapshot], *, db: Db, cur=None
     ) -> Dict[str, int]:
         created_temp_table = False
 
@@ -823,7 +834,7 @@ class Storage:
     @timed
     @db_transaction_generator()
     def snapshot_missing(
-        self, snapshots: List[Sha1Git], db=None, cur=None
+        self, snapshots: List[Sha1Git], *, db: Db, cur=None
     ) -> Iterable[Sha1Git]:
         for obj in db.snapshot_missing_from_list(snapshots, cur):
             yield obj[0]
@@ -831,7 +842,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=2000)
     def snapshot_get(
-        self, snapshot_id: Sha1Git, db=None, cur=None
+        self, snapshot_id: Sha1Git, *, db: Db, cur=None
     ) -> Optional[Dict[str, Any]]:
         d = self.snapshot_get_branches(snapshot_id)
         if d is None:
@@ -851,7 +862,8 @@ class Storage:
         self,
         snapshot_id: Sha1Git,
         branch_name_exclude_prefix: Optional[bytes] = None,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> Optional[Dict[Optional[str], int]]:
         return dict(
@@ -873,7 +885,8 @@ class Storage:
         target_types: Optional[List[str]] = None,
         branch_name_include_substring: Optional[bytes] = None,
         branch_name_exclude_prefix: Optional[bytes] = None,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> Optional[PartialBranches]:
         if snapshot_id == EMPTY_SNAPSHOT_ID:
@@ -924,13 +937,13 @@ class Storage:
 
     @timed
     @db_transaction()
-    def snapshot_get_random(self, db=None, cur=None) -> Sha1Git:
+    def snapshot_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
 
     @timed
     @db_transaction()
     def origin_visit_add(
-        self, visits: List[OriginVisit], db=None, cur=None
+        self, visits: List[OriginVisit], *, db: Db, cur=None
     ) -> Iterable[OriginVisit]:
         for visit in visits:
             origin = self.origin_get([visit.origin], db=db, cur=cur)[0]
@@ -977,7 +990,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def origin_visit_status_add(
-        self, visit_statuses: List[OriginVisitStatus], db=None, cur=None,
+        self, visit_statuses: List[OriginVisitStatus], *, db: Db, cur=None,
     ) -> Dict[str, int]:
         visit_statuses_ = []
 
@@ -1015,7 +1028,8 @@ class Storage:
         visit: int,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> Optional[OriginVisitStatus]:
         if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
@@ -1039,7 +1053,8 @@ class Storage:
         page_token: Optional[str] = None,
         order: ListOrder = ListOrder.ASC,
         limit: int = 10,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> PagedResult[OriginVisit]:
         page_token = page_token or "0"
@@ -1076,7 +1091,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def origin_visit_find_by_date(
-        self, origin: str, visit_date: datetime.datetime, db=None, cur=None
+        self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
     ) -> Optional[OriginVisit]:
         row_d = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
         if not row_d:
@@ -1091,7 +1106,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def origin_visit_get_by(
-        self, origin: str, visit: int, db=None, cur=None
+        self, origin: str, visit: int, *, db: Db, cur=None
     ) -> Optional[OriginVisit]:
         row = db.origin_visit_get(origin, visit, cur)
         if row:
@@ -1112,7 +1127,8 @@ class Storage:
         type: Optional[str] = None,
         allowed_statuses: Optional[List[str]] = None,
         require_snapshot: bool = False,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> Optional[OriginVisit]:
         if allowed_statuses and not set(allowed_statuses).intersection(VISIT_STATUSES):
@@ -1148,7 +1164,8 @@ class Storage:
         page_token: Optional[str] = None,
         order: ListOrder = ListOrder.ASC,
         limit: int = 10,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> PagedResult[OriginVisitStatus]:
         next_page_token = None
@@ -1175,7 +1192,7 @@ class Storage:
     @timed
     @db_transaction()
     def origin_visit_status_get_random(
-        self, type: str, db=None, cur=None
+        self, type: str, *, db: Db, cur=None
     ) -> Optional[OriginVisitStatus]:
         row = db.origin_visit_get_random(type, cur)
         if row is not None:
@@ -1186,7 +1203,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=2000)
     def object_find_by_sha1_git(
-        self, ids: List[Sha1Git], db=None, cur=None
+        self, ids: List[Sha1Git], *, db: Db, cur=None
     ) -> Dict[Sha1Git, List[Dict]]:
         ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
 
@@ -1201,7 +1218,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def origin_get(
-        self, origins: List[str], db=None, cur=None
+        self, origins: List[str], *, db: Db, cur=None
     ) -> Iterable[Optional[Origin]]:
         rows = db.origin_get_by_url(origins, cur)
         result: List[Optional[Origin]] = []
@@ -1214,7 +1231,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def origin_get_by_sha1(
-        self, sha1s: List[bytes], db=None, cur=None
+        self, sha1s: List[bytes], *, db: Db, cur=None
     ) -> List[Optional[Dict[str, Any]]]:
         return [
             dict(zip(db.origin_cols, row)) if row[0] else None
@@ -1223,14 +1240,14 @@ class Storage:
 
     @timed
     @db_transaction_generator()
-    def origin_get_range(self, origin_from=1, origin_count=100, db=None, cur=None):
+    def origin_get_range(self, origin_from=1, origin_count=100, *, db: Db, cur=None):
         for origin in db.origin_get_range(origin_from, origin_count, cur):
             yield dict(zip(db.origin_get_range_cols, origin))
 
     @timed
     @db_transaction()
     def origin_list(
-        self, page_token: Optional[str] = None, limit: int = 100, *, db=None, cur=None
+        self, page_token: Optional[str] = None, limit: int = 100, *, db: Db, cur=None
     ) -> PagedResult[Origin]:
         page_token = page_token or "0"
         if not isinstance(page_token, str):
@@ -1264,7 +1281,8 @@ class Storage:
         regexp: bool = False,
         with_visit: bool = False,
         visit_types: Optional[List[str]] = None,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> PagedResult[Origin]:
         next_page_token = None
@@ -1295,7 +1313,8 @@ class Storage:
         url_pattern: str,
         regexp: bool = False,
         with_visit: bool = False,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> int:
         return db.origin_count(url_pattern, regexp, with_visit, cur)
@@ -1303,7 +1322,7 @@ class Storage:
     @timed
     @process_metrics
     @db_transaction()
-    def origin_add(self, origins: List[Origin], db=None, cur=None) -> Dict[str, int]:
+    def origin_add(self, origins: List[Origin], *, db: Db, cur=None) -> Dict[str, int]:
         urls = [o.url for o in origins]
         known_origins = set(url for (url,) in db.origin_get_by_url(urls, cur))
         # keep only one occurrence of each given origin while keeping the list
@@ -1318,11 +1337,11 @@ class Storage:
         return {"origin:add": added}
 
     @db_transaction(statement_timeout=500)
-    def stat_counters(self, db=None, cur=None):
+    def stat_counters(self, *, db: Db, cur=None):
         return {k: v for (k, v) in db.stat_counters()}
 
     @db_transaction()
-    def refresh_stat_counters(self, db=None, cur=None):
+    def refresh_stat_counters(self, *, db: Db, cur=None):
         keys = [
             "content",
             "directory",
@@ -1387,7 +1406,8 @@ class Storage:
         after: Optional[datetime.datetime] = None,
         page_token: Optional[bytes] = None,
         limit: int = 1000,
-        db=None,
+        *,
+        db: Db,
         cur=None,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if page_token:
@@ -1405,7 +1425,7 @@ class Storage:
             return PagedResult(next_page_token=None, results=[],)
 
         rows = db.raw_extrinsic_metadata_get(
-            type, str(target), authority_id, after_time, after_fetcher, limit + 1, cur,
+            str(target), authority_id, after_time, after_fetcher, limit + 1, cur,
         )
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
@@ -1432,7 +1452,7 @@ class Storage:
 
     @db_transaction()
     def raw_extrinsic_metadata_get_by_ids(
-        self, ids: List[Sha1Git], db=None, cur=None,
+        self, ids: List[Sha1Git], *, db: Db, cur=None,
     ) -> List[RawExtrinsicMetadata]:
         return [
             converters.db_to_raw_extrinsic_metadata(
@@ -1441,11 +1461,25 @@ class Storage:
             for row in db.raw_extrinsic_metadata_get_by_ids(ids)
         ]
 
+    @db_transaction()
+    def raw_extrinsic_metadata_get_authorities(
+        self, target: ExtendedSWHID, *, db: Db, cur=None,
+    ) -> List[MetadataAuthority]:
+        return [
+            MetadataAuthority(
+                type=MetadataAuthorityType(authority_type), url=authority_url
+            )
+            for (
+                authority_type,
+                authority_url,
+            ) in db.raw_extrinsic_metadata_get_authorities(str(target), cur)
+        ]
+
     @timed
     @process_metrics
     @db_transaction()
     def metadata_fetcher_add(
-        self, fetchers: List[MetadataFetcher], db=None, cur=None
+        self, fetchers: List[MetadataFetcher], *, db: Db, cur=None
     ) -> Dict[str, int]:
         fetchers = list(fetchers)
         self.journal_writer.metadata_fetcher_add(fetchers)
@@ -1458,7 +1492,7 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def metadata_fetcher_get(
-        self, name: str, version: str, db=None, cur=None
+        self, name: str, version: str, *, db: Db, cur=None
     ) -> Optional[MetadataFetcher]:
         row = db.metadata_fetcher_get(name, version, cur=cur)
         if not row:
@@ -1469,7 +1503,7 @@ class Storage:
     @process_metrics
     @db_transaction()
     def metadata_authority_add(
-        self, authorities: List[MetadataAuthority], db=None, cur=None
+        self, authorities: List[MetadataAuthority], *, db: Db, cur=None
     ) -> Dict[str, int]:
         authorities = list(authorities)
         self.journal_writer.metadata_authority_add(authorities)
@@ -1482,7 +1516,7 @@ class Storage:
     @timed
     @db_transaction()
     def metadata_authority_get(
-        self, type: MetadataAuthorityType, url: str, db=None, cur=None
+        self, type: MetadataAuthorityType, url: str, *, db: Db, cur=None
     ) -> Optional[MetadataAuthority]:
         row = db.metadata_authority_get(type.value, url, cur=cur)
         if not row:
