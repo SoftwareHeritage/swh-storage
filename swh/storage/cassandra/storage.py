@@ -1393,6 +1393,18 @@ class CassandraStorage:
 
         return list(results)
 
+    def raw_extrinsic_metadata_get_authorities(
+        self, target: ExtendedSWHID
+    ) -> List[MetadataAuthority]:
+        return [
+            MetadataAuthority(
+                type=MetadataAuthorityType(authority_type), url=authority_url
+            )
+            for (authority_type, authority_url) in set(
+                self._cql_runner.raw_extrinsic_metadata_get_authorities(str(target))
+            )
+        ]
+
     def metadata_fetcher_add(self, fetchers: List[MetadataFetcher]) -> Dict[str, int]:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:

@@ -4064,6 +4064,55 @@ class TestStorage:
             )
         ) == {content1_metadata1, content2_metadata}
 
+    def test_content_metadata_get_authorities(self, swh_storage, sample_data):
+        content1, content2, content3 = sample_data.contents[:3]
+        fetcher, fetcher2 = sample_data.fetchers[:2]
+        authority, authority2 = sample_data.authorities[:2]
+        (
+            content1_metadata1,
+            content1_metadata2,
+            content1_metadata3,
+        ) = sample_data.content_metadata[:3]
+
+        content2_metadata = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(content1_metadata2.to_dict(), ("id",)),  # recompute id
+                "target": str(content2.swhid()),
+            }
+        )
+
+        content1_metadata2 = RawExtrinsicMetadata.from_dict(
+            {
+                **remove_keys(content1_metadata2.to_dict(), ("id",)),  # recompute id
+                "authority": authority2.to_dict(),
+            }
+        )
+
+        swh_storage.metadata_authority_add([authority, authority2])
+        swh_storage.metadata_fetcher_add([fetcher, fetcher2])
+
+        swh_storage.raw_extrinsic_metadata_add(
+            [
+                content1_metadata1,
+                content1_metadata2,
+                content1_metadata3,
+                content2_metadata,
+            ]
+        )
+
+        assert swh_storage.raw_extrinsic_metadata_get_authorities(content1.swhid()) in (
+            [authority, authority2],
+            [authority2, authority],
+        )
+
+        assert swh_storage.raw_extrinsic_metadata_get_authorities(content2.swhid()) == [
+            authority
+        ]
+
+        assert (
+            swh_storage.raw_extrinsic_metadata_get_authorities(content3.swhid()) == []
+        )
+
     def test_origin_metadata_add(self, swh_storage, sample_data):
         origin = sample_data.origin
         fetcher = sample_data.metadata_fetcher
