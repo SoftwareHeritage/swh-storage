@@ -14,6 +14,7 @@ import time
 from typing import Any, Dict
 
 import attr
+from cassandra.cluster import NoHostAvailable
 import pytest
 
 from swh.core.api.classes import stream_results
@@ -237,6 +238,30 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
 
 @pytest.mark.cassandra
 class TestCassandraStorage(_TestStorage):
+    def test_config_wrong_consistency_should_raise(self):
+        storage_config = dict(
+            cls="cassandra",
+            hosts=["first"],
+            port=9999,
+            keyspace="any",
+            consistency_level="fake",
+            journal_writer={"cls": "memory"},
+            objstorage={"cls": "memory"},
+        )
+
+        with pytest.raises(ValueError, match="Unknown consistency"):
+            get_storage(**storage_config)
+
+    def test_config_consistency_used(self, swh_storage_backend_config):
+        config_with_consistency = dict(
+            swh_storage_backend_config, **{"consistency_level": "THREE"}
+        )
+
+        storage = get_storage(**config_with_consistency)
+
+        with pytest.raises(NoHostAvailable):
+            storage.content_get_random()
+
     def test_content_add_murmur3_collision(self, swh_storage, mocker, sample_data):
         """The Murmur3 token is used as link from index tables to the main
         table; and non-matching contents with colliding murmur3-hash

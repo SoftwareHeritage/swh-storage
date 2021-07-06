@@ -99,6 +99,7 @@ class CassandraStorage:
         port=9042,
         journal_writer=None,
         allow_overwrite=False,
+        consistency_level="ONE",
     ):
         """
         A backend of swh-storage backed by Cassandra
@@ -118,10 +119,12 @@ class CassandraStorage:
                 or when the database is known to be mostly empty.
                 Note that a ``False`` value does not guarantee there won't be
                 any overwrite.
+            consistency_level: The default read/write consistency to use
         """
         self._hosts = hosts
         self._keyspace = keyspace
         self._port = port
+        self._consistency_level = consistency_level
         self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(objstorage)
@@ -129,7 +132,9 @@ class CassandraStorage:
 
     def _set_cql_runner(self):
         """Used by tests when they need to reset the CqlRunner"""
-        self._cql_runner: CqlRunner = CqlRunner(self._hosts, self._keyspace, self._port)
+        self._cql_runner: CqlRunner = CqlRunner(
+            self._hosts, self._keyspace, self._port, self._consistency_level
+        )
 
     def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
