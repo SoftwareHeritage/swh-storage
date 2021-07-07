@@ -23,7 +23,7 @@ from typing import (
     Union,
 )
 
-from cassandra import CoordinationFailure
+from cassandra import ConsistencyLevel, CoordinationFailure
 from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
@@ -77,12 +77,23 @@ from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
 logger = logging.getLogger(__name__)
 
 
-_execution_profiles = {
-    EXEC_PROFILE_DEFAULT: ExecutionProfile(
-        load_balancing_policy=TokenAwarePolicy(DCAwareRoundRobinPolicy()),
-        row_factory=dict_factory,
-    ),
-}
+def get_execution_profiles(
+    consistency_level: str = "ONE",
+) -> Dict[object, ExecutionProfile]:
+    if consistency_level not in ConsistencyLevel.name_to_value:
+        raise ValueError(
+            f"Configuration error: Unknown consistency level '{consistency_level}'"
+        )
+
+    return {
+        EXEC_PROFILE_DEFAULT: ExecutionProfile(
+            load_balancing_policy=TokenAwarePolicy(DCAwareRoundRobinPolicy()),
+            row_factory=dict_factory,
+            consistency_level=ConsistencyLevel.name_to_value[consistency_level],
+        )
+    }
+
+
 # Configuration for cassandra-driver's access to servers:
 # * hit the right server directly when sending a query (TokenAwarePolicy),
 # * if there's more than one, then pick one at random that's in the same
@@ -92,7 +103,7 @@ _execution_profiles = {
 def create_keyspace(
     hosts: List[str], keyspace: str, port: int = 9042, *, durable_writes=True
 ):
-    cluster = Cluster(hosts, port=port, execution_profiles=_execution_profiles)
+    cluster = Cluster(hosts, port=port, execution_profiles=get_execution_profiles())
     session = cluster.connect()
     extra_params = ""
     if not durable_writes:
@@ -223,9 +234,13 @@ class CqlRunner:
     """Class managing prepared statements and building queries to be sent
     to Cassandra."""
 
-    def __init__(self, hosts: List[str], keyspace: str, port: int):
+    def __init__(
+        self, hosts: List[str], keyspace: str, port: int, consistency_level: str
+    ):
         self._cluster = Cluster(
-            hosts, port=port, execution_profiles=_execution_profiles
+            hosts,
+            port=port,
+            execution_profiles=get_execution_profiles(consistency_level),
         )
         self._session = self._cluster.connect(keyspace)
         self._cluster.register_user_type(
