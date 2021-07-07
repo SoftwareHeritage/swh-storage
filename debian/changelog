@@ -1,3 +1,12 @@
+swh-storage (0.34.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.34.0     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2021-07-07 18:22:00 +0200)
+  * Upstream changes:     - v0.34.0     - cassandra: allow to configure
+    the consistency level
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 07 Jul 2021 16:58:42 +0000
+
 swh-storage (0.33.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.33.0     - (tagged by Valentin Lorentz
