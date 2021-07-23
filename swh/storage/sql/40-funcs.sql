@@ -585,8 +585,8 @@ create or replace function swh_extid_add()
     language plpgsql
 as $$
 begin
-    insert into extid (extid_type, extid, target_type, target)
-        select distinct t.extid_type, t.extid, t.target_type, t.target
+    insert into extid (extid_type, extid, extid_version, target_type, target)
+        select distinct t.extid_type, t.extid, t.extid_version, t.target_type, t.target
         from tmp_extid t
 		on conflict do nothing;
     return;

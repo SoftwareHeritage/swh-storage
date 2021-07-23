@@ -80,7 +80,7 @@ COLUMNS = {
         "reason",
     ],
     "directory": ["id", "dir_entries", "file_entries", "rev_entries"],
-    "extid": ["extid_type", "extid", "target_type", "target"],
+    "extid": ["extid_type", "extid", "extid_version", "target_type", "target"],
     "metadata_authority": ["type", "url"],
     "metadata_fetcher": ["name", "version"],
     "origin": ["url"],

@@ -698,9 +698,18 @@ class StorageData:
         extid_type="directory",
         extid=b"something",
     )
+    extid4 = ExtID(
+        target=CoreSWHID(
+            object_type=SwhidObjectType.DIRECTORY, object_id=directory2.id
+        ),
+        extid_type="directory",
+        extid=b"something",
+        extid_version=2,
+    )
 
     extids: Tuple[ExtID, ...] = (
         extid1,
         extid2,
         extid3,
+        extid4,
     )

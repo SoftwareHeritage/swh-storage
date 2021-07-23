@@ -1183,6 +1183,7 @@ class TestStorage:
             ExtID(
                 extid=hgid,
                 extid_type="hg",
+                extid_version=1,
                 target=CoreSWHID(object_id=swhid, object_type=ObjectType.REVISION,),
             )
             for hgid, swhid in zip(extids, swhids)
@@ -1243,6 +1244,7 @@ class TestStorage:
             ExtID(
                 extid=extid,
                 extid_type="git",
+                extid_version=2,
                 target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
             )
             for extid in ids
@@ -1254,6 +1256,7 @@ class TestStorage:
             ExtID(
                 extid=extid,
                 extid_type="hg",
+                extid_version=2,
                 target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
             )
             for extid in ids
@@ -1299,6 +1302,42 @@ class TestStorage:
         assert set(swh_storage.extid_get_from_extid("git", ids)) == {*extids, *extids2}
         assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
         assert swh_storage.extid_get_from_target(ObjectType.RELEASE, ids) == extids2
+
+    def test_extid_version_behavior(self, swh_storage, sample_data):
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+
+        # Insert extids with several different versions
+        extids = [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ] + [
+            ExtID(
+                extid=extid,
+                extid_type="git",
+                extid_version=1,
+                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+            )
+            for extid in ids
+        ]
+        swh_storage.extid_add(extids)
+
+        # Check that both versions get returned
+        for git_id in ids:
+            objs = swh_storage.extid_get_from_extid("git", [git_id])
+            assert len(objs) == 2
+            assert set(obj.extid_version for obj in objs) == {0, 1}
+        for swhid in ids:
+            objs = swh_storage.extid_get_from_target(ObjectType.REVISION, [swhid])
+            assert len(objs) == 2
+            assert set(obj.extid_version for obj in objs) == {0, 1}
 
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]
