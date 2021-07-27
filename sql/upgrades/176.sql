@@ -8,7 +8,7 @@ insert into dbversion(version, release, description)
 
 alter table extid add column extid_version bigint not null default 0;
 
-comment on column extid.extid_version is 'Version of the extid for the given original object';
+comment on column extid.extid_version is 'Version of the extid type for the given original object';
 
 create or replace function swh_extid_add()
     returns void

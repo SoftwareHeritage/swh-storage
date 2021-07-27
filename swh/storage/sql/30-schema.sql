@@ -514,4 +514,4 @@ comment on column extid.extid_type is 'ExtID type';
 comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg revision)';
 comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
 comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';
-comment on column extid.extid_version is 'Version of the extid for the given original object';
+comment on column extid.extid_version is 'Version of the extid type for the given original object';
