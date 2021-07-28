@@ -277,9 +277,10 @@ CREATE TABLE IF NOT EXISTS object_count (
 CREATE TABLE IF NOT EXISTS extid (
     extid_type      ascii,
     extid           blob,
+    extid_version   smallint,
     target_type     ascii,
     target          blob,
-    PRIMARY KEY ((extid_type, extid), target_type, target)
+    PRIMARY KEY ((extid_type, extid), extid_version, target_type, target)
 );""",
     """
 CREATE TABLE IF NOT EXISTS extid_by_target (

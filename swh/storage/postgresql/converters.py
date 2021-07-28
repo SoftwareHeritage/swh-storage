@@ -331,6 +331,7 @@ def db_to_extid(row) -> ExtID:
     return ExtID(
         extid=row["extid"],
         extid_type=row["extid_type"],
+        extid_version=row.get("extid_version", 0),
         target=CoreSWHID(
             object_id=row["target"],
             object_type=SwhidObjectType[row["target_type"].upper()],

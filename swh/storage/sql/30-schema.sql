@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(175, now(), 'Work In Progress');
+      values(176, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -505,7 +505,8 @@ create table extid
   extid_type  text not null,
   extid       bytea not null,
   target_type object_type not null,
-  target      sha1_git not null
+  target      sha1_git not null,
+  extid_version bigint not null default 0
 );
 
 comment on table extid is 'Correspondance SWH object (SWHID) <-> original revision id (vcs id)';
@@ -513,3 +514,4 @@ comment on column extid.extid_type is 'ExtID type';
 comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg revision)';
 comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
 comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';
+comment on column extid.extid_version is 'Version of the extid type for the given original object';
