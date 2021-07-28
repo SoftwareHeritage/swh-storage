@@ -681,12 +681,13 @@ class InMemoryCqlRunner:
         pass
 
     def extid_get_from_pk(
-        self, extid_type: str, extid: bytes, target: ExtendedSWHID,
+        self, extid_type: str, extid: bytes, extid_version: int, target: ExtendedSWHID,
     ) -> Optional[ExtIDRow]:
         primary_key = self._extid.primary_key_from_dict(
             dict(
                 extid_type=extid_type,
                 extid=extid,
+                extid_version=extid_version,
                 target_type=target.object_type.value,
                 target=target.object_id,
             )

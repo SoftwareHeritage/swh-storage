@@ -24,6 +24,7 @@ def test_storage_data():
         "authorities",
         "origin_metadata",
         "content_metadata",
+        "extids",
     ]:
         for obj in getattr(data, attribute_key):
             assert isinstance(obj, BaseModel)

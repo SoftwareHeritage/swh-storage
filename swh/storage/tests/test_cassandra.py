@@ -469,6 +469,7 @@ class TestCassandraStorage(_TestStorage):
                 ExtIDRow(
                     extid_type=extid.extid_type,
                     extid=extid.extid,
+                    extid_version=extid.extid_version,
                     target_type=extid.target.object_type.value,
                     target=extid.target.object_id,
                 )
