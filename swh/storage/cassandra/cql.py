@@ -1178,15 +1178,29 @@ class CqlRunner:
         return (token, finalizer)
 
     @_prepared_select_statement(
-        ExtIDRow, "WHERE extid_type=? AND extid=? AND target_type=? AND target=?",
+        ExtIDRow,
+        "WHERE extid_type=? AND extid=? AND extid_version=? "
+        "AND target_type=? AND target=?",
     )
     def extid_get_from_pk(
-        self, extid_type: str, extid: bytes, target: CoreSWHID, *, statement,
+        self,
+        extid_type: str,
+        extid: bytes,
+        extid_version: int,
+        target: CoreSWHID,
+        *,
+        statement,
     ) -> Optional[ExtIDRow]:
         rows = list(
             self._execute_with_retries(
                 statement,
-                [extid_type, extid, target.object_type.value, target.object_id],
+                [
+                    extid_type,
+                    extid,
+                    extid_version,
+                    target.object_type.value,
+                    target.object_id,
+                ],
             ),
         )
         assert len(rows) <= 1

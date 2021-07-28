@@ -1455,7 +1455,10 @@ class CassandraStorage:
                 extid
                 for extid in ids
                 if not self._cql_runner.extid_get_from_pk(
-                    extid_type=extid.extid_type, extid=extid.extid, target=extid.target,
+                    extid_type=extid.extid_type,
+                    extid_version=extid.extid_version,
+                    extid=extid.extid,
+                    target=extid.target,
                 )
             ]
         else:
@@ -1469,6 +1472,7 @@ class CassandraStorage:
             target = extid.target.object_id
             extidrow = ExtIDRow(
                 extid_type=extid.extid_type,
+                extid_version=extid.extid_version,
                 extid=extid.extid,
                 target_type=target_type,
                 target=target,
@@ -1489,6 +1493,7 @@ class CassandraStorage:
             result.extend(
                 ExtID(
                     extid_type=extidrow.extid_type,
+                    extid_version=extidrow.extid_version,
                     extid=extidrow.extid,
                     target=CoreSWHID(
                         object_type=extidrow.target_type, object_id=extidrow.target,
@@ -1509,6 +1514,7 @@ class CassandraStorage:
             result.extend(
                 ExtID(
                     extid_type=extidrow.extid_type,
+                    extid_version=extidrow.extid_version,
                     extid=extidrow.extid,
                     target=CoreSWHID(
                         object_type=SwhidObjectType(extidrow.target_type),

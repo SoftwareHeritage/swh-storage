@@ -30,7 +30,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 175
+    current_version = 176
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -843,7 +843,7 @@ class Db(BaseDb):
             ((sortkey, id) for sortkey, id in enumerate(revisions)),
         )
 
-    extid_cols = ["extid", "extid_type", "target", "target_type"]
+    extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
 
     def extid_get_from_extid_list(self, extid_type, ids, cur=None):
         cur = self._cursor(cur)
