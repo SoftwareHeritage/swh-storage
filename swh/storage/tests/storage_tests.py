@@ -2149,6 +2149,9 @@ class TestStorage:
         assert ov1 == origin_visit1
         assert ov2 == origin_visit2
 
+        assert ov1.visit == 1
+        assert ov2.visit == 2
+
         ovs1 = OriginVisitStatus(
             origin=ov1.origin,
             visit=ov1.visit,
@@ -2181,6 +2184,51 @@ class TestStorage:
 
         for obj in expected_objects:
             assert obj in actual_objects
+
+    def test_origin_visit_add_replayed(self, swh_storage, sample_data):
+        """Tests adding a visit with an id makes sure the next id is higher"""
+        origin1 = sample_data.origins[1]
+        swh_storage.origin_add([origin1])
+
+        date_visit = now()
+        date_visit2 = date_visit + datetime.timedelta(minutes=1)
+
+        date_visit = round_to_milliseconds(date_visit)
+        date_visit2 = round_to_milliseconds(date_visit2)
+
+        visit1 = OriginVisit(
+            origin=origin1.url, date=date_visit, type=sample_data.type_visit1, visit=42
+        )
+        visit2 = OriginVisit(
+            origin=origin1.url, date=date_visit2, type=sample_data.type_visit2,
+        )
+
+        # add once
+        ov1, ov2 = swh_storage.origin_visit_add([visit1, visit2])
+        # then again (will be ignored as they already exist)
+        origin_visit1, origin_visit2 = swh_storage.origin_visit_add([ov1, ov2])
+        assert ov1 == origin_visit1
+        assert ov2 == origin_visit2
+
+        assert ov1.visit == 42
+        assert ov2.visit == 43
+
+        visit3 = OriginVisit(
+            origin=origin1.url, date=date_visit, type=sample_data.type_visit1, visit=12
+        )
+        visit4 = OriginVisit(
+            origin=origin1.url, date=date_visit2, type=sample_data.type_visit2,
+        )
+
+        # add once
+        ov3, ov4 = swh_storage.origin_visit_add([visit3, visit4])
+        # then again (will be ignored as they already exist)
+        origin_visit3, origin_visit4 = swh_storage.origin_visit_add([ov3, ov4])
+        assert ov3 == origin_visit3
+        assert ov4 == origin_visit4
+
+        assert ov3.visit == 12
+        assert ov4.visit == 44
 
     def test_origin_visit_add_validation(self, swh_storage, sample_data):
         """Unknown origin when adding visits should raise"""

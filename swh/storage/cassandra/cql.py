@@ -863,6 +863,20 @@ class CqlRunner:
     def origin_iter_all(self, *, statement) -> Iterable[OriginRow]:
         return map(OriginRow.from_dict, self._execute_with_retries(statement, []))
 
+    @_prepared_statement(
+        f"""
+        UPDATE {OriginRow.TABLE}
+        SET next_visit_id=?
+        WHERE sha1 = ? IF next_visit_id<?
+        """
+    )
+    def origin_bump_next_visit_id(
+        self, origin_url: str, visit_id: int, *, statement
+    ) -> None:
+        origin_sha1 = hash_url(origin_url)
+        next_id = visit_id + 1
+        self._execute_with_retries(statement, [next_id, origin_sha1, next_id])
+
     @_prepared_statement(f"SELECT next_visit_id FROM {OriginRow.TABLE} WHERE sha1 = ?")
     def _origin_get_next_visit_id(self, origin_sha1: bytes, *, statement) -> int:
         rows = list(self._execute_with_retries(statement, [origin_sha1]))

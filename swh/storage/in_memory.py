@@ -480,6 +480,10 @@ class InMemoryCqlRunner:
             for (clustering_key, row) in partition.items()
         )
 
+    def origin_bump_next_visit_id(self, origin_url: str, visit_id: int) -> None:
+        origin = list(self.origin_get_by_url(origin_url))[0]
+        origin.next_visit_id = max(origin.next_visit_id, visit_id + 1)
+
     def origin_generate_unique_visit_id(self, origin_url: str) -> int:
         origin = list(self.origin_get_by_url(origin_url))[0]
         visit_id = origin.next_visit_id

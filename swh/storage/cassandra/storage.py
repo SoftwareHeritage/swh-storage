@@ -1014,7 +1014,11 @@ class CassandraStorage:
         nb_visits = 0
         for visit in visits:
             nb_visits += 1
-            if not visit.visit:
+            if visit.visit:
+                # Set origin.next_visit_id = max(origin.next_visit_id, visit.visit+1)
+                # so the next loader run does not reuse the id.
+                self._cql_runner.origin_bump_next_visit_id(visit.origin, visit.visit)
+            else:
                 visit_id = self._cql_runner.origin_generate_unique_visit_id(
                     visit.origin
                 )
