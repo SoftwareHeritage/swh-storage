@@ -1120,6 +1120,22 @@ class TestStorage:
             revision3.id,
         }
 
+    def test_revision_missing_many(self, swh_storage, sample_data):
+        """Large number of revision ids to check can cause ScyllaDB to reject
+        queries."""
+        revision = sample_data.revision
+        ids = [bytes([b1, b2]) * 10 for b1 in range(256) for b2 in range(10)]
+        ids.append(revision.id)
+        ids.sort()
+        init_missing = swh_storage.revision_missing(ids)
+        assert set(init_missing) == set(ids)
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing(ids)
+        assert set(end_missing) == set(ids) - {revision.id}
+
     def test_extid_add_git(self, swh_storage, sample_data):
 
         gitids = [
