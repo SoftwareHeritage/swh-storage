@@ -355,7 +355,22 @@ class CassandraStorage:
                 "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
             )
 
+        contents_with_all_hashes = []
+        contents_with_missing_hashes = []
         for content in contents:
+            if DEFAULT_ALGORITHMS <= set(content):
+                contents_with_all_hashes.append(content)
+            else:
+                contents_with_missing_hashes.append(content)
+
+        # These contents can be queried efficiently directly in the main table
+        for content in self._cql_runner.content_missing_from_hashes(
+            contents_with_all_hashes
+        ):
+            yield content[key_hash]
+
+        # For these, we need the expensive index lookups + main table.
+        for content in contents_with_missing_hashes:
             res = self.content_find(content)
             if not res:
                 yield content[key_hash]
