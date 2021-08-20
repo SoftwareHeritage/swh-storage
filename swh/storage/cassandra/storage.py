@@ -1219,8 +1219,9 @@ class CassandraStorage:
                 if latest_visit is not None:
                     if updated_visit["date"] < latest_visit["date"]:
                         continue
-                    if updated_visit["visit"] < latest_visit["visit"]:
-                        continue
+                    assert (
+                        updated_visit["visit"] >= latest_visit["visit"]
+                    ), "Cassandra returned visits not ordered by increasing visit id."
 
                 latest_visit = updated_visit
 

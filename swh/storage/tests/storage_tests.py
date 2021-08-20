@@ -2783,6 +2783,28 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
         assert actual_visit == ov2
 
+    def test_origin_visit_get_latest_order(self, swh_storage, sample_data):
+        empty_snapshot, complete_snapshot = sample_data.snapshots[1:3]
+        origin = sample_data.origin
+
+        id1 = 2
+        id2 = 1
+        id3 = 3
+        date1 = datetime.datetime(2021, 8, 2, tzinfo=datetime.timezone.utc)
+        date2 = datetime.datetime(2021, 8, 3, tzinfo=datetime.timezone.utc)
+        date3 = datetime.datetime(2021, 8, 1, tzinfo=datetime.timezone.utc)
+
+        swh_storage.origin_add([origin])
+        visit1 = OriginVisit(origin=origin.url, visit=id1, date=date1, type="git",)
+        visit2 = OriginVisit(origin=origin.url, visit=id2, date=date2, type="hg",)
+        visit3 = OriginVisit(origin=origin.url, visit=id3, date=date3, type="tar",)
+
+        ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
+
+        # no filters, latest visit is the last one (whose date is most recent)
+        actual_visit = swh_storage.origin_visit_get_latest(origin.url)
+        assert actual_visit == ov2
+
     def test_origin_visit_get_latest__not_last(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
