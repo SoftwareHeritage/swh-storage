@@ -35,6 +35,7 @@ from tenacity import (
     wait_random_exponential,
 )
 
+from swh.core.utils import grouper
 from swh.model.identifiers import CoreSWHID
 from swh.model.model import (
     Content,
@@ -73,6 +74,17 @@ from .model import (
     content_index_table_name,
 )
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
+
+PARTITION_KEY_RESTRICTION_MAX_SIZE = 100
+"""Maximum number of restrictions in a single query.
+Usually this is a very low number (eg. SELECT ... FROM ... WHERE x=?),
+but some queries can request arbitrarily many (eg. SELECT ... FROM ... WHERE x IN ?).
+
+This can cause performance issues, as the node getting the query need to
+coordinate with other nodes to get the complete results.
+See <https://github.com/scylladb/scylla/pull/4797> for details and rationale.
+"""
+
 
 logger = logging.getLogger(__name__)
 
@@ -302,8 +314,10 @@ class CqlRunner:
             return None
 
     def _missing(self, statement, ids):
-        rows = self._execute_with_retries(statement, [ids])
-        found_ids = {row["id"] for row in rows}
+        found_ids = set()
+        for id_group in grouper(ids, PARTITION_KEY_RESTRICTION_MAX_SIZE):
+            rows = self._execute_with_retries(statement, [list(id_group)])
+            found_ids.update(row["id"] for row in rows)
         return [id_ for id_ in ids if id_ not in found_ids]
 
     ##########################
