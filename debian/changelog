@@ -1,3 +1,12 @@
+swh-storage (0.35.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.35.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2021-08-20 11:53:33 +0200)
+  * Upstream changes:     - v0.35.1     - * cassandra: Fix crash when
+    using _missing() functions with more than 100 ids with ScyllaDB.
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 20 Aug 2021 10:01:16 +0000
+
 swh-storage (0.35.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.35.0     - (tagged by Antoine R. Dumont
