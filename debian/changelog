@@ -1,3 +1,16 @@
+swh-storage (0.36.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.36.0     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2021-08-24 16:51:07 +0200)
+  * Upstream changes:     - v0.36.0     - changelog:     - Add cvs as
+    supported revision_type     - Add test for origin_visit_get_latest
+    in presence of mismatched id and date orders     - cassandra: Bump
+    next_visit_id when origin_visit_add is called by a replayer     -
+    cassandra: Make content_missing query in batches     - backfill: add
+    extra where clause to use the right index for extid requests
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 24 Aug 2021 15:01:32 +0000
+
 swh-storage (0.35.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.35.1     - (tagged by Valentin Lorentz
