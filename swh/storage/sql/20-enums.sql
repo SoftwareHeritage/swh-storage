@@ -5,7 +5,7 @@
 create type content_status as enum ('absent', 'visible', 'hidden');
 comment on type content_status is 'Content visibility';
 
-create type revision_type as enum ('git', 'tar', 'dsc', 'svn', 'hg');
+create type revision_type as enum ('git', 'tar', 'dsc', 'svn', 'hg', 'cvs');
 comment on type revision_type is 'Possible revision types';
 
 create type object_type as enum ('content', 'directory', 'revision', 'release', 'snapshot');

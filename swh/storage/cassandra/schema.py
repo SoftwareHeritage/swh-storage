@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS content (
     ctime         timestamp,
         -- creation time, i.e. time of (first) injection into the storage
     status        ascii,
-    PRIMARY KEY ((sha1, sha1_git, sha256, blake2s256))
+    PRIMARY KEY ((sha256), sha1, sha1_git, blake2s256)
 );""",
     """
 CREATE TABLE IF NOT EXISTS skipped_content (

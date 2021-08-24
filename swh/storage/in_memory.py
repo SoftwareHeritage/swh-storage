@@ -216,6 +216,13 @@ class InMemoryCqlRunner:
         matches.sort()
         return matches[0:limit]
 
+    def content_missing_from_hashes(
+        self, contents_hashes: List[Dict[str, bytes]]
+    ) -> Iterator[Dict[str, bytes]]:
+        for content_hashes in contents_hashes:
+            if not self.content_get_from_pk(content_hashes):
+                yield content_hashes
+
     ##########################
     # 'content_by_*' tables
     ##########################
@@ -472,6 +479,10 @@ class InMemoryCqlRunner:
             for (token, partition) in self._origins.data.items()
             for (clustering_key, row) in partition.items()
         )
+
+    def origin_bump_next_visit_id(self, origin_url: str, visit_id: int) -> None:
+        origin = list(self.origin_get_by_url(origin_url))[0]
+        origin.next_visit_id = max(origin.next_visit_id, visit_id + 1)
 
     def origin_generate_unique_visit_id(self, origin_url: str) -> int:
         origin = list(self.origin_get_by_url(origin_url))[0]
