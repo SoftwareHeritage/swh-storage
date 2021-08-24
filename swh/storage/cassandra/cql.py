@@ -373,6 +373,37 @@ class CqlRunner:
         else:
             return None
 
+    def content_missing_from_hashes(
+        self, contents_hashes: List[Dict[str, bytes]]
+    ) -> Iterator[Dict[str, bytes]]:
+        for group in grouper(contents_hashes, PARTITION_KEY_RESTRICTION_MAX_SIZE):
+            group = list(group)
+
+            # Get all contents that share a sha256 with one of the contents in the group
+            present = set(
+                self._content_get_hashes_from_sha256(
+                    [content["sha256"] for content in group]
+                )
+            )
+
+            for content in group:
+                for algo in HASH_ALGORITHMS:
+                    assert content.get(algo) is not None, (
+                        "content_missing_from_hashes must not be called with "
+                        "partial hashes."
+                    )
+                if tuple(content[algo] for algo in HASH_ALGORITHMS) not in present:
+                    yield content
+
+    @_prepared_statement(
+        f"SELECT {', '.join(HASH_ALGORITHMS)} FROM content WHERE sha256 IN ?"
+    )
+    def _content_get_hashes_from_sha256(
+        self, ids: List[bytes], *, statement
+    ) -> Iterator[Tuple[bytes, bytes, bytes, bytes]]:
+        for row in self._execute_with_retries(statement, [ids]):
+            yield tuple(row[algo] for algo in HASH_ALGORITHMS)  # type: ignore
+
     @_prepared_select_statement(
         ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) = ?"
     )
@@ -831,6 +862,20 @@ class CqlRunner:
     @_prepared_select_statement(OriginRow)
     def origin_iter_all(self, *, statement) -> Iterable[OriginRow]:
         return map(OriginRow.from_dict, self._execute_with_retries(statement, []))
+
+    @_prepared_statement(
+        f"""
+        UPDATE {OriginRow.TABLE}
+        SET next_visit_id=?
+        WHERE sha1 = ? IF next_visit_id<?
+        """
+    )
+    def origin_bump_next_visit_id(
+        self, origin_url: str, visit_id: int, *, statement
+    ) -> None:
+        origin_sha1 = hash_url(origin_url)
+        next_id = visit_id + 1
+        self._execute_with_retries(statement, [next_id, origin_sha1, next_id])
 
     @_prepared_statement(f"SELECT next_visit_id FROM {OriginRow.TABLE} WHERE sha1 = ?")
     def _origin_get_next_visit_id(self, origin_sha1: bytes, *, statement) -> int:
