@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020  The Software Heritage developers
+# Copyright (C) 2017-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -172,6 +172,11 @@ JOINS = {
         "raw_extrinsic_metadata.authority_id=metadata_authority.id",
         "metadata_fetcher on raw_extrinsic_metadata.fetcher_id=metadata_fetcher.id",
     ],
+}
+
+EXTRA_WHERE = {
+    # hack to force the right index usage on table extid
+    "extid": "target_type in ('revision', 'release', 'content', 'directory')"
 }
 
 
@@ -461,6 +466,7 @@ def compute_query(obj_type, start, end):
     columns = COLUMNS.get(obj_type)
     join_specs = JOINS.get(obj_type, [])
     join_clause = "\n".join("left join %s" % clause for clause in join_specs)
+    additional_where = EXTRA_WHERE.get(obj_type)
 
     where = []
     where_args = []
@@ -470,6 +476,9 @@ def compute_query(obj_type, start, end):
     if end:
         where.append("%(keys)s < %%s")
         where_args.append(end)
+
+    if additional_where:
+        where.append(additional_where)
 
     where_clause = ""
     if where:

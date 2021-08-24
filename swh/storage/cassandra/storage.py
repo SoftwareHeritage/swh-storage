@@ -355,7 +355,22 @@ class CassandraStorage:
                 "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
             )
 
+        contents_with_all_hashes = []
+        contents_with_missing_hashes = []
         for content in contents:
+            if DEFAULT_ALGORITHMS <= set(content):
+                contents_with_all_hashes.append(content)
+            else:
+                contents_with_missing_hashes.append(content)
+
+        # These contents can be queried efficiently directly in the main table
+        for content in self._cql_runner.content_missing_from_hashes(
+            contents_with_all_hashes
+        ):
+            yield content[key_hash]
+
+        # For these, we need the expensive index lookups + main table.
+        for content in contents_with_missing_hashes:
             res = self.content_find(content)
             if not res:
                 yield content[key_hash]
@@ -999,7 +1014,11 @@ class CassandraStorage:
         nb_visits = 0
         for visit in visits:
             nb_visits += 1
-            if not visit.visit:
+            if visit.visit:
+                # Set origin.next_visit_id = max(origin.next_visit_id, visit.visit+1)
+                # so the next loader run does not reuse the id.
+                self._cql_runner.origin_bump_next_visit_id(visit.origin, visit.visit)
+            else:
                 visit_id = self._cql_runner.origin_generate_unique_visit_id(
                     visit.origin
                 )
@@ -1200,8 +1219,9 @@ class CassandraStorage:
                 if latest_visit is not None:
                     if updated_visit["date"] < latest_visit["date"]:
                         continue
-                    if updated_visit["visit"] < latest_visit["visit"]:
-                        continue
+                    assert (
+                        updated_visit["visit"] >= latest_visit["visit"]
+                    ), "Cassandra returned visits not ordered by increasing visit id."
 
                 latest_visit = updated_visit
 

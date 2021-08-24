@@ -68,10 +68,10 @@ class BaseRow:
 @dataclasses.dataclass
 class ContentRow(BaseRow):
     TABLE = "content"
-    PARTITION_KEY: ClassVar[Tuple[str, ...]] = (
+    PARTITION_KEY: ClassVar[Tuple[str, ...]] = ("sha256",)
+    CLUSTERING_KEY = (
         "sha1",
         "sha1_git",
-        "sha256",
         "blake2s256",
     )
 
