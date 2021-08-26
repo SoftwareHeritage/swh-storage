@@ -23,6 +23,7 @@ from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
 from swh.storage.cassandra.model import ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import HASH_ALGORITHMS, TABLES
+from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -486,29 +487,47 @@ class TestCassandraStorage(_TestStorage):
             )
             assert extids == [extid]
 
-    def test_directory_add_atomic(self, swh_storage, sample_data, mocker):
+    @pytest.mark.parametrize(
+        "insert_algo,batch_size",
+        [
+            ("one-by-one", None),
+            ("concurrent", None),
+            ("batch", 1),
+            ("batch", 2),
+            ("batch", 10),
+            ("batch", 100),
+        ],
+    )
+    def test_directory_add_algos(
+        self, swh_storage, sample_data, mocker, insert_algo, batch_size,
+    ):
+        mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
+        mocker.patch("swh.storage.cassandra.cql.BATCH_INSERT_MAX_SIZE", batch_size)
+        self.test_directory_add(swh_storage, sample_data)
+
+    @pytest.mark.parametrize("insert_algo", DIRECTORY_ENTRIES_INSERT_ALGOS)
+    def test_directory_add_atomic(self, swh_storage, sample_data, mocker, insert_algo):
         """Checks that a crash occurring after some directory entries were written
         does not cause the directory to be (partially) visible.
         ie. checks directories are added somewhat atomically."""
         # Disable the journal writer, it would detect the CrashyEntry exception too
         # early for this test to be relevant
         swh_storage.journal_writer.journal = None
-
-        class MyException(Exception):
-            pass
+        mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
+        mocker.patch("swh.storage.cassandra.cql.BATCH_INSERT_MAX_SIZE", 1)
 
         class CrashyEntry(DirectoryEntry):
             def __init__(self):
                 pass
 
             def to_dict(self):
-                raise MyException()
+                return {**directory.entries[0].to_dict(), "perms": "abcde"}
 
         directory = sample_data.directory3
         entries = directory.entries
         directory = attr.evolve(directory, entries=entries + (CrashyEntry(),))
 
-        with pytest.raises(MyException):
+        with pytest.raises(TypeError):
             swh_storage.directory_add([directory])
 
         # This should have written some of the entries to the database:

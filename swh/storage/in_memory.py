@@ -729,6 +729,7 @@ class InMemoryStorage(CassandraStorage):
         self.reset()
         self.journal_writer = JournalWriter(journal_writer)
         self._allow_overwrite = False
+        self._directory_entries_insert_algo = "one-by-one"
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()

@@ -7,6 +7,7 @@ from collections import Counter
 import dataclasses
 import datetime
 import functools
+import itertools
 import logging
 import random
 from typing import (
@@ -17,6 +18,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
@@ -25,6 +27,7 @@ from typing import (
 
 from cassandra import ConsistencyLevel, CoordinationFailure
 from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
+from cassandra.concurrent import execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
 from mypy_extensions import NamedArg
@@ -84,6 +87,8 @@ This can cause performance issues, as the node getting the query need to
 coordinate with other nodes to get the complete results.
 See <https://github.com/scylladb/scylla/pull/4797> for details and rationale.
 """
+
+BATCH_INSERT_MAX_SIZE = 1000
 
 
 logger = logging.getLogger(__name__)
@@ -166,6 +171,14 @@ TArg = TypeVar("TArg")
 TSelf = TypeVar("TSelf")
 
 
+def _insert_query(row_class):
+    columns = row_class.cols()
+    return (
+        f"INSERT INTO {row_class.TABLE} ({', '.join(columns)}) "
+        f"VALUES ({', '.join('?' for _ in columns)})"
+    )
+
+
 def _prepared_insert_statement(
     row_class: Type[BaseRow],
 ) -> Callable[
@@ -174,11 +187,7 @@ def _prepared_insert_statement(
 ]:
     """Shorthand for using `_prepared_statement` for `INSERT INTO`
     statements."""
-    columns = row_class.cols()
-    return _prepared_statement(
-        "INSERT INTO %s (%s) VALUES (%s)"
-        % (row_class.TABLE, ", ".join(columns), ", ".join("?" for _ in columns),)
-    )
+    return _prepared_statement(_insert_query(row_class))
 
 
 def _prepared_exists_statement(
@@ -280,11 +289,27 @@ class CqlRunner:
         stop=stop_after_attempt(MAX_RETRIES),
         retry=retry_if_exception_type(CoordinationFailure),
     )
-    def _execute_with_retries(self, statement, args) -> ResultSet:
+    def _execute_with_retries(self, statement, args: Optional[Sequence]) -> ResultSet:
         return self._session.execute(statement, args, timeout=1000.0)
+
+    @retry(
+        wait=wait_random_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(MAX_RETRIES),
+        retry=retry_if_exception_type(CoordinationFailure),
+    )
+    def _execute_many_with_retries(
+        self, statement, args_list: List[Tuple]
+    ) -> ResultSet:
+        return execute_concurrent_with_args(self._session, statement, args_list)
 
     def _add_one(self, statement, obj: BaseRow) -> None:
         self._execute_with_retries(statement, dataclasses.astuple(obj))
+
+    def _add_many(self, statement, objs: Sequence[BaseRow]) -> None:
+        tables = {obj.TABLE for obj in objs}
+        assert len(tables) == 1, f"Cannot insert to multiple tables: {tables}"
+        (table,) = tables
+        self._execute_many_with_retries(statement, list(map(dataclasses.astuple, objs)))
 
     _T = TypeVar("_T", bound=BaseRow)
 
@@ -664,6 +689,56 @@ class CqlRunner:
     @_prepared_insert_statement(DirectoryEntryRow)
     def directory_entry_add_one(self, entry: DirectoryEntryRow, *, statement) -> None:
         self._add_one(statement, entry)
+
+    @_prepared_insert_statement(DirectoryEntryRow)
+    def directory_entry_add_concurrent(
+        self, entries: List[DirectoryEntryRow], *, statement
+    ) -> None:
+        if len(entries) == 0:
+            # nothing to do
+            return
+        assert (
+            len({entry.directory_id for entry in entries}) == 1
+        ), "directory_entry_add_many must be called with entries for a single dir"
+        self._add_many(statement, entries)
+
+    def directory_entry_add_batch(self, entries: List[DirectoryEntryRow],) -> None:
+        if len(entries) == 0:
+            # nothing to do
+            return
+        assert (
+            len({entry.directory_id for entry in entries}) == 1
+        ), "directory_entry_add_many must be called with entries for a single dir"
+
+        # query to INSERT one row
+        insert_query = _insert_query(DirectoryEntryRow) + ";\n"
+
+        # In "steady state", we insert batches of the maximum allowed size.
+        # Then, the last one has however many entries remain.
+        last_batch_size = len(entries) % BATCH_INSERT_MAX_SIZE
+        if len(entries) >= BATCH_INSERT_MAX_SIZE:
+            # TODO: the main_statement's size is statically known, so we could avoid
+            #       re-preparing it on every call
+            main_statement = self._session.prepare(
+                "BEGIN UNLOGGED BATCH\n"
+                + insert_query * BATCH_INSERT_MAX_SIZE
+                + "APPLY BATCH"
+            )
+        last_statement = self._session.prepare(
+            "BEGIN UNLOGGED BATCH\n" + insert_query * last_batch_size + "APPLY BATCH"
+        )
+
+        for entry_group in grouper(entries, BATCH_INSERT_MAX_SIZE):
+            entry_group = list(map(dataclasses.astuple, entry_group))
+            if len(entry_group) == BATCH_INSERT_MAX_SIZE:
+                self._execute_with_retries(
+                    main_statement, list(itertools.chain.from_iterable(entry_group))
+                )
+            else:
+                assert len(entry_group) == last_batch_size
+                self._execute_with_retries(
+                    last_statement, list(itertools.chain.from_iterable(entry_group))
+                )
 
     @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
     def directory_entry_get(

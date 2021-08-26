@@ -90,6 +90,8 @@ from .schema import HASH_ALGORITHMS
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
+DIRECTORY_ENTRIES_INSERT_ALGOS = ["one-by-one", "concurrent", "batch"]
+
 
 class CassandraStorage:
     def __init__(
@@ -101,6 +103,7 @@ class CassandraStorage:
         journal_writer=None,
         allow_overwrite=False,
         consistency_level="ONE",
+        directory_entries_insert_algo="one-by-one",
     ):
         """
         A backend of swh-storage backed by Cassandra
@@ -121,6 +124,10 @@ class CassandraStorage:
                 Note that a ``False`` value does not guarantee there won't be
                 any overwrite.
             consistency_level: The default read/write consistency to use
+            directory_entries_insert_algo: Must be one of:
+                * one-by-one: naive, one INSERT per directory entry, serialized
+                * concurrent: one INSERT per directory entry, concurrent
+                * batch: using UNLOGGED BATCH to insert many entries in a few statements
         """
         self._hosts = hosts
         self._keyspace = keyspace
@@ -130,6 +137,13 @@ class CassandraStorage:
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(objstorage)
         self._allow_overwrite = allow_overwrite
+
+        if directory_entries_insert_algo not in DIRECTORY_ENTRIES_INSERT_ALGOS:
+            raise ValueError(
+                f"directory_entries_insert_algo must be one of: "
+                f"{', '.join(DIRECTORY_ENTRIES_INSERT_ALGOS)}"
+            )
+        self._directory_entries_insert_algo = directory_entries_insert_algo
 
     def _set_cql_runner(self):
         """Used by tests when they need to reset the CqlRunner"""
@@ -458,9 +472,21 @@ class CassandraStorage:
 
         for directory in directories:
             # Add directory entries to the 'directory_entry' table
-            for entry in directory.entries:
-                self._cql_runner.directory_entry_add_one(
-                    DirectoryEntryRow(directory_id=directory.id, **entry.to_dict())
+            rows = [
+                DirectoryEntryRow(directory_id=directory.id, **entry.to_dict())
+                for entry in directory.entries
+            ]
+            if self._directory_entries_insert_algo == "one-by-one":
+                for row in rows:
+                    self._cql_runner.directory_entry_add_one(row)
+            elif self._directory_entries_insert_algo == "concurrent":
+                self._cql_runner.directory_entry_add_concurrent(rows)
+            elif self._directory_entries_insert_algo == "batch":
+                self._cql_runner.directory_entry_add_batch(rows)
+            else:
+                raise ValueError(
+                    f"Unexpected value for directory_entries_insert_algo: "
+                    f"{self._directory_entries_insert_algo}"
                 )
 
             # Add the directory *after* adding all the entries, so someone
