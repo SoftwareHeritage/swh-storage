@@ -283,17 +283,7 @@ class CqlRunner:
     def _execute_with_retries(self, statement, args) -> ResultSet:
         return self._session.execute(statement, args, timeout=1000.0)
 
-    @_prepared_statement(
-        "UPDATE object_count SET count = count + ? "
-        "WHERE partition_key = 0 AND object_type = ?"
-    )
-    def _increment_counter(
-        self, object_type: str, nb: int, *, statement: PreparedStatement
-    ) -> None:
-        self._execute_with_retries(statement, [nb, object_type])
-
     def _add_one(self, statement, obj: BaseRow) -> None:
-        self._increment_counter(obj.TABLE, 1)
         self._execute_with_retries(statement, dataclasses.astuple(obj))
 
     _T = TypeVar("_T", bound=BaseRow)
@@ -328,7 +318,6 @@ class CqlRunner:
         """Returned currified by content_add_prepare, to be called when the
         content row should be added to the primary table."""
         self._execute_with_retries(statement, None)
-        self._increment_counter("content", 1)
 
     @_prepared_insert_statement(ContentRow)
     def content_add_prepare(
@@ -482,7 +471,6 @@ class CqlRunner:
         """Returned currified by skipped_content_add_prepare, to be called
         when the content row should be added to the primary table."""
         self._execute_with_retries(statement, None)
-        self._increment_counter("skipped_content", 1)
 
     @_prepared_insert_statement(SkippedContentRow)
     def skipped_content_add_prepare(
@@ -1219,7 +1207,6 @@ class CqlRunner:
         """Returned currified by extid_add_prepare, to be called when the
         extid row should be added to the primary table."""
         self._execute_with_retries(statement, None)
-        self._increment_counter("extid", 1)
 
     @_prepared_insert_statement(ExtIDRow)
     def extid_add_prepare(
@@ -1328,10 +1315,11 @@ class CqlRunner:
     # Miscellaneous
     ##########################
 
+    def stat_counters(self) -> Iterable[ObjectCountRow]:
+        raise NotImplementedError(
+            "stat_counters is not implemented by the Cassandra backend"
+        )
+
     @_prepared_statement("SELECT uuid() FROM revision LIMIT 1;")
     def check_read(self, *, statement):
         self._execute_with_retries(statement, [])
-
-    @_prepared_select_statement(ObjectCountRow, "WHERE partition_key=0")
-    def stat_counters(self, *, statement) -> Iterable[ObjectCountRow]:
-        return map(ObjectCountRow.from_dict, self._execute_with_retries(statement, []))
