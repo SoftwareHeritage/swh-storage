@@ -1916,7 +1916,9 @@ class TestStorage:
                             visit=visit.visit,
                             date=now(),
                             status="full",
-                            snapshot=None,
+                            snapshot=hash_to_bytes(
+                                "9b922e6d8d5b803c1582aabe5525b7b91150788e"
+                            ),
                         )
                     ]
                 )

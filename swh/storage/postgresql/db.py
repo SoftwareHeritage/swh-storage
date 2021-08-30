@@ -538,8 +538,8 @@ class Db(BaseDb):
         "ov.date",
         "ov.type AS type",
         "ovs.status",
-        "ovs.metadata",
         "ovs.snapshot",
+        "ovs.metadata",
     ]
 
     origin_visit_status_select_cols = [
