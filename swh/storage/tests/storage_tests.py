@@ -927,25 +927,30 @@ class TestStorage:
             assert actual_entry is None
 
     def test_directory_get_entries_pagination(self, swh_storage, sample_data):
-        # Note: this test assumes entries are returned in lexicographic order,
-        # which is not actually guaranteed by the interface.
         dir_ = sample_data.directory3
         entries = sorted(dir_.entries, key=lambda entry: entry.name)
         swh_storage.directory_add(sample_data.directories)
 
         # No pagination needed
         actual_data = swh_storage.directory_get_entries(dir_.id)
-        assert actual_data == PagedResult(results=entries, next_page_token=None)
+        assert sorted(actual_data.results) == sorted(entries)
+        assert actual_data.next_page_token is None, actual_data
 
         # A little pagination
         actual_data = swh_storage.directory_get_entries(dir_.id, limit=2)
-        assert actual_data.results == entries[0:2]
-        assert actual_data.next_page_token is not None
+        assert len(actual_data.results) == 2, actual_data
+        assert actual_data.next_page_token is not None, actual_data
+
+        all_results = list(actual_data.results)
 
         actual_data = swh_storage.directory_get_entries(
             dir_.id, page_token=actual_data.next_page_token
         )
-        assert actual_data == PagedResult(results=entries[2:], next_page_token=None)
+        assert len(actual_data.results) == len(entries) - 2, actual_data
+        assert actual_data.next_page_token is None, actual_data
+
+        all_results.extend(actual_data.results)
+        assert sorted(all_results) == sorted(entries)
 
     @pytest.mark.parametrize("limit", [1, 2, 3, 4, 5])
     def test_directory_get_entries(self, swh_storage, sample_data, limit):
