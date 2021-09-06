@@ -23,6 +23,7 @@ in its heuristics.
 
 import datetime
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -1141,7 +1142,7 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
                 failures += 1
 
 
-def main(storage_dbconn, storage_url, deposit_dbconn, first_id, dry_run):
+def main(storage_dbconn, storage_url, deposit_dbconn, first_id, limit, dry_run):
     storage_db = BaseDb.connect(storage_dbconn)
     deposit_db = BaseDb.connect(deposit_dbconn)
     storage = get_storage(
@@ -1165,7 +1166,10 @@ def main(storage_dbconn, storage_url, deposit_dbconn, first_id, dry_run):
 
     total_rows = 0
     with deposit_db.cursor() as deposit_cur:
-        for row in iter_revision_rows(storage_dbconn, first_id):
+        rows = iter_revision_rows(storage_dbconn, first_id)
+        if limit is not None:
+            rows = itertools.islice(rows, limit)
+        for row in rows:
             handle_row(row, storage, deposit_cur, dry_run)
 
             total_rows += 1
@@ -1186,10 +1190,14 @@ if __name__ == "__main__":
         first_id = "00" * 20
     elif len(sys.argv) == 5:
         (_, storage_dbconn, storage_url, deposit_dbconn, first_id) = sys.argv
+        limit = None
+    elif len(sys.argv) == 6:
+        (_, storage_dbconn, storage_url, deposit_dbconn, first_id, limit_str) = sys.argv
+        limit = int(limit_str)
     else:
         print(
             f"Syntax: {sys.argv[0]} <storage_dbconn> <storage_url> "
-            f"<deposit_dbconn> [<first id>]"
+            f"<deposit_dbconn> [<first id> [limit]]"
         )
         exit(1)
 
@@ -1205,4 +1213,11 @@ if __name__ == "__main__":
                 _origins.add(bytes.fromhex(digest))
         print("Done loading origins.")
 
-    main(storage_dbconn, storage_url, deposit_dbconn, bytes.fromhex(first_id), True)
+    main(
+        storage_dbconn,
+        storage_url,
+        deposit_dbconn,
+        bytes.fromhex(first_id),
+        limit,
+        True,
+    )
