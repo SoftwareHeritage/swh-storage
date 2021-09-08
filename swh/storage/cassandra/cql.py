@@ -702,7 +702,14 @@ class CqlRunner:
         ), "directory_entry_add_many must be called with entries for a single dir"
         self._add_many(statement, entries)
 
-    def directory_entry_add_batch(self, entries: List[DirectoryEntryRow],) -> None:
+    @_prepared_statement(
+        "BEGIN UNLOGGED BATCH\n"
+        + (_insert_query(DirectoryEntryRow) + ";\n") * BATCH_INSERT_MAX_SIZE
+        + "APPLY BATCH"
+    )
+    def directory_entry_add_batch(
+        self, entries: List[DirectoryEntryRow], *, statement
+    ) -> None:
         if len(entries) == 0:
             # nothing to do
             return
@@ -716,14 +723,6 @@ class CqlRunner:
         # In "steady state", we insert batches of the maximum allowed size.
         # Then, the last one has however many entries remain.
         last_batch_size = len(entries) % BATCH_INSERT_MAX_SIZE
-        if len(entries) >= BATCH_INSERT_MAX_SIZE:
-            # TODO: the main_statement's size is statically known, so we could avoid
-            #       re-preparing it on every call
-            main_statement = self._session.prepare(
-                "BEGIN UNLOGGED BATCH\n"
-                + insert_query * BATCH_INSERT_MAX_SIZE
-                + "APPLY BATCH"
-            )
         last_statement = self._session.prepare(
             "BEGIN UNLOGGED BATCH\n" + insert_query * last_batch_size + "APPLY BATCH"
         )
@@ -732,7 +731,7 @@ class CqlRunner:
             entry_group = list(map(dataclasses.astuple, entry_group))
             if len(entry_group) == BATCH_INSERT_MAX_SIZE:
                 self._execute_with_retries(
-                    main_statement, list(itertools.chain.from_iterable(entry_group))
+                    statement, list(itertools.chain.from_iterable(entry_group))
                 )
             else:
                 assert len(entry_group) == last_batch_size

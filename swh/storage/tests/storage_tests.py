@@ -690,7 +690,7 @@ class TestStorage:
 
     def test_directory_add(self, swh_storage, sample_data):
         content = sample_data.content
-        directory = sample_data.directories[1]
+        directory = sample_data.directory
         assert directory.entries[0].target == content.sha1_git
         swh_storage.content_add([content])
 

@@ -18,9 +18,11 @@ from cassandra.cluster import NoHostAvailable
 import pytest
 
 from swh.core.api.classes import stream_results
+from swh.model import from_disk
 from swh.model.model import Directory, DirectoryEntry, Snapshot, SnapshotBranch
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
+from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
 from swh.storage.cassandra.model import ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import HASH_ALGORITHMS, TABLES
 from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
@@ -487,23 +489,44 @@ class TestCassandraStorage(_TestStorage):
             )
             assert extids == [extid]
 
+    def _directory_with_entries(self, sample_data, nb_entries):
+        """Returns a dir with ``nb_entries``, all pointing to
+        the same content"""
+        return Directory(
+            entries=tuple(
+                DirectoryEntry(
+                    name=f"file{i:10}".encode(),
+                    type="file",
+                    target=sample_data.content.sha1_git,
+                    perms=from_disk.DentryPerms.directory,
+                )
+                for i in range(nb_entries)
+            )
+        )
+
     @pytest.mark.parametrize(
-        "insert_algo,batch_size",
+        "insert_algo,nb_entries",
         [
-            ("one-by-one", None),
-            ("concurrent", None),
+            ("one-by-one", 10),
+            ("concurrent", 10),
             ("batch", 1),
             ("batch", 2),
-            ("batch", 10),
-            ("batch", 100),
+            ("batch", BATCH_INSERT_MAX_SIZE - 1),
+            ("batch", BATCH_INSERT_MAX_SIZE),
+            ("batch", BATCH_INSERT_MAX_SIZE + 1),
+            ("batch", BATCH_INSERT_MAX_SIZE * 2),
         ],
     )
     def test_directory_add_algos(
-        self, swh_storage, sample_data, mocker, insert_algo, batch_size,
+        self, swh_storage, sample_data, mocker, insert_algo, nb_entries,
     ):
         mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
-        mocker.patch("swh.storage.cassandra.cql.BATCH_INSERT_MAX_SIZE", batch_size)
-        self.test_directory_add(swh_storage, sample_data)
+
+        class new_sample_data:
+            content = sample_data.content
+            directory = self._directory_with_entries(sample_data, nb_entries)
+
+        self.test_directory_add(swh_storage, new_sample_data)
 
     @pytest.mark.parametrize("insert_algo", DIRECTORY_ENTRIES_INSERT_ALGOS)
     def test_directory_add_atomic(self, swh_storage, sample_data, mocker, insert_algo):
@@ -514,7 +537,6 @@ class TestCassandraStorage(_TestStorage):
         # early for this test to be relevant
         swh_storage.journal_writer.journal = None
         mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
-        mocker.patch("swh.storage.cassandra.cql.BATCH_INSERT_MAX_SIZE", 1)
 
         class CrashyEntry(DirectoryEntry):
             def __init__(self):
@@ -523,7 +545,7 @@ class TestCassandraStorage(_TestStorage):
             def to_dict(self):
                 return {**directory.entries[0].to_dict(), "perms": "abcde"}
 
-        directory = sample_data.directory3
+        directory = self._directory_with_entries(sample_data, BATCH_INSERT_MAX_SIZE)
         entries = directory.entries
         directory = attr.evolve(directory, entries=entries + (CrashyEntry(),))
 
