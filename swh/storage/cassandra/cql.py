@@ -717,27 +717,21 @@ class CqlRunner:
             len({entry.directory_id for entry in entries}) == 1
         ), "directory_entry_add_many must be called with entries for a single dir"
 
-        # query to INSERT one row
-        insert_query = _insert_query(DirectoryEntryRow) + ";\n"
-
-        # In "steady state", we insert batches of the maximum allowed size.
-        # Then, the last one has however many entries remain.
-        last_batch_size = len(entries) % BATCH_INSERT_MAX_SIZE
-        last_statement = self._session.prepare(
-            "BEGIN UNLOGGED BATCH\n" + insert_query * last_batch_size + "APPLY BATCH"
-        )
-
         for entry_group in grouper(entries, BATCH_INSERT_MAX_SIZE):
-            entry_group = list(map(dataclasses.astuple, entry_group))
+            entry_group = list(entry_group)
             if len(entry_group) == BATCH_INSERT_MAX_SIZE:
+                entry_group = list(map(dataclasses.astuple, entry_group))
                 self._execute_with_retries(
                     statement, list(itertools.chain.from_iterable(entry_group))
                 )
             else:
-                assert len(entry_group) == last_batch_size
-                self._execute_with_retries(
-                    last_statement, list(itertools.chain.from_iterable(entry_group))
-                )
+                # Last group, with a smaller size than the BATCH we prepared.
+                # Creating a prepared BATCH just for this then discarding it would
+                # create too much churn on the server side; and using unprepared
+                # statements is annoying (we can't use _insert_query() as they have
+                # a different format)
+                # Fall back to inserting concurrently.
+                self.directory_entry_add_concurrent(entry_group)
 
     @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
     def directory_entry_get(
