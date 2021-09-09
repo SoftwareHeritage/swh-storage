@@ -299,8 +299,9 @@ class CqlRunner:
     )
     def _execute_many_with_retries(
         self, statement, args_list: List[Tuple]
-    ) -> ResultSet:
-        return execute_concurrent_with_args(self._session, statement, args_list)
+    ) -> Iterable[BaseRow]:
+        for res in execute_concurrent_with_args(self._session, statement, args_list):
+            yield from res.result_or_exc
 
     def _add_one(self, statement, obj: BaseRow) -> None:
         self._execute_with_retries(statement, dataclasses.astuple(obj))
@@ -308,8 +309,10 @@ class CqlRunner:
     def _add_many(self, statement, objs: Sequence[BaseRow]) -> None:
         tables = {obj.TABLE for obj in objs}
         assert len(tables) == 1, f"Cannot insert to multiple tables: {tables}"
-        (table,) = tables
-        self._execute_many_with_retries(statement, list(map(dataclasses.astuple, objs)))
+        rows = list(map(dataclasses.astuple, objs))
+        for _ in self._execute_many_with_retries(statement, rows):
+            # Need to consume the generator to actually run the INSERTs
+            pass
 
     _T = TypeVar("_T", bound=BaseRow)
 
@@ -475,8 +478,8 @@ class CqlRunner:
         """
         self._execute_with_retries(query, [content.get_hash(algo), token])
 
-    def content_get_tokens_from_single_hash(
-        self, algo: str, hash_: bytes
+    def content_get_tokens_from_single_algo(
+        self, algo: str, hashes: List[bytes]
     ) -> Iterable[int]:
         assert algo in HASH_ALGORITHMS
         query = f"""
@@ -485,7 +488,10 @@ class CqlRunner:
             WHERE {algo} = %s
         """
         return (
-            row["target_token"] for row in self._execute_with_retries(query, [hash_])
+            row["target_token"]  # type: ignore
+            for row in self._execute_many_with_retries(
+                query, [(hash_,) for hash_ in hashes]
+            )
         )
 
     ##########################

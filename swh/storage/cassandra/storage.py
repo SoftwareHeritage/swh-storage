@@ -157,13 +157,15 @@ class CassandraStorage:
 
         return True
 
-    def _content_get_from_hash(self, algo, hash_) -> Iterable:
+    def _content_get_from_hashes(self, algo, hashes: List[bytes]) -> Iterable:
         """From the name of a hash algorithm and a value of that hash,
         looks up the "hash -> token" secondary table (content_by_{algo})
         to get tokens.
         Then, looks up the main table (content) to get all contents with
         that token, and filters out contents whose hash doesn't match."""
-        found_tokens = self._cql_runner.content_get_tokens_from_single_hash(algo, hash_)
+        found_tokens = self._cql_runner.content_get_tokens_from_single_algo(
+            algo, hashes
+        )
 
         for token in found_tokens:
             assert isinstance(token, int), found_tokens
@@ -172,7 +174,7 @@ class CassandraStorage:
 
             for row in res:
                 # re-check the the hash (in case of murmur3 collision)
-                if getattr(row, algo) == hash_:
+                if getattr(row, algo) in hashes:
                     yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
@@ -216,7 +218,8 @@ class CassandraStorage:
                     collisions = []
                     # Get tokens of 'content' rows with the same value for
                     # sha1/sha1_git
-                    rows = self._content_get_from_hash(algo, content.get_hash(algo))
+                    # TODO: batch these requests, instead of sending them one by one
+                    rows = self._content_get_from_hashes(algo, [content.get_hash(algo)])
                     for row in rows:
                         if getattr(row, algo) != content.get_hash(algo):
                             # collision of token(partition key), ignore this
@@ -334,42 +337,53 @@ class CassandraStorage:
 
         key = operator.attrgetter(algo)
         contents_by_hash: Dict[Sha1, Optional[Content]] = {}
-        for hash_ in contents:
+        for row in self._content_get_from_hashes(algo, contents):
             # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1/sha1_git
             # matches the argument, from the index table ('content_by_*')
-            for row in self._content_get_from_hash(algo, hash_):
-                row_d = row.to_dict()
-                row_d.pop("ctime")
-                content = Content(**row_d)
-                contents_by_hash[key(content)] = content
+            row_d = row.to_dict()
+            row_d.pop("ctime")
+            content = Content(**row_d)
+            contents_by_hash[key(content)] = content
         return [contents_by_hash.get(hash_) for hash_ in contents]
 
     @timed
     def content_find(self, content: Dict[str, Any]) -> List[Content]:
+        return self._content_find_many([content])
+
+    def _content_find_many(self, contents: List[Dict[str, Any]]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
-        filter_algos = list(set(content).intersection(HASH_ALGORITHMS))
+        filter_algos = set(HASH_ALGORITHMS)
+        for content in contents:
+            filter_algos &= set(content)
         if not filter_algos:
             raise StorageArgumentException(
                 "content keys must contain at least one "
                 f"of: {', '.join(sorted(HASH_ALGORITHMS))}"
             )
-        common_algo = filter_algos[0]
+        common_algo = list(filter_algos)[0]
 
         results = []
-        rows = self._content_get_from_hash(common_algo, content[common_algo])
+        rows = self._content_get_from_hashes(
+            common_algo, [content[common_algo] for content in contents]
+        )
         for row in rows:
             # Re-check all the hashes, in case of collisions (either of the
             # hash of the partition key, or the hashes in it)
-            for algo in HASH_ALGORITHMS:
-                if content.get(algo) and getattr(row, algo) != content[algo]:
-                    # This hash didn't match; discard the row.
+            for content in contents:
+                for algo in HASH_ALGORITHMS:
+                    if content.get(algo) and getattr(row, algo) != content[algo]:
+                        # This hash didn't match; discard the row.
+                        break
+                else:
+                    # All hashes match, keep this row.
+                    row_d = row.to_dict()
+                    row_d["ctime"] = row.ctime.replace(tzinfo=datetime.timezone.utc)
+                    results.append(Content(**row_d))
                     break
             else:
-                # All hashes match, keep this row.
-                row_d = row.to_dict()
-                row_d["ctime"] = row.ctime.replace(tzinfo=datetime.timezone.utc)
-                results.append(Content(**row_d))
+                # No content matched; skip it
+                pass
         return results
 
     @timed

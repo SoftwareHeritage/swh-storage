@@ -237,10 +237,11 @@ class InMemoryCqlRunner:
     def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
         self._content_indexes[algo][content.get_hash(algo)].add(token)
 
-    def content_get_tokens_from_single_hash(
-        self, algo: str, hash_: bytes
+    def content_get_tokens_from_single_algo(
+        self, algo: str, hashes: List[bytes]
     ) -> Iterable[int]:
-        return self._content_indexes[algo][hash_]
+        for hash_ in hashes:
+            yield from self._content_indexes[algo][hash_]
 
     ##########################
     # 'skipped_content' table

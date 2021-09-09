@@ -276,14 +276,14 @@ class TestCassandraStorage(_TestStorage):
         cont, cont2 = sample_data.contents[:2]
 
         # always return a token
-        def mock_cgtfsh(algo, hash_):
+        def mock_cgtfsa(algo, hashes):
             nonlocal called
             called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
         )
 
         # For all tokens, always return cont
@@ -324,14 +324,14 @@ class TestCassandraStorage(_TestStorage):
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
-        def mock_cgtfsh(algo, hash_):
+        def mock_cgtfsa(algo, hashes):
             nonlocal called
             called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
         )
 
         # For all tokens, always return cont and cont2
@@ -369,14 +369,14 @@ class TestCassandraStorage(_TestStorage):
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
-        def mock_cgtfsh(algo, hash_):
+        def mock_cgtfsa(algo, hashes):
             nonlocal called
             called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
         )
 
         # For all tokens, always return cont and cont2
