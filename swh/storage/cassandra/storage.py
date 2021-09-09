@@ -514,8 +514,10 @@ class CassandraStorage:
     def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
         return self._cql_runner.directory_missing(directories)
 
-    def _join_dentry_to_content(self, dentry: DirectoryEntry) -> Dict[str, Any]:
-        contents: Union[List[Content], List[SkippedContentRow]]
+    def _join_dentry_to_content(
+        self, dentry: DirectoryEntry, contents: List[Content]
+    ) -> Dict[str, Any]:
+        content: Union[None, Content, SkippedContentRow]
         keys = (
             "status",
             "sha1",
@@ -526,19 +528,22 @@ class CassandraStorage:
         ret = dict.fromkeys(keys)
         ret.update(dentry.to_dict())
         if ret["type"] == "file":
-            contents = self.content_find({"sha1_git": ret["target"]})
-            if not contents:
+            for content in contents:
+                if dentry.target == content.sha1_git:
+                    break
+            else:
                 tokens = list(
                     self._cql_runner.skipped_content_get_tokens_from_single_hash(
                         "sha1_git", ret["target"]
                     )
                 )
                 if tokens:
-                    contents = list(
+                    content = list(
                         self._cql_runner.skipped_content_get_from_token(tokens[0])
-                    )
-            if contents:
-                content = contents[0]
+                    )[0]
+                else:
+                    content = None
+            if content:
                 for key in keys:
                     ret[key] = getattr(content, key)
         return ret
@@ -550,12 +555,16 @@ class CassandraStorage:
             return
         rows = list(self._cql_runner.directory_entry_get([directory_id]))
 
+        # TODO: dedup to be fast in case the directory contains the same subdir/file
+        # multiple times
+        contents = self._content_find_many([{"sha1_git": row.target} for row in rows])
+
         for row in rows:
             entry_d = row.to_dict()
             # Build and yield the directory entry dict
             del entry_d["directory_id"]
             entry = DirectoryEntry.from_dict(entry_d)
-            ret = self._join_dentry_to_content(entry)
+            ret = self._join_dentry_to_content(entry, contents)
             ret["name"] = prefix + ret["name"]
             ret["dir_id"] = directory_id
             yield ret
