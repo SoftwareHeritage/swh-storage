@@ -509,9 +509,16 @@ def handle_deposit_row(
         date = deposit_request["deposit_request.date"]
         dates.add(date)
 
-        assert deposit_request["deposit.swhid_context"], deposit_request
+        if deposit_request["deposit.external_id"] == "hal-02355563":
+            # Failed deposit
+            swhids.add(
+                "swh:1:rev:9293f230baca9814490d4fff7ac53d487a20edb6"
+                ";origin=https://hal.archives-ouvertes.fr/hal-02355563"
+            )
+        else:
+            assert deposit_request["deposit.swhid_context"], deposit_request
+            swhids.add(deposit_request["deposit.swhid_context"])
         external_identifiers.add(deposit_request["deposit.external_id"])
-        swhids.add(deposit_request["deposit.swhid_context"])
 
         # Client of the deposit
         provider_urls.add(deposit_request["deposit_client.provider_url"])
