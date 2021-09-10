@@ -191,6 +191,29 @@ def pypi_project_from_filename(filename):
         return "use0mk"
     elif filename == "play-0-develop-1-gd67cd85.tar.gz":
         return "play"
+    elif filename.startswith("mosaic-nist-"):
+        return "mosaic-nist"
+    elif filename.startswith("pypops-"):
+        return "pypops"
+    elif filename.startswith("pdfcomparator-"):
+        return "pdfcomparator"
+    elif filename.startswith("LabJackPython-"):
+        return "LabJackPython"
+    elif filename == "MD2K: Cerebral Cortex-3.0.0.tar.gz":
+        return "cerebralcortex-kernel"
+    elif filename.startswith("LyMaker-0 (copy)"):
+        return "LyMaker"
+    elif filename.startswith("python-tplink-smarthome-"):
+        return "python-tplink-smarthome"
+    elif filename.startswith("jtt=tm-utils-"):
+        return "jtt-tm-utils"
+    elif filename == "atproject0.1.tar.gz":
+        return "atproject"
+    elif filename == "labm8.tar.gz":
+        return "labm8"
+    elif filename == "Bugs Everywhere (BEurtle fork)-1.5.0.1.-2012-07-16-.zip":
+        return "Bugs-Everywhere-BEurtle-fork"
+
     filename = filename.replace(" ", "-")
 
     match = re.match(
@@ -976,9 +999,16 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
             assert len(metadata["original_artifact"]) == 1
 
-            origin = pypi_origin_from_filename(
-                storage, row["id"], metadata["original_artifact"][0]["filename"]
-            )
+            version = metadata.get("project", {}).get("version")
+            filename = metadata["original_artifact"][0]["filename"]
+            if version:
+                origin = pypi_origin_from_project_name(filename.split("-" + version)[0])
+                if not _check_revision_in_origin(storage, origin, row["id"]):
+                    origin = None
+            else:
+                origin = None
+            if origin is None:
+                origin = pypi_origin_from_filename(storage, row["id"], filename)
 
             if "project" in metadata:
                 # pypi loader format 2
