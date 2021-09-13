@@ -1617,9 +1617,11 @@ class CassandraStorage:
         for extid in extids:
             target_type = extid.target.object_type.value
             target = extid.target.object_id
+            extid_version = extid.extid_version
+            extid_type = extid.extid_type
             extidrow = ExtIDRow(
-                extid_type=extid.extid_type,
-                extid_version=extid.extid_version,
+                extid_type=extid_type,
+                extid_version=extid_version,
                 extid=extid.extid,
                 target_type=target_type,
                 target=target,
@@ -1634,10 +1636,17 @@ class CassandraStorage:
         return {"extid:add": inserted}
 
     @timed
-    def extid_get_from_extid(self, id_type: str, ids: List[bytes]) -> List[ExtID]:
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes], version: Optional[int] = None
+    ) -> List[ExtID]:
         result: List[ExtID] = []
         for extid in ids:
-            extidrows = list(self._cql_runner.extid_get_from_extid(id_type, extid))
+            if version is not None:
+                extidrows = self._cql_runner.extid_get_from_extid_and_version(
+                    id_type, extid, version
+                )
+            else:
+                extidrows = self._cql_runner.extid_get_from_extid(id_type, extid)
             result.extend(
                 ExtID(
                     extid_type=extidrow.extid_type,
@@ -1653,13 +1662,26 @@ class CassandraStorage:
 
     @timed
     def extid_get_from_target(
-        self, target_type: SwhidObjectType, ids: List[Sha1Git]
+        self,
+        target_type: SwhidObjectType,
+        ids: List[Sha1Git],
+        extid_type: Optional[str] = None,
+        extid_version: Optional[int] = None,
     ) -> List[ExtID]:
+        if (extid_version is not None and extid_type is None) or (
+            extid_version is None and extid_type is not None
+        ):
+            raise ValueError("You must provide both extid_type and extid_version")
+
         result: List[ExtID] = []
         for target in ids:
-            extidrows = list(
-                self._cql_runner.extid_get_from_target(target_type.value, target)
+            extidrows = self._cql_runner.extid_get_from_target(
+                target_type.value,
+                target,
+                extid_type=extid_type,
+                extid_version=extid_version,
             )
+
             result.extend(
                 ExtID(
                     extid_type=extidrow.extid_type,

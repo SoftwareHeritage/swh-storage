@@ -1335,6 +1335,22 @@ class CqlRunner:
     def extid_get_from_token(self, token: int, *, statement) -> Iterable[ExtIDRow]:
         return map(ExtIDRow.from_dict, self._execute_with_retries(statement, [token]),)
 
+    # Rows are partitioned by token(extid_type, extid), then ordered (aka. "clustered")
+    # by (extid_type, extid, extid_version, ...). This means that, without knowing the
+    # exact extid_type and extid, we need to scan the whole partition; which should be
+    # reasonably small. We can change the schema later if this becomes an issue
+    @_prepared_select_statement(
+        ExtIDRow,
+        "WHERE token(extid_type, extid) = ? AND extid_version = ? ALLOW FILTERING",
+    )
+    def extid_get_from_token_and_extid_version(
+        self, token: int, extid_version: int, *, statement
+    ) -> Iterable[ExtIDRow]:
+        return map(
+            ExtIDRow.from_dict,
+            self._execute_with_retries(statement, [token, extid_version]),
+        )
+
     @_prepared_select_statement(
         ExtIDRow, "WHERE extid_type=? AND extid=?",
     )
@@ -1346,17 +1362,50 @@ class CqlRunner:
             self._execute_with_retries(statement, [extid_type, extid]),
         )
 
+    @_prepared_select_statement(
+        ExtIDRow, "WHERE extid_type=? AND extid=? AND extid_version = ?",
+    )
+    def extid_get_from_extid_and_version(
+        self, extid_type: str, extid: bytes, extid_version: int, *, statement
+    ) -> Iterable[ExtIDRow]:
+        return map(
+            ExtIDRow.from_dict,
+            self._execute_with_retries(statement, [extid_type, extid, extid_version]),
+        )
+
     def extid_get_from_target(
-        self, target_type: str, target: bytes
+        self,
+        target_type: str,
+        target: bytes,
+        extid_type: Optional[str] = None,
+        extid_version: Optional[int] = None,
     ) -> Iterable[ExtIDRow]:
         for token in self._extid_get_tokens_from_target(target_type, target):
             if token is not None:
-                for extid in self.extid_get_from_token(token):
+                if extid_type is not None and extid_version is not None:
+                    extids = self.extid_get_from_token_and_extid_version(
+                        token, extid_version
+                    )
+                else:
+                    extids = self.extid_get_from_token(token)
+
+                for extid in extids:
                     # re-check the extid against target (in case of murmur3 collision)
                     if (
                         extid is not None
                         and extid.target_type == target_type
                         and extid.target == target
+                        and (
+                            (extid_version is None and extid_type is None)
+                            or (
+                                (
+                                    extid_version is not None
+                                    and extid.extid_version == extid_version
+                                    and extid_type is not None
+                                    and extid.extid_type == extid_type
+                                )
+                            )
+                        )
                     ):
                         yield extid
 

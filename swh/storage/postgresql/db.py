@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -845,19 +845,26 @@ class Db(BaseDb):
 
     extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
 
-    def extid_get_from_extid_list(self, extid_type, ids, cur=None):
+    def extid_get_from_extid_list(
+        self, extid_type: str, ids: List[bytes], version: Optional[int] = None, cur=None
+    ):
         cur = self._cursor(cur)
         query_keys = ", ".join(
             self.mangle_query_key(k, "extid") for k in self.extid_cols
         )
-        sql = """
-            SELECT %s
-            FROM (VALUES %%s) as t(sortkey, extid, extid_type)
+        filter_query = ""
+        if version is not None:
+            filter_query = cur.mogrify(
+                f"WHERE extid_version={version}", (version,)
+            ).decode()
+
+        sql = f"""
+            SELECT {query_keys}
+            FROM (VALUES %s) as t(sortkey, extid, extid_type)
             LEFT JOIN extid USING (extid, extid_type)
+            {filter_query}
             ORDER BY sortkey
-            """ % (
-            query_keys,
-        )
+            """
 
         yield from execute_values_generator(
             cur,
@@ -865,7 +872,14 @@ class Db(BaseDb):
             (((sortkey, extid, extid_type) for sortkey, extid in enumerate(ids))),
         )
 
-    def extid_get_from_swhid_list(self, target_type, ids, cur=None):
+    def extid_get_from_swhid_list(
+        self,
+        target_type: str,
+        ids: List[bytes],
+        extid_version: Optional[int] = None,
+        extid_type: Optional[str] = None,
+        cur=None,
+    ):
         cur = self._cursor(cur)
         target_type = ObjectType(
             target_type
@@ -873,14 +887,20 @@ class Db(BaseDb):
         query_keys = ", ".join(
             self.mangle_query_key(k, "extid") for k in self.extid_cols
         )
-        sql = """
-            SELECT %s
-            FROM (VALUES %%s) as t(sortkey, target, target_type)
+        filter_query = ""
+        if extid_version is not None and extid_type is not None:
+            filter_query = cur.mogrify(
+                "WHERE extid_version=%s AND extid_type=%s", (extid_version, extid_type,)
+            ).decode()
+
+        sql = f"""
+            SELECT {query_keys}
+            FROM (VALUES %s) as t(sortkey, target, target_type)
             LEFT JOIN extid USING (target, target_type)
+            {filter_query}
             ORDER BY sortkey
-            """ % (
-            query_keys,
-        )
+            """
+
         yield from execute_values_generator(
             cur,
             sql,

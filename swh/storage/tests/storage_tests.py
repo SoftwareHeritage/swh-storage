@@ -17,6 +17,7 @@ import attr
 from hypothesis import HealthCheck, given, settings, strategies
 import pytest
 
+from swh.core.api import RemoteException
 from swh.core.api.classes import stream_results
 from swh.model import from_disk
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
@@ -1350,6 +1351,7 @@ class TestStorage:
             ExtID(
                 extid=extid,
                 extid_type="git",
+                extid_version=0,
                 target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
             )
             for extid in ids
@@ -1373,6 +1375,46 @@ class TestStorage:
             objs = swh_storage.extid_get_from_target(ObjectType.REVISION, [swhid])
             assert len(objs) == 2
             assert set(obj.extid_version for obj in objs) == {0, 1}
+        for version in [0, 1]:
+            for git_id in ids:
+                objs = swh_storage.extid_get_from_extid(
+                    "git", [git_id], version=version
+                )
+                assert len(objs) == 1
+                assert objs[0].extid_version == version
+            for swhid in ids:
+                objs = swh_storage.extid_get_from_target(
+                    ObjectType.REVISION,
+                    [swhid],
+                    extid_version=version,
+                    extid_type="git",
+                )
+                assert len(objs) == 1
+                assert objs[0].extid_version == version
+                assert objs[0].extid_type == "git"
+
+    def test_extid_version_behavior_failure(self, swh_storage, sample_data):
+        """Calls with wrong input should raise"""
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+
+        # Other edge cases
+        with pytest.raises(
+            (ValueError, RemoteException), match="both extid_type and extid_version"
+        ):
+            swh_storage.extid_get_from_target(
+                ObjectType.REVISION, [ids[0]], extid_version=0
+            )
+
+        with pytest.raises(
+            (ValueError, RemoteException), match="both extid_type and extid_version"
+        ):
+            swh_storage.extid_get_from_target(
+                ObjectType.REVISION, [ids[0]], extid_type="git"
+            )
 
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]
