@@ -1111,7 +1111,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             assert origin is None
             origins = debian_origins_from_row(row, storage)
             if not origins:
-                print("Missing Debian origin for revision: {hash_to_hex(row['id'])}")
+                print(f"Missing Debian origin for revision: {hash_to_hex(row['id'])}")
         else:
             origins = [origin]
 
