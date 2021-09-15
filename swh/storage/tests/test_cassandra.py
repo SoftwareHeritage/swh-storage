@@ -287,7 +287,7 @@ class TestCassandraStorage(_TestStorage):
         )
 
         # For all tokens, always return cont
-        def mock_cgft(token):
+        def mock_cgft(tokens):
             nonlocal called
             called += 1
             return [
@@ -300,7 +300,7 @@ class TestCassandraStorage(_TestStorage):
             ]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_from_token", mock_cgft
+            swh_storage._cql_runner, "content_get_from_tokens", mock_cgft
         )
 
         actual_result = swh_storage.content_add([cont2])
@@ -337,7 +337,7 @@ class TestCassandraStorage(_TestStorage):
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
 
-        def mock_cgft(token):
+        def mock_cgft(tokens):
             nonlocal called
             called += 1
             return [
@@ -346,7 +346,7 @@ class TestCassandraStorage(_TestStorage):
             ]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_from_token", mock_cgft
+            swh_storage._cql_runner, "content_get_from_tokens", mock_cgft
         )
 
         actual_result = swh_storage.content_get([cont.sha1])
@@ -382,7 +382,7 @@ class TestCassandraStorage(_TestStorage):
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
 
-        def mock_cgft(token):
+        def mock_cgft(tokens):
             nonlocal called
             called += 1
             return [
@@ -391,7 +391,7 @@ class TestCassandraStorage(_TestStorage):
             ]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_from_token", mock_cgft
+            swh_storage._cql_runner, "content_get_from_tokens", mock_cgft
         )
 
         expected_content = attr.evolve(cont, data=None)
