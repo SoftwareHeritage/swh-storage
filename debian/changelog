@@ -1,3 +1,9 @@
+swh-storage (0.37.0-1~swh2) unstable-swh; urgency=medium
+
+  * Bump new release
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 16 Sep 2021 09:51:51 +0200
+
 swh-storage (0.37.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.37.0     - (tagged by Antoine R. Dumont
