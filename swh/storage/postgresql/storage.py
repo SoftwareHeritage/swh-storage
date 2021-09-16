@@ -953,12 +953,9 @@ class Storage:
                 zip(db.snapshot_get_cols, fetched_branches[branches_count])
             )["name"]
 
-        if branches:
-            return PartialBranches(
-                id=snapshot_id, branches=branches, next_branch=next_branch,
-            )
-
-        return None
+        return PartialBranches(
+            id=snapshot_id, branches=branches, next_branch=next_branch,
+        )
 
     @timed
     @db_transaction()

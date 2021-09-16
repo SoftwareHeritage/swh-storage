@@ -3639,6 +3639,23 @@ class TestStorage:
             assert sorted(branches) == sorted(expected_branches)
             assert partial_branches["next_branch"] is None
 
+    def test_snapshot_get_branches_from_no_result(self, swh_storage, sample_data):
+        snapshot = Snapshot(
+            branches={
+                b"refs/heads/master": SnapshotBranch(
+                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+
+        partial_branches = swh_storage.snapshot_get_branches(
+            snapshot.id, branches_from=b"s",
+        )
+
+        assert partial_branches is not None
+        assert partial_branches["branches"] == {}
+
     def test_snapshot_add_get(self, swh_storage, sample_data):
         snapshot = sample_data.snapshot
         origin = sample_data.origin
