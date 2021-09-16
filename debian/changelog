@@ -1,3 +1,24 @@
+swh-storage (0.37.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.37.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-09-15 18:44:19
+    +0200)
+  * Upstream changes:     - v0.37.0     - Allow filtering extids per
+    extid_version/extid_type when reading     -
+    migrate_extrinsic_metadata: Fix edge cases (missing f-
+    stringification, remaining pypi     - issues, ...)     - cassandra:
+    Make directory_ls fetch contents in batch instead of one-by-one     -
+    cassandra: Add option to select (hopefully) more efficient batch
+    insertion algos     - cassandra: Remove stat_counters.     -
+    cassandra: generate statsd metrics on method calls     -
+    content_get: Fetch rows concurrently     -
+    directory_entry_add_batch: Remove the temporary prepared statement
+    entirely     - directory_entry_add_batch: Reduce churn of prepared
+    statements     - postgresql: Fix a column order mismatch between the
+    query and object builder     - Add counting storage proxy
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Sep 2021 06:42:23 +0000
+
 swh-storage (0.36.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.36.0     - (tagged by Vincent SELLIER
