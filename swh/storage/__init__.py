@@ -19,11 +19,12 @@ STORAGE_IMPLEMENTATIONS = {
     # deprecated
     "local": ".postgresql.storage.Storage",
     # proxy storages
-    "filter": ".proxies.filter.FilteringProxyStorage",
     "buffer": ".proxies.buffer.BufferingProxyStorage",
+    "counter": ".proxies.counter.CountingProxyStorage",
+    "filter": ".proxies.filter.FilteringProxyStorage",
     "retry": ".proxies.retry.RetryingProxyStorage",
-    "validate": ".proxies.validate.ValidatingProxyStorage",
     "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
+    "validate": ".proxies.validate.ValidatingProxyStorage",
 }
 
 

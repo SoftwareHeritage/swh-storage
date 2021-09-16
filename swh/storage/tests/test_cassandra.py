@@ -18,11 +18,14 @@ from cassandra.cluster import NoHostAvailable
 import pytest
 
 from swh.core.api.classes import stream_results
+from swh.model import from_disk
 from swh.model.model import Directory, DirectoryEntry, Snapshot, SnapshotBranch
 from swh.storage import get_storage
 from swh.storage.cassandra import create_keyspace
+from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
 from swh.storage.cassandra.model import ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import HASH_ALGORITHMS, TABLES
+from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -273,14 +276,14 @@ class TestCassandraStorage(_TestStorage):
         cont, cont2 = sample_data.contents[:2]
 
         # always return a token
-        def mock_cgtfsh(algo, hash_):
+        def mock_cgtfsa(algo, hashes):
             nonlocal called
             called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
         )
 
         # For all tokens, always return cont
@@ -321,14 +324,14 @@ class TestCassandraStorage(_TestStorage):
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
-        def mock_cgtfsh(algo, hash_):
+        def mock_cgtfsa(algo, hashes):
             nonlocal called
             called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
         )
 
         # For all tokens, always return cont and cont2
@@ -366,14 +369,14 @@ class TestCassandraStorage(_TestStorage):
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
-        def mock_cgtfsh(algo, hash_):
+        def mock_cgtfsa(algo, hashes):
             nonlocal called
             called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_hash", mock_cgtfsh,
+            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
         )
 
         # For all tokens, always return cont and cont2
@@ -486,29 +489,67 @@ class TestCassandraStorage(_TestStorage):
             )
             assert extids == [extid]
 
-    def test_directory_add_atomic(self, swh_storage, sample_data, mocker):
+    def _directory_with_entries(self, sample_data, nb_entries):
+        """Returns a dir with ``nb_entries``, all pointing to
+        the same content"""
+        return Directory(
+            entries=tuple(
+                DirectoryEntry(
+                    name=f"file{i:10}".encode(),
+                    type="file",
+                    target=sample_data.content.sha1_git,
+                    perms=from_disk.DentryPerms.directory,
+                )
+                for i in range(nb_entries)
+            )
+        )
+
+    @pytest.mark.parametrize(
+        "insert_algo,nb_entries",
+        [
+            ("one-by-one", 10),
+            ("concurrent", 10),
+            ("batch", 1),
+            ("batch", 2),
+            ("batch", BATCH_INSERT_MAX_SIZE - 1),
+            ("batch", BATCH_INSERT_MAX_SIZE),
+            ("batch", BATCH_INSERT_MAX_SIZE + 1),
+            ("batch", BATCH_INSERT_MAX_SIZE * 2),
+        ],
+    )
+    def test_directory_add_algos(
+        self, swh_storage, sample_data, mocker, insert_algo, nb_entries,
+    ):
+        mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
+
+        class new_sample_data:
+            content = sample_data.content
+            directory = self._directory_with_entries(sample_data, nb_entries)
+
+        self.test_directory_add(swh_storage, new_sample_data)
+
+    @pytest.mark.parametrize("insert_algo", DIRECTORY_ENTRIES_INSERT_ALGOS)
+    def test_directory_add_atomic(self, swh_storage, sample_data, mocker, insert_algo):
         """Checks that a crash occurring after some directory entries were written
         does not cause the directory to be (partially) visible.
         ie. checks directories are added somewhat atomically."""
         # Disable the journal writer, it would detect the CrashyEntry exception too
         # early for this test to be relevant
         swh_storage.journal_writer.journal = None
-
-        class MyException(Exception):
-            pass
+        mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
 
         class CrashyEntry(DirectoryEntry):
             def __init__(self):
                 pass
 
             def to_dict(self):
-                raise MyException()
+                return {**directory.entries[0].to_dict(), "perms": "abcde"}
 
-        directory = sample_data.directory3
+        directory = self._directory_with_entries(sample_data, BATCH_INSERT_MAX_SIZE)
         entries = directory.entries
         directory = attr.evolve(directory, entries=entries + (CrashyEntry(),))
 
-        with pytest.raises(MyException):
+        with pytest.raises(TypeError):
             swh_storage.directory_add([directory])
 
         # This should have written some of the entries to the database:

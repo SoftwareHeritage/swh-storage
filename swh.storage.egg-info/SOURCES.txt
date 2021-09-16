@@ -274,6 +274,7 @@ swh/storage/postgresql/converters.py
 swh/storage/postgresql/db.py
 swh/storage/postgresql/storage.py
 swh/storage/proxies/buffer.py
+swh/storage/proxies/counter.py
 swh/storage/proxies/filter.py
 swh/storage/proxies/retry.py
 swh/storage/proxies/tenacious.py
@@ -296,6 +297,7 @@ swh/storage/tests/test_cassandra.py
 swh/storage/tests/test_cassandra_converters.py
 swh/storage/tests/test_cassandra_migration.py
 swh/storage/tests/test_cli.py
+swh/storage/tests/test_counter.py
 swh/storage/tests/test_exception.py
 swh/storage/tests/test_filter.py
 swh/storage/tests/test_in_memory.py

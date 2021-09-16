@@ -138,6 +138,8 @@ def test_pypi_project_from_filename():
         ("OrzMC_W&L-1.0.0.tar.gz", "OrzMC-W-L"),
         ("use0mk.tar.gz", "use0mk"),
         ("play-0-develop-1-gd67cd85.tar.gz", "play"),
+        ("mosaic-nist-2.0b1+f98ae80.tar.gz", "mosaic-nist"),
+        ("pypops-201408-r3.tar.gz", "pypops"),
     ]
 
     for (filename, project) in files:
