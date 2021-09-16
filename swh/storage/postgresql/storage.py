@@ -692,10 +692,16 @@ class Storage:
     @timed
     @db_transaction()
     def extid_get_from_extid(
-        self, id_type: str, ids: List[bytes], *, db: Db, cur=None
+        self,
+        id_type: str,
+        ids: List[bytes],
+        version: Optional[int] = None,
+        *,
+        db: Db,
+        cur=None,
     ) -> List[ExtID]:
         extids = []
-        for row in db.extid_get_from_extid_list(id_type, ids, cur):
+        for row in db.extid_get_from_extid_list(id_type, ids, version=version, cur=cur):
             if row[0] is not None:
                 extids.append(converters.db_to_extid(dict(zip(db.extid_cols, row))))
         return extids
@@ -703,10 +709,28 @@ class Storage:
     @timed
     @db_transaction()
     def extid_get_from_target(
-        self, target_type: ObjectType, ids: List[Sha1Git], *, db: Db, cur=None
+        self,
+        target_type: ObjectType,
+        ids: List[Sha1Git],
+        extid_type: Optional[str] = None,
+        extid_version: Optional[int] = None,
+        *,
+        db: Db,
+        cur=None,
     ) -> List[ExtID]:
         extids = []
-        for row in db.extid_get_from_swhid_list(target_type.value, ids, cur):
+        if (extid_version is not None and extid_type is None) or (
+            extid_version is None and extid_type is not None
+        ):
+            raise ValueError("You must provide both extid_type and extid_version")
+
+        for row in db.extid_get_from_swhid_list(
+            target_type.value,
+            ids,
+            extid_version=extid_version,
+            extid_type=extid_type,
+            cur=cur,
+        ):
             if row[0] is not None:
                 extids.append(converters.db_to_extid(dict(zip(db.extid_cols, row))))
         return extids

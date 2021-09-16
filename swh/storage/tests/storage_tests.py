@@ -17,6 +17,7 @@ import attr
 from hypothesis import HealthCheck, given, settings, strategies
 import pytest
 
+from swh.core.api import RemoteException
 from swh.core.api.classes import stream_results
 from swh.model import from_disk
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
@@ -38,8 +39,10 @@ from swh.model.model import (
     TargetType,
 )
 from swh.storage import get_storage
+from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.in_memory import InMemoryStorage
 from swh.storage.interface import ListOrder, PagedResult, StorageInterface
 from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import (
@@ -187,8 +190,11 @@ class TestStorage:
             assert obj.ctime <= insertion_end_time
             assert obj == expected_cont
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["content"] == 1
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["content"] == 1
 
     def test_content_add_from_lazy_content(self, swh_storage, sample_data):
         cont = sample_data.content
@@ -221,8 +227,11 @@ class TestStorage:
             assert obj.ctime <= insertion_end_time
             assert attr.evolve(obj, ctime=None).to_dict() == expected_cont.to_dict()
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["content"] == 1
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["content"] == 1
 
     def test_content_get_data_missing(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
@@ -682,7 +691,7 @@ class TestStorage:
 
     def test_directory_add(self, swh_storage, sample_data):
         content = sample_data.content
-        directory = sample_data.directories[1]
+        directory = sample_data.directory
         assert directory.entries[0].target == content.sha1_git
         swh_storage.content_add([content])
 
@@ -705,8 +714,11 @@ class TestStorage:
         after_missing = list(swh_storage.directory_missing([directory.id]))
         assert after_missing == []
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["directory"] == 1
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["directory"] == 1
 
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
@@ -916,25 +928,30 @@ class TestStorage:
             assert actual_entry is None
 
     def test_directory_get_entries_pagination(self, swh_storage, sample_data):
-        # Note: this test assumes entries are returned in lexicographic order,
-        # which is not actually guaranteed by the interface.
         dir_ = sample_data.directory3
         entries = sorted(dir_.entries, key=lambda entry: entry.name)
         swh_storage.directory_add(sample_data.directories)
 
         # No pagination needed
         actual_data = swh_storage.directory_get_entries(dir_.id)
-        assert actual_data == PagedResult(results=entries, next_page_token=None)
+        assert sorted(actual_data.results) == sorted(entries)
+        assert actual_data.next_page_token is None, actual_data
 
         # A little pagination
         actual_data = swh_storage.directory_get_entries(dir_.id, limit=2)
-        assert actual_data.results == entries[0:2]
-        assert actual_data.next_page_token is not None
+        assert len(actual_data.results) == 2, actual_data
+        assert actual_data.next_page_token is not None, actual_data
+
+        all_results = list(actual_data.results)
 
         actual_data = swh_storage.directory_get_entries(
             dir_.id, page_token=actual_data.next_page_token
         )
-        assert actual_data == PagedResult(results=entries[2:], next_page_token=None)
+        assert len(actual_data.results) == len(entries) - 2, actual_data
+        assert actual_data.next_page_token is None, actual_data
+
+        all_results.extend(actual_data.results)
+        assert sorted(all_results) == sorted(entries)
 
     @pytest.mark.parametrize("limit", [1, 2, 3, 4, 5])
     def test_directory_get_entries(self, swh_storage, sample_data, limit):
@@ -975,8 +992,11 @@ class TestStorage:
         actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 0}
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["revision"] == 1
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["revision"] == 1
 
     def test_revision_add_twice(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
@@ -1331,6 +1351,7 @@ class TestStorage:
             ExtID(
                 extid=extid,
                 extid_type="git",
+                extid_version=0,
                 target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
             )
             for extid in ids
@@ -1354,6 +1375,46 @@ class TestStorage:
             objs = swh_storage.extid_get_from_target(ObjectType.REVISION, [swhid])
             assert len(objs) == 2
             assert set(obj.extid_version for obj in objs) == {0, 1}
+        for version in [0, 1]:
+            for git_id in ids:
+                objs = swh_storage.extid_get_from_extid(
+                    "git", [git_id], version=version
+                )
+                assert len(objs) == 1
+                assert objs[0].extid_version == version
+            for swhid in ids:
+                objs = swh_storage.extid_get_from_target(
+                    ObjectType.REVISION,
+                    [swhid],
+                    extid_version=version,
+                    extid_type="git",
+                )
+                assert len(objs) == 1
+                assert objs[0].extid_version == version
+                assert objs[0].extid_type == "git"
+
+    def test_extid_version_behavior_failure(self, swh_storage, sample_data):
+        """Calls with wrong input should raise"""
+        ids = [
+            revision.id
+            for revision in sample_data.revisions
+            if revision.type.value == "git"
+        ]
+
+        # Other edge cases
+        with pytest.raises(
+            (ValueError, RemoteException), match="both extid_type and extid_version"
+        ):
+            swh_storage.extid_get_from_target(
+                ObjectType.REVISION, [ids[0]], extid_version=0
+            )
+
+        with pytest.raises(
+            (ValueError, RemoteException), match="both extid_type and extid_version"
+        ):
+            swh_storage.extid_get_from_target(
+                ObjectType.REVISION, [ids[0]], extid_type="git"
+            )
 
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]
@@ -1376,8 +1437,11 @@ class TestStorage:
         actual_result = swh_storage.release_add([release, release2])
         assert actual_result == {"release:add": 0}
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["release"] == 2
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["release"] == 2
 
     def test_release_add_no_author_date(self, swh_storage, sample_data):
         full_release = sample_data.release
@@ -1482,8 +1546,11 @@ class TestStorage:
             [("origin", origin) for origin in origins]
         )
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["origin"] == len(origins)
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["origin"] == len(origins)
 
     def test_origin_add_twice(self, swh_storage, sample_data):
         origin, origin2 = sample_data.origins[:2]
@@ -1916,16 +1983,20 @@ class TestStorage:
                             visit=visit.visit,
                             date=now(),
                             status="full",
-                            snapshot=None,
+                            snapshot=hash_to_bytes(
+                                "9b922e6d8d5b803c1582aabe5525b7b91150788e"
+                            ),
                         )
                     ]
                 )
 
-        swh_storage.refresh_stat_counters()
-
-        stats = swh_storage.stat_counters()
-        assert stats["origin"] == len(origins)
-        assert stats["origin_visit"] == len(origins) * len(visits)
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            stats = swh_storage.stat_counters()
+            assert stats["origin"] == len(origins)
+            assert stats["origin_visit"] == len(origins) * len(visits)
 
         random_ovs = swh_storage.origin_visit_status_get_random(visit_type)
         assert random_ovs
@@ -3122,8 +3193,11 @@ class TestStorage:
             "next_branch": None,
         }
 
-        swh_storage.refresh_stat_counters()
-        assert swh_storage.stat_counters()["snapshot"] == 2
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["snapshot"] == 2
 
     def test_snapshot_add_many_incremental(self, swh_storage, sample_data):
         snapshot, _, complete_snapshot = sample_data.snapshots[:3]
@@ -3623,6 +3697,10 @@ class TestStorage:
         assert list(missing_snapshots) == [missing_snapshot.id]
 
     def test_stat_counters(self, swh_storage, sample_data):
+        if isinstance(swh_storage, CassandraStorage) and not isinstance(
+            swh_storage, InMemoryStorage
+        ):
+            pytest.skip("Cassandra backend does not support stat counters")
         origin = sample_data.origin
         snapshot = sample_data.snapshot
         revision = sample_data.revision

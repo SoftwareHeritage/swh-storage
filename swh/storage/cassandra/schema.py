@@ -267,13 +267,6 @@ CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata_by_id (
     PRIMARY KEY ((id))
 );""",
     """
-CREATE TABLE IF NOT EXISTS object_count (
-    partition_key   smallint,  -- Constant, must always be 0
-    object_type     ascii,
-    count           counter,
-    PRIMARY KEY ((partition_key), object_type)
-);""",
-    """
 CREATE TABLE IF NOT EXISTS extid (
     extid_type      ascii,
     extid           blob,
@@ -319,7 +312,6 @@ TABLES = [
     "origin_visit",
     "origin",
     "raw_extrinsic_metadata",
-    "object_count",
     "origin_visit_status",
     "metadata_authority",
     "metadata_fetcher",

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -237,10 +237,11 @@ class InMemoryCqlRunner:
     def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
         self._content_indexes[algo][content.get_hash(algo)].add(token)
 
-    def content_get_tokens_from_single_hash(
-        self, algo: str, hash_: bytes
+    def content_get_tokens_from_single_algo(
+        self, algo: str, hashes: List[bytes]
     ) -> Iterable[int]:
-        return self._content_indexes[algo][hash_]
+        for hash_ in hashes:
+            yield from self._content_indexes[algo][hash_]
 
     ##########################
     # 'skipped_content' table
@@ -705,21 +706,66 @@ class InMemoryCqlRunner:
         )
         return self._extid.get_from_primary_key(primary_key)
 
-    def extid_get_from_extid(self, extid_type: str, extid: bytes) -> Iterable[ExtIDRow]:
+    def extid_get_from_extid(
+        self, extid_type: str, extid: bytes,
+    ) -> Iterable[ExtIDRow]:
         return (
             row
             for pk, row in self._extid.iter_all()
             if row.extid_type == extid_type and row.extid == extid
         )
 
-    def extid_get_from_target(
-        self, target_type: str, target: bytes
+    def extid_get_from_extid_and_version(
+        self, extid_type: str, extid: bytes, extid_version: int,
+    ) -> Iterable[ExtIDRow]:
+        return (
+            row
+            for pk, row in self._extid.iter_all()
+            if row.extid_type == extid_type
+            and row.extid == extid
+            and (extid_version is None or row.extid_version == extid_version)
+        )
+
+    def _extid_get_from_target_with_type_and_version(
+        self, target_type: str, target: bytes, extid_type: str, extid_version: int,
+    ) -> Iterable[ExtIDRow]:
+        return (
+            row
+            for pk, row in self._extid.iter_all()
+            if row.target_type == target_type
+            and row.target == target
+            and row.extid_version == extid_version
+            and row.extid_type == extid_type
+        )
+
+    def _extid_get_from_target(
+        self, target_type: str, target: bytes,
     ) -> Iterable[ExtIDRow]:
         return (
             row
             for pk, row in self._extid.iter_all()
             if row.target_type == target_type and row.target == target
         )
+
+    def extid_get_from_target(
+        self,
+        target_type: str,
+        target: bytes,
+        extid_type: Optional[str] = None,
+        extid_version: Optional[int] = None,
+    ) -> Iterable[ExtIDRow]:
+        if (extid_version is not None and extid_type is None) or (
+            extid_version is None and extid_type is not None
+        ):
+            raise ValueError("You must provide both extid_type and extid_version")
+
+        if extid_type is not None and extid_version is not None:
+            extids = self._extid_get_from_target_with_type_and_version(
+                target_type, target, extid_type, extid_version
+            )
+        else:
+            extids = self._extid_get_from_target(target_type, target)
+        return extids
 
 
 class InMemoryStorage(CassandraStorage):
@@ -729,6 +775,7 @@ class InMemoryStorage(CassandraStorage):
         self.reset()
         self.journal_writer = JournalWriter(journal_writer)
         self._allow_overwrite = False
+        self._directory_entries_insert_algo = "one-by-one"
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
