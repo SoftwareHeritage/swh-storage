@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -532,12 +532,15 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("extid/from_extid")
-    def extid_get_from_extid(self, id_type: str, ids: List[bytes]) -> List[ExtID]:
+    def extid_get_from_extid(
+        self, id_type: str, ids: List[bytes], version: Optional[int] = None
+    ) -> List[ExtID]:
         """Get ExtID objects from external IDs
 
         Args:
             id_type: type of the given external identifiers (e.g. 'mercurial')
             ids: list of external IDs
+            version: (Optional) version to use as filter
 
         Returns:
             list of ExtID objects
@@ -547,13 +550,24 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("extid/from_target")
     def extid_get_from_target(
-        self, target_type: ObjectType, ids: List[Sha1Git]
+        self,
+        target_type: ObjectType,
+        ids: List[Sha1Git],
+        extid_type: Optional[str] = None,
+        extid_version: Optional[int] = None,
     ) -> List[ExtID]:
         """Get ExtID objects from target IDs and target_type
 
         Args:
             target_type: type the SWH object
             ids: list of target IDs
+            extid_type: (Optional) extid_type to use as filter. This cannot be empty if
+              extid_version is provided.
+            extid_version: (Optional) version to use as filter. This cannot be empty if
+              extid_type is provided.
+
+        Raises:
+            ValueError if extid_version is provided without extid_type and vice versa.
 
         Returns:
             list of ExtID objects

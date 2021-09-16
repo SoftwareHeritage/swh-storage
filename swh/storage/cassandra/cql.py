@@ -7,6 +7,7 @@ from collections import Counter
 import dataclasses
 import datetime
 import functools
+import itertools
 import logging
 import random
 from typing import (
@@ -17,6 +18,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
@@ -25,6 +27,7 @@ from typing import (
 
 from cassandra import ConsistencyLevel, CoordinationFailure
 from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
+from cassandra.concurrent import execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
 from mypy_extensions import NamedArg
@@ -84,6 +87,8 @@ This can cause performance issues, as the node getting the query need to
 coordinate with other nodes to get the complete results.
 See <https://github.com/scylladb/scylla/pull/4797> for details and rationale.
 """
+
+BATCH_INSERT_MAX_SIZE = 1000
 
 
 logger = logging.getLogger(__name__)
@@ -166,6 +171,14 @@ TArg = TypeVar("TArg")
 TSelf = TypeVar("TSelf")
 
 
+def _insert_query(row_class):
+    columns = row_class.cols()
+    return (
+        f"INSERT INTO {row_class.TABLE} ({', '.join(columns)}) "
+        f"VALUES ({', '.join('?' for _ in columns)})"
+    )
+
+
 def _prepared_insert_statement(
     row_class: Type[BaseRow],
 ) -> Callable[
@@ -174,11 +187,7 @@ def _prepared_insert_statement(
 ]:
     """Shorthand for using `_prepared_statement` for `INSERT INTO`
     statements."""
-    columns = row_class.cols()
-    return _prepared_statement(
-        "INSERT INTO %s (%s) VALUES (%s)"
-        % (row_class.TABLE, ", ".join(columns), ", ".join("?" for _ in columns),)
-    )
+    return _prepared_statement(_insert_query(row_class))
 
 
 def _prepared_exists_statement(
@@ -280,21 +289,30 @@ class CqlRunner:
         stop=stop_after_attempt(MAX_RETRIES),
         retry=retry_if_exception_type(CoordinationFailure),
     )
-    def _execute_with_retries(self, statement, args) -> ResultSet:
+    def _execute_with_retries(self, statement, args: Optional[Sequence]) -> ResultSet:
         return self._session.execute(statement, args, timeout=1000.0)
 
-    @_prepared_statement(
-        "UPDATE object_count SET count = count + ? "
-        "WHERE partition_key = 0 AND object_type = ?"
+    @retry(
+        wait=wait_random_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(MAX_RETRIES),
+        retry=retry_if_exception_type(CoordinationFailure),
     )
-    def _increment_counter(
-        self, object_type: str, nb: int, *, statement: PreparedStatement
-    ) -> None:
-        self._execute_with_retries(statement, [nb, object_type])
+    def _execute_many_with_retries(
+        self, statement, args_list: List[Tuple]
+    ) -> Iterable[BaseRow]:
+        for res in execute_concurrent_with_args(self._session, statement, args_list):
+            yield from res.result_or_exc
 
     def _add_one(self, statement, obj: BaseRow) -> None:
-        self._increment_counter(obj.TABLE, 1)
         self._execute_with_retries(statement, dataclasses.astuple(obj))
+
+    def _add_many(self, statement, objs: Sequence[BaseRow]) -> None:
+        tables = {obj.TABLE for obj in objs}
+        assert len(tables) == 1, f"Cannot insert to multiple tables: {tables}"
+        rows = list(map(dataclasses.astuple, objs))
+        for _ in self._execute_many_with_retries(statement, rows):
+            # Need to consume the generator to actually run the INSERTs
+            pass
 
     _T = TypeVar("_T", bound=BaseRow)
 
@@ -328,7 +346,6 @@ class CqlRunner:
         """Returned currified by content_add_prepare, to be called when the
         content row should be added to the primary table."""
         self._execute_with_retries(statement, None)
-        self._increment_counter("content", 1)
 
     @_prepared_insert_statement(ContentRow)
     def content_add_prepare(
@@ -461,8 +478,8 @@ class CqlRunner:
         """
         self._execute_with_retries(query, [content.get_hash(algo), token])
 
-    def content_get_tokens_from_single_hash(
-        self, algo: str, hash_: bytes
+    def content_get_tokens_from_single_algo(
+        self, algo: str, hashes: List[bytes]
     ) -> Iterable[int]:
         assert algo in HASH_ALGORITHMS
         query = f"""
@@ -471,7 +488,10 @@ class CqlRunner:
             WHERE {algo} = %s
         """
         return (
-            row["target_token"] for row in self._execute_with_retries(query, [hash_])
+            row["target_token"]  # type: ignore
+            for row in self._execute_many_with_retries(
+                query, [(hash_,) for hash_ in hashes]
+            )
         )
 
     ##########################
@@ -482,7 +502,6 @@ class CqlRunner:
         """Returned currified by skipped_content_add_prepare, to be called
         when the content row should be added to the primary table."""
         self._execute_with_retries(statement, None)
-        self._increment_counter("skipped_content", 1)
 
     @_prepared_insert_statement(SkippedContentRow)
     def skipped_content_add_prepare(
@@ -676,6 +695,49 @@ class CqlRunner:
     @_prepared_insert_statement(DirectoryEntryRow)
     def directory_entry_add_one(self, entry: DirectoryEntryRow, *, statement) -> None:
         self._add_one(statement, entry)
+
+    @_prepared_insert_statement(DirectoryEntryRow)
+    def directory_entry_add_concurrent(
+        self, entries: List[DirectoryEntryRow], *, statement
+    ) -> None:
+        if len(entries) == 0:
+            # nothing to do
+            return
+        assert (
+            len({entry.directory_id for entry in entries}) == 1
+        ), "directory_entry_add_many must be called with entries for a single dir"
+        self._add_many(statement, entries)
+
+    @_prepared_statement(
+        "BEGIN UNLOGGED BATCH\n"
+        + (_insert_query(DirectoryEntryRow) + ";\n") * BATCH_INSERT_MAX_SIZE
+        + "APPLY BATCH"
+    )
+    def directory_entry_add_batch(
+        self, entries: List[DirectoryEntryRow], *, statement
+    ) -> None:
+        if len(entries) == 0:
+            # nothing to do
+            return
+        assert (
+            len({entry.directory_id for entry in entries}) == 1
+        ), "directory_entry_add_many must be called with entries for a single dir"
+
+        for entry_group in grouper(entries, BATCH_INSERT_MAX_SIZE):
+            entry_group = list(entry_group)
+            if len(entry_group) == BATCH_INSERT_MAX_SIZE:
+                entry_group = list(map(dataclasses.astuple, entry_group))
+                self._execute_with_retries(
+                    statement, list(itertools.chain.from_iterable(entry_group))
+                )
+            else:
+                # Last group, with a smaller size than the BATCH we prepared.
+                # Creating a prepared BATCH just for this then discarding it would
+                # create too much churn on the server side; and using unprepared
+                # statements is annoying (we can't use _insert_query() as they have
+                # a different format)
+                # Fall back to inserting concurrently.
+                self.directory_entry_add_concurrent(entry_group)
 
     @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
     def directory_entry_get(
@@ -1219,7 +1281,6 @@ class CqlRunner:
         """Returned currified by extid_add_prepare, to be called when the
         extid row should be added to the primary table."""
         self._execute_with_retries(statement, None)
-        self._increment_counter("extid", 1)
 
     @_prepared_insert_statement(ExtIDRow)
     def extid_add_prepare(
@@ -1274,6 +1335,22 @@ class CqlRunner:
     def extid_get_from_token(self, token: int, *, statement) -> Iterable[ExtIDRow]:
         return map(ExtIDRow.from_dict, self._execute_with_retries(statement, [token]),)
 
+    # Rows are partitioned by token(extid_type, extid), then ordered (aka. "clustered")
+    # by (extid_type, extid, extid_version, ...). This means that, without knowing the
+    # exact extid_type and extid, we need to scan the whole partition; which should be
+    # reasonably small. We can change the schema later if this becomes an issue
+    @_prepared_select_statement(
+        ExtIDRow,
+        "WHERE token(extid_type, extid) = ? AND extid_version = ? ALLOW FILTERING",
+    )
+    def extid_get_from_token_and_extid_version(
+        self, token: int, extid_version: int, *, statement
+    ) -> Iterable[ExtIDRow]:
+        return map(
+            ExtIDRow.from_dict,
+            self._execute_with_retries(statement, [token, extid_version]),
+        )
+
     @_prepared_select_statement(
         ExtIDRow, "WHERE extid_type=? AND extid=?",
     )
@@ -1285,17 +1362,50 @@ class CqlRunner:
             self._execute_with_retries(statement, [extid_type, extid]),
         )
 
+    @_prepared_select_statement(
+        ExtIDRow, "WHERE extid_type=? AND extid=? AND extid_version = ?",
+    )
+    def extid_get_from_extid_and_version(
+        self, extid_type: str, extid: bytes, extid_version: int, *, statement
+    ) -> Iterable[ExtIDRow]:
+        return map(
+            ExtIDRow.from_dict,
+            self._execute_with_retries(statement, [extid_type, extid, extid_version]),
+        )
+
     def extid_get_from_target(
-        self, target_type: str, target: bytes
+        self,
+        target_type: str,
+        target: bytes,
+        extid_type: Optional[str] = None,
+        extid_version: Optional[int] = None,
     ) -> Iterable[ExtIDRow]:
         for token in self._extid_get_tokens_from_target(target_type, target):
             if token is not None:
-                for extid in self.extid_get_from_token(token):
+                if extid_type is not None and extid_version is not None:
+                    extids = self.extid_get_from_token_and_extid_version(
+                        token, extid_version
+                    )
+                else:
+                    extids = self.extid_get_from_token(token)
+
+                for extid in extids:
                     # re-check the extid against target (in case of murmur3 collision)
                     if (
                         extid is not None
                         and extid.target_type == target_type
                         and extid.target == target
+                        and (
+                            (extid_version is None and extid_type is None)
+                            or (
+                                (
+                                    extid_version is not None
+                                    and extid.extid_version == extid_version
+                                    and extid_type is not None
+                                    and extid.extid_type == extid_type
+                                )
+                            )
+                        )
                     ):
                         yield extid
 
@@ -1328,10 +1438,11 @@ class CqlRunner:
     # Miscellaneous
     ##########################
 
+    def stat_counters(self) -> Iterable[ObjectCountRow]:
+        raise NotImplementedError(
+            "stat_counters is not implemented by the Cassandra backend"
+        )
+
     @_prepared_statement("SELECT uuid() FROM revision LIMIT 1;")
     def check_read(self, *, statement):
         self._execute_with_retries(statement, [])
-
-    @_prepared_select_statement(ObjectCountRow, "WHERE partition_key=0")
-    def stat_counters(self, *, statement) -> Iterable[ObjectCountRow]:
-        return map(ObjectCountRow.from_dict, self._execute_with_retries(statement, []))

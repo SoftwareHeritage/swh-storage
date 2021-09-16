@@ -23,6 +23,7 @@ in its heuristics.
 
 import datetime
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -190,6 +191,29 @@ def pypi_project_from_filename(filename):
         return "use0mk"
     elif filename == "play-0-develop-1-gd67cd85.tar.gz":
         return "play"
+    elif filename.startswith("mosaic-nist-"):
+        return "mosaic-nist"
+    elif filename.startswith("pypops-"):
+        return "pypops"
+    elif filename.startswith("pdfcomparator-"):
+        return "pdfcomparator"
+    elif filename.startswith("LabJackPython-"):
+        return "LabJackPython"
+    elif filename == "MD2K: Cerebral Cortex-3.0.0.tar.gz":
+        return "cerebralcortex-kernel"
+    elif filename.startswith("LyMaker-0 (copy)"):
+        return "LyMaker"
+    elif filename.startswith("python-tplink-smarthome-"):
+        return "python-tplink-smarthome"
+    elif filename.startswith("jtt=tm-utils-"):
+        return "jtt-tm-utils"
+    elif filename == "atproject0.1.tar.gz":
+        return "atproject"
+    elif filename == "labm8.tar.gz":
+        return "labm8"
+    elif filename == "Bugs Everywhere (BEurtle fork)-1.5.0.1.-2012-07-16-.zip":
+        return "Bugs-Everywhere-BEurtle-fork"
+
     filename = filename.replace(" ", "-")
 
     match = re.match(
@@ -485,9 +509,16 @@ def handle_deposit_row(
         date = deposit_request["deposit_request.date"]
         dates.add(date)
 
-        assert deposit_request["deposit.swhid_context"], deposit_request
+        if deposit_request["deposit.external_id"] == "hal-02355563":
+            # Failed deposit
+            swhids.add(
+                "swh:1:rev:9293f230baca9814490d4fff7ac53d487a20edb6"
+                ";origin=https://hal.archives-ouvertes.fr/hal-02355563"
+            )
+        else:
+            assert deposit_request["deposit.swhid_context"], deposit_request
+            swhids.add(deposit_request["deposit.swhid_context"])
         external_identifiers.add(deposit_request["deposit.external_id"])
-        swhids.add(deposit_request["deposit.swhid_context"])
 
         # Client of the deposit
         provider_urls.add(deposit_request["deposit_client.provider_url"])
@@ -975,9 +1006,16 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
 
             assert len(metadata["original_artifact"]) == 1
 
-            origin = pypi_origin_from_filename(
-                storage, row["id"], metadata["original_artifact"][0]["filename"]
-            )
+            version = metadata.get("project", {}).get("version")
+            filename = metadata["original_artifact"][0]["filename"]
+            if version:
+                origin = pypi_origin_from_project_name(filename.split("-" + version)[0])
+                if not _check_revision_in_origin(storage, origin, row["id"]):
+                    origin = None
+            else:
+                origin = None
+            if origin is None:
+                origin = pypi_origin_from_filename(storage, row["id"], filename)
 
             if "project" in metadata:
                 # pypi loader format 2
@@ -1073,7 +1111,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             assert origin is None
             origins = debian_origins_from_row(row, storage)
             if not origins:
-                print("Missing Debian origin for revision: {hash_to_hex(row['id'])}")
+                print(f"Missing Debian origin for revision: {hash_to_hex(row['id'])}")
         else:
             origins = [origin]
 
@@ -1119,7 +1157,7 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
                 while True:
                     cur.execute(
                         f"SELECT {', '.join(REVISION_COLS)} FROM revision "
-                        f"WHERE id > %s AND metadata IS NOT NULL AND type != 'git'"
+                        f"WHERE id >= %s AND metadata IS NOT NULL AND type != 'git'"
                         f"ORDER BY id LIMIT 1000",
                         (after_id,),
                     )
@@ -1141,7 +1179,7 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
                 failures += 1
 
 
-def main(storage_dbconn, storage_url, deposit_dbconn, first_id, dry_run):
+def main(storage_dbconn, storage_url, deposit_dbconn, first_id, limit, dry_run):
     storage_db = BaseDb.connect(storage_dbconn)
     deposit_db = BaseDb.connect(deposit_dbconn)
     storage = get_storage(
@@ -1165,7 +1203,10 @@ def main(storage_dbconn, storage_url, deposit_dbconn, first_id, dry_run):
 
     total_rows = 0
     with deposit_db.cursor() as deposit_cur:
-        for row in iter_revision_rows(storage_dbconn, first_id):
+        rows = iter_revision_rows(storage_dbconn, first_id)
+        if limit is not None:
+            rows = itertools.islice(rows, limit)
+        for row in rows:
             handle_row(row, storage, deposit_cur, dry_run)
 
             total_rows += 1
@@ -1186,10 +1227,14 @@ if __name__ == "__main__":
         first_id = "00" * 20
     elif len(sys.argv) == 5:
         (_, storage_dbconn, storage_url, deposit_dbconn, first_id) = sys.argv
+        limit = None
+    elif len(sys.argv) == 6:
+        (_, storage_dbconn, storage_url, deposit_dbconn, first_id, limit_str) = sys.argv
+        limit = int(limit_str)
     else:
         print(
             f"Syntax: {sys.argv[0]} <storage_dbconn> <storage_url> "
-            f"<deposit_dbconn> [<first id>]"
+            f"<deposit_dbconn> [<first id> [limit]]"
         )
         exit(1)
 
@@ -1205,4 +1250,11 @@ if __name__ == "__main__":
                 _origins.add(bytes.fromhex(digest))
         print("Done loading origins.")
 
-    main(storage_dbconn, storage_url, deposit_dbconn, bytes.fromhex(first_id), True)
+    main(
+        storage_dbconn,
+        storage_url,
+        deposit_dbconn,
+        bytes.fromhex(first_id),
+        limit,
+        True,
+    )
