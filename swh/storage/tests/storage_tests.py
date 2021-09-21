@@ -22,6 +22,7 @@ from swh.core.api.classes import stream_results
 from swh.model import from_disk
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.hypothesis_strategies import objects
+from swh.model.hypothesis_strategies import snapshots as unknown_snapshot
 from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
     Content,
@@ -3655,6 +3656,12 @@ class TestStorage:
 
         assert partial_branches is not None
         assert partial_branches["branches"] == {}
+
+    @settings(suppress_health_check=function_scoped_fixture_check,)
+    @given(unknown_snapshot(min_size=1))
+    def test_snapshot_get_unknown_snapshot(self, swh_storage, unknown_snapshot):
+        assert swh_storage.snapshot_get(unknown_snapshot.id) is None
+        assert swh_storage.snapshot_get_branches(unknown_snapshot.id) is None
 
     def test_snapshot_add_get(self, swh_storage, sample_data):
         snapshot = sample_data.snapshot

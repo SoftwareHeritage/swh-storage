@@ -914,8 +914,12 @@ class Storage:
         db: Db,
         cur=None,
     ) -> Optional[PartialBranches]:
+
         if snapshot_id == EMPTY_SNAPSHOT_ID:
             return PartialBranches(id=snapshot_id, branches={}, next_branch=None,)
+
+        if list(self.snapshot_missing([snapshot_id])):
+            return None
 
         branches = {}
         next_branch = None
