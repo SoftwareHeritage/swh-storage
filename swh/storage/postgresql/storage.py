@@ -91,7 +91,12 @@ def convert_validation_exceptions():
     re-raises a StorageArgumentException."""
     try:
         yield
-    except tuple(VALIDATION_EXCEPTIONS) as e:
+    except psycopg2.errors.UniqueViolation:
+        # This only happens because of concurrent insertions, but it is
+        # a subclass of IntegrityError; so we need to catch and reraise it
+        # before the next clause converts it to StorageArgumentException.
+        raise
+    except VALIDATION_EXCEPTIONS as e:
         raise StorageArgumentException(str(e))
 
 
