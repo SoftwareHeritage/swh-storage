@@ -68,7 +68,8 @@ def process_replay_objects(all_objects, *, storage):
 
 
 def collision_aware_content_add(
-    content_add_fn: Callable[[Iterable[Any]], None], contents: List[BaseContent]
+    content_add_fn: Callable[[Iterable[Any]], Dict[str, int]],
+    contents: List[BaseContent],
 ) -> None:
     """Add contents to storage. If a hash collision is detected, an error is
        logged. Then this adds the other non colliding contents to the storage.
