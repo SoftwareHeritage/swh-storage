@@ -56,7 +56,9 @@ object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
 }
 
 
-def process_replay_objects(all_objects, *, storage):
+def process_replay_objects(
+    all_objects: Dict[str, List[Dict[str, Any]]], *, storage: StorageInterface
+) -> None:
     for (object_type, objects) in all_objects.items():
         logger.debug("Inserting %s %s objects", len(objects), object_type)
         with statsd.timed(GRAPH_DURATION_METRIC, tags={"object_type": object_type}):
