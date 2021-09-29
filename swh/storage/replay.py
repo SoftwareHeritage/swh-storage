@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Any, Callable, Container, Dict, Iterable, List
+from typing import Any, Callable, Container, Dict, List
 
 try:
     from systemd.daemon import notify
@@ -31,6 +31,7 @@ from swh.model.model import (
 )
 from swh.storage.exc import HashCollision
 from swh.storage.fixer import fix_objects
+from swh.storage.interface import StorageInterface
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,9 @@ object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
 }
 
 
-def process_replay_objects(all_objects, *, storage):
+def process_replay_objects(
+    all_objects: Dict[str, List[Dict[str, Any]]], *, storage: StorageInterface
+) -> None:
     for (object_type, objects) in all_objects.items():
         logger.debug("Inserting %s %s objects", len(objects), object_type)
         with statsd.timed(GRAPH_DURATION_METRIC, tags={"object_type": object_type}):
@@ -68,7 +71,7 @@ def process_replay_objects(all_objects, *, storage):
 
 
 def collision_aware_content_add(
-    content_add_fn: Callable[[Iterable[Any]], None], contents: List[BaseContent]
+    content_add_fn: Callable[[List[Any]], Dict[str, int]], contents: List[BaseContent],
 ) -> None:
     """Add contents to storage. If a hash collision is detected, an error is
        logged. Then this adds the other non colliding contents to the storage.
@@ -108,7 +111,9 @@ def dict_key_dropper(d: Dict, keys_to_drop: Container) -> Dict:
     return {k: v for (k, v) in d.items() if k not in keys_to_drop}
 
 
-def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
+def _insert_objects(
+    object_type: str, objects: List[Dict], storage: StorageInterface
+) -> None:
     """Insert objects of type object_type in the storage.
 
     """
@@ -148,8 +153,8 @@ def _insert_objects(object_type: str, objects: List[Dict], storage) -> None:
         converted = [RawExtrinsicMetadata.from_dict(o) for o in objects]
         authorities = {emd.authority for emd in converted}
         fetchers = {emd.fetcher for emd in converted}
-        storage.metadata_authority_add(authorities)
-        storage.metadata_fetcher_add(fetchers)
+        storage.metadata_authority_add(list(authorities))
+        storage.metadata_fetcher_add(list(fetchers))
         storage.raw_extrinsic_metadata_add(converted)
     elif object_type == "revision":
         # drop the metadata field from the revision (is any); this field is

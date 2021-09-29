@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from swh.model.from_disk import DentryPerms
 from swh.model.hashutil import MultiHash, hash_to_bytes
-from swh.model.identifiers import directory_identifier
+from swh.model.model import Directory
 from swh.storage.algos.dir_iterators import dir_iterator
 
 # flake8: noqa
@@ -30,7 +30,19 @@ class DirectoryModel(object):
 
     def __getitem__(self, item):
         if item == "target":
-            return hash_to_bytes(directory_identifier(self))
+            return Directory.from_dict(
+                {
+                    "entries": [
+                        {
+                            "name": entry["name"],
+                            "target": entry["target"],
+                            "type": entry["type"],
+                            "perms": entry["perms"],
+                        }
+                        for entry in self.data["entries"]
+                    ]
+                }
+            ).id
         else:
             return self.data[item]
 

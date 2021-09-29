@@ -299,7 +299,7 @@ class CqlRunner:
     )
     def _execute_many_with_retries(
         self, statement, args_list: List[Tuple]
-    ) -> Iterable[BaseRow]:
+    ) -> Iterable[Dict[str, Any]]:
         for res in execute_concurrent_with_args(self._session, statement, args_list):
             yield from res.result_or_exc
 
@@ -424,8 +424,11 @@ class CqlRunner:
     @_prepared_select_statement(
         ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) = ?"
     )
-    def content_get_from_token(self, token, *, statement) -> Iterable[ContentRow]:
-        return map(ContentRow.from_dict, self._execute_with_retries(statement, [token]))
+    def content_get_from_tokens(self, tokens, *, statement) -> Iterable[ContentRow]:
+        return map(
+            ContentRow.from_dict,
+            self._execute_many_with_retries(statement, [(token,) for token in tokens]),
+        )
 
     @_prepared_select_statement(
         ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) > ? LIMIT 1"

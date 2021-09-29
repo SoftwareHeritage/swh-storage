@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pytest
 
 from swh.model.hashutil import hash_to_bytes
-from swh.model.identifiers import directory_identifier
 from swh.storage.algos import diff
 
 from .test_dir_iterator import DirectoryModel
