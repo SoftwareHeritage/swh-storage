@@ -198,8 +198,8 @@ class InMemoryCqlRunner:
         primary_key = self._contents.primary_key_from_dict(content_hashes)
         return self._contents.get_from_primary_key(primary_key)
 
-    def content_get_from_token(self, token: int) -> Iterable[ContentRow]:
-        return self._contents.get_from_token(token)
+    def content_get_from_tokens(self, tokens: List[int]) -> Iterable[ContentRow]:
+        return itertools.chain.from_iterable(map(self._contents.get_from_token, tokens))
 
     def content_get_random(self) -> Optional[ContentRow]:
         return self._contents.get_random()
