@@ -163,19 +163,17 @@ class CassandraStorage:
         to get tokens.
         Then, looks up the main table (content) to get all contents with
         that token, and filters out contents whose hash doesn't match."""
-        found_tokens = self._cql_runner.content_get_tokens_from_single_algo(
-            algo, hashes
+        found_tokens = list(
+            self._cql_runner.content_get_tokens_from_single_algo(algo, hashes)
         )
+        assert all(isinstance(token, int) for token in found_tokens)
 
-        for token in found_tokens:
-            assert isinstance(token, int), found_tokens
-            # Query the main table ('content').
-            res = self._cql_runner.content_get_from_token(token)
-
-            for row in res:
-                # re-check the the hash (in case of murmur3 collision)
-                if getattr(row, algo) in hashes:
-                    yield row
+        # Query the main table ('content').
+        rows = self._cql_runner.content_get_from_tokens(found_tokens)
+        for row in rows:
+            # re-check the the hash (in case of murmur3 collision)
+            if getattr(row, algo) in hashes:
+                yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
         # Filter-out content already in the database.

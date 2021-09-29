@@ -8,8 +8,7 @@ import datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from swh.model.identifiers import normalize_timestamp
-from swh.model.model import Origin
+from swh.model.model import Origin, TimestampWithTimezone
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +69,12 @@ def _check_date(date):
     """
     if date is None:
         return True
-    date = normalize_timestamp(date)
-    return (
-        (-(2 ** 63) <= date["timestamp"]["seconds"] < 2 ** 63)
-        and (0 <= date["timestamp"]["microseconds"] < 10 ** 6)
-        and (-(2 ** 15) <= date["offset"] < 2 ** 15)
-    )
+    try:
+        TimestampWithTimezone.from_dict(date)
+    except ValueError:
+        return False
+    else:
+        return True
 
 
 def _check_revision_date(rev):

@@ -88,11 +88,12 @@ class CqlRunnerWithXor(CqlRunner):
         ContentRowWithXor,
         f"WHERE token({', '.join(ContentRowWithXor.PARTITION_KEY)}) = ?",
     )
-    def content_get_from_token(
-        self, token, *, statement
+    def content_get_from_tokens(
+        self, tokens, *, statement
     ) -> Iterable[ContentRowWithXor]:
         return map(
-            ContentRowWithXor.from_dict, self._execute_with_retries(statement, [token])
+            ContentRowWithXor.from_dict,
+            self._execute_many_with_retries(statement, [(token,) for token in tokens]),
         )
 
     # Redecorate content_add_prepare with the new ContentRow class
@@ -219,12 +220,12 @@ class CqlRunnerWithXorPK(CqlRunner):
         ContentRowWithXorPK,
         f"WHERE token({', '.join(ContentRowWithXorPK.PARTITION_KEY)}) = ?",
     )
-    def content_get_from_token(
-        self, token, *, statement
+    def content_get_from_tokens(
+        self, tokens, *, statement
     ) -> Iterable[ContentRowWithXorPK]:
         return map(
             ContentRowWithXorPK.from_dict,
-            self._execute_with_retries(statement, [token]),
+            self._execute_many_with_retries(statement, [(token,) for token in tokens]),
         )
 
     # Redecorate content_add_prepare with the new ContentRow class

@@ -91,7 +91,12 @@ def convert_validation_exceptions():
     re-raises a StorageArgumentException."""
     try:
         yield
-    except tuple(VALIDATION_EXCEPTIONS) as e:
+    except psycopg2.errors.UniqueViolation:
+        # This only happens because of concurrent insertions, but it is
+        # a subclass of IntegrityError; so we need to catch and reraise it
+        # before the next clause converts it to StorageArgumentException.
+        raise
+    except VALIDATION_EXCEPTIONS as e:
         raise StorageArgumentException(str(e))
 
 
@@ -914,8 +919,12 @@ class Storage:
         db: Db,
         cur=None,
     ) -> Optional[PartialBranches]:
+
         if snapshot_id == EMPTY_SNAPSHOT_ID:
             return PartialBranches(id=snapshot_id, branches={}, next_branch=None,)
+
+        if list(self.snapshot_missing([snapshot_id])):
+            return None
 
         branches = {}
         next_branch = None
@@ -953,12 +962,9 @@ class Storage:
                 zip(db.snapshot_get_cols, fetched_branches[branches_count])
             )["name"]
 
-        if branches:
-            return PartialBranches(
-                id=snapshot_id, branches=branches, next_branch=next_branch,
-            )
-
-        return None
+        return PartialBranches(
+            id=snapshot_id, branches=branches, next_branch=next_branch,
+        )
 
     @timed
     @db_transaction()
