@@ -620,3 +620,13 @@ def test_buffer_operation_order(sample_data) -> None:
             methods_called,
         )
         prev = cur
+
+
+def test_buffer_empty_batches() -> None:
+    "Flushing an empty buffer storage doesn't call any underlying _add method"
+    storage = get_storage_with_buffer_config()
+    storage.storage = mocked_storage = Mock(wraps=storage.storage)
+
+    storage.flush()
+    methods_called = {c[0] for c in mocked_storage.method_calls}
+    assert methods_called == {"flush", "clear_buffers"}
