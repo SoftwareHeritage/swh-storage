@@ -112,6 +112,26 @@ def test_filtering_proxy_storage_revision(swh_storage, sample_data):
     }
 
 
+def test_filtering_proxy_storage_release(swh_storage, sample_data):
+    sample_release = sample_data.release
+
+    release = swh_storage.release_get([sample_release.id])[0]
+    assert release is None
+
+    s = swh_storage.release_add([sample_release])
+    assert s == {
+        "release:add": 1,
+    }
+
+    release = swh_storage.release_get([sample_release.id])[0]
+    assert release is not None
+
+    s = swh_storage.release_add([sample_release])
+    assert s == {
+        "release:add": 0,
+    }
+
+
 def test_filtering_proxy_storage_directory(swh_storage, sample_data):
     sample_directory = sample_data.directory
 

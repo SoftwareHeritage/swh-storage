@@ -6,7 +6,14 @@
 
 from typing import Dict, Iterable, List, Set
 
-from swh.model.model import Content, Directory, Revision, Sha1Git, SkippedContent
+from swh.model.model import (
+    Content,
+    Directory,
+    Release,
+    Revision,
+    Sha1Git,
+    SkippedContent,
+)
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
@@ -27,7 +34,7 @@ class FilteringProxyStorage:
 
     """
 
-    object_types = ["content", "skipped_content", "directory", "revision"]
+    object_types = ["content", "skipped_content", "directory", "revision", "release"]
 
     def __init__(self, storage):
         self.storage: StorageInterface = get_storage(**storage)
@@ -82,6 +89,15 @@ class FilteringProxyStorage:
             return empty_stat
         return self.storage.revision_add([r for r in revisions if r.id in missing_ids])
 
+    def release_add(self, releases: List[Release]) -> Dict[str, int]:
+        empty_stat = {"release:add": 0}
+        if not releases:
+            return empty_stat
+        missing_ids = self._filter_missing_ids("release", (r.id for r in releases))
+        if not missing_ids:
+            return empty_stat
+        return self.storage.release_add([r for r in releases if r.id in missing_ids])
+
     def _filter_missing_contents(self, contents: List[Content]) -> Set[bytes]:
         """Return only the content keys missing from swh
 
@@ -126,14 +142,4 @@ class FilteringProxyStorage:
             Missing ids from the storage for object_type
 
         """
-        missing_ids = []
-        for id in ids:
-            missing_ids.append(id)
-
-        fn_by_object_type = {
-            "revision": self.storage.revision_missing,
-            "directory": self.storage.directory_missing,
-        }
-
-        fn = fn_by_object_type[object_type]
-        return set(fn(missing_ids))
+        return set(getattr(self.storage, f"{object_type}_missing")(list(ids)))
