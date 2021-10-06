@@ -38,25 +38,48 @@ class FilteringProxyStorage:
         return getattr(self.storage, key)
 
     def content_add(self, content: List[Content]) -> Dict[str, int]:
+        empty_stat = {
+            "content:add": 0,
+            "content:add:bytes": 0,
+        }
+        if not content:
+            return empty_stat
         contents_to_add = self._filter_missing_contents(content)
+        if not contents_to_add:
+            return empty_stat
         return self.storage.content_add(
             [x for x in content if x.sha256 in contents_to_add]
         )
 
     def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
+        empty_stat = {"skipped_content:add": 0}
+        if not content:
+            return empty_stat
         contents_to_add = self._filter_missing_skipped_contents(content)
+        if not contents_to_add and not any(c.sha1_git is None for c in content):
+            return empty_stat
         return self.storage.skipped_content_add(
             [x for x in content if x.sha1_git is None or x.sha1_git in contents_to_add]
         )
 
     def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
+        empty_stat = {"directory:add": 0}
+        if not directories:
+            return empty_stat
         missing_ids = self._filter_missing_ids("directory", (d.id for d in directories))
+        if not missing_ids:
+            return empty_stat
         return self.storage.directory_add(
             [d for d in directories if d.id in missing_ids]
         )
 
     def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
+        empty_stat = {"revision:add": 0}
+        if not revisions:
+            return empty_stat
         missing_ids = self._filter_missing_ids("revision", (r.id for r in revisions))
+        if not missing_ids:
+            return empty_stat
         return self.storage.revision_add([r for r in revisions if r.id in missing_ids])
 
     def _filter_missing_contents(self, contents: List[Content]) -> Set[bytes]:

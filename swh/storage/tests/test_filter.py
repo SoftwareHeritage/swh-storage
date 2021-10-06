@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from unittest.mock import Mock
+
 import attr
 import pytest
 
@@ -128,3 +130,32 @@ def test_filtering_proxy_storage_directory(swh_storage, sample_data):
     assert s == {
         "directory:add": 0,
     }
+
+
+def test_filtering_proxy_storage_empty_list(swh_storage, sample_data):
+    swh_storage.storage = mock_storage = Mock(wraps=swh_storage.storage)
+
+    calls = 0
+    for object_type in swh_storage.object_types:
+        calls += 1
+
+        method_name = f"{object_type}_add"
+        method = getattr(swh_storage, method_name)
+        one_object = getattr(sample_data, object_type)
+
+        # Call with empty list: ensure underlying storage not called
+        method([])
+        assert method_name not in {c[0] for c in mock_storage.method_calls}
+        mock_storage.reset_mock()
+
+        # Call with an object: ensure underlying storage is called
+        method([one_object])
+        assert method_name in {c[0] for c in mock_storage.method_calls}
+        mock_storage.reset_mock()
+
+        # Call with the same object: ensure underlying storage is not called again
+        method([one_object])
+        assert method_name not in {c[0] for c in mock_storage.method_calls}
+        mock_storage.reset_mock()
+
+    assert calls > 0, "Empty list never tested"
