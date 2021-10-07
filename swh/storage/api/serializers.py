@@ -41,6 +41,7 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
     (swhids.CoreSWHID, "core_swhid", str),
     (swhids.ExtendedSWHID, "extended_swhid", str),
     (swhids.QualifiedSWHID, "qualified_swhid", str),
+    # TODO: serialize this as "swhids_enum" when all peers support it in their DECODERS:
     (swhids.ObjectType, "identifiers_enum", _encode_enum),
     (model.MetadataAuthorityType, "model_enum", _encode_enum),
     (interface.ListOrder, "storage_enum", _encode_enum),
@@ -53,6 +54,7 @@ DECODERS: Dict[str, Callable] = {
     "qualified_swhid": swhids.QualifiedSWHID.from_string,
     "model": lambda d: getattr(model, d.pop("__type__")).from_dict(d),
     "identifiers_enum": _decode_swhids_enum,
+    "swhids_enum": _decode_swhids_enum,
     "model_enum": _decode_model_enum,
     "storage_enum": _decode_storage_enum,
 }
