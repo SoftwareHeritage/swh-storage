@@ -28,8 +28,6 @@ import attr
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_hex
-from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
-from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
     Directory,
@@ -50,6 +48,8 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
+from swh.model.swhids import ObjectType as SwhidObjectType
 from swh.storage.interface import (
     VISIT_STATUSES,
     ListOrder,

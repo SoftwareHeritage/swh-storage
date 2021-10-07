@@ -382,7 +382,7 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
         """
         Return the path checksum identifier in the source tree of the
         provided revision. If the path corresponds to a directory, the
-        value computed by :func:`swh.model.identifiers.directory_identifier`
+        value computed by :meth:`swh.model.Directory.compute_hash`
         will be returned. If the path corresponds to a file, its sha1
         checksum will be returned.
 

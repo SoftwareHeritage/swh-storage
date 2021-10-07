@@ -19,7 +19,6 @@ import logging
 from typing import Any, Callable, Dict, Optional
 
 from swh.core.db import BaseDb
-from swh.model.identifiers import ExtendedObjectType
 from swh.model.model import (
     BaseModel,
     Directory,
@@ -32,6 +31,7 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
+from swh.model.swhids import ExtendedObjectType
 from swh.storage.postgresql.converters import (
     db_to_extid,
     db_to_raw_extrinsic_metadata,

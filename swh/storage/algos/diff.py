@@ -15,14 +15,13 @@
 import collections
 from typing import Any, Dict
 
-from swh.model.hashutil import hash_to_bytes
-from swh.model.identifiers import directory_identifier
+from swh.model.model import Directory
 from swh.storage.interface import StorageInterface
 
 from .dir_iterators import DirectoryIterator, DoubleDirectoryIterator, Remaining
 
 # get the hash identifier for an empty directory
-_empty_dir_hash = hash_to_bytes(directory_identifier({"entries": []}))
+_empty_dir_hash = Directory(entries=()).id
 
 
 def _get_rev(storage: StorageInterface, rev_id: bytes) -> Dict[str, Any]:

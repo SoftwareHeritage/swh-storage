@@ -23,7 +23,6 @@ from swh.model import from_disk
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.hypothesis_strategies import objects
 from swh.model.hypothesis_strategies import snapshots as unknown_snapshot
-from swh.model.identifiers import CoreSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
@@ -39,6 +38,7 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
+from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1

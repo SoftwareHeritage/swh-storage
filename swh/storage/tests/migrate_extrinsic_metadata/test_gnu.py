@@ -11,7 +11,6 @@ import datetime
 import json
 from unittest.mock import Mock, call
 
-from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
@@ -19,6 +18,7 @@ from swh.model.model import (
     Origin,
     RawExtrinsicMetadata,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage.migrate_extrinsic_metadata import cran_package_from_url, handle_row
 
 FETCHER = MetadataFetcher(

@@ -11,7 +11,6 @@ from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
-from swh.model.identifiers import ExtendedSWHID, ObjectType
 from swh.model.model import (
     Content,
     Directory,
@@ -32,6 +31,7 @@ from swh.model.model import (
     Snapshot,
     SnapshotBranch,
 )
+from swh.model.swhids import ExtendedSWHID, ObjectType
 
 
 class ListOrder(Enum):

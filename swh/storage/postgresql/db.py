@@ -14,8 +14,8 @@ from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.identifiers import ObjectType
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
+from swh.model.swhids import ObjectType
 from swh.storage.interface import ListOrder
 
 logger = logging.getLogger(__name__)

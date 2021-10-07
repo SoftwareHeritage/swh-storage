@@ -39,7 +39,6 @@ from tenacity import (
 )
 
 from swh.core.utils import grouper
-from swh.model.identifiers import CoreSWHID
 from swh.model.model import (
     Content,
     Person,
@@ -48,6 +47,7 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID
 from swh.storage.interface import ListOrder
 
 from ..utils import remove_keys

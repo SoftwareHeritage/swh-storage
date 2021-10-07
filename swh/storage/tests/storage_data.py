@@ -10,8 +10,6 @@ import attr
 
 from swh.model import from_disk
 from swh.model.hashutil import hash_to_bytes
-from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
-from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
     Directory,
@@ -35,6 +33,8 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
+from swh.model.swhids import ObjectType as SwhidObjectType
 
 
 class StorageData:

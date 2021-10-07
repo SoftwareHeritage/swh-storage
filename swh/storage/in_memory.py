@@ -22,8 +22,8 @@ from typing import (
     Union,
 )
 
-from swh.model.identifiers import ExtendedSWHID
 from swh.model.model import Content, Sha1Git, SkippedContent
+from swh.model.swhids import ExtendedSWHID
 from swh.storage.cassandra import CassandraStorage
 from swh.storage.cassandra.model import (
     BaseRow,

@@ -20,7 +20,6 @@ import psycopg2.pool
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
-from swh.model.identifiers import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.model.model import (
     SHA1_SIZE,
     Content,
@@ -43,6 +42,7 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
+from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBError
 from swh.storage.interface import (
     VISIT_STATUSES,
