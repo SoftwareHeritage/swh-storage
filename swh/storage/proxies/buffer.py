@@ -9,7 +9,7 @@ from typing import Dict, Iterable, Mapping, Sequence, Tuple
 from typing_extensions import Literal
 
 from swh.core.utils import grouper
-from swh.model.model import BaseModel, Content, SkippedContent
+from swh.model.model import BaseModel, Content, Directory, SkippedContent
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
@@ -37,6 +37,7 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "content_bytes": 100 * 1024 * 1024,
     "skipped_content": 10000,
     "directory": 25000,
+    "directory_entries": 200000,
     "revision": 100000,
     "release": 100000,
     "snapshot": 25000,
@@ -65,6 +66,7 @@ class BufferingProxyStorage:
               content_bytes: 100000000
               skipped_content: 10000
               directory: 5000
+              directory_entries: 100000
               revision: 1000
               release: 10000
               snapshot: 5000
@@ -80,6 +82,7 @@ class BufferingProxyStorage:
             k: {} for k in OBJECT_TYPES
         }
         self._contents_size: int = 0
+        self._directory_entries: int = 0
 
     def __getattr__(self, key: str):
         if key.endswith("_add"):
@@ -105,7 +108,8 @@ class BufferingProxyStorage:
             object_type="content",
             keys=["sha1", "sha1_git", "sha256", "blake2s256"],
         )
-        if not stats:  # We did not flush already
+        if not stats:
+            # We did not flush based on number of objects; check total size
             self._contents_size += sum(c.length for c in contents)
             if self._contents_size >= self._buffer_thresholds["content_bytes"]:
                 return self.flush(["content"])
@@ -118,6 +122,17 @@ class BufferingProxyStorage:
             object_type="skipped_content",
             keys=["sha1", "sha1_git", "sha256", "blake2s256"],
         )
+
+    def directory_add(self, directories: Sequence[Directory]) -> Dict[str, int]:
+        stats = self.object_add(directories, object_type="directory", keys=["id"])
+
+        if not stats:
+            # We did not flush based on number of objects; check the number of entries
+            self._directory_entries += sum(len(d.entries) for d in directories)
+            if self._directory_entries >= self._buffer_thresholds["directory_entries"]:
+                return self.flush(["content", "directory"])
+
+        return stats
 
     def object_add(
         self,
@@ -179,5 +194,7 @@ class BufferingProxyStorage:
             buffer_.clear()
             if object_type == "content":
                 self._contents_size = 0
+            elif object_type == "directory":
+                self._directory_entries = 0
 
         self.storage.clear_buffers(object_types)

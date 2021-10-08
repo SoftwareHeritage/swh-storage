@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 from typing import Optional
 from unittest.mock import Mock
 
@@ -278,6 +279,29 @@ def test_buffering_proxy_storage_directory_deduplicate(sample_data) -> None:
 
     s = storage.flush()
     assert s == {}
+
+
+def test_buffering_proxy_storage_directory_entries_threshold(sample_data) -> None:
+    directories = sample_data.directories
+    n_entries = sum(len(d.entries) for d in directories)
+    threshold = sum(len(d.entries) for d in directories[:-2])
+
+    # ensure the threshold is in the middle
+    assert 0 < threshold < n_entries
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"directory_entries": threshold}
+    )
+    storage.storage = Mock(wraps=storage.storage)
+
+    for directory in directories:
+        storage.directory_add([directory])
+    storage.flush()
+
+    # We should have called the underlying directory_add at least twice, as
+    # we have hit the threshold for number of entries on directory n-2
+    method_calls = Counter(c[0] for c in storage.storage.method_calls)
+    assert method_calls["directory_add"] >= 2
 
 
 def test_buffering_proxy_storage_revision_threshold_not_hit(sample_data) -> None:
