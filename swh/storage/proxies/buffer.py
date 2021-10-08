@@ -9,7 +9,7 @@ from typing import Dict, Iterable, Mapping, Sequence, Tuple
 from typing_extensions import Literal
 
 from swh.core.utils import grouper
-from swh.model.model import BaseModel, Content, Directory, SkippedContent
+from swh.model.model import BaseModel, Content, Directory, Revision, SkippedContent
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
 
@@ -39,6 +39,7 @@ DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "directory": 25000,
     "directory_entries": 200000,
     "revision": 100000,
+    "revision_parents": 200000,
     "release": 100000,
     "snapshot": 25000,
     "extid": 10000,
@@ -68,6 +69,7 @@ class BufferingProxyStorage:
               directory: 5000
               directory_entries: 100000
               revision: 1000
+              revision_parents: 2000
               release: 10000
               snapshot: 5000
 
@@ -83,6 +85,7 @@ class BufferingProxyStorage:
         }
         self._contents_size: int = 0
         self._directory_entries: int = 0
+        self._revision_parents: int = 0
 
     def __getattr__(self, key: str):
         if key.endswith("_add"):
@@ -131,6 +134,17 @@ class BufferingProxyStorage:
             self._directory_entries += sum(len(d.entries) for d in directories)
             if self._directory_entries >= self._buffer_thresholds["directory_entries"]:
                 return self.flush(["content", "directory"])
+
+        return stats
+
+    def revision_add(self, revisions: Sequence[Revision]) -> Dict[str, int]:
+        stats = self.object_add(revisions, object_type="revision", keys=["id"])
+
+        if not stats:
+            # We did not flush based on number of objects; check the number of parents
+            self._revision_parents += sum(len(r.parents) for r in revisions)
+            if self._revision_parents >= self._buffer_thresholds["revision_parents"]:
+                return self.flush(["content", "directory", "revision"])
 
         return stats
 
@@ -196,5 +210,7 @@ class BufferingProxyStorage:
                 self._contents_size = 0
             elif object_type == "directory":
                 self._directory_entries = 0
+            elif object_type == "revision":
+                self._revision_parents = 0
 
         self.storage.clear_buffers(object_types)

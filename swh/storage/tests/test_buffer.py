@@ -359,6 +359,29 @@ def test_buffering_proxy_storage_revision_deduplicate(sample_data) -> None:
     assert s == {}
 
 
+def test_buffering_proxy_storage_revision_parents_threshold(sample_data) -> None:
+    revisions = sample_data.revisions
+    n_parents = sum(len(r.parents) for r in revisions)
+    threshold = sum(len(r.parents) for r in revisions[:-2])
+
+    # ensure the threshold is in the middle
+    assert 0 < threshold < n_parents
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"revision_parents": threshold}
+    )
+    storage.storage = Mock(wraps=storage.storage)
+
+    for revision in revisions:
+        storage.revision_add([revision])
+    storage.flush()
+
+    # We should have called the underlying revision_add at least twice, as
+    # we have hit the threshold for number of parents on revision n-2
+    method_calls = Counter(c[0] for c in storage.storage.method_calls)
+    assert method_calls["revision_add"] >= 2
+
+
 def test_buffering_proxy_storage_release_threshold_not_hit(sample_data) -> None:
     releases = sample_data.releases
     threshold = 10
