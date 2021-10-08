@@ -4,7 +4,8 @@
 # See top-level LICENSE file for more information
 
 from functools import partial
-from typing import Dict, Iterable, Mapping, Sequence, Tuple
+import logging
+from typing import Dict, Iterable, Mapping, Sequence, Tuple, cast
 
 from typing_extensions import Literal
 
@@ -19,6 +20,8 @@ from swh.model.model import (
 )
 from swh.storage import get_storage
 from swh.storage.interface import StorageInterface
+
+logger = logging.getLogger(__name__)
 
 LObjectType = Literal[
     "content",
@@ -233,6 +236,50 @@ class BufferingProxyStorage:
 
         for object_type in object_types:
             buffer_ = self._objects[object_type]
+            if not buffer_:
+                continue
+
+            if logger.isEnabledFor(logging.DEBUG):
+                log = "Flushing %s objects of type %s"
+                log_args = [len(buffer_), object_type]
+
+                if object_type == "content":
+                    log += " (%s bytes)"
+                    log_args.append(
+                        sum(cast(Content, c).length for c in buffer_.values())
+                    )
+
+                elif object_type == "directory":
+                    log += " (%s entries)"
+                    log_args.append(
+                        sum(len(cast(Directory, d).entries) for d in buffer_.values())
+                    )
+
+                elif object_type == "revision":
+                    log += " (%s parents, %s estimated bytes)"
+                    log_args.extend(
+                        (
+                            sum(
+                                len(cast(Revision, r).parents) for r in buffer_.values()
+                            ),
+                            sum(
+                                estimate_revision_size(cast(Revision, r))
+                                for r in buffer_.values()
+                            ),
+                        )
+                    )
+
+                elif object_type == "release":
+                    log += " (%s estimated bytes)"
+                    log_args.append(
+                        sum(
+                            estimate_release_size(cast(Release, r))
+                            for r in buffer_.values()
+                        )
+                    )
+
+                logger.debug(log, *log_args)
+
             batches = grouper(buffer_.values(), n=self._buffer_thresholds[object_type])
             for batch in batches:
                 add_fn = getattr(self.storage, "%s_add" % object_type)
