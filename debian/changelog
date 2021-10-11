@@ -1,8 +1,18 @@
-swh-storage (0.37.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.38.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.38.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2021-10-11 13:28:27
+    +0200)
+  * Upstream changes:     - v0.38.0     - buffer: add some debug logging
+    for number of objects sent     - buffer: add a threshold for the
+    estimated size of revision and release batches     - buffer: add a
+    threshold for the number of revision parents in one batch     -
+    buffer: add a threshold for the number of directory entries in one
+    batch     - filter: add filtering for release_add     - filter: do
+    not call the underlying functions if there's nothing to add     -
+    buffer: Ensure that we don't send data from empty buffers
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 29 Sep 2021 10:19:01 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 11 Oct 2021 14:58:23 +0000
 
 swh-storage (0.37.1-1~swh1) unstable-swh; urgency=medium
 
