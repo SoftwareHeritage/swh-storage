@@ -3,11 +3,16 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
 from typing import Optional
 from unittest.mock import Mock
 
 from swh.storage import get_storage
-from swh.storage.proxies.buffer import BufferingProxyStorage
+from swh.storage.proxies.buffer import (
+    BufferingProxyStorage,
+    estimate_release_size,
+    estimate_revision_size,
+)
 
 
 def get_storage_with_buffer_config(**buffer_config) -> BufferingProxyStorage:
@@ -280,6 +285,29 @@ def test_buffering_proxy_storage_directory_deduplicate(sample_data) -> None:
     assert s == {}
 
 
+def test_buffering_proxy_storage_directory_entries_threshold(sample_data) -> None:
+    directories = sample_data.directories
+    n_entries = sum(len(d.entries) for d in directories)
+    threshold = sum(len(d.entries) for d in directories[:-2])
+
+    # ensure the threshold is in the middle
+    assert 0 < threshold < n_entries
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"directory_entries": threshold}
+    )
+    storage.storage = Mock(wraps=storage.storage)
+
+    for directory in directories:
+        storage.directory_add([directory])
+    storage.flush()
+
+    # We should have called the underlying directory_add at least twice, as
+    # we have hit the threshold for number of entries on directory n-2
+    method_calls = Counter(c[0] for c in storage.storage.method_calls)
+    assert method_calls["directory_add"] >= 2
+
+
 def test_buffering_proxy_storage_revision_threshold_not_hit(sample_data) -> None:
     revision = sample_data.revision
     storage = get_storage_with_buffer_config(min_batch_size={"revision": 10,})
@@ -333,6 +361,52 @@ def test_buffering_proxy_storage_revision_deduplicate(sample_data) -> None:
 
     s = storage.flush()
     assert s == {}
+
+
+def test_buffering_proxy_storage_revision_parents_threshold(sample_data) -> None:
+    revisions = sample_data.revisions
+    n_parents = sum(len(r.parents) for r in revisions)
+    threshold = sum(len(r.parents) for r in revisions[:-2])
+
+    # ensure the threshold is in the middle
+    assert 0 < threshold < n_parents
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"revision_parents": threshold}
+    )
+    storage.storage = Mock(wraps=storage.storage)
+
+    for revision in revisions:
+        storage.revision_add([revision])
+    storage.flush()
+
+    # We should have called the underlying revision_add at least twice, as
+    # we have hit the threshold for number of parents on revision n-2
+    method_calls = Counter(c[0] for c in storage.storage.method_calls)
+    assert method_calls["revision_add"] >= 2
+
+
+def test_buffering_proxy_storage_revision_size_threshold(sample_data) -> None:
+    revisions = sample_data.revisions
+    total_size = sum(estimate_revision_size(r) for r in revisions)
+    threshold = sum(estimate_revision_size(r) for r in revisions[:-2])
+
+    # ensure the threshold is in the middle
+    assert 0 < threshold < total_size
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"revision_bytes": threshold}
+    )
+    storage.storage = Mock(wraps=storage.storage)
+
+    for revision in revisions:
+        storage.revision_add([revision])
+    storage.flush()
+
+    # We should have called the underlying revision_add at least twice, as
+    # we have hit the threshold for number of parents on revision n-2
+    method_calls = Counter(c[0] for c in storage.storage.method_calls)
+    assert method_calls["revision_add"] >= 2
 
 
 def test_buffering_proxy_storage_release_threshold_not_hit(sample_data) -> None:
@@ -401,6 +475,29 @@ def test_buffering_proxy_storage_release_deduplicate(sample_data) -> None:
 
     s = storage.flush()
     assert s == {}
+
+
+def test_buffering_proxy_storage_release_size_threshold(sample_data) -> None:
+    releases = sample_data.releases
+    total_size = sum(estimate_release_size(r) for r in releases)
+    threshold = sum(estimate_release_size(r) for r in releases[:-2])
+
+    # ensure the threshold is in the middle
+    assert 0 < threshold < total_size
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={"release_bytes": threshold}
+    )
+    storage.storage = Mock(wraps=storage.storage)
+
+    for release in releases:
+        storage.release_add([release])
+    storage.flush()
+
+    # We should have called the underlying release_add at least twice, as
+    # we have hit the threshold for number of parents on release n-2
+    method_calls = Counter(c[0] for c in storage.storage.method_calls)
+    assert method_calls["release_add"] >= 2
 
 
 def test_buffering_proxy_storage_snapshot_threshold_not_hit(sample_data) -> None:
@@ -620,3 +717,13 @@ def test_buffer_operation_order(sample_data) -> None:
             methods_called,
         )
         prev = cur
+
+
+def test_buffer_empty_batches() -> None:
+    "Flushing an empty buffer storage doesn't call any underlying _add method"
+    storage = get_storage_with_buffer_config()
+    storage.storage = mocked_storage = Mock(wraps=storage.storage)
+
+    storage.flush()
+    methods_called = {c[0] for c in mocked_storage.method_calls}
+    assert methods_called == {"flush", "clear_buffers"}
