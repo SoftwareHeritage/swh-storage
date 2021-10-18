@@ -394,7 +394,7 @@ class CqlRunner:
         else:
             return None
 
-    def content_missing_from_hashes(
+    def content_missing_from_all_hashes(
         self, contents_hashes: List[Dict[str, bytes]]
     ) -> Iterator[Dict[str, bytes]]:
         for group in grouper(contents_hashes, PARTITION_KEY_RESTRICTION_MAX_SIZE):
@@ -410,7 +410,7 @@ class CqlRunner:
             for content in group:
                 for algo in HASH_ALGORITHMS:
                     assert content.get(algo) is not None, (
-                        "content_missing_from_hashes must not be called with "
+                        "content_missing_from_all_hashes must not be called with "
                         "partial hashes."
                     )
                 if tuple(content[algo] for algo in HASH_ALGORITHMS) not in present:

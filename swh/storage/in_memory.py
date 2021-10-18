@@ -216,7 +216,7 @@ class InMemoryCqlRunner:
         matches.sort()
         return matches[0:limit]
 
-    def content_missing_from_hashes(
+    def content_missing_from_all_hashes(
         self, contents_hashes: List[Dict[str, bytes]]
     ) -> Iterator[Dict[str, bytes]]:
         for content_hashes in contents_hashes:

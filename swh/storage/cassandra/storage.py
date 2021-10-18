@@ -351,6 +351,7 @@ class CassandraStorage:
     def _content_find_many(self, contents: List[Dict[str, Any]]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
+        # TODO: prioritize sha256, we can do more efficient lookups from this hash.
         filter_algos = set(HASH_ALGORITHMS)
         for content in contents:
             filter_algos &= set(content)
@@ -402,16 +403,28 @@ class CassandraStorage:
                 contents_with_missing_hashes.append(content)
 
         # These contents can be queried efficiently directly in the main table
-        for content in self._cql_runner.content_missing_from_hashes(
+        for content in self._cql_runner.content_missing_from_all_hashes(
             contents_with_all_hashes
         ):
             yield content[key_hash]
 
-        # For these, we need the expensive index lookups + main table.
-        for content in contents_with_missing_hashes:
-            res = self.content_find(content)
-            if not res:
-                yield content[key_hash]
+        if contents_with_missing_hashes:
+            # For these, we need the expensive index lookups + main table.
+
+            # Get all contents in the database that match (at least) one of the
+            # requested contents, concurrently.
+            found_contents = self._content_find_many(contents_with_missing_hashes)
+
+            for missing_content in contents_with_missing_hashes:
+                for found_content in found_contents:
+                    # check if the found_content.hashes() dictionary contains a superset
+                    # of the (key, value) pairs in missing_content
+                    if missing_content.items() <= found_content.hashes().items():
+                        # Found!
+                        break
+                else:
+                    # Not found
+                    yield missing_content[key_hash]
 
     @timed
     def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
