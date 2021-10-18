@@ -962,7 +962,7 @@ class CassandraStorage:
         queries: List[Tuple[str, Callable[[List[Sha1Git]], List[Sha1Git]]]] = [
             ("revision", self._cql_runner.revision_missing),
             ("release", self._cql_runner.release_missing),
-            ("content", self._cql_runner.content_missing_by_sha1_git),
+            ("content", self.content_missing_per_sha1_git),
             ("directory", self._cql_runner.directory_missing),
         ]
 

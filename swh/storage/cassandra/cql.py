@@ -459,18 +459,6 @@ class CqlRunner:
     # 'content_by_*' tables
     ##########################
 
-    @_prepared_statement(
-        f"""
-        SELECT sha1_git AS id
-        FROM {content_index_table_name("sha1_git", skipped_content=False)}
-        WHERE sha1_git IN ?
-        """
-    )
-    def content_missing_by_sha1_git(
-        self, ids: List[bytes], *, statement
-    ) -> List[bytes]:
-        return self._missing(statement, ids)
-
     def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
         """Adds a row mapping content[algo] to the token of the Content in
         the main 'content' table."""
