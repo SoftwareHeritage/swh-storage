@@ -3,6 +3,8 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from copy import deepcopy
+
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
 from swh.storage.algos.revisions_walker import get_revisions_walker
 
@@ -378,16 +380,20 @@ _rev_missing = "836d498396fb9b5d45c896885f84d8d60a5651dc"
 
 
 def check_revisions_ordering(
-    mocker, rev_walker_type, expected_result, truncated_history
+    mocker,
+    rev_walker_type,
+    expected_result,
+    truncated_history,
+    revisions_list=_revisions_list,
 ):
     storage = mocker.patch("swh.storage.postgresql.storage.Storage")
 
     if not truncated_history:
-        storage.revision_log.return_value = _revisions_list
+        storage.revision_log.return_value = revisions_list
     else:
         revs_lists_truncated = [
             None if hash_to_hex(rev["id"]) == _rev_missing else rev
-            for rev in _revisions_list
+            for rev in revisions_list
         ]
 
         storage.revision_log.return_value = revs_lists_truncated
@@ -508,3 +514,30 @@ def test_revisions_walker_truncated_history(mocker):
         check_revisions_ordering(
             mocker, revs_walker_type, expected_result, truncated_history=True
         )
+
+
+def test_revisions_walker_no_committer_date(mocker):
+
+    expected_result = [
+        "b364f53155044e5308a0f73abb3b5f01995a5b7d",
+        "b94886c500c46e32dc3d7ebae8a5409accd592e5",
+        "0cb6b4611d65bee0f57821dac7f611e2f8a02433",
+        "2b0240c6d682bad51532eec15b8a7ed6b75c8d31",
+        "b401c50863475db4440c85c10ac0b6423b61554d",
+        "9c5051397e5c2e0c258bb639c3dd34406584ca10",
+        "836d498396fb9b5d45c896885f84d8d60a5651dc",
+        "ee96c2a2d397b79070d2b6fe3051290963748358",
+        "8f89dda8e072383cf50d42532ae8f52ad89f8fdf",
+    ]
+
+    revisions_list = deepcopy(_revisions_list)
+    for revision in revisions_list:
+        revision["committer_date"] = None
+
+    check_revisions_ordering(
+        mocker,
+        "committer_date",
+        expected_result,
+        truncated_history=False,
+        revisions_list=revisions_list,
+    )

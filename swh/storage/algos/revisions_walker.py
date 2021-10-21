@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2019  The Software Heritage developers
+# Copyright (C) 2018-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -233,7 +233,13 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
         if rev_id not in self._done:
             rev = self._get_rev(rev_id)
             if rev is not None:
-                commit_time = rev["committer_date"]["timestamp"]["seconds"]
+                commit_time = (
+                    rev["committer_date"]["timestamp"]["seconds"]
+                    if rev["committer_date"]
+                    # allows to avoid failure with a revision without commit date
+                    # and iterate on such revision before its parents
+                    else len(self._revs_to_visit)
+                )
                 heapq.heappush(self._revs_to_visit, (-commit_time, rev_id))
             else:
                 self._missing_revs.add(rev_id)
