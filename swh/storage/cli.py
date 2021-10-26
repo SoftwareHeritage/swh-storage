@@ -159,8 +159,35 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
     type=int,
     help="Stop after processing this many objects. Default is to " "run forever.",
 )
+@click.option(
+    "--type",
+    "-t",
+    "object_types",
+    default=[],
+    type=click.Choice(
+        # use a hardcoded list to prevent having to load the
+        # replay module at cli loading time
+        [
+            "origin",
+            "origin_visit",
+            "origin_visit_status",
+            "snapshot",
+            "revision",
+            "release",
+            "directory",
+            "content",
+            "skipped_content",
+            "metadata_authority",
+            "metadata_fetcher",
+            "raw_extrinsic_metadata",
+            "extid",
+        ]
+    ),
+    help="Object types to replay",
+    multiple=True,
+)
 @click.pass_context
-def replay(ctx, stop_after_objects):
+def replay(ctx, stop_after_objects, object_types):
     """Fill a Storage by reading a Journal.
 
     There can be several 'replayers' filling a Storage as long as they use
@@ -178,6 +205,8 @@ def replay(ctx, stop_after_objects):
     storage = get_storage(**conf.pop("storage"))
 
     client_cfg = conf.pop("journal_client")
+    if object_types:
+        client_cfg["object_types"] = object_types
     if stop_after_objects:
         client_cfg["stop_after_objects"] = stop_after_objects
     try:
