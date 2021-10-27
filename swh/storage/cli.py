@@ -13,6 +13,8 @@ import click
 
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
+from swh.storage.replay import ModelObjectDeserializer
+
 
 try:
     from systemd.daemon import notify
@@ -204,11 +206,29 @@ def replay(ctx, stop_after_objects, object_types):
     conf = ctx.obj["config"]
     storage = get_storage(**conf.pop("storage"))
 
+    if "error_reporter" in conf:
+        from redis import Redis
+
+        reporter = Redis(**conf["error_reporter"]).set
+    else:
+        reporter = None
+    validate = conf.get("privileged", False)
+
+    if not validate and reporter:
+        ctx.fail(
+            "Invalid configuration: you cannot have 'error_reporter' set if "
+            "'privileged' is False; we cannot validate anonymized objects."
+        )
+
+    deserializer = ModelObjectDeserializer(reporter=reporter, validate=validate)
+
     client_cfg = conf.pop("journal_client")
+    client_cfg["value_deserializer"] = deserializer.convert
     if object_types:
         client_cfg["object_types"] = object_types
     if stop_after_objects:
         client_cfg["stop_after_objects"] = stop_after_objects
+
     try:
         client = get_journal_client(**client_cfg)
     except ValueError as exc:

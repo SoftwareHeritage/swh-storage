@@ -20,7 +20,7 @@ from swh.storage.backfill import (
     raw_extrinsic_metadata_target_ranges,
 )
 from swh.storage.in_memory import InMemoryStorage
-from swh.storage.replay import process_replay_objects
+from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
 from swh.storage.tests.test_replay import check_replayed
 
 TEST_CONFIG = {
@@ -239,7 +239,6 @@ def test_backfiller(
     }
     swh_storage_backend_config["journal_writer"] = journal1
     storage = get_storage(**swh_storage_backend_config)
-
     # fill the storage and the journal (under prefix1)
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(storage, object_type + "_add")
@@ -266,13 +265,16 @@ def test_backfiller(
     # now check journal content are the same under both topics
     # use the replayer scaffolding to fill storages to make is a bit easier
     # Replaying #1
+    deserializer = ModelObjectDeserializer()
     sto1 = get_storage(cls="memory")
     replayer1 = JournalClient(
         brokers=kafka_server,
         group_id=f"{kafka_consumer_group}-1",
         prefix=prefix1,
         stop_on_eof=True,
+        value_deserializer=deserializer.convert,
     )
+
     worker_fn1 = functools.partial(process_replay_objects, storage=sto1)
     replayer1.process(worker_fn1)
 
@@ -283,6 +285,7 @@ def test_backfiller(
         group_id=f"{kafka_consumer_group}-2",
         prefix=prefix2,
         stop_on_eof=True,
+        value_deserializer=deserializer.convert,
     )
     worker_fn2 = functools.partial(process_replay_objects, storage=sto2)
     replayer2.process(worker_fn2)

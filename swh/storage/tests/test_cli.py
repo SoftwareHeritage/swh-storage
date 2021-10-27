@@ -18,7 +18,7 @@ from swh.journal.serializers import key_to_kafka, value_to_kafka
 from swh.model.model import Snapshot, SnapshotBranch, TargetType
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
-from swh.storage.replay import object_converter_fn
+from swh.storage.replay import OBJECT_CONVERTERS
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ def test_replay_type_list():
     assert len(types_in_help) == 1
     types = types_in_help[0].split("|")
 
-    assert sorted(types) == sorted(list(object_converter_fn.keys())), (
+    assert sorted(types) == sorted(list(OBJECT_CONVERTERS.keys())), (
         "Make sure the list of accepted types in cli.py "
         "matches implementation in replay.py"
     )

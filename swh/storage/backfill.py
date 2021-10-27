@@ -38,7 +38,7 @@ from swh.storage.postgresql.converters import (
     db_to_release,
     db_to_revision,
 )
-from swh.storage.replay import object_converter_fn
+from swh.storage.replay import OBJECT_CONVERTERS
 from swh.storage.writer import JournalWriter
 
 logger = logging.getLogger(__name__)
@@ -541,7 +541,7 @@ def fetch(db, obj_type, start, end):
             if converter:
                 record = converter(db, record)
             else:
-                record = object_converter_fn[obj_type](record)
+                record = OBJECT_CONVERTERS[obj_type](record)
 
             logger.debug("record: %s", record)
             yield record
