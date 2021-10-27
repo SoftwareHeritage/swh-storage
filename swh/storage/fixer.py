@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from swh.model.model import Origin
 
@@ -48,14 +48,18 @@ def _fix_raw_extrinsic_metadata(obj_dict: Dict) -> Dict:
     return o
 
 
+object_fixers: Dict[str, Callable[[Dict], Dict]] = {
+    "content": _fix_content,
+    "raw_extrinsic_metadata": _fix_raw_extrinsic_metadata,
+}
+
+
 def fix_objects(object_type: str, objects: List[Dict]) -> List[Dict]:
     """
     Fix legacy objects from the journal to bring them up to date with the
     latest storage schema.
     """
-    if object_type == "content":
-        return [_fix_content(v) for v in objects]
-    elif object_type == "raw_extrinsic_metadata":
-        return [_fix_raw_extrinsic_metadata(v) for v in objects]
-    else:
-        return objects
+    if object_type in object_fixers:
+        fixer = object_fixers[object_type]
+        objects = [fixer(v) for v in objects]
+    return objects
