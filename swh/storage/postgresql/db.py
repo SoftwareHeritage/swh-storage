@@ -1209,6 +1209,16 @@ class Db(BaseDb):
     ]
     release_get_cols = release_add_cols
 
+    def origin_snapshot_get_all(self, origin_url: str, cur=None) -> Iterable[Sha1Git]:
+        cur = self._cursor(cur)
+        query = f"""\
+        SELECT DISTINCT snapshot FROM origin_visit_status ovs
+        INNER JOIN origin o ON o.id = ovs.origin
+        WHERE o.url = '{origin_url}' and snapshot IS NOT NULL;
+        """
+        cur.execute(query)
+        yield from map(lambda row: row[0], cur)
+
     def release_get_from_list(self, releases, cur=None):
         cur = self._cursor(cur)
         query_keys = ", ".join(

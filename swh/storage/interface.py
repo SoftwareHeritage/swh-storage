@@ -1144,6 +1144,19 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("origin/snapshot/get")
+    def origin_snapshot_get_all(self, origin_url: str) -> List[Sha1Git]:
+        """Return all unique snapshot identifiers resulting from origin visits.
+
+        Args:
+            origin_url: origin URL
+
+        Returns:
+            list of sha1s
+
+        """
+        ...
+
     @remote_api_endpoint("origin/add_multi")
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         """Add origins to the storage

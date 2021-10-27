@@ -1351,6 +1351,13 @@ class Storage:
         return db.origin_count(url_pattern, regexp, with_visit, cur)
 
     @timed
+    @db_transaction()
+    def origin_snapshot_get_all(
+        self, origin_url: str, *, db: Db, cur=None
+    ) -> List[Sha1Git]:
+        return list(db.origin_snapshot_get_all(origin_url, cur))
+
+    @timed
     @process_metrics
     @db_transaction()
     def origin_add(self, origins: List[Origin], *, db: Db, cur=None) -> Dict[str, int]:

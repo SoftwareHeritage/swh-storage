@@ -1091,6 +1091,10 @@ class CassandraStorage:
         )
 
     @timed
+    def origin_snapshot_get_all(self, origin_url: str) -> List[Sha1Git]:
+        return list(self._cql_runner.origin_snapshot_get_all(origin_url))
+
+    @timed
     @process_metrics
     def origin_add(self, origins: List[Origin]) -> Dict[str, int]:
         if not self._allow_overwrite:

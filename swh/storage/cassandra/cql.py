@@ -1123,6 +1123,14 @@ class CqlRunner:
             self._execute_with_retries(statement, [origin, visit]),
         )
 
+    @_prepared_statement("SELECT snapshot FROM origin_visit_status WHERE origin = ?")
+    def origin_snapshot_get_all(self, origin: str, *, statement) -> Iterable[Sha1Git]:
+        yield from {
+            d["snapshot"]
+            for d in self._execute_with_retries(statement, [origin])
+            if d["snapshot"] is not None
+        }
+
     ##########################
     # 'metadata_authority' table
     ##########################

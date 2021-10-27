@@ -2034,6 +2034,54 @@ class TestStorage:
         random_origin_visit = swh_storage.origin_visit_status_get_random(visit_type)
         assert random_origin_visit is None
 
+    def test_origin_snapshot_get_all(self, swh_storage, sample_data):
+        origin = sample_data.origins[0]
+        swh_storage.origin_add([origin])
+
+        # add some random visits within the selection range
+        visits = self._generate_random_visits()
+        visit_type = "git"
+
+        # set first visit to a null snapshot
+        visit = swh_storage.origin_visit_add(
+            [OriginVisit(origin=origin.url, date=visits[0], type=visit_type,)]
+        )[0]
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=visit.visit,
+                    date=now(),
+                    status="created",
+                    snapshot=None,
+                )
+            ]
+        )
+
+        # add visits to origin
+        snapshots = set()
+        for date_visit in visits[1:]:
+            visit = swh_storage.origin_visit_add(
+                [OriginVisit(origin=origin.url, date=date_visit, type=visit_type,)]
+            )[0]
+            # pick a random snapshot and keep track of it
+            snapshot = random.choice(sample_data.snapshots).id
+            snapshots.add(snapshot)
+            swh_storage.origin_visit_status_add(
+                [
+                    OriginVisitStatus(
+                        origin=origin.url,
+                        visit=visit.visit,
+                        date=now(),
+                        status="full",
+                        snapshot=snapshot,
+                    )
+                ]
+            )
+
+        # check expected snapshots are returned
+        assert set(swh_storage.origin_snapshot_get_all(origin.url)) == snapshots
+
     def test_origin_get_by_sha1(self, swh_storage, sample_data):
         origin = sample_data.origin
         assert swh_storage.origin_get([origin.url])[0] is None
