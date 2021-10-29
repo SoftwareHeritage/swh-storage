@@ -28,8 +28,6 @@ import attr
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_hex
-from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
-from swh.model.identifiers import ObjectType as SwhidObjectType
 from swh.model.model import (
     Content,
     Directory,
@@ -50,6 +48,8 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
+from swh.model.swhids import ObjectType as SwhidObjectType
 from swh.storage.interface import (
     VISIT_STATUSES,
     ListOrder,
@@ -962,7 +962,7 @@ class CassandraStorage:
         queries: List[Tuple[str, Callable[[List[Sha1Git]], List[Sha1Git]]]] = [
             ("revision", self._cql_runner.revision_missing),
             ("release", self._cql_runner.release_missing),
-            ("content", self._cql_runner.content_missing_by_sha1_git),
+            ("content", self.content_missing_per_sha1_git),
             ("directory", self._cql_runner.directory_missing),
         ]
 
@@ -1089,6 +1089,10 @@ class CassandraStorage:
         raise NotImplementedError(
             "The Cassandra backend does not implement origin_count"
         )
+
+    @timed
+    def origin_snapshot_get_all(self, origin_url: str) -> List[Sha1Git]:
+        return list(self._cql_runner.origin_snapshot_get_all(origin_url))
 
     @timed
     @process_metrics

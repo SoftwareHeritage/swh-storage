@@ -39,7 +39,6 @@ from tenacity import (
 )
 
 from swh.core.utils import grouper
-from swh.model.identifiers import CoreSWHID
 from swh.model.model import (
     Content,
     Person,
@@ -48,6 +47,7 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID
 from swh.storage.interface import ListOrder
 
 from ..utils import remove_keys
@@ -458,18 +458,6 @@ class CqlRunner:
     ##########################
     # 'content_by_*' tables
     ##########################
-
-    @_prepared_statement(
-        f"""
-        SELECT sha1_git AS id
-        FROM {content_index_table_name("sha1_git", skipped_content=False)}
-        WHERE sha1_git IN ?
-        """
-    )
-    def content_missing_by_sha1_git(
-        self, ids: List[bytes], *, statement
-    ) -> List[bytes]:
-        return self._missing(statement, ids)
 
     def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
         """Adds a row mapping content[algo] to the token of the Content in
@@ -1134,6 +1122,14 @@ class CqlRunner:
             OriginVisitStatusRow.from_dict,
             self._execute_with_retries(statement, [origin, visit]),
         )
+
+    @_prepared_statement("SELECT snapshot FROM origin_visit_status WHERE origin = ?")
+    def origin_snapshot_get_all(self, origin: str, *, statement) -> Iterable[Sha1Git]:
+        yield from {
+            d["snapshot"]
+            for d in self._execute_with_retries(statement, [origin])
+            if d["snapshot"] is not None
+        }
 
     ##########################
     # 'metadata_authority' table

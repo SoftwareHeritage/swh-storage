@@ -13,7 +13,6 @@ import urllib.error
 
 import attr
 
-from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
@@ -26,6 +25,7 @@ from swh.model.model import (
     SnapshotBranch,
     TargetType,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
 from swh.storage.interface import PagedResult
 from swh.storage.migrate_extrinsic_metadata import (

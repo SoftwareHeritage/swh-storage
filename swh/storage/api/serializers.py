@@ -7,9 +7,7 @@
 
 from typing import Callable, Dict, List, Tuple
 
-import swh.model.identifiers as identifiers
-from swh.model.identifiers import CoreSWHID, ExtendedSWHID, ObjectType, QualifiedSWHID
-import swh.model.model as model
+from swh.model import model, swhids
 from swh.storage import interface
 
 
@@ -30,8 +28,8 @@ def _decode_model_enum(d):
     return getattr(model, d.pop("__type__"))(d["value"])
 
 
-def _decode_identifiers_enum(d):
-    return getattr(identifiers, d.pop("__type__"))(d["value"])
+def _decode_swhids_enum(d):
+    return getattr(swhids, d.pop("__type__"))(d["value"])
 
 
 def _decode_storage_enum(d):
@@ -40,21 +38,23 @@ def _decode_storage_enum(d):
 
 ENCODERS: List[Tuple[type, str, Callable]] = [
     (model.BaseModel, "model", _encode_model_object),
-    (CoreSWHID, "core_swhid", str),
-    (ExtendedSWHID, "extended_swhid", str),
-    (QualifiedSWHID, "qualified_swhid", str),
-    (ObjectType, "identifiers_enum", _encode_enum),
+    (swhids.CoreSWHID, "core_swhid", str),
+    (swhids.ExtendedSWHID, "extended_swhid", str),
+    (swhids.QualifiedSWHID, "qualified_swhid", str),
+    # TODO: serialize this as "swhids_enum" when all peers support it in their DECODERS:
+    (swhids.ObjectType, "identifiers_enum", _encode_enum),
     (model.MetadataAuthorityType, "model_enum", _encode_enum),
     (interface.ListOrder, "storage_enum", _encode_enum),
 ]
 
 
 DECODERS: Dict[str, Callable] = {
-    "core_swhid": CoreSWHID.from_string,
-    "extended_swhid": ExtendedSWHID.from_string,
-    "qualified_swhid": QualifiedSWHID.from_string,
+    "core_swhid": swhids.CoreSWHID.from_string,
+    "extended_swhid": swhids.ExtendedSWHID.from_string,
+    "qualified_swhid": swhids.QualifiedSWHID.from_string,
     "model": lambda d: getattr(model, d.pop("__type__")).from_dict(d),
-    "identifiers_enum": _decode_identifiers_enum,
+    "identifiers_enum": _decode_swhids_enum,
+    "swhids_enum": _decode_swhids_enum,
     "model_enum": _decode_model_enum,
     "storage_enum": _decode_storage_enum,
 }

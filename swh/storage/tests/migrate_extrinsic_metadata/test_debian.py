@@ -15,7 +15,6 @@ from unittest.mock import patch as _patch
 import attr
 import pytest
 
-from swh.model.identifiers import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
@@ -33,6 +32,7 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
 from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.migrate_extrinsic_metadata import debian_origins_from_row, handle_row
