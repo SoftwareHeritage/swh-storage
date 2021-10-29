@@ -39,19 +39,19 @@ import psycopg2
 
 from swh.core.db import BaseDb
 from swh.model.hashutil import hash_to_hex
-from swh.model.identifiers import (
-    CoreSWHID,
-    ExtendedObjectType,
-    ExtendedSWHID,
-    ObjectType,
-    QualifiedSWHID,
-)
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
     RawExtrinsicMetadata,
     Sha1Git,
+)
+from swh.model.swhids import (
+    CoreSWHID,
+    ExtendedObjectType,
+    ExtendedSWHID,
+    ObjectType,
+    QualifiedSWHID,
 )
 from swh.storage import get_storage
 from swh.storage.algos.origin import iter_origin_visit_statuses, iter_origin_visits

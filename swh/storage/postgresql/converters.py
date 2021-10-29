@@ -8,15 +8,13 @@ from typing import Any, Dict, Optional
 import warnings
 
 from swh.core.utils import encode_with_unescape
-from swh.model.identifiers import CoreSWHID, ExtendedSWHID
-from swh.model.identifiers import ObjectType as SwhidObjectType
-from swh.model.identifiers import origin_identifier
 from swh.model.model import (
     ExtID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
     ObjectType,
+    Origin,
     Person,
     RawExtrinsicMetadata,
     Release,
@@ -25,6 +23,8 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID, ExtendedSWHID
+from swh.model.swhids import ObjectType as SwhidObjectType
 
 from ..utils import map_optional
 
@@ -303,7 +303,7 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
         warnings.warn(
             "Fetching raw_extrinsic_metadata row with URL target", DeprecationWarning
         )
-        target = "swh:1:ori:" + origin_identifier({"url": target})
+        target = str(Origin(url=target).swhid())
 
     return RawExtrinsicMetadata(
         target=ExtendedSWHID.from_string(target),
