@@ -7,7 +7,6 @@ import datetime
 
 import pytest
 
-from swh.model.identifiers import ExtendedSWHID
 from swh.model.model import (
     ObjectType,
     Person,
@@ -17,6 +16,7 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.swhids import ExtendedSWHID
 from swh.storage.postgresql import converters
 
 
