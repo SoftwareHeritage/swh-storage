@@ -1,3 +1,9 @@
+swh-storage (0.40.0-2~swh1) unstable-swh; urgency=medium
+
+  * Update dependencies in d/control.
+
+ -- David Douard <david.douard@sdfa3.org>  Tue, 16 Nov 2021 14:37:20 +0100
+
 swh-storage (0.40.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.40.0     - (tagged by David Douard
