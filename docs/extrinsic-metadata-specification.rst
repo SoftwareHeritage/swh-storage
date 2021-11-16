@@ -90,124 +90,114 @@ Storage API
 Authorities and metadata fetchers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :term:`storage` API offers these endpoints to manipulate metadata
-authorities and metadata fetchers:
+Data model
+~~~~~~~~~~
 
-* ``metadata_authority_add(type, url, metadata)``
-  which adds a new metadata authority to the storage.
+The :term:`storage` API uses these structures to represent metadata
+authorities and metadata fetchers (simplified Python code)::
 
-* ``metadata_authority_get(type, url)``
+   class MetadataAuthorityType(Enum):
+       DEPOSIT_CLIENT = "deposit_client"
+       FORGE = "forge"
+       REGISTRY = "registry"
+
+   class MetadataAuthority(BaseModel):
+       """Represents an entity that provides metadata about an origin or
+       software artifact."""
+
+       object_type = "metadata_authority"
+
+       type: MetadataAuthorityType
+       url: str
+
+   class MetadataFetcher(BaseModel):
+       """Represents a software component used to fetch metadata from a metadata
+       authority, and ingest them into the Software Heritage archive."""
+
+       object_type = "metadata_fetcher"
+
+       name: str
+       version: str
+
+Storage API
+~~~~~~~~~~~
+
+* ``metadata_authority_add(authorities: List[MetadataAuthority])``
+  which adds a list of ``MetadataAuthority`` to the storage.
+
+* ``metadata_authority_get(type: MetadataAuthorityType, url: str) -> Optional[MetadataAuthority]``
   which looks up a known authority (there is at most one) and if it is
-  known, returns a dictionary with keys ``type``, ``url``, and ``metadata``.
+  known, returns the corresponding ``MetadataAuthority``
 
-* ``metadata_fetcher_add(name, version, metadata)``
-  which adds a new metadata fetcher to the storage.
+* ``metadata_fetcher_add(fetchers: List[MetadataFetcher])``
+  which adds a list of ``MetadataFetcher`` to the storage.
 
-* ``metadata_fetcher_get(name, version)``
+* ``metadata_fetcher_get(name: str, version: str) -> Optional[MetadataFetcher]``
   which looks up a known fetcher (there is at most one) and if it is
-  known, returns a dictionary with keys ``name``, ``version``, and
-  ``metadata``.
+  known, returns the corresponding ``MetadataFetcher``
 
-These `metadata` fields contain JSON-encodable dictionaries
-with information about the authority/fetcher, in a format specific to each
-authority/fetcher.
-With authority, the `metadata` field is reserved for information describing
-and qualifying the authority.
-With fetchers, the `metadata` field is reserved for configuration metadata
-and other technical usage.
+Artifact metadata
+^^^^^^^^^^^^^^^^^
 
-Origin metadata
-^^^^^^^^^^^^^^^
+Data model
+~~~~~~~~~~
 
-Extrinsic metadata are stored in SWH's :term:`storage database`.
-The storage API offers three endpoints to manipulate origin metadata:
+The storage database stores metadata on origins, and all software artifacts
+supported by the data model.
+They are represented using this structure (simplified Python code)::
 
-* Adding metadata::
+   class RawExtrinsicMetadata(HashableObject, BaseModel):
+       object_type = "raw_extrinsic_metadata"
 
-      raw_extrinsic_metadata_add(
-         "origin", origin_url, discovery_date,
-         authority, fetcher,
-         format, metadata
-      )
+       # target object
+       target: ExtendedSWHID
 
-  which adds a new `metadata` byte string obtained from a given authority
-  and associated to the origin.
-  `discovery_date` is a Python datetime.
-  `authority` must be a dict containing keys `type` and `url`, and
-  `fetcher` a dict containing keys `name` and `version`.
-  The authority and fetcher must be known to the storage before using this
-  endpoint.
-  `format` is a text field indicating the format of the content of the
-  `metadata` byte string, see `extrinsic-metadata-formats`_.
+       # source
+       discovery_date: datetime.datetime
+       authority: MetadataAuthority
+       fetcher: MetadataFetcher
 
-* Getting latest metadata::
+       # the metadata itself
+       format: str
+       metadata: bytes
 
-      raw_extrinsic_metadata_get_latest(
-         "origin", origin_url, authority
-      )
+       # context
+       origin: Optional[str] = None
+       visit: Optional[int] = None
+       snapshot: Optional[CoreSWHID] = None
+       release: Optional[CoreSWHID] = None
+       revision: Optional[CoreSWHID] = None
+       path: Optional[bytes] = None
+       directory: Optional[CoreSWHID] = None
 
-  where `authority` must be a dict containing keys `type` and `url`,
-  which returns a dictionary corresponding to the latest metadata entry
-  added from this origin, in the format::
+       id: Sha1Git
 
-      {
-        'origin_url': ...,
-        'authority': {'type': ..., 'url': ...},
-        'fetcher': {'name': ..., 'version': ...},
-        'discovery_date': ...,
-        'format': '...',
-        'metadata': b'...'
-      }
+The ``target`` may be:
 
+* a regular :ref:`core SWHID <persistent-identifiers>`,
+* a SWHID-like string with type ``ori`` and the SHA1 of an origin URL
+* a SWHID-like string with type ``emd`` and the SHA1 of an other
+  ``RawExtrinsicMetadata`` object (to represent metadata on metadata objects)
 
-* Getting all metadata::
+``id`` is a sha1 hash of the ``RawExtrinsicMetadata`` object itself;
+it may be used in other ``RawExtrinsicMetadata`` as target.
 
-      raw_extrinsic_metadata_get(
-         "origin", origin_url,
-         authority,
-         page_token, limit
-      )
+``discovery_date`` is a Python datetime.
+``authority`` must be a dict containing keys ``type`` and ``url``, and
+``fetcher`` a dict containing keys ``name`` and ``version``.
+The authority and fetcher must be known to the storage before using this
+endpoint.
+``format`` is a text field indicating the format of the content of the
+``metadata`` byte string, see `extrinsic-metadata-formats`_.
 
-  where `authority` must be a dict containing keys `type` and `url`
-  which returns a dictionary with keys:
-
-  * `next_page_token`, which is an opaque token to be used as
-    `page_token` for retrieving the next page. if absent, there is
-    no more pages to gather.
-  * `results`: list of dictionaries, one for each metadata item
-    deposited, corresponding to the given origin and obtained from the
-    specified authority.
-
-  Each of these dictionaries is in the following format::
-
-      {
-        'authority': {'type': ..., 'url': ...},
-        'fetcher': {'name': ..., 'version': ...},
-        'discovery_date': ...,
-        'format': '...',
-        'metadata': b'...'
-      }
-
-The parameters ``page_token`` and ``limit`` are used for pagination based on
-an arbitrary order. An initial query to ``origin_metadata_get`` must set
-``page_token`` to ``None``, and further query must use the value from the
-previous query's ``next_page_token`` to get the next page of results.
-
-``metadata`` is a bytes array (eventually encoded using Base64).
+``metadata`` is a byte array.
 Its format is specific to each authority; and is treated as an opaque value
 by the storage.
 Unifying these various formats into a common language is outside the scope
 of this specification.
 
-Artifact metadata
-^^^^^^^^^^^^^^^^^
-
-In addition to origin metadata, the storage database stores metadata on
-all software artifacts supported by the data model.
-
-This works similarly to origin metadata, with one major difference:
-extrinsic metadata can be given on a specific artifact within a specified
-context (for example: a directory in a specific revision from a specific
+Finally, the remaining fields allow metadata can be given on a specific artifact within
+a specified context (for example: a directory in a specific revision from a specific
 visit on a specific origin) which will be stored along the metadata itself.
 
 For example, two origins may develop the same file independently;
@@ -216,44 +206,19 @@ about the same artifact in a different context.
 This is why it is important to qualify the metadata with the complete
 context for which it is intended, if any.
 
-The same two endpoints as for origin can be used, but with a different
-value for the first argument:
+The allowed context fields for each ``target`` type are:
 
-* Adding metadata::
-
-      raw_extrinsic_metadata_add(
-         type, id, context, discovery_date,
-         authority, fetcher,
-         format, metadata
-      )
-
-
-* Getting all metadata::
-
-      raw_extrinsic_metadata_get(
-         type, id,
-         authority,
-         after,
-         page_token, limit
-      )
-
-
-definited similarly to ``origin_metadata_add`` and ``origin_metadata_get``,
-but where ``id`` is a core SWHID (with type matching ``<X>``),
-and with an extra ``context`` (argument when adding metadata, and dictionary
-key when getting them) that is a dictionary with keys
-depending on the artifact ``type``:
-
-* for ``snapshot``: ``origin`` (a URL) and ``visit`` (an integer)
-* for ``release``: those above, plus ``snapshot``
+* for ``emd`` (extrinsic metadata) and ``ori`` (origin): none
+* for ``snp`` (snapshot): ``origin`` (a URL) and ``visit`` (an integer)
+* for ``rel`` (release): those above, plus ``snapshot``
   (the core SWHID of a snapshot)
-* for ``revision``: all those above, plus ``release``
+* for ``rev`` (revision): all those above, plus ``release``
   (the core SWHID of a release)
-* for ``directory``: all those above, plus ``revision``
+* for ``dir`` (directory): all those above, plus ``revision``
   (the core SWHID of a revision)
   and ``path`` (a byte string), representing the path to this directory
   from the root of the ``revision``
-* for ``content``: all those above, plus ``directory``
+* for ``cnt`` (content): all those above, plus ``directory``
   (the core SWHID of a directory)
 
 All keys are optional, but should be provided whenever possible.
@@ -262,11 +227,42 @@ The dictionary may be empty, if metadata is fully independent from context.
 In all cases, ``visit`` should only be provided if ``origin`` is
 (as visit ids are only unique with respect to an origin).
 
+Storage API
+~~~~~~~~~~~
+
+The storage API offers three endpoints to manipulate origin metadata:
+
+* Adding metadata::
+
+      raw_extrinsic_metadata_add(metadata: List[RawExtrinsicMetadata])
+
+  which adds a list of ``RawExtrinsicMetadata`` objects, whose ``metadata`` field
+  is a byte string obtained from a given authority and associated to the ``target``.
+
+
+* Getting all metadata::
+
+      raw_extrinsic_metadata_get(
+          target: ExtendedSWHID,
+          authority: MetadataAuthority,
+          after: Optional[datetime.datetime] = None,
+          page_token: Optional[bytes] = None,
+          limit: int = 1000,
+      ) -> PagedResult[RawExtrinsicMetadata]:
+
+  returns a list of ``RawExtrinsicMetadata`` with the given ``target`` and from
+  the given ``authority``.
+  If ``after`` is provided, only objects whose discovery date is more recent are
+  returnered.
+
+  ``PagedResult`` is a structure containing the results themselves,
+  and a ``next_page_token`` used to fetch the next list of results, if any
+
 
 .. _extrinsic-metadata-formats:
 
-Extrinsic metadata format
--------------------------
+Extrinsic metadata formats
+--------------------------
 
 Here is a list of all the metadata format stored:
 

@@ -13,6 +13,8 @@ import click
 
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
+from swh.storage.replay import ModelObjectDeserializer
+
 
 try:
     from systemd.daemon import notify
@@ -159,8 +161,35 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
     type=int,
     help="Stop after processing this many objects. Default is to " "run forever.",
 )
+@click.option(
+    "--type",
+    "-t",
+    "object_types",
+    default=[],
+    type=click.Choice(
+        # use a hardcoded list to prevent having to load the
+        # replay module at cli loading time
+        [
+            "origin",
+            "origin_visit",
+            "origin_visit_status",
+            "snapshot",
+            "revision",
+            "release",
+            "directory",
+            "content",
+            "skipped_content",
+            "metadata_authority",
+            "metadata_fetcher",
+            "raw_extrinsic_metadata",
+            "extid",
+        ]
+    ),
+    help="Object types to replay",
+    multiple=True,
+)
 @click.pass_context
-def replay(ctx, stop_after_objects):
+def replay(ctx, stop_after_objects, object_types):
     """Fill a Storage by reading a Journal.
 
     There can be several 'replayers' filling a Storage as long as they use
@@ -177,9 +206,29 @@ def replay(ctx, stop_after_objects):
     conf = ctx.obj["config"]
     storage = get_storage(**conf.pop("storage"))
 
+    if "error_reporter" in conf:
+        from redis import Redis
+
+        reporter = Redis(**conf["error_reporter"]).set
+    else:
+        reporter = None
+    validate = conf.get("privileged", False)
+
+    if not validate and reporter:
+        ctx.fail(
+            "Invalid configuration: you cannot have 'error_reporter' set if "
+            "'privileged' is False; we cannot validate anonymized objects."
+        )
+
+    deserializer = ModelObjectDeserializer(reporter=reporter, validate=validate)
+
     client_cfg = conf.pop("journal_client")
+    client_cfg["value_deserializer"] = deserializer.convert
+    if object_types:
+        client_cfg["object_types"] = object_types
     if stop_after_objects:
         client_cfg["stop_after_objects"] = stop_after_objects
+
     try:
         client = get_journal_client(**client_cfg)
     except ValueError as exc:

@@ -6,8 +6,10 @@ pytest-mock
 # adding the [testing] extra.
 swh.model[testing] >= 0.0.50
 pytz
+pytest-redis
 pytest-xdist
 types-python-dateutil
 types-pytz
 types-pyyaml
+types-redis
 types-requests

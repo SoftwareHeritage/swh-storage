@@ -1,20 +1,21 @@
-click
-flask
-psycopg2
 aiohttp
-tenacity
 cassandra-driver!=3.21.0,>=3.19.0
+click
 deprecated
-typing-extensions
-mypy_extensions
+flask
 iso8601
+mypy_extensions
+psycopg2
+redis
+tenacity
+typing-extensions
 swh.core[db,http]>=0.14.0
 swh.counters>=v0.8.0
 swh.model>=2.1.0
 swh.objstorage>=0.2.2
 
 [journal]
-swh.journal>=0.6.2
+swh.journal>=0.9
 
 [testing]
 hypothesis>=3.11.0
@@ -22,9 +23,11 @@ pytest
 pytest-mock
 swh.model[testing]>=0.0.50
 pytz
+pytest-redis
 pytest-xdist
 types-python-dateutil
 types-pytz
 types-pyyaml
+types-redis
 types-requests
-swh.journal>=0.6.2
+swh.journal>=0.9
