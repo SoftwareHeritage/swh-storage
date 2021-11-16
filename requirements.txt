@@ -1,10 +1,11 @@
-click
-flask
-psycopg2
 aiohttp
-tenacity
 cassandra-driver >= 3.19.0, != 3.21.0
+click
 deprecated
-typing-extensions
-mypy_extensions
+flask
 iso8601
+mypy_extensions
+psycopg2
+redis
+tenacity
+typing-extensions
