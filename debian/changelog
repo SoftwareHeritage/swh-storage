@@ -1,8 +1,19 @@
-swh-storage (0.39.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.40.0-2~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * Update dependencies in d/control.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 29 Oct 2021 09:23:51 +0000
+ -- David Douard <david.douard@sdfa3.org>  Tue, 16 Nov 2021 14:37:20 +0100
+
+swh-storage (0.40.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.40.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2021-11-16 10:11:25 +0100)
+  * Upstream changes:     - v0.40.0     - Add support for a redis-based
+    reporting for invalid mirrorred objects     - Remove now useless
+    fixers in storage/fixer.py     - Add a new --type option to 'swh
+    strorage repay'     - Update extrinsic metadata specs
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 16 Nov 2021 09:45:39 +0000
 
 swh-storage (0.39.0-1~swh1) unstable-swh; urgency=medium
 

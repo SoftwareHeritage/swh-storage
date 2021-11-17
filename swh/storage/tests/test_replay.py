@@ -7,13 +7,14 @@ import dataclasses
 import datetime
 import functools
 import logging
-from typing import Any, Container, Dict, Optional
+import re
+from typing import Any, Container, Dict, Optional, cast
 
 import attr
 import pytest
 
 from swh.journal.client import JournalClient
-from swh.journal.serializers import key_to_kafka, value_to_kafka
+from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
 from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes, hash_to_hex
 from swh.model.model import Revision, RevisionType
 from swh.model.tests.swh_model_data import (
@@ -25,15 +26,17 @@ from swh.model.tests.swh_model_data import (
 from swh.model.tests.swh_model_data import TEST_OBJECTS as _TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
+from swh.storage.exc import StorageArgumentException
 from swh.storage.in_memory import InMemoryStorage
-from swh.storage.replay import process_replay_objects
+from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
 
 UTC = datetime.timezone.utc
 
 TEST_OBJECTS = _TEST_OBJECTS.copy()
+# add a revision with metadata to check this later is dropped while being replayed
 TEST_OBJECTS["revision"] = list(_TEST_OBJECTS["revision"]) + [
     Revision(
-        id=hash_to_bytes("a569b03ebe6e5f9f2f6077355c40d89bd6986d0c"),
+        id=hash_to_bytes("51d9d94ab08d3f75512e3a9fd15132e0a7ca7928"),
         message=b"hello again",
         date=DATES[1],
         committer=COMMITTERS[1],
@@ -46,6 +49,9 @@ TEST_OBJECTS["revision"] = list(_TEST_OBJECTS["revision"]) + [
         parents=(REVISIONS[0].id,),
     ),
 ]
+WRONG_ID_REG = re.compile(
+    "Object has id [0-9a-f]{40}, but it should be [0-9a-f]{40}: .*"
+)
 
 
 def nullify_ctime(obj):
@@ -70,11 +76,13 @@ def replayer_storage_and_client(
         "journal_writer": journal_writer_config,
     }
     storage = get_storage(**storage_config)
+    deserializer = ModelObjectDeserializer()
     replayer = JournalClient(
         brokers=kafka_server,
         group_id=kafka_consumer_group,
         prefix=kafka_prefix,
         stop_on_eof=True,
+        value_deserializer=deserializer.convert,
     )
 
     yield storage, replayer
@@ -122,7 +130,7 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
     assert collision == 0, "No collision should be detected"
 
 
-def test_storage_play_with_collision(replayer_storage_and_client, caplog):
+def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
     """Another replayer scenario with collisions.
 
     This:
@@ -205,12 +213,6 @@ def test_replay_skipped_content(replayer_storage_and_client):
     """Test the 'skipped_content' topic is properly replayed."""
     src, replayer = replayer_storage_and_client
     _check_replay_skipped_content(src, replayer, "skipped_content")
-
-
-def test_replay_skipped_content_bwcompat(replayer_storage_and_client):
-    """Test the 'content' topic can be used to replay SkippedContent objects."""
-    src, replayer = replayer_storage_and_client
-    _check_replay_skipped_content(src, replayer, "content")
 
 
 # utility functions
@@ -321,7 +323,7 @@ def _gen_skipped_contents(n=10):
 
 
 @pytest.mark.parametrize("privileged", [True, False])
-def test_storage_play_anonymized(
+def test_storage_replay_anonymized(
     kafka_prefix: str, kafka_consumer_group: str, kafka_server: str, privileged: bool,
 ):
     """Optimal replayer scenario.
@@ -355,12 +357,16 @@ def test_storage_play_anonymized(
 
     # Fill a destination storage from Kafka, potentially using privileged topics
     dst_storage = get_storage(cls="memory")
+    deserializer = ModelObjectDeserializer(
+        validate=False
+    )  # we cannot validate an anonymized replay
     replayer = JournalClient(
         brokers=kafka_server,
         group_id=kafka_consumer_group,
         prefix=kafka_prefix,
         stop_after_objects=nb_sent,
         privileged=privileged,
+        value_deserializer=deserializer.convert,
     )
     worker_fn = functools.partial(process_replay_objects, storage=dst_storage)
 
@@ -373,3 +379,166 @@ def test_storage_play_anonymized(
     assert isinstance(storage, InMemoryStorage)  # needed to help mypy
     assert isinstance(dst_storage, InMemoryStorage)
     check_replayed(storage, dst_storage, expected_anonymized=not privileged)
+
+
+def test_storage_replayer_with_validation_ok(
+    replayer_storage_and_client, caplog, redisdb
+):
+    """Optimal replayer scenario
+
+    with validation activated and reporter set to a redis db.
+
+    - writes objects to a source storage
+    - replayer consumes objects from the topic and replays them
+    - a destination storage is filled from this
+    - nothing has been reported in the redis db
+    - both storages should have the same content
+    """
+    src, replayer = replayer_storage_and_client
+    replayer.deserializer = ModelObjectDeserializer(validate=True, reporter=redisdb.set)
+
+    # Fill Kafka using a source storage
+    nb_sent = 0
+    for object_type, objects in TEST_OBJECTS.items():
+        method = getattr(src, object_type + "_add")
+        method(objects)
+        if object_type == "origin_visit":
+            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
+        nb_sent += len(objects)
+
+    # Fill the destination storage from Kafka
+    dst = get_storage(cls="memory")
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    nb_inserted = replayer.process(worker_fn)
+    assert nb_sent == nb_inserted
+
+    # check we do not have invalid objects reported
+    invalid = 0
+    for record in caplog.records:
+        logtext = record.getMessage()
+        if WRONG_ID_REG.match(logtext):
+            invalid += 1
+    assert invalid == 0, "Invalid objects should not be detected"
+    assert not redisdb.keys()
+    # so the dst should be the same as src storage
+    check_replayed(cast(InMemoryStorage, src), cast(InMemoryStorage, dst))
+
+
+def test_storage_replayer_with_validation_nok(
+    replayer_storage_and_client, caplog, redisdb
+):
+    """Replayer scenario with invalid objects
+
+    with validation and reporter set to a redis db.
+
+    - writes objects to a source storage
+    - replayer consumes objects from the topic and replays them
+    - the destination storage is filled with only valid objects
+    - the redis db contains the invalid (raw kafka mesg) objects
+    """
+    src, replayer = replayer_storage_and_client
+    replayer.value_deserializer = ModelObjectDeserializer(
+        validate=True, reporter=redisdb.set
+    ).convert
+
+    caplog.set_level(logging.ERROR, "swh.journal.replay")
+
+    # Fill Kafka using a source storage
+    nb_sent = 0
+    for object_type, objects in TEST_OBJECTS.items():
+        method = getattr(src, object_type + "_add")
+        method(objects)
+        if object_type == "origin_visit":
+            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
+        nb_sent += len(objects)
+
+    # insert invalid objects
+    for object_type in ("revision", "directory", "release", "snapshot"):
+        method = getattr(src, object_type + "_add")
+        method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
+        nb_sent += 1
+
+    # Fill the destination storage from Kafka
+    dst = get_storage(cls="memory")
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    nb_inserted = replayer.process(worker_fn)
+    assert nb_sent == nb_inserted
+
+    # check we do have invalid objects reported
+    invalid = 0
+    for record in caplog.records:
+        logtext = record.getMessage()
+        if WRONG_ID_REG.match(logtext):
+            invalid += 1
+    assert invalid == 4, "Invalid objects should be detected"
+    assert set(redisdb.keys()) == {
+        f"swh:1:{typ}:{'0'*40}".encode() for typ in ("rel", "rev", "snp", "dir")
+    }
+
+    for key in redisdb.keys():
+        # check the stored value looks right
+        rawvalue = redisdb.get(key)
+        value = kafka_to_value(rawvalue)
+        assert isinstance(value, dict)
+        assert "id" in value
+        assert value["id"] == b"\x00" * 20
+
+    # check that invalid objects did not reach the dst storage
+    for attr_ in (
+        "directories",
+        "revisions",
+        "releases",
+        "snapshots",
+    ):
+        for id, obj in sorted(getattr(dst._cql_runner, f"_{attr_}").iter_all()):
+            assert id != b"\x00" * 20
+
+
+def test_storage_replayer_with_validation_nok_raises(
+    replayer_storage_and_client, caplog, redisdb
+):
+    """Replayer scenario with invalid objects
+
+    with raise_on_error set to True
+
+    This:
+    - writes both valid & invalid objects to a source storage
+    - a StorageArgumentException should be raised while replayer consumes
+      objects from the topic and replays them
+    """
+    src, replayer = replayer_storage_and_client
+    replayer.value_deserializer = ModelObjectDeserializer(
+        validate=True, reporter=redisdb.set, raise_on_error=True
+    ).convert
+
+    caplog.set_level(logging.ERROR, "swh.journal.replay")
+
+    # Fill Kafka using a source storage
+    nb_sent = 0
+    for object_type, objects in TEST_OBJECTS.items():
+        method = getattr(src, object_type + "_add")
+        method(objects)
+        if object_type == "origin_visit":
+            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
+        nb_sent += len(objects)
+
+    # insert invalid objects
+    for object_type in ("revision", "directory", "release", "snapshot"):
+        method = getattr(src, object_type + "_add")
+        method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
+        nb_sent += 1
+
+    # Fill the destination storage from Kafka
+    dst = get_storage(cls="memory")
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    with pytest.raises(StorageArgumentException):
+        replayer.process(worker_fn)
+
+    # check we do have invalid objects reported
+    invalid = 0
+    for record in caplog.records:
+        logtext = record.getMessage()
+        if WRONG_ID_REG.match(logtext):
+            invalid += 1
+    assert invalid == 1, "One invalid objects should be detected"
+    assert len(redisdb.keys()) == 1

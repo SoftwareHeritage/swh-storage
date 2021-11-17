@@ -3,8 +3,12 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from collections import Counter
+from functools import partial
 import logging
-from typing import Any, Callable, Container, Dict, List
+from typing import Any, Callable
+from typing import Counter as CounterT
+from typing import Dict, List, Optional, TypeVar, Union, cast
 
 try:
     from systemd.daemon import notify
@@ -12,12 +16,15 @@ except ImportError:
     notify = None
 
 from swh.core.statsd import statsd
+from swh.journal.serializers import kafka_to_value
+from swh.model.hashutil import hash_to_hex
 from swh.model.model import (
     BaseContent,
     BaseModel,
     Content,
     Directory,
     ExtID,
+    HashableObject,
     MetadataAuthority,
     MetadataFetcher,
     Origin,
@@ -29,9 +36,9 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
 )
-from swh.storage.exc import HashCollision
-from swh.storage.fixer import fix_objects
+from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
+from swh.storage.utils import remove_keys
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +46,7 @@ GRAPH_OPERATIONS_METRIC = "swh_graph_replayer_operations_total"
 GRAPH_DURATION_METRIC = "swh_graph_replayer_duration_seconds"
 
 
-object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
+OBJECT_CONVERTERS: Dict[str, Callable[[Dict], BaseModel]] = {
     "origin": Origin.from_dict,
     "origin_visit": OriginVisit.from_dict,
     "origin_visit_status": OriginVisitStatus.from_dict,
@@ -54,10 +61,91 @@ object_converter_fn: Dict[str, Callable[[Dict], BaseModel]] = {
     "raw_extrinsic_metadata": RawExtrinsicMetadata.from_dict,
     "extid": ExtID.from_dict,
 }
+# Deprecated, for BW compat only.
+object_converter_fn = OBJECT_CONVERTERS
+
+
+OBJECT_FIXERS = {
+    "revision": partial(remove_keys, keys=("metadata",)),
+}
+
+
+class ModelObjectDeserializer:
+
+    """A swh.journal object deserializer that checks object validity and reports
+    invalid objects
+
+    The deserializer will directly produce BaseModel objects from journal
+    objects representations.
+
+    If validation is activated and the object is hashable, it will check if the
+    computed hash matches the identifier of the object.
+
+    If the object is invalid and a 'reporter' function is given, it will be
+    called with 2 arguments::
+
+      reporter(object_id, journal_msg)
+
+    Where 'object_id' is a string representation of the object identifier (from
+    the journal message), and 'journal_msg' is the row message (bytes)
+    retrieved from the journal.
+
+    If 'raise_on_error' is True, a 'StorageArgumentException' exception is
+    raised.
+
+    Typical usage::
+
+      deserializer = ModelObjectDeserializer(validate=True, reporter=reporter_cb)
+      client = get_journal_client(
+          cls="kafka", value_deserializer=deserializer, **cfg)
+
+    """
+
+    def __init__(
+        self,
+        validate: bool = True,
+        raise_on_error: bool = False,
+        reporter: Optional[Callable[[str, bytes], None]] = None,
+    ):
+        self.validate = validate
+        self.reporter = reporter
+        self.raise_on_error = raise_on_error
+
+    def convert(self, object_type: str, msg: bytes) -> Optional[BaseModel]:
+        dict_repr = kafka_to_value(msg)
+        if object_type in OBJECT_FIXERS:
+            dict_repr = OBJECT_FIXERS[object_type](dict_repr)
+        obj = OBJECT_CONVERTERS[object_type](dict_repr)
+        if self.validate:
+            if isinstance(obj, HashableObject):
+                cid = obj.compute_hash()
+                if obj.id != cid:
+                    error_msg = (
+                        f"Object has id {hash_to_hex(obj.id)}, "
+                        f"but it should be {hash_to_hex(cid)}: {obj}"
+                    )
+                    logger.error(error_msg)
+                    self.report_failure(msg, obj)
+                    if self.raise_on_error:
+                        raise StorageArgumentException(error_msg)
+                    return None
+        return obj
+
+    def report_failure(self, msg: bytes, obj: BaseModel):
+        if self.reporter:
+            oid: str = ""
+            if hasattr(obj, "swhid"):
+                swhid = obj.swhid()  # type: ignore[attr-defined]
+                oid = str(swhid)
+            elif isinstance(obj, HashableObject):
+                uid = obj.compute_hash()
+                oid = f"{obj.object_type}:{uid.hex()}"  # type: ignore[attr-defined]
+            if oid:
+                self.reporter(oid, msg)
 
 
 def process_replay_objects(
-    all_objects: Dict[str, List[Dict[str, Any]]], *, storage: StorageInterface
+    all_objects: Dict[str, List[BaseModel]], *, storage: StorageInterface
 ) -> None:
     for (object_type, objects) in all_objects.items():
         logger.debug("Inserting %s %s objects", len(objects), object_type)
@@ -70,9 +158,13 @@ def process_replay_objects(
         notify("WATCHDOG=1")
 
 
+ContentType = TypeVar("ContentType", bound=BaseContent)
+
+
 def collision_aware_content_add(
-    content_add_fn: Callable[[List[Any]], Dict[str, int]], contents: List[BaseContent],
-) -> None:
+    contents: List[ContentType],
+    content_add_fn: Callable[[List[ContentType]], Dict[str, int]],
+) -> Dict[str, int]:
     """Add contents to storage. If a hash collision is detected, an error is
        logged. Then this adds the other non colliding contents to the storage.
 
@@ -82,11 +174,12 @@ def collision_aware_content_add(
 
     """
     if not contents:
-        return
+        return {}
     colliding_content_hashes: List[Dict[str, Any]] = []
+    results: CounterT[str] = Counter()
     while True:
         try:
-            content_add_fn(contents)
+            results.update(content_add_fn(contents))
         except HashCollision as e:
             colliding_content_hashes.append(
                 {
@@ -104,81 +197,35 @@ def collision_aware_content_add(
     if colliding_content_hashes:
         for collision in colliding_content_hashes:
             logger.error("Collision detected: %(collision)s", {"collision": collision})
-
-
-def dict_key_dropper(d: Dict, keys_to_drop: Container) -> Dict:
-    """Returns a copy of the dict d without any key listed in keys_to_drop"""
-    return {k: v for (k, v) in d.items() if k not in keys_to_drop}
+    return dict(results)
 
 
 def _insert_objects(
-    object_type: str, objects: List[Dict], storage: StorageInterface
+    object_type: str, objects: List[BaseModel], storage: StorageInterface
 ) -> None:
     """Insert objects of type object_type in the storage.
 
     """
-    objects = fix_objects(object_type, objects)
+    if object_type not in OBJECT_CONVERTERS:
+        logger.warning("Received a series of %s, this should not happen", object_type)
+        return
 
-    if object_type == "content":
-        # for bw compat, skipped content should now be delivered in the skipped_content
-        # topic
-        contents: List[BaseContent] = []
-        skipped_contents: List[BaseContent] = []
-        for content in objects:
-            c = BaseContent.from_dict(content)
-            if isinstance(c, SkippedContent):
-                logger.warning(
-                    "Received a series of skipped_content in the "
-                    "content topic, this should not happen anymore"
-                )
-                skipped_contents.append(c)
-            else:
-                contents.append(c)
-        collision_aware_content_add(storage.skipped_content_add, skipped_contents)
-        collision_aware_content_add(storage.content_add_metadata, contents)
-    elif object_type == "skipped_content":
-        skipped_contents = [SkippedContent.from_dict(obj) for obj in objects]
-        collision_aware_content_add(storage.skipped_content_add, skipped_contents)
+    method = getattr(storage, f"{object_type}_add")
+    if object_type == "skipped_content":
+        method = partial(collision_aware_content_add, content_add_fn=method)
+    elif object_type == "content":
+        method = partial(
+            collision_aware_content_add, content_add_fn=storage.content_add_metadata
+        )
     elif object_type in ("origin_visit", "origin_visit_status"):
         origins: List[Origin] = []
-        converter_fn = object_converter_fn[object_type]
-        model_objs = []
-        for obj in objects:
-            origins.append(Origin(url=obj["origin"]))
-            model_objs.append(converter_fn(obj))
+        for obj in cast(List[Union[OriginVisit, OriginVisitStatus]], objects):
+            origins.append(Origin(url=obj.origin))
         storage.origin_add(origins)
-        method = getattr(storage, f"{object_type}_add")
-        method(model_objs)
     elif object_type == "raw_extrinsic_metadata":
-        converted = [RawExtrinsicMetadata.from_dict(o) for o in objects]
-        authorities = {emd.authority for emd in converted}
-        fetchers = {emd.fetcher for emd in converted}
+        emds = cast(List[RawExtrinsicMetadata], objects)
+        authorities = {emd.authority for emd in emds}
+        fetchers = {emd.fetcher for emd in emds}
         storage.metadata_authority_add(list(authorities))
         storage.metadata_fetcher_add(list(fetchers))
-        storage.raw_extrinsic_metadata_add(converted)
-    elif object_type == "revision":
-        # drop the metadata field from the revision (is any); this field is
-        # about to be dropped from the data model (in favor of
-        # raw_extrinsic_metadata) and there can be bogus values in the existing
-        # journal (metadata with \0000 in it)
-        method = getattr(storage, object_type + "_add")
-        method(
-            [
-                object_converter_fn[object_type](dict_key_dropper(o, ("metadata",)))
-                for o in objects
-            ]
-        )
-    elif object_type in (
-        "directory",
-        "extid",
-        "revision",
-        "release",
-        "snapshot",
-        "origin",
-        "metadata_fetcher",
-        "metadata_authority",
-    ):
-        method = getattr(storage, object_type + "_add")
-        method([object_converter_fn[object_type](o) for o in objects])
-    else:
-        logger.warning("Received a series of %s, this should not happen", object_type)
+    method(objects)
