@@ -540,10 +540,10 @@ class TestCassandraStorage(_TestStorage):
 
         class CrashyEntry(DirectoryEntry):
             def __init__(self):
-                pass
+                super().__init__(**{**directory.entries[0].to_dict(), "name": b"crash"})
 
             def to_dict(self):
-                return {**directory.entries[0].to_dict(), "perms": "abcde"}
+                return {**super().to_dict(), "perms": "abcde"}
 
         directory = self._directory_with_entries(sample_data, BATCH_INSERT_MAX_SIZE)
         entries = directory.entries
