@@ -20,57 +20,72 @@ from swh.model.swhids import ExtendedSWHID
 from swh.storage.postgresql import converters
 
 
-def test_date_to_db():
-    date_to_db = converters.date_to_db
-    assert date_to_db(None) == {"timestamp": None, "offset": 0, "neg_utc_offset": None}
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567890, microseconds=0,),
-            offset=120,
-            negative_utc=False,
+@pytest.mark.parametrize(
+    "model_date,db_date",
+    [
+        (None, {"timestamp": None, "offset": 0, "neg_utc_offset": None}),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                offset=120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "2009-02-13T23:31:30+00:00",
+                "offset": 120,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1123456789, microseconds=0,),
+                offset=0,
+                negative_utc=True,
+            ),
+            {
+                "timestamp": "2005-08-07T23:19:49+00:00",
+                "offset": 0,
+                "neg_utc_offset": True,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                offset=42,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "2009-02-13T23:31:30+00:00",
+                "offset": 42,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1634366813, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "2021-10-16T06:46:53+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
+    ],
+)
+def test_date(model_date, db_date):
+    assert converters.date_to_db(model_date) == db_date
+    assert (
+        converters.db_to_date(
+            date=None
+            if db_date["timestamp"] is None
+            else datetime.datetime.fromisoformat(db_date["timestamp"]),
+            offset=db_date["offset"],
+            neg_utc_offset=db_date["neg_utc_offset"],
         )
-    ) == {
-        "timestamp": "2009-02-13T23:31:30+00:00",
-        "offset": 120,
-        "neg_utc_offset": False,
-    }
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1123456789, microseconds=0,),
-            offset=0,
-            negative_utc=True,
-        )
-    ) == {
-        "timestamp": "2005-08-07T23:19:49+00:00",
-        "offset": 0,
-        "neg_utc_offset": True,
-    }
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567890, microseconds=0,),
-            offset=42,
-            negative_utc=False,
-        )
-    ) == {
-        "timestamp": "2009-02-13T23:31:30+00:00",
-        "offset": 42,
-        "neg_utc_offset": False,
-    }
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1634366813, microseconds=0,),
-            offset=-120,
-            negative_utc=False,
-        )
-    ) == {
-        "timestamp": "2021-10-16T06:46:53+00:00",
-        "offset": -120,
-        "neg_utc_offset": False,
-    }
+        == model_date
+    )
 
 
 def test_db_to_author():
