@@ -72,6 +72,78 @@ from swh.storage.postgresql import converters
                 "neg_utc_offset": False,
             },
         ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=0, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "1970-01-01T00:00:00+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=0, microseconds=1,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "1970-01-01T00:00:00.000001+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-1, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "1969-12-31T23:59:59+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-1, microseconds=1,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "1969-12-31T23:59:59.000001+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-3600, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "1969-12-31T23:00:00+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-3600, microseconds=1,),
+                offset=-120,
+                negative_utc=False,
+            ),
+            {
+                "timestamp": "1969-12-31T23:00:00.000001+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+            },
+        ),
     ],
 )
 def test_date(model_date, db_date):

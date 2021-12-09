@@ -1,9 +1,10 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import datetime
+import math
 from typing import Any, Dict, Optional
 import warnings
 
@@ -106,7 +107,9 @@ def db_to_date(
 
     return TimestampWithTimezone(
         timestamp=Timestamp(
-            seconds=int(date.timestamp()), microseconds=date.microsecond,
+            # we use floor() instead of int() to round down, because of negative dates
+            seconds=math.floor(date.timestamp()),
+            microseconds=date.microsecond,
         ),
         offset=offset,
         negative_utc=neg_utc_offset,
