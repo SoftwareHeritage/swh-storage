@@ -19,10 +19,8 @@ import pytest
 
 from swh.core.api import RemoteException
 from swh.core.api.classes import stream_results
-from swh.model import from_disk
+from swh.model import from_disk, hypothesis_strategies
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
-from swh.model.hypothesis_strategies import objects
-from swh.model.hypothesis_strategies import snapshots as unknown_snapshot
 from swh.model.model import (
     Content,
     Directory,
@@ -723,6 +721,21 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["directory"] == 1
 
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(
+        strategies.lists(hypothesis_strategies.directories(), min_size=1, max_size=10)
+    )
+    def test_directory_add_get_arbitrary(self, swh_storage, directories):
+        swh_storage.directory_add(directories)
+
+        for directory in directories:
+            assert swh_storage.directory_get_entries(directory.id) == PagedResult(
+                results=list(directory.entries), next_page_token=None,
+            )
+
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
 
@@ -1055,6 +1068,32 @@ class TestStorage:
         ]
 
         assert swh_storage.revision_get([revision.id])[0] == revision
+
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(
+        strategies.lists(hypothesis_strategies.revisions(), min_size=1, max_size=10,)
+    )
+    def test_revision_add_get_arbitrary(self, swh_storage, revisions):
+        # remove non-intrinsic data, so releases inserted with different hypothesis
+        # data can't clash with each other
+        revisions = [
+            attr.evolve(
+                revision,
+                synthetic=False,
+                metadata=None,
+                committer=attr.evolve(revision.committer, name=None, email=None),
+                author=attr.evolve(revision.author, name=None, email=None),
+            )
+            for revision in revisions
+        ]
+
+        swh_storage.revision_add(revisions)
+
+        revs = swh_storage.revision_get([revision.id for revision in revisions])
+        assert set(revs) == set(revisions)
 
     def test_revision_add_name_clash(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
@@ -1482,6 +1521,31 @@ class TestStorage:
         ):
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["release"] == 2
+
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(strategies.lists(hypothesis_strategies.releases(), min_size=1, max_size=10,))
+    def test_release_add_get_arbitrary(self, swh_storage, releases):
+        # remove non-intrinsic data, so releases inserted with different hypothesis
+        # data can't clash with each other
+        releases = [
+            attr.evolve(
+                release,
+                synthetic=False,
+                metadata=None,
+                author=attr.evolve(release.author, name=None, email=None)
+                if release.author
+                else None,
+            )
+            for release in releases
+        ]
+        swh_storage.release_add(releases)
+
+        assert set(
+            swh_storage.release_get([release.id for release in releases])
+        ) == set(releases)
 
     def test_release_add_no_author_date(self, swh_storage, sample_data):
         full_release = sample_data.release
@@ -3265,6 +3329,20 @@ class TestStorage:
         by_id = swh_storage.snapshot_get(complete_snapshot.id)
         assert by_id == {**complete_snapshot_dict, "next_branch": None}
 
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(strategies.lists(hypothesis_strategies.snapshots(), min_size=1, max_size=10))
+    def test_snapshot_add_get_arbitrary(self, swh_storage, snapshots):
+        swh_storage.snapshot_add(snapshots)
+
+        for snapshot in snapshots:
+            assert swh_storage.snapshot_get(snapshot.id) == {
+                **snapshot.to_dict(),
+                "next_branch": None,
+            }
+
     def test_snapshot_add_many(self, swh_storage, sample_data):
         snapshot, _, complete_snapshot = sample_data.snapshots[:3]
 
@@ -3745,7 +3823,7 @@ class TestStorage:
         assert partial_branches["branches"] == {}
 
     @settings(suppress_health_check=function_scoped_fixture_check,)
-    @given(unknown_snapshot(min_size=1))
+    @given(hypothesis_strategies.snapshots(min_size=1))
     def test_snapshot_get_unknown_snapshot(self, swh_storage, unknown_snapshot):
         assert swh_storage.snapshot_get(unknown_snapshot.id) is None
         assert swh_storage.snapshot_get_branches(unknown_snapshot.id) is None
@@ -4785,9 +4863,12 @@ class TestStorageGeneratedData:
         assert swh_storage.origin_count("github", regexp=True, with_visit=True) == 1
 
     @settings(
-        suppress_health_check=[HealthCheck.too_slow] + function_scoped_fixture_check,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
     )
-    @given(strategies.lists(objects(split_content=True), max_size=2))
+    @given(
+        strategies.lists(hypothesis_strategies.objects(split_content=True), max_size=2)
+    )
     def test_add_arbitrary(self, swh_storage, objects):
         for (obj_type, obj) in objects:
             if obj.object_type == "origin_visit":
