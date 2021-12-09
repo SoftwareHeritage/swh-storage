@@ -15,7 +15,6 @@ from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
 from swh.storage.replay import ModelObjectDeserializer
 
-
 try:
     from systemd.daemon import notify
 except ImportError:
@@ -206,13 +205,16 @@ def replay(ctx, stop_after_objects, object_types):
     conf = ctx.obj["config"]
     storage = get_storage(**conf.pop("storage"))
 
-    if "error_reporter" in conf:
+    client_cfg = conf.pop("journal_client")
+    replayer_cfg = conf.pop("replayer", {})
+
+    if "error_reporter" in replayer_cfg:
         from redis import Redis
 
-        reporter = Redis(**conf["error_reporter"]).set
+        reporter = Redis(**replayer_cfg.get("error_reporter")).set
     else:
         reporter = None
-    validate = conf.get("privileged", False)
+    validate = client_cfg.get("privileged", False)
 
     if not validate and reporter:
         ctx.fail(
@@ -222,7 +224,6 @@ def replay(ctx, stop_after_objects, object_types):
 
     deserializer = ModelObjectDeserializer(reporter=reporter, validate=validate)
 
-    client_cfg = conf.pop("journal_client")
     client_cfg["value_deserializer"] = deserializer.convert
     if object_types:
         client_cfg["object_types"] = object_types
