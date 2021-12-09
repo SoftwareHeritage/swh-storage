@@ -118,6 +118,9 @@ class Storage:
             if isinstance(db, psycopg2.extensions.connection):
                 self._pool = None
                 self._db = Db(db)
+
+                # See comment below
+                self._db.cursor().execute("SET TIME ZONE 'UTC'")
             else:
                 self._pool = psycopg2.pool.ThreadedConnectionPool(
                     min_pool_conns, max_pool_conns, db
@@ -133,7 +136,15 @@ class Storage:
         if self._db:
             return self._db
         else:
-            return Db.from_pool(self._pool)
+            db = Db.from_pool(self._pool)
+
+            # Workaround for psycopg2 < 2.9.0 not handling fractional timezones,
+            # which may happen on old revision/release dates on systems configured
+            # with non-UTC timezones.
+            # https://www.psycopg.org/docs/usage.html#time-zones-handling
+            db.cursor().execute("SET TIME ZONE 'UTC'")
+
+            return db
 
     def put_db(self, db):
         if db is not self._db:

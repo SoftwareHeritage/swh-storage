@@ -37,6 +37,8 @@ from swh.model.model import (
     Snapshot,
     SnapshotBranch,
     TargetType,
+    Timestamp,
+    TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
@@ -1016,6 +1018,43 @@ class TestStorage:
             ("revision", revision),
             ("revision", revision2),
         ]
+
+    def test_revision_add_fractional_timezone(self, swh_storage, sample_data):
+        # When reading a date from this time period on systems configured with
+        # timezone Europe/Paris, postgresql returns them with UTC+00:09:21 as timezone,
+        # but psycopg2 < 2.9.0 had to truncate them.
+        # https://www.psycopg.org/docs/usage.html#time-zones-handling
+        #
+        # There is a workaround in swh.storage.postgresql.storage.Storage.get_db,
+        # to set the timezone to UTC so it works on all psycopg2 versions.
+        #
+        # Therefore, this test always succeeds in tox (because psycopg2 >= 2.9.0)
+        # and on the CI (both because psycopg2 >= 2.9.0 and TZ=UTC); but which means
+        # this test is only useful on machines with older psycopg2 versions and
+        # TZ=Europe/Paris. But the workaround is also only needed on this kind of
+        # configuration, so this is good enough.
+        revision = attr.evolve(
+            sample_data.revision,
+            date=TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-1855958962, microseconds=0),
+                offset=0,
+                negative_utc=False,
+            ),
+        )
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id])[0] == revision
 
     def test_revision_add_name_clash(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
