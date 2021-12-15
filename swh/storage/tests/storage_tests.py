@@ -31,6 +31,7 @@ from swh.model.model import (
     Person,
     RawExtrinsicMetadata,
     Revision,
+    RevisionType,
     SkippedContent,
     Snapshot,
     SnapshotBranch,
@@ -721,6 +722,36 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["directory"] == 1
 
+    def test_directory_add_with_raw_manifest(self, swh_storage, sample_data):
+        content = sample_data.content
+        directory = sample_data.directory
+        directory = attr.evolve(directory, raw_manifest=b"foo")
+        directory = attr.evolve(directory, id=directory.compute_hash())
+
+        assert directory.entries[0].target == content.sha1_git
+        swh_storage.content_add([content])
+
+        init_missing = list(swh_storage.directory_missing([directory.id]))
+        assert [directory.id] == init_missing
+
+        actual_result = swh_storage.directory_add([directory])
+        assert actual_result == {"directory:add": 1}
+
+        assert ("directory", directory) in list(
+            swh_storage.journal_writer.journal.objects
+        )
+
+        actual_data = list(swh_storage.directory_ls(directory.id))
+        expected_data = list(transform_entries(swh_storage, directory))
+
+        for data in actual_data:
+            assert data in expected_data
+
+        after_missing = list(swh_storage.directory_missing([directory.id]))
+        assert after_missing == []
+
+        # TODO: check the recorded manifest
+
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
         + function_scoped_fixture_check,
@@ -732,9 +763,16 @@ class TestStorage:
         swh_storage.directory_add(directories)
 
         for directory in directories:
-            assert swh_storage.directory_get_entries(directory.id) == PagedResult(
-                results=list(directory.entries), next_page_token=None,
-            )
+            if directory.raw_manifest is None:
+                assert swh_storage.directory_get_entries(directory.id) == PagedResult(
+                    results=list(directory.entries), next_page_token=None,
+                )
+            else:
+                # TODO: compare the manifests are the same (currently, we can't
+                # because there is no way to get the raw_manifest of a directory)
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
+                pass
 
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
@@ -1069,6 +1107,25 @@ class TestStorage:
 
         assert swh_storage.revision_get([revision.id])[0] == revision
 
+    def test_revision_add_with_raw_manifest(self, swh_storage, sample_data):
+        revision = sample_data.revision
+        revision = attr.evolve(revision, raw_manifest=b"foo")
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
+
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
         + function_scoped_fixture_check,
@@ -1086,14 +1143,21 @@ class TestStorage:
                 metadata=None,
                 committer=attr.evolve(revision.committer, name=None, email=None),
                 author=attr.evolve(revision.author, name=None, email=None),
+                type=RevisionType.GIT,
             )
             for revision in revisions
         ]
 
         swh_storage.revision_add(revisions)
 
-        revs = swh_storage.revision_get([revision.id for revision in revisions])
-        assert set(revs) == set(revisions)
+        for revision in revisions:
+            (rev,) = swh_storage.revision_get([revision.id])
+            if rev.raw_manifest is None:
+                assert rev == revision
+            else:
+                assert rev.raw_manifest == revision.raw_manifest
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
 
     def test_revision_add_name_clash(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
@@ -1522,6 +1586,26 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["release"] == 2
 
+    def test_release_add_with_raw_manifest(self, swh_storage, sample_data):
+        release = sample_data.releases[0]
+        release = attr.evolve(release, raw_manifest=b"foo")
+        release = attr.evolve(release, id=release.compute_hash())
+
+        init_missing = swh_storage.release_missing([release.id])
+        assert list(init_missing) == [release.id]
+
+        actual_result = swh_storage.release_add([release])
+        assert actual_result == {"release:add": 1}
+
+        end_missing = swh_storage.release_missing([release.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("release", release),
+        ]
+
+        assert swh_storage.release_get([release.id]) == [release]
+
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
         + function_scoped_fixture_check,
@@ -1543,9 +1627,14 @@ class TestStorage:
         ]
         swh_storage.release_add(releases)
 
-        assert set(
-            swh_storage.release_get([release.id for release in releases])
-        ) == set(releases)
+        for release in releases:
+            (rev,) = swh_storage.release_get([release.id])
+            if rev.raw_manifest is None:
+                assert rev == release
+            else:
+                assert rev.raw_manifest == release.raw_manifest
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
 
     def test_release_add_no_author_date(self, swh_storage, sample_data):
         full_release = sample_data.release

@@ -56,13 +56,14 @@ CREATE_TABLES_QUERIES = [
     """
 CREATE TYPE IF NOT EXISTS microtimestamp (
     seconds             bigint,
-    microseconds        int
+    microseconds        int,
 );""",
     """
 CREATE TYPE IF NOT EXISTS microtimestamp_with_timezone (
     timestamp           frozen<microtimestamp>,
     offset              smallint,
-    negative_utc        boolean
+    negative_utc        boolean,
+    offset_bytes        blob,
 );""",
     """
 CREATE TYPE IF NOT EXISTS person (
@@ -110,8 +111,10 @@ CREATE TABLE IF NOT EXISTS revision (
         -- true iff revision has been created by Software Heritage
     metadata                        text,
         -- extra metadata as JSON(tarball checksums, etc...)
-    extra_headers                   frozen<list <list<blob>> >
+    extra_headers                   frozen<list <list<blob>> >,
         -- extra commit information as (tuple(key, value), ...)
+    raw_manifest                    blob,
+        -- NULL if the object can be rebuild from other cells and revision_parent.
 );""",
     """
 CREATE TABLE IF NOT EXISTS revision_parent (
@@ -133,10 +136,14 @@ CREATE TABLE IF NOT EXISTS release
     author                          person,
     synthetic                       boolean,
         -- true iff release has been created by Software Heritage
+    raw_manifest                    blob,
+        -- NULL if the object can be rebuild from other cells
 );""",
     """
 CREATE TABLE IF NOT EXISTS directory (
     id              blob PRIMARY KEY,
+    raw_manifest                    blob
+        -- NULL if the object can be rebuild from (sorted) entries
 );""",
     """
 CREATE TABLE IF NOT EXISTS directory_entry (

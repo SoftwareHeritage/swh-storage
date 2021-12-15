@@ -524,7 +524,7 @@ class Storage:
         # Copy directory ids
         dirs_missing_dict = ({"id": dir} for dir in dirs_missing)
         db.mktemp("directory", cur)
-        db.copy_to(dirs_missing_dict, "tmp_directory", ["id"], cur)
+        db.copy_to(dirs_missing_dict, "tmp_directory", ["id", "raw_manifest"], cur)
 
         # Copy entries
         for entry_type, entry_list in dir_entries.items():

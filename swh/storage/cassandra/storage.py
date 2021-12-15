@@ -504,7 +504,9 @@ class CassandraStorage:
             # Add the directory *after* adding all the entries, so someone
             # calling snapshot_get_branch in the meantime won't end up
             # with half the entries.
-            self._cql_runner.directory_add_one(DirectoryRow(id=directory.id))
+            self._cql_runner.directory_add_one(
+                DirectoryRow(id=directory.id, raw_manifest=directory.raw_manifest)
+            )
 
         return {"directory:add": len(directories)}
 
