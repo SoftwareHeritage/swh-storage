@@ -530,9 +530,11 @@ class CassandraStorage:
                 if dentry.target == content.sha1_git:
                     break
             else:
+                target = ret["target"]
+                assert target is not None
                 tokens = list(
                     self._cql_runner.skipped_content_get_tokens_from_single_hash(
-                        "sha1_git", ret["target"]
+                        "sha1_git", target
                     )
                 )
                 if tokens:
