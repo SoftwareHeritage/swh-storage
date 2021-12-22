@@ -504,7 +504,9 @@ class CassandraStorage:
             # Add the directory *after* adding all the entries, so someone
             # calling snapshot_get_branch in the meantime won't end up
             # with half the entries.
-            self._cql_runner.directory_add_one(DirectoryRow(id=directory.id))
+            self._cql_runner.directory_add_one(
+                DirectoryRow(id=directory.id, raw_manifest=directory.raw_manifest)
+            )
 
         return {"directory:add": len(directories)}
 
@@ -530,9 +532,11 @@ class CassandraStorage:
                 if dentry.target == content.sha1_git:
                     break
             else:
+                target = ret["target"]
+                assert target is not None
                 tokens = list(
                     self._cql_runner.skipped_content_get_tokens_from_single_hash(
-                        "sha1_git", ret["target"]
+                        "sha1_git", target
                     )
                 )
                 if tokens:
