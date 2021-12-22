@@ -124,15 +124,30 @@ alter table revision add primary key using index revision_pkey;
     add constraint revision_date_neg_utc_offset_not_null
     check (date is null or date_neg_utc_offset is not null)
     not valid;
+
   alter table revision
     add constraint revision_committer_date_neg_utc_offset_not_null
     check (committer_date is null or committer_date_neg_utc_offset is not null)
     not valid;
 
   alter table revision
+    add constraint revision_date_offset_not_null
+    check (date is null or date_offset_bytes is not null)
+    not valid;
+
+  alter table revision
+    add constraint revision_committer_date_offset_not_null
+    check (committer_date is null or committer_date_offset_bytes is not null)
+    not valid;
+
+  alter table revision
     validate constraint revision_date_neg_utc_offset_not_null;
   alter table revision
     validate constraint revision_committer_date_neg_utc_offset_not_null;
+  alter table revision
+    validate constraint revision_date_offset_not_null;
+  alter table revision
+    validate constraint revision_committer_date_offset_not_null;
 \endif
 
 \if :dbflavor_default
@@ -235,7 +250,14 @@ alter table release add primary key using index release_pkey;
     not valid;
 
   alter table release
+    add constraint release_date_offset_not_null
+    check (date is null or date_offset_bytes is not null)
+    not valid;
+
+  alter table release
     validate constraint release_date_neg_utc_offset_not_null;
+  alter table release
+    validate constraint release_date_offset_not_null;
 
   -- if the author is null, then the date must be null
   alter table release add constraint release_author_date_check check ((date is null) or (author is not null)) not valid;

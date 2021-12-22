@@ -30,7 +30,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 178
+    current_version = 180
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -437,9 +437,11 @@ class Db(BaseDb):
         "date",
         "date_offset",
         "date_neg_utc_offset",
+        "date_offset_bytes",
         "committer_date",
         "committer_date_offset",
         "committer_date_neg_utc_offset",
+        "committer_date_offset_bytes",
         "type",
         "directory",
         "message",
@@ -452,6 +454,7 @@ class Db(BaseDb):
         "metadata",
         "synthetic",
         "extra_headers",
+        "raw_manifest",
     ]
 
     revision_get_cols = revision_add_cols + ["parents"]
@@ -1200,9 +1203,11 @@ class Db(BaseDb):
         "date",
         "date_offset",
         "date_neg_utc_offset",
+        "date_offset_bytes",
         "name",
         "comment",
         "synthetic",
+        "raw_manifest",
         "author_fullname",
         "author_name",
         "author_email",

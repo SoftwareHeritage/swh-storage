@@ -19,10 +19,8 @@ import pytest
 
 from swh.core.api import RemoteException
 from swh.core.api.classes import stream_results
-from swh.model import from_disk
+from swh.model import from_disk, hypothesis_strategies
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
-from swh.model.hypothesis_strategies import objects
-from swh.model.hypothesis_strategies import snapshots as unknown_snapshot
 from swh.model.model import (
     Content,
     Directory,
@@ -33,10 +31,13 @@ from swh.model.model import (
     Person,
     RawExtrinsicMetadata,
     Revision,
+    RevisionType,
     SkippedContent,
     Snapshot,
     SnapshotBranch,
     TargetType,
+    Timestamp,
+    TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
@@ -721,6 +722,58 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["directory"] == 1
 
+    def test_directory_add_with_raw_manifest(self, swh_storage, sample_data):
+        content = sample_data.content
+        directory = sample_data.directory
+        directory = attr.evolve(directory, raw_manifest=b"foo")
+        directory = attr.evolve(directory, id=directory.compute_hash())
+
+        assert directory.entries[0].target == content.sha1_git
+        swh_storage.content_add([content])
+
+        init_missing = list(swh_storage.directory_missing([directory.id]))
+        assert [directory.id] == init_missing
+
+        actual_result = swh_storage.directory_add([directory])
+        assert actual_result == {"directory:add": 1}
+
+        assert ("directory", directory) in list(
+            swh_storage.journal_writer.journal.objects
+        )
+
+        actual_data = list(swh_storage.directory_ls(directory.id))
+        expected_data = list(transform_entries(swh_storage, directory))
+
+        for data in actual_data:
+            assert data in expected_data
+
+        after_missing = list(swh_storage.directory_missing([directory.id]))
+        assert after_missing == []
+
+        # TODO: check the recorded manifest
+
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(
+        strategies.lists(hypothesis_strategies.directories(), min_size=1, max_size=10)
+    )
+    def test_directory_add_get_arbitrary(self, swh_storage, directories):
+        swh_storage.directory_add(directories)
+
+        for directory in directories:
+            if directory.raw_manifest is None:
+                assert swh_storage.directory_get_entries(directory.id) == PagedResult(
+                    results=list(directory.entries), next_page_token=None,
+                )
+            else:
+                # TODO: compare the manifests are the same (currently, we can't
+                # because there is no way to get the raw_manifest of a directory)
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
+                pass
+
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
 
@@ -1016,6 +1069,95 @@ class TestStorage:
             ("revision", revision),
             ("revision", revision2),
         ]
+
+    def test_revision_add_fractional_timezone(self, swh_storage, sample_data):
+        # When reading a date from this time period on systems configured with
+        # timezone Europe/Paris, postgresql returns them with UTC+00:09:21 as timezone,
+        # but psycopg2 < 2.9.0 had to truncate them.
+        # https://www.psycopg.org/docs/usage.html#time-zones-handling
+        #
+        # There is a workaround in swh.storage.postgresql.storage.Storage.get_db,
+        # to set the timezone to UTC so it works on all psycopg2 versions.
+        #
+        # Therefore, this test always succeeds in tox (because psycopg2 >= 2.9.0)
+        # and on the CI (both because psycopg2 >= 2.9.0 and TZ=UTC); but which means
+        # this test is only useful on machines with older psycopg2 versions and
+        # TZ=Europe/Paris. But the workaround is also only needed on this kind of
+        # configuration, so this is good enough.
+        revision = attr.evolve(
+            sample_data.revision,
+            date=TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-1855958962, microseconds=0),
+                offset=0,
+                negative_utc=False,
+            ),
+        )
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id])[0] == revision
+
+    def test_revision_add_with_raw_manifest(self, swh_storage, sample_data):
+        revision = sample_data.revision
+        revision = attr.evolve(revision, raw_manifest=b"foo")
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
+
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(
+        strategies.lists(hypothesis_strategies.revisions(), min_size=1, max_size=10,)
+    )
+    def test_revision_add_get_arbitrary(self, swh_storage, revisions):
+        # remove non-intrinsic data, so releases inserted with different hypothesis
+        # data can't clash with each other
+        revisions = [
+            attr.evolve(
+                revision,
+                synthetic=False,
+                metadata=None,
+                committer=attr.evolve(revision.committer, name=None, email=None),
+                author=attr.evolve(revision.author, name=None, email=None),
+                type=RevisionType.GIT,
+            )
+            for revision in revisions
+        ]
+
+        swh_storage.revision_add(revisions)
+
+        for revision in revisions:
+            (rev,) = swh_storage.revision_get([revision.id])
+            if rev.raw_manifest is None:
+                assert rev == revision
+            else:
+                assert rev.raw_manifest == revision.raw_manifest
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
 
     def test_revision_add_name_clash(self, swh_storage, sample_data):
         revision, revision2 = sample_data.revisions[:2]
@@ -1443,6 +1585,56 @@ class TestStorage:
         ):
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["release"] == 2
+
+    def test_release_add_with_raw_manifest(self, swh_storage, sample_data):
+        release = sample_data.releases[0]
+        release = attr.evolve(release, raw_manifest=b"foo")
+        release = attr.evolve(release, id=release.compute_hash())
+
+        init_missing = swh_storage.release_missing([release.id])
+        assert list(init_missing) == [release.id]
+
+        actual_result = swh_storage.release_add([release])
+        assert actual_result == {"release:add": 1}
+
+        end_missing = swh_storage.release_missing([release.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("release", release),
+        ]
+
+        assert swh_storage.release_get([release.id]) == [release]
+
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(strategies.lists(hypothesis_strategies.releases(), min_size=1, max_size=10,))
+    def test_release_add_get_arbitrary(self, swh_storage, releases):
+        # remove non-intrinsic data, so releases inserted with different hypothesis
+        # data can't clash with each other
+        releases = [
+            attr.evolve(
+                release,
+                synthetic=False,
+                metadata=None,
+                author=attr.evolve(release.author, name=None, email=None)
+                if release.author
+                else None,
+            )
+            for release in releases
+        ]
+        swh_storage.release_add(releases)
+
+        for release in releases:
+            (rev,) = swh_storage.release_get([release.id])
+            if rev.raw_manifest is None:
+                assert rev == release
+            else:
+                assert rev.raw_manifest == release.raw_manifest
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
 
     def test_release_add_no_author_date(self, swh_storage, sample_data):
         full_release = sample_data.release
@@ -3226,6 +3418,20 @@ class TestStorage:
         by_id = swh_storage.snapshot_get(complete_snapshot.id)
         assert by_id == {**complete_snapshot_dict, "next_branch": None}
 
+    @settings(
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
+    )
+    @given(strategies.lists(hypothesis_strategies.snapshots(), min_size=1, max_size=10))
+    def test_snapshot_add_get_arbitrary(self, swh_storage, snapshots):
+        swh_storage.snapshot_add(snapshots)
+
+        for snapshot in snapshots:
+            assert swh_storage.snapshot_get(snapshot.id) == {
+                **snapshot.to_dict(),
+                "next_branch": None,
+            }
+
     def test_snapshot_add_many(self, swh_storage, sample_data):
         snapshot, _, complete_snapshot = sample_data.snapshots[:3]
 
@@ -3706,7 +3912,7 @@ class TestStorage:
         assert partial_branches["branches"] == {}
 
     @settings(suppress_health_check=function_scoped_fixture_check,)
-    @given(unknown_snapshot(min_size=1))
+    @given(hypothesis_strategies.snapshots(min_size=1))
     def test_snapshot_get_unknown_snapshot(self, swh_storage, unknown_snapshot):
         assert swh_storage.snapshot_get(unknown_snapshot.id) is None
         assert swh_storage.snapshot_get_branches(unknown_snapshot.id) is None
@@ -4746,9 +4952,12 @@ class TestStorageGeneratedData:
         assert swh_storage.origin_count("github", regexp=True, with_visit=True) == 1
 
     @settings(
-        suppress_health_check=[HealthCheck.too_slow] + function_scoped_fixture_check,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
+        + function_scoped_fixture_check,
     )
-    @given(strategies.lists(objects(split_content=True), max_size=2))
+    @given(
+        strategies.lists(hypothesis_strategies.objects(split_content=True), max_size=2)
+    )
     def test_add_arbitrary(self, swh_storage, objects):
         for (obj_type, obj) in objects:
             if obj.object_type == "origin_visit":

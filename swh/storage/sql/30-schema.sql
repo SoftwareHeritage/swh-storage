@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(178, now(), 'Work In Progress');
+      values(180, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -137,7 +137,8 @@ create table directory
   dir_entries   bigint[],  -- sub-directories, reference directory_entry_dir
   file_entries  bigint[],  -- contained files, reference directory_entry_file
   rev_entries   bigint[],  -- mounted revisions, reference directory_entry_rev
-  object_id     bigserial  -- short object identifier
+  object_id     bigserial, -- short object identifier
+  raw_manifest  bytea      -- git manifest of the object, if it cannot be represented using only the other fields
 );
 
 comment on table directory is 'Contents of a directory, synonymous to tree (git)';
@@ -146,6 +147,7 @@ comment on column directory.dir_entries is 'Sub-directories, reference directory
 comment on column directory.file_entries is 'Contained files, reference directory_entry_file';
 comment on column directory.rev_entries is 'Mounted revisions, reference directory_entry_rev';
 comment on column directory.object_id is 'Short object identifier';
+comment on column directory.raw_manifest is 'git manifest of the object, if it cannot be represented using only the other fields';
 
 
 -- A directory entry pointing to a (sub-)directory.
@@ -240,7 +242,10 @@ create table revision
   object_id             bigserial,
   date_neg_utc_offset   boolean,
   committer_date_neg_utc_offset boolean,
-  extra_headers         bytea[][] not null  -- extra headers (used in hash computation)
+  extra_headers         bytea[][] not null, -- extra headers (used in hash computation)
+  date_offset_bytes     bytea,
+  committer_date_offset_bytes bytea,
+  raw_manifest          bytea   -- git manifest of the object, if it cannot be represented using only the other fields
 );
 
 comment on table revision is 'A revision represents the state of a source code tree at a specific point in time';
@@ -260,6 +265,9 @@ comment on column revision.synthetic is 'True iff revision has been synthesized 
 comment on column revision.metadata is 'Extra revision metadata';
 comment on column revision.object_id is 'Non-intrinsic, sequential object identifier';
 comment on column revision.extra_headers is 'Extra revision headers; used in revision hash computation';
+comment on column revision.date_offset_bytes is 'Raw git representation of the timezone, as an offset from UTC. It should follow this format: ``+HHMM`` or ``-HHMM``';
+comment on column revision.committer_date_offset_bytes is 'Raw git representation of the timezone, as an offset from UTC. It should follow this format: ``+HHMM`` or ``-HHMM``';
+comment on column revision.raw_manifest is 'git manifest of the object, if it cannot be represented using only the other fields';
 
 
 -- either this table or the sha1_git[] column on the revision table
@@ -378,7 +386,9 @@ create table release
   synthetic   boolean not null default false,  -- true iff release has been created by Software Heritage
   object_id   bigserial,
   target_type object_type not null,
-  date_neg_utc_offset  boolean
+  date_neg_utc_offset  boolean,
+  date_offset_bytes bytea,
+  raw_manifest  bytea
 );
 
 comment on table release is 'Details of a software release, synonymous with
@@ -395,6 +405,8 @@ comment on column release.object_id is 'Object identifier';
 comment on column release.target_type is 'Object type (''content'', ''directory'', ''revision'',
  ''release'', ''snapshot'')';
 comment on column release.date_neg_utc_offset is 'True indicates -0 UTC offset for release timestamp';
+comment on column release.date_offset_bytes is 'Raw git representation of the timezone, as an offset from UTC. It should follow this format: ``+HHMM`` or ``-HHMM``';
+comment on column release.raw_manifest is 'git manifest of the object, if it cannot be represented using only the other fields';
 
 -- Tools
 create table metadata_fetcher

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2021 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -19,11 +19,7 @@ def should_retry_adding(retry_state) -> bool:
     """Retry if the error/exception is (probably) not about a caller error
 
     """
-    try:
-        attempt = retry_state.outcome
-    except AttributeError:
-        # tenacity < 5.0
-        attempt = retry_state
+    attempt = retry_state.outcome
 
     if attempt.failed:
         error = attempt.exception()
