@@ -114,6 +114,7 @@ class DirectoryRow(BaseRow):
     PARTITION_KEY = ("id",)
 
     id: bytes
+    raw_manifest: Optional[bytes]
 
 
 @dataclasses.dataclass
@@ -145,6 +146,7 @@ class RevisionRow(BaseRow):
     synthetic: bool
     metadata: str
     extra_headers: dict
+    raw_manifest: Optional[bytes]
 
 
 @dataclasses.dataclass
@@ -171,6 +173,7 @@ class ReleaseRow(BaseRow):
     message: bytes
     author: Person
     synthetic: bool
+    raw_manifest: Optional[bytes]
 
 
 @dataclasses.dataclass

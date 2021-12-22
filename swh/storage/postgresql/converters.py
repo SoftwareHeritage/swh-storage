@@ -1,9 +1,10 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import datetime
+import math
 from typing import Any, Dict, Optional
 import warnings
 
@@ -38,6 +39,7 @@ DEFAULT_DATE = {
     "timestamp": None,
     "offset": 0,
     "neg_utc_offset": None,
+    "offset_bytes": None,
 }
 
 
@@ -83,7 +85,10 @@ def db_to_git_headers(db_git_headers):
 
 
 def db_to_date(
-    date: Optional[datetime.datetime], offset: int, neg_utc_offset: Optional[bool]
+    date: Optional[datetime.datetime],
+    offset: int,
+    neg_utc_offset: Optional[bool],
+    offset_bytes: Optional[bytes],
 ) -> Optional[TimestampWithTimezone]:
     """Convert the DB representation of a date to a swh-model compatible date.
 
@@ -104,12 +109,20 @@ def db_to_date(
         # For older versions of the database that were not migrated to schema v160
         neg_utc_offset = False
 
+    kwargs = {}
+    if offset_bytes:
+        # TODO: remove the conditional after migration is complete.
+        kwargs["offset_bytes"] = offset_bytes
+
     return TimestampWithTimezone(
         timestamp=Timestamp(
-            seconds=int(date.timestamp()), microseconds=date.microsecond,
+            # we use floor() instead of int() to round down, because of negative dates
+            seconds=math.floor(date.timestamp()),
+            microseconds=date.microsecond,
         ),
         offset=offset,
         negative_utc=neg_utc_offset,
+        **kwargs,
     )
 
 
@@ -120,12 +133,14 @@ def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
         ts_with_tz: a TimestampWithTimezone object
 
     Returns:
-        dict: a dictionary with three keys:
+        dict: a dictionary with these keys:
 
             - timestamp: a date in ISO format
             - offset: the UTC offset in minutes
             - neg_utc_offset: a boolean indicating whether a null offset is
               negative or positive.
+            - offset_bytes: a byte representation of the latter two, usually as "+HHMM"
+              or "-HHMM"
 
     """
 
@@ -142,6 +157,7 @@ def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
         "timestamp": timestamp.isoformat(),
         "offset": ts_with_tz.offset,
         "neg_utc_offset": ts_with_tz.negative_utc,
+        "offset_bytes": ts_with_tz.offset_bytes,
     }
 
 
@@ -162,18 +178,21 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
         "date": date["timestamp"],
         "date_offset": date["offset"],
         "date_neg_utc_offset": date["neg_utc_offset"],
+        "date_offset_bytes": date["offset_bytes"],
         "committer_fullname": committer["fullname"],
         "committer_name": committer["name"],
         "committer_email": committer["email"],
         "committer_date": committer_date["timestamp"],
         "committer_date_offset": committer_date["offset"],
         "committer_date_neg_utc_offset": committer_date["neg_utc_offset"],
+        "committer_date_offset_bytes": committer_date["offset_bytes"],
         "type": revision.type.value,
         "directory": revision.directory,
         "message": revision.message,
         "metadata": None if revision.metadata is None else dict(revision.metadata),
         "synthetic": revision.synthetic,
         "extra_headers": revision.extra_headers,
+        "raw_manifest": revision.raw_manifest,
         "parents": [
             {"id": revision.id, "parent_id": parent, "parent_rank": i,}
             for i, parent in enumerate(revision.parents)
@@ -199,6 +218,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["date"],
         db_revision["date_offset"],
         db_revision["date_neg_utc_offset"],
+        db_revision["date_offset_bytes"],
     )
 
     committer = db_to_author(
@@ -210,6 +230,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["committer_date"],
         db_revision["committer_date_offset"],
         db_revision["committer_date_neg_utc_offset"],
+        db_revision["committer_date_offset_bytes"],
     )
 
     assert author, "author is None"
@@ -243,6 +264,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         synthetic=db_revision["synthetic"],
         extra_headers=extra_headers,
         parents=tuple(parents),
+        raw_manifest=db_revision["raw_manifest"],
     )
 
 
@@ -260,11 +282,13 @@ def release_to_db(release: Release) -> Dict[str, Any]:
         "date": date["timestamp"],
         "date_offset": date["offset"],
         "date_neg_utc_offset": date["neg_utc_offset"],
+        "date_offset_bytes": date["offset_bytes"],
         "name": release.name,
         "target": release.target,
         "target_type": release.target_type.value,
         "comment": release.message,
         "synthetic": release.synthetic,
+        "raw_manifest": release.raw_manifest,
     }
 
 
@@ -282,7 +306,10 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
         db_release["author_email"],
     )
     date = db_to_date(
-        db_release["date"], db_release["date_offset"], db_release["date_neg_utc_offset"]
+        db_release["date"],
+        db_release["date_offset"],
+        db_release["date_neg_utc_offset"],
+        db_release["date_offset_bytes"],
     )
 
     return Release(
@@ -294,6 +321,7 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
         synthetic=db_release["synthetic"],
         target=db_release["target"],
         target_type=ObjectType(db_release["target_type"]),
+        raw_manifest=db_release["raw_manifest"],
     )
 
 

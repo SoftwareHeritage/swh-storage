@@ -20,57 +20,187 @@ from swh.model.swhids import ExtendedSWHID
 from swh.storage.postgresql import converters
 
 
-def test_date_to_db():
-    date_to_db = converters.date_to_db
-    assert date_to_db(None) == {"timestamp": None, "offset": 0, "neg_utc_offset": None}
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567890, microseconds=0,),
-            offset=120,
-            negative_utc=False,
+@pytest.mark.parametrize(
+    "model_date,db_date",
+    [
+        (
+            None,
+            {
+                "timestamp": None,
+                "offset": 0,
+                "neg_utc_offset": None,
+                "offset_bytes": None,
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                offset=120,
+                negative_utc=False,
+                offset_bytes=b"+0200",
+            ),
+            {
+                "timestamp": "2009-02-13T23:31:30+00:00",
+                "offset": 120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"+0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1123456789, microseconds=0,),
+                offset=0,
+                negative_utc=True,
+                offset_bytes=b"-0000",
+            ),
+            {
+                "timestamp": "2005-08-07T23:19:49+00:00",
+                "offset": 0,
+                "neg_utc_offset": True,
+                "offset_bytes": b"-0000",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                offset=42,
+                negative_utc=False,
+                offset_bytes=b"+0042",
+            ),
+            {
+                "timestamp": "2009-02-13T23:31:30+00:00",
+                "offset": 42,
+                "neg_utc_offset": False,
+                "offset_bytes": b"+0042",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1634366813, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "2021-10-16T06:46:53+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=0, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "1970-01-01T00:00:00+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=0, microseconds=1,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "1970-01-01T00:00:00.000001+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-1, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "1969-12-31T23:59:59+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-1, microseconds=1,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "1969-12-31T23:59:59.000001+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-3600, microseconds=0,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "1969-12-31T23:00:00+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=-3600, microseconds=1,),
+                offset=-120,
+                negative_utc=False,
+                offset_bytes=b"-0200",
+            ),
+            {
+                "timestamp": "1969-12-31T23:00:00.000001+00:00",
+                "offset": -120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"-0200",
+            },
+        ),
+        (
+            TimestampWithTimezone(
+                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                offset=120,
+                negative_utc=False,
+                offset_bytes=b"+200",
+            ),
+            {
+                "timestamp": "2009-02-13T23:31:30+00:00",
+                "offset": 120,
+                "neg_utc_offset": False,
+                "offset_bytes": b"+200",
+            },
+        ),
+    ],
+)
+def test_date(model_date, db_date):
+    assert converters.date_to_db(model_date) == db_date
+    assert (
+        converters.db_to_date(
+            date=None
+            if db_date["timestamp"] is None
+            else datetime.datetime.fromisoformat(db_date["timestamp"]),
+            offset=db_date["offset"],
+            neg_utc_offset=db_date["neg_utc_offset"],
+            offset_bytes=db_date["offset_bytes"],
         )
-    ) == {
-        "timestamp": "2009-02-13T23:31:30+00:00",
-        "offset": 120,
-        "neg_utc_offset": False,
-    }
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1123456789, microseconds=0,),
-            offset=0,
-            negative_utc=True,
-        )
-    ) == {
-        "timestamp": "2005-08-07T23:19:49+00:00",
-        "offset": 0,
-        "neg_utc_offset": True,
-    }
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567890, microseconds=0,),
-            offset=42,
-            negative_utc=False,
-        )
-    ) == {
-        "timestamp": "2009-02-13T23:31:30+00:00",
-        "offset": 42,
-        "neg_utc_offset": False,
-    }
-
-    assert date_to_db(
-        TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1634366813, microseconds=0,),
-            offset=-120,
-            negative_utc=False,
-        )
-    ) == {
-        "timestamp": "2021-10-16T06:46:53+00:00",
-        "offset": -120,
-        "neg_utc_offset": False,
-    }
+        == model_date
+    )
 
 
 def test_db_to_author():
@@ -97,9 +227,11 @@ def test_db_to_revision():
             "date": None,
             "date_offset": None,
             "date_neg_utc_offset": None,
+            "date_offset_bytes": None,
             "committer_date": None,
             "committer_date_offset": None,
             "committer_date_neg_utc_offset": None,
+            "committer_date_offset_bytes": None,
             "type": "git",
             "directory": b"dir-sha1",
             "message": b"commit message",
@@ -112,6 +244,7 @@ def test_db_to_revision():
             "metadata": {},
             "synthetic": False,
             "extra_headers": (),
+            "raw_manifest": None,
             "parents": [b"123", b"456"],
         }
     )
@@ -147,12 +280,14 @@ def test_db_to_release():
             "date": None,
             "date_offset": None,
             "date_neg_utc_offset": None,
+            "date_offset_bytes": None,
             "name": b"release-name",
             "comment": b"release comment",
             "synthetic": True,
             "author_fullname": b"auth-fullname",
             "author_name": b"auth-name",
             "author_email": b"auth-email",
+            "raw_manifest": None,
         }
     )
 

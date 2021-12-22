@@ -264,8 +264,8 @@ begin
     perform swh_directory_entry_add('dir');
     perform swh_directory_entry_add('rev');
 
-    insert into directory
-    select * from tmp_directory t
+    insert into directory (id, dir_entries, file_entries, rev_entries, raw_manifest)
+    select id, dir_entries, file_entries, rev_entries, raw_manifest from tmp_directory t
     where not exists (
         select 1 from directory d
 	where d.id = t.id);
@@ -476,9 +476,11 @@ create type revision_entry as
   date                           timestamptz,
   date_offset                    smallint,
   date_neg_utc_offset            boolean,
+  date_offset_bytes              bytea,
   committer_date                 timestamptz,
   committer_date_offset          smallint,
   committer_date_neg_utc_offset  boolean,
+  committer_date_offset_bytes    bytea,
   type                           revision_type,
   directory                      sha1_git,
   message                        bytea,
@@ -494,7 +496,8 @@ create type revision_entry as
   synthetic                      boolean,
   parents                        bytea[],
   object_id                      bigint,
-  extra_headers                  bytea[][]
+  extra_headers                  bytea[][],
+  raw_manifest                   bytea
 );
 
 
@@ -505,12 +508,13 @@ create or replace function swh_revision_log(root_revisions bytea[], num_revs big
     language sql
     stable
 as $$
-    select t.id, r.date, r.date_offset, r.date_neg_utc_offset,
-           r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
+    select t.id, r.date, r.date_offset, r.date_neg_utc_offset, r.date_offset_bytes,
+           r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset, r.committer_date_offset_bytes,
            r.type, r.directory, r.message,
            a.id, a.fullname, a.name, a.email,
            c.id, c.fullname, c.name, c.email,
-           r.metadata, r.synthetic, t.parents, r.object_id, r.extra_headers
+           r.metadata, r.synthetic, t.parents, r.object_id, r.extra_headers,
+           r.raw_manifest
     from swh_revision_list(root_revisions, num_revs) as t
     left join revision r on t.id = r.id
     left join person a on a.id = r.author
@@ -567,8 +571,8 @@ as $$
 begin
     perform swh_person_add_from_revision();
 
-    insert into revision (id, date, date_offset, date_neg_utc_offset, committer_date, committer_date_offset, committer_date_neg_utc_offset, type, directory, message, author, committer, metadata, synthetic, extra_headers)
-    select t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.type, t.directory, t.message, a.id, c.id, t.metadata, t.synthetic, t.extra_headers
+    insert into revision (id,   date,   date_offset,   date_neg_utc_offset,   date_offset_bytes,   committer_date,   committer_date_offset,   committer_date_neg_utc_offset,   committer_date_offset_bytes,   type,   directory,   message, author, committer,   metadata,   synthetic,   extra_headers,   raw_manifest)
+    select              t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.date_offset_bytes, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.committer_date_offset_bytes, t.type, t.directory, t.message,   a.id,      c.id, t.metadata, t.synthetic, t.extra_headers, t.raw_manifest
     from tmp_revision t
     left join person a on a.fullname = t.author_fullname
     left join person c on c.fullname = t.committer_fullname;
@@ -623,8 +627,8 @@ as $$
 begin
     perform swh_person_add_from_release();
 
-    insert into release (id, target, target_type, date, date_offset, date_neg_utc_offset, name, comment, author, synthetic)
-      select distinct t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.name, t.comment, a.id, t.synthetic
+    insert into release (id,   target,   target_type,   date,   date_offset,   date_neg_utc_offset,   date_offset_bytes,   name,   comment, author,   synthetic,    raw_manifest)
+      select distinct  t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.date_offset_bytes, t.name, t.comment,   a.id, t.synthetic, t.raw_manifest
         from tmp_release t
         left join person a on a.fullname = t.author_fullname
         where not exists (select 1 from release where t.id = release.id);
@@ -850,12 +854,12 @@ as $$
         select * from revision
         where object_id > min_excl and object_id <= max_incl
     )
-    select r.id, r.date, r.date_offset, r.date_neg_utc_offset,
-           r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset,
+    select r.id, r.date, r.date_offset, r.date_neg_utc_offset, r.date_offset_bytes,
+           r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset, r.committer_date_offset_bytes,
            r.type, r.directory, r.message,
            a.id, a.fullname, a.name, a.email, c.id, c.fullname, c.name, c.email, r.metadata, r.synthetic,
            array(select rh.parent_id::bytea from revision_history rh where rh.id = r.id order by rh.parent_rank)
-               as parents, r.object_id, r.extra_headers
+               as parents, r.object_id, r.extra_headers, r.raw_manifest
     from revs r
     left join person a on a.id = r.author
     left join person c on c.id = r.committer

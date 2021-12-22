@@ -7,5 +7,5 @@ iso8601
 mypy_extensions
 psycopg2
 redis
-tenacity
+tenacity >= 6.2
 typing-extensions
