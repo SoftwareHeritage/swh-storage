@@ -1,3 +1,13 @@
+swh-storage (0.41.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.41.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2021-12-22 15:24:31 +0100)
+  * Upstream changes:     - Release swh.storage v0.41.0     - add
+    support for storing odd-shaped git objects enabled in swh.model
+    4.0.0     - drop workarounds for old versions of tenacity
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 22 Dec 2021 15:22:18 +0000
+
 swh-storage (0.40.0-2~swh1) unstable-swh; urgency=medium
 
   * Update dependencies in d/control.
