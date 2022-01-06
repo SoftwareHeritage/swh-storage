@@ -198,7 +198,7 @@ def _prepared_exists_statement(
 ]:
     """Shorthand for using `_prepared_statement` for queries that only
     check which ids in a list exist in the table."""
-    return _prepared_statement(f"SELECT id FROM {table_name} WHERE id IN ?")
+    return _prepared_statement(f"SELECT id FROM {table_name} WHERE id = ?")
 
 
 def _prepared_select_statement(
@@ -298,7 +298,7 @@ class CqlRunner:
         retry=retry_if_exception_type(CoordinationFailure),
     )
     def _execute_many_with_retries(
-        self, statement, args_list: List[Tuple]
+        self, statement, args_list: Sequence[Tuple]
     ) -> Iterable[Dict[str, Any]]:
         for res in execute_concurrent_with_args(self._session, statement, args_list):
             yield from res.result_or_exc
@@ -331,11 +331,15 @@ class CqlRunner:
         else:
             return None
 
-    def _missing(self, statement, ids):
+    def _missing(self, statement: PreparedStatement, ids):
         found_ids = set()
-        for id_group in grouper(ids, PARTITION_KEY_RESTRICTION_MAX_SIZE):
-            rows = self._execute_with_retries(statement, [list(id_group)])
-            found_ids.update(row["id"] for row in rows)
+
+        if not ids:
+            return []
+
+        for row in self._execute_many_with_retries(statement, [(id_,) for id_ in ids]):
+            found_ids.add(row["id"])
+
         return [id_ for id_ in ids if id_ not in found_ids]
 
     ##########################
