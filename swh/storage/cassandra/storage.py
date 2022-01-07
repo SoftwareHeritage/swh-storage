@@ -1,9 +1,10 @@
-# Copyright (C) 2019-2021  The Software Heritage developers
+# Copyright (C) 2019-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import base64
+import collections
 import datetime
 import itertools
 import operator
@@ -415,8 +416,38 @@ class CassandraStorage:
             # requested contents, concurrently.
             found_contents = self._content_find_many(contents_with_missing_hashes)
 
+            # Bucket the known contents by hash
+            found_contents_by_hash: Dict[str, Dict[str, list]] = {
+                algo: collections.defaultdict(list) for algo in DEFAULT_ALGORITHMS
+            }
+            for found_content in found_contents:
+                for algo in DEFAULT_ALGORITHMS:
+                    found_contents_by_hash[algo][found_content.get_hash(algo)].append(
+                        found_content
+                    )
+
+            # For each of the requested contents, check if they are in the
+            # 'found_contents' set (via 'found_contents_by_hash' for efficient access,
+            # since we need to check using dict inclusion instead of hash+equality)
             for missing_content in contents_with_missing_hashes:
-                for found_content in found_contents:
+                # Pick any of the algorithms provided in missing_content
+                algo = next(algo for (algo, hash_) in missing_content.items() if hash_)
+
+                # Get the list of found_contents that match this hash in the
+                # missing_content. (its length is at most 1, unless there is a
+                # collision)
+                found_contents_with_same_hash = found_contents_by_hash[algo][
+                    missing_content[algo]
+                ]
+
+                # Check if there is a found_content that matches all hashes in the
+                # missing_content.
+                # This is functionally equivalent to 'for found_content in
+                # found_contents', but runs almost in constant time (it is linear
+                # in the number of hash collisions) instead of linear.
+                # This allows this function to run in linear time overall instead of
+                # quadratic.
+                for found_content in found_contents_with_same_hash:
                     # check if the found_content.hashes() dictionary contains a superset
                     # of the (key, value) pairs in missing_content
                     if missing_content.items() <= found_content.hashes().items():
