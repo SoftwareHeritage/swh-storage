@@ -1088,8 +1088,7 @@ class TestStorage:
             sample_data.revision,
             date=TimestampWithTimezone(
                 timestamp=Timestamp(seconds=-1855958962, microseconds=0),
-                offset=0,
-                negative_utc=False,
+                offset_bytes=b"+0000",
             ),
         )
         init_missing = swh_storage.revision_missing([revision.id])

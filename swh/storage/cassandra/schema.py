@@ -61,8 +61,6 @@ CREATE TYPE IF NOT EXISTS microtimestamp (
     """
 CREATE TYPE IF NOT EXISTS microtimestamp_with_timezone (
     timestamp           frozen<microtimestamp>,
-    offset              smallint,
-    negative_utc        boolean,
     offset_bytes        blob,
 );""",
     """
