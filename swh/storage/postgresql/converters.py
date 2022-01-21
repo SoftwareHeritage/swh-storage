@@ -138,8 +138,8 @@ def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
     return {
         # PostgreSQL supports isoformatted timestamps
         "timestamp": timestamp.isoformat(),
-        "offset": ts_with_tz.offset,
-        "neg_utc_offset": ts_with_tz.offset == 0
+        "offset": ts_with_tz.offset_minutes(),
+        "neg_utc_offset": ts_with_tz.offset_minutes() == 0
         and ts_with_tz.offset_bytes.startswith(b"-"),
         "offset_bytes": ts_with_tz.offset_bytes,
     }
