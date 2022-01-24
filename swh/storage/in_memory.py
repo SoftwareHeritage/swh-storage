@@ -299,6 +299,12 @@ class InMemoryCqlRunner:
     def directory_get_random(self) -> Optional[DirectoryRow]:
         return self._directories.get_random()
 
+    def directory_get(self, directory_ids: List[Sha1Git]) -> Iterable[DirectoryRow]:
+        for id_ in directory_ids:
+            row = self._directories.get_from_primary_key((id_,))
+            if row:
+                yield row
+
     ##########################
     # 'directory_entry' table
     ##########################

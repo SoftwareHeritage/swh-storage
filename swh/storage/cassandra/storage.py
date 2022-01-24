@@ -692,6 +692,15 @@ class CassandraStorage:
         return PagedResult(results=entries, next_page_token=next_page_token)
 
     @timed
+    def directory_get_raw_manifest(
+        self, directory_ids: List[Sha1Git]
+    ) -> Dict[Sha1Git, Optional[bytes]]:
+        return {
+            dir_.id: dir_.raw_manifest
+            for dir_ in self._cql_runner.directory_get(directory_ids)
+        }
+
+    @timed
     def directory_get_random(self) -> Sha1Git:
         directory = self._cql_runner.directory_get_random()
         assert directory, "Could not find any directory"

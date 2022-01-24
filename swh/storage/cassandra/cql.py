@@ -656,7 +656,9 @@ class CqlRunner:
         self._add_one(statement, release)
 
     @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
-    def release_get(self, release_ids: List[str], *, statement) -> Iterable[ReleaseRow]:
+    def release_get(
+        self, release_ids: List[Sha1Git], *, statement
+    ) -> Iterable[ReleaseRow]:
         return map(
             ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
         )
@@ -682,6 +684,17 @@ class CqlRunner:
     @_prepared_select_statement(DirectoryRow, "WHERE token(id) > ? LIMIT 1")
     def directory_get_random(self, *, statement) -> Optional[DirectoryRow]:
         return self._get_random_row(DirectoryRow, statement)
+
+    @_prepared_select_statement(DirectoryRow, "WHERE id in ?")
+    def directory_get(
+        self, directory_ids: List[Sha1Git], *, statement
+    ) -> Iterable[DirectoryRow]:
+        """Return fields from the main directory table (e.g. raw_manifest, but not
+        entries)"""
+        return map(
+            DirectoryRow.from_dict,
+            self._execute_with_retries(statement, [directory_ids]),
+        )
 
     ##########################
     # 'directory_entry' table
