@@ -733,6 +733,7 @@ class TestStorage:
 
         init_missing = list(swh_storage.directory_missing([directory.id]))
         assert [directory.id] == init_missing
+        assert swh_storage.directory_get_raw_manifest([directory.id]) == {}
 
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
@@ -750,7 +751,17 @@ class TestStorage:
         after_missing = list(swh_storage.directory_missing([directory.id]))
         assert after_missing == []
 
-        # TODO: check the recorded manifest
+        assert swh_storage.directory_get_raw_manifest([directory.id]) == {
+            directory.id: b"foo"
+        }
+
+        directory2 = attr.evolve(directory, raw_manifest=b"bar")
+        directory2 = attr.evolve(directory2, id=directory2.compute_hash())
+        swh_storage.directory_add([directory2])
+
+        assert swh_storage.directory_get_raw_manifest(
+            [directory.id, directory2.id]
+        ) == {directory.id: b"foo", directory2.id: b"bar"}
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
@@ -763,16 +774,15 @@ class TestStorage:
         swh_storage.directory_add(directories)
 
         for directory in directories:
-            if directory.raw_manifest is None:
-                assert swh_storage.directory_get_entries(directory.id) == PagedResult(
-                    results=list(directory.entries), next_page_token=None,
-                )
-            else:
-                # TODO: compare the manifests are the same (currently, we can't
-                # because there is no way to get the raw_manifest of a directory)
-                # we can't compare the other fields, because they become non-intrinsic,
-                # so they may clash between hypothesis runs
-                pass
+            assert directory == Directory(
+                id=directory.id,
+                entries=tuple(
+                    stream_results(swh_storage.directory_get_entries, directory.id)
+                ),
+                raw_manifest=swh_storage.directory_get_raw_manifest([directory.id])[
+                    directory.id
+                ],
+            )
 
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
@@ -1088,8 +1098,7 @@ class TestStorage:
             sample_data.revision,
             date=TimestampWithTimezone(
                 timestamp=Timestamp(seconds=-1855958962, microseconds=0),
-                offset=0,
-                negative_utc=False,
+                offset_bytes=b"+0000",
             ),
         )
         init_missing = swh_storage.revision_missing([revision.id])

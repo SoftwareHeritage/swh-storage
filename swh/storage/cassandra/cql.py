@@ -198,7 +198,7 @@ def _prepared_exists_statement(
 ]:
     """Shorthand for using `_prepared_statement` for queries that only
     check which ids in a list exist in the table."""
-    return _prepared_statement(f"SELECT id FROM {table_name} WHERE id IN ?")
+    return _prepared_statement(f"SELECT id FROM {table_name} WHERE id = ?")
 
 
 def _prepared_select_statement(
@@ -298,7 +298,7 @@ class CqlRunner:
         retry=retry_if_exception_type(CoordinationFailure),
     )
     def _execute_many_with_retries(
-        self, statement, args_list: List[Tuple]
+        self, statement, args_list: Sequence[Tuple]
     ) -> Iterable[Dict[str, Any]]:
         for res in execute_concurrent_with_args(self._session, statement, args_list):
             yield from res.result_or_exc
@@ -331,11 +331,15 @@ class CqlRunner:
         else:
             return None
 
-    def _missing(self, statement, ids):
+    def _missing(self, statement: PreparedStatement, ids):
         found_ids = set()
-        for id_group in grouper(ids, PARTITION_KEY_RESTRICTION_MAX_SIZE):
-            rows = self._execute_with_retries(statement, [list(id_group)])
-            found_ids.update(row["id"] for row in rows)
+
+        if not ids:
+            return []
+
+        for row in self._execute_many_with_retries(statement, [(id_,) for id_ in ids]):
+            found_ids.add(row["id"])
+
         return [id_ for id_ in ids if id_ not in found_ids]
 
     ##########################
@@ -390,7 +394,7 @@ class CqlRunner:
         else:
             return None
 
-    def content_missing_from_hashes(
+    def content_missing_from_all_hashes(
         self, contents_hashes: List[Dict[str, bytes]]
     ) -> Iterator[Dict[str, bytes]]:
         for group in grouper(contents_hashes, PARTITION_KEY_RESTRICTION_MAX_SIZE):
@@ -406,7 +410,7 @@ class CqlRunner:
             for content in group:
                 for algo in HASH_ALGORITHMS:
                     assert content.get(algo) is not None, (
-                        "content_missing_from_hashes must not be called with "
+                        "content_missing_from_all_hashes must not be called with "
                         "partial hashes."
                     )
                 if tuple(content[algo] for algo in HASH_ALGORITHMS) not in present:
@@ -652,7 +656,9 @@ class CqlRunner:
         self._add_one(statement, release)
 
     @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
-    def release_get(self, release_ids: List[str], *, statement) -> Iterable[ReleaseRow]:
+    def release_get(
+        self, release_ids: List[Sha1Git], *, statement
+    ) -> Iterable[ReleaseRow]:
         return map(
             ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
         )
@@ -678,6 +684,17 @@ class CqlRunner:
     @_prepared_select_statement(DirectoryRow, "WHERE token(id) > ? LIMIT 1")
     def directory_get_random(self, *, statement) -> Optional[DirectoryRow]:
         return self._get_random_row(DirectoryRow, statement)
+
+    @_prepared_select_statement(DirectoryRow, "WHERE id in ?")
+    def directory_get(
+        self, directory_ids: List[Sha1Git], *, statement
+    ) -> Iterable[DirectoryRow]:
+        """Return fields from the main directory table (e.g. raw_manifest, but not
+        entries)"""
+        return map(
+            DirectoryRow.from_dict,
+            self._execute_with_retries(statement, [directory_ids]),
+        )
 
     ##########################
     # 'directory_entry' table

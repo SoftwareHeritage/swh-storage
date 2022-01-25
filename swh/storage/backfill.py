@@ -115,12 +115,8 @@ COLUMNS = {
     "revision": [
         ("revision.id", "id"),
         "date",
-        "date_offset",
-        "date_neg_utc_offset",
         "date_offset_bytes",
         "committer_date",
-        "committer_date_offset",
-        "committer_date_neg_utc_offset",
         "committer_date_offset_bytes",
         "type",
         "directory",
@@ -146,8 +142,6 @@ COLUMNS = {
     "release": [
         ("release.id", "id"),
         "date",
-        "date_offset",
-        "date_neg_utc_offset",
         "date_offset_bytes",
         "comment",
         ("release.name", "name"),
