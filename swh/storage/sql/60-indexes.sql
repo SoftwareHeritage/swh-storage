@@ -65,6 +65,7 @@ alter table directory add primary key using index directory_pkey;
   create index concurrently on directory using gin (file_entries);  -- to be reviewed
   create index concurrently on directory using gin (rev_entries);   -- to be reviewed
   create unique index concurrently on directory(object_id);         -- to be reviewed
+  create index concurrently directory_raw_manifest_not_null on directory(id) where raw_manifest is not null;   -- allows keeping track of the few directories that could not be parsed
 \endif
 
 -- directory_entry_dir
@@ -153,6 +154,7 @@ alter table revision add primary key using index revision_pkey;
 \if :dbflavor_default
   create index concurrently on revision(directory);          -- to be reviewed
   create unique index concurrently on revision(object_id);   -- to be reviewed
+  create index concurrently revision_raw_manifest_not_null on revision(id) where raw_manifest is not null;   -- allows keeping track of the few revisions that could not be parsed
 \endif
 
 -- revision_history
@@ -238,6 +240,7 @@ alter table release add primary key using index release_pkey;
 \if :dbflavor_default
   create index concurrently on release(target, target_type);  -- to be reviewed
   create unique index concurrently on release(object_id);     -- to be reviewed
+  create index concurrently release_raw_manifest_not_null on release(id) where raw_manifest is not null;   -- allows keeping track of the few releases that could not be parsed
 \endif
 
 \if :dbflavor_does_deduplication

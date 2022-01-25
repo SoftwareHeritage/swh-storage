@@ -30,7 +30,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 180
+    current_version = 181
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -414,6 +414,19 @@ class Db(BaseDb):
             "SELECT * FROM swh_directory_get_entries(%s::sha1_git)", (directory,)
         )
         return list(cur)
+
+    def directory_get_raw_manifest(
+        self, directory_ids: List[Sha1Git], cur=None
+    ) -> Iterable[Tuple[Sha1Git, bytes]]:
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT t.id, raw_manifest FROM (VALUES %s) as t(id)
+            INNER JOIN directory ON (t.id=directory.id)
+            """,
+            ((id_,) for id_ in directory_ids),
+        )
 
     def directory_get_random(self, cur=None):
         return self._get_random_row_from_table("directory", ["id"], "id", cur)

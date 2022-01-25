@@ -1,9 +1,10 @@
-# Copyright (C) 2019-2021  The Software Heritage developers
+# Copyright (C) 2019-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import base64
+import collections
 import datetime
 import itertools
 import operator
@@ -351,6 +352,7 @@ class CassandraStorage:
     def _content_find_many(self, contents: List[Dict[str, Any]]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
+        # TODO: prioritize sha256, we can do more efficient lookups from this hash.
         filter_algos = set(HASH_ALGORITHMS)
         for content in contents:
             filter_algos &= set(content)
@@ -402,16 +404,58 @@ class CassandraStorage:
                 contents_with_missing_hashes.append(content)
 
         # These contents can be queried efficiently directly in the main table
-        for content in self._cql_runner.content_missing_from_hashes(
+        for content in self._cql_runner.content_missing_from_all_hashes(
             contents_with_all_hashes
         ):
             yield content[key_hash]
 
-        # For these, we need the expensive index lookups + main table.
-        for content in contents_with_missing_hashes:
-            res = self.content_find(content)
-            if not res:
-                yield content[key_hash]
+        if contents_with_missing_hashes:
+            # For these, we need the expensive index lookups + main table.
+
+            # Get all contents in the database that match (at least) one of the
+            # requested contents, concurrently.
+            found_contents = self._content_find_many(contents_with_missing_hashes)
+
+            # Bucket the known contents by hash
+            found_contents_by_hash: Dict[str, Dict[str, list]] = {
+                algo: collections.defaultdict(list) for algo in DEFAULT_ALGORITHMS
+            }
+            for found_content in found_contents:
+                for algo in DEFAULT_ALGORITHMS:
+                    found_contents_by_hash[algo][found_content.get_hash(algo)].append(
+                        found_content
+                    )
+
+            # For each of the requested contents, check if they are in the
+            # 'found_contents' set (via 'found_contents_by_hash' for efficient access,
+            # since we need to check using dict inclusion instead of hash+equality)
+            for missing_content in contents_with_missing_hashes:
+                # Pick any of the algorithms provided in missing_content
+                algo = next(algo for (algo, hash_) in missing_content.items() if hash_)
+
+                # Get the list of found_contents that match this hash in the
+                # missing_content. (its length is at most 1, unless there is a
+                # collision)
+                found_contents_with_same_hash = found_contents_by_hash[algo][
+                    missing_content[algo]
+                ]
+
+                # Check if there is a found_content that matches all hashes in the
+                # missing_content.
+                # This is functionally equivalent to 'for found_content in
+                # found_contents', but runs almost in constant time (it is linear
+                # in the number of hash collisions) instead of linear.
+                # This allows this function to run in linear time overall instead of
+                # quadratic.
+                for found_content in found_contents_with_same_hash:
+                    # check if the found_content.hashes() dictionary contains a superset
+                    # of the (key, value) pairs in missing_content
+                    if missing_content.items() <= found_content.hashes().items():
+                        # Found!
+                        break
+                else:
+                    # Not found
+                    yield missing_content[key_hash]
 
     @timed
     def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
@@ -646,6 +690,15 @@ class CassandraStorage:
         else:
             next_page_token = None
         return PagedResult(results=entries, next_page_token=next_page_token)
+
+    @timed
+    def directory_get_raw_manifest(
+        self, directory_ids: List[Sha1Git]
+    ) -> Dict[Sha1Git, Optional[bytes]]:
+        return {
+            dir_.id: dir_.raw_manifest
+            for dir_ in self._cql_runner.directory_get(directory_ids)
+        }
 
     @timed
     def directory_get_random(self) -> Sha1Git:

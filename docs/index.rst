@@ -26,7 +26,7 @@ First, note that ``swh-storage`` is an internal API of Software Heritage, that
 is only available to software running on the SWH infrastructure and developers
 :ref:`running their own Software Heritage <getting-started>`.
 If you want to access the Software Heritage archive without running your own,
-you should use the `Web API`_ instead.
+you should use the :swh_web:`Web API <api/>` instead.
 
 As ``swh-storage`` has multiple backends, it is instantiated via the
 :py:func:`swh.storage.get_storage` function, which takes as argument the backend type
@@ -64,8 +64,6 @@ Or, using :py:func:`swh.core.api.classes.stream_results` for convenience:
    )
    for visit in visits:
         print(visit)
-
-.. _Web API: https://archive.softwareheritage.org/api/
 
 Database schema
 ---------------

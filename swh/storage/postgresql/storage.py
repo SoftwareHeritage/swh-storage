@@ -521,8 +521,12 @@ class Storage:
             dir_ for dir_ in directories if dir_.id in dirs_missing
         )
 
-        # Copy directory ids
-        dirs_missing_dict = ({"id": dir} for dir in dirs_missing)
+        # Copy directory metadata
+        dirs_missing_dict = (
+            {"id": dir_.id, "raw_manifest": dir_.raw_manifest}
+            for dir_ in directories
+            if dir_.id in dirs_missing
+        )
         db.mktemp("directory", cur)
         db.copy_to(dirs_missing_dict, "tmp_directory", ["id", "raw_manifest"], cur)
 
@@ -608,6 +612,13 @@ class Storage:
             ],
             next_page_token=None,
         )
+
+    @timed
+    @db_transaction()
+    def directory_get_raw_manifest(
+        self, directory_ids: List[Sha1Git], *, db: Db, cur=None
+    ) -> Dict[Sha1Git, Optional[bytes]]:
+        return dict(db.directory_get_raw_manifest(directory_ids, cur=cur))
 
     @timed
     @process_metrics

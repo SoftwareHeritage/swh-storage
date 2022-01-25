@@ -85,17 +85,14 @@ def db_to_git_headers(db_git_headers):
 
 
 def db_to_date(
-    date: Optional[datetime.datetime],
-    offset: int,
-    neg_utc_offset: Optional[bool],
-    offset_bytes: Optional[bytes],
+    date: Optional[datetime.datetime], offset_bytes: bytes,
 ) -> Optional[TimestampWithTimezone]:
     """Convert the DB representation of a date to a swh-model compatible date.
 
     Args:
         date: a date pulled out of the database
-        offset: an integer number of minutes representing an UTC offset
-        neg_utc_offset: whether an utc offset is negative
+        offset_bytes: a byte representation of the latter two, usually as "+HHMM"
+          or "-HHMM"
 
     Returns:
         a TimestampWithTimezone, or None if the date is None.
@@ -105,24 +102,13 @@ def db_to_date(
     if date is None:
         return None
 
-    if neg_utc_offset is None:
-        # For older versions of the database that were not migrated to schema v160
-        neg_utc_offset = False
-
-    kwargs = {}
-    if offset_bytes:
-        # TODO: remove the conditional after migration is complete.
-        kwargs["offset_bytes"] = offset_bytes
-
     return TimestampWithTimezone(
         timestamp=Timestamp(
             # we use floor() instead of int() to round down, because of negative dates
             seconds=math.floor(date.timestamp()),
             microseconds=date.microsecond,
         ),
-        offset=offset,
-        negative_utc=neg_utc_offset,
-        **kwargs,
+        offset_bytes=offset_bytes,
     )
 
 
@@ -136,9 +122,6 @@ def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
         dict: a dictionary with these keys:
 
             - timestamp: a date in ISO format
-            - offset: the UTC offset in minutes
-            - neg_utc_offset: a boolean indicating whether a null offset is
-              negative or positive.
             - offset_bytes: a byte representation of the latter two, usually as "+HHMM"
               or "-HHMM"
 
@@ -155,8 +138,9 @@ def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
     return {
         # PostgreSQL supports isoformatted timestamps
         "timestamp": timestamp.isoformat(),
-        "offset": ts_with_tz.offset,
-        "neg_utc_offset": ts_with_tz.negative_utc,
+        "offset": ts_with_tz.offset_minutes(),
+        "neg_utc_offset": ts_with_tz.offset_minutes() == 0
+        and ts_with_tz.offset_bytes.startswith(b"-"),
         "offset_bytes": ts_with_tz.offset_bytes,
     }
 
@@ -214,12 +198,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["author_name"],
         db_revision["author_email"],
     )
-    date = db_to_date(
-        db_revision["date"],
-        db_revision["date_offset"],
-        db_revision["date_neg_utc_offset"],
-        db_revision["date_offset_bytes"],
-    )
+    date = db_to_date(db_revision["date"], db_revision["date_offset_bytes"],)
 
     committer = db_to_author(
         db_revision["committer_fullname"],
@@ -227,10 +206,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["committer_email"],
     )
     committer_date = db_to_date(
-        db_revision["committer_date"],
-        db_revision["committer_date_offset"],
-        db_revision["committer_date_neg_utc_offset"],
-        db_revision["committer_date_offset_bytes"],
+        db_revision["committer_date"], db_revision["committer_date_offset_bytes"],
     )
 
     assert author, "author is None"
@@ -305,12 +281,7 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
         db_release["author_name"],
         db_release["author_email"],
     )
-    date = db_to_date(
-        db_release["date"],
-        db_release["date_offset"],
-        db_release["date_neg_utc_offset"],
-        db_release["date_offset_bytes"],
-    )
+    date = db_to_date(db_release["date"], db_release["date_offset_bytes"],)
 
     return Release(
         author=author,

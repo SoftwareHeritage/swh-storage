@@ -216,7 +216,7 @@ class InMemoryCqlRunner:
         matches.sort()
         return matches[0:limit]
 
-    def content_missing_from_hashes(
+    def content_missing_from_all_hashes(
         self, contents_hashes: List[Dict[str, bytes]]
     ) -> Iterator[Dict[str, bytes]]:
         for content_hashes in contents_hashes:
@@ -298,6 +298,12 @@ class InMemoryCqlRunner:
 
     def directory_get_random(self) -> Optional[DirectoryRow]:
         return self._directories.get_random()
+
+    def directory_get(self, directory_ids: List[Sha1Git]) -> Iterable[DirectoryRow]:
+        for id_ in directory_ids:
+            row = self._directories.get_from_primary_key((id_,))
+            if row:
+                yield row
 
     ##########################
     # 'directory_entry' table
