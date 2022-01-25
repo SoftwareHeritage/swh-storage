@@ -100,13 +100,11 @@ _revisions_list = [
             "name": b"Adam",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883849},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883849},
         },
         "directory": b"\xefX\xe7\xa6\\\xda\xdf\xfdH\xdbH\xfbq\x96@{\x98?9\xfe",
@@ -134,13 +132,11 @@ _revisions_list = [
             "name": b"Adam",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883838},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883838},
         },
         "directory": b"\xefX\xe7\xa6\\\xda\xdf\xfdH\xdbH\xfbq\x96@{\x98?9\xfe",
@@ -167,13 +163,11 @@ _revisions_list = [
             "name": b"Adam",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883838},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883838},
         },
         "directory": b"\xefX\xe7\xa6\\\xda\xdf\xfdH\xdbH\xfbq\x96@{\x98?9\xfe",
@@ -198,13 +192,11 @@ _revisions_list = [
             "name": b"Adam Janicki",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883822},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883822},
         },
         "directory": b"\xefX\xe7\xa6\\\xda\xdf\xfdH\xdbH\xfbq\x96@{\x98?9\xfe",
@@ -229,13 +221,11 @@ _revisions_list = [
             "name": b"Adam",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883692},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883692},
         },
         "directory": b"d@\xe7\x143w\xcb\xf7\xad\xae\x91\xd5\xec\xd8\x95\x82"
@@ -261,13 +251,11 @@ _revisions_list = [
             "name": b"Adam Janicki",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883668},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380883668},
         },
         "directory": b"\n\x857\x94r\xbe\xcc\x04=\xe9}\xe5\xfd\xdf?nR\xe6\xa7\x9e",
@@ -292,13 +280,11 @@ _revisions_list = [
             "name": b"Adam Janicki",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380881296},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 120,
+            "offset_bytes": b"+0200",
             "timestamp": {"microseconds": 0, "seconds": 1380881296},
         },
         "directory": b".\xf9\xa5\xcb\xb0\xd3\xdc\x9b{\xb8\x81\x03l\xe2P\x16c\x0b|\xe6",  # noqa
@@ -323,13 +309,11 @@ _revisions_list = [
             "name": b"Adam",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": 60,
+            "offset_bytes": b"+0100",
             "timestamp": {"microseconds": 0, "seconds": 1380880096},
         },
         "date": {
-            "negative_utc": None,
-            "offset": 60,
+            "offset_bytes": b"+0100",
             "timestamp": {"microseconds": 0, "seconds": 1380880096},
         },
         "directory": b"\xc7r\xc4\x9f\xc0$\xd4\xab\xff\xcb]\xf6<\xcb\x8b~\xec\xc4\xd1)",  # noqa
@@ -354,13 +338,11 @@ _revisions_list = [
             "name": b"Adam",
         },
         "committer_date": {
-            "negative_utc": None,
-            "offset": -420,
+            "offset_bytes": b"-0700",
             "timestamp": {"microseconds": 0, "seconds": 1380878419},
         },
         "date": {
-            "negative_utc": None,
-            "offset": -420,
+            "offset_bytes": b"-0700",
             "timestamp": {"microseconds": 0, "seconds": 1380878419},
         },
         "directory": b"WS\xbaX\xd6x{q\x8f\x020i\xc5\x95\xa01\xf7y\xb2\x80",

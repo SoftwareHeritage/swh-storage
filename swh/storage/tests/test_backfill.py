@@ -149,8 +149,6 @@ def test_compute_query_release():
     assert column_aliases == [
         "id",
         "date",
-        "date_offset",
-        "date_neg_utc_offset",
         "date_offset_bytes",
         "comment",
         "name",
@@ -167,7 +165,7 @@ def test_compute_query_release():
     assert (
         query
         == """
-select release.id as id,date,date_offset,date_neg_utc_offset,date_offset_bytes,comment,release.name as name,synthetic,target,target_type,a.id as author_id,a.name as author_name,a.email as author_email,a.fullname as author_fullname,raw_manifest
+select release.id as id,date,date_offset_bytes,comment,release.name as name,synthetic,target,target_type,a.id as author_id,a.name as author_name,a.email as author_email,a.fullname as author_fullname,raw_manifest
 from release
 left join person a on release.author=a.id
 where (release.id) >= %s and (release.id) < %s

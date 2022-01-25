@@ -214,13 +214,11 @@ def test_debian_origins_from_row__no_result():
         committer=Person.from_fullname(b"foo"),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1580076204, microseconds=0),
-            offset=60,
-            negative_utc=False,
+            offset_bytes=b"+0100",
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1580076204, microseconds=0),
-            offset=60,
-            negative_utc=False,
+            offset_bytes=b"+0100",
         ),
         type=RevisionType.DSC,
         directory=b"\xd5\x9a\x1f\x9c\x80\x9d\x8c}19P\xf6\xc8\xa2\x0f^%H\xcd\xdb",
@@ -298,13 +296,11 @@ def test_debian_origins_from_row__check_revisions():
         committer=Person.from_fullname(b"foo"),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1580076204, microseconds=0),
-            offset=60,
-            negative_utc=False,
+            offset_bytes=b"+0100",
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1580076204, microseconds=0),
-            offset=60,
-            negative_utc=False,
+            offset_bytes=b"+0100",
         ),
         type=RevisionType.DSC,
         directory=b"\xd5\x9a\x1f\x9c\x80\x9d\x8c}19P\xf6\xc8\xa2\x0f^%H\xcd\xdb",

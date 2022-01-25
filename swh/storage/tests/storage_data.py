@@ -204,8 +204,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567890, microseconds=0),
-            offset=120,
-            negative_utc=False,
+            offset_bytes=b"+0200",
         ),
         committer=Person(
             name=b"St\xc3fano Zacchiroli",
@@ -214,8 +213,7 @@ class StorageData:
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1123456789, microseconds=0),
-            offset=120,
-            negative_utc=False,
+            offset_bytes=b"+0200",
         ),
         parents=(),
         type=RevisionType.GIT,
@@ -241,16 +239,14 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         committer=Person(
             name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1123456789, microseconds=220000,),
-            offset=0,
-            negative_utc=False,
+            offset_bytes=b"+0000",
         ),
         parents=tuple([revision.id]),
         type=RevisionType.GIT,
@@ -269,16 +265,14 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         committer=Person(
             name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1127351742, microseconds=220000,),
-            offset=0,
-            negative_utc=False,
+            offset_bytes=b"+0000",
         ),
         parents=tuple([revision.id, revision2.id]),
         type=RevisionType.GIT,
@@ -295,8 +289,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         committer=Person(
             name=b"committer-dude",
@@ -305,8 +298,7 @@ class StorageData:
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1244567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         parents=tuple([revision3.id]),
         type=RevisionType.GIT,
@@ -327,8 +319,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567890, microseconds=0),
-            offset=120,
-            negative_utc=False,
+            offset_bytes=b"+0200",
         ),
         committer=Person(
             name=b"St\xc3fano Zacchiroli",
@@ -337,8 +328,7 @@ class StorageData:
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1123456789, microseconds=0),
-            offset=120,
-            negative_utc=False,
+            offset_bytes=b"+0200",
         ),
         parents=(),
         type=RevisionType.MERCURIAL,
@@ -361,16 +351,14 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         committer=Person(
             name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1123456789, microseconds=220000,),
-            offset=0,
-            negative_utc=False,
+            offset_bytes=b"+0000",
         ),
         parents=tuple([hg_revision.id]),
         type=RevisionType.MERCURIAL,
@@ -391,16 +379,14 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         committer=Person(
             name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1127351742, microseconds=220000,),
-            offset=0,
-            negative_utc=False,
+            offset_bytes=b"+0000",
         ),
         parents=tuple([hg_revision.id, hg_revision2.id]),
         type=RevisionType.MERCURIAL,
@@ -419,8 +405,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         committer=Person(
             name=b"committer-dude",
@@ -429,8 +414,7 @@ class StorageData:
         ),
         committer_date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1244567843, microseconds=220000,),
-            offset=-720,
-            negative_utc=False,
+            offset_bytes=b"-1200",
         ),
         parents=tuple([hg_revision3.id]),
         type=RevisionType.MERCURIAL,
@@ -506,8 +490,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567890, microseconds=0),
-            offset=42,
-            negative_utc=False,
+            offset_bytes=b"+0042",
         ),
         target=revision.id,
         target_type=ObjectType.REVISION,
@@ -522,8 +505,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1634366813, microseconds=0),
-            offset=-120,
-            negative_utc=False,
+            offset_bytes=b"-0200",
         ),
         target=revision2.id,
         target_type=ObjectType.REVISION,
@@ -540,8 +522,7 @@ class StorageData:
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1634366813, microseconds=0),
-            offset=-120,
-            negative_utc=False,
+            offset_bytes=b"-0200",
         ),
         target=revision3.id,
         target_type=ObjectType.REVISION,

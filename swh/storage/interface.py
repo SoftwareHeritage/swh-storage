@@ -456,6 +456,19 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("directory/get_raw_manifest")
+    def directory_get_raw_manifest(
+        self, directory_ids: List[Sha1Git]
+    ) -> Dict[Sha1Git, Optional[bytes]]:
+        """Returns the raw manifest of directories that do not fit the SWH data model,
+        or None if they do.
+        Directories missing from the archive are not returned at all.
+
+        Args:
+            directory_ids: List of directory ids to query
+        """
+        ...
+
     @remote_api_endpoint("directory/get_random")
     def directory_get_random(self) -> Sha1Git:
         """Finds a random directory id.
