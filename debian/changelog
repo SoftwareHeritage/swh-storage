@@ -1,3 +1,15 @@
+swh-storage (0.42.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 0.42.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-01-25 16:44:35 +0100)
+  * Upstream changes:     - v0.42.0     - * Remove 'offset' and
+    'negative_utc' for the TimestampWithTimezone constructor call     -
+    * Stop using the deprecated 'TimestampWithTimezone.offset' attribute
+    - * Fix directory_add to actually insert the manifest + add
+    directory_get_raw_manifest
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 25 Jan 2022 15:54:46 +0000
+
 swh-storage (0.41.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.41.1     - (tagged by David Douard
