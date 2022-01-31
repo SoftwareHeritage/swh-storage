@@ -191,6 +191,11 @@ def test_db_to_author_none():
     assert actual_author is None
 
 
+def test_db_to_author_unparsed():
+    author = converters.db_to_author(b"Fullname <email@example.com>", None, None)
+    assert author == Person.from_fullname(b"Fullname <email@example.com>")
+
+
 def test_db_to_revision():
     # when
     actual_revision = converters.db_to_revision(
