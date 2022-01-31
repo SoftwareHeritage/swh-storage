@@ -1150,8 +1150,8 @@ class TestStorage:
                 revision,
                 synthetic=False,
                 metadata=None,
-                committer=attr.evolve(revision.committer, name=None, email=None),
-                author=attr.evolve(revision.author, name=None, email=None),
+                committer=Person.from_fullname(revision.committer.fullname),
+                author=Person.from_fullname(revision.author.fullname),
                 type=RevisionType.GIT,
             )
             for revision in revisions

@@ -177,10 +177,10 @@ def test_date(model_date, db_date):
 
 def test_db_to_author():
     # when
-    actual_author = converters.db_to_author(b"fullname", b"name", b"email")
+    actual_author = converters.db_to_author(b"name <email> ", b"name", b"email")
 
     # then
-    assert actual_author == Person(fullname=b"fullname", name=b"name", email=b"email",)
+    assert actual_author == Person.from_fullname(b"name <email> ")
 
 
 def test_db_to_author_none():
@@ -212,10 +212,10 @@ def test_db_to_revision():
             "type": "git",
             "directory": b"dir-sha1",
             "message": b"commit message",
-            "author_fullname": b"auth-fullname",
+            "author_fullname": b"auth-name <auth-email>",
             "author_name": b"auth-name",
             "author_email": b"auth-email",
-            "committer_fullname": b"comm-fullname",
+            "committer_fullname": b"comm-name <comm-email>",
             "committer_name": b"comm-name",
             "committer_email": b"comm-email",
             "metadata": {},
@@ -230,11 +230,11 @@ def test_db_to_revision():
     assert actual_revision == Revision(
         id=b"revision-id",
         author=Person(
-            fullname=b"auth-fullname", name=b"auth-name", email=b"auth-email",
+            fullname=b"auth-name <auth-email>", name=b"auth-name", email=b"auth-email",
         ),
         date=None,
         committer=Person(
-            fullname=b"comm-fullname", name=b"comm-name", email=b"comm-email",
+            fullname=b"comm-name <comm-email>", name=b"comm-name", email=b"comm-email",
         ),
         committer_date=None,
         type=RevisionType.GIT,
@@ -261,7 +261,7 @@ def test_db_to_release():
             "name": b"release-name",
             "comment": b"release comment",
             "synthetic": True,
-            "author_fullname": b"auth-fullname",
+            "author_fullname": b"auth-name <auth-email>",
             "author_name": b"auth-name",
             "author_email": b"auth-email",
             "raw_manifest": None,
@@ -271,7 +271,7 @@ def test_db_to_release():
     # then
     assert actual_release == Release(
         author=Person(
-            fullname=b"auth-fullname", name=b"auth-name", email=b"auth-email",
+            fullname=b"auth-name <auth-email>", name=b"auth-name", email=b"auth-email",
         ),
         date=None,
         id=b"release-id",
