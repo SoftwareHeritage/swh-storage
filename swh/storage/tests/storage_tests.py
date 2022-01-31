@@ -1223,7 +1223,7 @@ class TestStorage:
 
         # revision4 -is-child-of-> revision3
         swh_storage.revision_add([revision3, revision4])
-        results = list(swh_storage.revision_log([revision4.id], 1))
+        results = list(swh_storage.revision_log([revision4.id], limit=1))
 
         actual_results = [Revision.from_dict(r) for r in results]
         assert len(actual_results) == 1
