@@ -1628,7 +1628,7 @@ class TestStorage:
                 release,
                 synthetic=False,
                 metadata=None,
-                author=attr.evolve(release.author, name=None, email=None)
+                author=Person.from_fullname(release.author.fullname)
                 if release.author
                 else None,
             )
