@@ -179,6 +179,11 @@ class Storage:
         cur.execute("select has_table_privilege(current_user, 'content', %s)", (check,))
         return cur.fetchone()[0]
 
+    @db_transaction()
+    def get_current_version(self, *, db: Db, cur=None):
+        """Returns the current code (expected) version"""
+        return db.current_version
+
     def _content_unique_key(self, hash, db):
         """Given a hash (tuple or dict), return a unique key from the
            aggregation of keys.

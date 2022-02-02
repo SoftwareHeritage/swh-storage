@@ -3,23 +3,33 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from os import environ, path
+from functools import partial
+from os import environ
 
 import pytest
+from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import postgresql_fact
-import swh.storage
+from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
 from swh.storage import get_storage
+from swh.storage.postgresql.db import Db as StorageDb
 from swh.storage.tests.storage_data import StorageData
-
-SQL_DIR = path.join(path.dirname(swh.storage.__file__), "sql")
 
 environ["LC_ALL"] = "C.UTF-8"
 
 
-swh_storage_postgresql = postgresql_fact(
-    "postgresql_proc", dbname="storage", dump_files=path.join(SQL_DIR, "*.sql")
+swh_storage_postgresql_proc = factories.postgresql_proc(
+    dbname="storage",
+    load=[
+        partial(
+            initialize_database_for_module,
+            modname="storage",
+            version=StorageDb.current_version,
+        )
+    ],
 )
+
+
+swh_storage_postgresql = postgresql_fact("swh_storage_postgresql_proc")
 
 
 @pytest.fixture
