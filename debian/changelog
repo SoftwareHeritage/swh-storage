@@ -1,8 +1,13 @@
-swh-storage (0.42.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.43.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.43.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2022-02-02 18:46:15 +0100)
+  * Upstream changes:     - Release swh.storage 0.43.0     - Add a
+    displayname field to the person table in PostgreSQL     - Use the
+    displayname field in returned results for revision_get,     -
+    revision_log and release_get
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 25 Jan 2022 16:08:11 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 02 Feb 2022 17:56:33 +0000
 
 swh-storage (0.42.0-1~swh1) unstable-swh; urgency=medium
 

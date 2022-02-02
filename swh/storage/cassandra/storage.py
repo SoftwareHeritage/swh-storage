@@ -740,7 +740,9 @@ class CassandraStorage:
         return self._cql_runner.revision_missing(revisions)
 
     @timed
-    def revision_get(self, revision_ids: List[Sha1Git]) -> List[Optional[Revision]]:
+    def revision_get(
+        self, revision_ids: List[Sha1Git], ignore_displayname: bool = False
+    ) -> List[Optional[Revision]]:
         rows = self._cql_runner.revision_get(revision_ids)
         revisions: Dict[Sha1Git, Revision] = {}
         for row in rows:
@@ -808,7 +810,10 @@ class CassandraStorage:
 
     @timed
     def revision_log(
-        self, revisions: List[Sha1Git], limit: Optional[int] = None
+        self,
+        revisions: List[Sha1Git],
+        ignore_displayname: bool = False,
+        limit: Optional[int] = None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
         seen: Set[Sha1Git] = set()
         yield from self._get_parent_revs(revisions, seen, limit, False)
@@ -846,7 +851,9 @@ class CassandraStorage:
         return self._cql_runner.release_missing(releases)
 
     @timed
-    def release_get(self, releases: List[Sha1Git]) -> List[Optional[Release]]:
+    def release_get(
+        self, releases: List[Sha1Git], ignore_displayname: bool = False
+    ) -> List[Optional[Release]]:
         rows = self._cql_runner.release_get(releases)
         rels: Dict[Sha1Git, Release] = {}
         for row in rows:

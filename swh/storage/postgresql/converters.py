@@ -74,6 +74,11 @@ def db_to_author(
     """
     if fullname is None:
         return None
+
+    if name is None and email is None:
+        # The fullname hasn't been parsed, try that again
+        return Person.from_fullname(fullname)
+
     return Person(fullname=fullname, name=name, email=email,)
 
 

@@ -683,10 +683,15 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=1000)
     def revision_get(
-        self, revision_ids: List[Sha1Git], *, db: Db, cur=None
+        self,
+        revision_ids: List[Sha1Git],
+        ignore_displayname: bool = False,
+        *,
+        db: Db,
+        cur=None,
     ) -> List[Optional[Revision]]:
         revisions = []
-        for line in db.revision_get_from_list(revision_ids, cur):
+        for line in db.revision_get_from_list(revision_ids, ignore_displayname, cur):
             revision = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
             revisions.append(revision)
 
@@ -695,9 +700,17 @@ class Storage:
     @timed
     @db_transaction_generator(statement_timeout=2000)
     def revision_log(
-        self, revisions: List[Sha1Git], limit: Optional[int] = None, *, db: Db, cur=None
+        self,
+        revisions: List[Sha1Git],
+        ignore_displayname: bool = False,
+        limit: Optional[int] = None,
+        *,
+        db: Db,
+        cur=None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
-        for line in db.revision_log(revisions, limit, cur):
+        for line in db.revision_log(
+            revisions, ignore_displayname=ignore_displayname, limit=limit, cur=cur
+        ):
             data = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
             if not data:
                 yield None
@@ -831,10 +844,15 @@ class Storage:
     @timed
     @db_transaction(statement_timeout=500)
     def release_get(
-        self, releases: List[Sha1Git], *, db: Db, cur=None
+        self,
+        releases: List[Sha1Git],
+        ignore_displayname: bool = False,
+        *,
+        db: Db,
+        cur=None,
     ) -> List[Optional[Release]]:
         rels = []
-        for release in db.release_get_from_list(releases, cur):
+        for release in db.release_get_from_list(releases, ignore_displayname, cur):
             data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
             rels.append(data if data else None)
         return rels
