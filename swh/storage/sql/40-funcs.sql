@@ -501,18 +501,24 @@ create type revision_entry as
 );
 
 
--- "git style" revision log. Similar to swh_revision_list(), but returning all
--- information associated to each revision, and expanding authors/committers
-create or replace function swh_revision_log(root_revisions bytea[], num_revs bigint default NULL)
+create or replace function swh_revision_log(root_revisions bytea[], num_revs bigint default NULL, ignore_displayname boolean default false)
     returns setof revision_entry
     language sql
     stable
 as $$
+    -- when name and email are null, swh.storage.postgresql.converters.db_to_author()
+    -- parses fullname to populate them, so we can just drop them here
     select t.id, r.date, r.date_offset, r.date_neg_utc_offset, r.date_offset_bytes,
            r.committer_date, r.committer_date_offset, r.committer_date_neg_utc_offset, r.committer_date_offset_bytes,
            r.type, r.directory, r.message,
-           a.id, a.fullname, a.name, a.email,
-           c.id, c.fullname, c.name, c.email,
+           a.id,
+           case when ignore_displayname or a.displayname is null then a.fullname else a.displayname end,
+           case when ignore_displayname or a.displayname is null then a.name else null end,
+           case when ignore_displayname or a.displayname is null then a.email else null end,
+           c.id,
+           case when ignore_displayname or c.displayname is null then c.fullname else c.displayname end,
+           case when ignore_displayname or c.displayname is null then c.name else null end,
+           case when ignore_displayname or c.displayname is null then c.email else null end,
            r.metadata, r.synthetic, t.parents, r.object_id, r.extra_headers,
            r.raw_manifest
     from swh_revision_list(root_revisions, num_revs) as t
@@ -521,6 +527,9 @@ as $$
     left join person c on c.id = r.committer;
 $$;
 
+comment on function swh_revision_log(root_revisions bytea[], num_revs bigint, ignore_displayname boolean)
+  is '"git style" revision log. Similar to swh_revision_list(), but returning '
+     'all information associated to each revision, and expanding authors/committers';
 
 -- Detailed entry for a release
 create type release_entry as

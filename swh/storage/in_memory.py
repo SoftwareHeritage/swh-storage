@@ -348,7 +348,9 @@ class InMemoryCqlRunner:
             if self._revisions.get_from_primary_key((id_,)) is not None:
                 yield id_
 
-    def revision_get(self, revision_ids: List[Sha1Git]) -> Iterable[RevisionRow]:
+    def revision_get(
+        self, revision_ids: List[Sha1Git], ignore_displayname: bool = False
+    ) -> Iterable[RevisionRow]:
         for id_ in revision_ids:
             row = self._revisions.get_from_primary_key((id_,))
             if row:
@@ -383,7 +385,9 @@ class InMemoryCqlRunner:
         self._releases.insert(release)
         self.increment_counter("release", 1)
 
-    def release_get(self, release_ids: List[str]) -> Iterable[ReleaseRow]:
+    def release_get(
+        self, release_ids: List[str], ignore_displayname: bool = False
+    ) -> Iterable[ReleaseRow]:
         for id_ in release_ids:
             row = self._releases.get_from_primary_key((id_,))
             if row:

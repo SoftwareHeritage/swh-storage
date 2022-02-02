@@ -17,7 +17,7 @@ comment on column dbversion.description is 'Release description';
 
 -- latest schema version
 insert into dbversion(version, release, description)
-      values(181, now(), 'Work In Progress');
+      values(182, now(), 'Work In Progress');
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);
@@ -202,18 +202,21 @@ comment on column directory_entry_dir.perms is 'Unix-like permissions';
 -- release metadata.
 create table person
 (
-  id        bigserial,
-  name      bytea,          -- advisory: not null if we managed to parse a name
-  email     bytea,          -- advisory: not null if we managed to parse an email
-  fullname  bytea not null  -- freeform specification; what is actually used in the checksums
-                            --     will usually be of the form 'name <email>'
+  id           bigserial,
+  name         bytea,
+  email        bytea,
+  fullname     bytea not null,
+  displayname  bytea
 );
 
-comment on table person is 'Person referenced in code artifact release metadata';
-comment on column person.id is 'Person identifier';
-comment on column person.name is 'Name';
-comment on column person.email is 'Email';
-comment on column person.fullname is 'Full name (raw name)';
+comment on table person is 'Person, referenced in Revision author/committer or Release author';
+comment on column person.id is 'Internal id';
+comment on column person.name is 'Name (advisory, only present if parsed from fullname)';
+comment on column person.email is 'Email (advisory, only present if parsed from fullname)';
+comment on column person.fullname is 'Full name, usually of the form `Name <email>`, '
+                                     'used in integrity computations';
+comment on column person.displayname is 'Full name, usually of the form `Name <email>`, '
+                                        'used for display queries';
 
 
 -- The state of a source code tree at a specific point in time.
