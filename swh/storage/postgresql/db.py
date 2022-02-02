@@ -30,7 +30,7 @@ class Db(BaseDb):
 
     """
 
-    current_version = 181
+    current_version = 182
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -814,7 +814,7 @@ class Db(BaseDb):
         return cur.fetchone()
 
     @staticmethod
-    def mangle_query_key(key, main_table):
+    def mangle_query_key(key, main_table, ignore_displayname=False):
         if key == "id":
             return "t.id"
         if key == "parents":
@@ -825,25 +825,45 @@ class Db(BaseDb):
             WHERE rh.id = t.id
             ORDER BY rh.parent_rank
             )"""
+
         if "_" not in key:
-            return "%s.%s" % (main_table, key)
+            return f"{main_table}.{key}"
 
         head, tail = key.split("_", 1)
-        if head in ("author", "committer") and tail in (
+        if head not in ("author", "committer") or tail not in (
             "name",
             "email",
             "id",
             "fullname",
         ):
-            return "%s.%s" % (head, tail)
+            return f"{main_table}.{key}"
 
-        return "%s.%s" % (main_table, key)
+        if ignore_displayname:
+            return f"{head}.{tail}"
+        else:
+            if tail == "id":
+                return f"{head}.{tail}"
+            elif tail in ("name", "email"):
+                # These fields get populated again from fullname by
+                # converters.db_to_author if they're None, so we can just NULLify them
+                # when displayname is set.
+                return (
+                    f"CASE"
+                    f" WHEN {head}.displayname IS NULL THEN {head}.{tail} "
+                    f" ELSE NULL "
+                    f"END AS {key}"
+                )
+            elif tail == "fullname":
+                return f"COALESCE({head}.displayname, {head}.fullname) AS {key}"
 
-    def revision_get_from_list(self, revisions, cur=None):
+        assert False, "All cases should have been handled here"
+
+    def revision_get_from_list(self, revisions, ignore_displayname=False, cur=None):
         cur = self._cursor(cur)
 
         query_keys = ", ".join(
-            self.mangle_query_key(k, "revision") for k in self.revision_get_cols
+            self.mangle_query_key(k, "revision", ignore_displayname)
+            for k in self.revision_get_cols
         )
 
         yield from execute_values_generator(
@@ -924,16 +944,20 @@ class Db(BaseDb):
             template=b"(%s,%s,%s::object_type)",
         )
 
-    def revision_log(self, root_revisions, limit=None, cur=None):
+    def revision_log(
+        self, root_revisions, ignore_displayname=False, limit=None, cur=None
+    ):
         cur = self._cursor(cur)
 
-        query = """SELECT %s
-                   FROM swh_revision_log(%%s, %%s)
-                """ % ", ".join(
+        query = """\
+        SELECT %s
+        FROM swh_revision_log(
+          "root_revisions" := %%s, num_revs := %%s, "ignore_displayname" := %%s
+        )""" % ", ".join(
             self.revision_get_cols
         )
 
-        cur.execute(query, (root_revisions, limit))
+        cur.execute(query, (root_revisions, limit, ignore_displayname))
         yield from cur
 
     revision_shortlog_cols = ["id", "parents"]
@@ -1237,10 +1261,11 @@ class Db(BaseDb):
         cur.execute(query)
         yield from map(lambda row: row[0], cur)
 
-    def release_get_from_list(self, releases, cur=None):
+    def release_get_from_list(self, releases, ignore_displayname=False, cur=None):
         cur = self._cursor(cur)
         query_keys = ", ".join(
-            self.mangle_query_key(k, "release") for k in self.release_get_cols
+            self.mangle_query_key(k, "release", ignore_displayname)
+            for k in self.release_get_cols
         )
 
         yield from execute_values_generator(

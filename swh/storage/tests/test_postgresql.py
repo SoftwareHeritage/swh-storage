@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import attr
 import pytest
 
+from swh.model.model import Person
 from swh.storage.postgresql.db import Db
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
@@ -251,6 +252,134 @@ class TestPgStorage:
             "absent",
             "Content too long",
         )
+
+    def test_revision_get_displayname_behavior(self, swh_storage, sample_data):
+        """Check revision_get behavior when displayname is set"""
+        revision, revision2 = sample_data.revisions[:2]
+
+        # Make authors and committers known
+        revision = attr.evolve(
+            revision,
+            author=Person.from_fullname(b"author1 <author1@example.com>"),
+            committer=Person.from_fullname(b"committer1 <committer1@example.com>"),
+        )
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        revision2 = attr.evolve(
+            revision2,
+            author=Person.from_fullname(b"author2 <author2@example.com>"),
+            committer=Person.from_fullname(b"committer2 <committer2@example.com>"),
+        )
+        revision2 = attr.evolve(revision2, id=revision2.compute_hash())
+
+        add_result = swh_storage.revision_add([revision, revision2])
+        assert add_result == {"revision:add": 2}
+
+        # Before displayname change
+        revisions = swh_storage.revision_get([revision.id, revision2.id])
+        assert revisions == [revision, revision2]
+
+        displayname = b"Display Name <displayname@example.com>"
+
+        with db_transaction(swh_storage) as (_, cur):
+            cur.execute(
+                "UPDATE person set displayname = %s where fullname = %s",
+                (displayname, revision.author.fullname),
+            )
+
+        revisions = swh_storage.revision_get([revision.id, revision2.id])
+        assert revisions == [
+            attr.evolve(revision, author=Person.from_fullname(displayname)),
+            revision2,
+        ]
+
+        revisions = swh_storage.revision_get(
+            [revision.id, revision2.id], ignore_displayname=True
+        )
+        assert revisions == [revision, revision2]
+
+    def test_revision_log_displayname_behavior(self, swh_storage, sample_data):
+        """Check revision_log behavior when displayname is set"""
+        revision, revision2 = sample_data.revisions[:2]
+
+        # Make authors, committers and parenthood relationship known
+        # (revision2 -[parent]-> revision1)
+        revision = attr.evolve(
+            revision,
+            author=Person.from_fullname(b"author1 <author1@example.com>"),
+            committer=Person.from_fullname(b"committer1 <committer1@example.com>"),
+        )
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        revision2 = attr.evolve(
+            revision2,
+            parents=(revision.id,),
+            author=Person.from_fullname(b"author2 <author2@example.com>"),
+            committer=Person.from_fullname(b"committer2 <committer2@example.com>"),
+        )
+        revision2 = attr.evolve(revision2, id=revision2.compute_hash())
+
+        add_result = swh_storage.revision_add([revision, revision2])
+        assert add_result == {"revision:add": 2}
+
+        # Before displayname change
+        revisions = swh_storage.revision_log([revision2.id])
+        assert list(revisions) == [revision2.to_dict(), revision.to_dict()]
+
+        displayname = b"Display Name <displayname@example.com>"
+
+        with db_transaction(swh_storage) as (_, cur):
+            cur.execute(
+                "UPDATE person set displayname = %s where fullname = %s",
+                (displayname, revision.author.fullname),
+            )
+
+        revisions = swh_storage.revision_log([revision2.id])
+        assert list(revisions) == [
+            revision2.to_dict(),
+            attr.evolve(revision, author=Person.from_fullname(displayname)).to_dict(),
+        ]
+
+        revisions = swh_storage.revision_log([revision2.id], ignore_displayname=True)
+        assert list(revisions) == [revision2.to_dict(), revision.to_dict()]
+
+    def test_release_get_displayname_behavior(self, swh_storage, sample_data):
+        """Check release_get behavior when displayname is set"""
+        release, release2 = sample_data.releases[:2]
+
+        # Make authors known
+        release = attr.evolve(
+            release, author=Person.from_fullname(b"author1 <author1@example.com>"),
+        )
+        release = attr.evolve(release, id=release.compute_hash())
+        release2 = attr.evolve(
+            release2, author=Person.from_fullname(b"author2 <author2@example.com>"),
+        )
+        release2 = attr.evolve(release2, id=release2.compute_hash())
+
+        add_result = swh_storage.release_add([release, release2])
+        assert add_result == {"release:add": 2}
+
+        # Before displayname change
+        releases = swh_storage.release_get([release.id, release2.id])
+        assert releases == [release, release2]
+
+        displayname = b"Display Name <displayname@example.com>"
+
+        with db_transaction(swh_storage) as (_, cur):
+            cur.execute(
+                "UPDATE person set displayname = %s where fullname = %s",
+                (displayname, release.author.fullname),
+            )
+
+        releases = swh_storage.release_get([release.id, release2.id])
+        assert releases == [
+            attr.evolve(release, author=Person.from_fullname(displayname)),
+            release2,
+        ]
+
+        releases = swh_storage.release_get(
+            [release.id, release2.id], ignore_displayname=True
+        )
+        assert releases == [release, release2]
 
     def test_clear_buffers(self, swh_storage):
         """Calling clear buffers on real storage does nothing

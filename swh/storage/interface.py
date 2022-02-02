@@ -532,11 +532,15 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("revision")
-    def revision_get(self, revision_ids: List[Sha1Git]) -> List[Optional[Revision]]:
+    def revision_get(
+        self, revision_ids: List[Sha1Git], ignore_displayname: bool = False
+    ) -> List[Optional[Revision]]:
         """Get revisions from storage
 
         Args:
             revisions: revision ids
+            ignore_displayname: return the original author/committer's full name even if
+              it's masked by a displayname.
 
         Returns:
             list of revision object (if the revision exists or None otherwise)
@@ -604,12 +608,17 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("revision/log")
     def revision_log(
-        self, revisions: List[Sha1Git], limit: Optional[int] = None
+        self,
+        revisions: List[Sha1Git],
+        ignore_displayname: bool = False,
+        limit: Optional[int] = None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
         """Fetch revision entry from the given root revisions.
 
         Args:
             revisions: array of root revisions to lookup
+            ignore_displayname: return the original author/committer's full name even if
+              it's masked by a displayname.
             limit: limitation on the output result. Default to None.
 
         Yields:
@@ -686,11 +695,15 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("release")
-    def release_get(self, releases: List[Sha1Git]) -> List[Optional[Release]]:
+    def release_get(
+        self, releases: List[Sha1Git], ignore_displayname: bool = False
+    ) -> List[Optional[Release]]:
         """Given a list of sha1, return the releases's information
 
         Args:
             releases: list of sha1s
+            ignore_displayname: return the original author's full name even if it's
+              masked by a displayname.
 
         Returns:
             List of releases matching the identifiers or None if the release does

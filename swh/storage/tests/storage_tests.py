@@ -1150,8 +1150,8 @@ class TestStorage:
                 revision,
                 synthetic=False,
                 metadata=None,
-                committer=attr.evolve(revision.committer, name=None, email=None),
-                author=attr.evolve(revision.author, name=None, email=None),
+                committer=Person.from_fullname(revision.committer.fullname),
+                author=Person.from_fullname(revision.author.fullname),
                 type=RevisionType.GIT,
             )
             for revision in revisions
@@ -1223,7 +1223,7 @@ class TestStorage:
 
         # revision4 -is-child-of-> revision3
         swh_storage.revision_add([revision3, revision4])
-        results = list(swh_storage.revision_log([revision4.id], 1))
+        results = list(swh_storage.revision_log([revision4.id], limit=1))
 
         actual_results = [Revision.from_dict(r) for r in results]
         assert len(actual_results) == 1
@@ -1628,7 +1628,7 @@ class TestStorage:
                 release,
                 synthetic=False,
                 metadata=None,
-                author=attr.evolve(release.author, name=None, email=None)
+                author=Person.from_fullname(release.author.fullname)
                 if release.author
                 else None,
             )
