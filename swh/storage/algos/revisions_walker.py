@@ -74,6 +74,8 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         rev_start: a revision identifier
         max_revs: maximum number of revisions to return
         state: previous state of that revisions walker
+        ignore_displayname: return the original author/committer's full name even if
+          it's masked by a displayname.
     """
 
     def __init__(
@@ -82,11 +84,13 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         rev_start: Sha1Git,
         max_revs: Optional[int] = None,
         state: Optional[State] = None,
+        ignore_displayname: bool = False,
     ):
         self._revs: Dict[Sha1Git, Dict] = {}
         self._max_revs = max_revs
         self._state = state or State()
         self.storage = storage
+        self.ignore_displayname = ignore_displayname
         self.process_rev(rev_start)
 
     @abstractmethod
