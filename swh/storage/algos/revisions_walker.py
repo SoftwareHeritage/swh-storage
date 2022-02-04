@@ -163,7 +163,9 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         if rev is None:
             # cache some revisions in advance to avoid sending too much
             # requests to storage and thus speedup the revisions walk
-            for rev in self.storage.revision_log([rev_id], limit=100):
+            for rev in self.storage.revision_log(
+                [rev_id], limit=100, ignore_displayname=self.ignore_displayname
+            ):
                 # revision data is missing, returned history will be truncated
                 if rev is None:
                     continue
