@@ -1,8 +1,12 @@
-swh-storage (0.43.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (0.43.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 0.43.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-02-08 10:21:59 +0100)
+  * Upstream changes:     - v0.43.1     - * Add typing to
+    revision_walker.py and make the state a dataclass     - *
+    revision_walker: Add support for ignore_displayname.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 02 Feb 2022 18:10:01 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 08 Feb 2022 09:31:33 +0000
 
 swh-storage (0.43.0-1~swh1) unstable-swh; urgency=medium
 
