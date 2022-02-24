@@ -9,7 +9,7 @@ psycopg2
 redis
 tenacity>=6.2
 typing-extensions
-swh.core[db,http]>=0.14.0
+swh.core[db,http]>=2
 swh.counters>=v0.8.0
 swh.model>=4.4.0
 swh.objstorage>=0.2.2
@@ -30,4 +30,5 @@ types-pytz
 types-pyyaml
 types-redis
 types-requests
+types-toml
 swh.journal>=0.9

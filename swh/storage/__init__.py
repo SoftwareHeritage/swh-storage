@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -82,6 +82,9 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
         if not storage.check_config(**check_config):
             raise EnvironmentError("storage check config failed")
     return storage
+
+
+get_datastore = get_storage
 
 
 def get_storage_pipeline(

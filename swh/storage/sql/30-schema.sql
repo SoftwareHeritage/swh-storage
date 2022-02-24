@@ -2,22 +2,7 @@
 --- SQL implementation of the Software Heritage data model
 ---
 
--- schema versions
-create table dbversion
-(
-  version     int primary key,
-  release     timestamptz,
-  description text
-);
-
-comment on table dbversion is 'Details of current db version';
-comment on column dbversion.version is 'SQL schema version';
-comment on column dbversion.release is 'Version deployment timestamp';
-comment on column dbversion.description is 'Release description';
-
--- latest schema version
-insert into dbversion(version, release, description)
-      values(182, now(), 'Work In Progress');
+-- schema versions table (dbversion) is now created by swh.core.db directly
 
 -- a SHA1 checksum
 create domain sha1 as bytea check (length(value) = 20);

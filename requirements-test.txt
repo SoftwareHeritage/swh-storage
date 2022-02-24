@@ -14,3 +14,4 @@ types-pytz
 types-pyyaml
 types-redis
 types-requests
+types-toml
