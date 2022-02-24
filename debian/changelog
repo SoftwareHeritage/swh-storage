@@ -1,3 +1,12 @@
+swh-storage (1.0.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.0.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2022-02-24 11:32:18 +0100)
+  * Upstream changes:     - v1.0.0     - add support for `swh db
+    upgrade`, aka updated for swh core 2.0.0
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Feb 2022 11:13:57 +0000
+
 swh-storage (0.43.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 0.43.1     - (tagged by Valentin Lorentz
