@@ -1,4 +1,2 @@
-
-        [swh.cli.subcommands]
-        storage=swh.storage.cli
-    
+[swh.cli.subcommands]
+storage = swh.storage.cli
