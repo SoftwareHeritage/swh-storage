@@ -783,9 +783,7 @@ class Db(BaseDb):
             query_parts.append("AND ovs.status IN %s")
             query_params.append(tuple(allowed_statuses))
 
-        query_parts.append(
-            "ORDER BY ov.date DESC, ov.visit DESC, ovs.date DESC LIMIT 1"
-        )
+        query_parts.append("ORDER BY ov.visit DESC, ovs.date DESC LIMIT 1")
 
         query = "\n".join(query_parts)
 

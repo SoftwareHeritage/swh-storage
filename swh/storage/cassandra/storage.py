@@ -1281,7 +1281,7 @@ class CassandraStorage:
         # Iterator over all the visits of the origin
         # This should be ok for now, as there aren't too many visits
         # per origin.
-        rows = list(self._cql_runner.origin_visit_get_all(origin))
+        rows = list(self._cql_runner.origin_visit_iter_all(origin))
 
         def key(visit):
             dt = visit.date.replace(tzinfo=datetime.timezone.utc) - visit_date
@@ -1309,9 +1309,7 @@ class CassandraStorage:
                 f"Unknown allowed statuses {','.join(allowed_statuses)}, only "
                 f"{','.join(VISIT_STATUSES)} authorized"
             )
-        # TODO: Do not fetch all visits
-        rows = self._cql_runner.origin_visit_get_all(origin)
-        latest_visit = None
+        rows = self._cql_runner.origin_visit_iter_all(origin)
         for row in rows:
             visit = self._format_origin_visit_row(row)
             for status_row in self._cql_runner.origin_visit_status_get(
@@ -1325,24 +1323,14 @@ class CassandraStorage:
                 if require_snapshot and updated_visit["snapshot"] is None:
                     continue
 
-                # updated_visit is a candidate
-                if latest_visit is not None:
-                    if updated_visit["date"] < latest_visit["date"]:
-                        continue
-                    assert (
-                        updated_visit["visit"] >= latest_visit["visit"]
-                    ), "Cassandra returned visits not ordered by increasing visit id."
+                return OriginVisit(
+                    origin=visit["origin"],
+                    visit=visit["visit"],
+                    date=visit["date"],
+                    type=visit["type"],
+                )
 
-                latest_visit = updated_visit
-
-        if latest_visit is None:
-            return None
-        return OriginVisit(
-            origin=latest_visit["origin"],
-            visit=latest_visit["visit"],
-            date=latest_visit["date"],
-            type=latest_visit["type"],
-        )
+        return None
 
     def origin_visit_status_get_latest(
         self,

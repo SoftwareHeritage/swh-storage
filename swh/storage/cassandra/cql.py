@@ -1033,10 +1033,12 @@ class CqlRunner:
         else:
             return None
 
-    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ?")
-    def origin_visit_get_all(
+    @_prepared_select_statement(OriginVisitRow, "WHERE origin = ? ORDER BY visit DESC")
+    def origin_visit_iter_all(
         self, origin_url: str, *, statement
     ) -> Iterable[OriginVisitRow]:
+        """Returns an iterator on visits for a given origin, ordered by descending
+        visit id."""
         return map(
             OriginVisitRow.from_dict,
             self._execute_with_retries(statement, [origin_url]),

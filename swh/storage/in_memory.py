@@ -531,8 +531,8 @@ class InMemoryCqlRunner:
     ) -> Optional[OriginVisitRow]:
         return self._origin_visits.get_from_primary_key((origin_url, visit_id))
 
-    def origin_visit_get_all(self, origin_url: str) -> Iterable[OriginVisitRow]:
-        return self._origin_visits.get_from_partition_key((origin_url,))
+    def origin_visit_iter_all(self, origin_url: str) -> Iterable[OriginVisitRow]:
+        return reversed(list(self._origin_visits.get_from_partition_key((origin_url,))))
 
     def origin_visit_iter(self, start_token: int) -> Iterator[OriginVisitRow]:
         """Returns all origin visits in order from this token,
