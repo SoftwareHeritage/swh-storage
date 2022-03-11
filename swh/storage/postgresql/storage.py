@@ -557,7 +557,7 @@ class Storage:
         for line in res_gen:
             yield dict(zip(db.directory_ls_cols, line))
 
-    @db_transaction(statement_timeout=2000)
+    @db_transaction(statement_timeout=4000)
     def directory_entry_get_by_path(
         self, directory: Sha1Git, paths: List[bytes], *, db: Db, cur=None
     ) -> Optional[Dict[str, Any]]:
@@ -657,7 +657,7 @@ class Storage:
         for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]
 
-    @db_transaction(statement_timeout=1000)
+    @db_transaction(statement_timeout=2000)
     def revision_get(
         self,
         revision_ids: List[Sha1Git],
@@ -808,7 +808,7 @@ class Storage:
         for obj in db.release_missing_from_list(releases, cur):
             yield obj[0]
 
-    @db_transaction(statement_timeout=500)
+    @db_transaction(statement_timeout=1000)
     def release_get(
         self,
         releases: List[Sha1Git],
@@ -1109,7 +1109,7 @@ class Storage:
 
         return PagedResult(results=visits, next_page_token=next_page_token)
 
-    @db_transaction(statement_timeout=500)
+    @db_transaction(statement_timeout=1000)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
     ) -> Optional[OriginVisit]:
@@ -1230,7 +1230,7 @@ class Storage:
 
         return ret
 
-    @db_transaction(statement_timeout=500)
+    @db_transaction(statement_timeout=1000)
     def origin_get(
         self, origins: List[str], *, db: Db, cur=None
     ) -> Iterable[Optional[Origin]]:
@@ -1242,7 +1242,7 @@ class Storage:
             result.append(None if url is None else Origin(url=url))
         return result
 
-    @db_transaction(statement_timeout=500)
+    @db_transaction(statement_timeout=1000)
     def origin_get_by_sha1(
         self, sha1s: List[bytes], *, db: Db, cur=None
     ) -> List[Optional[Dict[str, Any]]]:
