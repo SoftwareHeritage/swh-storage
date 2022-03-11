@@ -767,7 +767,9 @@ class Db(BaseDb):
             "INNER JOIN origin o ON o.id = ov.origin",
             "INNER JOIN origin_visit_status ovs USING (origin, visit)",
         ]
-        query_parts.append("WHERE o.url = %s")
+        query_parts.append(
+            "WHERE ov.origin = (SELECT id FROM origin o WHERE o.url = %s)"
+        )
         query_params: List[Any] = [origin_id]
 
         if type is not None:
