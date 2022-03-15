@@ -6,7 +6,6 @@
 import datetime
 import logging
 import random
-import select
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from swh.core.db import BaseDb
@@ -48,19 +47,6 @@ class Db(BaseDb):
     @stored_procedure("swh_mktemp_snapshot_branch")
     def mktemp_snapshot_branch(self, cur=None):
         pass
-
-    def register_listener(self, notify_queue, cur=None):
-        """Register a listener for NOTIFY queue `notify_queue`"""
-        self._cursor(cur).execute("LISTEN %s" % notify_queue)
-
-    def listen_notifies(self, timeout):
-        """Listen to notifications for `timeout` seconds"""
-        if select.select([self.conn], [], [], timeout) == ([], [], []):
-            return
-        else:
-            self.conn.poll()
-            while self.conn.notifies:
-                yield self.conn.notifies.pop(0)
 
     @stored_procedure("swh_content_add")
     def content_add_from_temp(self, cur=None):
