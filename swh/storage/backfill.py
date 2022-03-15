@@ -16,7 +16,7 @@ the journal.
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple, Union
 
 from swh.core.db import BaseDb
 from swh.model.model import (
@@ -320,15 +320,17 @@ def object_to_offset(object_id, numbits):
     return int.from_bytes(truncated_id_bytes, byteorder="big") >> shift_bits
 
 
-def byte_ranges(numbits, start_object=None, end_object=None):
+def byte_ranges(
+    numbits: int, start_object: Optional[str] = None, end_object: Optional[str] = None
+) -> Iterator[Tuple[Optional[bytes], Optional[bytes]]]:
     """Generate start/end pairs of bytes spanning numbits bits and
        constrained by optional start_object and end_object.
 
     Args:
-        numbits (int): Number of bits in which we divide input space
-        start_object (str): Hex object id contained in the first range
+        numbits: Number of bits in which we divide input space
+        start_object: Hex object id contained in the first range
                             returned
-        end_object (str): Hex object id contained in the last range
+        end_object: Hex object id contained in the last range
                           returned
 
     Yields:
@@ -361,7 +363,9 @@ def byte_ranges(numbits, start_object=None, end_object=None):
             yield to_bytes(start), to_bytes(end)
 
 
-def raw_extrinsic_metadata_target_ranges(start_object=None, end_object=None):
+def raw_extrinsic_metadata_target_ranges(
+    start_object: Optional[str] = None, end_object: Optional[str] = None
+) -> Iterator[Tuple[Optional[str], Optional[str]]]:
     """Generate ranges of values for the `target` attribute of `raw_extrinsic_metadata`
     objects.
 
@@ -436,17 +440,26 @@ def raw_extrinsic_metadata_target_ranges(start_object=None, end_object=None):
     yield start_swhid, end_object
 
 
-def integer_ranges(start, end, block_size=1000):
-    for start in range(start, end, block_size):
-        if start == 0:
+def integer_ranges(
+    start: str, end: str, block_size: int = 1000
+) -> Iterator[Tuple[Optional[int], Optional[int]]]:
+    for range_start in range(int(start), int(end), block_size):
+        if range_start == 0:
             yield None, block_size
-        elif start + block_size > end:
-            yield start, end
+        elif range_start + block_size > int(end):
+            yield range_start, int(end)
         else:
-            yield start, start + block_size
+            yield range_start, range_start + block_size
 
 
-RANGE_GENERATORS = {
+RANGE_GENERATORS: Dict[
+    str,
+    Union[
+        Callable[[str, str], Iterable[Tuple[Optional[str], Optional[str]]]],
+        Callable[[str, str], Iterable[Tuple[Optional[bytes], Optional[bytes]]]],
+        Callable[[str, str], Iterable[Tuple[Optional[int], Optional[int]]]],
+    ],
+] = {
     "content": lambda start, end: byte_ranges(24, start, end),
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: byte_ranges(24, start, end),
@@ -608,14 +621,8 @@ class JournalBackfiller:
             )
 
         if object_type in ["origin", "origin_visit", "origin_visit_status"]:
-            if start_object:
-                start_object = int(start_object)
-            else:
-                start_object = 0
-            if end_object:
-                end_object = int(end_object)
-            else:
-                end_object = 100 * 1000 * 1000  # hard-coded limit
+            start_object = start_object or "0"
+            end_object = end_object or str(100_000_000)  # hard-coded limit
 
         return start_object, end_object
 
