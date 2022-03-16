@@ -214,7 +214,11 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
                 )
                 entries.append(entry)
 
-    return Directory(id=directory_d["id"], entries=tuple(entries),)
+    return Directory(
+        id=directory_d["id"],
+        entries=tuple(entries),
+        raw_manifest=directory_d["raw_manifest"],
+    )
 
 
 def raw_extrinsic_metadata_converter(
