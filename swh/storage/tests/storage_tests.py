@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 from collections import defaultdict
-import contextlib
 import datetime
 from datetime import timedelta
 import inspect
@@ -54,16 +53,6 @@ from swh.storage.utils import (
     remove_keys,
     round_to_milliseconds,
 )
-
-
-@contextlib.contextmanager
-def disable_attrs_validator():
-    v = attr.validators.get_disabled()
-    try:
-        attr.validators.set_disabled(True)
-        yield
-    finally:
-        attr.validators.set_disabled(v)
 
 
 def transform_entries(
@@ -1161,8 +1150,12 @@ class TestStorage:
                 revision,
                 synthetic=False,
                 metadata=None,
-                committer=Person.from_fullname(revision.committer.fullname),
-                author=Person.from_fullname(revision.author.fullname),
+                author=None
+                if revision.author is None
+                else Person.from_fullname(revision.author.fullname),
+                committer=None
+                if revision.committer is None
+                else Person.from_fullname(revision.committer.fullname),
                 type=RevisionType.GIT,
             )
             for revision in revisions
@@ -1322,12 +1315,9 @@ class TestStorage:
     def test_revision_add_no_author_or_date(self, swh_storage, sample_data):
         full_revision = sample_data.revision
 
-        with disable_attrs_validator():
-            # TODO: remove context manager when support for author=None
-            # lands in swh-model
-            revision = attr.evolve(full_revision, author=None, date=None)
-            revision = attr.evolve(revision, id=revision.compute_hash())
-            actual_result = swh_storage.revision_add([revision])
+        revision = attr.evolve(full_revision, author=None, date=None)
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 1}
 
         end_missing = swh_storage.revision_missing([revision.id])
@@ -1337,20 +1327,14 @@ class TestStorage:
             ("revision", revision)
         ]
 
-        with disable_attrs_validator():
-            # TODO: remove context manager when support for author=None
-            # lands in swh-model
-            assert swh_storage.revision_get([revision.id]) == [revision]
+        assert swh_storage.revision_get([revision.id]) == [revision]
 
     def test_revision_add_no_committer_or_date(self, swh_storage, sample_data):
         full_revision = sample_data.revision
 
-        with disable_attrs_validator():
-            # TODO: remove context manager when support for author=None
-            # lands in swh-model
-            revision = attr.evolve(full_revision, committer=None, committer_date=None)
-            revision = attr.evolve(revision, id=revision.compute_hash())
-            actual_result = swh_storage.revision_add([revision])
+        revision = attr.evolve(full_revision, committer=None, committer_date=None)
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 1}
 
         end_missing = swh_storage.revision_missing([revision.id])
@@ -1360,10 +1344,7 @@ class TestStorage:
             ("revision", revision)
         ]
 
-        with disable_attrs_validator():
-            # TODO: remove context manager when support for author=None
-            # lands in swh-model
-            assert swh_storage.revision_get([revision.id]) == [revision]
+        assert swh_storage.revision_get([revision.id]) == [revision]
 
     def test_extid_add_git(self, swh_storage, sample_data):
 

@@ -65,8 +65,10 @@ def estimate_revision_size(revision: Revision) -> int:
     if revision.message:
         s += len(revision.message)
 
-    s += len(revision.author.fullname)
-    s += len(revision.committer.fullname)
+    if revision.author is not None:
+        s += len(revision.author.fullname)
+    if revision.committer is not None:
+        s += len(revision.committer.fullname)
     s += sum(len(h) + len(v) for h, v in revision.extra_headers)
 
     return s

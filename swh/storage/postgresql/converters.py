@@ -238,9 +238,9 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
 
     return Revision(
         id=db_revision["id"],
-        author=author,  # type: ignore  # will pass in swh-model v5.1.0
+        author=author,
         date=date,
-        committer=committer,  # type: ignore  # will pass in swh-model v5.1.0
+        committer=committer,
         committer_date=committer_date,
         type=RevisionType(db_revision["type"]),
         directory=db_revision["directory"],
