@@ -149,6 +149,14 @@ alter table revision add primary key using index revision_pkey;
     validate constraint revision_date_offset_not_null;
   alter table revision
     validate constraint revision_committer_date_offset_not_null;
+
+  -- if the author is null, then the date must be null
+  alter table revision add constraint revision_author_date_check check ((date is null) or (author is not null)) not valid;
+  alter table revision validate constraint revision_author_date_check;
+
+  -- if the committer is null, then the committer_date must be null
+  alter table revision add constraint revision_committer_date_check check ((committer_date is null) or (committer is not null)) not valid;
+  alter table revision validate constraint revision_committer_date_check;
 \endif
 
 \if :dbflavor_default

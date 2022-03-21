@@ -1,9 +1,10 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from collections import defaultdict
+import contextlib
 import datetime
 from datetime import timedelta
 import inspect
@@ -53,6 +54,16 @@ from swh.storage.utils import (
     remove_keys,
     round_to_milliseconds,
 )
+
+
+@contextlib.contextmanager
+def disable_attrs_validator():
+    v = attr.validators.get_disabled()
+    try:
+        attr.validators.set_disabled(True)
+        yield
+    finally:
+        attr.validators.set_disabled(v)
 
 
 def transform_entries(
@@ -1307,6 +1318,52 @@ class TestStorage:
 
         end_missing = swh_storage.revision_missing(ids)
         assert set(end_missing) == set(ids) - {revision.id}
+
+    def test_revision_add_no_author_or_date(self, swh_storage, sample_data):
+        full_revision = sample_data.revision
+
+        with disable_attrs_validator():
+            # TODO: remove context manager when support for author=None
+            # lands in swh-model
+            revision = attr.evolve(full_revision, author=None, date=None)
+            revision = attr.evolve(revision, id=revision.compute_hash())
+            actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        with disable_attrs_validator():
+            # TODO: remove context manager when support for author=None
+            # lands in swh-model
+            assert swh_storage.revision_get([revision.id]) == [revision]
+
+    def test_revision_add_no_committer_or_date(self, swh_storage, sample_data):
+        full_revision = sample_data.revision
+
+        with disable_attrs_validator():
+            # TODO: remove context manager when support for author=None
+            # lands in swh-model
+            revision = attr.evolve(full_revision, committer=None, committer_date=None)
+            revision = attr.evolve(revision, id=revision.compute_hash())
+            actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        with disable_attrs_validator():
+            # TODO: remove context manager when support for author=None
+            # lands in swh-model
+            assert swh_storage.revision_get([revision.id]) == [revision]
 
     def test_extid_add_git(self, swh_storage, sample_data):
 
