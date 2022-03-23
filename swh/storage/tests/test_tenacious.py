@@ -364,7 +364,7 @@ def test_tenacious_proxy_storage(object_type, add_func_name, objects, bad1, bad2
 def test_tenacious_proxy_storage_rate_limit(
     object_type, add_func_name, objects, bad1, bad2
 ):
-    storage = get_tenacious_storage(error_rate_limit={"errors": 1, "window_size": 3})
+    storage = get_tenacious_storage(error_rate_limit={"errors": 1, "window_size": 2})
     tenacious = storage.storage
     in_memory = tenacious.storage
     assert isinstance(tenacious, TenaciousProxyStorage)
