@@ -15,7 +15,7 @@ from swh.storage import get_storage as get_swhstorage
 
 from ..exc import StorageArgumentException
 from ..interface import StorageInterface
-from ..metrics import timed
+from ..metrics import send_metric, timed
 from .serializers import DECODERS, ENCODERS
 
 
@@ -30,6 +30,61 @@ def get_storage():
 class StorageServerApp(RPCServerApp):
     extra_type_decoders = DECODERS
     extra_type_encoders = ENCODERS
+
+    method_decorators = [timed]
+
+    def _process_metrics(self, metrics, endpoint):
+        for metric, count in metrics.items():
+            send_metric(metric=metric, count=count, method_name=endpoint)
+
+    def post_content_add(self, ret, kw):
+        self._process_metrics(ret, "content_add")
+
+    def post_content_add_metadata(self, ret, kw):
+        self._process_metrics(ret, "content_add_metadata")
+
+    def post_skipped_content_add(self, ret, kw):
+        self._process_metrics(ret, "skipped_content_add")
+
+    def post_directory_add(self, ret, kw):
+        self._process_metrics(ret, "directory_add")
+
+    def post_revision_add(self, ret, kw):
+        self._process_metrics(ret, "revision_add")
+
+    def post_release_add(self, ret, kw):
+        self._process_metrics(ret, "release_add")
+
+    def post_snapshot_add(self, ret, kw):
+        self._process_metrics(ret, "snapshot_add")
+
+    def post_origin_visit_status_add(self, ret, kw):
+        self._process_metrics(ret, "origin_visit_status_add")
+
+    def post_origin_add(self, ret, kw):
+        self._process_metrics(ret, "origin_add")
+
+    def post_raw_extrinsic_metadata_add(self, ret, kw):
+        self._process_metrics(ret, "raw_extrinsic_metadata_add")
+
+    def post_metadata_fetcher_add(self, ret, kw):
+        self._process_metrics(ret, "metadata_fetcher_add")
+
+    def post_metadata_authority_add(self, ret, kw):
+        self._process_metrics(ret, "metadata_authority_add")
+
+    def post_extid_add(self, ret, kw):
+        self._process_metrics(ret, "extid_add")
+
+    def post_origin_visit_add(self, ret, kw):
+        nb_visits = len(ret)
+        send_metric(
+            "origin_visit:add",
+            count=nb_visits,
+            # method_name should be "origin_visit_add", but changing it now would break
+            # existing metrics
+            method_name="origin_visit",
+        )
 
 
 app = StorageServerApp(
