@@ -3122,9 +3122,9 @@ class TestStorage:
 
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
 
-        # no filters, latest visit is the last one (whose date is most recent)
+        # no filters
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
-        assert actual_visit == ov2
+        assert actual_visit == ov3
 
     def test_origin_visit_get_latest__not_last(self, swh_storage, sample_data):
         origin = sample_data.origin

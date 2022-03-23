@@ -6,7 +6,6 @@
 import datetime
 import logging
 import random
-import select
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from swh.core.db import BaseDb
@@ -48,19 +47,6 @@ class Db(BaseDb):
     @stored_procedure("swh_mktemp_snapshot_branch")
     def mktemp_snapshot_branch(self, cur=None):
         pass
-
-    def register_listener(self, notify_queue, cur=None):
-        """Register a listener for NOTIFY queue `notify_queue`"""
-        self._cursor(cur).execute("LISTEN %s" % notify_queue)
-
-    def listen_notifies(self, timeout):
-        """Listen to notifications for `timeout` seconds"""
-        if select.select([self.conn], [], [], timeout) == ([], [], []):
-            return
-        else:
-            self.conn.poll()
-            while self.conn.notifies:
-                yield self.conn.notifies.pop(0)
 
     @stored_procedure("swh_content_add")
     def content_add_from_temp(self, cur=None):
@@ -767,7 +753,9 @@ class Db(BaseDb):
             "INNER JOIN origin o ON o.id = ov.origin",
             "INNER JOIN origin_visit_status ovs USING (origin, visit)",
         ]
-        query_parts.append("WHERE o.url = %s")
+        query_parts.append(
+            "WHERE ov.origin = (SELECT id FROM origin o WHERE o.url = %s)"
+        )
         query_params: List[Any] = [origin_id]
 
         if type is not None:
@@ -781,9 +769,7 @@ class Db(BaseDb):
             query_parts.append("AND ovs.status IN %s")
             query_params.append(tuple(allowed_statuses))
 
-        query_parts.append(
-            "ORDER BY ov.date DESC, ov.visit DESC, ovs.date DESC LIMIT 1"
-        )
+        query_parts.append("ORDER BY ov.visit DESC, ovs.date DESC LIMIT 1")
 
         query = "\n".join(query_parts)
 
