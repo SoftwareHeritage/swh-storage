@@ -1,8 +1,24 @@
-swh-storage (1.0.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.2.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.2.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2022-03-23 16:49:10 +0100)
+  * Upstream changes:     - Release swh.storage 1.2.0     -
+    Compatibility with swh.model 6
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Feb 2022 11:27:28 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 23 Mar 2022 16:00:33 +0000
+
+swh-storage (1.1.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.1.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-03-16 16:09:49 +0100)
+  * Upstream changes:     - v1.1.0     - * postgresql: Increase timeouts
+    that often fail     - * origin_visit_get_latest: Order by visit id
+    instead of date     - * postgresql: Remove unused listener code from
+    db.py     - * backfill: Make integer_ranges() work on str args + add
+    typing to RANGE_GENERATORS     - * backfill: Add missing
+    raw_manifest to directories
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 23 Mar 2022 15:01:47 +0000
 
 swh-storage (1.0.0-1~swh1) unstable-swh; urgency=medium
 

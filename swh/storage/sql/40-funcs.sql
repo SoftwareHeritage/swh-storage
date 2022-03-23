@@ -562,7 +562,7 @@ begin
         select committer_fullname as fullname, committer_name as name, committer_email as email from tmp_revision
     ) insert into person (fullname, name, email)
     select distinct on (fullname) fullname, name, email from t
-    where not exists (
+    where t.fullname is not null and not exists (
         select 1
         from person p
         where t.fullname = p.fullname

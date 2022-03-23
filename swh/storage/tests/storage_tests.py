@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1150,8 +1150,12 @@ class TestStorage:
                 revision,
                 synthetic=False,
                 metadata=None,
-                committer=Person.from_fullname(revision.committer.fullname),
-                author=Person.from_fullname(revision.author.fullname),
+                author=None
+                if revision.author is None
+                else Person.from_fullname(revision.author.fullname),
+                committer=None
+                if revision.committer is None
+                else Person.from_fullname(revision.committer.fullname),
                 type=RevisionType.GIT,
             )
             for revision in revisions
@@ -1307,6 +1311,40 @@ class TestStorage:
 
         end_missing = swh_storage.revision_missing(ids)
         assert set(end_missing) == set(ids) - {revision.id}
+
+    def test_revision_add_no_author_or_date(self, swh_storage, sample_data):
+        full_revision = sample_data.revision
+
+        revision = attr.evolve(full_revision, author=None, date=None)
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
+
+    def test_revision_add_no_committer_or_date(self, swh_storage, sample_data):
+        full_revision = sample_data.revision
+
+        revision = attr.evolve(full_revision, committer=None, committer_date=None)
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
 
     def test_extid_add_git(self, swh_storage, sample_data):
 
@@ -3122,9 +3160,9 @@ class TestStorage:
 
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
 
-        # no filters, latest visit is the last one (whose date is most recent)
+        # no filters
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
-        assert actual_visit == ov2
+        assert actual_visit == ov3
 
     def test_origin_visit_get_latest__not_last(self, swh_storage, sample_data):
         origin = sample_data.origin

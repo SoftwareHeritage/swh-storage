@@ -214,8 +214,12 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["committer_date"], db_revision["committer_date_offset_bytes"],
     )
 
-    assert author, "author is None"
-    assert committer, "committer is None"
+    assert (author is None) == (
+        db_revision["author_fullname"] is None
+    ), "author is unexpectedly None"
+    assert (committer is None) == (
+        db_revision["committer_fullname"] is None
+    ), "committer is unexpectedly None"
 
     parents = []
     if "parents" in db_revision:
