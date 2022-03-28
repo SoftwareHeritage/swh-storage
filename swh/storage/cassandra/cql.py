@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020  The Software Heritage developers
+# Copyright (C) 2019-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1107,6 +1107,20 @@ class CqlRunner:
         args.append(limit)
 
         statement = statements[(date_from is not None, order)]
+
+        return map(
+            OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)
+        )
+
+    @_prepared_select_statement(
+        OriginVisitStatusRow,
+        "WHERE origin = ? AND visit >= ? AND visit <= ? ORDER BY visit ASC, date ASC",
+    )
+    def origin_visit_status_get_all_range(
+        self, origin_url: str, visit_from: int, visit_to: int, *, statement,
+    ) -> Iterable[OriginVisitStatusRow]:
+
+        args = (origin_url, visit_from, visit_to)
 
         return map(
             OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)

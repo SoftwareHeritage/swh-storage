@@ -45,7 +45,12 @@ from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.in_memory import InMemoryStorage
-from swh.storage.interface import ListOrder, PagedResult, StorageInterface
+from swh.storage.interface import (
+    ListOrder,
+    OriginVisitWithStatuses,
+    PagedResult,
+    StorageInterface,
+)
 from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import (
     content_hex_hashes,
@@ -1994,6 +1999,301 @@ class TestStorage:
         )
         assert actual_page.next_page_token is None
         assert actual_page.results == [ov1]
+
+    @pytest.mark.parametrize(
+        "allowed_statuses,require_snapshot",
+        [
+            ([], False),
+            (["failed"], False),
+            (["failed", "full"], False),
+            ([], True),
+            (["failed"], True),
+            (["failed", "full"], True),
+        ],
+    )
+    def test_origin_visit_get_with_statuses(
+        self, swh_storage, sample_data, allowed_statuses, require_snapshot
+    ):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        ov1, ov2, ov3 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
+                ),
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
+                ),
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
+                ),
+            ]
+        )
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=sample_data.date_visit1 + datetime.timedelta(hours=1),
+                    type=sample_data.type_visit1,
+                    status="failed",
+                    snapshot=None,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov2.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=1),
+                    type=sample_data.type_visit2,
+                    status="failed",
+                    snapshot=None,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov3.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=1),
+                    type=sample_data.type_visit2,
+                    status="failed",
+                    snapshot=None,
+                ),
+            ]
+        )
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=sample_data.date_visit1 + datetime.timedelta(hours=2),
+                    type=sample_data.type_visit1,
+                    status="full",
+                    snapshot=sample_data.snapshots[0].id,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov2.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=2),
+                    type=sample_data.type_visit2,
+                    status="full",
+                    snapshot=sample_data.snapshots[1].id,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov3.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=2),
+                    type=sample_data.type_visit2,
+                    status="full",
+                    snapshot=sample_data.snapshots[2].id,
+                ),
+            ]
+        )
+
+        ov1_statuses = swh_storage.origin_visit_status_get(
+            origin.url, visit=ov1.visit
+        ).results
+
+        ov2_statuses = swh_storage.origin_visit_status_get(
+            origin.url, visit=ov2.visit
+        ).results
+
+        ov3_statuses = swh_storage.origin_visit_status_get(
+            origin.url, visit=ov3.visit
+        ).results
+
+        def _filter_statuses(ov_statuses):
+            if allowed_statuses:
+                ov_statuses = [
+                    ovs for ovs in ov_statuses if ovs.status in allowed_statuses
+                ]
+                assert [ovs.status for ovs in ov_statuses] == allowed_statuses
+            else:
+                assert [ovs.status for ovs in ov_statuses] == [
+                    "created",
+                    "failed",
+                    "full",
+                ]
+            if require_snapshot:
+                ov_statuses = [ovs for ovs in ov_statuses if ovs.snapshot is not None]
+            return ov_statuses
+
+        ov1_statuses = _filter_statuses(ov1_statuses)
+        ov2_statuses = _filter_statuses(ov2_statuses)
+        ov3_statuses = _filter_statuses(ov3_statuses)
+
+        ovws1 = OriginVisitWithStatuses(visit=ov1, statuses=ov1_statuses)
+        ovws2 = OriginVisitWithStatuses(visit=ov2, statuses=ov2_statuses)
+        ovws3 = OriginVisitWithStatuses(visit=ov3, statuses=ov3_statuses)
+
+        # order asc, no token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws1, ovws2, ovws3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=2,
+        )
+        next_page_token = actual_page.next_page_token
+        assert len(actual_page.results) == 2
+        assert next_page_token is not None
+        assert actual_page.results == [ovws1, ovws2]
+
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+        )
+
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws1]
+
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws2, ovws3]
+
+        # order asc, token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            limit=2,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws2, ovws3]
+
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws2]
+
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            limit=1,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws3]
+
+        # order desc, no token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            order=ListOrder.DESC,
+        )
+
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws3, ovws2, ovws1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=2,
+            order=ListOrder.DESC,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws3, ovws2]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=1,
+            order=ListOrder.DESC,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws3]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws2, ovws1]
+
+        # order desc, token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws2]
+
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws1]
 
     def test_origin_visit_status_get__unknown_cases(self, swh_storage, sample_data):
         origin = sample_data.origin

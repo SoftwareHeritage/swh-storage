@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -566,6 +566,19 @@ class InMemoryCqlRunner:
         statuses.sort(key=lambda s: s.date, reverse=order == ListOrder.DESC)
 
         return statuses[0:limit]
+
+    def origin_visit_status_get_all_range(
+        self, origin: str, first_visit: int, last_visit: int
+    ) -> Iterable[OriginVisitStatusRow]:
+        statuses = [
+            s
+            for s in self._origin_visit_statuses.get_from_partition_key((origin,))
+            if s.visit >= first_visit and s.visit <= last_visit
+        ]
+
+        statuses.sort(key=lambda s: (s.visit, s.date))
+
+        return statuses
 
     def origin_visit_status_add_one(self, visit_update: OriginVisitStatusRow) -> None:
         self._origin_visit_statuses.insert(visit_update)

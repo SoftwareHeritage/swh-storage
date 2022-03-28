@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -667,6 +667,46 @@ class Db(BaseDb):
 
         query_parts.append("LIMIT %s")
         query_params.append(limit)
+
+        query = "\n".join(query_parts)
+        cur.execute(query, tuple(query_params))
+        yield from cur
+
+    def origin_visit_status_get_all_in_range(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]],
+        require_snapshot: bool,
+        visit_from: int,
+        visit_to: int,
+        cur=None,
+    ):
+        cur = self._cursor(cur)
+
+        query_parts = [
+            f"SELECT {', '.join(self.origin_visit_status_select_cols)}",
+            " FROM origin_visit_status ovs",
+            " INNER JOIN origin o ON o.id = ovs.origin",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin]
+
+        assert visit_from <= visit_to
+
+        query_parts.append("AND ovs.visit >= %s")
+        query_params.append(visit_from)
+
+        query_parts.append("AND ovs.visit <= %s")
+        query_params.append(visit_to)
+
+        if require_snapshot:
+            query_parts.append("AND ovs.snapshot is not null")
+
+        if allowed_statuses:
+            query_parts.append("AND ovs.status IN %s")
+            query_params.append(tuple(allowed_statuses))
+
+        query_parts.append("ORDER BY ovs.visit ASC, ovs.date ASC")
 
         query = "\n".join(query_parts)
         cur.execute(query, tuple(query_params))

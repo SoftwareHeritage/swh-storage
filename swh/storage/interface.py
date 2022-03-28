@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,6 +7,7 @@ import datetime
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar
 
+import attr
 from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
@@ -52,6 +53,12 @@ class PartialBranches(TypedDict):
     next_branch: Optional[bytes]
     """The name of the first branch not returned or :const:`None` if
     the snapshot has less than the request number of branches."""
+
+
+@attr.s
+class OriginVisitWithStatuses:
+    visit = attr.ib(type=OriginVisit)
+    statuses = attr.ib(type=List[OriginVisitStatus])
 
 
 TResult = TypeVar("TResult")
@@ -1044,6 +1051,37 @@ class StorageInterface(Protocol):
         Returns:
             The OriginVisitStatus matching the criteria
 
+        """
+        ...
+
+    @remote_api_endpoint("origin/visit_status/get_all_latest")
+    def origin_visit_get_with_statuses(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitWithStatuses]:
+        """Retrieve page of origin visits and all their statuses.
+
+        Origin visit statuses are always sorted in ascending order of their dates.
+
+        Args:
+            origin: The visited origin URL
+            allowed_statuses: Only visit statuses matching that list will be returned.
+                If empty, all visit statuses will be returned. Possible status values
+                are ``created``, ``not_found``, ``ongoing``, ``failed``, ``partial``
+                and ``full``.
+            require_snapshot: If :const:`True`, only visit statuses with a snapshot
+                will be returned.
+            page_token: opaque string used to get the next results
+            order: Order on visit objects to list (default to asc)
+            limit: Number of visits with their statuses to return
+
+        Returns: Page of OriginVisitWithStatuses objects. if next_page_token is
+            None, there is no longer data to retrieve.
         """
         ...
 

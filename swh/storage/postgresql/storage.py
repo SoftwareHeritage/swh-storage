@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -47,6 +47,7 @@ from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBEr
 from swh.storage.interface import (
     VISIT_STATUSES,
     ListOrder,
+    OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
 )
@@ -1137,6 +1138,66 @@ class Storage:
             next_page_token = str(visits[-1].visit)
 
         return PagedResult(results=visits, next_page_token=next_page_token)
+
+    @db_transaction(statement_timeout=500)
+    def origin_visit_get_with_statuses(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+        *,
+        db: Db,
+        cur=None,
+    ) -> PagedResult[OriginVisitWithStatuses]:
+        page_token = page_token or "0"
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
+        if not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
+
+        # First get visits (plus one so we can use it as the next page token if any)
+        visits_page = self.origin_visit_get(
+            origin=origin,
+            page_token=page_token,
+            order=order,
+            limit=limit,
+            db=db,
+            cur=cur,
+        )
+
+        visits = visits_page.results
+        next_page_token = visits_page.next_page_token
+
+        if visits:
+
+            visit_from = min(visits[0].visit, visits[-1].visit)
+            visit_to = max(visits[0].visit, visits[-1].visit)
+
+            # Then, fetch all statuses associated to these visits
+            visit_statuses: Dict[int, List[OriginVisitStatus]] = defaultdict(list)
+            for row in db.origin_visit_status_get_all_in_range(
+                origin,
+                allowed_statuses,
+                require_snapshot,
+                visit_from=visit_from,
+                visit_to=visit_to,
+                cur=cur,
+            ):
+                row_d = dict(zip(db.origin_visit_status_cols, row))
+
+                visit_statuses[row_d["visit"]].append(OriginVisitStatus(**row_d))
+
+            results = [
+                OriginVisitWithStatuses(
+                    visit=visit, statuses=visit_statuses[visit.visit]
+                )
+                for visit in visits
+            ]
+
+        return PagedResult(results=results, next_page_token=next_page_token)
 
     @db_transaction(statement_timeout=1000)
     def origin_visit_find_by_date(

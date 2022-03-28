@@ -1,11 +1,11 @@
-# Copyright (C) 2020-2021  The Software Heritage developers
+# Copyright (C) 2020-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 """Decoder and encoders for swh-model objects."""
 
-from typing import Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from swh.model import model, swhids
 from swh.storage import interface
@@ -22,6 +22,24 @@ def _encode_enum(obj):
         "value": obj.value,
         "__type__": type(obj).__name__,
     }
+
+
+def _encode_origin_visit_with_statuses(
+    ovws: interface.OriginVisitWithStatuses,
+) -> Dict[str, Any]:
+    return {
+        "visit": ovws.visit.to_dict(),
+        "statuses": [status.to_dict() for status in ovws.statuses],
+    }
+
+
+def _decode_origin_visit_with_statuses(
+    ovws: Dict[str, Any],
+) -> interface.OriginVisitWithStatuses:
+    return interface.OriginVisitWithStatuses(
+        visit=model.OriginVisit(**ovws["visit"]),
+        statuses=[model.OriginVisitStatus(**status) for status in ovws["statuses"]],
+    )
 
 
 def _decode_model_enum(d):
@@ -45,6 +63,11 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
     (swhids.ObjectType, "identifiers_enum", _encode_enum),
     (model.MetadataAuthorityType, "model_enum", _encode_enum),
     (interface.ListOrder, "storage_enum", _encode_enum),
+    (
+        interface.OriginVisitWithStatuses,
+        "origin_visit_with_statuses",
+        _encode_origin_visit_with_statuses,
+    ),
 ]
 
 
@@ -57,4 +80,5 @@ DECODERS: Dict[str, Callable] = {
     "swhids_enum": _decode_swhids_enum,
     "model_enum": _decode_model_enum,
     "storage_enum": _decode_storage_enum,
+    "origin_visit_with_statuses": _decode_origin_visit_with_statuses,
 }

@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import base64
-import collections
+from collections import defaultdict
 import datetime
 import itertools
 import operator
@@ -54,6 +54,7 @@ from swh.model.swhids import ObjectType as SwhidObjectType
 from swh.storage.interface import (
     VISIT_STATUSES,
     ListOrder,
+    OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
     Sha1,
@@ -406,7 +407,7 @@ class CassandraStorage:
 
             # Bucket the known contents by hash
             found_contents_by_hash: Dict[str, Dict[str, list]] = {
-                algo: collections.defaultdict(list) for algo in DEFAULT_ALGORITHMS
+                algo: defaultdict(list) for algo in DEFAULT_ALGORITHMS
             }
             for found_content in found_contents:
                 for algo in DEFAULT_ALGORITHMS:
@@ -1248,6 +1249,57 @@ class CassandraStorage:
             next_page_token = str(visits[-1].visit)
 
         return PagedResult(results=visits, next_page_token=next_page_token)
+
+    def origin_visit_get_with_statuses(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitWithStatuses]:
+        next_page_token = None
+        visit_from = None if page_token is None else int(page_token)
+        extra_limit = limit + 1
+
+        # First get visits (plus one so we can use it as the next page token if any)
+        rows = self._cql_runner.origin_visit_get(origin, visit_from, extra_limit, order)
+        visits: List[OriginVisit] = [converters.row_to_visit(row) for row in rows]
+
+        assert visits[0].visit is not None
+        assert visits[-1].visit is not None
+        visit_from = min(visits[0].visit, visits[-1].visit)
+        visit_to = max(visits[0].visit, visits[-1].visit)
+
+        # Then, fetch all statuses associated to these visits
+        statuses_rows = self._cql_runner.origin_visit_status_get_all_range(
+            origin, visit_from, visit_to
+        )
+        visit_statuses: Dict[int, List[OriginVisitStatus]] = defaultdict(list)
+        for status_row in statuses_rows:
+            if allowed_statuses and status_row.status not in allowed_statuses:
+                continue
+            if require_snapshot and status_row.snapshot is None:
+                continue
+            visit_status = converters.row_to_visit_status(status_row)
+            visit_statuses[visit_status.visit].append(visit_status)
+
+        # Add pagination if there are more visits
+        assert len(visits) <= extra_limit
+        if len(visits) == extra_limit:
+            # excluding that visit from the result to respect the limit size
+            visits = visits[:limit]
+            # last visit id is the next page token
+            next_page_token = str(visits[-1].visit)
+
+        results = [
+            OriginVisitWithStatuses(visit=visit, statuses=visit_statuses[visit.visit])
+            for visit in visits
+            if visit.visit is not None
+        ]
+
+        return PagedResult(results=results, next_page_token=next_page_token)
 
     def origin_visit_status_get(
         self,
