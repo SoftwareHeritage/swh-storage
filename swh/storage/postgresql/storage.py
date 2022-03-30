@@ -105,14 +105,43 @@ class Storage:
     """
 
     def __init__(
-        self, db, objstorage, min_pool_conns=1, max_pool_conns=10, journal_writer=None
+        self,
+        db,
+        objstorage,
+        min_pool_conns=1,
+        max_pool_conns=10,
+        journal_writer=None,
+        query_options=None,
     ):
-        """
+        """Instantiate a storage instance backed by a PostgreSQL database and an
+        objstorage.
+
+        When ``db`` is passed as a connection string, then this module automatically
+        manages a connection pool between ``min_pool_conns`` and ``max_pool_conns``.
+        When ``db`` is an explicit psycopg2 connection, then ``min_pool_conns`` and
+        ``max_pool_conns`` are ignored and the connection is used directly.
+
         Args:
-            db_conn: either a libpq connection string, or a psycopg2 connection
-            obj_root: path to the root of the object storage
+            db: either a libpq connection string, or a psycopg2 connection
+            objstorage: configuration for the backend :class:`ObjStorage`
+            min_pool_conns: min number of connections in the psycopg2 pool
+            max_pool_conns: max number of connections in the psycopg2 pool
+            journal_writer: configuration for the :class:`JournalWriter`
+            query_options: configuration for the sql connections; keys of the dict are
+               the method names decorated with :func:`db_transaction` or
+               :func:`db_transaction_generator` (eg. :func:`content_find`), and values
+               are dicts (config_name, config_value) used to configure the sql
+               connection for the method_name. For example, using::
+
+                  {"content_get": {"statement_timeout": 5000}}
+
+               will override the default statement timeout for the :func:`content_get`
+               endpoint from 500ms to 5000ms.
+
+               See :mod:`swh.core.db.common` for more details.
 
         """
+
         try:
             if isinstance(db, psycopg2.extensions.connection):
                 self._pool = None
@@ -127,9 +156,9 @@ class Storage:
                 self._db = None
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
-
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(objstorage)
+        self.query_options = query_options
 
     def get_db(self):
         if self._db:
