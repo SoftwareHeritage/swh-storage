@@ -1,5 +1,5 @@
 hypothesis >= 3.11.0
-pytest < 7.0.0  # v7.0.0 removed _pytest.tmpdir.TempdirFactory, which is used by some of the pytest plugins we use
+pytest
 
 pytest-mock
 # pytz is in fact a dep of swh.model[testing] and should not be necessary, but
