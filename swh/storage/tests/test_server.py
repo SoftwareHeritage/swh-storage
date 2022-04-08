@@ -62,7 +62,13 @@ def test_load_and_check_config_wrong_configuration(tmpdir):
 
 def test_load_and_check_config_local_config_fine(tmpdir):
     """'local' complete configuration is fine"""
-    config = {"storage": {"cls": "postgresql", "db": "db", "objstorage": "something",}}
+    config = {
+        "storage": {
+            "cls": "postgresql",
+            "db": "db",
+            "objstorage": "something",
+        }
+    }
     config_path = prepare_config_file(tmpdir, config)
     cfg = load_and_check_config(config_path)
     assert cfg == config

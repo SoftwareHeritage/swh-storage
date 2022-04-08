@@ -206,7 +206,7 @@ class _RevisionChangesList(object):
 
 
 def _diff_elts_same_name(changes, it):
-    """"
+    """ "
     Compare two directory entries with the same name and add adequate
     changes if any.
 

@@ -34,9 +34,7 @@ TEST_CONFIG = {
 
 
 def test_config_ko_missing_mandatory_key():
-    """Missing configuration key will make the initialization fail
-
-    """
+    """Missing configuration key will make the initialization fail"""
     for key in TEST_CONFIG.keys():
         config = TEST_CONFIG.copy()
         config.pop(key)
@@ -51,9 +49,7 @@ def test_config_ko_missing_mandatory_key():
 
 
 def test_config_ko_unknown_object_type():
-    """Parse arguments will fail if the object type is unknown
-
-    """
+    """Parse arguments will fail if the object type is unknown"""
     backfiller = JournalBackfiller(TEST_CONFIG)
     with pytest.raises(ValueError) as e:
         backfiller.parse_arguments("unknown-object-type", 1, 2)
@@ -177,7 +173,7 @@ where (release.id) >= %s and (release.id) < %s
 def test_byte_ranges(numbits):
     ranges = list(byte_ranges(numbits))
 
-    assert len(ranges) == 2 ** numbits
+    assert len(ranges) == 2**numbits
     assert ranges[0][0] is None
     assert ranges[-1][1] is None
 

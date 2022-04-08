@@ -203,9 +203,7 @@ def collision_aware_content_add(
 def _insert_objects(
     object_type: str, objects: List[BaseModel], storage: StorageInterface
 ) -> None:
-    """Insert objects of type object_type in the storage.
-
-    """
+    """Insert objects of type object_type in the storage."""
     if object_type not in OBJECT_CONVERTERS:
         logger.warning("Received a series of %s, this should not happen", object_type)
         return

@@ -22,7 +22,8 @@ from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage.migrate_extrinsic_metadata import cran_package_from_url, handle_row
 
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY,
@@ -72,9 +73,21 @@ def test_cran():
     row = {
         "id": b"\x00\x03a\xaa3\x84,\xbd\xea_\xa6\xe7}\xb6\x96\xb97\xeb\xd2i",
         "directory": DIRECTORY_ID,
-        "date": datetime.datetime(2020, 5, 5, 0, 0, tzinfo=datetime.timezone.utc,),
+        "date": datetime.datetime(
+            2020,
+            5,
+            5,
+            0,
+            0,
+            tzinfo=datetime.timezone.utc,
+        ),
         "committer_date": datetime.datetime(
-            2020, 5, 5, 0, 0, tzinfo=datetime.timezone.utc,
+            2020,
+            5,
+            5,
+            0,
+            0,
+            tzinfo=datetime.timezone.utc,
         ),
         "type": "tar",
         "message": b"0.0.3",
@@ -121,7 +134,14 @@ def test_cran():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2020, 5, 7, 15, 27, 38, 652281, tzinfo=datetime.timezone.utc,
+                        2020,
+                        5,
+                        7,
+                        15,
+                        27,
+                        38,
+                        652281,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,
@@ -209,7 +229,14 @@ def test_cran_without_revision_date():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2020, 4, 30, 11, 1, 57, 832481, tzinfo=datetime.timezone.utc,
+                        2020,
+                        4,
+                        30,
+                        11,
+                        1,
+                        57,
+                        832481,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,
@@ -286,7 +313,14 @@ def test_cran_with_new_original_artifacts_format():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2020, 9, 25, 14, 4, 20, 926667, tzinfo=datetime.timezone.utc,
+                        2020,
+                        9,
+                        25,
+                        14,
+                        4,
+                        20,
+                        926667,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,

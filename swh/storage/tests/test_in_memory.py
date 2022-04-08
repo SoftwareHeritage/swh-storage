@@ -23,7 +23,9 @@ from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 def swh_storage_backend_config():
     yield {
         "cls": "memory",
-        "journal_writer": {"cls": "memory",},
+        "journal_writer": {
+            "cls": "memory",
+        },
     }
 
 

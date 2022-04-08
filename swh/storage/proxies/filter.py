@@ -110,7 +110,12 @@ class FilteringProxyStorage:
         for content in contents:
             missing_contents.append(content.hashes())
 
-        return set(self.storage.content_missing(missing_contents, key_hash="sha256",))
+        return set(
+            self.storage.content_missing(
+                missing_contents,
+                key_hash="sha256",
+            )
+        )
 
     def _filter_missing_skipped_contents(
         self, contents: List[SkippedContent]

@@ -163,10 +163,10 @@ def load_and_check_config(config_path: Optional[str]) -> Dict[str, Any]:
 
 def make_app_from_configfile() -> StorageServerApp:
     """Run the WSGI app from the webserver, loading the configuration from
-       a configuration file.
+    a configuration file.
 
-       SWH_CONFIG_FILENAME environment variable defines the
-       configuration path to load.
+    SWH_CONFIG_FILENAME environment variable defines the
+    configuration path to load.
 
     """
     global api_cfg

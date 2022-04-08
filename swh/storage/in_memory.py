@@ -205,7 +205,10 @@ class InMemoryCqlRunner:
         return self._contents.get_random()
 
     def content_get_token_range(
-        self, start: int, end: int, limit: int,
+        self,
+        start: int,
+        end: int,
+        limit: int,
     ) -> Iterable[Tuple[int, ContentRow]]:
         matches = [
             (token, row)
@@ -422,7 +425,9 @@ class InMemoryCqlRunner:
         self._snapshot_branches.insert(branch)
 
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
+        self,
+        snapshot_id: Sha1Git,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Dict[Optional[str], int]:
         """Returns a dictionary from type names to the number of branches
         of that type."""
@@ -506,7 +511,11 @@ class InMemoryCqlRunner:
     ##########################
 
     def origin_visit_get(
-        self, origin_url: str, last_visit: Optional[int], limit: int, order: ListOrder,
+        self,
+        origin_url: str,
+        last_visit: Optional[int],
+        limit: int,
+        order: ListOrder,
     ) -> Iterable[OriginVisitRow]:
         visits = list(self._origin_visits.get_from_partition_key((origin_url,)))
 
@@ -585,19 +594,19 @@ class InMemoryCqlRunner:
         self.increment_counter("origin_visit_status", 1)
 
     def origin_visit_status_get_latest(
-        self, origin: str, visit: int,
+        self,
+        origin: str,
+        visit: int,
     ) -> Optional[OriginVisitStatusRow]:
-        """Given an origin visit id, return its latest origin_visit_status
-
-         """
+        """Given an origin visit id, return its latest origin_visit_status"""
         return next(self.origin_visit_status_get(origin, visit), None)
 
     def origin_visit_status_get(
-        self, origin: str, visit: int,
+        self,
+        origin: str,
+        visit: int,
     ) -> Iterator[OriginVisitStatusRow]:
-        """Return all origin visit statuses for a given visit
-
-        """
+        """Return all origin visit statuses for a given visit"""
         statuses = [
             s
             for s in self._origin_visit_statuses.get_from_partition_key((origin,))
@@ -607,9 +616,7 @@ class InMemoryCqlRunner:
         return iter(statuses)
 
     def origin_snapshot_get_all(self, origin: str) -> Iterator[Sha1Git]:
-        """Return all snapshots for a given origin
-
-        """
+        """Return all snapshots for a given origin"""
         return iter(
             {
                 s.snapshot
@@ -728,7 +735,11 @@ class InMemoryCqlRunner:
         pass
 
     def extid_get_from_pk(
-        self, extid_type: str, extid: bytes, extid_version: int, target: ExtendedSWHID,
+        self,
+        extid_type: str,
+        extid: bytes,
+        extid_version: int,
+        target: ExtendedSWHID,
     ) -> Optional[ExtIDRow]:
         primary_key = self._extid.primary_key_from_dict(
             dict(
@@ -742,7 +753,9 @@ class InMemoryCqlRunner:
         return self._extid.get_from_primary_key(primary_key)
 
     def extid_get_from_extid(
-        self, extid_type: str, extid: bytes,
+        self,
+        extid_type: str,
+        extid: bytes,
     ) -> Iterable[ExtIDRow]:
         return (
             row
@@ -751,7 +764,10 @@ class InMemoryCqlRunner:
         )
 
     def extid_get_from_extid_and_version(
-        self, extid_type: str, extid: bytes, extid_version: int,
+        self,
+        extid_type: str,
+        extid: bytes,
+        extid_version: int,
     ) -> Iterable[ExtIDRow]:
         return (
             row
@@ -762,7 +778,11 @@ class InMemoryCqlRunner:
         )
 
     def _extid_get_from_target_with_type_and_version(
-        self, target_type: str, target: bytes, extid_type: str, extid_version: int,
+        self,
+        target_type: str,
+        target: bytes,
+        extid_type: str,
+        extid_version: int,
     ) -> Iterable[ExtIDRow]:
         return (
             row
@@ -774,7 +794,9 @@ class InMemoryCqlRunner:
         )
 
     def _extid_get_from_target(
-        self, target_type: str, target: bytes,
+        self,
+        target_type: str,
+        target: bytes,
     ) -> Iterable[ExtIDRow]:
         return (
             row

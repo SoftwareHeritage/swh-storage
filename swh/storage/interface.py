@@ -802,7 +802,9 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("snapshot/count_branches")
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
+        self,
+        snapshot_id: Sha1Git,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[Dict[Optional[str], int]]:
         """Count the number of branches in the snapshot with the given id
 
@@ -888,7 +890,8 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("origin/visit_status/add")
     def origin_visit_status_add(
-        self, visit_statuses: List[OriginVisitStatus],
+        self,
+        visit_statuses: List[OriginVisitStatus],
     ) -> Dict[str, int]:
         """Add origin visit statuses.
 
@@ -1256,7 +1259,8 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("raw_extrinsic_metadata/add")
     def raw_extrinsic_metadata_add(
-        self, metadata: List[RawExtrinsicMetadata],
+        self,
+        metadata: List[RawExtrinsicMetadata],
     ) -> Dict[str, int]:
         """Add extrinsic metadata on objects (contents, directories, ...).
 
@@ -1319,7 +1323,10 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("metadata_fetcher/add")
-    def metadata_fetcher_add(self, fetchers: List[MetadataFetcher],) -> Dict[str, int]:
+    def metadata_fetcher_add(
+        self,
+        fetchers: List[MetadataFetcher],
+    ) -> Dict[str, int]:
         """Add new metadata fetchers to the storage.
 
         Their `name` and `version` together are unique identifiers of this

@@ -34,7 +34,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                timestamp=Timestamp(
+                    seconds=1234567890,
+                    microseconds=0,
+                ),
                 offset_bytes=b"+0200",
             ),
             {
@@ -46,7 +49,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=1123456789, microseconds=0,),
+                timestamp=Timestamp(
+                    seconds=1123456789,
+                    microseconds=0,
+                ),
                 offset_bytes=b"-0000",
             ),
             {
@@ -58,7 +64,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                timestamp=Timestamp(
+                    seconds=1234567890,
+                    microseconds=0,
+                ),
                 offset_bytes=b"+0042",
             ),
             {
@@ -70,7 +79,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=1634366813, microseconds=0,),
+                timestamp=Timestamp(
+                    seconds=1634366813,
+                    microseconds=0,
+                ),
                 offset_bytes=b"-0200",
             ),
             {
@@ -82,7 +94,11 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=0, microseconds=0,), offset_bytes=b"-0200",
+                timestamp=Timestamp(
+                    seconds=0,
+                    microseconds=0,
+                ),
+                offset_bytes=b"-0200",
             ),
             {
                 "timestamp": "1970-01-01T00:00:00+00:00",
@@ -93,7 +109,11 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=0, microseconds=1,), offset_bytes=b"-0200",
+                timestamp=Timestamp(
+                    seconds=0,
+                    microseconds=1,
+                ),
+                offset_bytes=b"-0200",
             ),
             {
                 "timestamp": "1970-01-01T00:00:00.000001+00:00",
@@ -104,7 +124,11 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=-1, microseconds=0,), offset_bytes=b"-0200",
+                timestamp=Timestamp(
+                    seconds=-1,
+                    microseconds=0,
+                ),
+                offset_bytes=b"-0200",
             ),
             {
                 "timestamp": "1969-12-31T23:59:59+00:00",
@@ -115,7 +139,11 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=-1, microseconds=1,), offset_bytes=b"-0200",
+                timestamp=Timestamp(
+                    seconds=-1,
+                    microseconds=1,
+                ),
+                offset_bytes=b"-0200",
             ),
             {
                 "timestamp": "1969-12-31T23:59:59.000001+00:00",
@@ -126,7 +154,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=-3600, microseconds=0,),
+                timestamp=Timestamp(
+                    seconds=-3600,
+                    microseconds=0,
+                ),
                 offset_bytes=b"-0200",
             ),
             {
@@ -138,7 +169,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=-3600, microseconds=1,),
+                timestamp=Timestamp(
+                    seconds=-3600,
+                    microseconds=1,
+                ),
                 offset_bytes=b"-0200",
             ),
             {
@@ -150,7 +184,10 @@ from swh.storage.postgresql import converters
         ),
         (
             TimestampWithTimezone(
-                timestamp=Timestamp(seconds=1234567890, microseconds=0,),
+                timestamp=Timestamp(
+                    seconds=1234567890,
+                    microseconds=0,
+                ),
                 offset_bytes=b"+200",
             ),
             {
@@ -230,11 +267,15 @@ def test_db_to_revision():
     assert actual_revision == Revision(
         id=b"revision-id",
         author=Person(
-            fullname=b"auth-name <auth-email>", name=b"auth-name", email=b"auth-email",
+            fullname=b"auth-name <auth-email>",
+            name=b"auth-name",
+            email=b"auth-email",
         ),
         date=None,
         committer=Person(
-            fullname=b"comm-name <comm-email>", name=b"comm-name", email=b"comm-email",
+            fullname=b"comm-name <comm-email>",
+            name=b"comm-name",
+            email=b"comm-email",
         ),
         committer_date=None,
         type=RevisionType.GIT,
@@ -271,7 +312,9 @@ def test_db_to_release():
     # then
     assert actual_release == Release(
         author=Person(
-            fullname=b"auth-name <auth-email>", name=b"auth-name", email=b"auth-email",
+            fullname=b"auth-name <auth-email>",
+            name=b"auth-name",
+            email=b"auth-email",
         ),
         date=None,
         id=b"release-id",

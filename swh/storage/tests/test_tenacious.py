@@ -39,7 +39,9 @@ collections = {
 def swh_storage_backend_config2():
     yield {
         "cls": "memory",
-        "journal_writer": {"cls": "memory",},
+        "journal_writer": {
+            "cls": "memory",
+        },
     }
 
 
@@ -49,7 +51,12 @@ def swh_storage():
         "cls": "pipeline",
         "steps": [
             {"cls": "tenacious"},
-            {"cls": "memory", "journal_writer": {"cls": "memory",}},
+            {
+                "cls": "memory",
+                "journal_writer": {
+                    "cls": "memory",
+                },
+            },
         ],
     }
 

@@ -38,7 +38,8 @@ from swh.storage.interface import ListOrder, PagedResult
 from swh.storage.migrate_extrinsic_metadata import debian_origins_from_row, handle_row
 
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY,
@@ -71,7 +72,14 @@ def test_debian_origins_from_row():
     visit = OriginVisit(
         origin=origin_url,
         date=datetime.datetime(
-            2020, 1, 27, 19, 32, 3, 925498, tzinfo=datetime.timezone.utc,
+            2020,
+            1,
+            27,
+            19,
+            32,
+            3,
+            925498,
+            tzinfo=datetime.timezone.utc,
         ),
         type="deb",
         visit=280,
@@ -147,14 +155,27 @@ def test_debian_origins_from_row__no_result():
     revision_row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
         "directory": DIRECTORY_ID,
-        "metadata": {"original_artifact": [{"filename": "kalgebra_19.12.1-1.dsc",},]},
+        "metadata": {
+            "original_artifact": [
+                {
+                    "filename": "kalgebra_19.12.1-1.dsc",
+                },
+            ]
+        },
     }
 
     # no visit
     assert debian_origins_from_row(revision_row, storage) == []
 
     storage.origin_visit_add(
-        [OriginVisit(origin=origin_url, date=now(), type="deb", visit=280,)]
+        [
+            OriginVisit(
+                origin=origin_url,
+                date=now(),
+                type="deb",
+                visit=280,
+            )
+        ]
     )
 
     # no status
@@ -187,7 +208,12 @@ def test_debian_origins_from_row__no_result():
     # "remove" the snapshot, so we can add a new one with the same id
     storage = copy.deepcopy(storage_before_snapshot)
 
-    snapshot = attr.evolve(snapshot, branches={b"foo": None,},)
+    snapshot = attr.evolve(
+        snapshot,
+        branches={
+            b"foo": None,
+        },
+    )
     storage.snapshot_add([snapshot])
 
     # dangling branch
@@ -199,7 +225,10 @@ def test_debian_origins_from_row__no_result():
     snapshot = attr.evolve(
         snapshot,
         branches={
-            b"foo": SnapshotBranch(target_type=TargetType.REVISION, target=revision_id,)
+            b"foo": SnapshotBranch(
+                target_type=TargetType.REVISION,
+                target=revision_id,
+            )
         },
     )
     storage.snapshot_add([snapshot])
@@ -248,7 +277,13 @@ def test_debian_origins_from_row__check_revisions():
     revision_row = {
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
         "directory": DIRECTORY_ID,
-        "metadata": {"original_artifact": [{"filename": "kalgebra_19.12.1-1.dsc",},]},
+        "metadata": {
+            "original_artifact": [
+                {
+                    "filename": "kalgebra_19.12.1-1.dsc",
+                },
+            ]
+        },
     }
 
     storage.origin_visit_add(
@@ -363,7 +398,13 @@ def test_debian_with_extrinsic():
         "id": b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
         "directory": DIRECTORY_ID,
         "date": datetime.datetime(
-            2020, 1, 26, 22, 3, 24, tzinfo=datetime.timezone.utc,
+            2020,
+            1,
+            26,
+            22,
+            3,
+            24,
+            tzinfo=datetime.timezone.utc,
         ),
         "date_offset": 60,
         "type": "dsc",
@@ -436,7 +477,13 @@ def test_debian_with_extrinsic():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2020, 1, 26, 22, 3, 24, tzinfo=datetime.timezone.utc,
+                        2020,
+                        1,
+                        26,
+                        22,
+                        3,
+                        24,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,
