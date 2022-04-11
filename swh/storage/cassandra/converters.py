@@ -82,13 +82,14 @@ def release_to_db(release: Release) -> ReleaseRow:
 
 def release_from_db(db_release: ReleaseRow) -> Release:
     release = db_release.to_dict()
-    return Release(target_type=ObjectType(release.pop("target_type")), **release,)
+    return Release(
+        target_type=ObjectType(release.pop("target_type")),
+        **release,
+    )
 
 
 def row_to_content_hashes(row: ReleaseRow) -> Dict[str, bytes]:
-    """Convert cassandra row to a content hashes
-
-    """
+    """Convert cassandra row to a content hashes"""
     hashes = {}
     for algo in DEFAULT_ALGORITHMS:
         hashes[algo] = getattr(row, algo)
@@ -96,9 +97,7 @@ def row_to_content_hashes(row: ReleaseRow) -> Dict[str, bytes]:
 
 
 def row_to_visit(row: OriginVisitRow) -> OriginVisit:
-    """Format a row representing an origin_visit to an actual OriginVisit.
-
-    """
+    """Format a row representing an origin_visit to an actual OriginVisit."""
     return OriginVisit(
         origin=row.origin,
         visit=row.visit,
@@ -108,9 +107,7 @@ def row_to_visit(row: OriginVisitRow) -> OriginVisit:
 
 
 def row_to_visit_status(row: OriginVisitStatusRow) -> OriginVisitStatus:
-    """Format a row representing a visit_status to an actual OriginVisitStatus.
-
-    """
+    """Format a row representing a visit_status to an actual OriginVisitStatus."""
     return OriginVisitStatus.from_dict(
         {
             **row.to_dict(),
@@ -131,9 +128,13 @@ def row_to_raw_extrinsic_metadata(row: RawExtrinsicMetadataRow) -> RawExtrinsicM
     return RawExtrinsicMetadata(
         target=ExtendedSWHID.from_string(row.target),
         authority=MetadataAuthority(
-            type=MetadataAuthorityType(row.authority_type), url=row.authority_url,
+            type=MetadataAuthorityType(row.authority_type),
+            url=row.authority_url,
         ),
-        fetcher=MetadataFetcher(name=row.fetcher_name, version=row.fetcher_version,),
+        fetcher=MetadataFetcher(
+            name=row.fetcher_name,
+            version=row.fetcher_version,
+        ),
         discovery_date=discovery_date,
         format=row.format,
         metadata=row.metadata,

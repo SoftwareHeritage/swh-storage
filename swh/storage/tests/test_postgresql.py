@@ -92,9 +92,9 @@ class TestStorageRaceConditions:
 @pytest.mark.db
 class TestPgStorage:
     """This class is dedicated for the rare case where the schema needs to
-       be altered dynamically.
+    be altered dynamically.
 
-       Otherwise, the tests could be blocking when ran altogether.
+    Otherwise, the tests could be blocking when ran altogether.
 
     """
 
@@ -347,11 +347,13 @@ class TestPgStorage:
 
         # Make authors known
         release = attr.evolve(
-            release, author=Person.from_fullname(b"author1 <author1@example.com>"),
+            release,
+            author=Person.from_fullname(b"author1 <author1@example.com>"),
         )
         release = attr.evolve(release, id=release.compute_hash())
         release2 = attr.evolve(
-            release2, author=Person.from_fullname(b"author2 <author2@example.com>"),
+            release2,
+            author=Person.from_fullname(b"author2 <author2@example.com>"),
         )
         release2 = attr.evolve(release2, id=release2.compute_hash())
 
@@ -382,15 +384,11 @@ class TestPgStorage:
         assert releases == [release, release2]
 
     def test_clear_buffers(self, swh_storage):
-        """Calling clear buffers on real storage does nothing
-
-        """
+        """Calling clear buffers on real storage does nothing"""
         assert swh_storage.clear_buffers() is None
 
     def test_flush(self, swh_storage):
-        """Calling clear buffers on real storage does nothing
-
-        """
+        """Calling clear buffers on real storage does nothing"""
         assert swh_storage.flush() == {}
 
     def test_dbversion(self, swh_storage):

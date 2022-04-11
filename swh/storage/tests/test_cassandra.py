@@ -152,7 +152,10 @@ def cassandra_cluster(tmpdir_factory):
         resource.setrlimit(resource.RLIMIT_NOFILE, (200000, 200000))
 
         proc = subprocess.Popen(
-            [cassandra_bin, "--developer-mode=1",],
+            [
+                cassandra_bin,
+                "--developer-mode=1",
+            ],
             start_new_session=True,
             env=env,
             stdout=stdout,
@@ -283,7 +286,9 @@ class TestCassandraStorage(_TestStorage):
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
+            swh_storage._cql_runner,
+            "content_get_tokens_from_single_algo",
+            mock_cgtfsa,
         )
 
         # For all tokens, always return cont
@@ -331,7 +336,9 @@ class TestCassandraStorage(_TestStorage):
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
+            swh_storage._cql_runner,
+            "content_get_tokens_from_single_algo",
+            mock_cgtfsa,
         )
 
         # For all tokens, always return cont and cont2
@@ -341,7 +348,9 @@ class TestCassandraStorage(_TestStorage):
             nonlocal called
             called += 1
             return [
-                ContentRow(**{col: getattr(cont, col) for col in cols},)
+                ContentRow(
+                    **{col: getattr(cont, col) for col in cols},
+                )
                 for cont in [cont, cont2]
             ]
 
@@ -376,7 +385,9 @@ class TestCassandraStorage(_TestStorage):
             return [123456]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "content_get_tokens_from_single_algo", mock_cgtfsa,
+            swh_storage._cql_runner,
+            "content_get_tokens_from_single_algo",
+            mock_cgtfsa,
         )
 
         # For all tokens, always return cont and cont2
@@ -480,7 +491,9 @@ class TestCassandraStorage(_TestStorage):
             ]
 
         mocker.patch.object(
-            swh_storage._cql_runner, "extid_get_from_token", mock_egft,
+            swh_storage._cql_runner,
+            "extid_get_from_token",
+            mock_egft,
         )
 
         for extid in sample_data.extids:
@@ -518,7 +531,12 @@ class TestCassandraStorage(_TestStorage):
         ],
     )
     def test_directory_add_algos(
-        self, swh_storage, sample_data, mocker, insert_algo, nb_entries,
+        self,
+        swh_storage,
+        sample_data,
+        mocker,
+        insert_algo,
+        nb_entries,
     ):
         mocker.patch.object(swh_storage, "_directory_entries_insert_algo", insert_algo)
 
@@ -588,7 +606,11 @@ class TestCassandraStorage(_TestStorage):
         should_raise = True
 
         snapshot = attr.evolve(
-            snapshot, branches={**branches, b"crashy": crashy_branch,},
+            snapshot,
+            branches={
+                **branches,
+                b"crashy": crashy_branch,
+            },
         )
 
         with pytest.raises(MyException):

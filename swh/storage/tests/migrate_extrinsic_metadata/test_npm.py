@@ -25,10 +25,13 @@ from swh.storage.migrate_extrinsic_metadata import (
 )
 
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 NPM_AUTHORITY = MetadataAuthority(
-    type=MetadataAuthorityType.FORGE, url="https://npmjs.com/", metadata={},
+    type=MetadataAuthorityType.FORGE,
+    url="https://npmjs.com/",
+    metadata={},
 )
 SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY,
@@ -145,7 +148,14 @@ def test_npm_1():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2020, 2, 27, 1, 35, 47, 965375, tzinfo=datetime.timezone.utc,
+                        2020,
+                        2,
+                        27,
+                        1,
+                        35,
+                        47,
+                        965375,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=NPM_AUTHORITY,
                     fetcher=FETCHER,
@@ -163,7 +173,14 @@ def test_npm_1():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2020, 2, 27, 1, 35, 47, 965375, tzinfo=datetime.timezone.utc,
+                        2020,
+                        2,
+                        27,
+                        1,
+                        35,
+                        47,
+                        965375,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,
@@ -226,7 +243,10 @@ def test_npm_2_unscoped():
         ),
         "type": "tar",
         "message": b"0.0.6",
-        "metadata": {"package": extrinsic_metadata, "package_source": package_source,},
+        "metadata": {
+            "package": extrinsic_metadata,
+            "package_source": package_source,
+        },
     }
 
     origin_url = "https://www.npmjs.com/package/simplemaps"
@@ -248,7 +268,13 @@ def test_npm_2_unscoped():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2016, 12, 23, 7, 21, 29, tzinfo=datetime.timezone.utc,
+                        2016,
+                        12,
+                        23,
+                        7,
+                        21,
+                        29,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=NPM_AUTHORITY,
                     fetcher=FETCHER,
@@ -266,7 +292,13 @@ def test_npm_2_unscoped():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2016, 12, 23, 7, 21, 29, tzinfo=datetime.timezone.utc,
+                        2016,
+                        12,
+                        23,
+                        7,
+                        21,
+                        29,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,
@@ -325,7 +357,10 @@ def test_npm_2_scoped():
         ),
         "type": "tar",
         "message": b"0.1.11",
-        "metadata": {"package": extrinsic_metadata, "package_source": package_source,},
+        "metadata": {
+            "package": extrinsic_metadata,
+            "package_source": package_source,
+        },
     }
 
     origin_url = "https://www.npmjs.com/package/@piximi/components"
@@ -347,7 +382,13 @@ def test_npm_2_scoped():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2019, 6, 7, 19, 56, 4, tzinfo=datetime.timezone.utc,
+                        2019,
+                        6,
+                        7,
+                        19,
+                        56,
+                        4,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=NPM_AUTHORITY,
                     fetcher=FETCHER,
@@ -365,7 +406,13 @@ def test_npm_2_scoped():
                 RawExtrinsicMetadata(
                     target=DIRECTORY_SWHID,
                     discovery_date=datetime.datetime(
-                        2019, 6, 7, 19, 56, 4, tzinfo=datetime.timezone.utc,
+                        2019,
+                        6,
+                        7,
+                        19,
+                        56,
+                        4,
+                        tzinfo=datetime.timezone.utc,
                     ),
                     authority=SWH_AUTHORITY,
                     fetcher=FETCHER,

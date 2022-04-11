@@ -28,7 +28,9 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
     }
     storage_config: Dict[str, Any] = {
         "cls": "pipeline",
-        "steps": [{"cls": "memory", "journal_writer": writer_config},],
+        "steps": [
+            {"cls": "memory", "journal_writer": writer_config},
+        ],
     }
 
     storage = get_storage(**storage_config)
@@ -103,7 +105,9 @@ def test_storage_direct_writer_anonymized(
     }
     storage_config: Dict[str, Any] = {
         "cls": "pipeline",
-        "steps": [{"cls": "memory", "journal_writer": writer_config},],
+        "steps": [
+            {"cls": "memory", "journal_writer": writer_config},
+        ],
     }
 
     storage = get_storage(**storage_config)
@@ -142,7 +146,11 @@ def test_storage_direct_writer_anonymized(
             "skipped_content",
         )
     } | {
-        f"{kafka_prefix}_privileged.{obj_type}" for obj_type in ("release", "revision",)
+        f"{kafka_prefix}_privileged.{obj_type}"
+        for obj_type in (
+            "release",
+            "revision",
+        )
     }
 
 

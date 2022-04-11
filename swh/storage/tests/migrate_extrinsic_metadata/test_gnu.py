@@ -22,7 +22,8 @@ from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage.migrate_extrinsic_metadata import cran_package_from_url, handle_row
 
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY,

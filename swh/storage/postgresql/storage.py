@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -47,6 +47,7 @@ from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBEr
 from swh.storage.interface import (
     VISIT_STATUSES,
     ListOrder,
+    OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
 )
@@ -100,19 +101,46 @@ def convert_validation_exceptions():
 
 
 class Storage:
-    """SWH storage proxy, encompassing DB and object storage
-
-    """
+    """SWH storage proxy, encompassing DB and object storage"""
 
     def __init__(
-        self, db, objstorage, min_pool_conns=1, max_pool_conns=10, journal_writer=None
+        self,
+        db,
+        objstorage,
+        min_pool_conns=1,
+        max_pool_conns=10,
+        journal_writer=None,
+        query_options=None,
     ):
-        """
+        """Instantiate a storage instance backed by a PostgreSQL database and an
+        objstorage.
+
+        When ``db`` is passed as a connection string, then this module automatically
+        manages a connection pool between ``min_pool_conns`` and ``max_pool_conns``.
+        When ``db`` is an explicit psycopg2 connection, then ``min_pool_conns`` and
+        ``max_pool_conns`` are ignored and the connection is used directly.
+
         Args:
-            db_conn: either a libpq connection string, or a psycopg2 connection
-            obj_root: path to the root of the object storage
+            db: either a libpq connection string, or a psycopg2 connection
+            objstorage: configuration for the backend :class:`ObjStorage`
+            min_pool_conns: min number of connections in the psycopg2 pool
+            max_pool_conns: max number of connections in the psycopg2 pool
+            journal_writer: configuration for the :class:`JournalWriter`
+            query_options: configuration for the sql connections; keys of the dict are
+               the method names decorated with :func:`db_transaction` or
+               :func:`db_transaction_generator` (eg. :func:`content_find`), and values
+               are dicts (config_name, config_value) used to configure the sql
+               connection for the method_name. For example, using::
+
+                  {"content_get": {"statement_timeout": 5000}}
+
+               will override the default statement timeout for the :func:`content_get`
+               endpoint from 500ms to 5000ms.
+
+               See :mod:`swh.core.db.common` for more details.
 
         """
+
         try:
             if isinstance(db, psycopg2.extensions.connection):
                 self._pool = None
@@ -127,9 +155,9 @@ class Storage:
                 self._db = None
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
-
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(objstorage)
+        self.query_options = query_options
 
     def get_db(self):
         if self._db:
@@ -184,7 +212,7 @@ class Storage:
 
     def _content_unique_key(self, hash, db):
         """Given a hash (tuple or dict), return a unique key from the
-           aggregation of keys.
+        aggregation of keys.
 
         """
         keys = db.content_hash_keys
@@ -193,8 +221,7 @@ class Storage:
         return tuple([hash[k] for k in keys])
 
     def _content_add_metadata(self, db, cur, content):
-        """Add content to the postgresql database but not the object storage.
-        """
+        """Add content to the postgresql database but not the object storage."""
         # create temporary table for metadata injection
         db.mktemp("content", cur)
 
@@ -280,7 +307,10 @@ class Storage:
         self, content: List[Content], *, db: Db, cur=None
     ) -> Dict[str, int]:
         missing = self.content_missing(
-            (c.to_dict() for c in content), key_hash="sha1_git", db=db, cur=cur,
+            (c.to_dict() for c in content),
+            key_hash="sha1_git",
+            db=db,
+            cur=cur,
         )
         contents = [c for c in content if c.sha1_git in missing]
 
@@ -448,7 +478,9 @@ class Storage:
         content = [attr.evolve(c, ctime=ctime) for c in content]
 
         missing_contents = self.skipped_content_missing(
-            (c.to_dict() for c in content), db=db, cur=cur,
+            (c.to_dict() for c in content),
+            db=db,
+            cur=cur,
         )
         content = [
             c
@@ -900,7 +932,9 @@ class Storage:
             [
                 bc
                 for bc in db.snapshot_count_branches(
-                    snapshot_id, branch_name_exclude_prefix, cur,
+                    snapshot_id,
+                    branch_name_exclude_prefix,
+                    cur,
                 )
             ]
         )
@@ -920,7 +954,11 @@ class Storage:
     ) -> Optional[PartialBranches]:
 
         if snapshot_id == EMPTY_SNAPSHOT_ID:
-            return PartialBranches(id=snapshot_id, branches={}, next_branch=None,)
+            return PartialBranches(
+                id=snapshot_id,
+                branches={},
+                next_branch=None,
+            )
 
         if list(self.snapshot_missing([snapshot_id])):
             return None
@@ -962,7 +1000,9 @@ class Storage:
             )["name"]
 
         return PartialBranches(
-            id=snapshot_id, branches=branches, next_branch=next_branch,
+            id=snapshot_id,
+            branches=branches,
+            next_branch=next_branch,
         )
 
     @db_transaction()
@@ -1013,7 +1053,11 @@ class Storage:
 
     @db_transaction()
     def origin_visit_status_add(
-        self, visit_statuses: List[OriginVisitStatus], *, db: Db, cur=None,
+        self,
+        visit_statuses: List[OriginVisitStatus],
+        *,
+        db: Db,
+        cur=None,
     ) -> Dict[str, int]:
         visit_statuses_ = []
 
@@ -1109,6 +1153,66 @@ class Storage:
 
         return PagedResult(results=visits, next_page_token=next_page_token)
 
+    @db_transaction(statement_timeout=500)
+    def origin_visit_get_with_statuses(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+        *,
+        db: Db,
+        cur=None,
+    ) -> PagedResult[OriginVisitWithStatuses]:
+        page_token = page_token or "0"
+        if not isinstance(order, ListOrder):
+            raise StorageArgumentException("order must be a ListOrder value")
+        if not isinstance(page_token, str):
+            raise StorageArgumentException("page_token must be a string.")
+
+        # First get visits (plus one so we can use it as the next page token if any)
+        visits_page = self.origin_visit_get(
+            origin=origin,
+            page_token=page_token,
+            order=order,
+            limit=limit,
+            db=db,
+            cur=cur,
+        )
+
+        visits = visits_page.results
+        next_page_token = visits_page.next_page_token
+
+        if visits:
+
+            visit_from = min(visits[0].visit, visits[-1].visit)
+            visit_to = max(visits[0].visit, visits[-1].visit)
+
+            # Then, fetch all statuses associated to these visits
+            visit_statuses: Dict[int, List[OriginVisitStatus]] = defaultdict(list)
+            for row in db.origin_visit_status_get_all_in_range(
+                origin,
+                allowed_statuses,
+                require_snapshot,
+                visit_from=visit_from,
+                visit_to=visit_to,
+                cur=cur,
+            ):
+                row_d = dict(zip(db.origin_visit_status_cols, row))
+
+                visit_statuses[row_d["visit"]].append(OriginVisitStatus(**row_d))
+
+            results = [
+                OriginVisitWithStatuses(
+                    visit=visit, statuses=visit_statuses[visit.visit]
+                )
+                for visit in visits
+            ]
+
+        return PagedResult(results=results, next_page_token=next_page_token)
+
     @db_transaction(statement_timeout=1000)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
@@ -1193,7 +1297,12 @@ class Storage:
         visit_statuses: List[OriginVisitStatus] = []
         # Take one more visit status so we can reuse it as the next page token if any
         for row in db.origin_visit_status_get_range(
-            origin, visit, date_from=date_from, order=order, limit=limit + 1, cur=cur,
+            origin,
+            visit,
+            date_from=date_from,
+            order=order,
+            limit=limit + 1,
+            cur=cur,
         ):
             row_d = dict(zip(db.origin_visit_status_cols, row))
             visit_statuses.append(OriginVisitStatus(**row_d))
@@ -1376,7 +1485,10 @@ class Storage:
 
     @db_transaction()
     def raw_extrinsic_metadata_add(
-        self, metadata: List[RawExtrinsicMetadata], db, cur,
+        self,
+        metadata: List[RawExtrinsicMetadata],
+        db,
+        cur,
     ) -> Dict[str, int]:
         metadata = list(metadata)
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
@@ -1433,10 +1545,18 @@ class Storage:
 
         authority_id = self._get_authority_id(authority, db, cur)
         if not authority_id:
-            return PagedResult(next_page_token=None, results=[],)
+            return PagedResult(
+                next_page_token=None,
+                results=[],
+            )
 
         rows = db.raw_extrinsic_metadata_get(
-            str(target), authority_id, after_time, after_fetcher, limit + 1, cur,
+            str(target),
+            authority_id,
+            after_time,
+            after_fetcher,
+            limit + 1,
+            cur,
         )
         rows = [dict(zip(db.raw_extrinsic_metadata_get_cols, row)) for row in rows]
         results = []
@@ -1459,11 +1579,18 @@ class Storage:
         else:
             next_page_token = None
 
-        return PagedResult(next_page_token=next_page_token, results=results,)
+        return PagedResult(
+            next_page_token=next_page_token,
+            results=results,
+        )
 
     @db_transaction()
     def raw_extrinsic_metadata_get_by_ids(
-        self, ids: List[Sha1Git], *, db: Db, cur=None,
+        self,
+        ids: List[Sha1Git],
+        *,
+        db: Db,
+        cur=None,
     ) -> List[RawExtrinsicMetadata]:
         return [
             converters.db_to_raw_extrinsic_metadata(
@@ -1474,7 +1601,11 @@ class Storage:
 
     @db_transaction()
     def raw_extrinsic_metadata_get_authorities(
-        self, target: ExtendedSWHID, *, db: Db, cur=None,
+        self,
+        target: ExtendedSWHID,
+        *,
+        db: Db,
+        cur=None,
     ) -> List[MetadataAuthority]:
         return [
             MetadataAuthority(
@@ -1529,9 +1660,7 @@ class Storage:
         return MetadataAuthority.from_dict(dict(zip(db.metadata_authority_cols, row)))
 
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
-        """Do nothing
-
-        """
+        """Do nothing"""
         return None
 
     def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:

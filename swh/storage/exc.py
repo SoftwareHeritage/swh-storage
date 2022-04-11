@@ -10,18 +10,14 @@ from swh.storage.utils import content_bytes_hashes, content_hex_hashes
 
 
 class StorageDBError(Exception):
-    """Specific storage db error (connection, erroneous queries, etc...)
-
-    """
+    """Specific storage db error (connection, erroneous queries, etc...)"""
 
     def __str__(self):
         return "An unexpected error occurred in the backend: %s" % self.args
 
 
 class StorageAPIError(Exception):
-    """Specific internal storage api (mainly connection)
-
-    """
+    """Specific internal storage api (mainly connection)"""
 
     def __str__(self):
         args = self.args
@@ -35,9 +31,7 @@ class StorageArgumentException(Exception):
 
 
 class HashCollision(Exception):
-    """Exception raised when a content collides in a storage backend
-
-    """
+    """Exception raised when a content collides in a storage backend"""
 
     def __init__(self, algo, hash_id, colliding_contents):
         self.algo = algo

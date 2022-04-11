@@ -15,9 +15,7 @@ from swh.storage.utils import now
 
 @pytest.fixture
 def monkeypatch_sleep(monkeypatch, swh_storage):
-    """In test context, we don't want to wait, make test faster
-
-    """
+    """In test context, we don't want to wait, make test faster"""
     from swh.storage.proxies.retry import RetryingProxyStorage
 
     for method_name, method in RetryingProxyStorage.__dict__.items():
@@ -36,14 +34,15 @@ def fake_hash_collision(sample_data):
 def swh_storage_backend_config():
     yield {
         "cls": "pipeline",
-        "steps": [{"cls": "retry"}, {"cls": "memory"},],
+        "steps": [
+            {"cls": "retry"},
+            {"cls": "memory"},
+        ],
     }
 
 
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
-    """Standard content_add works as before
-
-    """
+    """Standard content_add works as before"""
     sample_content = sample_data.content
     content = swh_storage.content_get_data(sample_content.sha1)
     assert content is None
@@ -59,11 +58,13 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision,
+    monkeypatch_sleep,
+    swh_storage,
+    sample_data,
+    mocker,
+    fake_hash_collision,
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok
-
-    """
+    """Multiple retries for hash collision and psycopg2 error but finally ok"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = [
         # first try goes ko
@@ -83,16 +84,18 @@ def test_retrying_proxy_storage_content_add_with_retry(
     assert s == {"content:add": 1}
 
     mock_memory.assert_has_calls(
-        [call([sample_content]), call([sample_content]), call([sample_content]),]
+        [
+            call([sample_content]),
+            call([sample_content]),
+            call([sample_content]),
+        ]
     )
 
 
 def test_retrying_proxy_swh_storage_content_add_failure(
     swh_storage, sample_data, mocker
 ):
-    """Unfiltered errors are raising without retry
-
-    """
+    """Unfiltered errors are raising without retry"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = StorageArgumentException("Refuse to add content always!")
 
@@ -108,9 +111,7 @@ def test_retrying_proxy_swh_storage_content_add_failure(
 
 
 def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
-    """Standard content_add_metadata works as before
-
-    """
+    """Standard content_add_metadata works as before"""
     sample_content = sample_data.content
     content = attr.evolve(sample_content, data=None)
 
@@ -131,9 +132,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
     monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok
-
-    """
+    """Multiple retries for hash collision and psycopg2 error but finally ok"""
     mock_memory = mocker.patch(
         "swh.storage.in_memory.InMemoryStorage.content_add_metadata"
     )
@@ -153,16 +152,18 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
     assert s == {"content:add": 1}
 
     mock_memory.assert_has_calls(
-        [call([content]), call([content]), call([content]),]
+        [
+            call([content]),
+            call([content]),
+            call([content]),
+        ]
     )
 
 
 def test_retrying_proxy_swh_storage_content_add_metadata_failure(
     swh_storage, sample_data, mocker
 ):
-    """Unfiltered errors are raising without retry
-
-    """
+    """Unfiltered errors are raising without retry"""
     mock_memory = mocker.patch(
         "swh.storage.in_memory.InMemoryStorage.content_add_metadata"
     )
@@ -180,9 +181,7 @@ def test_retrying_proxy_swh_storage_content_add_metadata_failure(
 
 
 def test_retrying_proxy_swh_storage_keyboardinterrupt(swh_storage, sample_data, mocker):
-    """Unfiltered errors are raising without retry
-
-    """
+    """Unfiltered errors are raising without retry"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = KeyboardInterrupt()
 

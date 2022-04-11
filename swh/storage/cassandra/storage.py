@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import base64
-import collections
+from collections import defaultdict
 import datetime
 import itertools
 import operator
@@ -54,6 +54,7 @@ from swh.model.swhids import ObjectType as SwhidObjectType
 from swh.storage.interface import (
     VISIT_STATUSES,
     ListOrder,
+    OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
     Sha1,
@@ -406,7 +407,7 @@ class CassandraStorage:
 
             # Bucket the known contents by hash
             found_contents_by_hash: Dict[str, Dict[str, list]] = {
-                algo: collections.defaultdict(list) for algo in DEFAULT_ALGORITHMS
+                algo: defaultdict(list) for algo in DEFAULT_ALGORITHMS
             }
             for found_content in found_contents:
                 for algo in DEFAULT_ALGORITHMS:
@@ -735,7 +736,8 @@ class CassandraStorage:
         limit: Optional[int],
         short: bool,
     ) -> Union[
-        Iterable[Dict[str, Any]], Iterable[Tuple[Sha1Git, Tuple[Sha1Git, ...]]],
+        Iterable[Dict[str, Any]],
+        Iterable[Tuple[Sha1Git, Tuple[Sha1Git, ...]]],
     ]:
         if limit and len(seen) >= limit:
             return
@@ -880,7 +882,9 @@ class CassandraStorage:
         }
 
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
+        self,
+        snapshot_id: Sha1Git,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Optional[Dict[Optional[str], int]]:
         if self._cql_runner.snapshot_missing([snapshot_id]):
             # Makes sure we don't fetch branches for a snapshot that is
@@ -988,7 +992,10 @@ class CassandraStorage:
             found_ids = missing_ids - set(query_fn(list(missing_ids)))
             for sha1_git in found_ids:
                 results[sha1_git].append(
-                    {"sha1_git": sha1_git, "type": object_type,}
+                    {
+                        "sha1_git": sha1_git,
+                        "type": object_type,
+                    }
                 )
                 missing_ids.remove(sha1_git)
 
@@ -1002,9 +1009,7 @@ class CassandraStorage:
         return [self.origin_get_one(origin) for origin in origins]
 
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:
-        """Given an origin url, return the origin if it exists, None otherwise
-
-        """
+        """Given an origin url, return the origin if it exists, None otherwise"""
         rows = list(self._cql_runner.origin_get_by_url(origin_url))
         if rows:
             assert len(rows) == 1
@@ -1204,9 +1209,7 @@ class CassandraStorage:
         }
 
     def _origin_visit_get_latest_status(self, visit: OriginVisit) -> OriginVisitStatus:
-        """Retrieve the latest visit status information for the origin visit object.
-
-        """
+        """Retrieve the latest visit status information for the origin visit object."""
         assert visit.visit
         row = self._cql_runner.origin_visit_status_get_latest(visit.origin, visit.visit)
         assert row is not None
@@ -1248,6 +1251,57 @@ class CassandraStorage:
             next_page_token = str(visits[-1].visit)
 
         return PagedResult(results=visits, next_page_token=next_page_token)
+
+    def origin_visit_get_with_statuses(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]] = None,
+        require_snapshot: bool = False,
+        page_token: Optional[str] = None,
+        order: ListOrder = ListOrder.ASC,
+        limit: int = 10,
+    ) -> PagedResult[OriginVisitWithStatuses]:
+        next_page_token = None
+        visit_from = None if page_token is None else int(page_token)
+        extra_limit = limit + 1
+
+        # First get visits (plus one so we can use it as the next page token if any)
+        rows = self._cql_runner.origin_visit_get(origin, visit_from, extra_limit, order)
+        visits: List[OriginVisit] = [converters.row_to_visit(row) for row in rows]
+
+        assert visits[0].visit is not None
+        assert visits[-1].visit is not None
+        visit_from = min(visits[0].visit, visits[-1].visit)
+        visit_to = max(visits[0].visit, visits[-1].visit)
+
+        # Then, fetch all statuses associated to these visits
+        statuses_rows = self._cql_runner.origin_visit_status_get_all_range(
+            origin, visit_from, visit_to
+        )
+        visit_statuses: Dict[int, List[OriginVisitStatus]] = defaultdict(list)
+        for status_row in statuses_rows:
+            if allowed_statuses and status_row.status not in allowed_statuses:
+                continue
+            if require_snapshot and status_row.snapshot is None:
+                continue
+            visit_status = converters.row_to_visit_status(status_row)
+            visit_statuses[visit_status.visit].append(visit_status)
+
+        # Add pagination if there are more visits
+        assert len(visits) <= extra_limit
+        if len(visits) == extra_limit:
+            # excluding that visit from the result to respect the limit size
+            visits = visits[:limit]
+            # last visit id is the next page token
+            next_page_token = str(visits[-1].visit)
+
+        results = [
+            OriginVisitWithStatuses(visit=visit, statuses=visit_statuses[visit.visit])
+            for visit in visits
+            if visit.visit is not None
+        ]
+
+        return PagedResult(results=results, next_page_token=next_page_token)
 
     def origin_visit_status_get(
         self,
@@ -1462,7 +1516,11 @@ class CassandraStorage:
                     "page_token is inconsistent with the value of 'after'."
                 )
             entries = self._cql_runner.raw_extrinsic_metadata_get_after_date_and_id(
-                str(target), authority.type.value, authority.url, after_date, id_,
+                str(target),
+                authority.type.value,
+                authority.url,
+                after_date,
+                id_,
             )
         elif after is not None:
             entries = self._cql_runner.raw_extrinsic_metadata_get_after_date(
@@ -1487,12 +1545,20 @@ class CassandraStorage:
             assert len(results) == limit
             last_result = results[-1]
             next_page_token: Optional[str] = base64.b64encode(
-                msgpack_dumps((last_result.discovery_date, last_result.id,))
+                msgpack_dumps(
+                    (
+                        last_result.discovery_date,
+                        last_result.id,
+                    )
+                )
             ).decode()
         else:
             next_page_token = None
 
-        return PagedResult(next_page_token=next_page_token, results=results,)
+        return PagedResult(
+            next_page_token=next_page_token,
+            results=results,
+        )
 
     def raw_extrinsic_metadata_get_by_ids(
         self, ids: List[Sha1Git]
@@ -1532,7 +1598,10 @@ class CassandraStorage:
         self.journal_writer.metadata_fetcher_add(fetchers)
         for fetcher in fetchers:
             self._cql_runner.metadata_fetcher_add(
-                MetadataFetcherRow(name=fetcher.name, version=fetcher.version,)
+                MetadataFetcherRow(
+                    name=fetcher.name,
+                    version=fetcher.version,
+                )
             )
         return {"metadata_fetcher:add": len(fetchers)}
 
@@ -1541,7 +1610,10 @@ class CassandraStorage:
     ) -> Optional[MetadataFetcher]:
         fetcher = self._cql_runner.metadata_fetcher_get(name, version)
         if fetcher:
-            return MetadataFetcher(name=fetcher.name, version=fetcher.version,)
+            return MetadataFetcher(
+                name=fetcher.name,
+                version=fetcher.version,
+            )
         else:
             return None
 
@@ -1551,7 +1623,10 @@ class CassandraStorage:
         self.journal_writer.metadata_authority_add(authorities)
         for authority in authorities:
             self._cql_runner.metadata_authority_add(
-                MetadataAuthorityRow(url=authority.url, type=authority.type.value,)
+                MetadataAuthorityRow(
+                    url=authority.url,
+                    type=authority.type.value,
+                )
             )
         return {"metadata_authority:add": len(authorities)}
 
@@ -1561,7 +1636,8 @@ class CassandraStorage:
         authority = self._cql_runner.metadata_authority_get(type.value, url)
         if authority:
             return MetadataAuthority(
-                type=MetadataAuthorityType(authority.type), url=authority.url,
+                type=MetadataAuthorityType(authority.type),
+                url=authority.url,
             )
         else:
             return None
@@ -1600,7 +1676,9 @@ class CassandraStorage:
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
             indexrow = ExtIDByTargetRow(
-                target_type=target_type, target=target, target_token=token,
+                target_type=target_type,
+                target=target,
+                target_token=token,
             )
             self._cql_runner.extid_index_add_one(indexrow)
             insertion_finalizer()
@@ -1624,7 +1702,8 @@ class CassandraStorage:
                     extid_version=extidrow.extid_version,
                     extid=extidrow.extid,
                     target=CoreSWHID(
-                        object_type=extidrow.target_type, object_id=extidrow.target,
+                        object_type=extidrow.target_type,
+                        object_id=extidrow.target,
                     ),
                 )
                 for extidrow in extidrows
@@ -1668,9 +1747,7 @@ class CassandraStorage:
 
     # Misc
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
-        """Do nothing
-
-        """
+        """Do nothing"""
         return None
 
     def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:
