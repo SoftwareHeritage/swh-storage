@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -25,9 +25,7 @@ def jsonize(d):
 
 
 class Db(BaseDb):
-    """Proxy to the SWH DB, with wrappers around stored procedures
-
-    """
+    """Proxy to the SWH DB, with wrappers around stored procedures"""
 
     current_version = 182
 
@@ -111,13 +109,13 @@ class Db(BaseDb):
             inner join content on (content.{algo}=hash)
         """
         yield from execute_values_generator(
-            cur, query, ((hash_,) for hash_ in hashes),
+            cur,
+            query,
+            ((hash_,) for hash_ in hashes),
         )
 
     def content_get_range(self, start, end, limit=None, cur=None):
-        """Retrieve contents within range [start, end].
-
-        """
+        """Retrieve contents within range [start, end]."""
         cur = self._cursor(cur)
         query = """select %s from content
                    where %%s <= sha1 and sha1 <= %%s
@@ -229,7 +227,10 @@ class Db(BaseDb):
     snapshot_count_cols = ["target_type", "count"]
 
     def snapshot_count_branches(
-        self, snapshot_id, branch_name_exclude_prefix=None, cur=None,
+        self,
+        snapshot_id,
+        branch_name_exclude_prefix=None,
+        cur=None,
     ):
         cur = self._cursor(cur)
         query = """\
@@ -378,9 +379,7 @@ class Db(BaseDb):
         yield from cur
 
     def directory_entry_get_by_path(self, directory, paths, cur=None):
-        """Retrieve a directory entry by path.
-
-        """
+        """Retrieve a directory entry by path."""
         cur = self._cursor(cur)
 
         cols = ", ".join(self.directory_ls_cols)
@@ -489,9 +488,7 @@ class Db(BaseDb):
     def origin_visit_status_add(
         self, visit_status: OriginVisitStatus, cur=None
     ) -> None:
-        """Add new origin visit status
-
-        """
+        """Add new origin visit status"""
         assert self.origin_visit_status_cols[0] == "origin"
         assert self.origin_visit_status_cols[-1] == "metadata"
         cols = self.origin_visit_status_cols[1:-1]
@@ -511,9 +508,7 @@ class Db(BaseDb):
     origin_visit_cols = ["origin", "visit", "date", "type"]
 
     def origin_visit_add_with_id(self, origin_visit: OriginVisit, cur=None) -> None:
-        """Insert origin visit when id are already set
-
-        """
+        """Insert origin visit when id are already set"""
         ov = origin_visit
         assert ov.visit is not None
         cur = self._cursor(cur)
@@ -557,9 +552,7 @@ class Db(BaseDb):
     def _make_origin_visit_status(
         self, row: Optional[Tuple[Any]]
     ) -> Optional[Dict[str, Any]]:
-        """Make an origin_visit_status dict out of a row
-
-        """
+        """Make an origin_visit_status dict out of a row"""
         if not row:
             return None
         return dict(zip(self.origin_visit_status_cols, row))
@@ -572,9 +565,7 @@ class Db(BaseDb):
         require_snapshot: bool = False,
         cur=None,
     ) -> Optional[Dict[str, Any]]:
-        """Given an origin visit id, return its latest origin_visit_status
-
-        """
+        """Given an origin visit id, return its latest origin_visit_status"""
         cur = self._cursor(cur)
 
         query_parts = [
@@ -610,9 +601,7 @@ class Db(BaseDb):
         limit: int,
         cur=None,
     ):
-        """Retrieve visit_status rows for visit (origin, visit) in a paginated way.
-
-        """
+        """Retrieve visit_status rows for visit (origin, visit) in a paginated way."""
         cur = self._cursor(cur)
 
         query_parts = [
@@ -643,7 +632,12 @@ class Db(BaseDb):
         yield from cur
 
     def origin_visit_get_range(
-        self, origin: str, visit_from: int, order: ListOrder, limit: int, cur=None,
+        self,
+        origin: str,
+        visit_from: int,
+        order: ListOrder,
+        limit: int,
+        cur=None,
     ):
         cur = self._cursor(cur)
 
@@ -667,6 +661,46 @@ class Db(BaseDb):
 
         query_parts.append("LIMIT %s")
         query_params.append(limit)
+
+        query = "\n".join(query_parts)
+        cur.execute(query, tuple(query_params))
+        yield from cur
+
+    def origin_visit_status_get_all_in_range(
+        self,
+        origin: str,
+        allowed_statuses: Optional[List[str]],
+        require_snapshot: bool,
+        visit_from: int,
+        visit_to: int,
+        cur=None,
+    ):
+        cur = self._cursor(cur)
+
+        query_parts = [
+            f"SELECT {', '.join(self.origin_visit_status_select_cols)}",
+            " FROM origin_visit_status ovs",
+            " INNER JOIN origin o ON o.id = ovs.origin",
+        ]
+        query_parts.append("WHERE o.url = %s")
+        query_params: List[Any] = [origin]
+
+        assert visit_from <= visit_to
+
+        query_parts.append("AND ovs.visit >= %s")
+        query_params.append(visit_from)
+
+        query_parts.append("AND ovs.visit <= %s")
+        query_params.append(visit_to)
+
+        if require_snapshot:
+            query_parts.append("AND ovs.snapshot is not null")
+
+        if allowed_statuses:
+            query_parts.append("AND ovs.status IN %s")
+            query_params.append(tuple(allowed_statuses))
+
+        query_parts.append("ORDER BY ovs.visit ASC, ovs.date ASC")
 
         query = "\n".join(query_parts)
         cur.execute(query, tuple(query_params))
@@ -781,7 +815,7 @@ class Db(BaseDb):
 
     def origin_visit_get_random(self, type, cur=None):
         """Randomly select one origin visit that was full and in the last 3
-           months
+        months
 
         """
         cur = self._cursor(cur)
@@ -912,7 +946,11 @@ class Db(BaseDb):
         filter_query = ""
         if extid_version is not None and extid_type is not None:
             filter_query = cur.mogrify(
-                "WHERE extid_version=%s AND extid_type=%s", (extid_version, extid_type,)
+                "WHERE extid_version=%s AND extid_type=%s",
+                (
+                    extid_version,
+                    extid_type,
+                ),
             ).decode()
 
         sql = f"""

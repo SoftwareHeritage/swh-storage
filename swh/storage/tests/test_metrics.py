@@ -27,7 +27,11 @@ def test_send_metric_no_unit(mock_statsd):
     mock_statsd.assert_called_with(
         OPERATIONS_METRIC,
         10,
-        tags={"endpoint": "content_add", "object_type": "content", "operation": "add",},
+        tags={
+            "endpoint": "content_add",
+            "object_type": "content",
+            "operation": "add",
+        },
     )
 
     assert r
@@ -42,7 +46,11 @@ def test_send_metric_unit(mock_statsd):
     mock_statsd.assert_called_with(
         expected_metric,
         100,
-        tags={"endpoint": "c_add", "object_type": "c", "operation": "add",},
+        tags={
+            "endpoint": "c_add",
+            "object_type": "c",
+            "operation": "add",
+        },
     )
 
     assert r

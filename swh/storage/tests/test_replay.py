@@ -160,7 +160,9 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
         now = datetime.datetime.now(tz=UTC)
         content = attr.evolve(content, ctime=now)
         producer.produce(
-            topic=topic, key=key_to_kafka(key), value=value_to_kafka(content.to_dict()),
+            topic=topic,
+            key=key_to_kafka(key),
+            value=value_to_kafka(content.to_dict()),
         )
         nb_sent += 1
 
@@ -324,7 +326,10 @@ def _gen_skipped_contents(n=10):
 
 @pytest.mark.parametrize("privileged", [True, False])
 def test_storage_replay_anonymized(
-    kafka_prefix: str, kafka_consumer_group: str, kafka_server: str, privileged: bool,
+    kafka_prefix: str,
+    kafka_consumer_group: str,
+    kafka_server: str,
+    privileged: bool,
 ):
     """Optimal replayer scenario.
 

@@ -45,7 +45,12 @@ from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.in_memory import InMemoryStorage
-from swh.storage.interface import ListOrder, PagedResult, StorageInterface
+from swh.storage.interface import (
+    ListOrder,
+    OriginVisitWithStatuses,
+    PagedResult,
+    StorageInterface,
+)
 from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import (
     content_hex_hashes,
@@ -59,7 +64,7 @@ def transform_entries(
     storage: StorageInterface, dir_: Directory, *, prefix: bytes = b""
 ) -> Iterator[Dict[str, Any]]:
     """Iterate through a directory's entries, and yields the items 'directory_ls' is
-       expected to return; including content metadata for file entries."""
+    expected to return; including content metadata for file entries."""
 
     for ent in dir_.entries:
         if ent.type == "dir":
@@ -96,9 +101,7 @@ def transform_entries(
 def assert_contents_ok(
     expected_contents, actual_contents, keys_to_check={"sha1", "data"}
 ):
-    """Assert that a given list of contents matches on a given set of keys.
-
-    """
+    """Assert that a given list of contents matches on a given set of keys."""
     for k in keys_to_check:
         expected_list = set([c.get(k) for c in expected_contents])
         actual_list = set([c.get(k) for c in actual_contents])
@@ -494,7 +497,9 @@ class TestStorage:
             ) == set(missing_per_hash[hash])
 
     @pytest.mark.property_based
-    @settings(suppress_health_check=function_scoped_fixture_check,)
+    @settings(
+        suppress_health_check=function_scoped_fixture_check,
+    )
     @given(
         strategies.sets(
             elements=strategies.sampled_from(["sha256", "sha1_git", "blake2s256"]),
@@ -578,9 +583,7 @@ class TestStorage:
             assert content.ctime is None
 
     def test_content_get_partition_full(self, swh_storage, swh_contents):
-        """content_get_partition for a single partition returns all available contents
-
-        """
+        """content_get_partition for a single partition returns all available contents"""
         expected_contents = [
             attr.evolve(c, data=None) for c in swh_contents if c.status != "absent"
         ]
@@ -1023,7 +1026,11 @@ class TestStorage:
         swh_storage.directory_add(sample_data.directories)
 
         actual_data = list(
-            stream_results(swh_storage.directory_get_entries, dir_.id, limit=limit,)
+            stream_results(
+                swh_storage.directory_get_entries,
+                dir_.id,
+                limit=limit,
+            )
         )
         assert sorted(actual_data) == sorted(dir_.entries)
 
@@ -1140,7 +1147,11 @@ class TestStorage:
         + function_scoped_fixture_check,
     )
     @given(
-        strategies.lists(hypothesis_strategies.revisions(), min_size=1, max_size=10,)
+        strategies.lists(
+            hypothesis_strategies.revisions(),
+            min_size=1,
+            max_size=10,
+        )
     )
     def test_revision_add_get_arbitrary(self, swh_storage, revisions):
         # remove non-intrinsic data, so releases inserted with different hypothesis
@@ -1357,7 +1368,10 @@ class TestStorage:
             ExtID(
                 extid=gitid,
                 extid_type="git",
-                target=CoreSWHID(object_id=gitid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=gitid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for gitid in gitids
         ]
@@ -1410,7 +1424,10 @@ class TestStorage:
                 extid=hgid,
                 extid_type="hg",
                 extid_version=1,
-                target=CoreSWHID(object_id=swhid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=swhid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for hgid, swhid in zip(extids, swhids)
         ]
@@ -1445,7 +1462,10 @@ class TestStorage:
             ExtID(
                 extid=gitid,
                 extid_type="git",
-                target=CoreSWHID(object_id=gitid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=gitid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for gitid in gitids
         ]
@@ -1471,7 +1491,10 @@ class TestStorage:
                 extid=extid,
                 extid_type="git",
                 extid_version=2,
-                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=extid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for extid in ids
         ]
@@ -1483,7 +1506,10 @@ class TestStorage:
                 extid=extid,
                 extid_type="hg",
                 extid_version=2,
-                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=extid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for extid in ids
         ]
@@ -1508,7 +1534,10 @@ class TestStorage:
             ExtID(
                 extid=extid,
                 extid_type="git",
-                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=extid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for extid in ids
         ]
@@ -1519,7 +1548,10 @@ class TestStorage:
             ExtID(
                 extid=extid,
                 extid_type="git",
-                target=CoreSWHID(object_id=extid, object_type=ObjectType.RELEASE,),
+                target=CoreSWHID(
+                    object_id=extid,
+                    object_type=ObjectType.RELEASE,
+                ),
             )
             for extid in ids
         ]
@@ -1542,7 +1574,10 @@ class TestStorage:
                 extid=extid,
                 extid_type="git",
                 extid_version=0,
-                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=extid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for extid in ids
         ] + [
@@ -1550,7 +1585,10 @@ class TestStorage:
                 extid=extid,
                 extid_type="git",
                 extid_version=1,
-                target=CoreSWHID(object_id=extid, object_type=ObjectType.REVISION,),
+                target=CoreSWHID(
+                    object_id=extid,
+                    object_type=ObjectType.REVISION,
+                ),
             )
             for extid in ids
         ]
@@ -1657,7 +1695,13 @@ class TestStorage:
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
         + function_scoped_fixture_check,
     )
-    @given(strategies.lists(hypothesis_strategies.releases(), min_size=1, max_size=10,))
+    @given(
+        strategies.lists(
+            hypothesis_strategies.releases(),
+            min_size=1,
+            max_size=10,
+        )
+    )
     def test_release_add_get_arbitrary(self, swh_storage, releases):
         # remove non-intrinsic data, so releases inserted with different hypothesis
         # data can't clash with each other
@@ -1711,7 +1755,10 @@ class TestStorage:
         assert actual_result == {"release:add": 1}
 
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("release", release), ("release", release2),]
+            [
+                ("release", release),
+                ("release", release2),
+            ]
         )
 
     def test_release_add_name_clash(self, swh_storage, sample_data):
@@ -1797,13 +1844,19 @@ class TestStorage:
 
         add1 = swh_storage.origin_add([origin, origin2])
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origin), ("origin", origin2),]
+            [
+                ("origin", origin),
+                ("origin", origin2),
+            ]
         )
         assert add1 == {"origin:add": 2}
 
         add2 = swh_storage.origin_add([origin, origin2])
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origin), ("origin", origin2),]
+            [
+                ("origin", origin),
+                ("origin", origin2),
+            ]
         )
         assert add2 == {"origin:add": 0}
 
@@ -1812,13 +1865,19 @@ class TestStorage:
 
         add1 = swh_storage.origin_add([origin, origin2, origin, origin2])
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origin), ("origin", origin2),]
+            [
+                ("origin", origin),
+                ("origin", origin2),
+            ]
         )
         assert add1 == {"origin:add": 2}
 
         add2 = swh_storage.origin_add([origin, origin2, origin, origin2])
         assert set(swh_storage.journal_writer.journal.objects) == set(
-            [("origin", origin), ("origin", origin2),]
+            [
+                ("origin", origin),
+                ("origin", origin2),
+            ]
         )
         assert add2 == {"origin:add": 0}
 
@@ -1995,6 +2054,301 @@ class TestStorage:
         assert actual_page.next_page_token is None
         assert actual_page.results == [ov1]
 
+    @pytest.mark.parametrize(
+        "allowed_statuses,require_snapshot",
+        [
+            ([], False),
+            (["failed"], False),
+            (["failed", "full"], False),
+            ([], True),
+            (["failed"], True),
+            (["failed", "full"], True),
+        ],
+    )
+    def test_origin_visit_get_with_statuses(
+        self, swh_storage, sample_data, allowed_statuses, require_snapshot
+    ):
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        ov1, ov2, ov3 = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
+                ),
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
+                ),
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit2,
+                    type=sample_data.type_visit2,
+                ),
+            ]
+        )
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=sample_data.date_visit1 + datetime.timedelta(hours=1),
+                    type=sample_data.type_visit1,
+                    status="failed",
+                    snapshot=None,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov2.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=1),
+                    type=sample_data.type_visit2,
+                    status="failed",
+                    snapshot=None,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov3.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=1),
+                    type=sample_data.type_visit2,
+                    status="failed",
+                    snapshot=None,
+                ),
+            ]
+        )
+
+        swh_storage.origin_visit_status_add(
+            [
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov1.visit,
+                    date=sample_data.date_visit1 + datetime.timedelta(hours=2),
+                    type=sample_data.type_visit1,
+                    status="full",
+                    snapshot=sample_data.snapshots[0].id,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov2.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=2),
+                    type=sample_data.type_visit2,
+                    status="full",
+                    snapshot=sample_data.snapshots[1].id,
+                ),
+                OriginVisitStatus(
+                    origin=origin.url,
+                    visit=ov3.visit,
+                    date=sample_data.date_visit2 + datetime.timedelta(hours=2),
+                    type=sample_data.type_visit2,
+                    status="full",
+                    snapshot=sample_data.snapshots[2].id,
+                ),
+            ]
+        )
+
+        ov1_statuses = swh_storage.origin_visit_status_get(
+            origin.url, visit=ov1.visit
+        ).results
+
+        ov2_statuses = swh_storage.origin_visit_status_get(
+            origin.url, visit=ov2.visit
+        ).results
+
+        ov3_statuses = swh_storage.origin_visit_status_get(
+            origin.url, visit=ov3.visit
+        ).results
+
+        def _filter_statuses(ov_statuses):
+            if allowed_statuses:
+                ov_statuses = [
+                    ovs for ovs in ov_statuses if ovs.status in allowed_statuses
+                ]
+                assert [ovs.status for ovs in ov_statuses] == allowed_statuses
+            else:
+                assert [ovs.status for ovs in ov_statuses] == [
+                    "created",
+                    "failed",
+                    "full",
+                ]
+            if require_snapshot:
+                ov_statuses = [ovs for ovs in ov_statuses if ovs.snapshot is not None]
+            return ov_statuses
+
+        ov1_statuses = _filter_statuses(ov1_statuses)
+        ov2_statuses = _filter_statuses(ov2_statuses)
+        ov3_statuses = _filter_statuses(ov3_statuses)
+
+        ovws1 = OriginVisitWithStatuses(visit=ov1, statuses=ov1_statuses)
+        ovws2 = OriginVisitWithStatuses(visit=ov2, statuses=ov2_statuses)
+        ovws3 = OriginVisitWithStatuses(visit=ov3, statuses=ov3_statuses)
+
+        # order asc, no token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws1, ovws2, ovws3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=2,
+        )
+        next_page_token = actual_page.next_page_token
+        assert len(actual_page.results) == 2
+        assert next_page_token is not None
+        assert actual_page.results == [ovws1, ovws2]
+
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+        )
+
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws3]
+
+        # order asc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws1]
+
+        # order asc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws2, ovws3]
+
+        # order asc, token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            limit=2,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws2, ovws3]
+
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws2]
+
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            limit=1,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws3]
+
+        # order desc, no token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            order=ListOrder.DESC,
+        )
+
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws3, ovws2, ovws1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=2,
+            order=ListOrder.DESC,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws3, ovws2]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws1]
+
+        # order desc, no token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            limit=1,
+            order=ListOrder.DESC,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws3]
+
+        # order desc, token, no limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws2, ovws1]
+
+        # order desc, token, limit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+            limit=1,
+        )
+        next_page_token = actual_page.next_page_token
+        assert next_page_token is not None
+        assert actual_page.results == [ovws2]
+
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=next_page_token,
+            order=ListOrder.DESC,
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == [ovws1]
+
     def test_origin_visit_status_get__unknown_cases(self, swh_storage, sample_data):
         origin = sample_data.origin
         actual_page = swh_storage.origin_visit_status_get("foobar", 1)
@@ -2058,7 +2412,9 @@ class TestStorage:
         ov1 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
-                    origin=origin.url, date=date_visit1, type=sample_data.type_visit1,
+                    origin=origin.url,
+                    date=date_visit1,
+                    type=sample_data.type_visit1,
                 ),
             ]
         )[0]
@@ -2214,7 +2570,13 @@ class TestStorage:
         for origin in origins:
             for date_visit in visits:
                 visit = swh_storage.origin_visit_add(
-                    [OriginVisit(origin=origin.url, date=date_visit, type=visit_type,)]
+                    [
+                        OriginVisit(
+                            origin=origin.url,
+                            date=date_visit,
+                            type=visit_type,
+                        )
+                    ]
                 )[0]
                 swh_storage.origin_visit_status_add(
                     [
@@ -2256,7 +2618,13 @@ class TestStorage:
         for origin in origins:
             for date_visit in visits:
                 visit = swh_storage.origin_visit_add(
-                    [OriginVisit(origin=origin.url, date=date_visit, type=visit_type,)]
+                    [
+                        OriginVisit(
+                            origin=origin.url,
+                            date=date_visit,
+                            type=visit_type,
+                        )
+                    ]
                 )[0]
                 swh_storage.origin_visit_status_add(
                     [
@@ -2283,7 +2651,13 @@ class TestStorage:
 
         # set first visit to a null snapshot
         visit = swh_storage.origin_visit_add(
-            [OriginVisit(origin=origin.url, date=visits[0], type=visit_type,)]
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=visits[0],
+                    type=visit_type,
+                )
+            ]
         )[0]
         swh_storage.origin_visit_status_add(
             [
@@ -2301,7 +2675,13 @@ class TestStorage:
         snapshots = set()
         for date_visit in visits[1:]:
             visit = swh_storage.origin_visit_add(
-                [OriginVisit(origin=origin.url, date=date_visit, type=visit_type,)]
+                [
+                    OriginVisit(
+                        origin=origin.url,
+                        date=date_visit,
+                        type=visit_type,
+                    )
+                ]
             )[0]
             # pick a random snapshot and keep track of it
             snapshot = random.choice(sample_data.snapshots).id
@@ -2495,10 +2875,14 @@ class TestStorage:
         date_visit2 = round_to_milliseconds(date_visit2)
 
         visit1 = OriginVisit(
-            origin=origin1.url, date=date_visit, type=sample_data.type_visit1,
+            origin=origin1.url,
+            date=date_visit,
+            type=sample_data.type_visit1,
         )
         visit2 = OriginVisit(
-            origin=origin1.url, date=date_visit2, type=sample_data.type_visit2,
+            origin=origin1.url,
+            date=date_visit2,
+            type=sample_data.type_visit2,
         )
 
         # add once
@@ -2559,7 +2943,9 @@ class TestStorage:
             origin=origin1.url, date=date_visit, type=sample_data.type_visit1, visit=42
         )
         visit2 = OriginVisit(
-            origin=origin1.url, date=date_visit2, type=sample_data.type_visit2,
+            origin=origin1.url,
+            date=date_visit2,
+            type=sample_data.type_visit2,
         )
 
         # add once
@@ -2576,7 +2962,9 @@ class TestStorage:
             origin=origin1.url, date=date_visit, type=sample_data.type_visit1, visit=12
         )
         visit4 = OriginVisit(
-            origin=origin1.url, date=date_visit2, type=sample_data.type_visit2,
+            origin=origin1.url,
+            date=date_visit2,
+            type=sample_data.type_visit2,
         )
 
         # add once
@@ -2615,9 +3003,7 @@ class TestStorage:
         assert not objects
 
     def test_origin_visit_status_add(self, swh_storage, sample_data):
-        """Correct origin visit statuses should add a new visit status
-
-        """
+        """Correct origin visit statuses should add a new visit status"""
         snapshot = sample_data.snapshot
         origin1 = sample_data.origins[1]
         origin2 = Origin(url="new-origin")
@@ -2707,9 +3093,7 @@ class TestStorage:
             assert obj in actual_objects
 
     def test_origin_visit_status_add_twice(self, swh_storage, sample_data):
-        """Correct origin visit statuses should add a new visit status
-
-        """
+        """Correct origin visit statuses should add a new visit status"""
         snapshot = sample_data.snapshot
         origin1 = sample_data.origins[1]
         swh_storage.origin_add([origin1])
@@ -2914,19 +3298,25 @@ class TestStorage:
             )
 
     def test_origin_visit_get_latest_filter_type(self, swh_storage, sample_data):
-        """Filtering origin visit get latest with filter type should be ok
-
-        """
+        """Filtering origin visit get latest with filter type should be ok"""
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit1, type="git",
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type="git",
         )
         visit2 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit2, type="hg",
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type="hg",
         )
         date_now = round_to_milliseconds(now())
-        visit3 = OriginVisit(origin=origin.url, date=date_now, type="hg",)
+        visit3 = OriginVisit(
+            origin=origin.url,
+            date=date_now,
+            type="hg",
+        )
         assert sample_data.date_visit1 < sample_data.date_visit2
         assert sample_data.date_visit2 < date_now
 
@@ -2938,7 +3328,8 @@ class TestStorage:
         actual_visit = swh_storage.origin_visit_get_latest(origin.url, type="hg")
         assert actual_visit == ov3
         actual_visit_unknown_type = swh_storage.origin_visit_get_latest(
-            origin.url, type="npm",  # no visit matching that type
+            origin.url,
+            type="npm",  # no visit matching that type
         )
         assert actual_visit_unknown_type is None
 
@@ -2948,13 +3339,21 @@ class TestStorage:
 
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit1, type="git",
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type="git",
         )
         visit2 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit2, type="hg",
+            origin=origin.url,
+            date=sample_data.date_visit2,
+            type="hg",
         )
         date_now = round_to_milliseconds(now())
-        visit3 = OriginVisit(origin=origin.url, date=date_now, type="hg",)
+        visit3 = OriginVisit(
+            origin=origin.url,
+            date=date_now,
+            type="hg",
+        )
         assert visit1.date < visit2.date
         assert visit2.date < visit3.date
 
@@ -3097,7 +3496,9 @@ class TestStorage:
 
         # full status is still the first visit
         actual_visit = swh_storage.origin_visit_get_latest(
-            origin.url, allowed_statuses=["full"], require_snapshot=True,
+            origin.url,
+            allowed_statuses=["full"],
+            require_snapshot=True,
         )
         assert actual_visit == ov1
 
@@ -3130,10 +3531,14 @@ class TestStorage:
 
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit1, type="git",
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type="git",
         )
         visit2 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit1, type="hg",
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type="hg",
         )
 
         ov1, ov2 = swh_storage.origin_visit_add([visit1, visit2])
@@ -3154,9 +3559,24 @@ class TestStorage:
         date3 = datetime.datetime(2021, 8, 1, tzinfo=datetime.timezone.utc)
 
         swh_storage.origin_add([origin])
-        visit1 = OriginVisit(origin=origin.url, visit=id1, date=date1, type="git",)
-        visit2 = OriginVisit(origin=origin.url, visit=id2, date=date2, type="hg",)
-        visit3 = OriginVisit(origin=origin.url, visit=id3, date=date3, type="tar",)
+        visit1 = OriginVisit(
+            origin=origin.url,
+            visit=id1,
+            date=date1,
+            type="git",
+        )
+        visit2 = OriginVisit(
+            origin=origin.url,
+            visit=id2,
+            date=date2,
+            type="hg",
+        )
+        visit3 = OriginVisit(
+            origin=origin.url,
+            visit=id3,
+            date=date3,
+            type="tar",
+        )
 
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
 
@@ -3193,7 +3613,9 @@ class TestStorage:
 
         # no snapshot associated to the visit, so None
         visit = swh_storage.origin_visit_get_latest(
-            origin.url, allowed_statuses=["partial"], require_snapshot=True,
+            origin.url,
+            allowed_statuses=["partial"],
+            require_snapshot=True,
         )
         assert visit is None
 
@@ -3212,7 +3634,13 @@ class TestStorage:
         )
 
         swh_storage.origin_visit_add(
-            [OriginVisit(origin=origin.url, date=now(), type=visit1.type,)]
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=now(),
+                    type=visit1.type,
+                )
+            ]
         )
 
         visit = swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
@@ -3222,7 +3650,9 @@ class TestStorage:
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
-            origin=origin.url, date=sample_data.date_visit1, type="git",
+            origin=origin.url,
+            date=sample_data.date_visit1,
+            type="git",
         )
 
         # unknown allowed statuses should raise
@@ -3428,9 +3858,15 @@ class TestStorage:
         expected_objects = [
             ("origin", origin),
             ("origin_visit", ov1),
-            ("origin_visit_status", ovs1,),
+            (
+                "origin_visit_status",
+                ovs1,
+            ),
             ("snapshot", empty_snapshot),
-            ("origin_visit_status", ovs2,),
+            (
+                "origin_visit_status",
+                ovs2,
+            ),
         ]
         for obj in expected_objects:
             assert obj in actual_objects
@@ -3583,16 +4019,20 @@ class TestStorage:
         snapshot = Snapshot(
             branches={
                 b"\xaa\xff": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"\xaa\xff\x00": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"\xff\xff": SnapshotBranch(
-                    target=sample_data.release.id, target_type=TargetType.RELEASE,
+                    target=sample_data.release.id,
+                    target_type=TargetType.RELEASE,
                 ),
                 b"\xff\xff\x00": SnapshotBranch(
-                    target=sample_data.release.id, target_type=TargetType.RELEASE,
+                    target=sample_data.release.id,
+                    target_type=TargetType.RELEASE,
                 ),
                 b"dangling": None,
             },
@@ -3634,7 +4074,9 @@ class TestStorage:
 
         expected_snapshot = {
             "id": snp_id,
-            "branches": {branch_names[0]: branches[branch_names[0]],},
+            "branches": {
+                branch_names[0]: branches[branch_names[0]],
+            },
             "next_branch": b"content",
         }
         assert snapshot == expected_snapshot
@@ -3777,7 +4219,9 @@ class TestStorage:
         dir_idx = branch_names.index(b"directory2")
         expected_snapshot = {
             "id": snp_id,
-            "branches": {branch_names[dir_idx]: branches[branch_names[dir_idx]],},
+            "branches": {
+                branch_names[dir_idx]: branches[branch_names[dir_idx]],
+            },
             "next_branch": b"release",
         }
 
@@ -3819,29 +4263,37 @@ class TestStorage:
         snapshot = Snapshot(
             branches={
                 b"refs/heads/master": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"refs/heads/incoming": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"refs/pull/1": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"refs/pull/2": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"dangling": None,
                 b"\xaa\xff": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"\xaa\xff\x00": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"\xff\xff": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
                 b"\xff\xff\x00": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
             },
         )
@@ -3882,16 +4334,20 @@ class TestStorage:
         branches = {}
         for i in range(nb_branches_by_target_type):
             branches[f"branch/directory/bar{i}".encode()] = SnapshotBranch(
-                target=sample_data.directory.id, target_type=TargetType.DIRECTORY,
+                target=sample_data.directory.id,
+                target_type=TargetType.DIRECTORY,
             )
             branches[f"branch/revision/bar{i}".encode()] = SnapshotBranch(
-                target=sample_data.revision.id, target_type=TargetType.REVISION,
+                target=sample_data.revision.id,
+                target_type=TargetType.REVISION,
             )
             branches[f"branch/directory/{pattern}{i}".encode()] = SnapshotBranch(
-                target=sample_data.directory.id, target_type=TargetType.DIRECTORY,
+                target=sample_data.directory.id,
+                target_type=TargetType.DIRECTORY,
             )
             branches[f"branch/revision/{pattern}{i}".encode()] = SnapshotBranch(
-                target=sample_data.revision.id, target_type=TargetType.REVISION,
+                target=sample_data.revision.id,
+                target_type=TargetType.REVISION,
             )
 
         snapshot = Snapshot(branches=branches)
@@ -3945,20 +4401,24 @@ class TestStorage:
         snapshot = Snapshot(
             branches={
                 b"refs/heads/master": SnapshotBranch(
-                    target=sample_data.revision.id, target_type=TargetType.REVISION,
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
                 ),
             },
         )
         swh_storage.snapshot_add([snapshot])
 
         partial_branches = swh_storage.snapshot_get_branches(
-            snapshot.id, branches_from=b"s",
+            snapshot.id,
+            branches_from=b"s",
         )
 
         assert partial_branches is not None
         assert partial_branches["branches"] == {}
 
-    @settings(suppress_health_check=function_scoped_fixture_check,)
+    @settings(
+        suppress_health_check=function_scoped_fixture_check,
+    )
     @given(hypothesis_strategies.snapshots(min_size=1))
     def test_snapshot_get_unknown_snapshot(self, swh_storage, unknown_snapshot):
         assert swh_storage.snapshot_get(unknown_snapshot.id) is None
@@ -4278,20 +4738,38 @@ class TestStorage:
         sha1_gits.append(content.sha1_git)
 
         expected[content.sha1_git] = [
-            {"sha1_git": content.sha1_git, "type": "content",}
+            {
+                "sha1_git": content.sha1_git,
+                "type": "content",
+            }
         ]
 
         swh_storage.directory_add([directory])
         sha1_gits.append(directory.id)
-        expected[directory.id] = [{"sha1_git": directory.id, "type": "directory",}]
+        expected[directory.id] = [
+            {
+                "sha1_git": directory.id,
+                "type": "directory",
+            }
+        ]
 
         swh_storage.revision_add([revision])
         sha1_gits.append(revision.id)
-        expected[revision.id] = [{"sha1_git": revision.id, "type": "revision",}]
+        expected[revision.id] = [
+            {
+                "sha1_git": revision.id,
+                "type": "revision",
+            }
+        ]
 
         swh_storage.release_add([release])
         sha1_gits.append(release.id)
-        expected[release.id] = [{"sha1_git": release.id, "type": "release",}]
+        expected[release.id] = [
+            {
+                "sha1_git": release.id,
+                "type": "release",
+            }
+        ]
 
         ret = swh_storage.object_find_by_sha1_git(sha1_gits)
 
@@ -4368,9 +4846,12 @@ class TestStorage:
             content.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
-        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == list(
-            content_metadata
-        )
+        assert list(
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
+        ) == list(content_metadata)
 
         actual_objects = list(swh_storage.journal_writer.journal.objects)
         expected_objects = [
@@ -4402,7 +4883,12 @@ class TestStorage:
         expected_results = (content_metadata, content_metadata2)
 
         assert (
-            tuple(sorted(result.results, key=lambda x: x.discovery_date,))
+            tuple(
+                sorted(
+                    result.results,
+                    key=lambda x: x.discovery_date,
+                )
+            )
             == expected_results
         )
 
@@ -4440,7 +4926,10 @@ class TestStorage:
         )
         assert result.next_page_token is None
         assert [content1_metadata1, content1_metadata2] == list(
-            sorted(result.results, key=lambda x: x.discovery_date,)
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
@@ -4448,14 +4937,19 @@ class TestStorage:
         )
         assert result.next_page_token is None
         assert [content1_metadata3] == list(
-            sorted(result.results, key=lambda x: x.discovery_date,)
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             content2.swhid().to_extended(), authority
         )
         assert result.next_page_token is None
-        assert [content2_metadata] == list(result.results,)
+        assert [content2_metadata] == list(
+            result.results,
+        )
 
     def test_content_metadata_get_after(self, swh_storage, sample_data):
         content = sample_data.content
@@ -4475,7 +4969,10 @@ class TestStorage:
         )
         assert result.next_page_token is None
         assert [content_metadata, content_metadata2] == list(
-            sorted(result.results, key=lambda x: x.discovery_date,)
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
@@ -4697,7 +5194,12 @@ class TestStorage:
         expected_results = (origin_metadata, origin_metadata2)
 
         assert (
-            tuple(sorted(result.results, key=lambda x: x.discovery_date,))
+            tuple(
+                sorted(
+                    result.results,
+                    key=lambda x: x.discovery_date,
+                )
+            )
             == expected_results
         )
 
@@ -4732,7 +5234,10 @@ class TestStorage:
         )
         assert result.next_page_token is None
         assert [origin1_metadata1, origin1_metadata2] == list(
-            sorted(result.results, key=lambda x: x.discovery_date,)
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
@@ -4740,14 +5245,19 @@ class TestStorage:
         )
         assert result.next_page_token is None
         assert [origin1_metadata3] == list(
-            sorted(result.results, key=lambda x: x.discovery_date,)
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
         )
 
         result = swh_storage.raw_extrinsic_metadata_get(
             Origin(origin2.url).swhid(), authority
         )
         assert result.next_page_token is None
-        assert [origin2_metadata] == list(result.results,)
+        assert [origin2_metadata] == list(
+            result.results,
+        )
 
     def test_origin_metadata_get_after(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -4773,7 +5283,9 @@ class TestStorage:
         ]
 
         result = swh_storage.raw_extrinsic_metadata_get(
-            Origin(origin.url).swhid(), authority, after=origin_metadata.discovery_date,
+            Origin(origin.url).swhid(),
+            authority,
+            after=origin_metadata.discovery_date,
         )
         assert result.next_page_token is None
         assert result.results == [origin_metadata2]
@@ -4943,7 +5455,11 @@ class TestStorageGeneratedData:
         swh_storage.origin_add(sample_data.origins)
 
         origin_url = "https://github.com/user1/repo1"
-        visit = OriginVisit(origin=origin_url, date=now(), type="git",)
+        visit = OriginVisit(
+            origin=origin_url,
+            date=now(),
+            type="git",
+        )
         swh_storage.origin_visit_add([visit])
 
         assert swh_storage.origin_count("github", with_visit=False) == 3
@@ -4971,7 +5487,11 @@ class TestStorageGeneratedData:
 
         swh_storage.snapshot_add([snapshot])
         origin_url = "https://github.com/user1/repo1"
-        visit = OriginVisit(origin=origin_url, date=now(), type="git",)
+        visit = OriginVisit(
+            origin=origin_url,
+            date=now(),
+            type="git",
+        )
         visit = swh_storage.origin_visit_add([visit])[0]
         swh_storage.origin_visit_status_add(
             [
@@ -5009,7 +5529,11 @@ class TestStorageGeneratedData:
         for (obj_type, obj) in objects:
             if obj.object_type == "origin_visit":
                 swh_storage.origin_add([Origin(url=obj.origin)])
-                visit = OriginVisit(origin=obj.origin, date=obj.date, type=obj.type,)
+                visit = OriginVisit(
+                    origin=obj.origin,
+                    date=obj.date,
+                    type=obj.type,
+                )
                 swh_storage.origin_visit_add([visit])
             elif obj.object_type == "raw_extrinsic_metadata":
                 swh_storage.metadata_authority_add([obj.authority])

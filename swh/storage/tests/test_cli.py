@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 CLI_CONFIG = {
-    "storage": {"cls": "memory",},
+    "storage": {
+        "cls": "memory",
+    },
 }
 
 
@@ -56,12 +58,20 @@ def invoke(*args, env=None, journal_config=None):
         yaml.dump(config, config_fd)
         config_fd.seek(0)
         args = ["-C" + config_fd.name] + list(args)
-        ret = runner.invoke(cli, args, obj={"log_level": logging.DEBUG}, env=env,)
+        ret = runner.invoke(
+            cli,
+            args,
+            obj={"log_level": logging.DEBUG},
+            env=env,
+        )
         return ret
 
 
 def test_replay(
-    swh_storage, kafka_prefix: str, kafka_consumer_group: str, kafka_server: str,
+    swh_storage,
+    kafka_prefix: str,
+    kafka_consumer_group: str,
+    kafka_server: str,
 ):
     kafka_prefix += ".swh.journal.objects"
 
@@ -76,7 +86,8 @@ def test_replay(
     snapshot = Snapshot(
         branches={
             b"HEAD": SnapshotBranch(
-                target_type=TargetType.REVISION, target=b"\x01" * 20,
+                target_type=TargetType.REVISION,
+                target=b"\x01" * 20,
             )
         },
     )
@@ -113,7 +124,10 @@ def test_replay(
 
 
 def test_replay_type_list():
-    result = invoke("replay", "--help",)
+    result = invoke(
+        "replay",
+        "--help",
+    )
     assert result.exit_code == 0, result.output
     types_in_help = re.findall("--type [[]([a-z_|]+)[]]", result.output)
     assert len(types_in_help) == 1

@@ -6,9 +6,9 @@
 
 import hashlib
 
-TOKEN_BEGIN = -(2 ** 63)
+TOKEN_BEGIN = -(2**63)
 """Minimum value returned by the CQL function token()"""
-TOKEN_END = 2 ** 63 - 1
+TOKEN_END = 2**63 - 1
 """Maximum value returned by the CQL function token()"""
 
 

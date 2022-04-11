@@ -30,7 +30,11 @@ def test_buffering_proxy_storage_content_threshold_not_hit(sample_data) -> None:
     contents = sample_data.contents[:2]
     contents_dict = [c.to_dict() for c in contents]
 
-    storage = get_storage_with_buffer_config(min_batch_size={"content": 10,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "content": 10,
+        }
+    )
     s = storage.content_add(contents)
     assert s == {}
 
@@ -52,7 +56,11 @@ def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data) -> None:
     content = sample_data.content
     content_dict = content.to_dict()
 
-    storage = get_storage_with_buffer_config(min_batch_size={"content": 1,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "content": 1,
+        }
+    )
 
     s = storage.content_add([content])
     assert s == {
@@ -69,7 +77,11 @@ def test_buffering_proxy_storage_content_threshold_nb_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_content_deduplicate(sample_data) -> None:
     contents = sample_data.contents[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"content": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "content": 2,
+        }
+    )
 
     s = storage.content_add([contents[0], contents[0]])
     assert s == {}
@@ -94,7 +106,10 @@ def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data) -> Non
     contents = sample_data.contents[:2]
     content_bytes_min_batch_size = 2
     storage = get_storage_with_buffer_config(
-        min_batch_size={"content": 10, "content_bytes": content_bytes_min_batch_size,}
+        min_batch_size={
+            "content": 10,
+            "content_bytes": content_bytes_min_batch_size,
+        }
     )
 
     assert contents[0].length > content_bytes_min_batch_size
@@ -115,7 +130,11 @@ def test_buffering_proxy_storage_content_threshold_bytes_hit(sample_data) -> Non
 def test_buffering_proxy_storage_skipped_content_threshold_not_hit(sample_data) -> None:
     contents = sample_data.skipped_contents
     contents_dict = [c.to_dict() for c in contents]
-    storage = get_storage_with_buffer_config(min_batch_size={"skipped_content": 10,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "skipped_content": 10,
+        }
+    )
     s = storage.skipped_content_add([contents[0], contents[1]])
     assert s == {}
 
@@ -132,7 +151,11 @@ def test_buffering_proxy_storage_skipped_content_threshold_not_hit(sample_data) 
 
 def test_buffering_proxy_storage_skipped_content_threshold_nb_hit(sample_data) -> None:
     contents = sample_data.skipped_contents
-    storage = get_storage_with_buffer_config(min_batch_size={"skipped_content": 1,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "skipped_content": 1,
+        }
+    )
 
     s = storage.skipped_content_add([contents[0]])
     assert s == {"skipped_content:add": 1}
@@ -146,7 +169,11 @@ def test_buffering_proxy_storage_skipped_content_threshold_nb_hit(sample_data) -
 
 def test_buffering_proxy_storage_skipped_content_deduplicate(sample_data):
     contents = sample_data.skipped_contents[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"skipped_content": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "skipped_content": 2,
+        }
+    )
 
     s = storage.skipped_content_add([contents[0], contents[0]])
     assert s == {}
@@ -168,7 +195,11 @@ def test_buffering_proxy_storage_skipped_content_deduplicate(sample_data):
 
 def test_buffering_proxy_storage_extid_threshold_not_hit(sample_data) -> None:
     extid = sample_data.extid1
-    storage = get_storage_with_buffer_config(min_batch_size={"extid": 10,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "extid": 10,
+        }
+    )
     s = storage.extid_add([extid])
     assert s == {}
 
@@ -190,7 +221,11 @@ def test_buffering_proxy_storage_extid_threshold_not_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_extid_threshold_hit(sample_data) -> None:
     extid = sample_data.extid1
-    storage = get_storage_with_buffer_config(min_batch_size={"extid": 1,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "extid": 1,
+        }
+    )
     s = storage.extid_add([extid])
     assert s == {
         "extid:add": 1,
@@ -207,7 +242,11 @@ def test_buffering_proxy_storage_extid_threshold_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_extid_deduplicate(sample_data) -> None:
     extids = sample_data.extids[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"extid": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "extid": 2,
+        }
+    )
 
     s = storage.extid_add([extids[0], extids[0]])
     assert s == {}
@@ -232,7 +271,11 @@ def test_buffering_proxy_storage_extid_deduplicate(sample_data) -> None:
 
 def test_buffering_proxy_storage_directory_threshold_not_hit(sample_data) -> None:
     directory = sample_data.directory
-    storage = get_storage_with_buffer_config(min_batch_size={"directory": 10,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "directory": 10,
+        }
+    )
     s = storage.directory_add([directory])
     assert s == {}
 
@@ -250,7 +293,11 @@ def test_buffering_proxy_storage_directory_threshold_not_hit(sample_data) -> Non
 
 def test_buffering_proxy_storage_directory_threshold_hit(sample_data) -> None:
     directory = sample_data.directory
-    storage = get_storage_with_buffer_config(min_batch_size={"directory": 1,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "directory": 1,
+        }
+    )
     s = storage.directory_add([directory])
     assert s == {
         "directory:add": 1,
@@ -265,7 +312,11 @@ def test_buffering_proxy_storage_directory_threshold_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_directory_deduplicate(sample_data) -> None:
     directories = sample_data.directories[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"directory": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "directory": 2,
+        }
+    )
 
     s = storage.directory_add([directories[0], directories[0]])
     assert s == {}
@@ -310,7 +361,11 @@ def test_buffering_proxy_storage_directory_entries_threshold(sample_data) -> Non
 
 def test_buffering_proxy_storage_revision_threshold_not_hit(sample_data) -> None:
     revision = sample_data.revision
-    storage = get_storage_with_buffer_config(min_batch_size={"revision": 10,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "revision": 10,
+        }
+    )
     s = storage.revision_add([revision])
     assert s == {}
 
@@ -328,7 +383,11 @@ def test_buffering_proxy_storage_revision_threshold_not_hit(sample_data) -> None
 
 def test_buffering_proxy_storage_revision_threshold_hit(sample_data) -> None:
     revision = sample_data.revision
-    storage = get_storage_with_buffer_config(min_batch_size={"revision": 1,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "revision": 1,
+        }
+    )
     s = storage.revision_add([revision])
     assert s == {
         "revision:add": 1,
@@ -343,7 +402,11 @@ def test_buffering_proxy_storage_revision_threshold_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_revision_deduplicate(sample_data) -> None:
     revisions = sample_data.revisions[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"revision": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "revision": 2,
+        }
+    )
 
     s = storage.revision_add([revisions[0], revisions[0]])
     assert s == {}
@@ -415,7 +478,9 @@ def test_buffering_proxy_storage_release_threshold_not_hit(sample_data) -> None:
 
     assert len(releases) < threshold
     storage = get_storage_with_buffer_config(
-        min_batch_size={"release": threshold,}  # configuration set
+        min_batch_size={
+            "release": threshold,
+        }  # configuration set
     )
     s = storage.release_add(releases)
     assert s == {}
@@ -439,7 +504,9 @@ def test_buffering_proxy_storage_release_threshold_hit(sample_data) -> None:
     assert len(releases) > threshold
 
     storage = get_storage_with_buffer_config(
-        min_batch_size={"release": threshold,}  # configuration set
+        min_batch_size={
+            "release": threshold,
+        }  # configuration set
     )
 
     s = storage.release_add(releases)
@@ -457,7 +524,11 @@ def test_buffering_proxy_storage_release_threshold_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_release_deduplicate(sample_data) -> None:
     releases = sample_data.releases[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"release": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "release": 2,
+        }
+    )
 
     s = storage.release_add([releases[0], releases[0]])
     assert s == {}
@@ -506,7 +577,9 @@ def test_buffering_proxy_storage_snapshot_threshold_not_hit(sample_data) -> None
 
     assert len(snapshots) < threshold
     storage = get_storage_with_buffer_config(
-        min_batch_size={"snapshot": threshold,}  # configuration set
+        min_batch_size={
+            "snapshot": threshold,
+        }  # configuration set
     )
     s = storage.snapshot_add(snapshots)
     assert s == {}
@@ -530,7 +603,9 @@ def test_buffering_proxy_storage_snapshot_threshold_hit(sample_data) -> None:
     assert len(snapshots) > threshold
 
     storage = get_storage_with_buffer_config(
-        min_batch_size={"snapshot": threshold,}  # configuration set
+        min_batch_size={
+            "snapshot": threshold,
+        }  # configuration set
     )
 
     s = storage.snapshot_add(snapshots)
@@ -548,7 +623,11 @@ def test_buffering_proxy_storage_snapshot_threshold_hit(sample_data) -> None:
 
 def test_buffering_proxy_storage_snapshot_deduplicate(sample_data) -> None:
     snapshots = sample_data.snapshots[:2]
-    storage = get_storage_with_buffer_config(min_batch_size={"snapshot": 2,})
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "snapshot": 2,
+        }
+    )
 
     s = storage.snapshot_add([snapshots[0], snapshots[0]])
     assert s == {}
@@ -569,9 +648,7 @@ def test_buffering_proxy_storage_snapshot_deduplicate(sample_data) -> None:
 
 
 def test_buffering_proxy_storage_clear(sample_data) -> None:
-    """Clear operation on buffer
-
-    """
+    """Clear operation on buffer"""
     threshold = 10
     contents = sample_data.contents
     assert 0 < len(contents) < threshold

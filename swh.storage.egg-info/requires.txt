@@ -18,7 +18,7 @@ swh.journal>=0.9
 
 [testing]
 hypothesis>=3.11.0
-pytest<7.0.0
+pytest
 pytest-mock
 swh.model[testing]>=0.0.50
 pytz

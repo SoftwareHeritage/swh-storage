@@ -36,9 +36,7 @@ STORAGES = [
 @pytest.mark.parametrize("cls,real_class,args", STORAGES)
 @patch("swh.storage.postgresql.storage.psycopg2.pool")
 def test_get_storage(mock_pool, cls, real_class, args):
-    """Instantiating an existing storage should be ok
-
-    """
+    """Instantiating an existing storage should be ok"""
     mock_pool.ThreadedConnectionPool.return_value = None
     actual_storage = get_storage(cls, **args)
     assert actual_storage is not None
@@ -60,9 +58,7 @@ def test_get_storage_legacy_args(mock_pool, cls, real_class, args):
 
 
 def test_get_storage_failure():
-    """Instantiating an unknown storage should raise
-
-    """
+    """Instantiating an unknown storage should raise"""
     with pytest.raises(ValueError, match="Unknown storage class `unknown`"):
         get_storage("unknown")
 
@@ -71,9 +67,18 @@ def test_get_storage_pipeline():
     config = {
         "cls": "pipeline",
         "steps": [
-            {"cls": "filter",},
-            {"cls": "buffer", "min_batch_size": {"content": 10,},},
-            {"cls": "memory",},
+            {
+                "cls": "filter",
+            },
+            {
+                "cls": "buffer",
+                "min_batch_size": {
+                    "content": 10,
+                },
+            },
+            {
+                "cls": "memory",
+            },
         ],
     }
 
@@ -88,9 +93,20 @@ def test_get_storage_pipeline_legacy_args():
     config = {
         "cls": "pipeline",
         "steps": [
-            {"cls": "filter",},
-            {"cls": "buffer", "args": {"min_batch_size": {"content": 10,},}},
-            {"cls": "memory",},
+            {
+                "cls": "filter",
+            },
+            {
+                "cls": "buffer",
+                "args": {
+                    "min_batch_size": {
+                        "content": 10,
+                    },
+                },
+            },
+            {
+                "cls": "memory",
+            },
         ],
     }
 
@@ -110,18 +126,14 @@ def test_get_storage_pipeline_legacy_args():
     [x for x in STORAGES if x.id not in ("remote", "local", "postgresql")],
 )
 def test_get_storage_check_config(cls, real_class, kwargs, monkeypatch):
-    """Instantiating an existing storage with check_config should be ok
-
-    """
+    """Instantiating an existing storage with check_config should be ok"""
     check_backend_check_config(monkeypatch, dict(cls=cls, **kwargs))
 
 
 @patch("swh.storage.postgresql.storage.psycopg2.pool")
 @pytest.mark.parametrize("clazz", ["local", "postgresql"])
 def test_get_storage_local_check_config(mock_pool, monkeypatch, clazz):
-    """Instantiating a local storage with check_config should be ok
-
-    """
+    """Instantiating a local storage with check_config should be ok"""
     mock_pool.ThreadedConnectionPool.return_value = None
     check_backend_check_config(
         monkeypatch,
@@ -135,13 +147,23 @@ def test_get_storage_pipeline_check_config(monkeypatch):
     config = {
         "cls": "pipeline",
         "steps": [
-            {"cls": "filter",},
-            {"cls": "buffer", "min_batch_size": {"content": 10,},},
-            {"cls": "memory",},
+            {
+                "cls": "filter",
+            },
+            {
+                "cls": "buffer",
+                "min_batch_size": {
+                    "content": 10,
+                },
+            },
+            {
+                "cls": "memory",
+            },
         ],
     }
     check_backend_check_config(
-        monkeypatch, config,
+        monkeypatch,
+        config,
     )
 
 
@@ -166,7 +188,8 @@ def test_get_storage_remote_check_config(monkeypatch):
         "url": "mock://example.com",
     }
     check_backend_check_config(
-        monkeypatch, config,
+        monkeypatch,
+        config,
     )
 
 

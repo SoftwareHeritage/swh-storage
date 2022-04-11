@@ -15,7 +15,10 @@ from swh.storage.exc import StorageArgumentException
 def swh_storage():
     storage_config = {
         "cls": "pipeline",
-        "steps": [{"cls": "validate"}, {"cls": "memory"},],
+        "steps": [
+            {"cls": "validate"},
+            {"cls": "memory"},
+        ],
     }
 
     return get_storage(**storage_config)

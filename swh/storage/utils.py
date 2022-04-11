@@ -85,16 +85,12 @@ def extract_collision_hash(error_message: str) -> Optional[Tuple[str, bytes]]:
 
 
 def content_hex_hashes(content: Dict[str, bytes]) -> Dict[str, str]:
-    """Convert bytes hashes into hex hashes.
-
-    """
+    """Convert bytes hashes into hex hashes."""
     return {algo: hash_to_hex(content[algo]) for algo in DEFAULT_ALGORITHMS}
 
 
 def content_bytes_hashes(content: Dict[str, str]) -> Dict[str, bytes]:
-    """Convert bytes hashes into hex hashes.
-
-    """
+    """Convert bytes hashes into hex hashes."""
     return {algo: hash_to_bytes(content[algo]) for algo in DEFAULT_ALGORITHMS}
 
 
