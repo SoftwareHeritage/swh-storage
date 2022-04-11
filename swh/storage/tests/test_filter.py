@@ -15,7 +15,10 @@ from swh.storage import get_storage
 def swh_storage():
     storage_config = {
         "cls": "pipeline",
-        "steps": [{"cls": "filter"}, {"cls": "memory"},],
+        "steps": [
+            {"cls": "filter"},
+            {"cls": "memory"},
+        ],
     }
 
     return get_storage(**storage_config)

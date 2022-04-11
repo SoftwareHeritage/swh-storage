@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def should_retry_adding(retry_state) -> bool:
-    """Retry if the error/exception is (probably) not about a caller error
-
-    """
+    """Retry if the error/exception is (probably) not about a caller error"""
     attempt = retry_state.outcome
 
     if attempt.failed:
@@ -67,7 +65,7 @@ def retry_function(storage, attribute_name):
 
 class RetryingProxyStorage:
     """Storage implementation which retries adding objects when it specifically
-       fails (hash collision, integrity error).
+    fails (hash collision, integrity error).
 
     """
 

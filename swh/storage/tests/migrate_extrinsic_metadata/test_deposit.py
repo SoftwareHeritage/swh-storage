@@ -26,7 +26,8 @@ from swh.storage.migrate_extrinsic_metadata import (
 )
 
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 SWH_AUTHORITY = MetadataAuthority(
     type=MetadataAuthorityType.REGISTRY,
@@ -635,7 +636,14 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
             "deposit.status": "done",
             "deposit_request.metadata": None,
             "deposit_request.date": datetime.datetime(
-                2020, 10, 9, 13, 38, 8, 269611, tzinfo=datetime.timezone.utc,
+                2020,
+                10,
+                9,
+                13,
+                38,
+                8,
+                269611,
+                tzinfo=datetime.timezone.utc,
             ),
             "deposit_client.provider_url": "https://hal.archives-ouvertes.fr/",
             "deposit_collection.name": "hal",
@@ -648,7 +656,14 @@ def test_deposit_2_with_json_in_json_and_no_xmlns():
             "deposit.status": "done",
             "deposit_request.metadata": extrinsic_metadata,
             "deposit_request.date": datetime.datetime(
-                2020, 10, 9, 13, 38, 7, 394544, tzinfo=datetime.timezone.utc,
+                2020,
+                10,
+                9,
+                13,
+                38,
+                7,
+                394544,
+                tzinfo=datetime.timezone.utc,
             ),
             "deposit_client.provider_url": "https://hal.archives-ouvertes.fr/",
             "deposit_collection.name": "hal",
@@ -930,7 +945,10 @@ def test_deposit_3_and_no_swhid():
         ),
         "type": "tar",
         "message": b"hal: Deposit 342 in collection hal",
-        "metadata": {**extrinsic_metadata, "original_artifact": original_artifacts,},
+        "metadata": {
+            **extrinsic_metadata,
+            "original_artifact": original_artifacts,
+        },
     }
     storage = Mock()
 
@@ -1203,7 +1221,10 @@ def test_deposit_missing_metadata_in_revision():
         "@xmlns:codemeta": "https://doi.org/10.5063/SCHEMA/CODEMETA-2.0",
         "codemeta:author": {"codemeta:name": "Morane Gruenpeter"},
         "codemeta:version": "1",
-        "codemeta:identifier": {"#text": "10.5281/zenodo.438684", "@name": "doi",},
+        "codemeta:identifier": {
+            "#text": "10.5281/zenodo.438684",
+            "@name": "doi",
+        },
         "external_identifier": "hal-01243573",
         "codemeta:dateCreated": "2017-11-16T14:54:23+01:00",
     }

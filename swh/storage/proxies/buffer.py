@@ -134,7 +134,11 @@ class BufferingProxyStorage:
         if key.endswith("_add"):
             object_type = key.rsplit("_", 1)[0]
             if object_type in OBJECT_TYPES:
-                return partial(self.object_add, object_type=object_type, keys=["id"],)
+                return partial(
+                    self.object_add,
+                    object_type=object_type,
+                    keys=["id"],
+                )
         if key == "storage":
             raise AttributeError(key)
         return getattr(self.storage, key)

@@ -67,9 +67,7 @@ class JournalWriter:
             self.journal.write_additions(object_type, values)
 
     def content_add(self, contents: Iterable[Content]) -> None:
-        """Add contents to the journal. Drop the data field if provided.
-
-        """
+        """Add contents to the journal. Drop the data field if provided."""
         contents = [evolve(item, data=None) for item in contents]
         self.write_additions("content", contents)
 

@@ -84,7 +84,12 @@ COLUMNS = {
     "metadata_authority": ["type", "url"],
     "metadata_fetcher": ["name", "version"],
     "origin": ["url"],
-    "origin_visit": ["visit", "type", ("origin.url", "origin"), "date",],
+    "origin_visit": [
+        "visit",
+        "type",
+        ("origin.url", "origin"),
+        "date",
+    ],
     "origin_visit_status": [
         ("origin_visit_status.visit", "visit"),
         ("origin.url", "origin"),
@@ -165,7 +170,9 @@ JOINS = {
         "person c on revision.committer=c.id",
     ],
     "origin_visit": ["origin on origin_visit.origin=origin.id"],
-    "origin_visit_status": ["origin on origin_visit_status.origin=origin.id",],
+    "origin_visit_status": [
+        "origin on origin_visit_status.origin=origin.id",
+    ],
     "raw_extrinsic_metadata": [
         "metadata_authority on "
         "raw_extrinsic_metadata.authority_id=metadata_authority.id",
@@ -181,7 +188,7 @@ EXTRA_WHERE = {
 
 def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
     """Convert directory from the flat representation to swh model
-       compatible objects.
+    compatible objects.
 
     """
     columns = ["target", "name", "perms"]
@@ -225,7 +232,7 @@ def raw_extrinsic_metadata_converter(
     db: BaseDb, metadata: Dict[str, Any]
 ) -> RawExtrinsicMetadata:
     """Convert a raw extrinsic metadata from the flat representation to swh model
-       compatible objects.
+    compatible objects.
 
     """
     return db_to_raw_extrinsic_metadata(metadata)
@@ -233,7 +240,7 @@ def raw_extrinsic_metadata_converter(
 
 def extid_converter(db: BaseDb, extid: Dict[str, Any]) -> ExtID:
     """Convert an extid from the flat representation to swh model
-       compatible objects.
+    compatible objects.
 
     """
     return db_to_extid(extid)
@@ -241,7 +248,7 @@ def extid_converter(db: BaseDb, extid: Dict[str, Any]) -> ExtID:
 
 def revision_converter(db: BaseDb, revision_d: Dict[str, Any]) -> Revision:
     """Convert revision from the flat representation to swh model
-       compatible objects.
+    compatible objects.
 
     """
     revision = db_to_revision(revision_d)
@@ -251,7 +258,7 @@ def revision_converter(db: BaseDb, revision_d: Dict[str, Any]) -> Revision:
 
 def release_converter(db: BaseDb, release_d: Dict[str, Any]) -> Release:
     """Convert release from the flat representation to swh model
-       compatible objects.
+    compatible objects.
 
     """
     release = db_to_release(release_d)
@@ -261,7 +268,7 @@ def release_converter(db: BaseDb, release_d: Dict[str, Any]) -> Release:
 
 def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
     """Convert snapshot from the flat representation to swh model
-       compatible objects.
+    compatible objects.
 
     """
     columns = ["name", "target", "target_type"]
@@ -287,7 +294,10 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
                 branch = None
             branches[name] = branch
 
-    return Snapshot(id=snapshot_d["id"], branches=branches,)
+    return Snapshot(
+        id=snapshot_d["id"],
+        branches=branches,
+    )
 
 
 CONVERTERS: Dict[str, Callable[[BaseDb, Dict[str, Any]], BaseModel]] = {
@@ -575,9 +585,9 @@ MANDATORY_KEYS = ["storage", "journal_writer"]
 
 class JournalBackfiller:
     """Class in charge of reading the storage's objects and sends those
-       back to the journal's topics.
+    back to the journal's topics.
 
-       This is designed to be run periodically.
+    This is designed to be run periodically.
 
     """
 
@@ -632,7 +642,7 @@ class JournalBackfiller:
 
     def run(self, object_type, start_object, end_object, dry_run=False):
         """Reads storage's subscribed object types and send them to the
-           journal's reading topic.
+        journal's reading topic.
 
         """
         start_object, end_object = self.parse_arguments(

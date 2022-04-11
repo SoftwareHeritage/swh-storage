@@ -79,7 +79,11 @@ def db_to_author(
         # The fullname hasn't been parsed, try that again
         return Person.from_fullname(fullname)
 
-    return Person(fullname=fullname, name=name, email=email,)
+    return Person(
+        fullname=fullname,
+        name=name,
+        email=email,
+    )
 
 
 def db_to_git_headers(db_git_headers):
@@ -90,7 +94,8 @@ def db_to_git_headers(db_git_headers):
 
 
 def db_to_date(
-    date: Optional[datetime.datetime], offset_bytes: bytes,
+    date: Optional[datetime.datetime],
+    offset_bytes: bytes,
 ) -> Optional[TimestampWithTimezone]:
     """Convert the DB representation of a date to a swh-model compatible date.
 
@@ -151,8 +156,7 @@ def date_to_db(ts_with_tz: Optional[TimestampWithTimezone]) -> Dict[str, Any]:
 
 
 def revision_to_db(revision: Revision) -> Dict[str, Any]:
-    """Convert a swh-model revision to its database representation.
-    """
+    """Convert a swh-model revision to its database representation."""
 
     author = author_to_db(revision.author)
     date = date_to_db(revision.date)
@@ -183,7 +187,11 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
         "extra_headers": revision.extra_headers,
         "raw_manifest": revision.raw_manifest,
         "parents": [
-            {"id": revision.id, "parent_id": parent, "parent_rank": i,}
+            {
+                "id": revision.id,
+                "parent_id": parent,
+                "parent_rank": i,
+            }
             for i, parent in enumerate(revision.parents)
         ],
     }
@@ -203,7 +211,10 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["author_name"],
         db_revision["author_email"],
     )
-    date = db_to_date(db_revision["date"], db_revision["date_offset_bytes"],)
+    date = db_to_date(
+        db_revision["date"],
+        db_revision["date_offset_bytes"],
+    )
 
     committer = db_to_author(
         db_revision["committer_fullname"],
@@ -211,7 +222,8 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
         db_revision["committer_email"],
     )
     committer_date = db_to_date(
-        db_revision["committer_date"], db_revision["committer_date_offset_bytes"],
+        db_revision["committer_date"],
+        db_revision["committer_date_offset_bytes"],
     )
 
     assert (author is None) == (
@@ -254,8 +266,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
 
 
 def release_to_db(release: Release) -> Dict[str, Any]:
-    """Convert a swh-model release to its database representation.
-    """
+    """Convert a swh-model release to its database representation."""
     author = author_to_db(release.author)
     date = date_to_db(release.date)
 
@@ -290,7 +301,10 @@ def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
         db_release["author_name"],
         db_release["author_email"],
     )
-    date = db_to_date(db_release["date"], db_release["date_offset_bytes"],)
+    date = db_to_date(
+        db_release["date"],
+        db_release["date_offset_bytes"],
+    )
 
     return Release(
         author=author,
@@ -320,7 +334,8 @@ def db_to_raw_extrinsic_metadata(row) -> RawExtrinsicMetadata:
             url=row["metadata_authority.url"],
         ),
         fetcher=MetadataFetcher(
-            name=row["metadata_fetcher.name"], version=row["metadata_fetcher.version"],
+            name=row["metadata_fetcher.name"],
+            version=row["metadata_fetcher.version"],
         ),
         discovery_date=row["discovery_date"],
         format=row["format"],

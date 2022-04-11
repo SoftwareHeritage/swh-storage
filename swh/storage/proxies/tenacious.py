@@ -100,7 +100,8 @@ class TenaciousProxyStorage:
         assert "errors" in error_rate_limit
         assert "window_size" in error_rate_limit
         self.rate_queue = RateQueue(
-            size=error_rate_limit["window_size"], max_errors=error_rate_limit["errors"],
+            size=error_rate_limit["window_size"],
+            max_errors=error_rate_limit["errors"],
         )
         self._single_object_retries: int = retries
 
@@ -111,7 +112,7 @@ class TenaciousProxyStorage:
 
     def _tenacious_add(self, func_name, objects: Iterable[BaseModel]) -> Dict[str, int]:
         """Enqueue objects to write to the storage. This checks if the queue's
-           threshold is hit. If it is actually write those to the storage.
+        threshold is hit. If it is actually write those to the storage.
 
         """
         add_function = getattr(self.storage, func_name)

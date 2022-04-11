@@ -38,9 +38,7 @@ from swh.model.swhids import ObjectType as SwhidObjectType
 
 
 class StorageData:
-    """Data model objects to use within tests.
-
-    """
+    """Data model objects to use within tests."""
 
     content = Content(
         data=b"42\n",
@@ -114,7 +112,8 @@ class StorageData:
     skipped_contents: Tuple[SkippedContent, ...] = (skipped_content, skipped_content2)
 
     directory5 = Directory(
-        id=hash_to_bytes("4b825dc642cb6eb9a060e54bf8d69288fbee4904"), entries=(),
+        id=hash_to_bytes("4b825dc642cb6eb9a060e54bf8d69288fbee4904"),
+        entries=(),
     )
     directory = Directory(
         id=hash_to_bytes("5256e856a0a0898966d6ba14feb4388b8b82d302"),
@@ -219,7 +218,10 @@ class StorageData:
         type=RevisionType.GIT,
         directory=directory.id,
         metadata={
-            "checksums": {"sha1": "tarball-sha1", "sha256": "tarball-sha256",},
+            "checksums": {
+                "sha1": "tarball-sha1",
+                "sha256": "tarball-sha256",
+            },
             "signed-off-by": "some-dude",
         },
         extra_headers=(
@@ -238,14 +240,22 @@ class StorageData:
             fullname=b"Roberto Dicosmo <roberto@example.com>",
         ),
         date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1234567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         committer=Person(
-            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+            name=b"tony",
+            email=b"ar@dumont.fr",
+            fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1123456789, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1123456789,
+                microseconds=220000,
+            ),
             offset_bytes=b"+0000",
         ),
         parents=tuple([revision.id]),
@@ -264,14 +274,22 @@ class StorageData:
             fullname=b"Roberto Dicosmo <roberto@example.com>",
         ),
         date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1234567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         committer=Person(
-            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+            name=b"tony",
+            email=b"ar@dumont.fr",
+            fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1127351742, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1127351742,
+                microseconds=220000,
+            ),
             offset_bytes=b"+0000",
         ),
         parents=tuple([revision.id, revision2.id]),
@@ -285,10 +303,15 @@ class StorageData:
         id=hash_to_bytes("ae860aec43700c7f5a295e2ef47e2ae41b535dfe"),
         message=b"parent of self.revision2",
         author=Person(
-            name=b"me", email=b"me@soft.heri", fullname=b"me <me@soft.heri>",
+            name=b"me",
+            email=b"me@soft.heri",
+            fullname=b"me <me@soft.heri>",
         ),
         date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1234567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         committer=Person(
@@ -297,7 +320,10 @@ class StorageData:
             fullname=b"committer-dude <committer@dude.com>",
         ),
         committer_date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1244567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1244567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         parents=tuple([revision3.id]),
@@ -334,7 +360,10 @@ class StorageData:
         type=RevisionType.MERCURIAL,
         directory=directory.id,
         metadata={
-            "checksums": {"sha1": "tarball-sha1", "sha256": "tarball-sha256",},
+            "checksums": {
+                "sha1": "tarball-sha1",
+                "sha256": "tarball-sha256",
+            },
             "signed-off-by": "some-dude",
             "node": "a316dfb434af2b451c1f393496b7eaeda343f543",
         },
@@ -350,14 +379,22 @@ class StorageData:
             fullname=b"Roberto Dicosmo <roberto@example.com>",
         ),
         date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1234567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         committer=Person(
-            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+            name=b"tony",
+            email=b"ar@dumont.fr",
+            fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1123456789, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1123456789,
+                microseconds=220000,
+            ),
             offset_bytes=b"+0000",
         ),
         parents=tuple([hg_revision.id]),
@@ -378,14 +415,22 @@ class StorageData:
             fullname=b"Roberto Dicosmo <roberto@example.com>",
         ),
         date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1234567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         committer=Person(
-            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+            name=b"tony",
+            email=b"ar@dumont.fr",
+            fullname=b"tony <ar@dumont.fr>",
         ),
         committer_date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1127351742, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1127351742,
+                microseconds=220000,
+            ),
             offset_bytes=b"+0000",
         ),
         parents=tuple([hg_revision.id, hg_revision2.id]),
@@ -401,10 +446,15 @@ class StorageData:
         id=hash_to_bytes("4683324ba26dfe941a72cc7552e86eaaf7c27fe3"),
         message=b"parent of self.revision2",
         author=Person(
-            name=b"me", email=b"me@soft.heri", fullname=b"me <me@soft.heri>",
+            name=b"me",
+            email=b"me@soft.heri",
+            fullname=b"me <me@soft.heri>",
         ),
         date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1234567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1234567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         committer=Person(
@@ -413,7 +463,10 @@ class StorageData:
             fullname=b"committer-dude <committer@dude.com>",
         ),
         committer_date=TimestampWithTimezone(
-            timestamp=Timestamp(seconds=1244567843, microseconds=220000,),
+            timestamp=Timestamp(
+                seconds=1244567843,
+                microseconds=220000,
+            ),
             offset_bytes=b"-1200",
         ),
         parents=tuple([hg_revision3.id]),
@@ -445,18 +498,26 @@ class StorageData:
     origin, origin2 = origins[:2]
 
     metadata_authority = MetadataAuthority(
-        type=MetadataAuthorityType.DEPOSIT_CLIENT, url="http://hal.inria.example.com/",
+        type=MetadataAuthorityType.DEPOSIT_CLIENT,
+        url="http://hal.inria.example.com/",
     )
     metadata_authority2 = MetadataAuthority(
-        type=MetadataAuthorityType.REGISTRY, url="http://wikidata.example.com/",
+        type=MetadataAuthorityType.REGISTRY,
+        url="http://wikidata.example.com/",
     )
     authorities: Tuple[MetadataAuthority, ...] = (
         metadata_authority,
         metadata_authority2,
     )
 
-    metadata_fetcher = MetadataFetcher(name="swh-deposit", version="0.0.1",)
-    metadata_fetcher2 = MetadataFetcher(name="swh-example", version="0.0.1",)
+    metadata_fetcher = MetadataFetcher(
+        name="swh-deposit",
+        version="0.0.1",
+    )
+    metadata_fetcher2 = MetadataFetcher(
+        name="swh-example",
+        version="0.0.1",
+    )
     fetchers: Tuple[MetadataFetcher, ...] = (metadata_fetcher, metadata_fetcher2)
 
     date_visit1 = datetime.datetime(2015, 1, 1, 23, 0, 0, tzinfo=datetime.timezone.utc)
@@ -468,13 +529,22 @@ class StorageData:
     type_visit3 = "deb"
 
     origin_visit = OriginVisit(
-        origin=origin.url, visit=1, date=date_visit1, type=type_visit1,
+        origin=origin.url,
+        visit=1,
+        date=date_visit1,
+        type=type_visit1,
     )
     origin_visit2 = OriginVisit(
-        origin=origin.url, visit=2, date=date_visit2, type=type_visit1,
+        origin=origin.url,
+        visit=2,
+        date=date_visit2,
+        type=type_visit1,
     )
     origin_visit3 = OriginVisit(
-        origin=origin2.url, visit=1, date=date_visit1, type=type_visit2,
+        origin=origin2.url,
+        visit=1,
+        date=date_visit1,
+        type=type_visit2,
     )
     origin_visits: Tuple[OriginVisit, ...] = (
         origin_visit,
@@ -486,7 +556,9 @@ class StorageData:
         id=hash_to_bytes("f7f222093a18ec60d781070abec4a630c850b837"),
         name=b"v0.0.1",
         author=Person(
-            name=b"olasd", email=b"nic@olasd.fr", fullname=b"olasd <nic@olasd.fr>",
+            name=b"olasd",
+            email=b"nic@olasd.fr",
+            fullname=b"olasd <nic@olasd.fr>",
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1234567890, microseconds=0),
@@ -501,7 +573,9 @@ class StorageData:
         id=hash_to_bytes("db81a26783a3f4a9db07b4759ffc37621f159bb2"),
         name=b"v0.0.2",
         author=Person(
-            name=b"tony", email=b"ar@dumont.fr", fullname=b"tony <ar@dumont.fr>",
+            name=b"tony",
+            email=b"ar@dumont.fr",
+            fullname=b"tony <ar@dumont.fr>",
         ),
         date=TimestampWithTimezone(
             timestamp=Timestamp(seconds=1634366813, microseconds=0),
@@ -536,34 +610,45 @@ class StorageData:
         id=hash_to_bytes("9b922e6d8d5b803c1582aabe5525b7b91150788e"),
         branches={
             b"master": SnapshotBranch(
-                target=revision.id, target_type=TargetType.REVISION,
+                target=revision.id,
+                target_type=TargetType.REVISION,
             ),
         },
     )
     empty_snapshot = Snapshot(
-        id=hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e"), branches={},
+        id=hash_to_bytes("1a8893e6a86f444e8be8e7bda6cb34fb1735a00e"),
+        branches={},
     )
     complete_snapshot = Snapshot(
         id=hash_to_bytes("db99fda25b43dc5cd90625ee4b0744751799c917"),
         branches={
             b"directory": SnapshotBranch(
-                target=directory.id, target_type=TargetType.DIRECTORY,
+                target=directory.id,
+                target_type=TargetType.DIRECTORY,
             ),
             b"directory2": SnapshotBranch(
-                target=directory2.id, target_type=TargetType.DIRECTORY,
+                target=directory2.id,
+                target_type=TargetType.DIRECTORY,
             ),
             b"content": SnapshotBranch(
-                target=content.sha1_git, target_type=TargetType.CONTENT,
+                target=content.sha1_git,
+                target_type=TargetType.CONTENT,
             ),
-            b"alias": SnapshotBranch(target=b"revision", target_type=TargetType.ALIAS,),
+            b"alias": SnapshotBranch(
+                target=b"revision",
+                target_type=TargetType.ALIAS,
+            ),
             b"revision": SnapshotBranch(
-                target=revision.id, target_type=TargetType.REVISION,
+                target=revision.id,
+                target_type=TargetType.REVISION,
             ),
             b"release": SnapshotBranch(
-                target=release.id, target_type=TargetType.RELEASE,
+                target=release.id,
+                target_type=TargetType.RELEASE,
             ),
             b"snapshot": SnapshotBranch(
-                target=empty_snapshot.id, target_type=TargetType.SNAPSHOT,
+                target=empty_snapshot.id,
+                target_type=TargetType.SNAPSHOT,
             ),
             b"dangling": None,
         },

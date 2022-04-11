@@ -143,7 +143,13 @@ def test_snapshot_get_latest(swh_storage, sample_data):
     )
 
     swh_storage.origin_visit_add(
-        [OriginVisit(origin=origin.url, date=now(), type=visit1.type,)]
+        [
+            OriginVisit(
+                origin=origin.url,
+                date=now(),
+                type=visit1.type,
+            )
+        ]
     )
 
     actual_snapshot = snapshot_get_latest(swh_storage, origin.url)
@@ -298,10 +304,12 @@ def test_snapshot_resolve_alias(swh_storage, sample_data):
     rev_alias3_name = b"rev_alias3"
     rel_alias_name = b"rel_alias"
     rev_branch_info = SnapshotBranch(
-        target=sample_data.revisions[0].id, target_type=TargetType.REVISION,
+        target=sample_data.revisions[0].id,
+        target_type=TargetType.REVISION,
     )
     rel_branch_info = SnapshotBranch(
-        target=sample_data.releases[0].id, target_type=TargetType.RELEASE,
+        target=sample_data.releases[0].id,
+        target_type=TargetType.RELEASE,
     )
     rev_alias1_branch_info = SnapshotBranch(
         target=rev_branch_name, target_type=TargetType.ALIAS
@@ -331,8 +339,14 @@ def test_snapshot_resolve_alias(swh_storage, sample_data):
 
     for alias_name, expected_branch in (
         (rev_alias1_name, rev_branch_info),
-        (rev_alias2_name, rev_branch_info,),
-        (rev_alias3_name, rev_branch_info,),
+        (
+            rev_alias2_name,
+            rev_branch_info,
+        ),
+        (
+            rev_alias3_name,
+            rev_branch_info,
+        ),
         (rel_alias_name, rel_branch_info),
     ):
         assert (
@@ -350,7 +364,10 @@ def test_snapshot_resolve_alias_dangling_branch(swh_storage):
     )
 
     snapshot = Snapshot(
-        branches={dangling_branch_name: None, alias_name: alias_branch,}
+        branches={
+            dangling_branch_name: None,
+            alias_name: alias_branch,
+        }
     )
     swh_storage.snapshot_add([snapshot])
 
@@ -365,7 +382,12 @@ def test_snapshot_resolve_alias_missing_branch(swh_storage):
         target=missing_branch_name, target_type=TargetType.ALIAS
     )
 
-    snapshot = Snapshot(id=b"42" * 10, branches={alias_name: alias_branch,})
+    snapshot = Snapshot(
+        id=b"42" * 10,
+        branches={
+            alias_name: alias_branch,
+        },
+    )
     swh_storage.snapshot_add([snapshot])
 
     assert snapshot_resolve_alias(swh_storage, snapshot.id, alias_name) is None

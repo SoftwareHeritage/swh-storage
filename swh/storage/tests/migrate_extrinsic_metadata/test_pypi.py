@@ -35,13 +35,16 @@ from swh.storage.migrate_extrinsic_metadata import (
 )
 
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 PYPI_AUTHORITY = MetadataAuthority(
-    type=MetadataAuthorityType.FORGE, url="https://pypi.org/",
+    type=MetadataAuthorityType.FORGE,
+    url="https://pypi.org/",
 )
 SWH_AUTHORITY = MetadataAuthority(
-    type=MetadataAuthorityType.REGISTRY, url="https://softwareheritage.org/",
+    type=MetadataAuthorityType.REGISTRY,
+    url="https://softwareheritage.org/",
 )
 
 DIRECTORY_ID = b"a" * 20
@@ -174,7 +177,8 @@ def test_pypi_origin_from_project_name(mocker):
                 id=snapshot_id,
                 branches={
                     b"foo": SnapshotBranch(
-                        target_type=TargetType.REVISION, target=revision_id,
+                        target_type=TargetType.REVISION,
+                        target=revision_id,
                     )
                 },
             )
@@ -188,7 +192,8 @@ def test_pypi_origin_from_project_name(mocker):
             return b'{"info": {"name": "ProjectName"}}'
 
     mock_urlopen = mocker.patch(
-        "swh.storage.migrate_extrinsic_metadata.urlopen", return_value=response(),
+        "swh.storage.migrate_extrinsic_metadata.urlopen",
+        return_value=response(),
     )
 
     assert (
@@ -241,10 +246,22 @@ def test_pypi_1():
         "id": b"\x00\x00\x07a{S\xe7\xb1E\x8fi]\xd0}\xe4\xceU\xaf\x15\x17",
         "directory": DIRECTORY_ID,
         "date": datetime.datetime(
-            2019, 11, 11, 6, 21, 20, tzinfo=datetime.timezone.utc,
+            2019,
+            11,
+            11,
+            6,
+            21,
+            20,
+            tzinfo=datetime.timezone.utc,
         ),
         "committer_date": datetime.datetime(
-            2019, 11, 11, 6, 21, 20, tzinfo=datetime.timezone.utc,
+            2019,
+            11,
+            11,
+            6,
+            21,
+            20,
+            tzinfo=datetime.timezone.utc,
         ),
         "type": "tar",
         "message": b"2.2.73",
@@ -287,13 +304,21 @@ def test_pypi_1():
         "swh:1:rev:000007617b53e7b1458f695dd07de4ce55af1517"
     )
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
+        DIRECTORY_SWHID,
+        authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
-                    2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
+                    2020,
+                    1,
+                    23,
+                    18,
+                    43,
+                    9,
+                    109407,
+                    tzinfo=datetime.timezone.utc,
                 ),
                 authority=PYPI_AUTHORITY,
                 fetcher=FETCHER,
@@ -306,13 +331,21 @@ def test_pypi_1():
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID,
+        authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
-                    2020, 1, 23, 18, 43, 9, 109407, tzinfo=datetime.timezone.utc,
+                    2020,
+                    1,
+                    23,
+                    18,
+                    43,
+                    9,
+                    109407,
+                    tzinfo=datetime.timezone.utc,
                 ),
                 authority=SWH_AUTHORITY,
                 fetcher=FETCHER,
@@ -410,13 +443,20 @@ def test_pypi_2(mocker):
         "swh:1:rev:000004d6382c4ad4c0519266626c36551f0e51ca"
     )
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
+        DIRECTORY_SWHID,
+        authority=PYPI_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
-                    2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
+                    2019,
+                    1,
+                    23,
+                    22,
+                    10,
+                    55,
+                    tzinfo=datetime.timezone.utc,
                 ),
                 authority=PYPI_AUTHORITY,
                 fetcher=FETCHER,
@@ -429,13 +469,20 @@ def test_pypi_2(mocker):
         next_page_token=None,
     )
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID,
+        authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
-                    2019, 1, 23, 22, 10, 55, tzinfo=datetime.timezone.utc,
+                    2019,
+                    1,
+                    23,
+                    22,
+                    10,
+                    55,
+                    tzinfo=datetime.timezone.utc,
                 ),
                 authority=SWH_AUTHORITY,
                 fetcher=FETCHER,
@@ -517,16 +564,26 @@ def test_pypi_3(mocker):
     )
 
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
-    ) == PagedResult(results=[], next_page_token=None,)
+        DIRECTORY_SWHID,
+        authority=PYPI_AUTHORITY,
+    ) == PagedResult(
+        results=[],
+        next_page_token=None,
+    )
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID,
+        authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
-                    2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
+                    2014,
+                    5,
+                    7,
+                    22,
+                    3,
+                    tzinfo=datetime.timezone.utc,
                 ),
                 authority=SWH_AUTHORITY,
                 fetcher=FETCHER,
@@ -609,7 +666,8 @@ def test_pypi_good_origin():
                 id=snapshot_id,
                 branches={
                     b"foo": SnapshotBranch(
-                        target_type=TargetType.REVISION, target=revision_id,
+                        target_type=TargetType.REVISION,
+                        target=revision_id,
                     )
                 },
             )
@@ -630,16 +688,26 @@ def test_pypi_good_origin():
     )
 
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=PYPI_AUTHORITY,
-    ) == PagedResult(results=[], next_page_token=None,)
+        DIRECTORY_SWHID,
+        authority=PYPI_AUTHORITY,
+    ) == PagedResult(
+        results=[],
+        next_page_token=None,
+    )
     assert storage.raw_extrinsic_metadata_get(
-        DIRECTORY_SWHID, authority=SWH_AUTHORITY,
+        DIRECTORY_SWHID,
+        authority=SWH_AUTHORITY,
     ) == PagedResult(
         results=[
             RawExtrinsicMetadata(
                 target=DIRECTORY_SWHID,
                 discovery_date=datetime.datetime(
-                    2014, 5, 7, 22, 3, tzinfo=datetime.timezone.utc,
+                    2014,
+                    5,
+                    7,
+                    22,
+                    3,
+                    tzinfo=datetime.timezone.utc,
                 ),
                 authority=SWH_AUTHORITY,
                 fetcher=FETCHER,

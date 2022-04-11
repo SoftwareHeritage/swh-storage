@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020  The Software Heritage developers
+# Copyright (C) 2019-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -202,7 +202,9 @@ def _prepared_exists_statement(
 
 
 def _prepared_select_statement(
-    row_class: Type[BaseRow], clauses: str = "", cols: Optional[List[str]] = None,
+    row_class: Type[BaseRow],
+    clauses: str = "",
+    cols: Optional[List[str]] = None,
 ) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
     if cols is None:
         cols = row_class.cols()
@@ -213,7 +215,8 @@ def _prepared_select_statement(
 
 
 def _prepared_select_statements(
-    row_class: Type[BaseRow], queries: Dict[Any, str],
+    row_class: Type[BaseRow],
+    queries: Dict[Any, str],
 ) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
     """Like _prepared_statement, but supports multiple statements, passed a dict,
     and passes a dict of prepared statements to the decorated method"""
@@ -813,14 +816,20 @@ class CqlRunner:
         """
     )
     def snapshot_count_branches_before_name(
-        self, snapshot_id: Sha1Git, before: bytes, *, statement,
+        self,
+        snapshot_id: Sha1Git,
+        before: bytes,
+        *,
+        statement,
     ) -> Dict[Optional[str], int]:
         row = self._execute_with_retries(statement, [snapshot_id, before]).one()
         (nb_none, counts) = row["counts"]
         return {None: nb_none, **counts}
 
     def snapshot_count_branches(
-        self, snapshot_id: Sha1Git, branch_name_exclude_prefix: Optional[bytes] = None,
+        self,
+        snapshot_id: Sha1Git,
+        branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Dict[Optional[str], int]:
         """Returns a dictionary from type names to the number of branches
         of that type."""
@@ -1112,6 +1121,25 @@ class CqlRunner:
             OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)
         )
 
+    @_prepared_select_statement(
+        OriginVisitStatusRow,
+        "WHERE origin = ? AND visit >= ? AND visit <= ? ORDER BY visit ASC, date ASC",
+    )
+    def origin_visit_status_get_all_range(
+        self,
+        origin_url: str,
+        visit_from: int,
+        visit_to: int,
+        *,
+        statement,
+    ) -> Iterable[OriginVisitStatusRow]:
+
+        args = (origin_url, visit_from, visit_to)
+
+        return map(
+            OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)
+        )
+
     @_prepared_insert_statement(OriginVisitStatusRow)
     def origin_visit_status_add_one(
         self, visit_update: OriginVisitStatusRow, *, statement
@@ -1119,11 +1147,11 @@ class CqlRunner:
         self._add_one(statement, visit_update)
 
     def origin_visit_status_get_latest(
-        self, origin: str, visit: int,
+        self,
+        origin: str,
+        visit: int,
     ) -> Optional[OriginVisitStatusRow]:
-        """Given an origin visit id, return its latest origin_visit_status
-
-         """
+        """Given an origin visit id, return its latest origin_visit_status"""
         return next(self.origin_visit_status_get(origin, visit), None)
 
     @_prepared_select_statement(
@@ -1132,11 +1160,13 @@ class CqlRunner:
         "WHERE origin = ? AND visit = ? ORDER BY visit DESC, date DESC",
     )
     def origin_visit_status_get(
-        self, origin: str, visit: int, *, statement,
+        self,
+        origin: str,
+        visit: int,
+        *,
+        statement,
     ) -> Iterator[OriginVisitStatusRow]:
-        """Return all origin visit statuses for a given visit
-
-        """
+        """Return all origin visit statuses for a given visit"""
         return map(
             OriginVisitStatusRow.from_dict,
             self._execute_with_retries(statement, [origin, visit]),
@@ -1348,10 +1378,14 @@ class CqlRunner:
             return None
 
     @_prepared_select_statement(
-        ExtIDRow, "WHERE token(extid_type, extid) = ?",
+        ExtIDRow,
+        "WHERE token(extid_type, extid) = ?",
     )
     def extid_get_from_token(self, token: int, *, statement) -> Iterable[ExtIDRow]:
-        return map(ExtIDRow.from_dict, self._execute_with_retries(statement, [token]),)
+        return map(
+            ExtIDRow.from_dict,
+            self._execute_with_retries(statement, [token]),
+        )
 
     # Rows are partitioned by token(extid_type, extid), then ordered (aka. "clustered")
     # by (extid_type, extid, extid_version, ...). This means that, without knowing the
@@ -1370,7 +1404,8 @@ class CqlRunner:
         )
 
     @_prepared_select_statement(
-        ExtIDRow, "WHERE extid_type=? AND extid=?",
+        ExtIDRow,
+        "WHERE extid_type=? AND extid=?",
     )
     def extid_get_from_extid(
         self, extid_type: str, extid: bytes, *, statement
@@ -1381,7 +1416,8 @@ class CqlRunner:
         )
 
     @_prepared_select_statement(
-        ExtIDRow, "WHERE extid_type=? AND extid=? AND extid_version = ?",
+        ExtIDRow,
+        "WHERE extid_type=? AND extid=? AND extid_version = ?",
     )
     def extid_get_from_extid_and_version(
         self, extid_type: str, extid: bytes, extid_version: int, *, statement

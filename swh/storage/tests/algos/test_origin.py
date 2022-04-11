@@ -32,9 +32,7 @@ def test_iter_origins(swh_storage):
 
 
 def test_origin_get_latest_visit_status_none(swh_storage, sample_data):
-    """Looking up unknown objects should return nothing
-
-    """
+    """Looking up unknown objects should return nothing"""
     # unknown origin so no result
     assert origin_get_latest_visit_status(swh_storage, "unknown-origin") is None
 
@@ -58,9 +56,7 @@ def test_origin_get_latest_visit_status_none(swh_storage, sample_data):
 
 
 def init_storage_with_origin_visits(swh_storage, sample_data):
-    """Initialize storage with origin/origin-visit/origin-visit-status
-
-    """
+    """Initialize storage with origin/origin-visit/origin-visit-status"""
     snapshot = sample_data.snapshots[2]
     origin1, origin2 = sample_data.origins[:2]
     swh_storage.origin_add([origin1, origin2])
@@ -134,9 +130,7 @@ def init_storage_with_origin_visits(swh_storage, sample_data):
 
 
 def test_origin_get_latest_visit_status_filter_type(swh_storage, sample_data):
-    """Filtering origin visit per types should yield consistent results
-
-    """
+    """Filtering origin visit per types should yield consistent results"""
     objects = init_storage_with_origin_visits(swh_storage, sample_data)
     origin1, origin2 = objects["origin"]
     ov1, ov2 = objects["origin_visit"]
@@ -252,7 +246,13 @@ def test_origin_get_latest_visit_status_filter_snapshot(swh_storage, sample_data
 
     # Add another visit
     swh_storage.origin_visit_add(
-        [OriginVisit(origin=origin2.url, date=date_now, type=sample_data.type_visit2,),]
+        [
+            OriginVisit(
+                origin=origin2.url,
+                date=date_now,
+                type=sample_data.type_visit2,
+            ),
+        ]
     )
 
     # Requiring the latest visit with a snapshot, we still find the previous visit

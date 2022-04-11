@@ -100,7 +100,8 @@ PYPI_FORMAT = "pypi-project-json"
 
 # Information about this script, for traceability
 FETCHER = MetadataFetcher(
-    name="migrate-extrinsic-metadata-from-revisions", version="0.0.1",
+    name="migrate-extrinsic-metadata-from-revisions",
+    version="0.0.1",
 )
 
 # Authorities that we got the metadata from
@@ -142,7 +143,12 @@ def pypi_project_from_filename(filename):
         return "Dtls"
     elif re.match(r"(gae)?pytz-20[0-9][0-9][a-z]\.(tar\.gz|zip)", filename):
         return filename.split("-", 1)[0]
-    elif filename.startswith(("powny-", "obedient.powny-",)):
+    elif filename.startswith(
+        (
+            "powny-",
+            "obedient.powny-",
+        )
+    ):
         return filename.split("-")[0]
     elif filename.startswith("devpi-theme-16-"):
         return "devpi-theme-16"
@@ -627,7 +633,9 @@ def handle_deposit_row(
             )
 
     authority = MetadataAuthority(
-        type=MetadataAuthorityType.DEPOSIT_CLIENT, url=provider_url, metadata={},
+        type=MetadataAuthorityType.DEPOSIT_CLIENT,
+        url=provider_url,
+        metadata={},
     )
 
     for (date, format, metadata) in metadata_entries:
@@ -782,7 +790,9 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 assert_origin_exists(storage, origin)
 
                 authority = MetadataAuthority(
-                    type=MetadataAuthorityType.FORGE, url=provider, metadata={},
+                    type=MetadataAuthorityType.FORGE,
+                    url=provider,
+                    metadata={},
                 )
                 assert row["date"] is None  # the nixguix loader does not write dates
 
