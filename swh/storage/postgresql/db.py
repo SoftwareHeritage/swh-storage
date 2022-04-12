@@ -646,7 +646,7 @@ class Db(BaseDb):
             f"SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov ",
             "INNER JOIN origin o ON o.id = ov.origin ",
         ]
-        query_parts.append("WHERE o.url = %s")
+        query_parts.append("WHERE ov.origin = (select id from origin where url = %s)")
         query_params: List[Any] = [origin]
 
         if visit_from > 0:
@@ -682,7 +682,7 @@ class Db(BaseDb):
             " FROM origin_visit_status ovs",
             " INNER JOIN origin o ON o.id = ovs.origin",
         ]
-        query_parts.append("WHERE o.url = %s")
+        query_parts.append("WHERE ovs.origin = (select id from origin where url = %s)")
         query_params: List[Any] = [origin]
 
         assert visit_from <= visit_to
@@ -724,7 +724,7 @@ class Db(BaseDb):
             FROM origin_visit ov
             INNER JOIN origin o ON o.id = ov.origin
             INNER JOIN origin_visit_status ovs USING (origin, visit)
-            WHERE o.url = %%s AND ov.visit = %%s
+            WHERE ov.origin = (select id from origin where url = %%s) AND ov.visit = %%s
             ORDER BY ovs.date DESC
             LIMIT 1
             """ % (
