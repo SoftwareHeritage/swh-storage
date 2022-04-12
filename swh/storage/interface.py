@@ -1057,7 +1057,7 @@ class StorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("origin/visit_status/get_all_latest")
+    @remote_api_endpoint("origin/visit/get_with_statuses")
     def origin_visit_get_with_statuses(
         self,
         origin: str,

@@ -2349,6 +2349,16 @@ class TestStorage:
         assert actual_page.next_page_token is None
         assert actual_page.results == [ovws1]
 
+        # should return empty results if page_token is last visit
+        actual_page = swh_storage.origin_visit_get_with_statuses(
+            origin.url,
+            allowed_statuses=allowed_statuses,
+            require_snapshot=require_snapshot,
+            page_token=str(ov3.visit),
+        )
+        assert actual_page.next_page_token is None
+        assert actual_page.results == []
+
     def test_origin_visit_status_get__unknown_cases(self, swh_storage, sample_data):
         origin = sample_data.origin
         actual_page = swh_storage.origin_visit_status_get("foobar", 1)
