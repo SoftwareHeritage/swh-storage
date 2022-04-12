@@ -1204,12 +1204,10 @@ class Storage:
 
                 visit_statuses[row_d["visit"]].append(OriginVisitStatus(**row_d))
 
-            results = [
-                OriginVisitWithStatuses(
-                    visit=visit, statuses=visit_statuses[visit.visit]
-                )
-                for visit in visits
-            ]
+        results = [
+            OriginVisitWithStatuses(visit=visit, statuses=visit_statuses[visit.visit])
+            for visit in visits
+        ]
 
         return PagedResult(results=results, next_page_token=next_page_token)
 
