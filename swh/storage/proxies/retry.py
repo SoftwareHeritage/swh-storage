@@ -52,6 +52,7 @@ swh_retry = retry(
     retry=should_retry_adding,
     wait=wait_random_exponential(multiplier=1, max=10),
     stop=stop_after_attempt(3),
+    reraise=True,
 )
 
 
