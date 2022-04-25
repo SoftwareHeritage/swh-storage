@@ -127,7 +127,7 @@ class TenaciousProxyStorage:
 
         while to_add:
             if self.rate_queue.limit_reached():
-                logging.error(
+                logger.error(
                     "Too many insertion errors have been detected; "
                     "disabling insertions"
                 )
