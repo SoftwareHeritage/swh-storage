@@ -194,3 +194,26 @@ def test_retrying_proxy_swh_storage_keyboardinterrupt(swh_storage, sample_data, 
         swh_storage.content_add([sample_content])
 
     assert mock_memory.call_count == 1
+
+
+def test_retrying_proxy_swh_storage_content_add_metadata_retry_failed(
+    swh_storage, sample_data, mocker
+):
+    """When retrying fails every time, the last exception gets re-raised instead
+    of a RetryError"""
+
+    mock_memory = mocker.patch(
+        "swh.storage.in_memory.InMemoryStorage.content_add_metadata"
+    )
+    mock_memory.side_effect = [
+        ValueError(f"This will get raised eventually (attempt {i})")
+        for i in range(1, 10)
+    ]
+
+    sample_content = sample_data.content
+    content = attr.evolve(sample_content, data=None)
+
+    with pytest.raises(ValueError, match="(attempt 3)"):
+        swh_storage.content_add_metadata([content])
+
+    assert mock_memory.call_count == 3
