@@ -42,10 +42,10 @@ class RemoteStorage(RPCClient):
 
     def content_add(self, content: Iterable[Union[Content, Dict[str, Any]]]):
         content = [c.with_data() if isinstance(c, Content) else c for c in content]
-        return self.post("content/add", {"content": content})
+        return self._post("content/add", {"content": content})
 
     def reset(self):
-        return self.post("reset", {})
+        return self._post("reset", {})
 
     def stat_counters(self):
         return self.get("stat/counters")
