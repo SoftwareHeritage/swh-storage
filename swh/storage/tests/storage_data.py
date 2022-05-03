@@ -185,12 +185,39 @@ class StorageData:
             ],
         ),
     )
+
+    directory6 = Directory(
+        id=hash_to_bytes("afa0105cfcaa14fdbacee344e96659170bb1bda5"),
+        entries=tuple(
+            [
+                DirectoryEntry(
+                    name=b"foo",
+                    type="file",
+                    target=b"\x00" * 20,
+                    perms=from_disk.DentryPerms.content,
+                ),
+                DirectoryEntry(
+                    name=b"bar",
+                    type="dir",
+                    target=b"\x01" * 20,
+                    perms=from_disk.DentryPerms.directory,
+                ),
+            ],
+        ),
+        raw_manifest=(
+            b"tree 61\x00"
+            b"100644 foo\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"  # noqa
+            b"40000 bar\x00\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"  # noqa
+        ),
+    )
+
     directories: Tuple[Directory, ...] = (
         directory2,
         directory,
         directory3,
         directory4,
         directory5,
+        directory6,
     )
 
     revision = Revision(
