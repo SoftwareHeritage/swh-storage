@@ -22,6 +22,7 @@ STORAGE_IMPLEMENTATIONS = {
     "buffer": ".proxies.buffer.BufferingProxyStorage",
     "counter": ".proxies.counter.CountingProxyStorage",
     "filter": ".proxies.filter.FilteringProxyStorage",
+    "overlay": ".proxies.overlay.OverlayProxyStorage",
     "retry": ".proxies.retry.RetryingProxyStorage",
     "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
     "validate": ".proxies.validate.ValidatingProxyStorage",

@@ -833,7 +833,7 @@ class TestStorage:
         ]
 
         missing_contents = swh_storage.content_missing_per_sha1_git(contents)
-        assert list(missing_contents) == [missing_cont.sha1_git, missing_cont2.sha1_git]
+        assert set(missing_contents) == {missing_cont.sha1_git, missing_cont2.sha1_git}
 
         missing_contents = swh_storage.content_missing_per_sha1_git([])
         assert list(missing_contents) == []
@@ -1794,8 +1794,10 @@ class TestStorage:
         summary = swh_storage.extid_add(extids)
         assert summary == {"extid:add": len(gitids)}
 
-        assert swh_storage.extid_get_from_extid("git", gitids) == extids
-        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
+        assert set(swh_storage.extid_get_from_extid("git", gitids)) == set(extids)
+        assert set(
+            swh_storage.extid_get_from_target(ObjectType.REVISION, gitids)
+        ) == set(extids)
 
         assert swh_storage.extid_get_from_extid("hg", gitids) == []
         assert swh_storage.extid_get_from_target(ObjectType.RELEASE, gitids) == []
@@ -1846,10 +1848,10 @@ class TestStorage:
         summary = swh_storage.extid_add(extid_objs)
         assert summary == {"extid:add": len(swhids)}
 
-        assert swh_storage.extid_get_from_extid("hg", extids) == extid_objs
-        assert (
-            swh_storage.extid_get_from_target(ObjectType.REVISION, swhids) == extid_objs
-        )
+        assert set(swh_storage.extid_get_from_extid("hg", extids)) == set(extid_objs)
+        assert set(
+            swh_storage.extid_get_from_target(ObjectType.REVISION, swhids)
+        ) == set(extid_objs)
 
         assert swh_storage.extid_get_from_extid("git", extids) == []
         assert swh_storage.extid_get_from_target(ObjectType.RELEASE, swhids) == []
@@ -1887,8 +1889,10 @@ class TestStorage:
         # add them again, should be noop
         summary = swh_storage.extid_add(extids)
         # assert summary == {"extid:add": 0}
-        assert swh_storage.extid_get_from_extid("git", gitids) == extids
-        assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
+        assert set(swh_storage.extid_get_from_extid("git", gitids)) == set(extids)
+        assert set(
+            swh_storage.extid_get_from_target(ObjectType.REVISION, gitids)
+        ) == set(extids)
 
     def test_extid_add_extid_multicity(self, swh_storage, sample_data):
 
@@ -1927,8 +1931,8 @@ class TestStorage:
         ]
         swh_storage.extid_add(extids2)
 
-        assert swh_storage.extid_get_from_extid("git", ids) == extids
-        assert swh_storage.extid_get_from_extid("hg", ids) == extids2
+        assert set(swh_storage.extid_get_from_extid("git", ids)) == set(extids)
+        assert set(swh_storage.extid_get_from_extid("hg", ids)) == set(extids2)
         assert set(swh_storage.extid_get_from_target(ObjectType.REVISION, ids)) == {
             *extids,
             *extids2,
@@ -1970,8 +1974,12 @@ class TestStorage:
         swh_storage.extid_add(extids2)
 
         assert set(swh_storage.extid_get_from_extid("git", ids)) == {*extids, *extids2}
-        assert swh_storage.extid_get_from_target(ObjectType.REVISION, ids) == extids
-        assert swh_storage.extid_get_from_target(ObjectType.RELEASE, ids) == extids2
+        assert set(swh_storage.extid_get_from_target(ObjectType.REVISION, ids)) == set(
+            extids
+        )
+        assert set(swh_storage.extid_get_from_target(ObjectType.RELEASE, ids)) == set(
+            extids2
+        )
 
     def test_extid_version_behavior(self, swh_storage, sample_data):
         ids = [
