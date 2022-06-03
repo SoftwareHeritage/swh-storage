@@ -1,3 +1,17 @@
+swh-storage (1.4.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.4.1     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2022-06-03 15:52:27
+    +0200)
+  * Upstream changes:     - v1.4.1     - Set current_version attribute
+    to postgresql datastore     - origin/master pytest_plugin: use the
+    stock pytest_postgresql postgresql factory     - Add missing
+    __init__.py in proxies/     - docs: Describe metadata formats more
+    precisely, and mention github and gitlab's     - add strict
+    asyncio_mode in pytest.ini
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 03 Jun 2022 15:25:19 +0000
+
 swh-storage (1.4.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.4.0     - (tagged by Valentin Lorentz
