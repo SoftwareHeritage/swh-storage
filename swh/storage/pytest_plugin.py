@@ -11,7 +11,7 @@ from pytest_postgresql import factories
 
 from swh.core.db.pytest_plugin import initialize_database_for_module
 from swh.storage import get_storage
-from swh.storage.postgresql.db import Db as StorageDb
+from swh.storage.postgresql.storage import Storage as StorageDatastore
 from swh.storage.tests.storage_data import StorageData
 
 environ["LC_ALL"] = "C.UTF-8"
@@ -22,7 +22,7 @@ swh_storage_postgresql_proc = factories.postgresql_proc(
         partial(
             initialize_database_for_module,
             modname="storage",
-            version=StorageDb.current_version,
+            version=StorageDatastore.current_version,
         )
     ],
 )

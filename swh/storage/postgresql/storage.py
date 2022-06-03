@@ -9,6 +9,7 @@ import contextlib
 from contextlib import contextmanager
 import datetime
 import itertools
+import logging
 import operator
 from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -19,6 +20,7 @@ import psycopg2.pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
+from swh.core.db.db_utils import swh_db_version
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.model.model import (
     SHA1_SIZE,
@@ -63,6 +65,8 @@ from swh.storage.writer import JournalWriter
 from . import converters
 from .db import Db
 
+logger = logging.getLogger(__name__)
+
 # Max block size of contents to return
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
@@ -101,7 +105,9 @@ def convert_validation_exceptions():
 
 
 class Storage:
-    """SWH storage proxy, encompassing DB and object storage"""
+    """SWH storage datastore proxy, encompassing DB and object storage"""
+
+    current_version: int = 183
 
     def __init__(
         self,
@@ -193,22 +199,21 @@ class Storage:
         if not self.objstorage.check_config(check_write=check_write):
             return False
 
-        if not db.check_dbversion():
+        dbversion = swh_db_version(db.conn.dsn)
+        if dbversion != self.current_version:
+            logger.warning(
+                "database dbversion (%s) != %s current_version (%s)",
+                dbversion,
+                __name__,
+                self.current_version,
+            )
             return False
 
         # Check permissions on one of the tables
-        if check_write:
-            check = "INSERT"
-        else:
-            check = "SELECT"
+        check = "INSERT" if check_write else "SELECT"
 
         cur.execute("select has_table_privilege(current_user, 'content', %s)", (check,))
         return cur.fetchone()[0]
-
-    @db_transaction()
-    def get_current_version(self, *, db: Db, cur=None):
-        """Returns the current code (expected) version"""
-        return db.current_version
 
     def _content_unique_key(self, hash, db):
         """Given a hash (tuple or dict), return a unique key from the

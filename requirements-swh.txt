@@ -1,4 +1,4 @@
-swh.core[db,http] >= 2
+swh.core[db,http] >= 2.9
 swh.counters >= v0.8.0
 swh.model >= 6.0.0
 swh.objstorage >= 0.2.2

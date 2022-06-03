@@ -27,8 +27,6 @@ def jsonize(d):
 class Db(BaseDb):
     """Proxy to the SWH DB, with wrappers around stored procedures"""
 
-    current_version = 182
-
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
             "SELECT swh_mktemp_dir_entry(%s)", (("directory_entry_%s" % entry_type),)
@@ -1543,28 +1541,3 @@ class Db(BaseDb):
         row = cur.fetchone()
         if row:
             return row[0]
-
-    dbversion_cols = ["version", "release", "description"]
-
-    def dbversion(self):
-        with self.transaction() as cur:
-            cur.execute(
-                f"""
-                SELECT {', '.join(self.dbversion_cols)}
-                FROM dbversion
-                ORDER BY version DESC
-                LIMIT 1
-                """
-            )
-            return dict(zip(self.dbversion_cols, cur.fetchone()))
-
-    def check_dbversion(self):
-        dbversion = self.dbversion()["version"]
-        if dbversion != self.current_version:
-            logger.warning(
-                "database dbversion (%s) != %s current_version (%s)",
-                dbversion,
-                __name__,
-                self.current_version,
-            )
-        return dbversion == self.current_version
