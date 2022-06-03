@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021  The Software Heritage developers
+# Copyright (C) 2019-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,27 +9,28 @@ from os import environ
 import pytest
 from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import initialize_database_for_module, postgresql_fact
+from swh.core.db.pytest_plugin import initialize_database_for_module
 from swh.storage import get_storage
-from swh.storage.postgresql.db import Db as StorageDb
+from swh.storage.postgresql.storage import Storage as StorageDatastore
 from swh.storage.tests.storage_data import StorageData
 
 environ["LC_ALL"] = "C.UTF-8"
 
 
 swh_storage_postgresql_proc = factories.postgresql_proc(
-    dbname="storage",
     load=[
         partial(
             initialize_database_for_module,
             modname="storage",
-            version=StorageDb.current_version,
+            version=StorageDatastore.current_version,
         )
     ],
 )
 
 
-swh_storage_postgresql = postgresql_fact("swh_storage_postgresql_proc")
+swh_storage_postgresql = factories.postgresql(
+    "swh_storage_postgresql_proc",
+)
 
 
 @pytest.fixture

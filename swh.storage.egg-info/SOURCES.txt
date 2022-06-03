@@ -113,6 +113,7 @@ swh/storage/postgresql/__init__.py
 swh/storage/postgresql/converters.py
 swh/storage/postgresql/db.py
 swh/storage/postgresql/storage.py
+swh/storage/proxies/__init__.py
 swh/storage/proxies/buffer.py
 swh/storage/proxies/counter.py
 swh/storage/proxies/filter.py

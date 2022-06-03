@@ -264,8 +264,18 @@ The storage API offers three endpoints to manipulate origin metadata:
 Extrinsic metadata formats
 --------------------------
 
+Formats are identified by an opaque string.
+When possible, it should be the MIME type already in use to describe the
+metadata format outside Software Heritage.
+Otherwise it should be unambiguous, printable ASCII without spaces,
+and human-readable.
+
 Here is a list of all the metadata format stored:
 
+``application/vnd.github.v3+json``
+    The metadata is the response of an API call to GitHub.
+``gitlab-project-json``
+    The metadata is the response of an API call to a Gitlab instance.
 ``pypi-project-json``
     The metadata is a release entry from a PyPI project's
     JSON file, extracted and re-serialized.
