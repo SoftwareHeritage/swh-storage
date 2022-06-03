@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,6 @@ import attr
 import pytest
 
 from swh.model.model import Person
-from swh.storage.postgresql.db import Db
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
@@ -391,20 +390,11 @@ class TestPgStorage:
         """Calling clear buffers on real storage does nothing"""
         assert swh_storage.flush() == {}
 
-    def test_dbversion(self, swh_storage):
-        with swh_storage.db() as db:
-            assert db.check_dbversion()
-
-    def test_dbversion_mismatch(self, swh_storage, monkeypatch):
-        monkeypatch.setattr(Db, "current_version", -1)
-        with swh_storage.db() as db:
-            assert db.check_dbversion() is False
-
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
         assert swh_storage.check_config(check_write=False)
 
     def test_check_config_dbversion(self, swh_storage, monkeypatch):
-        monkeypatch.setattr(Db, "current_version", -1)
+        swh_storage.current_version = -1
         assert swh_storage.check_config(check_write=True) is False
         assert swh_storage.check_config(check_write=False) is False
