@@ -1,16 +1,14 @@
 Metadata-Version: 2.1
 Name: swh.storage
-Version: 1.4.0
+Version: 1.4.1
 Summary: Software Heritage storage manager
 Home-page: https://forge.softwareheritage.org/diffusion/DSTO/
 Author: Software Heritage developers
 Author-email: swh-devel@inria.fr
-License: UNKNOWN
 Project-URL: Bug Reports, https://forge.softwareheritage.org/maniphest
 Project-URL: Funding, https://www.softwareheritage.org/donate
 Project-URL: Source, https://forge.softwareheritage.org/source/swh-storage
 Project-URL: Documentation, https://docs.softwareheritage.org/devel/swh-storage/
-Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
@@ -246,5 +244,3 @@ and ScyllaDB >= 4.4 (and possibly earlier versions, but this is untested).
 While the main code supports both transparently, running tests
 or configuring the schema requires specific code when using ScyllaDB,
 enabled by setting the `SWH_USE_SCYLLADB=1` environment variable.
-
-
