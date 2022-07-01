@@ -2389,11 +2389,11 @@ class TestStorage:
             origin=sample_data.origin.url,
             date=now(),
             type=sample_data.type_visit1,
-            visit=42,
+            visit=0,
         )
         ovs = OriginVisitStatus(
             origin=ov.origin,
-            visit=ov.visit,
+            visit=1,
             date=now(),
             status="created",
             snapshot=None,
@@ -2967,6 +2967,14 @@ class TestStorage:
 
         assert ov1.visit == 42
         assert ov2.visit == 43
+
+        # check OriginVisitStatus objects
+        ovs1 = swh_storage.origin_visit_status_get(ov1.origin, visit=ov1.visit).results
+        assert not ovs1, f"There should be no OriginVisitStatus for visit {ov1}"
+        ovs2 = swh_storage.origin_visit_status_get(ov2.origin, visit=ov2.visit).results
+        assert len(ovs2) == 1
+        assert ovs2[0].status == "created"
+        assert ovs2[0].type == ov2.type
 
         visit3 = OriginVisit(
             origin=origin1.url, date=date_visit, type=sample_data.type_visit1, visit=12
@@ -3558,7 +3566,6 @@ class TestStorage:
         assert actual_visit == ov2
 
     def test_origin_visit_get_latest_order(self, swh_storage, sample_data):
-        empty_snapshot, complete_snapshot = sample_data.snapshots[1:3]
         origin = sample_data.origin
 
         id1 = 2
@@ -3589,6 +3596,18 @@ class TestStorage:
         )
 
         ov1, ov2, ov3 = swh_storage.origin_visit_add([visit1, visit2, visit3])
+        ovs = [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=ov.visit,
+                date=ov.date,
+                type=ov.type,
+                status="created",
+                snapshot=None,
+            )
+            for ov in [ov1, ov2, ov3]
+        ]
+        swh_storage.origin_visit_status_add(ovs)
 
         # no filters
         actual_visit = swh_storage.origin_visit_get_latest(origin.url)
@@ -3598,13 +3617,22 @@ class TestStorage:
         origin = sample_data.origin
         swh_storage.origin_add([origin])
 
-        visit1, visit2 = sample_data.origin_visits[:2]
-        assert visit1.origin == origin.url
+        (date1, date2, date3, date4) = [
+            datetime.datetime(2021, 8, i, tzinfo=datetime.timezone.utc)
+            for i in range(1, 5)
+        ]
+
+        visit1 = OriginVisit(
+            origin=origin.url,
+            visit=0,
+            date=date1,
+            type="git",
+        )
 
         swh_storage.origin_visit_add([visit1])
         ov1 = swh_storage.origin_visit_get_latest(origin.url)
 
-        # Add snapshot to visit1, latest snapshot = visit 1 snapshot
+        # Add a snapshot, but do not attach it to visit1 for now
         complete_snapshot = sample_data.snapshots[2]
         swh_storage.snapshot_add([complete_snapshot])
 
@@ -3613,15 +3641,14 @@ class TestStorage:
                 OriginVisitStatus(
                     origin=origin.url,
                     visit=ov1.visit,
-                    date=visit2.date,
+                    date=date2,
                     status="partial",
                     snapshot=None,
                 )
             ]
         )
-        assert visit1.date < visit2.date
 
-        # no snapshot associated to the visit, so None
+        # no snapshot is associated to the visit, so None
         visit = swh_storage.origin_visit_get_latest(
             origin.url,
             allowed_statuses=["partial"],
@@ -3629,32 +3656,36 @@ class TestStorage:
         )
         assert visit is None
 
-        date_now = now()
-        assert visit2.date < date_now
+        # attach the visit to the snapshot
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
                     origin=origin.url,
                     visit=ov1.visit,
-                    date=date_now,
+                    date=date3,
                     status="full",
                     snapshot=complete_snapshot.id,
                 )
             ]
         )
-
-        swh_storage.origin_visit_add(
+        # and add a visit later on
+        ov2 = swh_storage.origin_visit_add(
             [
                 OriginVisit(
                     origin=origin.url,
-                    date=now(),
+                    date=date4,
                     type=visit1.type,
                 )
             ]
-        )
+        )[0]
 
+        # so now the returned visit should be ov1 (because ov2 has no shapshot,
+        # so it won't be returned when require_snapshot is True)
         visit = swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
-        assert visit is not None
+        assert visit == ov1
+        # but without require_snapshot, ov2 is returned
+        visit = swh_storage.origin_visit_get_latest(origin.url, require_snapshot=False)
+        assert visit == ov2
 
     def test_origin_visit_status_get_latest__validation(self, swh_storage, sample_data):
         origin = sample_data.origin

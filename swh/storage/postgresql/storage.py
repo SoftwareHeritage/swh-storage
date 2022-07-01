@@ -1039,27 +1039,31 @@ class Storage:
 
         all_visits = []
         for visit in visits:
-            if not visit.visit:
+            if visit.visit:
+                self.journal_writer.origin_visit_add([visit])
+                db.origin_visit_add_with_id(visit, cur=cur)
+            else:
+                # visit_id is not given, it needs to be set by the db
                 with convert_validation_exceptions():
                     visit_id = db.origin_visit_add(
                         visit.origin, visit.date, visit.type, cur=cur
                     )
                 visit = attr.evolve(visit, visit=visit_id)
-            else:
-                db.origin_visit_add_with_id(visit, cur=cur)
+                # Forced to write in the journal after the db (since its the db
+                # call that set the visit id)
+                self.journal_writer.origin_visit_add([visit])
+                # In this case, we also want to create the initial OVS object
+                visit_status = OriginVisitStatus(
+                    origin=visit.origin,
+                    visit=visit_id,
+                    date=visit.date,
+                    type=visit.type,
+                    status="created",
+                    snapshot=None,
+                )
+                self._origin_visit_status_add(visit_status, db=db, cur=cur)
             assert visit.visit is not None
             all_visits.append(visit)
-            # Forced to write after for the case when the visit has no id
-            self.journal_writer.origin_visit_add([visit])
-            visit_status = OriginVisitStatus(
-                origin=visit.origin,
-                visit=visit.visit,
-                date=visit.date,
-                type=visit.type,
-                status="created",
-                snapshot=None,
-            )
-            self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
         return all_visits
 
