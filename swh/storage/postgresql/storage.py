@@ -20,7 +20,7 @@ import psycopg2.pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
-from swh.core.db.db_utils import swh_db_version
+from swh.core.db.db_utils import swh_db_flavor, swh_db_version
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.model.model import (
     SHA1_SIZE,
@@ -164,6 +164,7 @@ class Storage:
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(objstorage)
         self.query_options = query_options
+        self._flavor: Optional[str] = None
 
     def get_db(self):
         if self._db:
@@ -192,6 +193,19 @@ class Storage:
         finally:
             if db:
                 self.put_db(db)
+
+    @db_transaction()
+    def get_flavor(self, *, db: Db, cur=None) -> str:
+        flavor = swh_db_flavor(db.conn.dsn)
+        assert flavor is not None
+        return flavor
+
+    @property
+    def flavor(self) -> str:
+        if self._flavor is None:
+            self._flavor = self.get_flavor()
+        assert self._flavor is not None
+        return self._flavor
 
     @db_transaction()
     def check_config(self, *, check_write: bool, db: Db, cur=None) -> bool:
