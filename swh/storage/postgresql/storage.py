@@ -1176,7 +1176,7 @@ class Storage:
 
         return PagedResult(results=visits, next_page_token=next_page_token)
 
-    @db_transaction(statement_timeout=500)
+    @db_transaction(statement_timeout=2000)
     def origin_visit_get_with_statuses(
         self,
         origin: str,
@@ -1234,7 +1234,7 @@ class Storage:
 
         return PagedResult(results=results, next_page_token=next_page_token)
 
-    @db_transaction(statement_timeout=1000)
+    @db_transaction(statement_timeout=2000)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
     ) -> Optional[OriginVisit]:
