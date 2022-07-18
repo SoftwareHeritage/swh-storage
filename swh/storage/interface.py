@@ -5,7 +5,7 @@
 
 import datetime
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union
 
 import attr
 from typing_extensions import Protocol, TypedDict, runtime_checkable
@@ -181,11 +181,11 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/data")
-    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+    def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
         """Given a content identifier, returns its associated data if any.
 
         Args:
-            content: sha1 identifier
+            content: dict of hashes (or just sha1 identifier)
 
         Returns:
              raw content data (bytes)

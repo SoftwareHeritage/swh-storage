@@ -36,7 +36,7 @@ collections = {
 
 
 @pytest.fixture
-def swh_storage_backend_config2():
+def swh_storage_backend_config():
     yield {
         "cls": "memory",
         "journal_writer": {
@@ -46,21 +46,17 @@ def swh_storage_backend_config2():
 
 
 @pytest.fixture
-def swh_storage():
+def swh_storage(swh_storage_backend, swh_storage_backend_config):
     storage_config = {
         "cls": "pipeline",
         "steps": [
             {"cls": "tenacious"},
-            {
-                "cls": "memory",
-                "journal_writer": {
-                    "cls": "memory",
-                },
-            },
+            swh_storage_backend_config,
         ],
     }
 
     storage = get_storage(**storage_config)
+    storage.storage = swh_storage_backend  # use the same instance of the in-mem backend
     storage.journal_writer = storage.storage.journal_writer
     return storage
 

@@ -11,7 +11,7 @@ import datetime
 import itertools
 import logging
 import operator
-from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import attr
 import psycopg2
@@ -164,7 +164,7 @@ class Storage:
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
         self.journal_writer = JournalWriter(journal_writer)
-        self.objstorage = ObjStorage(objstorage)
+        self.objstorage = ObjStorage(self, objstorage)
         self.query_options = query_options
         self._flavor: Optional[str] = None
 
@@ -342,7 +342,7 @@ class Storage:
             "content:add": len(contents),
         }
 
-    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+    def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
         # FIXME: Make this method support slicing the `data`
         return self.objstorage.content_get(content)
 
