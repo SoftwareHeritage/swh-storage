@@ -1,14 +1,15 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020-2022 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, Union, cast
 
+from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import Content, MissingData
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
-from swh.storage.interface import Sha1
+from swh.storage.interface import HashDict, Sha1
 
 from .exc import StorageArgumentException
 
@@ -19,7 +20,8 @@ class ObjStorage:
 
     """
 
-    def __init__(self, objstorage_config: Dict):
+    def __init__(self, storage, objstorage_config: Dict):
+        self.storage = storage
         self.objstorage = get_objstorage(**objstorage_config)
 
     def __getattr__(self, key):
@@ -27,7 +29,7 @@ class ObjStorage:
             raise AttributeError(key)
         return getattr(self.objstorage, key)
 
-    def content_get(self, obj_id: Sha1) -> Optional[bytes]:
+    def content_get(self, obj_id: Union[Sha1, HashDict]) -> Optional[bytes]:
         """Retrieve data associated to the content from the objstorage
 
         Args:
@@ -37,8 +39,26 @@ class ObjStorage:
             associated content's data if any, None otherwise.
 
         """
+        hashes: HashDict
+        if isinstance(obj_id, bytes):
+            hashes = {"sha1": obj_id}
+        else:
+            hashes = obj_id
+        if set(hashes) < DEFAULT_ALGORITHMS:
+            # If some hashes are missing, query the database to fill blanks
+            candidates = self.storage.content_find(hashes)
+            if candidates:
+                # There may be more than one in case of collision; but we cannot
+                # do anything about it here
+                hashes = cast(HashDict, candidates[0].hashes())
+            else:
+                # we will pass the partial hash dict to the objstorage, which
+                # will do the best it can with it. Usually, this will return None,
+                # as objects missing from the storage DB are unlikely to be present in the
+                # objstorage
+                pass
         try:
-            data = self.objstorage.get(obj_id)
+            data = self.objstorage.get(hashes)
         except ObjNotFoundError:
             data = None
 

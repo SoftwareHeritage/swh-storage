@@ -65,6 +65,11 @@ def swh_storage(swh_rpc_client, app_server):
     storage.journal_writer = journal_writer
 
 
+@pytest.fixture
+def swh_storage_backend(app_server, swh_storage):
+    return app_server.storage
+
+
 class TestStorageApi(_TestStorage):
     @pytest.mark.skip(
         'The "person" table of the pgsql is a legacy thing, and not '

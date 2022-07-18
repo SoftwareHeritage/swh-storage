@@ -239,6 +239,58 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 1
 
+    @pytest.mark.parametrize("algo", sorted(DEFAULT_ALGORITHMS))
+    def test_content_get_data_single_hash_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker, algo
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+        assert swh_storage.content_get_data({algo: cont.get_hash(algo)}) == cont.data
+
+        assert len(content_find.mock_calls) == 1
+
+    def test_content_get_data_two_hash_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+
+        combinations = list(itertools.combinations(sorted(DEFAULT_ALGORITHMS), 2))
+        for (algo1, algo2) in combinations:
+            assert (
+                swh_storage.content_get_data(
+                    {algo1: cont.get_hash(algo1), algo2: cont.get_hash(algo2)}
+                )
+                == cont.data
+            )
+        assert len(content_find.mock_calls) == len(combinations)
+
+    def test_content_get_data_full_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+        assert swh_storage.content_get_data(cont.hashes()) == cont.data
+        assert len(content_find.mock_calls) == 0, (
+            "content_get_data() needlessly called content_find(), "
+            "as all hashes were provided as argument"
+        )
+
     def test_content_get_data_missing(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
 

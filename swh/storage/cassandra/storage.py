@@ -139,7 +139,7 @@ class CassandraStorage:
         self._consistency_level = consistency_level
         self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
-        self.objstorage: ObjStorage = ObjStorage(objstorage)
+        self.objstorage: ObjStorage = ObjStorage(self, objstorage)
         self._allow_overwrite = allow_overwrite
 
         if directory_entries_insert_algo not in DIRECTORY_ENTRIES_INSERT_ALGOS:
@@ -287,7 +287,7 @@ class CassandraStorage:
     def content_add_metadata(self, content: List[Content]) -> Dict[str, int]:
         return self._content_add(content, with_data=False)
 
-    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+    def content_get_data(self, content: Union[Sha1, HashDict]) -> Optional[bytes]:
         # FIXME: Make this method support slicing the `data`
         return self.objstorage.content_get(content)
 
