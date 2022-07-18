@@ -55,6 +55,17 @@ class PartialBranches(TypedDict):
     the snapshot has less than the request number of branches."""
 
 
+class HashDict(TypedDict, total=False):
+    sha1: bytes
+    sha1_git: bytes
+    sha256: bytes
+    blake2s256: bytes
+
+
+class TotalHashDict(HashDict, total=True):
+    pass
+
+
 @attr.s
 class OriginVisitWithStatuses:
     visit = attr.ib(type=OriginVisit)
@@ -228,7 +239,7 @@ class StorageInterface(Protocol):
 
     @remote_api_endpoint("content/missing")
     def content_missing(
-        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+        self, contents: List[HashDict], key_hash: str = "sha1"
     ) -> Iterable[bytes]:
         """List content missing from storage
 
@@ -280,7 +291,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("content/present")
-    def content_find(self, content: Dict[str, Any]) -> List[Content]:
+    def content_find(self, content: HashDict) -> List[Content]:
         """Find a content hash in db.
 
         Args:

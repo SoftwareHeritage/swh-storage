@@ -48,6 +48,7 @@ from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBError
 from swh.storage.interface import (
     VISIT_STATUSES,
+    HashDict,
     ListOrder,
     OriginVisitWithStatuses,
     PagedResult,
@@ -403,7 +404,7 @@ class Storage:
     @db_transaction_generator()
     def content_missing(
         self,
-        contents: List[Dict[str, Any]],
+        contents: List[HashDict],
         key_hash: str = "sha1",
         *,
         db: Db,
@@ -435,9 +436,7 @@ class Storage:
             yield obj[0]
 
     @db_transaction()
-    def content_find(
-        self, content: Dict[str, Any], *, db: Db, cur=None
-    ) -> List[Content]:
+    def content_find(self, content: HashDict, *, db: Db, cur=None) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
                 "content keys must contain at least one "

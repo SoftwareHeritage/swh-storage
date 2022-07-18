@@ -22,6 +22,7 @@ from typing import (
     Set,
     Tuple,
     Union,
+    cast,
 )
 
 import attr
@@ -53,11 +54,13 @@ from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.swhids import ObjectType as SwhidObjectType
 from swh.storage.interface import (
     VISIT_STATUSES,
+    HashDict,
     ListOrder,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
     Sha1,
+    TotalHashDict,
 )
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import map_optional, now
@@ -336,10 +339,10 @@ class CassandraStorage:
             contents_by_hash[key(content)] = content
         return [contents_by_hash.get(hash_) for hash_ in contents]
 
-    def content_find(self, content: Dict[str, Any]) -> List[Content]:
+    def content_find(self, content: HashDict) -> List[Content]:
         return self._content_find_many([content])
 
-    def _content_find_many(self, contents: List[Dict[str, Any]]) -> List[Content]:
+    def _content_find_many(self, contents: List[HashDict]) -> List[Content]:
         # Find an algorithm that is common to all the requested contents.
         # It will be used to do an initial filtering efficiently.
         # TODO: prioritize sha256, we can do more efficient lookups from this hash.
@@ -355,14 +358,16 @@ class CassandraStorage:
 
         results = []
         rows = self._content_get_from_hashes(
-            common_algo, [content[common_algo] for content in contents]
+            common_algo,
+            [content[common_algo] for content in cast(List[dict], contents)],
         )
         for row in rows:
             # Re-check all the hashes, in case of collisions (either of the
             # hash of the partition key, or the hashes in it)
             for content in contents:
                 for algo in HASH_ALGORITHMS:
-                    if content.get(algo) and getattr(row, algo) != content[algo]:
+                    hash_ = content.get(algo)
+                    if hash_ and getattr(row, algo) != hash_:
                         # This hash didn't match; discard the row.
                         break
                 else:
@@ -377,15 +382,15 @@ class CassandraStorage:
         return results
 
     def content_missing(
-        self, contents: List[Dict[str, Any]], key_hash: str = "sha1"
+        self, contents: List[HashDict], key_hash: str = "sha1"
     ) -> Iterable[bytes]:
         if key_hash not in DEFAULT_ALGORITHMS:
             raise StorageArgumentException(
                 "key_hash should be one of {','.join(DEFAULT_ALGORITHMS)}"
             )
 
-        contents_with_all_hashes = []
-        contents_with_missing_hashes = []
+        contents_with_all_hashes: List[TotalHashDict] = []
+        contents_with_missing_hashes: List[HashDict] = []
         for content in contents:
             if DEFAULT_ALGORITHMS <= set(content):
                 contents_with_all_hashes.append(content)
@@ -396,7 +401,7 @@ class CassandraStorage:
         for content in self._cql_runner.content_missing_from_all_hashes(
             contents_with_all_hashes
         ):
-            yield content[key_hash]
+            yield content[key_hash]  # type: ignore
 
         if contents_with_missing_hashes:
             # For these, we need the expensive index lookups + main table.
@@ -426,7 +431,7 @@ class CassandraStorage:
                 # missing_content. (its length is at most 1, unless there is a
                 # collision)
                 found_contents_with_same_hash = found_contents_by_hash[algo][
-                    missing_content[algo]
+                    missing_content[algo]  # type: ignore
                 ]
 
                 # Check if there is a found_content that matches all hashes in the
@@ -444,7 +449,7 @@ class CassandraStorage:
                         break
                 else:
                     # Not found
-                    yield missing_content[key_hash]
+                    yield missing_content[key_hash]  # type: ignore
 
     def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         return self.content_missing([{"sha1": c} for c in contents])

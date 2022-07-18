@@ -23,6 +23,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from cassandra import ConsistencyLevel, CoordinationFailure
@@ -48,7 +49,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
-from swh.storage.interface import ListOrder
+from swh.storage.interface import ListOrder, TotalHashDict
 
 from ..utils import remove_keys
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url
@@ -394,11 +395,12 @@ class CqlRunner:
         ContentRow, f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}"
     )
     def content_get_from_pk(
-        self, content_hashes: Dict[str, bytes], *, statement
+        self, content_hashes: TotalHashDict, *, statement
     ) -> Optional[ContentRow]:
         rows = list(
             self._execute_with_retries(
-                statement, [content_hashes[algo] for algo in HASH_ALGORITHMS]
+                statement,
+                [cast(dict, content_hashes)[algo] for algo in HASH_ALGORITHMS],
             )
         )
         assert len(rows) <= 1
@@ -408,8 +410,8 @@ class CqlRunner:
             return None
 
     def content_missing_from_all_hashes(
-        self, contents_hashes: List[Dict[str, bytes]]
-    ) -> Iterator[Dict[str, bytes]]:
+        self, contents_hashes: List[TotalHashDict]
+    ) -> Iterator[TotalHashDict]:
         for group in grouper(contents_hashes, PARTITION_KEY_RESTRICTION_MAX_SIZE):
             group = list(group)
 
