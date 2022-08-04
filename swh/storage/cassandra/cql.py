@@ -419,9 +419,7 @@ class CqlRunner:
                 if tuple(content[algo] for algo in HASH_ALGORITHMS) not in present:
                     yield content
 
-    @_prepared_statement(
-        f"SELECT {', '.join(HASH_ALGORITHMS)} FROM content WHERE sha256 IN ?"
-    )
+    @_prepared_select_statement(ContentRow, "WHERE sha256 IN ?", HASH_ALGORITHMS)
     def _content_get_hashes_from_sha256(
         self, ids: List[bytes], *, statement
     ) -> Iterator[Tuple[bytes, bytes, bytes, bytes]]:
@@ -607,7 +605,7 @@ class CqlRunner:
     def revision_add_one(self, revision: RevisionRow, *, statement) -> None:
         self._add_one(statement, revision)
 
-    @_prepared_statement(f"SELECT id FROM {RevisionRow.TABLE} WHERE id IN ?")
+    @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
     def revision_get_ids(self, revision_ids, *, statement) -> Iterable[int]:
         return (
             row["id"] for row in self._execute_with_retries(statement, [revision_ids])
@@ -635,9 +633,7 @@ class CqlRunner:
     ) -> None:
         self._add_one(statement, revision_parent)
 
-    @_prepared_statement(
-        f"SELECT parent_id FROM {RevisionParentRow.TABLE} WHERE id = ?"
-    )
+    @_prepared_select_statement(RevisionParentRow, "WHERE id = ?", ["parent_id"])
     def revision_parent_get(
         self, revision_id: Sha1Git, *, statement
     ) -> Iterable[bytes]:
@@ -956,7 +952,7 @@ class CqlRunner:
         next_id = visit_id + 1
         self._execute_with_retries(statement, [next_id, origin_sha1, next_id])
 
-    @_prepared_statement(f"SELECT next_visit_id FROM {OriginRow.TABLE} WHERE sha1 = ?")
+    @_prepared_select_statement(OriginRow, "WHERE sha1 = ?", ["next_visit_id"])
     def _origin_get_next_visit_id(self, origin_sha1: bytes, *, statement) -> int:
         rows = list(self._execute_with_retries(statement, [origin_sha1]))
         assert len(rows) == 1  # TODO: error handling
@@ -1172,7 +1168,7 @@ class CqlRunner:
             self._execute_with_retries(statement, [origin, visit]),
         )
 
-    @_prepared_statement("SELECT snapshot FROM origin_visit_status WHERE origin = ?")
+    @_prepared_select_statement(OriginVisitStatusRow, "WHERE origin = ?", ["snapshot"])
     def origin_snapshot_get_all(self, origin: str, *, statement) -> Iterable[Sha1Git]:
         yield from {
             d["snapshot"]
@@ -1310,10 +1306,7 @@ class CqlRunner:
             ),
         )
 
-    @_prepared_statement(
-        "SELECT authority_type, authority_url FROM raw_extrinsic_metadata "
-        "WHERE target = ?"
-    )
+    @_prepared_select_statement(RawExtrinsicMetadataRow, "WHERE target = ?")
     def raw_extrinsic_metadata_get_authorities(
         self, target: str, *, statement
     ) -> Iterable[Tuple[str, str]]:
@@ -1473,12 +1466,8 @@ class CqlRunner:
         the main 'extid' table."""
         self._add_one(statement, row)
 
-    @_prepared_statement(
-        f"""
-        SELECT target_token
-        FROM {ExtIDByTargetRow.TABLE}
-        WHERE target_type = ? AND target = ?
-        """
+    @_prepared_select_statement(
+        ExtIDByTargetRow, "WHERE target_type = ? AND target = ?"
     )
     def _extid_get_tokens_from_target(
         self, target_type: str, target: bytes, *, statement
