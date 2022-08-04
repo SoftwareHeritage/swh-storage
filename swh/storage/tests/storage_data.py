@@ -21,6 +21,7 @@ from swh.model.model import (
     ObjectType,
     Origin,
     OriginVisit,
+    OriginVisitStatus,
     Person,
     RawExtrinsicMetadata,
     Release,
@@ -577,6 +578,36 @@ class StorageData:
         origin_visit,
         origin_visit2,
         origin_visit3,
+    )
+
+    origin_visit_status = OriginVisitStatus(
+        origin=origin.url,
+        visit=1,
+        date=date_visit1,
+        type=type_visit1,
+        status="created",
+        snapshot=None,
+    )
+    origin_visit2_status = OriginVisitStatus(
+        origin=origin.url,
+        visit=2,
+        date=date_visit2,
+        type=type_visit1,
+        status="created",
+        snapshot=None,
+    )
+    origin_visit3_status = OriginVisitStatus(
+        origin=origin2.url,
+        visit=1,
+        date=date_visit1,
+        type=type_visit2,
+        status="created",
+        snapshot=None,
+    )
+    origin_visit_statuses: Tuple[OriginVisitStatus, ...] = (
+        origin_visit_status,
+        origin_visit2_status,
+        origin_visit3_status,
     )
 
     release = Release(

@@ -315,6 +315,8 @@ swh/storage/tests/test_kafka_writer.py
 swh/storage/tests/test_metrics.py
 swh/storage/tests/test_postgresql.py
 swh/storage/tests/test_postgresql_converters.py
+swh/storage/tests/test_postgresql_flavor_mirror.py
+swh/storage/tests/test_postgresql_flavor_readreplica.py
 swh/storage/tests/test_pytest_plugin.py
 swh/storage/tests/test_replay.py
 swh/storage/tests/test_retry.py

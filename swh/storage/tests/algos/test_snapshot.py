@@ -65,13 +65,20 @@ def test_snapshot_get_latest_none(swh_storage, sample_data):
 
     # no snapshot on origin visit so None
     origin = sample_data.origin
-    swh_storage.origin_add([origin])
+    swh_storage.origin_add(sample_data.origins)
     origin_visit, origin_visit2 = sample_data.origin_visits[:2]
     assert origin_visit.origin == origin.url
 
-    swh_storage.origin_visit_add([origin_visit])
+    swh_storage.origin_visit_add(sample_data.origin_visits)
     assert snapshot_get_latest(swh_storage, origin.url) is None
 
+    # no visit status for now (origin visits in sample_data do have a visit_id,
+    # so origin_visit_add won't auto-add the OriginVisitStatus:
+    assert swh_storage.origin_visit_get_latest(origin.url) is None
+
+    # add "created" visit statuses
+    swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+    # now we should have a result from origin_visit_get_latest()
     ov1 = swh_storage.origin_visit_get_latest(origin.url)
     assert ov1 is not None
 
@@ -96,12 +103,13 @@ def test_snapshot_get_latest_none(swh_storage, sample_data):
 
 def test_snapshot_get_latest(swh_storage, sample_data):
     origin = sample_data.origin
-    swh_storage.origin_add([origin])
+    swh_storage.origin_add(sample_data.origins)
 
     visit1, visit2 = sample_data.origin_visits[:2]
     assert visit1.origin == origin.url
 
     swh_storage.origin_visit_add([visit1])
+    swh_storage.origin_visit_status_add([sample_data.origin_visit_status])
     ov1 = swh_storage.origin_visit_get_latest(origin.url)
 
     # Add snapshot to visit1, latest snapshot = visit 1 snapshot

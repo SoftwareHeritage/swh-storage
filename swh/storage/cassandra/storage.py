@@ -1134,25 +1134,28 @@ class CassandraStorage:
                 # Set origin.next_visit_id = max(origin.next_visit_id, visit.visit+1)
                 # so the next loader run does not reuse the id.
                 self._cql_runner.origin_bump_next_visit_id(visit.origin, visit.visit)
+                add_status = False
             else:
                 visit_id = self._cql_runner.origin_generate_unique_visit_id(
                     visit.origin
                 )
                 visit = attr.evolve(visit, visit=visit_id)
+                add_status = True
             self.journal_writer.origin_visit_add([visit])
             self._cql_runner.origin_visit_add_one(OriginVisitRow(**visit.to_dict()))
             assert visit.visit is not None
             all_visits.append(visit)
-            self._origin_visit_status_add(
-                OriginVisitStatus(
-                    origin=visit.origin,
-                    visit=visit.visit,
-                    date=visit.date,
-                    type=visit.type,
-                    status="created",
-                    snapshot=None,
+            if add_status:
+                self._origin_visit_status_add(
+                    OriginVisitStatus(
+                        origin=visit.origin,
+                        visit=visit.visit,
+                        date=visit.date,
+                        type=visit.type,
+                        status="created",
+                        snapshot=None,
+                    )
                 )
-            )
         return all_visits
 
     def _origin_visit_status_add(self, visit_status: OriginVisitStatus) -> None:
