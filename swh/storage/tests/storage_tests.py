@@ -24,6 +24,7 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.model import (
     Content,
     Directory,
+    DirectoryEntry,
     ExtID,
     Origin,
     OriginVisit,
@@ -803,6 +804,44 @@ class TestStorage:
         assert list(swh_storage.journal_writer.journal.objects) == [
             ("directory", directory)
         ]
+
+    def test_directory_add_raw_manifest__different_entries(
+        self, swh_storage, check_ls=True
+    ):
+        """Add two directories with the same raw_manifest (and therefore, same id)
+        but different entries.
+        """
+        dir1 = Directory(
+            entries=(
+                DirectoryEntry(
+                    name=b"name1", type="file", target=b"\x00" * 20, perms=0o100000
+                ),
+            ),
+            raw_manifest=b"abc",
+        )
+        dir2 = Directory(
+            entries=(
+                DirectoryEntry(
+                    name=b"name2", type="file", target=b"\x00" * 20, perms=0o100000
+                ),
+            ),
+            raw_manifest=b"abc",
+        )
+        assert dir1.id == dir2.id  # because it is computed from the raw_manifest only
+
+        assert swh_storage.directory_add([dir1])["directory:add"] == 1
+        assert swh_storage.directory_add([dir2])["directory:add"] in (0, 1)
+
+        if check_ls:
+            # This assertion is skipped when running from
+            # test_directory_add_raw_manifest__different_entries__allow_overwrite
+            assert [entry["name"] for entry in swh_storage.directory_ls(dir1.id)] == (
+                [b"name1"]
+            )
+
+        # used in TestCassandraStorage by
+        # test_directory_add_raw_manifest__different_entries__allow_overwrite
+        return dir1.id
 
     def test_directory_ls_recursive(self, swh_storage, sample_data):
         # create consistent dataset regarding the directories we want to list
