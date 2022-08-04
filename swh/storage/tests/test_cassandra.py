@@ -207,7 +207,7 @@ class RequestHandler:
 @pytest.fixture(scope="session")
 def keyspace(cassandra_cluster):
     (hosts, port) = cassandra_cluster
-    keyspace = os.urandom(10).hex()
+    keyspace = "test" + os.urandom(10).hex()
 
     create_keyspace(hosts, keyspace, port)
 
@@ -237,7 +237,7 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
     storage = get_storage(**storage_config)
 
     for table in TABLES:
-        storage._cql_runner._session.execute('TRUNCATE TABLE "%s"' % table)
+        storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
 
     storage._cql_runner._cluster.shutdown()
 

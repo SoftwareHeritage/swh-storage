@@ -114,9 +114,10 @@ def test_add_content_column(
     swh_storage.content_add([StorageData.content, StorageData.content2])
 
     # Then update the schema
-    swh_storage._cql_runner._session.execute("ALTER TABLE content ADD byte_xor blob")
+    session = swh_storage._cql_runner._cluster.connect(swh_storage._cql_runner.keyspace)
+    session.execute("ALTER TABLE content ADD byte_xor blob")
     for statement in CONTENT_INDEX_TEMPLATE.split("\n\n"):
-        swh_storage._cql_runner._session.execute(statement.format(main_algo="byte_xor"))
+        session.execute(statement.format(main_algo="byte_xor"))
 
     # Should not affect the running code at all:
     assert swh_storage.content_get([StorageData.content.sha1]) == [
@@ -242,12 +243,13 @@ def test_change_content_pk(
     This is a complex migration, as it requires copying the whole table
     """
     content_xor_hash = byte_xor_hash(StorageData.content.data)
+    session = swh_storage._cql_runner._cluster.connect(swh_storage._cql_runner.keyspace)
 
     # First insert some existing data
     swh_storage.content_add([StorageData.content, StorageData.content2])
 
     # Then add a new table and a new index
-    swh_storage._cql_runner._session.execute(
+    session.execute(
         """
         CREATE TABLE IF NOT EXISTS content_v2 (
             sha1          blob,
@@ -263,7 +265,7 @@ def test_change_content_pk(
         );"""
     )
     for statement in CONTENT_INDEX_TEMPLATE.split("\n\n"):
-        swh_storage._cql_runner._session.execute(statement.format(main_algo="byte_xor"))
+        session.execute(statement.format(main_algo="byte_xor"))
 
     # Should not affect the running code at all:
     assert swh_storage.content_get([StorageData.content.sha1]) == [
@@ -324,7 +326,7 @@ def test_change_content_pk(
     ]
 
     # Remove the old table:
-    swh_storage._cql_runner._session.execute("DROP TABLE content")
+    session.execute("DROP TABLE content")
 
     # Object is still available, because we don't use it anymore
     assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [
@@ -334,9 +336,7 @@ def test_change_content_pk(
     # THE END.
 
     # Test teardown expects a table with this name to exist:
-    swh_storage._cql_runner._session.execute(
-        "CREATE TABLE content (foo blob PRIMARY KEY);"
-    )
+    session.execute("CREATE TABLE content (foo blob PRIMARY KEY);")
 
     # Clean up this table, test teardown does not know about it:
-    swh_storage._cql_runner._session.execute("DROP TABLE content_v2;")
+    session.execute("DROP TABLE content_v2;")
