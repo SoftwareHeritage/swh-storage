@@ -12,7 +12,7 @@ from hypothesis.strategies import lists
 
 from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
 from swh.model.hypothesis_strategies import objects
-from swh.model.model import Origin, OriginVisit, Person
+from swh.model.model import Person
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
@@ -50,17 +50,12 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             "release",
             "snapshot",
             "origin",
+            "origin_visit",
             "origin_visit_status",
             "raw_extrinsic_metadata",
         ):
             method(objs)
             expected_messages += len(objs)
-        elif obj_type in ("origin_visit",):
-            for obj in objs:
-                assert isinstance(obj, OriginVisit)
-                storage.origin_add([Origin(url=obj.origin)])
-                method([obj])
-                expected_messages += 1 + 1  # 1 visit + 1 visit status
         else:
             assert False, obj_type
 

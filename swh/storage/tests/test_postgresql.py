@@ -24,6 +24,11 @@ def db_transaction(storage):
             yield db, cur
 
 
+@pytest.mark.db
+def test_pgstorage_flavor(swh_storage):
+    assert swh_storage.get_flavor() == "default"
+
+
 class TestStorage(_TestStorage):
     @pytest.mark.skip(
         "Directory pagination is not implemented in the postgresql backend yet."

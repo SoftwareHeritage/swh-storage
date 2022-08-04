@@ -221,11 +221,15 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
                 )
                 entries.append(entry)
 
-    return Directory(
+    (is_corrupt, dir_) = Directory.from_possibly_duplicated_entries(
         id=directory_d["id"],
         entries=tuple(entries),
         raw_manifest=directory_d["raw_manifest"],
     )
+    if is_corrupt:
+        logger.info("%s has duplicated entries", dir_.swhid())
+
+    return dir_
 
 
 def raw_extrinsic_metadata_converter(

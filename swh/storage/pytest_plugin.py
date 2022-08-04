@@ -9,7 +9,7 @@ from os import environ
 import pytest
 from pytest_postgresql import factories
 
-from swh.core.db.pytest_plugin import initialize_database_for_module
+from swh.core.db.db_utils import initialize_database_for_module
 from swh.storage import get_storage
 from swh.storage.postgresql.storage import Storage as StorageDatastore
 from swh.storage.tests.storage_data import StorageData

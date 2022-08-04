@@ -105,8 +105,6 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(src, object_type + "_add")
         method(objects)
-        if object_type == "origin_visit":
-            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     caplog.set_level(logging.ERROR, "swh.journal.replay")
@@ -146,8 +144,6 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(src, object_type + "_add")
         method(objects)
-        if object_type == "origin_visit":
-            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     # Create collision in input data
@@ -407,8 +403,6 @@ def test_storage_replayer_with_validation_ok(
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(src, object_type + "_add")
         method(objects)
-        if object_type == "origin_visit":
-            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     # Fill the destination storage from Kafka
@@ -453,8 +447,6 @@ def test_storage_replayer_with_validation_nok(
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(src, object_type + "_add")
         method(objects)
-        if object_type == "origin_visit":
-            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     # insert invalid objects
@@ -523,8 +515,6 @@ def test_storage_replayer_with_validation_nok_raises(
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(src, object_type + "_add")
         method(objects)
-        if object_type == "origin_visit":
-            nb_sent += len(objects)  # origin-visit-add adds origin-visit-status as well
         nb_sent += len(objects)
 
     # insert invalid objects
