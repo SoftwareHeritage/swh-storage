@@ -1,8 +1,17 @@
-swh-storage (1.4.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.4.2-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.4.2     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2022-08-04 09:57:35
+    +0200)
+  * Upstream changes:     - v1.4.2     - postgresql: Increase some
+    timeouts to get origin visits     - backfill: Add support for
+    directories with duplicated entries     - cli: move an import
+    statement in the cli command     - do not always auto-create an
+    OriginVisitStatus object in origin_visit_add()     - Add a
+    Storage.flavor property to the postgresql backend     - Update
+    pytest_plugin for swh.core 2.10
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 03 Jun 2022 15:40:41 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Aug 2022 08:13:25 +0000
 
 swh-storage (1.4.1-1~swh1) unstable-swh; urgency=medium
 

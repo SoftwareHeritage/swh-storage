@@ -20,7 +20,7 @@ import psycopg2.pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction, db_transaction_generator
-from swh.core.db.db_utils import swh_db_version
+from swh.core.db.db_utils import swh_db_flavor, swh_db_version
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.model.model import (
     SHA1_SIZE,
@@ -164,6 +164,7 @@ class Storage:
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(objstorage)
         self.query_options = query_options
+        self._flavor: Optional[str] = None
 
     def get_db(self):
         if self._db:
@@ -192,6 +193,19 @@ class Storage:
         finally:
             if db:
                 self.put_db(db)
+
+    @db_transaction()
+    def get_flavor(self, *, db: Db, cur=None) -> str:
+        flavor = swh_db_flavor(db.conn.dsn)
+        assert flavor is not None
+        return flavor
+
+    @property
+    def flavor(self) -> str:
+        if self._flavor is None:
+            self._flavor = self.get_flavor()
+        assert self._flavor is not None
+        return self._flavor
 
     @db_transaction()
     def check_config(self, *, check_write: bool, db: Db, cur=None) -> bool:
@@ -1025,27 +1039,31 @@ class Storage:
 
         all_visits = []
         for visit in visits:
-            if not visit.visit:
+            if visit.visit:
+                self.journal_writer.origin_visit_add([visit])
+                db.origin_visit_add_with_id(visit, cur=cur)
+            else:
+                # visit_id is not given, it needs to be set by the db
                 with convert_validation_exceptions():
                     visit_id = db.origin_visit_add(
                         visit.origin, visit.date, visit.type, cur=cur
                     )
                 visit = attr.evolve(visit, visit=visit_id)
-            else:
-                db.origin_visit_add_with_id(visit, cur=cur)
+                # Forced to write in the journal after the db (since its the db
+                # call that set the visit id)
+                self.journal_writer.origin_visit_add([visit])
+                # In this case, we also want to create the initial OVS object
+                visit_status = OriginVisitStatus(
+                    origin=visit.origin,
+                    visit=visit_id,
+                    date=visit.date,
+                    type=visit.type,
+                    status="created",
+                    snapshot=None,
+                )
+                self._origin_visit_status_add(visit_status, db=db, cur=cur)
             assert visit.visit is not None
             all_visits.append(visit)
-            # Forced to write after for the case when the visit has no id
-            self.journal_writer.origin_visit_add([visit])
-            visit_status = OriginVisitStatus(
-                origin=visit.origin,
-                visit=visit.visit,
-                date=visit.date,
-                type=visit.type,
-                status="created",
-                snapshot=None,
-            )
-            self._origin_visit_status_add(visit_status, db=db, cur=cur)
 
         return all_visits
 
@@ -1158,7 +1176,7 @@ class Storage:
 
         return PagedResult(results=visits, next_page_token=next_page_token)
 
-    @db_transaction(statement_timeout=500)
+    @db_transaction(statement_timeout=2000)
     def origin_visit_get_with_statuses(
         self,
         origin: str,
@@ -1216,7 +1234,7 @@ class Storage:
 
         return PagedResult(results=results, next_page_token=next_page_token)
 
-    @db_transaction(statement_timeout=1000)
+    @db_transaction(statement_timeout=2000)
     def origin_visit_find_by_date(
         self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
     ) -> Optional[OriginVisit]:

@@ -13,7 +13,6 @@ import click
 
 from swh.core.cli import CONTEXT_SETTINGS
 from swh.core.cli import swh as swh_cli_group
-from swh.storage.replay import ModelObjectDeserializer
 
 try:
     from systemd.daemon import notify
@@ -230,7 +229,7 @@ def replay(ctx, stop_after_objects, object_types):
 
     from swh.journal.client import get_journal_client
     from swh.storage import get_storage
-    from swh.storage.replay import process_replay_objects
+    from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
 
     ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "write")
 
