@@ -1413,7 +1413,7 @@ class CassandraStorage:
         return converters.row_to_visit_status(rows[0])
 
     def origin_visit_status_get_random(self, type: str) -> Optional[OriginVisitStatus]:
-        back_in_the_day = now() - datetime.timedelta(weeks=12)  # 3 months back
+        back_in_the_day = now() - datetime.timedelta(weeks=13)  # 3 months back
 
         # Random position to start iteration at
         start_token = random.randint(TOKEN_BEGIN, TOKEN_END)
