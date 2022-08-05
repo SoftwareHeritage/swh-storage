@@ -772,7 +772,12 @@ class TestStorage:
         + function_scoped_fixture_check,
     )
     @given(
-        strategies.lists(hypothesis_strategies.directories(), min_size=1, max_size=10)
+        strategies.lists(
+            hypothesis_strategies.directories(),
+            min_size=1,
+            max_size=10,
+            unique_by=lambda directory: directory.id,
+        )
     )
     def test_directory_add_get_arbitrary(self, swh_storage, directories):
         swh_storage.directory_add(directories)
@@ -1196,6 +1201,7 @@ class TestStorage:
             hypothesis_strategies.revisions(),
             min_size=1,
             max_size=10,
+            unique_by=lambda rev: rev.id,
         )
     )
     def test_revision_add_get_arbitrary(self, swh_storage, revisions):
@@ -1745,6 +1751,7 @@ class TestStorage:
             hypothesis_strategies.releases(),
             min_size=1,
             max_size=10,
+            unique_by=lambda rel: rel.id,
         )
     )
     def test_release_add_get_arbitrary(self, swh_storage, releases):
@@ -3991,7 +3998,14 @@ class TestStorage:
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
         + function_scoped_fixture_check,
     )
-    @given(strategies.lists(hypothesis_strategies.snapshots(), min_size=1, max_size=10))
+    @given(
+        strategies.lists(
+            hypothesis_strategies.snapshots(),
+            min_size=1,
+            max_size=10,
+            unique_by=lambda snp: snp.id,
+        )
+    )
     def test_snapshot_add_get_arbitrary(self, swh_storage, snapshots):
         swh_storage.snapshot_add(snapshots)
 
@@ -5612,6 +5626,12 @@ class TestStorageGeneratedData:
         strategies.lists(hypothesis_strategies.objects(split_content=True), max_size=2)
     )
     def test_add_arbitrary(self, swh_storage, objects):
+        # Deduplicate based on ids if any
+        objects = list(
+            {obj.id: obj for obj in objects if hasattr(obj, "id")}.values()
+        ) + [obj for obj in objects if not hasattr(obj, "id")]
+        random.shuffle(objects)
+
         for (obj_type, obj) in objects:
             if obj.object_type == "origin_visit":
                 swh_storage.origin_add([Origin(url=obj.origin)])
