@@ -2667,9 +2667,9 @@ class TestStorage:
         origins = sample_data.origins
         swh_storage.origin_add(origins)
         visit_type = "hg"
-        # Add some visits outside of the random generation selection so nothing
-        # will be found by the random selection
-        visits = self._generate_random_visits(nb_visits=3, start=13, end=24)
+        # Add some visits older than 3 months so they are excluded from the random
+        # selection
+        visits = self._generate_random_visits(nb_visits=100, start=14, end=24)
         for origin in origins:
             for date_visit in visits:
                 visit = swh_storage.origin_visit_add(
