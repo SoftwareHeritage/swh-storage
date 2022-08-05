@@ -778,7 +778,7 @@ class TestStorage:
         swh_storage.directory_add(directories)
 
         for directory in directories:
-            assert directory == Directory(
+            actual_directory = Directory(
                 id=directory.id,
                 entries=tuple(
                     stream_results(swh_storage.directory_get_entries, directory.id)
@@ -787,6 +787,12 @@ class TestStorage:
                     directory.id
                 ],
             )
+            if directory.raw_manifest is None:
+                assert directory == actual_directory
+            else:
+                assert directory.raw_manifest == actual_directory.raw_manifest
+                # we can't compare the other fields, because they become non-intrinsic,
+                # so they may clash between hypothesis runs
 
     def test_directory_add_twice(self, swh_storage, sample_data):
         directory = sample_data.directories[1]
