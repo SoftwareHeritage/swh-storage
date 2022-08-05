@@ -1,8 +1,12 @@
-swh-storage (1.5.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.5.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.5.1     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-08-05 13:59:15 +0200)
+  * Upstream changes:     - v1.5.1     - * Fix flaky tests     - *
+    cassandra: Make origin_visit_status_get_random's interval consistent
+    with postgresql
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 05 Aug 2022 08:55:08 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 05 Aug 2022 12:17:23 +0000
 
 swh-storage (1.5.0-1~swh1) unstable-swh; urgency=medium
 
