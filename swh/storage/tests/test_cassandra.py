@@ -570,9 +570,18 @@ class TestCassandraStorage(_TestStorage):
         with pytest.raises(TypeError):
             swh_storage.directory_add([directory])
 
-        # This should have written some of the entries to the database:
+        # Usually, this writes all entries but the crashy one in the database;
+        # let's check this. (If this assertion fails, then the test is useless;
+        # but it does not affect the actual functionality)
+        # However, because they are inserted simultaneously, the backend may crash
+        # before the last handful of entries; so we allow them to be missing
+        # without failing the test (which would make it flaky).
         entry_rows = swh_storage._cql_runner.directory_entry_get([directory.id])
-        assert {row.name for row in entry_rows} == {entry.name for entry in entries}
+        assert (
+            {entry.name for entry in entries[0:-100]}
+            <= {row.name for row in entry_rows}
+            <= {entry.name for entry in entries}
+        )
 
         # BUT, because not all the entries were written, the directory should
         # be considered not written.
