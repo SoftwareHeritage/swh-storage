@@ -1,8 +1,12 @@
-swh-storage (1.4.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.5.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.5.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-08-05 10:28:27 +0200)
+  * Upstream changes:     - v1.5.0     - * postgresql: Stop logging and
+    sending timeouts to Sentry     - * cassandra: Fix warnings     - *
+    Fix flaky test     - * cassandra: document UPSERT behavior in a test
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 04 Aug 2022 08:23:22 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 05 Aug 2022 08:44:42 +0000
 
 swh-storage (1.4.2-1~swh1) unstable-swh; urgency=medium
 

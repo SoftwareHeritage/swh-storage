@@ -207,7 +207,7 @@ class RequestHandler:
 @pytest.fixture(scope="session")
 def keyspace(cassandra_cluster):
     (hosts, port) = cassandra_cluster
-    keyspace = os.urandom(10).hex()
+    keyspace = "test" + os.urandom(10).hex()
 
     create_keyspace(hosts, keyspace, port)
 
@@ -237,7 +237,7 @@ def swh_storage_backend_config(cassandra_cluster, keyspace):
     storage = get_storage(**storage_config)
 
     for table in TABLES:
-        storage._cql_runner._session.execute('TRUNCATE TABLE "%s"' % table)
+        storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
 
     storage._cql_runner._cluster.shutdown()
 
@@ -579,6 +579,43 @@ class TestCassandraStorage(_TestStorage):
         assert swh_storage.directory_missing([directory.id]) == [directory.id]
         assert list(swh_storage.directory_ls(directory.id)) == []
         assert swh_storage.directory_get_entries(directory.id) is None
+
+    def test_directory_add_raw_manifest__different_entries__allow_overwrite(
+        self, swh_storage
+    ):
+        """This test demonstrates a shortcoming of the Cassandra storage backend's
+        design:
+
+        1. add a directory with an entry named "name1" and raw_manifest="abc"
+        2. add a directory with an entry named "name2" and the same raw_manifest
+        3. the directories' id is computed only from the raw_manifest, so both
+           directories have the same id, which causes their entries to be
+           "additive" in the database; so directory_ls returns both entries
+
+        However, by default, the Cassandra storage has allow_overwrite=False,
+        which "accidentally" avoids this issue most of the time, by skipping insertion
+        if an object with the same id is already in the database.
+
+        This can still be an issue when either allow_overwrite=True or when inserting
+        both directories at about the same time (because of the lack of
+        transactionality); but the likelihood of two clients inserting two different
+        objects with the same manifest at the same time is very low, it could only
+        happen if loaders running in parallel used different (or nondeterministic)
+        parsers on corrupt objects.
+        """
+        assert (
+            swh_storage._allow_overwrite is False
+        ), "Unexpected default _allow_overwrite value"
+        swh_storage._allow_overwrite = True
+
+        # Run the other test, but skip its last assertion
+        dir_id = self.test_directory_add_raw_manifest__different_entries(
+            swh_storage, check_ls=False
+        )
+        assert [entry["name"] for entry in swh_storage.directory_ls(dir_id)] == [
+            b"name1",
+            b"name2",
+        ]
 
     def test_snapshot_add_atomic(self, swh_storage, sample_data, mocker):
         """Checks that a crash occurring after some snapshot branches were written
