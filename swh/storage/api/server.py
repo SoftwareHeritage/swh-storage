@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,10 +7,12 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
+from psycopg2.errors import QueryCanceled
+
 from swh.core import config
 from swh.core.api import RPCServerApp
 from swh.core.api import encode_data_server as encode_data
-from swh.core.api import error_handler
+from swh.core.api import error_handler, serializers
 from swh.storage import get_storage as get_swhstorage
 
 from ..exc import StorageArgumentException
@@ -98,8 +100,18 @@ def argument_error_handler(exception):
     return error_handler(exception, encode_data, status_code=400)
 
 
+@app.errorhandler(QueryCanceled)
+def querycanceled_error_handler(exception):
+    # Same as error_handler(exception, encode_data); but does not log or send to Sentry.
+    # These errors are noisy, and are better logged on the caller's side after it
+    # retried a few times
+    response = encode_data(serializers.exception_to_dict(exception))
+    response.status_code = 500
+    return response
+
+
 @app.errorhandler(Exception)
-def my_error_handler(exception):
+def default_error_handler(exception):
     return error_handler(exception, encode_data)
 
 
