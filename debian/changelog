@@ -1,8 +1,13 @@
-swh-storage (1.5.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.6.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.6.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-08-16 14:21:35 +0200)
+  * Upstream changes:     - v1.6.0     - * Add anchor extrinsic-metadata-
+    original-artifacts-json     - * Convert psycopg2 errors to
+    TransientRemoteException instead of RemoteException     - * retry:
+    Add constant 10s wait when retrying transient exceptions
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Fri, 05 Aug 2022 12:27:52 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 16 Aug 2022 12:36:51 +0000
 
 swh-storage (1.5.1-1~swh1) unstable-swh; urgency=medium
 
