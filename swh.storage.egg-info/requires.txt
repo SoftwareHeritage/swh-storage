@@ -8,7 +8,7 @@ psycopg2
 redis
 tenacity>=6.2
 typing-extensions
-swh.core[db,http]>=2.10
+swh.core[db,http]>=2.14
 swh.counters>=v0.8.0
 swh.model>=6.3.0
 swh.objstorage>=0.2.2
