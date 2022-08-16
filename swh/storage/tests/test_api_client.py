@@ -1,10 +1,12 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2022  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import psycopg2.errors
 import pytest
 
+from swh.core.api import RemoteException, TransientRemoteException
 import swh.storage
 from swh.storage import get_storage
 import swh.storage.api.server as server
@@ -78,6 +80,46 @@ class TestStorageApi(_TestStorage):
     @pytest.mark.skip("Not supported by Cassandra")
     def test_origin_count(self):
         pass
+
+    def test_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises unknown exceptions as a :exc:`RemoteException`"""
+        assert swh_storage.revision_get(["\x01" * 20]) == [None]
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "revision_get",
+            side_effect=ValueError("crash"),
+        )
+        with pytest.raises(RemoteException) as e:
+            swh_storage.revision_get(["\x01" * 20])
+        assert not isinstance(e, TransientRemoteException)
+
+    def test_operationalerror_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises as a :exc:`TransientRemoteException`
+        rather than the base :exc:`RemoteException`; so the retrying proxy
+        retries for longer."""
+        assert swh_storage.revision_get(["\x01" * 20]) == [None]
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "revision_get",
+            side_effect=psycopg2.errors.AdminShutdown("cluster is shutting down"),
+        )
+        with pytest.raises(RemoteException) as excinfo:
+            swh_storage.revision_get(["\x01" * 20])
+        assert isinstance(excinfo.value, TransientRemoteException)
+
+    def test_querycancelled_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises as a :exc:`TransientRemoteException`
+        rather than the base :exc:`RemoteException`; so the retrying proxy
+        retries for longer."""
+        assert swh_storage.revision_get(["\x01" * 20]) == [None]
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "revision_get",
+            side_effect=psycopg2.errors.QueryCanceled("too big!"),
+        )
+        with pytest.raises(RemoteException) as excinfo:
+            swh_storage.revision_get(["\x01" * 20])
+        assert not isinstance(excinfo.value, TransientRemoteException)
 
 
 class TestStorageApiGeneratedData(_TestStorageGeneratedData):

@@ -300,6 +300,8 @@ Here is a list of all the metadata format stored:
 Details on some of these formats:
 
 
+.. _extrinsic-metadata-original-artifacts-json:
+
 original-artifacts-json
 ^^^^^^^^^^^^^^^^^^^^^^^
 

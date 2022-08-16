@@ -6,8 +6,10 @@
 import logging
 import traceback
 
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_exponential
+from tenacity.wait import wait_base
 
+from swh.core.api import TransientRemoteException
 from swh.storage import get_storage
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
@@ -15,9 +17,10 @@ from swh.storage.interface import StorageInterface
 logger = logging.getLogger(__name__)
 
 
-def should_retry_adding(retry_state) -> bool:
+def should_retry_adding(retry_state: RetryCallState) -> bool:
     """Retry if the error/exception is (probably) not about a caller error"""
     attempt = retry_state.outcome
+    assert attempt
 
     if attempt.failed:
         error = attempt.exception()
@@ -48,9 +51,25 @@ def should_retry_adding(retry_state) -> bool:
         return False
 
 
+class wait_transient_exceptions(wait_base):
+    """Wait longer when servers return HTTP 503."""
+
+    def __init__(self, wait: float) -> None:
+        self.wait = wait
+
+    def __call__(self, retry_state: RetryCallState) -> float:
+        attempt = retry_state.outcome
+        assert attempt
+
+        if attempt.failed and isinstance(attempt.exception(), TransientRemoteException):
+            return self.wait
+        else:
+            return 0.0
+
+
 swh_retry = retry(
     retry=should_retry_adding,
-    wait=wait_random_exponential(multiplier=1, max=10),
+    wait=wait_random_exponential(multiplier=1, max=10) + wait_transient_exceptions(10),
     stop=stop_after_attempt(3),
     reraise=True,
 )

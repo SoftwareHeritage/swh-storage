@@ -7,7 +7,7 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from psycopg2.errors import QueryCanceled
+from psycopg2.errors import OperationalError, QueryCanceled
 
 from swh.core import config
 from swh.core.api import RPCServerApp
@@ -100,11 +100,21 @@ def argument_error_handler(exception):
     return error_handler(exception, encode_data, status_code=400)
 
 
-@app.errorhandler(QueryCanceled)
-def querycanceled_error_handler(exception):
+@app.errorhandler(OperationalError)
+def operationalerror_exception_handler(exception):
     # Same as error_handler(exception, encode_data); but does not log or send to Sentry.
     # These errors are noisy, and are better logged on the caller's side after it
-    # retried a few times
+    # retried a few times.
+    # Additionally, we return 503 instead of 500, telling clients they should retry.
+    response = encode_data(serializers.exception_to_dict(exception))
+    response.status_code = 503
+    return response
+
+
+@app.errorhandler(QueryCanceled)
+def querycancelled_exception_handler(exception):
+    # Ditto, but 500 instead of 503, because this is usually caused by the query
+    # size instead of a transient failure
     response = encode_data(serializers.exception_to_dict(exception))
     response.status_code = 500
     return response
