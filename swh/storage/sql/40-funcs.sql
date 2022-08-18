@@ -658,9 +658,16 @@ as $$
     from origin
     where url = origin_url
   ), last_known_visit as (
-    select coalesce(max(visit), 0) as visit
-    from origin_visit
-    where origin = (select id from origin_id)
+    select coalesce(
+      (
+        select visit
+        from origin_visit
+        where origin = (select id from origin_id)
+        order by visit desc
+        limit 1
+        for update
+      ),
+    0) as visit
   )
   insert into origin_visit (origin, date, type, visit)
   values ((select id from origin_id), date, type,
