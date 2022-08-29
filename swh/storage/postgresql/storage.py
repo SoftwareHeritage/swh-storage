@@ -84,6 +84,7 @@ VALIDATION_EXCEPTIONS = (
     psycopg2.errors.NotNullViolation,
     psycopg2.errors.NumericValueOutOfRange,
     psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
+    psycopg2.errors.ProgramLimitExceeded,  # typically person_name_idx
 )
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
