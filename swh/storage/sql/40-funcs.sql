@@ -826,14 +826,14 @@ begin
   select id into origin_id from origin where url=origin_url;
   return query
   with closest_two_visits as ((
-    select ov, (date - visit_date), visit as interval
+    select ov, (date - visit_date) as interval, visit
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date >= visit_date
     order by ov.date asc, ov.visit desc
     limit 1
   ) union (
-    select ov, (visit_date - date), visit as interval
+    select ov, (visit_date - date) as interval, visit
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date < visit_date

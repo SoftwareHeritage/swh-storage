@@ -108,7 +108,7 @@ def convert_validation_exceptions():
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 184
+    current_version: int = 185
 
     def __init__(
         self,
