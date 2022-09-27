@@ -1314,7 +1314,12 @@ class Storage:
         next_page_token = None
         date_from = None
         if page_token is not None:
-            date_from = datetime.datetime.fromisoformat(page_token)
+            try:
+                date_from = datetime.datetime.fromisoformat(page_token)
+            except ValueError:
+                raise StorageArgumentException(
+                    "Invalid page_token argument to origin_visit_status_get."
+                ) from None
 
         visit_statuses: List[OriginVisitStatus] = []
         # Take one more visit status so we can reuse it as the next page token if any
