@@ -506,7 +506,9 @@ create table extid
   extid       bytea not null,
   target_type object_type not null,
   target      sha1_git not null,
-  extid_version bigint not null default 0
+  extid_version bigint not null default 0,
+  payload_type text,
+  payload     sha1_git
 );
 
 comment on table extid is 'Correspondance SWH object (SWHID) <-> original revision id (vcs id)';
@@ -515,3 +517,5 @@ comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg re
 comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
 comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';
 comment on column extid.extid_version is 'Version of the extid type for the given original object';
+comment on column extid.payload_type is 'The type of the payload object';
+comment on column extid.payload is 'Content object ID of data associated with the ExtID';

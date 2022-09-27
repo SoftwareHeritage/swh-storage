@@ -1663,6 +1663,8 @@ class CassandraStorage:
                     extid_version=extid.extid_version,
                     extid=extid.extid,
                     target=extid.target,
+                    payload_type=extid.payload_type,
+                    payload=extid.payload,
                 )
             ]
         else:
@@ -1676,12 +1678,16 @@ class CassandraStorage:
             target = extid.target.object_id
             extid_version = extid.extid_version
             extid_type = extid.extid_type
+            payload_type = extid.payload_type
+            payload = extid.payload
             extidrow = ExtIDRow(
                 extid_type=extid_type,
                 extid_version=extid_version,
                 extid=extid.extid,
                 target_type=target_type,
                 target=target,
+                payload_type=payload_type,
+                payload=payload,
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
             indexrow = ExtIDByTargetRow(
@@ -1714,6 +1720,8 @@ class CassandraStorage:
                         object_type=extidrow.target_type,
                         object_id=extidrow.target,
                     ),
+                    payload_type=extidrow.payload_type,
+                    payload=extidrow.payload,
                 )
                 for extidrow in extidrows
             )
@@ -1749,6 +1757,8 @@ class CassandraStorage:
                         object_type=SwhidObjectType(extidrow.target_type),
                         object_id=extidrow.target,
                     ),
+                    payload_type=extidrow.payload_type,
+                    payload=extidrow.payload,
                 )
                 for extidrow in extidrows
             )

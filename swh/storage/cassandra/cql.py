@@ -1352,6 +1352,8 @@ class CqlRunner:
         extid: bytes,
         extid_version: int,
         target: CoreSWHID,
+        payload_type: str,
+        payload: Sha1Git,
         *,
         statement,
     ) -> Optional[ExtIDRow]:
@@ -1364,6 +1366,8 @@ class CqlRunner:
                     extid_version,
                     target.object_type.value,
                     target.object_id,
+                    payload_type,
+                    payload,
                 ],
             ),
         )
