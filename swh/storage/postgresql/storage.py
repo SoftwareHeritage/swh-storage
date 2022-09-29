@@ -1290,6 +1290,9 @@ class Storage:
         )
         if row:
             row_d = dict(zip(db.origin_visit_get_cols, row))
+            assert (
+                row_d["visit"] is not None
+            ), "origin_visit_status LEFT JOIN origin_visit returned NULL"
             visit = OriginVisit(
                 origin=row_d["origin"],
                 visit=row_d["visit"],

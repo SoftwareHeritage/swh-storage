@@ -779,19 +779,21 @@ class Db(BaseDb):
         """
         cur = self._cursor(cur)
 
+        # using 'LEFT JOIN origin_visit' instead of an INNER JOIN as a query
+        # optimization; end results are equivalent.
         query_parts = [
             "SELECT %s" % ", ".join(self.origin_visit_select_cols),
-            "FROM origin_visit ov ",
-            "INNER JOIN origin o ON o.id = ov.origin",
-            "INNER JOIN origin_visit_status ovs USING (origin, visit)",
+            "FROM origin_visit_status ovs ",
+            "INNER JOIN origin o ON o.id = ovs.origin",
+            "LEFT JOIN origin_visit ov USING (origin, visit)",
         ]
         query_parts.append(
-            "WHERE ov.origin = (SELECT id FROM origin o WHERE o.url = %s)"
+            "WHERE ovs.origin = (SELECT id FROM origin o WHERE o.url = %s)"
         )
         query_params: List[Any] = [origin_id]
 
         if type is not None:
-            query_parts.append("AND ov.type = %s")
+            query_parts.append("AND ovs.type = %s")
             query_params.append(type)
 
         if require_snapshot:
@@ -801,7 +803,7 @@ class Db(BaseDb):
             query_parts.append("AND ovs.status IN %s")
             query_params.append(tuple(allowed_statuses))
 
-        query_parts.append("ORDER BY ov.visit DESC, ovs.date DESC LIMIT 1")
+        query_parts.append("ORDER BY ovs.visit DESC, ovs.date DESC LIMIT 1")
 
         query = "\n".join(query_parts)
 
