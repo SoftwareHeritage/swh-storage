@@ -1,3 +1,18 @@
+swh-storage (1.7.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.7.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2022-10-10 13:45:10 +0200)
+  * Upstream changes:     - v1.7.0     - Error handling:     - * retry:
+    Do not retry on SystemExit exceptions     - * Raise
+    StorageArgumentException on ProgramLimitExceeded     - Docs:     - *
+    docs: Update archive stats     - * mention metadata formats for Gogs
+    and Gitea     - Misc:     - * Fix various crashes     - * Add date-
+    based index to origin_visit     - * Improve performance of
+    origin_visit_get_latest     - This release contains SQL migrations
+    (functions and index), but no     - schema change
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 10 Oct 2022 12:05:01 +0000
+
 swh-storage (1.6.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.6.0     - (tagged by Valentin Lorentz
