@@ -27,7 +27,7 @@ def should_retry_adding(retry_state: RetryCallState) -> bool:
         if isinstance(error, StorageArgumentException):
             # Exception is due to an invalid argument
             return False
-        elif isinstance(error, KeyboardInterrupt):
+        elif isinstance(error, (KeyboardInterrupt, SystemExit)):
             return False
         else:
             # Other exception
