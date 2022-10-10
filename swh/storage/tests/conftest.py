@@ -9,6 +9,7 @@ from hypothesis import HealthCheck, settings
 import pytest
 
 try:
+    import pytest_cov
     import pytest_cov.embed
 except ImportError:
     pytest_cov = None
@@ -35,7 +36,7 @@ settings.register_profile("slow", max_examples=20, deadline=5000)
 # This can still be overloaded via the --hypothesis-profile option.
 settings.load_profile("fast")
 
-if pytest_cov is not None:
+if pytest_cov is not None and int(pytest_cov.__version__.split(".")[0]) < 4:
     # pytest_cov + multiprocessing can cause a segmentation fault when starting
     # the child process <https://forge.softwareheritage.org/P706>; so we're
     # removing pytest-coverage's hook that runs when a child process starts.

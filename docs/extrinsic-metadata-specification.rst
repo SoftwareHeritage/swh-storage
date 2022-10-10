@@ -275,7 +275,14 @@ Here is a list of all the metadata format stored:
 ``application/vnd.github.v3+json``
     The metadata is the response of an API call to GitHub.
 ``gitlab-project-json``
-    The metadata is the response of an API call to a Gitlab instance.
+    The metadata is the response of an API call to `Gitlab's /api/v4/projects/:id
+    <https://docs.gitlab.com/ee/api/projects.html#get-single-project>` endpoint.
+``gitea-project-json``
+    The metadata is the response of an API call to `Gitea's /api/v1/repos/{owner}/{repo}
+    <https://gittea.dev/api/swagger#/repository/repoGet>`_ endpoint.
+``gogs-project-json``
+    The metadata is the response of an API call to `Gogs's /api/v1/repos/:owner/:repo
+    <https://github.com/gogs/docs-api/tree/master/Repositories#get>`_ endpoint.
 ``pypi-project-json``
     The metadata is a release entry from a PyPI project's
     JSON file, extracted and re-serialized.

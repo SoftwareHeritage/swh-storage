@@ -30,11 +30,11 @@ are stored in a key-value object storage, using their SHA1 identifiers as keys
 avoidance is enforced by the :mod:`swh.storage` module. The *rest of the graph*
 is stored in a Postgres database (see :ref:`SQL storage <sql-storage>`).
 
-At the time of writing, the primary object storage contains about 5 billion
+At of 2022-09-27, the primary object storage contains about 12 billion
 blobs with a median size of 3 KB---yes, that is *a lot of very small
-files*---for a total compressed size of about 200 TB. The Postgres database
-takes about 8 TB, half of which required by indexes. In terms of graph metrics,
-the Merkle DAG has about 10 B nodes and 100 B edges.
+files*---for a total compressed size of about 800 TB. The Postgres database
+takes about 8 TB (compressed), half of which is used by indexes. In terms of
+graph metrics, the Merkle DAG has about 26 B nodes and 370 B edges.
 
 The **secondary copy** is hosted on Microsoft Azure cloud, using its native
 blob storage for the object storage and a large virtual machine to run a

@@ -3276,6 +3276,30 @@ class TestStorage:
         )
         assert actual_visit == ov3
 
+    def test_origin_visit_find_by_date_latest_visit(self, swh_storage, sample_data):
+        first_visit_date = sample_data.date_visit2
+        second_visit_date = first_visit_date + timedelta(days=10)
+
+        origin = sample_data.origin
+        swh_storage.origin_add([origin])
+        visit1 = OriginVisit(
+            origin=origin.url,
+            date=first_visit_date,
+            type=sample_data.type_visit2,
+        )
+        visit2 = OriginVisit(
+            origin=origin.url,
+            date=second_visit_date,
+            type=sample_data.type_visit2,
+        )
+        visit1, visit2 = swh_storage.origin_visit_add([visit1, visit2])
+
+        # should return the second visit
+        actual_visit = swh_storage.origin_visit_find_by_date(
+            origin.url, second_visit_date
+        )
+        assert actual_visit == visit2
+
     def test_origin_visit_find_by_date__unknown_origin(self, swh_storage, sample_data):
         actual_visit = swh_storage.origin_visit_find_by_date(
             "foo", sample_data.date_visit2

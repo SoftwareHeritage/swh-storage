@@ -658,9 +658,16 @@ as $$
     from origin
     where url = origin_url
   ), last_known_visit as (
-    select coalesce(max(visit), 0) as visit
-    from origin_visit
-    where origin = (select id from origin_id)
+    select coalesce(
+      (
+        select visit
+        from origin_visit
+        where origin = (select id from origin_id)
+        order by visit desc
+        limit 1
+        for update
+      ),
+    0) as visit
   )
   insert into origin_visit (origin, date, type, visit)
   values ((select id from origin_id), date, type,
@@ -819,14 +826,14 @@ begin
   select id into origin_id from origin where url=origin_url;
   return query
   with closest_two_visits as ((
-    select ov, (date - visit_date), visit as interval
+    select ov, (date - visit_date) as interval, visit
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date >= visit_date
     order by ov.date asc, ov.visit desc
     limit 1
   ) union (
-    select ov, (visit_date - date), visit as interval
+    select ov, (visit_date - date) as interval, visit
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date < visit_date

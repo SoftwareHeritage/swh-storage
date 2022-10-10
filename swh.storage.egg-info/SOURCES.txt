@@ -295,6 +295,9 @@ swh/storage/sql/upgrades/180.sql
 swh/storage/sql/upgrades/181.sql
 swh/storage/sql/upgrades/182.sql
 swh/storage/sql/upgrades/183.sql
+swh/storage/sql/upgrades/184.sql
+swh/storage/sql/upgrades/185.sql
+swh/storage/sql/upgrades/186.sql
 swh/storage/tests/__init__.py
 swh/storage/tests/conftest.py
 swh/storage/tests/storage_data.py
