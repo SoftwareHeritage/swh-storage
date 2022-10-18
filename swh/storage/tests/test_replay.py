@@ -70,6 +70,7 @@ def replayer_storage_and_client(
         "brokers": [kafka_server],
         "client_id": "kafka_writer",
         "prefix": kafka_prefix,
+        "auto_flush": False,
     }
     storage_config: Dict[str, Any] = {
         "cls": "memory",
@@ -106,6 +107,7 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
         method = getattr(src, object_type + "_add")
         method(objects)
         nb_sent += len(objects)
+    src.journal_writer.journal.flush()
 
     caplog.set_level(logging.ERROR, "swh.journal.replay")
 
@@ -145,6 +147,7 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
         method = getattr(src, object_type + "_add")
         method(objects)
         nb_sent += len(objects)
+    src.journal_writer.journal.flush()
 
     # Create collision in input data
     # These should not be written in the destination
@@ -341,6 +344,7 @@ def test_storage_replay_anonymized(
         "client_id": "kafka_writer",
         "prefix": kafka_prefix,
         "anonymize": True,
+        "auto_flush": False,
     }
     src_config: Dict[str, Any] = {"cls": "memory", "journal_writer": writer_config}
 
@@ -355,6 +359,8 @@ def test_storage_replay_anonymized(
         method = getattr(storage, obj_type + "_add")
         method(objs)
         nb_sent += len(objs)
+    assert storage.journal_writer is not None
+    storage.journal_writer.journal.flush()
 
     # Fill a destination storage from Kafka, potentially using privileged topics
     dst_storage = get_storage(cls="memory")
@@ -404,6 +410,7 @@ def test_storage_replayer_with_validation_ok(
         method = getattr(src, object_type + "_add")
         method(objects)
         nb_sent += len(objects)
+    src.journal_writer.journal.flush()
 
     # Fill the destination storage from Kafka
     dst = get_storage(cls="memory")
@@ -466,6 +473,8 @@ def test_storage_replayer_with_validation_nok(
     topic = f"{src.journal_writer.journal._prefix}.directory"
     src.journal_writer.journal.send(topic, dict_repr["id"], dict_repr)
     nb_sent += 1
+
+    src.journal_writer.journal.flush()
 
     # Fill the destination storage from Kafka
     dst = get_storage(cls="memory")

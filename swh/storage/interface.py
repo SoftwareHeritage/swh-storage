@@ -5,7 +5,17 @@
 
 import datetime
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 import attr
 from typing_extensions import Protocol, TypedDict, runtime_checkable
@@ -33,6 +43,9 @@ from swh.model.model import (
     SnapshotBranch,
 )
 from swh.model.swhids import ExtendedSWHID, ObjectType
+
+if TYPE_CHECKING:
+    from swh.storage.writer import JournalWriter
 
 
 class ListOrder(Enum):
@@ -76,6 +89,8 @@ def deprecated(f):
 
 @runtime_checkable
 class StorageInterface(Protocol):
+    journal_writer: Optional["JournalWriter"]
+
     @remote_api_endpoint("check_config")
     def check_config(self, *, check_write: bool) -> bool:
         """Check that the storage is configured and ready to go."""
