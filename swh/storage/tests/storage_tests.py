@@ -3755,7 +3755,7 @@ class TestStorage:
             ]
         )[0]
 
-        # so now the returned visit should be ov1 (because ov2 has no shapshot,
+        # so now the returned visit should be ov1 (because ov2 has no snapshot,
         # so it won't be returned when require_snapshot is True)
         visit = swh_storage.origin_visit_get_latest(origin.url, require_snapshot=True)
         assert visit == ov1

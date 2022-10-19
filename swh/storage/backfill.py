@@ -428,7 +428,7 @@ def raw_extrinsic_metadata_target_ranges(
 
         # Generate 2**8 or 2**12 ranges
         for _, end in byte_ranges(12 if target_type == "dir" else 8):
-            # Reuse previous uppper bound
+            # Reuse previous upper bound
             start_swhid = end_swhid
 
             # Use last_swhid for this object type if on the last byte range
