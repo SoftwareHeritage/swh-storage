@@ -84,6 +84,7 @@ VALIDATION_EXCEPTIONS = (
     psycopg2.errors.NotNullViolation,
     psycopg2.errors.NumericValueOutOfRange,
     psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
+    psycopg2.errors.ProgramLimitExceeded,  # typically person_name_idx
 )
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
@@ -107,7 +108,7 @@ def convert_validation_exceptions():
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 183
+    current_version: int = 186
 
     def __init__(
         self,
@@ -1289,6 +1290,9 @@ class Storage:
         )
         if row:
             row_d = dict(zip(db.origin_visit_get_cols, row))
+            assert (
+                row_d["visit"] is not None
+            ), "origin_visit_status LEFT JOIN origin_visit returned NULL"
             visit = OriginVisit(
                 origin=row_d["origin"],
                 visit=row_d["visit"],
@@ -1313,7 +1317,12 @@ class Storage:
         next_page_token = None
         date_from = None
         if page_token is not None:
-            date_from = datetime.datetime.fromisoformat(page_token)
+            try:
+                date_from = datetime.datetime.fromisoformat(page_token)
+            except ValueError:
+                raise StorageArgumentException(
+                    "Invalid page_token argument to origin_visit_status_get."
+                ) from None
 
         visit_statuses: List[OriginVisitStatus] = []
         # Take one more visit status so we can reuse it as the next page token if any

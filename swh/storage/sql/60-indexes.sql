@@ -218,10 +218,7 @@ alter table snapshot_branches add primary key using index snapshot_branches_pkey
 create unique index concurrently origin_visit_pkey on origin_visit(origin, visit);
 alter table origin_visit add primary key using index origin_visit_pkey;
 
-\if :dbflavor_default
-  create index concurrently on origin_visit(date);                               -- to be reviewed
-  create index concurrently origin_visit_type_date on origin_visit(type, date);  -- to be reviewed
-\endif
+create index concurrently origin_visit_origin_date_idx on origin_visit (origin, date);
 
 \if :dbflavor_does_deduplication
   alter table origin_visit add constraint origin_visit_origin_fkey foreign key (origin) references origin(id) not valid;
