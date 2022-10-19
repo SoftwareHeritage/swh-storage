@@ -15,15 +15,18 @@ from swh.storage.utils import now
 
 
 @pytest.fixture
-def monkeypatch_sleep(monkeypatch, swh_storage):
-    """In test context, we don't want to wait, make test faster"""
-    from swh.storage.proxies.retry import RetryingProxyStorage
-
-    for method_name, method in RetryingProxyStorage.__dict__.items():
+def storage_retry_sleep_mocks(mocker, swh_storage):
+    """In test context, we don't want to wait, make test faster by mocking
+    the sleep function from retryable storage methods"""
+    mocks = {}
+    for method_name in dir(
+        swh_storage
+    ):  # swh_storage is an instance of RetryingProxyStorage
         if "_add" in method_name or "_update" in method_name:
-            monkeypatch.setattr(method.retry, "sleep", lambda x: None)
+            method = getattr(swh_storage, method_name)
+            mocks[method_name] = mocker.patch.object(method.retry, "sleep")
 
-    return monkeypatch
+    return mocks
 
 
 @pytest.fixture
@@ -59,7 +62,7 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-    monkeypatch_sleep,
+    storage_retry_sleep_mocks,
     swh_storage,
     sample_data,
     mocker,
@@ -78,7 +81,7 @@ def test_retrying_proxy_storage_content_add_with_retry(
 
     sample_content = sample_data.content
 
-    sleep = mocker.patch("time.sleep")
+    sleep = storage_retry_sleep_mocks["content_add"]
     content = swh_storage.content_get_data(sample_content.sha1)
     assert content is None
 
@@ -94,14 +97,14 @@ def test_retrying_proxy_storage_content_add_with_retry(
     )
 
     assert len(sleep.mock_calls) == 2
-    (_name, args1, _kwargs) = sleep.mock_calls[0]
-    (_name, args2, _kwargs) = sleep.mock_calls[1]
+    (_, args1, _) = sleep.mock_calls[0]
+    (_, args2, _) = sleep.mock_calls[1]
     assert 0 < args1[0] < 1
     assert 0 < args2[0] < 2
 
 
 def test_retrying_proxy_storage_content_add_with_retry_of_transient(
-    monkeypatch_sleep,
+    storage_retry_sleep_mocks,
     swh_storage,
     sample_data,
     mocker,
@@ -121,7 +124,7 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     content = swh_storage.content_get_data(sample_content.sha1)
     assert content is None
 
-    sleep = mocker.patch("time.sleep")
+    sleep = storage_retry_sleep_mocks["content_add"]
     s = swh_storage.content_add([sample_content])
     assert s == {"content:add": 1}
 
@@ -134,8 +137,8 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     )
 
     assert len(sleep.mock_calls) == 2
-    (_name, args1, _kwargs) = sleep.mock_calls[0]
-    (_name, args2, _kwargs) = sleep.mock_calls[1]
+    (_, args1, _) = sleep.mock_calls[0]
+    (_, args2, _) = sleep.mock_calls[1]
     assert 10 < args1[0] < 11
     assert 10 < args2[0] < 12
 
@@ -178,7 +181,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
-    monkeypatch_sleep, swh_storage, sample_data, mocker, fake_hash_collision
+    storage_retry_sleep_mocks, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok"""
     mock_memory = mocker.patch(
