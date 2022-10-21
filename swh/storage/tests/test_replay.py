@@ -454,6 +454,18 @@ def test_storage_replayer_with_validation_nok(
         method = getattr(src, object_type + "_add")
         method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
         nb_sent += 1
+    # also add an object that won't even be possible to instantiate; this needs
+    # to be done at low kafka level (since we cannot instantiate the invalid model
+    # object...)
+    # we use directory[1] because it actually have some entries
+    dict_repr = {
+        # copy each dir entry twice
+        "entries": TEST_OBJECTS["directory"][1].to_dict()["entries"] * 2,
+        "id": b"\x01" * 20,
+    }
+    topic = f"{src.journal_writer.journal._prefix}.directory"
+    src.journal_writer.journal.send(topic, dict_repr["id"], dict_repr)
+    nb_sent += 1
 
     # Fill the destination storage from Kafka
     dst = get_storage(cls="memory")
@@ -470,7 +482,7 @@ def test_storage_replayer_with_validation_nok(
     assert invalid == 4, "Invalid objects should be detected"
     assert set(redisdb.keys()) == {
         f"swh:1:{typ}:{'0'*40}".encode() for typ in ("rel", "rev", "snp", "dir")
-    }
+    } | {b"directory:" + b"01" * 20}
 
     for key in redisdb.keys():
         # check the stored value looks right
@@ -478,7 +490,7 @@ def test_storage_replayer_with_validation_nok(
         value = kafka_to_value(rawvalue)
         assert isinstance(value, dict)
         assert "id" in value
-        assert value["id"] == b"\x00" * 20
+        assert value["id"] in (b"\x00" * 20, b"\x01" * 20)
 
     # check that invalid objects did not reach the dst storage
     for attr_ in (
@@ -488,7 +500,29 @@ def test_storage_replayer_with_validation_nok(
         "snapshots",
     ):
         for id, obj in sorted(getattr(dst._cql_runner, f"_{attr_}").iter_all()):
-            assert id != b"\x00" * 20
+            assert id not in (b"\x00" * 20, b"\x01" * 20)
+
+    # check that valid objects did reach the dst storage
+    # revisions
+    expected = [attr.evolve(rev, metadata=None) for rev in TEST_OBJECTS["revision"]]
+    result = dst.revision_get([obj.id for obj in TEST_OBJECTS["revision"]])
+    assert result == expected
+    # releases
+    expected = TEST_OBJECTS["release"]
+    result = dst.release_get([obj.id for obj in TEST_OBJECTS["release"]])
+    assert result == expected
+    # snapshot
+    # result from snapshot_get is paginated, so adapt the expected to be comparable
+    expected = [
+        {"next_branch": None, **obj.to_dict()} for obj in TEST_OBJECTS["snapshot"]
+    ]
+    result = [dst.snapshot_get(obj.id) for obj in TEST_OBJECTS["snapshot"]]
+    assert result == expected
+    # directories
+    for directory in TEST_OBJECTS["directory"]:
+        assert set(dst.directory_get_entries(directory.id).results) == set(
+            directory.entries
+        )
 
 
 def test_storage_replayer_with_validation_nok_raises(
