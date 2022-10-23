@@ -243,8 +243,7 @@ def test_backfiller(
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(storage, object_type + "_add")
         method(objects)
-    assert storage.journal_writer is not None
-    storage.journal_writer.journal.flush()
+    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
 
     # now apply the backfiller on the storage to fill the journal under prefix2
     backfiller_config = {

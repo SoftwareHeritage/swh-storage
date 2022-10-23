@@ -359,8 +359,7 @@ def test_storage_replay_anonymized(
         method = getattr(storage, obj_type + "_add")
         method(objs)
         nb_sent += len(objs)
-    assert storage.journal_writer is not None
-    storage.journal_writer.journal.flush()
+    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
 
     # Fill a destination storage from Kafka, potentially using privileged topics
     dst_storage = get_storage(cls="memory")
