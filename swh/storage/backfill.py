@@ -428,7 +428,7 @@ def raw_extrinsic_metadata_target_ranges(
 
         # Generate 2**8 or 2**12 ranges
         for _, end in byte_ranges(12 if target_type == "dir" else 8):
-            # Reuse previous uppper bound
+            # Reuse previous upper bound
             start_swhid = end_swhid
 
             # Use last_swhid for this object type if on the last byte range
@@ -598,6 +598,15 @@ class JournalBackfiller:
     def __init__(self, config=None):
         self.config = config
         self.check_config(config)
+        self._db = None
+        self.writer = JournalWriter({"cls": "kafka", **self.config["journal_writer"]})
+        assert self.writer.journal is not None
+
+    @property
+    def db(self):
+        if self._db is None:
+            self._db = BaseDb.connect(self.config["storage"]["db"])
+        return self._db
 
     def check_config(self, config):
         missing_keys = []
@@ -653,10 +662,6 @@ class JournalBackfiller:
             object_type, start_object, end_object
         )
 
-        db = BaseDb.connect(self.config["storage"]["db"])
-        writer = JournalWriter({"cls": "kafka", **self.config["journal_writer"]})
-        assert writer.journal is not None
-
         for range_start, range_end in RANGE_GENERATORS[object_type](
             start_object, end_object
         ):
@@ -667,10 +672,10 @@ class JournalBackfiller:
                 _format_range_bound(range_end),
             )
 
-            objects = fetch(db, object_type, start=range_start, end=range_end)
+            objects = fetch(self.db, object_type, start=range_start, end=range_end)
 
             if not dry_run:
-                writer.write_additions(object_type, objects)
+                self.writer.write_additions(object_type, objects)
             else:
                 # only consume the objects iterator to check for any potential
                 # decoding/encoding errors

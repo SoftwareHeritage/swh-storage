@@ -235,6 +235,7 @@ def test_backfiller(
         "brokers": [kafka_server],
         "client_id": "kafka_writer-1",
         "prefix": prefix1,
+        "auto_flush": False,
     }
     swh_storage_backend_config["journal_writer"] = journal1
     storage = get_storage(**swh_storage_backend_config)
@@ -242,6 +243,7 @@ def test_backfiller(
     for object_type, objects in TEST_OBJECTS.items():
         method = getattr(storage, object_type + "_add")
         method(objects)
+    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
 
     # now apply the backfiller on the storage to fill the journal under prefix2
     backfiller_config = {
@@ -249,6 +251,7 @@ def test_backfiller(
             "brokers": [kafka_server],
             "client_id": "kafka_writer-2",
             "prefix": prefix2,
+            "auto_flush": False,
         },
         "storage": swh_storage_backend_config,
     }
@@ -257,6 +260,7 @@ def test_backfiller(
     backfiller = JournalBackfiller(backfiller_config)
     for object_type in TEST_OBJECTS:
         backfiller.run(object_type, None, None)
+    backfiller.writer.journal.flush()
 
     # Trace log messages for unhandled object types in the replayer
     caplog.set_level(logging.DEBUG, "swh.storage.replay")
