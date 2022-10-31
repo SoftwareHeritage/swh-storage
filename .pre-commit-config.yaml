@@ -1,3 +1,5 @@
+exclude: ^sql/TODO$
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.3.0
@@ -17,7 +19,7 @@ repos:
     hooks:
       - id: codespell
         name: Check source code spelling
-        args: [-L iff, -L gae, -L sur]
+        args: [-L iff, -L gae, -L sur, -L ore]
         stages: [commit]
 
   - repo: local
