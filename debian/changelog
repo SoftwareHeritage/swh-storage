@@ -1,3 +1,12 @@
+swh-storage (1.7.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.7.2     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2022-10-31 09:45:45 +0100)
+  * Upstream changes:     - v1.7.2     - fix a crash in the replayer
+    - speed up kafka related tests a bit
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 31 Oct 2022 09:01:33 +0000
+
 swh-storage (1.7.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.7.1     - (tagged by Antoine Lambert
