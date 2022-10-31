@@ -14,7 +14,7 @@ swh.model>=6.3.0
 swh.objstorage>=0.2.2
 
 [journal]
-swh.journal>=0.9
+swh.journal>=1.2
 
 [testing]
 hypothesis>=3.11.0
@@ -30,4 +30,4 @@ types-pyyaml
 types-redis
 types-requests
 types-toml
-swh.journal>=0.9
+swh.journal>=1.2
