@@ -168,6 +168,49 @@ def visits_and_snapshots_get_from_revision(
                     yield (visit, visit_status, snapshot)
 
 
+def snapshot_resolve_branch_target(
+    storage: StorageInterface,
+    snapshot_id: Sha1Git,
+    branch_obj: Optional[SnapshotBranch],
+    max_length: int = 100,
+) -> Tuple[Optional[SnapshotBranch], List[bytes]]:
+    """
+    Return the final target of a snapshot branch along with its
+    resolve chain. Return 'None' as the target in case the chain is
+    longer than the given max_length or has cycles
+
+    Args:
+        storage: Storage instance
+        snapshot_id: snapshot identifier
+        branch_obj: snapshot branch object to resolve
+        max_length: maximum chain length before breaking
+    Returns:
+        The first branch that isn't an alias and the resolve chain
+    """
+    resolve_chain: List[bytes] = []
+    while branch_obj and branch_obj.target_type == TargetType.ALIAS:
+        target_branch = branch_obj.target  # target branch name
+        resolve_chain.append(target_branch)
+        # query for the new branch
+        branches = storage.snapshot_get_branches(
+            snapshot_id, branches_from=target_branch, branches_count=1
+        )
+        if (
+            not branches
+            # The target branch is missing
+            or branches["branches"].get(target_branch) is None
+            # Circular reference
+            or resolve_chain.count(target_branch) > 1
+            # Too many re-directs
+            or len(resolve_chain) >= max_length
+        ):
+            # chain broke without a target, this will still return the resolve_chain list
+            branch_obj = None
+            break
+        branch_obj = branches["branches"][target_branch]
+    return branch_obj, resolve_chain
+
+
 def snapshot_resolve_alias(
     storage: StorageInterface, snapshot_id: Sha1Git, alias_name: bytes
 ) -> Optional[SnapshotBranch]:
@@ -196,18 +239,7 @@ def snapshot_resolve_alias(
         return None
 
     last_branch = snapshot["branches"][alias_name]
-    seen_aliases = {alias_name}
-
-    while last_branch is not None and last_branch.target_type == TargetType.ALIAS:
-        if last_branch.target in seen_aliases:
-            return None
-
-        alias_target = last_branch.target
-        snapshot = storage.snapshot_get_branches(
-            snapshot_id, branches_from=alias_target, branches_count=1
-        )
-        assert snapshot is not None
-        last_branch = snapshot["branches"].get(alias_target)
-        seen_aliases.add(alias_target)
-
-    return last_branch
+    target_branch, _ = snapshot_resolve_branch_target(
+        storage, snapshot_id=snapshot_id, branch_obj=last_branch
+    )
+    return target_branch
