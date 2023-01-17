@@ -1,15 +1,16 @@
-# Copyright (C) 2020-2022 The Software Heritage developers
+# Copyright (C) 2020-2023 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, Iterable, Optional, Union, cast
+from typing import Dict, Iterable, List, Optional, Tuple, Union, cast
 
 from swh.model.hashutil import DEFAULT_ALGORITHMS
-from swh.model.model import Content, MissingData
+from swh.model.model import Content, MissingData, Sha1
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
-from swh.storage.interface import HashDict, Sha1
+from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.storage.interface import HashDict
 
 from .exc import StorageArgumentException
 
@@ -75,11 +76,15 @@ class ObjStorage:
             objstorage.
 
         """
-        try:
-            contents = [c.with_data() for c in contents]
-        except MissingData:
-            raise StorageArgumentException("Missing data") from None
-        summary = self.objstorage.add_batch({cont.sha1: cont.data for cont in contents})
+        content_pairs: List[Tuple[ObjId, bytes]] = []
+        for content in contents:
+            try:
+                content = content.with_data()
+            except MissingData:
+                raise StorageArgumentException("Missing data") from None
+            assert content.data is not None
+            content_pairs.append((cast(CompositeObjId, content.hashes()), content.data))
+        summary = self.objstorage.add_batch(content_pairs)
         return {
             "content:add": summary["object:add"],
             "content:add:bytes": summary["object:add:bytes"],
