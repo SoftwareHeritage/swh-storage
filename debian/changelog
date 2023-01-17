@@ -1,3 +1,12 @@
+swh-storage (1.7.3-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.7.3     - (tagged by Jayesh Velayudhan
+    <jayesh@softwareheritage.org> on 2023-01-17 10:35:41 +0100)
+  * Upstream changes:     - v1.7.3     - function to resolve
+    snapshot_branch target
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 17 Jan 2023 11:26:49 +0000
+
 swh-storage (1.7.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.7.2     - (tagged by David Douard
