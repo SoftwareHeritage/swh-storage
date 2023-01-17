@@ -6,7 +6,7 @@ sql-autodoc:
 	make -C ../sql/ doc
 	cp ../sql/doc/sql/db-schema.svg images/
 
-images:
+images: sql-autodoc
 	make -C images/
 clean-images:
 	make -C images/ clean
