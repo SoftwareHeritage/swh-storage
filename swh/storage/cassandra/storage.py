@@ -149,6 +149,18 @@ class CassandraStorage:
             )
         self._directory_entries_insert_algo = directory_entries_insert_algo
 
+    @property
+    def hosts(self) -> List[str]:
+        return self._hosts
+
+    @property
+    def keyspace(self) -> str:
+        return self._keyspace
+
+    @property
+    def port(self) -> int:
+        return self._port
+
     def _set_cql_runner(self):
         """Used by tests when they need to reset the CqlRunner"""
         self._cql_runner: CqlRunner = CqlRunner(
