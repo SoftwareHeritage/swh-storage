@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from typing import Dict, Iterable, List, Optional, Tuple, Union, cast
+import warnings
 
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import Content, MissingData, Sha1
@@ -42,6 +43,12 @@ class ObjStorage:
         """
         hashes: HashDict
         if isinstance(obj_id, bytes):
+            warnings.warn(
+                'Identifying contents by sha1 instead of hash dicts `{"sha1": b"..."}` '
+                "is deprecated.",
+                DeprecationWarning,
+                stacklevel=3,  # Report to the caller of swh/storage/*/storage.py
+            )
             hashes = {"sha1": obj_id}
         else:
             hashes = obj_id

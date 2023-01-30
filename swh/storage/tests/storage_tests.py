@@ -186,7 +186,42 @@ class TestStorage:
             "content:add:bytes": cont.length,
         }
 
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
+
+        expected_cont = attr.evolve(cont, data=None)
+
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            assert insertion_start_time <= obj.ctime
+            assert obj.ctime <= insertion_end_time
+            assert obj == expected_cont
+
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["content"] == 1
+
+    def test_content_add__legacy(self, swh_storage, sample_data):
+        """content_add() with a single sha1 as param instead of a dict"""
+        cont = sample_data.content
+
+        insertion_start_time = now()
+        actual_result = swh_storage.content_add([cont])
+        insertion_end_time = now()
+
+        assert actual_result == {
+            "content:add": 1,
+            "content:add:bytes": cont.length,
+        }
+
+        with pytest.warns(DeprecationWarning):
+            assert swh_storage.content_get_data(cont.sha1) == cont.data
 
         expected_cont = attr.evolve(cont, data=None)
 
@@ -224,7 +259,7 @@ class TestStorage:
 
         # the fact that we retrieve the content object from the storage with
         # the correct 'data' field ensures it has been 'called'
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
         expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
         contents = [
@@ -302,13 +337,13 @@ class TestStorage:
         swh_storage.content_add([cont])
 
         # Query a single missing content
-        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont2.sha1})
         assert actual_content_data is None
 
         # Check content_get does not abort after finding a missing content
-        actual_content_data = swh_storage.content_get_data(cont.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont.sha1})
         assert actual_content_data == cont.data
-        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont2.sha1})
         assert actual_content_data is None
 
     def test_content_add_different_input(self, swh_storage, sample_data):
@@ -371,7 +406,7 @@ class TestStorage:
         cont = sample_data.content
         swh_storage.content_add([cont, cont])
 
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
     def test_content_update(self, swh_storage, sample_data):
         cont1 = sample_data.content
@@ -463,7 +498,7 @@ class TestStorage:
 
         # The DB must be written to after the objstorage, so the DB should be
         # unchanged if the objstorage crashed
-        assert swh_storage.content_get_data(cont.sha1) is None
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) is None
 
         # The journal too
         assert list(swh_storage.journal_writer.journal.objects) == []
@@ -5576,7 +5611,7 @@ class TestStorageGeneratedData:
 
         # retrieve contents
         for content in contents_with_data:
-            actual_content_data = swh_storage.content_get_data(content.sha1)
+            actual_content_data = swh_storage.content_get_data({"sha1": content.sha1})
             assert actual_content_data is not None
             assert actual_content_data == content.data
 
