@@ -6,7 +6,7 @@
 import datetime
 import logging
 import random
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import execute_values_generator
@@ -142,7 +142,7 @@ class Db(BaseDb):
             ((hash_,) for hash_ in hashes),
         )
 
-    def content_get_range(self, start, end, limit=None, cur=None):
+    def content_get_range(self, start, end, limit=None, cur=None) -> Iterator[Tuple]:
         """Retrieve contents within range [start, end]."""
         cur = self._cursor(cur)
         query = """select %s from content
@@ -366,6 +366,20 @@ class Db(BaseDb):
             ((id_,) for id_ in directory_ids),
         )
 
+    def directory_get_id_range(
+        self, start, end, limit=None, cur=None
+    ) -> Iterator[Sha1Git]:
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            SELECT id FROM directory
+            WHERE %s <= id AND id <= %s
+            LIMIT %s
+            """,
+            (start, end, limit),
+        )
+        yield from cur
+
     def directory_get_random(self, cur=None):
         return self._get_random_row_from_table("directory", ["id"], "id", cur)
 
@@ -415,15 +429,15 @@ class Db(BaseDb):
     revision_get_cols = revision_add_cols + ["parents"]
 
     @staticmethod
-    def mangle_query_key(key, main_table, ignore_displayname=False):
+    def mangle_query_key(key, main_table, id_col, ignore_displayname=False):
         if key == "id":
-            return "t.id"
+            return id_col
         if key == "parents":
-            return """
+            return f"""
             ARRAY(
             SELECT rh.parent_id::bytea
             FROM revision_history rh
-            WHERE rh.id = t.id
+            WHERE rh.id = {id_col}
             ORDER BY rh.parent_rank
             )"""
 
@@ -463,7 +477,7 @@ class Db(BaseDb):
         cur = self._cursor(cur)
 
         query_keys = ", ".join(
-            self.mangle_query_key(k, "revision", ignore_displayname)
+            self.mangle_query_key(k, "revision", "t.id", ignore_displayname)
             for k in self.revision_get_cols
         )
 
@@ -479,6 +493,27 @@ class Db(BaseDb):
             % query_keys,
             ((sortkey, id) for sortkey, id in enumerate(revisions)),
         )
+
+    def revision_get_range(self, start, end, limit, cur=None) -> Iterator[Tuple]:
+        cur = self._cursor(cur)
+
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "revision", "revision.id")
+            for k in self.revision_get_cols
+        )
+
+        cur.execute(
+            """
+            SELECT %s FROM revision
+            LEFT JOIN person author ON revision.author = author.id
+            LEFT JOIN person committer ON revision.committer = committer.id
+            WHERE %%s <= revision.id AND revision.id <= %%s
+            LIMIT %%s
+            """
+            % query_keys,
+            (start, end, limit),
+        )
+        yield from cur
 
     def revision_log(
         self, root_revisions, ignore_displayname=False, limit=None, cur=None
@@ -524,7 +559,7 @@ class Db(BaseDb):
     ):
         cur = self._cursor(cur)
         query_keys = ", ".join(
-            self.mangle_query_key(k, "extid") for k in self.extid_cols
+            self.mangle_query_key(k, "extid", "t.id") for k in self.extid_cols
         )
         filter_query = ""
         if version is not None:
@@ -559,7 +594,7 @@ class Db(BaseDb):
             target_type
         ).name.lower()  # aka "rev" -> "revision", ...
         query_keys = ", ".join(
-            self.mangle_query_key(k, "extid") for k in self.extid_cols
+            self.mangle_query_key(k, "extid", "t.id") for k in self.extid_cols
         )
         filter_query = ""
         if extid_version is not None and extid_type is not None:
@@ -624,7 +659,7 @@ class Db(BaseDb):
     def release_get_from_list(self, releases, ignore_displayname=False, cur=None):
         cur = self._cursor(cur)
         query_keys = ", ".join(
-            self.mangle_query_key(k, "release", ignore_displayname)
+            self.mangle_query_key(k, "release", "t.id", ignore_displayname)
             for k in self.release_get_cols
         )
 
@@ -639,6 +674,26 @@ class Db(BaseDb):
             % query_keys,
             ((sortkey, id) for sortkey, id in enumerate(releases)),
         )
+
+    def release_get_range(self, start, end, limit, cur=None) -> Iterator[Tuple]:
+        cur = self._cursor(cur)
+
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "release", "release.id")
+            for k in self.release_get_cols
+        )
+
+        cur.execute(
+            """
+            SELECT %s FROM release
+            LEFT JOIN person author ON release.author = author.id
+            WHERE %%s <= release.id AND release.id <= %%s
+            LIMIT %%s
+            """
+            % query_keys,
+            (start, end, limit),
+        )
+        yield from cur
 
     def release_get_random(self, cur=None):
         return self._get_random_row_from_table("release", ["id"], "id", cur)
@@ -723,6 +778,21 @@ class Db(BaseDb):
                 branch_name_include_substring,
                 branch_name_exclude_prefix,
             ),
+        )
+
+        yield from cur
+
+    def snapshot_get_id_range(
+        self, start, end, limit=None, cur=None
+    ) -> Iterator[Tuple[Sha1Git]]:
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            SELECT id FROM snapshot
+            WHERE %s <= id AND id <= %s
+            LIMIT %s
+            """,
+            (start, end, limit),
         )
 
         yield from cur
