@@ -67,7 +67,12 @@ from swh.storage.utils import map_optional, now
 from swh.storage.writer import JournalWriter
 
 from . import converters
-from ..exc import HashCollision, StorageArgumentException
+from ..exc import (
+    HashCollision,
+    StorageArgumentException,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from ..utils import remove_keys
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .cql import CqlRunner
@@ -1477,15 +1482,11 @@ class CassandraStorage:
             if not self._cql_runner.metadata_authority_get(
                 metadata_entry.authority.type.value, metadata_entry.authority.url
             ):
-                raise StorageArgumentException(
-                    f"Unknown authority {metadata_entry.authority}"
-                )
+                raise UnknownMetadataAuthority(str(metadata_entry.authority))
             if not self._cql_runner.metadata_fetcher_get(
                 metadata_entry.fetcher.name, metadata_entry.fetcher.version
             ):
-                raise StorageArgumentException(
-                    f"Unknown fetcher {metadata_entry.fetcher}"
-                )
+                raise UnknownMetadataFetcher(str(metadata_entry.fetcher))
 
             try:
                 row = RawExtrinsicMetadataRow(

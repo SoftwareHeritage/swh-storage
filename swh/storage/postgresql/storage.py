@@ -45,7 +45,13 @@ from swh.model.model import (
     TargetType,
 )
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
-from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBError
+from swh.storage.exc import (
+    HashCollision,
+    StorageArgumentException,
+    StorageDBError,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from swh.storage.interface import (
     VISIT_STATUSES,
     HashDict,
@@ -1572,8 +1578,9 @@ class Storage:
             after_time = after
             after_fetcher = None
 
-        authority_id = self._get_authority_id(authority, db, cur)
-        if not authority_id:
+        try:
+            authority_id = self._get_authority_id(authority, db, cur)
+        except UnknownMetadataAuthority:
             return PagedResult(
                 next_page_token=None,
                 results=[],
@@ -1700,11 +1707,11 @@ class Storage:
             authority.type.value, authority.url, cur
         )
         if not authority_id:
-            raise StorageArgumentException(f"Unknown authority {authority}")
+            raise UnknownMetadataAuthority(str(authority))
         return authority_id
 
     def _get_fetcher_id(self, fetcher: MetadataFetcher, db, cur):
         fetcher_id = db.metadata_fetcher_get_id(fetcher.name, fetcher.version, cur)
         if not fetcher_id:
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+            raise UnknownMetadataFetcher(str(fetcher))
         return fetcher_id

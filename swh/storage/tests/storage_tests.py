@@ -44,7 +44,12 @@ from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
-from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.exc import (
+    HashCollision,
+    StorageArgumentException,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.interface import (
     ListOrder,
@@ -5538,7 +5543,7 @@ class TestStorage:
         assert result.next_page_token is None
         assert result.results == [new_origin_metadata2]
 
-    def test_origin_metadata_add_missing_authority(self, swh_storage, sample_data):
+    def test_origin_metadata_missing_authority(self, swh_storage, sample_data):
         origin = sample_data.origin
         fetcher = sample_data.metadata_fetcher
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
@@ -5546,10 +5551,14 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([fetcher])
 
-        with pytest.raises(StorageArgumentException, match="authority"):
+        with pytest.raises(UnknownMetadataAuthority):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-    def test_origin_metadata_add_missing_fetcher(self, swh_storage, sample_data):
+        assert swh_storage.raw_extrinsic_metadata_get(
+            Origin(origin.url).swhid(), origin_metadata.authority
+        ) == PagedResult(results=[], next_page_token=None)
+
+    def test_origin_metadata_missing_fetcher(self, swh_storage, sample_data):
         origin = sample_data.origin
         authority = sample_data.metadata_authority
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
@@ -5557,7 +5566,7 @@ class TestStorage:
 
         swh_storage.metadata_authority_add([authority])
 
-        with pytest.raises(StorageArgumentException, match="fetcher"):
+        with pytest.raises(UnknownMetadataFetcher):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
 

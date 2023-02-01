@@ -1309,6 +1309,9 @@ class StorageInterface(Protocol):
         Returns:
             PagedResult of RawExtrinsicMetadata
 
+        Raises:
+            UnknownMetadataAuthority: if the metadata authority does not exist
+                at all
         """
         ...
 

@@ -8,7 +8,13 @@ from typing import Any, Dict, Iterable, Union
 from swh.core.api import RemoteException, RPCClient
 from swh.model.model import Content
 
-from ..exc import HashCollision, StorageAPIError, StorageArgumentException
+from ..exc import (
+    HashCollision,
+    StorageAPIError,
+    StorageArgumentException,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from ..interface import StorageInterface
 from .serializers import DECODERS, ENCODERS
 
@@ -20,6 +26,8 @@ class RemoteStorage(RPCClient):
     backend_class = StorageInterface
     reraise_exceptions = [
         StorageArgumentException,
+        UnknownMetadataAuthority,
+        UnknownMetadataFetcher,
     ]
     extra_type_decoders = DECODERS
     extra_type_encoders = ENCODERS
