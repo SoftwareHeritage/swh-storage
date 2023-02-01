@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -174,6 +174,10 @@ class Storage:
         self.query_options = query_options
         self._flavor: Optional[str] = None
 
+    ##########################
+    # Utilities
+    ##########################
+
     def get_db(self):
         if self._db:
             return self._db
@@ -236,6 +240,10 @@ class Storage:
 
         cur.execute("select has_table_privilege(current_user, 'content', %s)", (check,))
         return cur.fetchone()[0]
+
+    ##########################
+    # Content
+    ##########################
 
     def _content_unique_key(self, hash, db):
         """Given a hash (tuple or dict), return a unique key from the
@@ -466,6 +474,10 @@ class Storage:
     def content_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.content_get_random(cur)
 
+    ##########################
+    # SkippedContent
+    ##########################
+
     @staticmethod
     def _skipped_content_normalize(d):
         d = d.copy()
@@ -533,6 +545,10 @@ class Storage:
         contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
             yield dict(zip(db.content_hash_keys, content))
+
+    ##########################
+    # Directory
+    ##########################
 
     @db_transaction()
     def directory_add(
@@ -657,6 +673,10 @@ class Storage:
     ) -> Dict[Sha1Git, Optional[bytes]]:
         return dict(db.directory_get_raw_manifest(directory_ids, cur=cur))
 
+    ##########################
+    # Revision
+    ##########################
+
     @db_transaction()
     def revision_add(
         self, revisions: List[Revision], *, db: Db, cur=None
@@ -759,6 +779,10 @@ class Storage:
     def revision_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.revision_get_random(cur)
 
+    ##########################
+    # ExtID
+    ##########################
+
     @db_transaction()
     def extid_get_from_extid(
         self,
@@ -826,6 +850,10 @@ class Storage:
 
         return {"extid:add": len(extid)}
 
+    ##########################
+    # Release
+    ##########################
+
     @db_transaction()
     def release_add(
         self, releases: List[Release], *, db: Db, cur=None
@@ -883,6 +911,10 @@ class Storage:
     @db_transaction()
     def release_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.release_get_random(cur)
+
+    ##########################
+    # Snapshot
+    ##########################
 
     @db_transaction()
     def snapshot_add(
@@ -1033,6 +1065,10 @@ class Storage:
     @db_transaction()
     def snapshot_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
+
+    ##########################
+    # OriginVisit and OriginVisitStatus
+    ##########################
 
     @db_transaction()
     def origin_visit_add(
@@ -1360,19 +1396,9 @@ class Storage:
             return OriginVisitStatus(**row_d)
         return None
 
-    @db_transaction(statement_timeout=2000)
-    def object_find_by_sha1_git(
-        self, ids: List[Sha1Git], *, db: Db, cur=None
-    ) -> Dict[Sha1Git, List[Dict]]:
-        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
-
-        for retval in db.object_find_by_sha1_git(ids, cur=cur):
-            if retval[1]:
-                ret[retval[0]].append(
-                    dict(zip(db.object_find_by_sha1_git_cols, retval))
-                )
-
-        return ret
+    ##########################
+    # Origin
+    ##########################
 
     @db_transaction(statement_timeout=1000)
     def origin_get(
@@ -1493,6 +1519,24 @@ class Storage:
                 added += 1
         return {"origin:add": added}
 
+    ##########################
+    # misc.
+    ##########################
+
+    @db_transaction(statement_timeout=2000)
+    def object_find_by_sha1_git(
+        self, ids: List[Sha1Git], *, db: Db, cur=None
+    ) -> Dict[Sha1Git, List[Dict]]:
+        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
+
+        for retval in db.object_find_by_sha1_git(ids, cur=cur):
+            if retval[1]:
+                ret[retval[0]].append(
+                    dict(zip(db.object_find_by_sha1_git_cols, retval))
+                )
+
+        return ret
+
     @db_transaction(statement_timeout=500)
     def stat_counters(self, *, db: Db, cur=None):
         return {k: v for (k, v) in db.stat_counters()}
@@ -1517,6 +1561,10 @@ class Storage:
 
         for key in keys:
             cur.execute("select * from swh_update_counter(%s)", (key,))
+
+    ##########################
+    # RawExtrinsicMetadata
+    ##########################
 
     @db_transaction()
     def raw_extrinsic_metadata_add(
@@ -1635,23 +1683,9 @@ class Storage:
             for row in db.raw_extrinsic_metadata_get_by_ids(ids)
         ]
 
-    @db_transaction()
-    def raw_extrinsic_metadata_get_authorities(
-        self,
-        target: ExtendedSWHID,
-        *,
-        db: Db,
-        cur=None,
-    ) -> List[MetadataAuthority]:
-        return [
-            MetadataAuthority(
-                type=MetadataAuthorityType(authority_type), url=authority_url
-            )
-            for (
-                authority_type,
-                authority_url,
-            ) in db.raw_extrinsic_metadata_get_authorities(str(target), cur)
-        ]
+    ##########################
+    # MetadataFetcher and MetadataAuthority
+    ##########################
 
     @db_transaction()
     def metadata_fetcher_add(
@@ -1673,6 +1707,24 @@ class Storage:
         if not row:
             return None
         return MetadataFetcher.from_dict(dict(zip(db.metadata_fetcher_cols, row)))
+
+    @db_transaction()
+    def raw_extrinsic_metadata_get_authorities(
+        self,
+        target: ExtendedSWHID,
+        *,
+        db: Db,
+        cur=None,
+    ) -> List[MetadataAuthority]:
+        return [
+            MetadataAuthority(
+                type=MetadataAuthorityType(authority_type), url=authority_url
+            )
+            for (
+                authority_type,
+                authority_url,
+            ) in db.raw_extrinsic_metadata_get_authorities(str(target), cur)
+        ]
 
     @db_transaction()
     def metadata_authority_add(
