@@ -92,6 +92,10 @@ class StorageInterface(Protocol):
         """Check that the storage is configured and ready to go."""
         ...
 
+    ##########################
+    # Content
+    ##########################
+
     @remote_api_endpoint("content/add")
     def content_add(self, content: List[Content]) -> Dict[str, int]:
         """Add content blobs to the storage
@@ -319,6 +323,10 @@ class StorageInterface(Protocol):
         """
         ...
 
+    ##########################
+    # SkippedContent
+    ##########################
+
     @remote_api_endpoint("content/skipped/add")
     def skipped_content_add(self, content: List[SkippedContent]) -> Dict[str, int]:
         """Add contents to the skipped_content list, which contains
@@ -371,6 +379,10 @@ class StorageInterface(Protocol):
 
         """
         ...
+
+    ##########################
+    # Directory
+    ##########################
 
     @remote_api_endpoint("directory/add")
     def directory_add(self, directories: List[Directory]) -> Dict[str, int]:
@@ -496,6 +508,10 @@ class StorageInterface(Protocol):
         """
         ...
 
+    ##########################
+    # Revision
+    ##########################
+
     @remote_api_endpoint("revision/add")
     def revision_add(self, revisions: List[Revision]) -> Dict[str, int]:
         """Add revisions to the storage
@@ -566,6 +582,56 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("revision/log")
+    def revision_log(
+        self,
+        revisions: List[Sha1Git],
+        ignore_displayname: bool = False,
+        limit: Optional[int] = None,
+    ) -> Iterable[Optional[Dict[str, Any]]]:
+        """Fetch revision entry from the given root revisions.
+
+        Args:
+            revisions: array of root revisions to lookup
+            ignore_displayname: return the original author/committer's full name even if
+              it's masked by a displayname.
+            limit: limitation on the output result. Default to None.
+
+        Yields:
+            revision entries log from the given root root revisions
+
+        """
+        ...
+
+    @remote_api_endpoint("revision/shortlog")
+    def revision_shortlog(
+        self, revisions: List[Sha1Git], limit: Optional[int] = None
+    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
+        """Fetch the shortlog for the given revisions
+
+        Args:
+            revisions: list of root revisions to lookup
+            limit: depth limitation for the output
+
+        Yields:
+            a list of (id, parents) tuples
+
+        """
+        ...
+
+    @remote_api_endpoint("revision/get_random")
+    def revision_get_random(self) -> Sha1Git:
+        """Finds a random revision id.
+
+        Returns:
+            a sha1_git
+        """
+        ...
+
+    ##########################
+    # ExtID
+    ##########################
+
     @remote_api_endpoint("extid/from_extid")
     def extid_get_from_extid(
         self, id_type: str, ids: List[bytes], version: Optional[int] = None
@@ -624,51 +690,9 @@ class StorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("revision/log")
-    def revision_log(
-        self,
-        revisions: List[Sha1Git],
-        ignore_displayname: bool = False,
-        limit: Optional[int] = None,
-    ) -> Iterable[Optional[Dict[str, Any]]]:
-        """Fetch revision entry from the given root revisions.
-
-        Args:
-            revisions: array of root revisions to lookup
-            ignore_displayname: return the original author/committer's full name even if
-              it's masked by a displayname.
-            limit: limitation on the output result. Default to None.
-
-        Yields:
-            revision entries log from the given root root revisions
-
-        """
-        ...
-
-    @remote_api_endpoint("revision/shortlog")
-    def revision_shortlog(
-        self, revisions: List[Sha1Git], limit: Optional[int] = None
-    ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
-        """Fetch the shortlog for the given revisions
-
-        Args:
-            revisions: list of root revisions to lookup
-            limit: depth limitation for the output
-
-        Yields:
-            a list of (id, parents) tuples
-
-        """
-        ...
-
-    @remote_api_endpoint("revision/get_random")
-    def revision_get_random(self) -> Sha1Git:
-        """Finds a random revision id.
-
-        Returns:
-            a sha1_git
-        """
-        ...
+    ##########################
+    # Release
+    ##########################
 
     @remote_api_endpoint("release/add")
     def release_add(self, releases: List[Release]) -> Dict[str, int]:
@@ -738,6 +762,10 @@ class StorageInterface(Protocol):
             a sha1_git
         """
         ...
+
+    ##########################
+    # Snapshot
+    ##########################
 
     @remote_api_endpoint("snapshot/add")
     def snapshot_add(self, snapshots: List[Snapshot]) -> Dict[str, int]:
@@ -881,6 +909,10 @@ class StorageInterface(Protocol):
             a sha1_git
         """
         ...
+
+    ##########################
+    # OriginVisit and OriginVisitStatus
+    ##########################
 
     @remote_api_endpoint("origin/visit/add")
     def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
@@ -1110,22 +1142,9 @@ class StorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("object/find_by_sha1_git")
-    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
-        """Return the objects found with the given ids.
-
-        Args:
-            ids: a generator of sha1_gits
-
-        Returns:
-            A dict from id to the list of objects found for that id. Each object
-            found is itself a dict with keys:
-
-            - sha1_git: the input id
-            - type: the type of object found
-
-        """
-        ...
+    ##########################
+    # Origin
+    ##########################
 
     @remote_api_endpoint("origin/get")
     def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
@@ -1254,6 +1273,27 @@ class StorageInterface(Protocol):
         """
         ...
 
+    ##########################
+    # misc.
+    ##########################
+
+    @remote_api_endpoint("object/find_by_sha1_git")
+    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
+        """Return the objects found with the given ids.
+
+        Args:
+            ids: a generator of sha1_gits
+
+        Returns:
+            A dict from id to the list of objects found for that id. Each object
+            found is itself a dict with keys:
+
+            - sha1_git: the input id
+            - type: the type of object found
+
+        """
+        ...
+
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
 
@@ -1267,6 +1307,10 @@ class StorageInterface(Protocol):
     def refresh_stat_counters(self):
         """Recomputes the statistics for `stat_counters`."""
         ...
+
+    ##########################
+    # RawExtrinsicMetadata
+    ##########################
 
     @remote_api_endpoint("raw_extrinsic_metadata/add")
     def raw_extrinsic_metadata_add(
@@ -1335,6 +1379,10 @@ class StorageInterface(Protocol):
     ) -> List[MetadataAuthority]:
         """Returns all authorities that provided metadata on the given object."""
         ...
+
+    ##########################
+    # MetadataFetcher and MetadataAuthority
+    ##########################
 
     @remote_api_endpoint("metadata_fetcher/add")
     def metadata_fetcher_add(

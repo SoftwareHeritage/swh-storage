@@ -599,79 +599,6 @@ class CqlRunner:
         )
 
     ##########################
-    # 'revision' table
-    ##########################
-
-    @_prepared_exists_statement("revision")
-    def revision_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
-        return self._missing(statement, ids)
-
-    @_prepared_insert_statement(RevisionRow)
-    def revision_add_one(self, revision: RevisionRow, *, statement) -> None:
-        self._add_one(statement, revision)
-
-    @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
-    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[int]:
-        return (
-            row["id"] for row in self._execute_with_retries(statement, [revision_ids])
-        )
-
-    @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
-    def revision_get(
-        self, revision_ids: List[Sha1Git], *, statement
-    ) -> Iterable[RevisionRow]:
-        return map(
-            RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
-        )
-
-    @_prepared_select_statement(RevisionRow, "WHERE token(id) > ? LIMIT 1")
-    def revision_get_random(self, *, statement) -> Optional[RevisionRow]:
-        return self._get_random_row(RevisionRow, statement)
-
-    ##########################
-    # 'revision_parent' table
-    ##########################
-
-    @_prepared_insert_statement(RevisionParentRow)
-    def revision_parent_add_one(
-        self, revision_parent: RevisionParentRow, *, statement
-    ) -> None:
-        self._add_one(statement, revision_parent)
-
-    @_prepared_select_statement(RevisionParentRow, "WHERE id = ?", ["parent_id"])
-    def revision_parent_get(
-        self, revision_id: Sha1Git, *, statement
-    ) -> Iterable[bytes]:
-        return (
-            row["parent_id"]
-            for row in self._execute_with_retries(statement, [revision_id])
-        )
-
-    ##########################
-    # 'release' table
-    ##########################
-
-    @_prepared_exists_statement("release")
-    def release_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
-        return self._missing(statement, ids)
-
-    @_prepared_insert_statement(ReleaseRow)
-    def release_add_one(self, release: ReleaseRow, *, statement) -> None:
-        self._add_one(statement, release)
-
-    @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
-    def release_get(
-        self, release_ids: List[Sha1Git], *, statement
-    ) -> Iterable[ReleaseRow]:
-        return map(
-            ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
-        )
-
-    @_prepared_select_statement(ReleaseRow, "WHERE token(id) > ? LIMIT 1")
-    def release_get_random(self, *, statement) -> Optional[ReleaseRow]:
-        return self._get_random_row(ReleaseRow, statement)
-
-    ##########################
     # 'directory' table
     ##########################
 
@@ -770,6 +697,79 @@ class CqlRunner:
             DirectoryEntryRow.from_dict,
             self._execute_with_retries(statement, [directory_id, from_, limit]),
         )
+
+    ##########################
+    # 'revision' table
+    ##########################
+
+    @_prepared_exists_statement("revision")
+    def revision_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
+        return self._missing(statement, ids)
+
+    @_prepared_insert_statement(RevisionRow)
+    def revision_add_one(self, revision: RevisionRow, *, statement) -> None:
+        self._add_one(statement, revision)
+
+    @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
+    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[int]:
+        return (
+            row["id"] for row in self._execute_with_retries(statement, [revision_ids])
+        )
+
+    @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
+    def revision_get(
+        self, revision_ids: List[Sha1Git], *, statement
+    ) -> Iterable[RevisionRow]:
+        return map(
+            RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
+        )
+
+    @_prepared_select_statement(RevisionRow, "WHERE token(id) > ? LIMIT 1")
+    def revision_get_random(self, *, statement) -> Optional[RevisionRow]:
+        return self._get_random_row(RevisionRow, statement)
+
+    ##########################
+    # 'revision_parent' table
+    ##########################
+
+    @_prepared_insert_statement(RevisionParentRow)
+    def revision_parent_add_one(
+        self, revision_parent: RevisionParentRow, *, statement
+    ) -> None:
+        self._add_one(statement, revision_parent)
+
+    @_prepared_select_statement(RevisionParentRow, "WHERE id = ?", ["parent_id"])
+    def revision_parent_get(
+        self, revision_id: Sha1Git, *, statement
+    ) -> Iterable[bytes]:
+        return (
+            row["parent_id"]
+            for row in self._execute_with_retries(statement, [revision_id])
+        )
+
+    ##########################
+    # 'release' table
+    ##########################
+
+    @_prepared_exists_statement("release")
+    def release_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
+        return self._missing(statement, ids)
+
+    @_prepared_insert_statement(ReleaseRow)
+    def release_add_one(self, release: ReleaseRow, *, statement) -> None:
+        self._add_one(statement, release)
+
+    @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
+    def release_get(
+        self, release_ids: List[Sha1Git], *, statement
+    ) -> Iterable[ReleaseRow]:
+        return map(
+            ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
+        )
+
+    @_prepared_select_statement(ReleaseRow, "WHERE token(id) > ? LIMIT 1")
+    def release_get_random(self, *, statement) -> Optional[ReleaseRow]:
+        return self._get_random_row(ReleaseRow, statement)
 
     ##########################
     # 'snapshot' table
@@ -1181,42 +1181,6 @@ class CqlRunner:
             if d["snapshot"] is not None
         }
 
-    ##########################
-    # 'metadata_authority' table
-    ##########################
-
-    @_prepared_insert_statement(MetadataAuthorityRow)
-    def metadata_authority_add(self, authority: MetadataAuthorityRow, *, statement):
-        self._add_one(statement, authority)
-
-    @_prepared_select_statement(MetadataAuthorityRow, "WHERE type = ? AND url = ?")
-    def metadata_authority_get(
-        self, type, url, *, statement
-    ) -> Optional[MetadataAuthorityRow]:
-        rows = list(self._execute_with_retries(statement, [type, url]))
-        if rows:
-            return MetadataAuthorityRow.from_dict(rows[0])
-        else:
-            return None
-
-    ##########################
-    # 'metadata_fetcher' table
-    ##########################
-
-    @_prepared_insert_statement(MetadataFetcherRow)
-    def metadata_fetcher_add(self, fetcher, *, statement):
-        self._add_one(statement, fetcher)
-
-    @_prepared_select_statement(MetadataFetcherRow, "WHERE name = ? AND version = ?")
-    def metadata_fetcher_get(
-        self, name, version, *, statement
-    ) -> Optional[MetadataFetcherRow]:
-        rows = list(self._execute_with_retries(statement, [name, version]))
-        if rows:
-            return MetadataFetcherRow.from_dict(rows[0])
-        else:
-            return None
-
     #########################
     # 'raw_extrinsic_metadata_by_id' table
     #########################
@@ -1319,6 +1283,42 @@ class CqlRunner:
             (entry["authority_type"], entry["authority_url"])
             for entry in self._execute_with_retries(statement, [target])
         )
+
+    ##########################
+    # 'metadata_authority' table
+    ##########################
+
+    @_prepared_insert_statement(MetadataAuthorityRow)
+    def metadata_authority_add(self, authority: MetadataAuthorityRow, *, statement):
+        self._add_one(statement, authority)
+
+    @_prepared_select_statement(MetadataAuthorityRow, "WHERE type = ? AND url = ?")
+    def metadata_authority_get(
+        self, type, url, *, statement
+    ) -> Optional[MetadataAuthorityRow]:
+        rows = list(self._execute_with_retries(statement, [type, url]))
+        if rows:
+            return MetadataAuthorityRow.from_dict(rows[0])
+        else:
+            return None
+
+    ##########################
+    # 'metadata_fetcher' table
+    ##########################
+
+    @_prepared_insert_statement(MetadataFetcherRow)
+    def metadata_fetcher_add(self, fetcher, *, statement):
+        self._add_one(statement, fetcher)
+
+    @_prepared_select_statement(MetadataFetcherRow, "WHERE name = ? AND version = ?")
+    def metadata_fetcher_get(
+        self, name, version, *, statement
+    ) -> Optional[MetadataFetcherRow]:
+        rows = list(self._execute_with_retries(statement, [name, version]))
+        if rows:
+            return MetadataFetcherRow.from_dict(rows[0])
+        else:
+            return None
 
     ##########################
     # 'extid' table
