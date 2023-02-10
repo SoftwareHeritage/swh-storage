@@ -197,15 +197,24 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
     }
 
 
-def db_to_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
+def db_to_optional_revision(db_revision: Dict[str, Any]) -> Optional[Revision]:
     """Convert a database representation of a revision to its swh-model
-    representation."""
+    representation.
+    This is similar to :func:`db_to_revision`, but this returns :const:`None`
+    instead of crashing if the revision does not exist (returned by an outer join).
+    """
     if db_revision["type"] is None:
         assert all(
             v is None for (k, v) in db_revision.items() if k not in ("id", "parents")
         )
         return None
 
+    return db_to_revision(db_revision)
+
+
+def db_to_revision(db_revision: Dict[str, Any]) -> Revision:
+    """Convert a database representation of a revision to its swh-model
+    representation. Raises ValueError if required values are None."""
     author = db_to_author(
         db_revision["author_fullname"],
         db_revision["author_name"],
@@ -288,14 +297,23 @@ def release_to_db(release: Release) -> Dict[str, Any]:
     }
 
 
-def db_to_release(db_release: Dict[str, Any]) -> Optional[Release]:
+def db_to_optional_release(db_release: Dict[str, Any]) -> Optional[Release]:
     """Convert a database representation of a release to its swh-model
     representation.
+    This is similar to :func:`db_to_release`, but this returns :const:`None`
+    instead of crashing if the revision does not exist (returned by an outer join).
     """
     if db_release["target_type"] is None:
         assert all(v is None for (k, v) in db_release.items() if k != "id")
         return None
 
+    return db_to_release(db_release)
+
+
+def db_to_release(db_release: Dict[str, Any]) -> Release:
+    """Convert a database representation of a release to its swh-model
+    representation. Raises ValueError if required values are None.
+    """
     author = db_to_author(
         db_release["author_fullname"],
         db_release["author_name"],

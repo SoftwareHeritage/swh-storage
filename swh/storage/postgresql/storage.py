@@ -745,7 +745,9 @@ class Storage:
     ) -> List[Optional[Revision]]:
         revisions = []
         for line in db.revision_get_from_list(revision_ids, ignore_displayname, cur):
-            revision = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
+            revision = converters.db_to_optional_revision(
+                dict(zip(db.revision_get_cols, line))
+            )
             revisions.append(revision)
 
         return revisions
@@ -904,8 +906,10 @@ class Storage:
     ) -> List[Optional[Release]]:
         rels = []
         for release in db.release_get_from_list(releases, ignore_displayname, cur):
-            data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
-            rels.append(data if data else None)
+            rel = converters.db_to_optional_release(
+                dict(zip(db.release_get_cols, release))
+            )
+            rels.append(rel)
         return rels
 
     @db_transaction()
