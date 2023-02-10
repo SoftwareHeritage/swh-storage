@@ -251,6 +251,21 @@ def _prepared_select_statements(
     return decorator
 
 
+def _prepared_select_token_range_statement(
+    row_class: Type[BaseRow],
+    clauses: str = "",
+    cols: Optional[List[str]] = None,
+) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
+    """Like _prepared_select_statement, but adds a WHERE clause that selects
+    all rows in a token range."""
+    pk = ", ".join(row_class.PARTITION_KEY)
+    return _prepared_select_statement(
+        row_class,
+        f"WHERE token({pk}) >= ? AND token({pk}) <= ? {clauses}",
+        [f"token({pk}) AS tok", *(cols or row_class.cols())],
+    )
+
+
 def _next_bytes_value(value: bytes) -> bytes:
     """Returns the next bytes value by incrementing the integer
     representation of the provided value and converting it back
@@ -453,16 +468,7 @@ class CqlRunner:
     def content_get_random(self, *, statement) -> Optional[ContentRow]:
         return self._get_random_row(ContentRow, statement)
 
-    @_prepared_statement(
-        """
-        SELECT token({pk}) AS tok, {cols} FROM {{keyspace}}.{table}
-        WHERE token({pk}) >= ? AND token({pk}) <= ? LIMIT ?
-        """.format(
-            pk=", ".join(ContentRow.PARTITION_KEY),
-            cols=", ".join(ContentRow.cols()),
-            table=ContentRow.TABLE,
-        )
-    )
+    @_prepared_select_token_range_statement(ContentRow, "LIMIT ?")
     def content_get_token_range(
         self, start: int, end: int, limit: int, *, statement
     ) -> Iterable[Tuple[int, ContentRow]]:
@@ -923,20 +929,16 @@ class CqlRunner:
     def origin_get_by_url(self, url: str) -> Iterable[OriginRow]:
         return self.origin_get_by_sha1(hash_url(url))
 
-    @_prepared_statement(
-        f"""
-        SELECT token(sha1) AS tok, {", ".join(OriginRow.cols())}
-        FROM {{keyspace}}.{OriginRow.TABLE}
-        WHERE token(sha1) >= ? LIMIT ?
-        """
-    )
+    @_prepared_select_token_range_statement(OriginRow, "LIMIT ?")
     def origin_list(
         self, start_token: int, limit: int, *, statement
     ) -> Iterable[Tuple[int, OriginRow]]:
         """Returns an iterable of (token, origin)"""
         return (
             (row["tok"], OriginRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start_token, limit])
+            for row in self._execute_with_retries(
+                statement, [start_token, TOKEN_END, limit]
+            )
         )
 
     @_prepared_select_statement(OriginRow)
