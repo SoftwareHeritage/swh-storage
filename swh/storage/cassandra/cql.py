@@ -633,7 +633,7 @@ class CqlRunner:
             self._execute_with_retries(statement, [directory_ids]),
         )
 
-    @_preparated_select_token_range_statement(DirectoryRow, "LIMIT ?")
+    @_prepared_select_token_range_statement(DirectoryRow, "LIMIT ?")
     def directory_get_token_range(
         self, start: int, end: int, limit: int, *, statement
     ) -> Iterator[Tuple[int, DirectoryRow]]:
@@ -744,7 +744,7 @@ class CqlRunner:
     def revision_get_random(self, *, statement) -> Optional[RevisionRow]:
         return self._get_random_row(RevisionRow, statement)
 
-    @_preparated_select_token_range_statement(RevisionRow, "LIMIT ?")
+    @_prepared_select_token_range_statement(RevisionRow, "LIMIT ?")
     def revision_get_token_range(
         self, start: int, end: int, limit: int, *, statement
     ) -> Iterator[Tuple[int, RevisionRow]]:
@@ -797,7 +797,7 @@ class CqlRunner:
     def release_get_random(self, *, statement) -> Optional[ReleaseRow]:
         return self._get_random_row(ReleaseRow, statement)
 
-    @_preparated_select_token_range_statement(ReleaseRow, "LIMIT ?")
+    @_prepared_select_token_range_statement(ReleaseRow, "LIMIT ?")
     def release_get_token_range(
         self, start: int, end: int, limit: int, *, statement
     ) -> Iterator[Tuple[int, ReleaseRow]]:
@@ -823,7 +823,7 @@ class CqlRunner:
     def snapshot_get_random(self, *, statement) -> Optional[SnapshotRow]:
         return self._get_random_row(SnapshotRow, statement)
 
-    @_preparated_select_token_range_statement(SnapshotRow, "LIMIT ?")
+    @_prepared_select_token_range_statement(SnapshotRow, "LIMIT ?")
     def snapshot_get_token_range(
         self, start: int, end: int, limit: int, *, statement
     ) -> Iterator[Tuple[int, SnapshotRow]]:
