@@ -509,7 +509,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("directory/partition/id")
-    def directory_get_partition_sha1_git(
+    def directory_get_id_partition(
         self,
         partition_id: int,
         nb_partitions: int,
@@ -986,7 +986,7 @@ class StorageInterface(Protocol):
         ...
 
     @remote_api_endpoint("directory/partition/id")
-    def snapshot_get_partition_sha1_git(
+    def snapshot_get_id_partition(
         self,
         partition_id: int,
         nb_partitions: int,

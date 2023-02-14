@@ -755,7 +755,7 @@ class CassandraStorage:
         assert directory, "Could not find any directory"
         return directory.id
 
-    def directory_get_partition_sha1_git(
+    def directory_get_id_partition(
         self,
         partition_id: int,
         nb_partitions: int,
@@ -1020,7 +1020,7 @@ class CassandraStorage:
             "next_branch": d["next_branch"],
         }
 
-    def snapshot_get_partition_sha1_git(
+    def snapshot_get_id_partition(
         self,
         partition_id: int,
         nb_partitions: int,

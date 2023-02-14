@@ -725,7 +725,7 @@ class Storage:
         return dict(db.directory_get_raw_manifest(directory_ids, cur=cur))
 
     @db_transaction()
-    def directory_get_partition_sha1_git(
+    def directory_get_id_partition(
         self,
         partition_id: int,
         nb_partitions: int,
@@ -1096,7 +1096,7 @@ class Storage:
         }
 
     @db_transaction()
-    def snapshot_get_partition_sha1_git(
+    def snapshot_get_id_partition(
         self,
         partition_id: int,
         nb_partitions: int,

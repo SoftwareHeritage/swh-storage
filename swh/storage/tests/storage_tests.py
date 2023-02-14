@@ -945,7 +945,7 @@ class TestStorage:
         # test_directory_add_raw_manifest__different_entries__allow_overwrite
         return dir1.id
 
-    def test_directory_get_partition_sha1_git(self, swh_storage, sample_data):
+    def test_directory_get_id_partition(self, swh_storage, sample_data):
         directories = list(sample_data.directories) + [
             Directory(
                 entries=(
@@ -970,9 +970,7 @@ class TestStorage:
 
         for i in range(nb_partitions):
             result = list(
-                stream_results(
-                    swh_storage.directory_get_partition_sha1_git, i, nb_partitions
-                )
+                stream_results(swh_storage.directory_get_id_partition, i, nb_partitions)
             )
 
             # Technically not guaranteed, but it is statistically very unlikely
@@ -4788,7 +4786,7 @@ class TestStorage:
         )
         assert visit_status.snapshot == snapshot.id
 
-    def test_snapshot_get_partition_sha1_git(self, swh_storage, sample_data):
+    def test_snapshot_get_id_partition(self, swh_storage, sample_data):
         snapshots = list(sample_data.snapshots) + [
             Snapshot(
                 branches={
@@ -4811,9 +4809,7 @@ class TestStorage:
 
         for i in range(nb_partitions):
             result = list(
-                stream_results(
-                    swh_storage.snapshot_get_partition_sha1_git, i, nb_partitions
-                )
+                stream_results(swh_storage.snapshot_get_id_partition, i, nb_partitions)
             )
 
             # Technically not guaranteed, but it is statistically very unlikely
