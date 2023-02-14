@@ -985,7 +985,7 @@ class StorageInterface(Protocol):
         """
         ...
 
-    @remote_api_endpoint("directory/partition/id")
+    @remote_api_endpoint("snapshot/partition/id")
     def snapshot_get_id_partition(
         self,
         partition_id: int,
