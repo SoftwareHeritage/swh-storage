@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,7 +11,7 @@ import datetime
 import itertools
 import logging
 import operator
-from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import attr
 import psycopg2
@@ -45,9 +45,16 @@ from swh.model.model import (
     TargetType,
 )
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
-from swh.storage.exc import HashCollision, StorageArgumentException, StorageDBError
+from swh.storage.exc import (
+    HashCollision,
+    StorageArgumentException,
+    StorageDBError,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from swh.storage.interface import (
     VISIT_STATUSES,
+    HashDict,
     ListOrder,
     OriginVisitWithStatuses,
     PagedResult,
@@ -163,9 +170,13 @@ class Storage:
         except psycopg2.OperationalError as e:
             raise StorageDBError(e)
         self.journal_writer = JournalWriter(journal_writer)
-        self.objstorage = ObjStorage(objstorage)
+        self.objstorage = ObjStorage(self, objstorage)
         self.query_options = query_options
         self._flavor: Optional[str] = None
+
+    ##########################
+    # Utilities
+    ##########################
 
     def get_db(self):
         if self._db:
@@ -229,6 +240,10 @@ class Storage:
 
         cur.execute("select has_table_privilege(current_user, 'content', %s)", (check,))
         return cur.fetchone()[0]
+
+    ##########################
+    # Content
+    ##########################
 
     def _content_unique_key(self, hash, db):
         """Given a hash (tuple or dict), return a unique key from the
@@ -341,7 +356,7 @@ class Storage:
             "content:add": len(contents),
         }
 
-    def content_get_data(self, content: Sha1) -> Optional[bytes]:
+    def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
         # FIXME: Make this method support slicing the `data`
         return self.objstorage.content_get(content)
 
@@ -403,7 +418,7 @@ class Storage:
     @db_transaction_generator()
     def content_missing(
         self,
-        contents: List[Dict[str, Any]],
+        contents: List[HashDict],
         key_hash: str = "sha1",
         *,
         db: Db,
@@ -435,9 +450,7 @@ class Storage:
             yield obj[0]
 
     @db_transaction()
-    def content_find(
-        self, content: Dict[str, Any], *, db: Db, cur=None
-    ) -> List[Content]:
+    def content_find(self, content: HashDict, *, db: Db, cur=None) -> List[Content]:
         if not set(content).intersection(DEFAULT_ALGORITHMS):
             raise StorageArgumentException(
                 "content keys must contain at least one "
@@ -460,6 +473,10 @@ class Storage:
     @db_transaction()
     def content_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.content_get_random(cur)
+
+    ##########################
+    # SkippedContent
+    ##########################
 
     @staticmethod
     def _skipped_content_normalize(d):
@@ -528,6 +545,10 @@ class Storage:
         contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
             yield dict(zip(db.content_hash_keys, content))
+
+    ##########################
+    # Directory
+    ##########################
 
     @db_transaction()
     def directory_add(
@@ -652,6 +673,10 @@ class Storage:
     ) -> Dict[Sha1Git, Optional[bytes]]:
         return dict(db.directory_get_raw_manifest(directory_ids, cur=cur))
 
+    ##########################
+    # Revision
+    ##########################
+
     @db_transaction()
     def revision_add(
         self, revisions: List[Revision], *, db: Db, cur=None
@@ -720,7 +745,9 @@ class Storage:
     ) -> List[Optional[Revision]]:
         revisions = []
         for line in db.revision_get_from_list(revision_ids, ignore_displayname, cur):
-            revision = converters.db_to_revision(dict(zip(db.revision_get_cols, line)))
+            revision = converters.db_to_optional_revision(
+                dict(zip(db.revision_get_cols, line))
+            )
             revisions.append(revision)
 
         return revisions
@@ -753,6 +780,10 @@ class Storage:
     @db_transaction()
     def revision_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.revision_get_random(cur)
+
+    ##########################
+    # ExtID
+    ##########################
 
     @db_transaction()
     def extid_get_from_extid(
@@ -821,6 +852,10 @@ class Storage:
 
         return {"extid:add": len(extid)}
 
+    ##########################
+    # Release
+    ##########################
+
     @db_transaction()
     def release_add(
         self, releases: List[Release], *, db: Db, cur=None
@@ -871,13 +906,19 @@ class Storage:
     ) -> List[Optional[Release]]:
         rels = []
         for release in db.release_get_from_list(releases, ignore_displayname, cur):
-            data = converters.db_to_release(dict(zip(db.release_get_cols, release)))
-            rels.append(data if data else None)
+            rel = converters.db_to_optional_release(
+                dict(zip(db.release_get_cols, release))
+            )
+            rels.append(rel)
         return rels
 
     @db_transaction()
     def release_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.release_get_random(cur)
+
+    ##########################
+    # Snapshot
+    ##########################
 
     @db_transaction()
     def snapshot_add(
@@ -1028,6 +1069,10 @@ class Storage:
     @db_transaction()
     def snapshot_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
+
+    ##########################
+    # OriginVisit and OriginVisitStatus
+    ##########################
 
     @db_transaction()
     def origin_visit_add(
@@ -1355,19 +1400,9 @@ class Storage:
             return OriginVisitStatus(**row_d)
         return None
 
-    @db_transaction(statement_timeout=2000)
-    def object_find_by_sha1_git(
-        self, ids: List[Sha1Git], *, db: Db, cur=None
-    ) -> Dict[Sha1Git, List[Dict]]:
-        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
-
-        for retval in db.object_find_by_sha1_git(ids, cur=cur):
-            if retval[1]:
-                ret[retval[0]].append(
-                    dict(zip(db.object_find_by_sha1_git_cols, retval))
-                )
-
-        return ret
+    ##########################
+    # Origin
+    ##########################
 
     @db_transaction(statement_timeout=1000)
     def origin_get(
@@ -1488,6 +1523,24 @@ class Storage:
                 added += 1
         return {"origin:add": added}
 
+    ##########################
+    # misc.
+    ##########################
+
+    @db_transaction(statement_timeout=2000)
+    def object_find_by_sha1_git(
+        self, ids: List[Sha1Git], *, db: Db, cur=None
+    ) -> Dict[Sha1Git, List[Dict]]:
+        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
+
+        for retval in db.object_find_by_sha1_git(ids, cur=cur):
+            if retval[1]:
+                ret[retval[0]].append(
+                    dict(zip(db.object_find_by_sha1_git_cols, retval))
+                )
+
+        return ret
+
     @db_transaction(statement_timeout=500)
     def stat_counters(self, *, db: Db, cur=None):
         return {k: v for (k, v) in db.stat_counters()}
@@ -1512,6 +1565,10 @@ class Storage:
 
         for key in keys:
             cur.execute("select * from swh_update_counter(%s)", (key,))
+
+    ##########################
+    # RawExtrinsicMetadata
+    ##########################
 
     @db_transaction()
     def raw_extrinsic_metadata_add(
@@ -1573,8 +1630,9 @@ class Storage:
             after_time = after
             after_fetcher = None
 
-        authority_id = self._get_authority_id(authority, db, cur)
-        if not authority_id:
+        try:
+            authority_id = self._get_authority_id(authority, db, cur)
+        except UnknownMetadataAuthority:
             return PagedResult(
                 next_page_token=None,
                 results=[],
@@ -1629,23 +1687,9 @@ class Storage:
             for row in db.raw_extrinsic_metadata_get_by_ids(ids)
         ]
 
-    @db_transaction()
-    def raw_extrinsic_metadata_get_authorities(
-        self,
-        target: ExtendedSWHID,
-        *,
-        db: Db,
-        cur=None,
-    ) -> List[MetadataAuthority]:
-        return [
-            MetadataAuthority(
-                type=MetadataAuthorityType(authority_type), url=authority_url
-            )
-            for (
-                authority_type,
-                authority_url,
-            ) in db.raw_extrinsic_metadata_get_authorities(str(target), cur)
-        ]
+    ##########################
+    # MetadataFetcher and MetadataAuthority
+    ##########################
 
     @db_transaction()
     def metadata_fetcher_add(
@@ -1667,6 +1711,24 @@ class Storage:
         if not row:
             return None
         return MetadataFetcher.from_dict(dict(zip(db.metadata_fetcher_cols, row)))
+
+    @db_transaction()
+    def raw_extrinsic_metadata_get_authorities(
+        self,
+        target: ExtendedSWHID,
+        *,
+        db: Db,
+        cur=None,
+    ) -> List[MetadataAuthority]:
+        return [
+            MetadataAuthority(
+                type=MetadataAuthorityType(authority_type), url=authority_url
+            )
+            for (
+                authority_type,
+                authority_url,
+            ) in db.raw_extrinsic_metadata_get_authorities(str(target), cur)
+        ]
 
     @db_transaction()
     def metadata_authority_add(
@@ -1701,11 +1763,11 @@ class Storage:
             authority.type.value, authority.url, cur
         )
         if not authority_id:
-            raise StorageArgumentException(f"Unknown authority {authority}")
+            raise UnknownMetadataAuthority(str(authority))
         return authority_id
 
     def _get_fetcher_id(self, fetcher: MetadataFetcher, db, cur):
         fetcher_id = db.metadata_fetcher_get_id(fetcher.name, fetcher.version, cur)
         if not fetcher_id:
-            raise StorageArgumentException(f"Unknown fetcher {fetcher}")
+            raise UnknownMetadataFetcher(str(fetcher))
         return fetcher_id

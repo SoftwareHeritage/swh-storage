@@ -44,7 +44,12 @@ from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
-from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.exc import (
+    HashCollision,
+    StorageArgumentException,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.interface import (
     ListOrder,
@@ -181,7 +186,42 @@ class TestStorage:
             "content:add:bytes": cont.length,
         }
 
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
+
+        expected_cont = attr.evolve(cont, data=None)
+
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            assert insertion_start_time <= obj.ctime
+            assert obj.ctime <= insertion_end_time
+            assert obj == expected_cont
+
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["content"] == 1
+
+    def test_content_add__legacy(self, swh_storage, sample_data):
+        """content_add() with a single sha1 as param instead of a dict"""
+        cont = sample_data.content
+
+        insertion_start_time = now()
+        actual_result = swh_storage.content_add([cont])
+        insertion_end_time = now()
+
+        assert actual_result == {
+            "content:add": 1,
+            "content:add:bytes": cont.length,
+        }
+
+        with pytest.warns(DeprecationWarning):
+            assert swh_storage.content_get_data(cont.sha1) == cont.data
 
         expected_cont = attr.evolve(cont, data=None)
 
@@ -219,7 +259,7 @@ class TestStorage:
 
         # the fact that we retrieve the content object from the storage with
         # the correct 'data' field ensures it has been 'called'
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
         expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
         contents = [
@@ -239,19 +279,71 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 1
 
+    @pytest.mark.parametrize("algo", sorted(DEFAULT_ALGORITHMS))
+    def test_content_get_data_single_hash_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker, algo
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+        assert swh_storage.content_get_data({algo: cont.get_hash(algo)}) == cont.data
+
+        assert len(content_find.mock_calls) == 1
+
+    def test_content_get_data_two_hash_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+
+        combinations = list(itertools.combinations(sorted(DEFAULT_ALGORITHMS), 2))
+        for (algo1, algo2) in combinations:
+            assert (
+                swh_storage.content_get_data(
+                    {algo1: cont.get_hash(algo1), algo2: cont.get_hash(algo2)}
+                )
+                == cont.data
+            )
+        assert len(content_find.mock_calls) == len(combinations)
+
+    def test_content_get_data_full_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+        assert swh_storage.content_get_data(cont.hashes()) == cont.data
+        assert len(content_find.mock_calls) == 0, (
+            "content_get_data() needlessly called content_find(), "
+            "as all hashes were provided as argument"
+        )
+
     def test_content_get_data_missing(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont])
 
         # Query a single missing content
-        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont2.sha1})
         assert actual_content_data is None
 
         # Check content_get does not abort after finding a missing content
-        actual_content_data = swh_storage.content_get_data(cont.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont.sha1})
         assert actual_content_data == cont.data
-        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont2.sha1})
         assert actual_content_data is None
 
     def test_content_add_different_input(self, swh_storage, sample_data):
@@ -314,7 +406,7 @@ class TestStorage:
         cont = sample_data.content
         swh_storage.content_add([cont, cont])
 
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
     def test_content_update(self, swh_storage, sample_data):
         cont1 = sample_data.content
@@ -406,7 +498,7 @@ class TestStorage:
 
         # The DB must be written to after the objstorage, so the DB should be
         # unchanged if the objstorage crashed
-        assert swh_storage.content_get_data(cont.sha1) is None
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) is None
 
         # The journal too
         assert list(swh_storage.journal_writer.journal.objects) == []
@@ -5486,7 +5578,7 @@ class TestStorage:
         assert result.next_page_token is None
         assert result.results == [new_origin_metadata2]
 
-    def test_origin_metadata_add_missing_authority(self, swh_storage, sample_data):
+    def test_origin_metadata_missing_authority(self, swh_storage, sample_data):
         origin = sample_data.origin
         fetcher = sample_data.metadata_fetcher
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
@@ -5494,10 +5586,14 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([fetcher])
 
-        with pytest.raises(StorageArgumentException, match="authority"):
+        with pytest.raises(UnknownMetadataAuthority):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-    def test_origin_metadata_add_missing_fetcher(self, swh_storage, sample_data):
+        assert swh_storage.raw_extrinsic_metadata_get(
+            Origin(origin.url).swhid(), origin_metadata.authority
+        ) == PagedResult(results=[], next_page_token=None)
+
+    def test_origin_metadata_missing_fetcher(self, swh_storage, sample_data):
         origin = sample_data.origin
         authority = sample_data.metadata_authority
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
@@ -5505,7 +5601,7 @@ class TestStorage:
 
         swh_storage.metadata_authority_add([authority])
 
-        with pytest.raises(StorageArgumentException, match="fetcher"):
+        with pytest.raises(UnknownMetadataFetcher):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
 
@@ -5515,7 +5611,7 @@ class TestStorageGeneratedData:
 
         # retrieve contents
         for content in contents_with_data:
-            actual_content_data = swh_storage.content_get_data(content.sha1)
+            actual_content_data = swh_storage.content_get_data({"sha1": content.sha1})
             assert actual_content_data is not None
             assert actual_content_data == content.data
 

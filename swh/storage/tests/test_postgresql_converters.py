@@ -233,9 +233,10 @@ def test_db_to_author_unparsed():
     assert author == Person.from_fullname(b"Fullname <email@example.com>")
 
 
-def test_db_to_revision():
+@pytest.mark.parametrize("tested_func", ["db_to_revision", "db_to_optional_revision"])
+def test_db_to_revision(tested_func):
     # when
-    actual_revision = converters.db_to_revision(
+    actual_revision = getattr(converters, tested_func)(
         {
             "id": b"revision-id",
             "date": None,
@@ -288,9 +289,46 @@ def test_db_to_revision():
     )
 
 
-def test_db_to_release():
+@pytest.mark.parametrize("tested_func", ["db_to_revision", "db_to_optional_revision"])
+def test_db_to_revision_none(tested_func):
     # when
-    actual_release = converters.db_to_release(
+    row = {
+        "id": b"revision-id",
+        "date": None,
+        "date_offset": None,
+        "date_neg_utc_offset": None,
+        "date_offset_bytes": None,
+        "committer_date": None,
+        "committer_date_offset": None,
+        "committer_date_neg_utc_offset": None,
+        "committer_date_offset_bytes": None,
+        "type": None,
+        "directory": None,
+        "message": None,
+        "author_fullname": None,
+        "author_name": None,
+        "author_email": None,
+        "committer_fullname": None,
+        "committer_name": None,
+        "committer_email": None,
+        "metadata": None,
+        "synthetic": None,
+        "extra_headers": None,
+        "raw_manifest": None,
+        "parents": [],
+    }
+
+    if tested_func == "db_to_revision":
+        with pytest.raises(ValueError):
+            converters.db_to_revision(row)
+    else:
+        assert converters.db_to_optional_revision(row) is None
+
+
+@pytest.mark.parametrize("tested_func", ["db_to_release", "db_to_optional_release"])
+def test_db_to_release(tested_func):
+    # when
+    actual_release = getattr(converters, tested_func)(
         {
             "id": b"release-id",
             "target": b"revision-id",
@@ -324,6 +362,32 @@ def test_db_to_release():
         target=b"revision-id",
         target_type=ObjectType.REVISION,
     )
+
+
+@pytest.mark.parametrize("tested_func", ["db_to_release", "db_to_optional_release"])
+def test_db_to_release_none(tested_func):
+    row = {
+        "id": b"release-id",
+        "target": None,
+        "target_type": None,
+        "date": None,
+        "date_offset": None,
+        "date_neg_utc_offset": None,
+        "date_offset_bytes": None,
+        "name": None,
+        "comment": None,
+        "synthetic": None,
+        "author_fullname": None,
+        "author_name": None,
+        "author_email": None,
+        "raw_manifest": None,
+    }
+
+    if tested_func == "db_to_release":
+        with pytest.raises(ValueError):
+            converters.db_to_release(row)
+    else:
+        assert converters.db_to_optional_release(row) is None
 
 
 def test_db_to_raw_extrinsic_metadata_raw_target():

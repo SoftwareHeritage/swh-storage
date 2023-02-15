@@ -255,9 +255,7 @@ def revision_converter(db: BaseDb, revision_d: Dict[str, Any]) -> Revision:
     compatible objects.
 
     """
-    revision = db_to_revision(revision_d)
-    assert revision is not None, revision_d["id"]
-    return revision
+    return db_to_revision(revision_d)
 
 
 def release_converter(db: BaseDb, release_d: Dict[str, Any]) -> Release:
@@ -265,9 +263,7 @@ def release_converter(db: BaseDb, release_d: Dict[str, Any]) -> Release:
     compatible objects.
 
     """
-    release = db_to_release(release_d)
-    assert release is not None, release_d["id"]
-    return release
+    return db_to_release(release_d)
 
 
 def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:

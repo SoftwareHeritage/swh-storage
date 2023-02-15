@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 
-from typing import Dict, Iterable, List, Set
+from typing import Dict, Iterable, List, Set, cast
 
 from swh.model.model import (
     Content,
@@ -15,7 +15,7 @@ from swh.model.model import (
     SkippedContent,
 )
 from swh.storage import get_storage
-from swh.storage.interface import StorageInterface
+from swh.storage.interface import HashDict, StorageInterface
 
 
 class FilteringProxyStorage:
@@ -108,7 +108,7 @@ class FilteringProxyStorage:
         """
         missing_contents = []
         for content in contents:
-            missing_contents.append(content.hashes())
+            missing_contents.append(cast(HashDict, content.hashes()))
 
         return set(
             self.storage.content_missing(
