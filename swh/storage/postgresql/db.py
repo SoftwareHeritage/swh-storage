@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -26,6 +26,32 @@ def jsonize(d):
 
 class Db(BaseDb):
     """Proxy to the SWH DB, with wrappers around stored procedures"""
+
+    ##########################
+    # Utilities
+    ##########################
+
+    def _get_random_row_from_table(self, table_name, cols, id_col, cur=None):
+        random_sha1 = bytes(random.randint(0, 255) for _ in range(SHA1_SIZE))
+        cur = self._cursor(cur)
+        query = """
+            (SELECT {cols} FROM {table} WHERE {id_col} >= %s
+             ORDER BY {id_col} LIMIT 1)
+            UNION
+            (SELECT {cols} FROM {table} WHERE {id_col} < %s
+             ORDER BY {id_col} DESC LIMIT 1)
+            LIMIT 1
+            """.format(
+            cols=", ".join(cols), table=table_name, id_col=id_col
+        )
+        cur.execute(query, (random_sha1, random_sha1))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+
+    ##########################
+    # Insertion
+    ##########################
 
     def mktemp_dir_entry(self, entry_type, cur=None):
         self._cursor(cur).execute(
@@ -67,6 +93,10 @@ class Db(BaseDb):
     @stored_procedure("swh_release_add")
     def release_add_from_temp(self, cur=None):
         pass
+
+    ##########################
+    # 'content' table
+    ##########################
 
     def content_update_from_temp(self, keys_to_update, cur=None):
         cur = self._cursor(cur)
@@ -174,6 +204,68 @@ class Db(BaseDb):
             ((sha1,) for sha1 in contents),
         )
 
+    content_find_cols = [
+        "sha1",
+        "sha1_git",
+        "sha256",
+        "blake2s256",
+        "length",
+        "ctime",
+        "status",
+    ]
+
+    def content_find(
+        self,
+        sha1: Optional[bytes] = None,
+        sha1_git: Optional[bytes] = None,
+        sha256: Optional[bytes] = None,
+        blake2s256: Optional[bytes] = None,
+        cur=None,
+    ):
+        """Find the content optionally on a combination of the following
+        checksums sha1, sha1_git, sha256 or blake2s256.
+
+        Args:
+            sha1: sha1 content
+            git_sha1: the sha1 computed `a la git` sha1 of the content
+            sha256: sha256 content
+            blake2s256: blake2s256 content
+
+        Returns:
+            The tuple (sha1, sha1_git, sha256, blake2s256) if found or None.
+
+        """
+        cur = self._cursor(cur)
+
+        checksum_dict = {
+            "sha1": sha1,
+            "sha1_git": sha1_git,
+            "sha256": sha256,
+            "blake2s256": blake2s256,
+        }
+
+        query_parts = [f"SELECT {','.join(self.content_find_cols)} FROM content WHERE "]
+        query_params = []
+        where_parts = []
+        # Adds only those keys which have values exist
+        for algorithm in checksum_dict:
+            if checksum_dict[algorithm] is not None:
+                where_parts.append(f"{algorithm} = %s")
+                query_params.append(checksum_dict[algorithm])
+
+        query_parts.append(" AND ".join(where_parts))
+        query = "\n".join(query_parts)
+        cur.execute(query, query_params)
+        content = cur.fetchall()
+        return content
+
+    def content_get_random(self, cur=None):
+        return self._get_random_row_from_table("content", ["sha1_git"], "sha1_git", cur)
+
+    ##########################
+    # 'skipped_content' table
+    ##########################
+
     def skipped_content_missing(self, contents, cur=None):
         if not contents:
             return []
@@ -194,6 +286,366 @@ class Db(BaseDb):
         )
 
         yield from cur
+
+    ##########################
+    # 'directory*' tables
+    ##########################
+
+    def directory_missing_from_list(self, directories, cur=None):
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM directory d WHERE d.id = t.id
+            )
+            """,
+            ((id,) for id in directories),
+        )
+
+    directory_ls_cols = [
+        "dir_id",
+        "type",
+        "target",
+        "name",
+        "perms",
+        "status",
+        "sha1",
+        "sha1_git",
+        "sha256",
+        "length",
+    ]
+
+    def directory_walk_one(self, directory, cur=None):
+        cur = self._cursor(cur)
+        cols = ", ".join(self.directory_ls_cols)
+        query = "SELECT %s FROM swh_directory_walk_one(%%s)" % cols
+        cur.execute(query, (directory,))
+        yield from cur
+
+    def directory_walk(self, directory, cur=None):
+        cur = self._cursor(cur)
+        cols = ", ".join(self.directory_ls_cols)
+        query = "SELECT %s FROM swh_directory_walk(%%s)" % cols
+        cur.execute(query, (directory,))
+        yield from cur
+
+    def directory_entry_get_by_path(self, directory, paths, cur=None):
+        """Retrieve a directory entry by path."""
+        cur = self._cursor(cur)
+
+        cols = ", ".join(self.directory_ls_cols)
+        query = "SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)" % cols
+        cur.execute(query, (directory, paths))
+
+        data = cur.fetchone()
+        if set(data) == {None}:
+            return None
+        return data
+
+    directory_get_entries_cols = ["type", "target", "name", "perms"]
+
+    def directory_get_entries(self, directory: Sha1Git, cur=None) -> List[Tuple]:
+        cur = self._cursor(cur)
+        cur.execute(
+            "SELECT * FROM swh_directory_get_entries(%s::sha1_git)", (directory,)
+        )
+        return list(cur)
+
+    def directory_get_raw_manifest(
+        self, directory_ids: List[Sha1Git], cur=None
+    ) -> Iterable[Tuple[Sha1Git, bytes]]:
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT t.id, raw_manifest FROM (VALUES %s) as t(id)
+            INNER JOIN directory ON (t.id=directory.id)
+            """,
+            ((id_,) for id_ in directory_ids),
+        )
+
+    def directory_get_random(self, cur=None):
+        return self._get_random_row_from_table("directory", ["id"], "id", cur)
+
+    ##########################
+    # 'revision' table
+    ##########################
+
+    def revision_missing_from_list(self, revisions, cur=None):
+        cur = self._cursor(cur)
+
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM revision r WHERE r.id = t.id
+            )
+            """,
+            ((id,) for id in revisions),
+        )
+
+    revision_add_cols = [
+        "id",
+        "date",
+        "date_offset",
+        "date_neg_utc_offset",
+        "date_offset_bytes",
+        "committer_date",
+        "committer_date_offset",
+        "committer_date_neg_utc_offset",
+        "committer_date_offset_bytes",
+        "type",
+        "directory",
+        "message",
+        "author_fullname",
+        "author_name",
+        "author_email",
+        "committer_fullname",
+        "committer_name",
+        "committer_email",
+        "metadata",
+        "synthetic",
+        "extra_headers",
+        "raw_manifest",
+    ]
+
+    revision_get_cols = revision_add_cols + ["parents"]
+
+    @staticmethod
+    def mangle_query_key(key, main_table, ignore_displayname=False):
+        if key == "id":
+            return "t.id"
+        if key == "parents":
+            return """
+            ARRAY(
+            SELECT rh.parent_id::bytea
+            FROM revision_history rh
+            WHERE rh.id = t.id
+            ORDER BY rh.parent_rank
+            )"""
+
+        if "_" not in key:
+            return f"{main_table}.{key}"
+
+        head, tail = key.split("_", 1)
+        if head not in ("author", "committer") or tail not in (
+            "name",
+            "email",
+            "id",
+            "fullname",
+        ):
+            return f"{main_table}.{key}"
+
+        if ignore_displayname:
+            return f"{head}.{tail}"
+        else:
+            if tail == "id":
+                return f"{head}.{tail}"
+            elif tail in ("name", "email"):
+                # These fields get populated again from fullname by
+                # converters.db_to_author if they're None, so we can just NULLify them
+                # when displayname is set.
+                return (
+                    f"CASE"
+                    f" WHEN {head}.displayname IS NULL THEN {head}.{tail} "
+                    f" ELSE NULL "
+                    f"END AS {key}"
+                )
+            elif tail == "fullname":
+                return f"COALESCE({head}.displayname, {head}.fullname) AS {key}"
+
+        assert False, "All cases should have been handled here"
+
+    def revision_get_from_list(self, revisions, ignore_displayname=False, cur=None):
+        cur = self._cursor(cur)
+
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "revision", ignore_displayname)
+            for k in self.revision_get_cols
+        )
+
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
+            LEFT JOIN revision ON t.id = revision.id
+            LEFT JOIN person author ON revision.author = author.id
+            LEFT JOIN person committer ON revision.committer = committer.id
+            ORDER BY sortkey
+            """
+            % query_keys,
+            ((sortkey, id) for sortkey, id in enumerate(revisions)),
+        )
+
+    def revision_log(
+        self, root_revisions, ignore_displayname=False, limit=None, cur=None
+    ):
+        cur = self._cursor(cur)
+
+        query = """\
+        SELECT %s
+        FROM swh_revision_log(
+          "root_revisions" := %%s, num_revs := %%s, "ignore_displayname" := %%s
+        )""" % ", ".join(
+            self.revision_get_cols
+        )
+
+        cur.execute(query, (root_revisions, limit, ignore_displayname))
+        yield from cur
+
+    revision_shortlog_cols = ["id", "parents"]
+
+    def revision_shortlog(self, root_revisions, limit=None, cur=None):
+        cur = self._cursor(cur)
+
+        query = """SELECT %s
+                   FROM swh_revision_list(%%s, %%s)
+                """ % ", ".join(
+            self.revision_shortlog_cols
+        )
+
+        cur.execute(query, (root_revisions, limit))
+        yield from cur
+
+    def revision_get_random(self, cur=None):
+        return self._get_random_row_from_table("revision", ["id"], "id", cur)
+
+    ##########################
+    # 'extid' table
+    ##########################
+
+    extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
+
+    def extid_get_from_extid_list(
+        self, extid_type: str, ids: List[bytes], version: Optional[int] = None, cur=None
+    ):
+        cur = self._cursor(cur)
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "extid") for k in self.extid_cols
+        )
+        filter_query = ""
+        if version is not None:
+            filter_query = cur.mogrify(
+                f"WHERE extid_version={version}", (version,)
+            ).decode()
+
+        sql = f"""
+            SELECT {query_keys}
+            FROM (VALUES %s) as t(sortkey, extid, extid_type)
+            LEFT JOIN extid USING (extid, extid_type)
+            {filter_query}
+            ORDER BY sortkey
+            """
+
+        yield from execute_values_generator(
+            cur,
+            sql,
+            (((sortkey, extid, extid_type) for sortkey, extid in enumerate(ids))),
+        )
+
+    def extid_get_from_swhid_list(
+        self,
+        target_type: str,
+        ids: List[bytes],
+        extid_version: Optional[int] = None,
+        extid_type: Optional[str] = None,
+        cur=None,
+    ):
+        cur = self._cursor(cur)
+        target_type = ObjectType(
+            target_type
+        ).name.lower()  # aka "rev" -> "revision", ...
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "extid") for k in self.extid_cols
+        )
+        filter_query = ""
+        if extid_version is not None and extid_type is not None:
+            filter_query = cur.mogrify(
+                "WHERE extid_version=%s AND extid_type=%s",
+                (
+                    extid_version,
+                    extid_type,
+                ),
+            ).decode()
+
+        sql = f"""
+            SELECT {query_keys}
+            FROM (VALUES %s) as t(sortkey, target, target_type)
+            LEFT JOIN extid USING (target, target_type)
+            {filter_query}
+            ORDER BY sortkey
+            """
+
+        yield from execute_values_generator(
+            cur,
+            sql,
+            (((sortkey, target, target_type) for sortkey, target in enumerate(ids))),
+            template=b"(%s,%s,%s::object_type)",
+        )
+
+    ##########################
+    # 'release' table
+    ##########################
+
+    def release_missing_from_list(self, releases, cur=None):
+        cur = self._cursor(cur)
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT id FROM (VALUES %s) as t(id)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM release r WHERE r.id = t.id
+            )
+            """,
+            ((id,) for id in releases),
+        )
+
+    release_add_cols = [
+        "id",
+        "target",
+        "target_type",
+        "date",
+        "date_offset",
+        "date_neg_utc_offset",
+        "date_offset_bytes",
+        "name",
+        "comment",
+        "synthetic",
+        "raw_manifest",
+        "author_fullname",
+        "author_name",
+        "author_email",
+    ]
+    release_get_cols = release_add_cols
+
+    def release_get_from_list(self, releases, ignore_displayname=False, cur=None):
+        cur = self._cursor(cur)
+        query_keys = ", ".join(
+            self.mangle_query_key(k, "release", ignore_displayname)
+            for k in self.release_get_cols
+        )
+
+        yield from execute_values_generator(
+            cur,
+            """
+            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
+            LEFT JOIN release ON t.id = release.id
+            LEFT JOIN person author ON release.author = author.id
+            ORDER BY sortkey
+            """
+            % query_keys,
+            ((sortkey, id) for sortkey, id in enumerate(releases)),
+        )
+
+    def release_get_random(self, cur=None):
+        return self._get_random_row_from_table("release", ["id"], "id", cur)
+
+    ##########################
+    # 'snapshot' table
+    ##########################
 
     def snapshot_exists(self, snapshot_id, cur=None):
         """Check whether a snapshot with the given id exists"""
@@ -278,182 +730,9 @@ class Db(BaseDb):
     def snapshot_get_random(self, cur=None):
         return self._get_random_row_from_table("snapshot", ["id"], "id", cur)
 
-    content_find_cols = [
-        "sha1",
-        "sha1_git",
-        "sha256",
-        "blake2s256",
-        "length",
-        "ctime",
-        "status",
-    ]
-
-    def content_find(
-        self,
-        sha1: Optional[bytes] = None,
-        sha1_git: Optional[bytes] = None,
-        sha256: Optional[bytes] = None,
-        blake2s256: Optional[bytes] = None,
-        cur=None,
-    ):
-        """Find the content optionally on a combination of the following
-        checksums sha1, sha1_git, sha256 or blake2s256.
-
-        Args:
-            sha1: sha1 content
-            git_sha1: the sha1 computed `a la git` sha1 of the content
-            sha256: sha256 content
-            blake2s256: blake2s256 content
-
-        Returns:
-            The tuple (sha1, sha1_git, sha256, blake2s256) if found or None.
-
-        """
-        cur = self._cursor(cur)
-
-        checksum_dict = {
-            "sha1": sha1,
-            "sha1_git": sha1_git,
-            "sha256": sha256,
-            "blake2s256": blake2s256,
-        }
-
-        query_parts = [f"SELECT {','.join(self.content_find_cols)} FROM content WHERE "]
-        query_params = []
-        where_parts = []
-        # Adds only those keys which have values exist
-        for algorithm in checksum_dict:
-            if checksum_dict[algorithm] is not None:
-                where_parts.append(f"{algorithm} = %s")
-                query_params.append(checksum_dict[algorithm])
-
-        query_parts.append(" AND ".join(where_parts))
-        query = "\n".join(query_parts)
-        cur.execute(query, query_params)
-        content = cur.fetchall()
-        return content
-
-    def content_get_random(self, cur=None):
-        return self._get_random_row_from_table("content", ["sha1_git"], "sha1_git", cur)
-
-    def directory_missing_from_list(self, directories, cur=None):
-        cur = self._cursor(cur)
-        yield from execute_values_generator(
-            cur,
-            """
-            SELECT id FROM (VALUES %s) as t(id)
-            WHERE NOT EXISTS (
-                SELECT 1 FROM directory d WHERE d.id = t.id
-            )
-            """,
-            ((id,) for id in directories),
-        )
-
-    directory_ls_cols = [
-        "dir_id",
-        "type",
-        "target",
-        "name",
-        "perms",
-        "status",
-        "sha1",
-        "sha1_git",
-        "sha256",
-        "length",
-    ]
-
-    def directory_walk_one(self, directory, cur=None):
-        cur = self._cursor(cur)
-        cols = ", ".join(self.directory_ls_cols)
-        query = "SELECT %s FROM swh_directory_walk_one(%%s)" % cols
-        cur.execute(query, (directory,))
-        yield from cur
-
-    def directory_walk(self, directory, cur=None):
-        cur = self._cursor(cur)
-        cols = ", ".join(self.directory_ls_cols)
-        query = "SELECT %s FROM swh_directory_walk(%%s)" % cols
-        cur.execute(query, (directory,))
-        yield from cur
-
-    def directory_entry_get_by_path(self, directory, paths, cur=None):
-        """Retrieve a directory entry by path."""
-        cur = self._cursor(cur)
-
-        cols = ", ".join(self.directory_ls_cols)
-        query = "SELECT %s FROM swh_find_directory_entry_by_path(%%s, %%s)" % cols
-        cur.execute(query, (directory, paths))
-
-        data = cur.fetchone()
-        if set(data) == {None}:
-            return None
-        return data
-
-    directory_get_entries_cols = ["type", "target", "name", "perms"]
-
-    def directory_get_entries(self, directory: Sha1Git, cur=None) -> List[Tuple]:
-        cur = self._cursor(cur)
-        cur.execute(
-            "SELECT * FROM swh_directory_get_entries(%s::sha1_git)", (directory,)
-        )
-        return list(cur)
-
-    def directory_get_raw_manifest(
-        self, directory_ids: List[Sha1Git], cur=None
-    ) -> Iterable[Tuple[Sha1Git, bytes]]:
-        cur = self._cursor(cur)
-        yield from execute_values_generator(
-            cur,
-            """
-            SELECT t.id, raw_manifest FROM (VALUES %s) as t(id)
-            INNER JOIN directory ON (t.id=directory.id)
-            """,
-            ((id_,) for id_ in directory_ids),
-        )
-
-    def directory_get_random(self, cur=None):
-        return self._get_random_row_from_table("directory", ["id"], "id", cur)
-
-    def revision_missing_from_list(self, revisions, cur=None):
-        cur = self._cursor(cur)
-
-        yield from execute_values_generator(
-            cur,
-            """
-            SELECT id FROM (VALUES %s) as t(id)
-            WHERE NOT EXISTS (
-                SELECT 1 FROM revision r WHERE r.id = t.id
-            )
-            """,
-            ((id,) for id in revisions),
-        )
-
-    revision_add_cols = [
-        "id",
-        "date",
-        "date_offset",
-        "date_neg_utc_offset",
-        "date_offset_bytes",
-        "committer_date",
-        "committer_date_offset",
-        "committer_date_neg_utc_offset",
-        "committer_date_offset_bytes",
-        "type",
-        "directory",
-        "message",
-        "author_fullname",
-        "author_name",
-        "author_email",
-        "committer_fullname",
-        "committer_name",
-        "committer_email",
-        "metadata",
-        "synthetic",
-        "extra_headers",
-        "raw_manifest",
-    ]
-
-    revision_get_cols = revision_add_cols + ["parents"]
+    ##########################
+    # 'origin_visit' and 'origin_visit_status' tables
+    ##########################
 
     def origin_visit_add(self, origin, ts, type, cur=None):
         """Add a new origin_visit for origin origin at timestamp ts.
@@ -833,236 +1112,9 @@ class Db(BaseDb):
         cur.execute(query, (type,))
         return cur.fetchone()
 
-    @staticmethod
-    def mangle_query_key(key, main_table, ignore_displayname=False):
-        if key == "id":
-            return "t.id"
-        if key == "parents":
-            return """
-            ARRAY(
-            SELECT rh.parent_id::bytea
-            FROM revision_history rh
-            WHERE rh.id = t.id
-            ORDER BY rh.parent_rank
-            )"""
-
-        if "_" not in key:
-            return f"{main_table}.{key}"
-
-        head, tail = key.split("_", 1)
-        if head not in ("author", "committer") or tail not in (
-            "name",
-            "email",
-            "id",
-            "fullname",
-        ):
-            return f"{main_table}.{key}"
-
-        if ignore_displayname:
-            return f"{head}.{tail}"
-        else:
-            if tail == "id":
-                return f"{head}.{tail}"
-            elif tail in ("name", "email"):
-                # These fields get populated again from fullname by
-                # converters.db_to_author if they're None, so we can just NULLify them
-                # when displayname is set.
-                return (
-                    f"CASE"
-                    f" WHEN {head}.displayname IS NULL THEN {head}.{tail} "
-                    f" ELSE NULL "
-                    f"END AS {key}"
-                )
-            elif tail == "fullname":
-                return f"COALESCE({head}.displayname, {head}.fullname) AS {key}"
-
-        assert False, "All cases should have been handled here"
-
-    def revision_get_from_list(self, revisions, ignore_displayname=False, cur=None):
-        cur = self._cursor(cur)
-
-        query_keys = ", ".join(
-            self.mangle_query_key(k, "revision", ignore_displayname)
-            for k in self.revision_get_cols
-        )
-
-        yield from execute_values_generator(
-            cur,
-            """
-            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
-            LEFT JOIN revision ON t.id = revision.id
-            LEFT JOIN person author ON revision.author = author.id
-            LEFT JOIN person committer ON revision.committer = committer.id
-            ORDER BY sortkey
-            """
-            % query_keys,
-            ((sortkey, id) for sortkey, id in enumerate(revisions)),
-        )
-
-    extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
-
-    def extid_get_from_extid_list(
-        self, extid_type: str, ids: List[bytes], version: Optional[int] = None, cur=None
-    ):
-        cur = self._cursor(cur)
-        query_keys = ", ".join(
-            self.mangle_query_key(k, "extid") for k in self.extid_cols
-        )
-        filter_query = ""
-        if version is not None:
-            filter_query = cur.mogrify(
-                f"WHERE extid_version={version}", (version,)
-            ).decode()
-
-        sql = f"""
-            SELECT {query_keys}
-            FROM (VALUES %s) as t(sortkey, extid, extid_type)
-            LEFT JOIN extid USING (extid, extid_type)
-            {filter_query}
-            ORDER BY sortkey
-            """
-
-        yield from execute_values_generator(
-            cur,
-            sql,
-            (((sortkey, extid, extid_type) for sortkey, extid in enumerate(ids))),
-        )
-
-    def extid_get_from_swhid_list(
-        self,
-        target_type: str,
-        ids: List[bytes],
-        extid_version: Optional[int] = None,
-        extid_type: Optional[str] = None,
-        cur=None,
-    ):
-        cur = self._cursor(cur)
-        target_type = ObjectType(
-            target_type
-        ).name.lower()  # aka "rev" -> "revision", ...
-        query_keys = ", ".join(
-            self.mangle_query_key(k, "extid") for k in self.extid_cols
-        )
-        filter_query = ""
-        if extid_version is not None and extid_type is not None:
-            filter_query = cur.mogrify(
-                "WHERE extid_version=%s AND extid_type=%s",
-                (
-                    extid_version,
-                    extid_type,
-                ),
-            ).decode()
-
-        sql = f"""
-            SELECT {query_keys}
-            FROM (VALUES %s) as t(sortkey, target, target_type)
-            LEFT JOIN extid USING (target, target_type)
-            {filter_query}
-            ORDER BY sortkey
-            """
-
-        yield from execute_values_generator(
-            cur,
-            sql,
-            (((sortkey, target, target_type) for sortkey, target in enumerate(ids))),
-            template=b"(%s,%s,%s::object_type)",
-        )
-
-    def revision_log(
-        self, root_revisions, ignore_displayname=False, limit=None, cur=None
-    ):
-        cur = self._cursor(cur)
-
-        query = """\
-        SELECT %s
-        FROM swh_revision_log(
-          "root_revisions" := %%s, num_revs := %%s, "ignore_displayname" := %%s
-        )""" % ", ".join(
-            self.revision_get_cols
-        )
-
-        cur.execute(query, (root_revisions, limit, ignore_displayname))
-        yield from cur
-
-    revision_shortlog_cols = ["id", "parents"]
-
-    def revision_shortlog(self, root_revisions, limit=None, cur=None):
-        cur = self._cursor(cur)
-
-        query = """SELECT %s
-                   FROM swh_revision_list(%%s, %%s)
-                """ % ", ".join(
-            self.revision_shortlog_cols
-        )
-
-        cur.execute(query, (root_revisions, limit))
-        yield from cur
-
-    def revision_get_random(self, cur=None):
-        return self._get_random_row_from_table("revision", ["id"], "id", cur)
-
-    def release_missing_from_list(self, releases, cur=None):
-        cur = self._cursor(cur)
-        yield from execute_values_generator(
-            cur,
-            """
-            SELECT id FROM (VALUES %s) as t(id)
-            WHERE NOT EXISTS (
-                SELECT 1 FROM release r WHERE r.id = t.id
-            )
-            """,
-            ((id,) for id in releases),
-        )
-
-    object_find_by_sha1_git_cols = ["sha1_git", "type"]
-
-    def object_find_by_sha1_git(self, ids, cur=None):
-        cur = self._cursor(cur)
-
-        yield from execute_values_generator(
-            cur,
-            """
-            WITH t (sha1_git) AS (VALUES %s),
-            known_objects as ((
-                select
-                  id as sha1_git,
-                  'release'::object_type as type,
-                  object_id
-                from release r
-                where exists (select 1 from t where t.sha1_git = r.id)
-            ) union all (
-                select
-                  id as sha1_git,
-                  'revision'::object_type as type,
-                  object_id
-                from revision r
-                where exists (select 1 from t where t.sha1_git = r.id)
-            ) union all (
-                select
-                  id as sha1_git,
-                  'directory'::object_type as type,
-                  object_id
-                from directory d
-                where exists (select 1 from t where t.sha1_git = d.id)
-            ) union all (
-                select
-                  sha1_git as sha1_git,
-                  'content'::object_type as type,
-                  object_id
-                from content c
-                where exists (select 1 from t where t.sha1_git = c.sha1_git)
-            ))
-            select t.sha1_git as sha1_git, k.type
-            from t
-            left join known_objects k on t.sha1_git = k.sha1_git
-            """,
-            ((id,) for id in ids),
-        )
-
-    def stat_counters(self, cur=None):
-        cur = self._cursor(cur)
-        cur.execute("SELECT * FROM swh_stat_counters()")
-        yield from cur
+    ##########################
+    # 'origin' table
+    ##########################
 
     def origin_add(self, url, cur=None):
         """Insert a new origin and return the new identifier."""
@@ -1257,24 +1309,6 @@ class Db(BaseDb):
         )
         return cur.fetchone()[0]
 
-    release_add_cols = [
-        "id",
-        "target",
-        "target_type",
-        "date",
-        "date_offset",
-        "date_neg_utc_offset",
-        "date_offset_bytes",
-        "name",
-        "comment",
-        "synthetic",
-        "raw_manifest",
-        "author_fullname",
-        "author_name",
-        "author_email",
-    ]
-    release_get_cols = release_add_cols
-
     def origin_snapshot_get_all(self, origin_url: str, cur=None) -> Iterable[Sha1Git]:
         cur = self._cursor(cur)
         query = f"""\
@@ -1285,27 +1319,63 @@ class Db(BaseDb):
         cur.execute(query)
         yield from map(lambda row: row[0], cur)
 
-    def release_get_from_list(self, releases, ignore_displayname=False, cur=None):
+    ##########################
+    # misc.
+    ##########################
+
+    object_find_by_sha1_git_cols = ["sha1_git", "type"]
+
+    def object_find_by_sha1_git(self, ids, cur=None):
         cur = self._cursor(cur)
-        query_keys = ", ".join(
-            self.mangle_query_key(k, "release", ignore_displayname)
-            for k in self.release_get_cols
-        )
 
         yield from execute_values_generator(
             cur,
             """
-            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
-            LEFT JOIN release ON t.id = release.id
-            LEFT JOIN person author ON release.author = author.id
-            ORDER BY sortkey
-            """
-            % query_keys,
-            ((sortkey, id) for sortkey, id in enumerate(releases)),
+            WITH t (sha1_git) AS (VALUES %s),
+            known_objects as ((
+                select
+                  id as sha1_git,
+                  'release'::object_type as type,
+                  object_id
+                from release r
+                where exists (select 1 from t where t.sha1_git = r.id)
+            ) union all (
+                select
+                  id as sha1_git,
+                  'revision'::object_type as type,
+                  object_id
+                from revision r
+                where exists (select 1 from t where t.sha1_git = r.id)
+            ) union all (
+                select
+                  id as sha1_git,
+                  'directory'::object_type as type,
+                  object_id
+                from directory d
+                where exists (select 1 from t where t.sha1_git = d.id)
+            ) union all (
+                select
+                  sha1_git as sha1_git,
+                  'content'::object_type as type,
+                  object_id
+                from content c
+                where exists (select 1 from t where t.sha1_git = c.sha1_git)
+            ))
+            select t.sha1_git as sha1_git, k.type
+            from t
+            left join known_objects k on t.sha1_git = k.sha1_git
+            """,
+            ((id,) for id in ids),
         )
 
-    def release_get_random(self, cur=None):
-        return self._get_random_row_from_table("release", ["id"], "id", cur)
+    def stat_counters(self, cur=None):
+        cur = self._cursor(cur)
+        cur.execute("SELECT * FROM swh_stat_counters()")
+        yield from cur
+
+    ##########################
+    # 'raw_extrinsic_metadata' table
+    ##########################
 
     _raw_extrinsic_metadata_context_cols = [
         "origin",
@@ -1461,6 +1531,10 @@ class Db(BaseDb):
         )
         yield from cur
 
+    ##########################
+    # 'metadata_fetcher' and 'metadata_authority' tables
+    ##########################
+
     metadata_fetcher_cols = ["name", "version"]
 
     def metadata_fetcher_add(self, name: str, version: str, cur=None) -> None:
@@ -1525,21 +1599,3 @@ class Db(BaseDb):
             return row[0]
         else:
             return None
-
-    def _get_random_row_from_table(self, table_name, cols, id_col, cur=None):
-        random_sha1 = bytes(random.randint(0, 255) for _ in range(SHA1_SIZE))
-        cur = self._cursor(cur)
-        query = """
-            (SELECT {cols} FROM {table} WHERE {id_col} >= %s
-             ORDER BY {id_col} LIMIT 1)
-            UNION
-            (SELECT {cols} FROM {table} WHERE {id_col} < %s
-             ORDER BY {id_col} DESC LIMIT 1)
-            LIMIT 1
-            """.format(
-            cols=", ".join(cols), table=table_name, id_col=id_col
-        )
-        cur.execute(query, (random_sha1, random_sha1))
-        row = cur.fetchone()
-        if row:
-            return row[0]

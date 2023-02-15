@@ -30,6 +30,20 @@ class StorageArgumentException(Exception):
     pass
 
 
+class UnknownMetadataAuthority(StorageArgumentException):
+    """Raised when ``raw_extrinsic_metadata_add`` is called with a non-existing
+    metadata authority as argument."""
+
+    pass
+
+
+class UnknownMetadataFetcher(StorageArgumentException):
+    """Raised when ``raw_extrinsic_metadata_add`` is called with a non-existing
+    metadata fetcher as argument."""
+
+    pass
+
+
 class HashCollision(Exception):
     """Exception raised when a content collides in a storage backend"""
 

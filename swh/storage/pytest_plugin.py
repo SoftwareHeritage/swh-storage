@@ -48,8 +48,19 @@ def swh_storage_backend_config(swh_storage_postgresql):
 
 
 @pytest.fixture
-def swh_storage(swh_storage_backend_config):
+def swh_storage_backend(swh_storage_backend_config):
+    """
+    By default, this fixture aliases ``swh_storage``. However, when ``swh_storage``
+    is overridden to be a proxy storage, this fixture returns the storage instance
+    behind all proxies.
+
+    This is useful to introspect the state of backends from proxy tests"""
     return get_storage(**swh_storage_backend_config)
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend):
+    return swh_storage_backend
 
 
 @pytest.fixture

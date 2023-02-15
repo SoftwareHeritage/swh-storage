@@ -101,11 +101,12 @@ _______________________________ summary ________________________________
 
 Note: it is possible to set the `JAVA_HOME` environment variable to specify the
 version of the JVM to be used by Cassandra. For example, at the time of writing
-this, Cassandra does not support java 14, so one may want to use for example
-java 11:
+this, Cassandra is meant to be run with Java 11. On Debian bookworm, one needs
+to manually install openjdk-11-jre-headless from bullseye or unstable and
+set the appropriate environment variable:
 
 ```
-(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-14-openjdk-amd64/bin/java
+(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/bin/java
 (swh) :~/swh-storage$ tox
 [...]
 ```
