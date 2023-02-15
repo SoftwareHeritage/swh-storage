@@ -1,3 +1,17 @@
+swh-storage (1.8.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.8.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2023-02-15 12:17:29 +0100)
+  * Upstream changes:     - v1.8.0     - * Call objstorage.add_batch()
+    and objstorage.content_get() with a HashDict instead of single hash
+    - * Deprecate calling content_get with a single hash     - *
+    cassandra: Add properties 'hosts', 'keyspace', and 'port'     - *
+    postgresql: Return empty list in case of unknown metadata authority.
+    - * Refactoring, test and dependency maintenance     - * Document
+    that Cassandra requires OpenJDK 11
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 15 Feb 2023 11:36:15 +0000
+
 swh-storage (1.7.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.7.3     - (tagged by Jayesh Velayudhan
