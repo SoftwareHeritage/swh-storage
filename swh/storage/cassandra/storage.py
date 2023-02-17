@@ -902,13 +902,19 @@ class CassandraStorage:
         limit: Optional[int] = None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
         seen: Set[Sha1Git] = set()
-        yield from self._get_parent_revs(revisions, seen, limit, False)
+        yield from cast(
+            Iterable[Optional[Dict[str, Any]]],
+            self._get_parent_revs(revisions, seen, limit, short=False),
+        )
 
     def revision_shortlog(
         self, revisions: List[Sha1Git], limit: Optional[int] = None
     ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         seen: Set[Sha1Git] = set()
-        yield from self._get_parent_revs(revisions, seen, limit, True)
+        yield from cast(
+            Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]],
+            self._get_parent_revs(revisions, seen, limit, short=True),
+        )
 
     def revision_get_random(self) -> Sha1Git:
         revision = self._cql_runner.revision_get_random()

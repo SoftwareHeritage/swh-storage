@@ -368,7 +368,7 @@ class Db(BaseDb):
 
     def directory_get_id_range(
         self, start, end, limit=None, cur=None
-    ) -> Iterator[Sha1Git]:
+    ) -> Iterator[Tuple[Sha1Git]]:
         cur = self._cursor(cur)
         cur.execute(
             """

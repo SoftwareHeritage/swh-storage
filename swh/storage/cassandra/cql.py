@@ -153,7 +153,7 @@ def _prepared_statement(
     This only works on methods of CqlRunner, as preparing a
     statement requires a connection to a Cassandra server."""
 
-    def decorator(f):
+    def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
@@ -227,7 +227,7 @@ def _prepared_select_statements(
 
     statement_template = "SELECT {cols} FROM {keyspace}.{table} {rest}"
 
-    def decorator(f):
+    def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
@@ -727,7 +727,7 @@ class CqlRunner:
         self._add_one(statement, revision)
 
     @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
-    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[int]:
+    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[Sha1Git]:
         return (
             row["id"] for row in self._execute_with_retries(statement, [revision_ids])
         )

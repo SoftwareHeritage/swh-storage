@@ -137,7 +137,7 @@ def _get_paginated_sha1_partition(
     limit: int,
     get_range: Callable[[bytes, bytes, int, Any], Iterator[TRow]],
     convert: Callable[[TRow], TResult],
-    get_id: Callable[[TResult], Any] = None,
+    get_id: Optional[Callable[[TResult], Any]] = None,
 ) -> PagedResult[TResult]:
     """Implements the bulk of ``content_get_partition``, ``directory_get_partition``,
     ...:
