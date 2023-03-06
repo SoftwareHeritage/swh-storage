@@ -1,3 +1,18 @@
+swh-storage (1.9.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.9.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-03-06 14:34:13
+    +0100)
+  * Upstream changes:     - v1.9.0     - Add endpoints
+    {directory,snapshot}_get_partition_sha1_git and
+    {revision,release}_get_partition     - Rename
+    *_get_partition_sha1_git to *_get_id_partition     - mypy: Bump to
+    1.0.1 and fix new typing errors     - Update and clean tox
+    configuration for version 4     - Fix endpoint URL again     - Fix
+    endpoint URLs
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 06 Mar 2023 13:52:48 +0000
+
 swh-storage (1.8.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.8.0     - (tagged by Valentin Lorentz
