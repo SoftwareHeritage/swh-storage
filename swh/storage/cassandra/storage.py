@@ -16,11 +16,13 @@ from typing import (
     Counter,
     Dict,
     Iterable,
+    Iterator,
     List,
     Optional,
     Sequence,
     Set,
     Tuple,
+    TypeVar,
     Union,
     cast,
 )
@@ -77,6 +79,7 @@ from ..utils import remove_keys
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .cql import CqlRunner
 from .model import (
+    BaseRow,
     ContentRow,
     DirectoryEntryRow,
     DirectoryRow,
@@ -90,6 +93,7 @@ from .model import (
     RawExtrinsicMetadataByIdRow,
     RawExtrinsicMetadataRow,
     RevisionParentRow,
+    RevisionRow,
     SkippedContentRow,
     SnapshotBranchRow,
     SnapshotRow,
@@ -100,6 +104,58 @@ from .schema import HASH_ALGORITHMS
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 DIRECTORY_ENTRIES_INSERT_ALGOS = ["one-by-one", "concurrent", "batch"]
+
+
+TResult = TypeVar("TResult")
+TRow = TypeVar("TRow", bound=BaseRow)
+
+
+def _get_paginated_sha1_partition(
+    partition_id: int,
+    nb_partitions: int,
+    page_token: Optional[str],
+    limit: int,
+    get_range: Callable[[int, int, int], Iterator[Tuple[int, TRow]]],
+    convert: Callable[[TRow], TResult],
+    skip_row: Callable[[TRow], bool] = lambda row: False,
+) -> PagedResult[TResult]:
+    """Implements the bulk of ``content_get_partition``, ``directory_get_partition``,
+    ...:
+
+    1. computes range bounds
+    2. applies pagination token
+    3. converts to final objects
+    4. extracts next pagination token
+    """
+    if limit is None:
+        raise StorageArgumentException("limit should not be None")
+
+    # Compute start and end of the range of tokens covered by the
+    # requested partition
+    partition_size = (TOKEN_END - TOKEN_BEGIN) // nb_partitions
+    range_start = TOKEN_BEGIN + partition_id * partition_size
+    range_end = TOKEN_BEGIN + (partition_id + 1) * partition_size
+
+    # offset the range start according to the `page_token`.
+    if page_token is not None:
+        if not (range_start <= int(page_token) <= range_end):
+            raise StorageArgumentException("Invalid page_token.")
+        range_start = int(page_token)
+
+    next_page_token: Optional[str] = None
+
+    rows = get_range(range_start, range_end, limit + 1)
+    results = []
+    for counter, (tok, row) in enumerate(rows):
+        if skip_row(row):
+            continue
+        if counter >= limit:
+            next_page_token = str(tok)
+            break
+        results.append(convert(row))
+
+    assert len(results) <= limit
+    return PagedResult(results=results, next_page_token=next_page_token)
 
 
 class CassandraStorage:
@@ -307,39 +363,23 @@ class CassandraStorage:
         page_token: Optional[str] = None,
         limit: int = 1000,
     ) -> PagedResult[Content]:
-        if limit is None:
-            raise StorageArgumentException("limit should not be None")
-
-        # Compute start and end of the range of tokens covered by the
-        # requested partition
-        partition_size = (TOKEN_END - TOKEN_BEGIN) // nb_partitions
-        range_start = TOKEN_BEGIN + partition_id * partition_size
-        range_end = TOKEN_BEGIN + (partition_id + 1) * partition_size
-
-        # offset the range start according to the `page_token`.
-        if page_token is not None:
-            if not (range_start <= int(page_token) <= range_end):
-                raise StorageArgumentException("Invalid page_token.")
-            range_start = int(page_token)
-
-        next_page_token: Optional[str] = None
-
-        rows = self._cql_runner.content_get_token_range(
-            range_start, range_end, limit + 1
-        )
-        contents = []
-        for counter, (tok, row) in enumerate(rows):
-            if row.status == "absent":
-                continue
+        def convert(row: ContentRow) -> Content:
             row_d = row.to_dict()
-            if counter >= limit:
-                next_page_token = str(tok)
-                break
             row_d.pop("ctime")
-            contents.append(Content(**row_d))
+            return Content(**row_d)
 
-        assert len(contents) <= limit
-        return PagedResult(results=contents, next_page_token=next_page_token)
+        def is_absent(row: ContentRow) -> bool:
+            return row.status == "absent"
+
+        return _get_paginated_sha1_partition(
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            self._cql_runner.content_get_token_range,
+            convert,
+            skip_row=is_absent,
+        )
 
     def content_get(
         self, contents: List[bytes], algo: str = "sha1"
@@ -715,6 +755,22 @@ class CassandraStorage:
         assert directory, "Could not find any directory"
         return directory.id
 
+    def directory_get_id_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Sha1Git]:
+        return _get_paginated_sha1_partition(
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            self._cql_runner.directory_get_token_range,
+            operator.attrgetter("id"),
+        )
+
     ##########################
     # Revision
     ##########################
@@ -818,6 +874,27 @@ class CassandraStorage:
                 yield rev.to_dict()
                 yield from self._get_parent_revs(parents, seen, limit, short)
 
+    def revision_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Revision]:
+        def convert(row: RevisionRow) -> Revision:
+            return converters.revision_from_db(
+                row, parents=tuple(self._cql_runner.revision_parent_get(row.id))
+            )
+
+        return _get_paginated_sha1_partition(
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            self._cql_runner.revision_get_token_range,
+            convert,
+        )
+
     def revision_log(
         self,
         revisions: List[Sha1Git],
@@ -825,13 +902,19 @@ class CassandraStorage:
         limit: Optional[int] = None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
         seen: Set[Sha1Git] = set()
-        yield from self._get_parent_revs(revisions, seen, limit, False)
+        yield from cast(
+            Iterable[Optional[Dict[str, Any]]],
+            self._get_parent_revs(revisions, seen, limit, short=False),
+        )
 
     def revision_shortlog(
         self, revisions: List[Sha1Git], limit: Optional[int] = None
     ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
         seen: Set[Sha1Git] = set()
-        yield from self._get_parent_revs(revisions, seen, limit, True)
+        yield from cast(
+            Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]],
+            self._get_parent_revs(revisions, seen, limit, short=True),
+        )
 
     def revision_get_random(self) -> Sha1Git:
         revision = self._cql_runner.revision_get_random()
@@ -868,6 +951,22 @@ class CassandraStorage:
             rels[row.id] = release
 
         return [rels.get(rel_id) for rel_id in releases]
+
+    def release_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Release]:
+        return _get_paginated_sha1_partition(
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            self._cql_runner.release_get_token_range,
+            lambda row: converters.release_from_db(row),
+        )
 
     def release_get_random(self) -> Sha1Git:
         release = self._cql_runner.release_get_random()
@@ -926,6 +1025,22 @@ class CassandraStorage:
             },
             "next_branch": d["next_branch"],
         }
+
+    def snapshot_get_id_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Sha1Git]:
+        return _get_paginated_sha1_partition(
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            self._cql_runner.snapshot_get_token_range,
+            operator.attrgetter("id"),
+        )
 
     def snapshot_count_branches(
         self,
