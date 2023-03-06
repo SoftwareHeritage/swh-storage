@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -508,6 +508,33 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("directory/partition/id")
+    def directory_get_id_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Sha1Git]:
+        """Splits directories into nb_partitions, and returns all the ids and
+        raw manifests in one of these based on partition_id (which must be in
+        [0, nb_partitions-1]).
+        This does not return directory entries themselves; they should be
+        retrieved using :meth:`directory_get_entries` and
+        :meth:`directory_get_raw_manifest` instead.
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id: index of the partition to fetch
+            nb_partitions: total number of partitions to split into
+
+        Returns:
+            Page of the directories' sha1_git hashes.
+        """
+        ...
+
     ##########################
     # Revision
     ##########################
@@ -561,6 +588,30 @@ class StorageInterface(Protocol):
 
         Yields:
             missing revision ids
+
+        """
+        ...
+
+    @remote_api_endpoint("revision/partition")
+    def revision_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Revision]:
+        """Splits revisions into nb_partitions, and returns one of these based on
+        partition_id (which must be in [0, nb_partitions-1])
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id: index of the partition to fetch
+            nb_partitions: total number of partitions to split into
+
+        Returns:
+            Page of Revision model objects within the partition.
 
         """
         ...
@@ -763,6 +814,30 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("release/partition")
+    def release_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Release]:
+        """Splits releases into nb_partitions, and returns one of these based on
+        partition_id (which must be in [0, nb_partitions-1])
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id: index of the partition to fetch
+            nb_partitions: total number of partitions to split into
+
+        Returns:
+            Page of Release model objects within the partition.
+
+        """
+        ...
+
     ##########################
     # Snapshot
     ##########################
@@ -907,6 +982,32 @@ class StorageInterface(Protocol):
 
         Returns:
             a sha1_git
+        """
+        ...
+
+    @remote_api_endpoint("snapshot/partition/id")
+    def snapshot_get_id_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Sha1Git]:
+        """Splits directories into nb_partitions, and returns all the ids and
+        raw manifests in one of these based on partition_id (which must be in
+        [0, nb_partitions-1]).
+        This does not return directory entries themselves; they should be
+        retrieved using :meth:`snapshot_get_branches` instead.
+
+        There is no guarantee on how the partitioning is done, or the
+        result order.
+
+        Args:
+            partition_id: index of the partition to fetch
+            nb_partitions: total number of partitions to split into
+
+        Returns:
+            Page of the snapshots' sha1_git hashes
         """
         ...
 

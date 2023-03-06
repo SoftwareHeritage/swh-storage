@@ -43,9 +43,10 @@ if pytest_cov is not None and int(pytest_cov.__version__.split(".")[0]) < 4:
     # This means code run in child processes won't be counted in the coverage
     # report, but this is not an issue because the only code that runs only in
     # child processes is the RPC server.
-    for (key, value) in multiprocessing.util._afterfork_registry.items():
+    registry = multiprocessing.util._afterfork_registry  # type: ignore[attr-defined]
+    for (key, value) in registry.items():
         if value is pytest_cov.embed.multiprocessing_start:
-            del multiprocessing.util._afterfork_registry[key]
+            del registry[key]
             break
     else:
         assert False, "missing pytest_cov.embed.multiprocessing_start?"

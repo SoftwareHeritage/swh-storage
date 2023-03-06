@@ -22,15 +22,12 @@ from swh.core.api.classes import stream_results
 from swh.model import from_disk, hypothesis_strategies
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.model import (
-    Content,
-    Directory,
-    DirectoryEntry,
-    ExtID,
     Origin,
     OriginVisit,
     OriginVisitStatus,
     Person,
     RawExtrinsicMetadata,
+    Release,
     Revision,
     RevisionType,
     SkippedContent,
@@ -40,6 +37,8 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.model import Content, Directory, DirectoryEntry, ExtID
+from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
@@ -946,6 +945,42 @@ class TestStorage:
         # test_directory_add_raw_manifest__different_entries__allow_overwrite
         return dir1.id
 
+    def test_directory_get_id_partition(self, swh_storage, sample_data):
+        directories = list(sample_data.directories) + [
+            Directory(
+                entries=(
+                    DirectoryEntry(
+                        name=f"entry{i}".encode(),
+                        type="file",
+                        target=b"\x00" * 20,
+                        perms=0,
+                    ),
+                )
+            )
+            for i in range(100)
+        ]
+        swh_storage.directory_add(directories)
+
+        expected_results = {dir_.id for dir_ in directories}
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(expected_results)) + 1)
+
+        actual_results = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.directory_get_id_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all directories are in the same partition
+            assert len(result) < len(expected_results)
+
+            actual_results.extend(result)
+
+        assert set(actual_results) == expected_results
+
     def test_directory_ls_recursive(self, swh_storage, sample_data):
         # create consistent dataset regarding the directories we want to list
         content, content2 = sample_data.contents[:2]
@@ -1361,6 +1396,45 @@ class TestStorage:
         # order 2
         actual_revisions2 = swh_storage.revision_get([revision2.id, revision.id])
         assert actual_revisions2 == [revision2, revision]
+
+    def test_revision_get_partition(self, swh_storage, sample_data):
+        revisions = list(sample_data.revisions) + [
+            Revision(
+                message=f"hello{i}".encode(),
+                author=None,
+                date=None,
+                committer=None,
+                committer_date=None,
+                parents=(),
+                type=RevisionType.GIT,
+                directory=b"\x00" * 20,
+                synthetic=True,
+            )
+            for i in range(100)
+        ]
+        swh_storage.revision_add(revisions)
+
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(revisions)) + 1)
+
+        actual_revisions = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.revision_get_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all revisions are in the same partition
+            assert len(result) < len(revisions)
+
+            actual_revisions.extend(result)
+
+        # TODO: use set equality once Revision.metadata is removed
+        actual_revisions.sort(key=lambda rev: rev.id)
+        revisions.sort(key=lambda rev: rev.id)
+        assert actual_revisions == revisions
 
     def test_revision_log(self, swh_storage, sample_data):
         revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
@@ -1949,6 +2023,40 @@ class TestStorage:
         # order 2
         actual_releases2 = swh_storage.release_get([release2.id, release.id])
         assert actual_releases2 == [release2, release]
+
+    def test_release_get_partition(self, swh_storage, sample_data):
+        releases = list(sample_data.releases) + [
+            Release(
+                name=f"release{i}".encode(),
+                message=f"hello{i}".encode(),
+                author=None,
+                date=None,
+                target=b"\x00" * 20,
+                target_type=ModelObjectType.REVISION,
+                synthetic=True,
+            )
+            for i in range(100)
+        ]
+        swh_storage.release_add(releases)
+
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(releases)) + 1)
+
+        actual_releases = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.release_get_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all releases are in the same partition
+            assert len(result) < len(releases)
+
+            actual_releases.extend(result)
+
+        assert set(actual_releases) == set(releases)
 
     def test_release_get_random(self, swh_storage, sample_data):
         release, release2, release3 = sample_data.releases[:3]
@@ -4677,6 +4785,40 @@ class TestStorage:
             origin.url, ov1.visit, require_snapshot=True
         )
         assert visit_status.snapshot == snapshot.id
+
+    def test_snapshot_get_id_partition(self, swh_storage, sample_data):
+        snapshots = list(sample_data.snapshots) + [
+            Snapshot(
+                branches={
+                    f"branch{i}".encode(): SnapshotBranch(
+                        target=b"\x00" * 20,
+                        target_type=TargetType.REVISION,
+                    ),
+                },
+            )
+            for i in range(100)
+        ]
+        swh_storage.snapshot_add(snapshots)
+
+        expected_results = {snp.id for snp in snapshots}
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(expected_results)) + 1)
+
+        actual_results = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.snapshot_get_id_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all snapshots are in the same partition
+            assert len(result) < len(expected_results)
+
+            actual_results.extend(result)
+
+        assert set(actual_results) == expected_results
 
     def test_snapshot_get_random(self, swh_storage, sample_data):
         snapshot, empty_snapshot, complete_snapshot = sample_data.snapshots[:3]

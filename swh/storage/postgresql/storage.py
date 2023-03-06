@@ -11,7 +11,20 @@ import datetime
 import itertools
 import logging
 import operator
-from typing import Any, Counter, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Counter,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import attr
 import psycopg2
@@ -110,6 +123,57 @@ def convert_validation_exceptions():
         raise
     except VALIDATION_EXCEPTIONS as e:
         raise StorageArgumentException(str(e))
+
+
+TRow = TypeVar("TRow", bound=Tuple)
+TResult = TypeVar("TResult")
+
+
+def _get_paginated_sha1_partition(
+    cur,
+    partition_id: int,
+    nb_partitions: int,
+    page_token: Optional[str],
+    limit: int,
+    get_range: Callable[[bytes, bytes, int, Any], Iterator[TRow]],
+    convert: Callable[[TRow], TResult],
+    get_id: Optional[Callable[[TResult], Any]] = None,
+) -> PagedResult[TResult]:
+    """Implements the bulk of ``content_get_partition``, ``directory_get_partition``,
+    ...:
+
+    1. computes range bounds
+    2. applies pagination token
+    3. converts to final objects
+    4. extracts next pagination token
+    """
+    if limit is None:
+        raise StorageArgumentException("limit should not be None")
+    if get_id is None:
+
+        def get_id(obj: TResult):
+            return obj.id  # type: ignore[attr-defined]
+
+    assert get_id is not None  # to please mypy
+
+    (start, end) = get_partition_bounds_bytes(partition_id, nb_partitions, SHA1_SIZE)
+    if page_token:
+        start = hash_to_bytes(page_token)
+    if end is None:
+        end = b"\xff" * SHA1_SIZE
+
+    next_page_token: Optional[str] = None
+    results = []
+    for counter, row in enumerate(get_range(start, end, limit + 1, cur)):
+        result = convert(row)
+        if counter >= limit:
+            # take the last content for the next page starting from this
+            next_page_token = hash_to_hex(get_id(result))
+            break
+        results.append(result)
+
+    assert len(results) <= limit
+    return PagedResult(results=results, next_page_token=next_page_token)
 
 
 class Storage:
@@ -371,29 +435,16 @@ class Storage:
         db: Db,
         cur=None,
     ) -> PagedResult[Content]:
-        if limit is None:
-            raise StorageArgumentException("limit should not be None")
-        (start, end) = get_partition_bounds_bytes(
-            partition_id, nb_partitions, SHA1_SIZE
+        return _get_paginated_sha1_partition(
+            cur,
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            db.content_get_range,
+            lambda row: Content(**dict(zip(db.content_get_metadata_keys, row))),
+            lambda row: row.sha1,
         )
-        if page_token:
-            start = hash_to_bytes(page_token)
-        if end is None:
-            end = b"\xff" * SHA1_SIZE
-
-        next_page_token: Optional[str] = None
-        contents = []
-        for counter, row in enumerate(db.content_get_range(start, end, limit + 1, cur)):
-            row_d = dict(zip(db.content_get_metadata_keys, row))
-            content = Content(**row_d)
-            if counter >= limit:
-                # take the last content for the next page starting from this
-                next_page_token = hash_to_hex(content.sha1)
-                break
-            contents.append(content)
-
-        assert len(contents) <= limit
-        return PagedResult(results=contents, next_page_token=next_page_token)
 
     @db_transaction(statement_timeout=500)
     def content_get(
@@ -673,6 +724,28 @@ class Storage:
     ) -> Dict[Sha1Git, Optional[bytes]]:
         return dict(db.directory_get_raw_manifest(directory_ids, cur=cur))
 
+    @db_transaction()
+    def directory_get_id_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+        *,
+        db: Db,
+        cur=None,
+    ) -> PagedResult[Sha1Git]:
+        return _get_paginated_sha1_partition(
+            cur,
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            db.directory_get_id_range,
+            operator.itemgetter(0),
+            lambda id_: id_,
+        )
+
     ##########################
     # Revision
     ##########################
@@ -733,6 +806,27 @@ class Storage:
 
         for obj in db.revision_missing_from_list(revisions, cur):
             yield obj[0]
+
+    @db_transaction()
+    def revision_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+        *,
+        db: Db,
+        cur=None,
+    ) -> PagedResult[Revision]:
+        return _get_paginated_sha1_partition(
+            cur,
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            db.revision_get_range,
+            lambda row: converters.db_to_revision(dict(zip(db.revision_get_cols, row))),
+        )
 
     @db_transaction(statement_timeout=2000)
     def revision_get(
@@ -913,6 +1007,27 @@ class Storage:
         return rels
 
     @db_transaction()
+    def release_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+        *,
+        db: Db,
+        cur=None,
+    ) -> PagedResult[Release]:
+        return _get_paginated_sha1_partition(
+            cur,
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            db.release_get_range,
+            lambda row: converters.db_to_release(dict(zip(db.release_get_cols, row))),
+        )
+
+    @db_transaction()
     def release_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.release_get_random(cur)
 
@@ -979,6 +1094,28 @@ class Storage:
             },
             "next_branch": d["next_branch"],
         }
+
+    @db_transaction()
+    def snapshot_get_id_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+        *,
+        db: Db,
+        cur=None,
+    ) -> PagedResult[Sha1Git]:
+        return _get_paginated_sha1_partition(
+            cur,
+            partition_id,
+            nb_partitions,
+            page_token,
+            limit,
+            db.snapshot_get_id_range,
+            operator.itemgetter(0),
+            lambda id_: id_,
+        )
 
     @db_transaction(statement_timeout=2000)
     def snapshot_count_branches(
