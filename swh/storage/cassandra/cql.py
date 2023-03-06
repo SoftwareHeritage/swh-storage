@@ -23,6 +23,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from cassandra import ConsistencyLevel, CoordinationFailure
@@ -48,7 +49,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
-from swh.storage.interface import ListOrder
+from swh.storage.interface import ListOrder, TotalHashDict
 
 from ..utils import remove_keys
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url
@@ -152,7 +153,7 @@ def _prepared_statement(
     This only works on methods of CqlRunner, as preparing a
     statement requires a connection to a Cassandra server."""
 
-    def decorator(f):
+    def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
@@ -226,7 +227,7 @@ def _prepared_select_statements(
 
     statement_template = "SELECT {cols} FROM {keyspace}.{table} {rest}"
 
-    def decorator(f):
+    def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
@@ -248,6 +249,21 @@ def _prepared_select_statements(
         return newf
 
     return decorator
+
+
+def _prepared_select_token_range_statement(
+    row_class: Type[BaseRow],
+    clauses: str = "",
+    cols: Optional[List[str]] = None,
+) -> Callable[[Callable[..., TRet]], Callable[..., TRet]]:
+    """Like _prepared_select_statement, but adds a WHERE clause that selects
+    all rows in a token range."""
+    pk = ", ".join(row_class.PARTITION_KEY)
+    return _prepared_select_statement(
+        row_class,
+        f"WHERE token({pk}) >= ? AND token({pk}) <= ? {clauses}",
+        [f"token({pk}) AS tok", *(cols or row_class.cols())],
+    )
 
 
 def _next_bytes_value(value: bytes) -> bytes:
@@ -394,11 +410,12 @@ class CqlRunner:
         ContentRow, f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}"
     )
     def content_get_from_pk(
-        self, content_hashes: Dict[str, bytes], *, statement
+        self, content_hashes: TotalHashDict, *, statement
     ) -> Optional[ContentRow]:
         rows = list(
             self._execute_with_retries(
-                statement, [content_hashes[algo] for algo in HASH_ALGORITHMS]
+                statement,
+                [cast(dict, content_hashes)[algo] for algo in HASH_ALGORITHMS],
             )
         )
         assert len(rows) <= 1
@@ -408,8 +425,8 @@ class CqlRunner:
             return None
 
     def content_missing_from_all_hashes(
-        self, contents_hashes: List[Dict[str, bytes]]
-    ) -> Iterator[Dict[str, bytes]]:
+        self, contents_hashes: List[TotalHashDict]
+    ) -> Iterator[TotalHashDict]:
         for group in grouper(contents_hashes, PARTITION_KEY_RESTRICTION_MAX_SIZE):
             group = list(group)
 
@@ -451,19 +468,10 @@ class CqlRunner:
     def content_get_random(self, *, statement) -> Optional[ContentRow]:
         return self._get_random_row(ContentRow, statement)
 
-    @_prepared_statement(
-        """
-        SELECT token({pk}) AS tok, {cols} FROM {{keyspace}}.{table}
-        WHERE token({pk}) >= ? AND token({pk}) <= ? LIMIT ?
-        """.format(
-            pk=", ".join(ContentRow.PARTITION_KEY),
-            cols=", ".join(ContentRow.cols()),
-            table=ContentRow.TABLE,
-        )
-    )
+    @_prepared_select_token_range_statement(ContentRow, "LIMIT ?")
     def content_get_token_range(
         self, start: int, end: int, limit: int, *, statement
-    ) -> Iterable[Tuple[int, ContentRow]]:
+    ) -> Iterator[Tuple[int, ContentRow]]:
         """Returns an iterable of (token, row)"""
         return (
             (row["tok"], ContentRow.from_dict(remove_keys(row, ("tok",))))
@@ -597,79 +605,6 @@ class CqlRunner:
         )
 
     ##########################
-    # 'revision' table
-    ##########################
-
-    @_prepared_exists_statement("revision")
-    def revision_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
-        return self._missing(statement, ids)
-
-    @_prepared_insert_statement(RevisionRow)
-    def revision_add_one(self, revision: RevisionRow, *, statement) -> None:
-        self._add_one(statement, revision)
-
-    @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
-    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[int]:
-        return (
-            row["id"] for row in self._execute_with_retries(statement, [revision_ids])
-        )
-
-    @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
-    def revision_get(
-        self, revision_ids: List[Sha1Git], *, statement
-    ) -> Iterable[RevisionRow]:
-        return map(
-            RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
-        )
-
-    @_prepared_select_statement(RevisionRow, "WHERE token(id) > ? LIMIT 1")
-    def revision_get_random(self, *, statement) -> Optional[RevisionRow]:
-        return self._get_random_row(RevisionRow, statement)
-
-    ##########################
-    # 'revision_parent' table
-    ##########################
-
-    @_prepared_insert_statement(RevisionParentRow)
-    def revision_parent_add_one(
-        self, revision_parent: RevisionParentRow, *, statement
-    ) -> None:
-        self._add_one(statement, revision_parent)
-
-    @_prepared_select_statement(RevisionParentRow, "WHERE id = ?", ["parent_id"])
-    def revision_parent_get(
-        self, revision_id: Sha1Git, *, statement
-    ) -> Iterable[bytes]:
-        return (
-            row["parent_id"]
-            for row in self._execute_with_retries(statement, [revision_id])
-        )
-
-    ##########################
-    # 'release' table
-    ##########################
-
-    @_prepared_exists_statement("release")
-    def release_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
-        return self._missing(statement, ids)
-
-    @_prepared_insert_statement(ReleaseRow)
-    def release_add_one(self, release: ReleaseRow, *, statement) -> None:
-        self._add_one(statement, release)
-
-    @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
-    def release_get(
-        self, release_ids: List[Sha1Git], *, statement
-    ) -> Iterable[ReleaseRow]:
-        return map(
-            ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
-        )
-
-    @_prepared_select_statement(ReleaseRow, "WHERE token(id) > ? LIMIT 1")
-    def release_get_random(self, *, statement) -> Optional[ReleaseRow]:
-        return self._get_random_row(ReleaseRow, statement)
-
-    ##########################
     # 'directory' table
     ##########################
 
@@ -696,6 +631,16 @@ class CqlRunner:
         return map(
             DirectoryRow.from_dict,
             self._execute_with_retries(statement, [directory_ids]),
+        )
+
+    @_prepared_select_token_range_statement(DirectoryRow, "LIMIT ?")
+    def directory_get_token_range(
+        self, start: int, end: int, limit: int, *, statement
+    ) -> Iterator[Tuple[int, DirectoryRow]]:
+        """Returns an iterable of (token, row)"""
+        return (
+            (row["tok"], DirectoryRow.from_dict(remove_keys(row, ("tok",))))
+            for row in self._execute_with_retries(statement, [start, end, limit])
         )
 
     ##########################
@@ -770,6 +715,99 @@ class CqlRunner:
         )
 
     ##########################
+    # 'revision' table
+    ##########################
+
+    @_prepared_exists_statement("revision")
+    def revision_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
+        return self._missing(statement, ids)
+
+    @_prepared_insert_statement(RevisionRow)
+    def revision_add_one(self, revision: RevisionRow, *, statement) -> None:
+        self._add_one(statement, revision)
+
+    @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
+    def revision_get_ids(self, revision_ids, *, statement) -> Iterable[Sha1Git]:
+        return (
+            row["id"] for row in self._execute_with_retries(statement, [revision_ids])
+        )
+
+    @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
+    def revision_get(
+        self, revision_ids: List[Sha1Git], *, statement
+    ) -> Iterable[RevisionRow]:
+        return map(
+            RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
+        )
+
+    @_prepared_select_statement(RevisionRow, "WHERE token(id) > ? LIMIT 1")
+    def revision_get_random(self, *, statement) -> Optional[RevisionRow]:
+        return self._get_random_row(RevisionRow, statement)
+
+    @_prepared_select_token_range_statement(RevisionRow, "LIMIT ?")
+    def revision_get_token_range(
+        self, start: int, end: int, limit: int, *, statement
+    ) -> Iterator[Tuple[int, RevisionRow]]:
+        """Returns an iterable of (token, row)"""
+        return (
+            (row["tok"], RevisionRow.from_dict(remove_keys(row, ("tok",))))
+            for row in self._execute_with_retries(statement, [start, end, limit])
+        )
+
+    ##########################
+    # 'revision_parent' table
+    ##########################
+
+    @_prepared_insert_statement(RevisionParentRow)
+    def revision_parent_add_one(
+        self, revision_parent: RevisionParentRow, *, statement
+    ) -> None:
+        self._add_one(statement, revision_parent)
+
+    @_prepared_select_statement(RevisionParentRow, "WHERE id = ?", ["parent_id"])
+    def revision_parent_get(
+        self, revision_id: Sha1Git, *, statement
+    ) -> Iterable[bytes]:
+        return (
+            row["parent_id"]
+            for row in self._execute_with_retries(statement, [revision_id])
+        )
+
+    ##########################
+    # 'release' table
+    ##########################
+
+    @_prepared_exists_statement("release")
+    def release_missing(self, ids: List[bytes], *, statement) -> List[bytes]:
+        return self._missing(statement, ids)
+
+    @_prepared_insert_statement(ReleaseRow)
+    def release_add_one(self, release: ReleaseRow, *, statement) -> None:
+        self._add_one(statement, release)
+
+    @_prepared_select_statement(ReleaseRow, "WHERE id in ?")
+    def release_get(
+        self, release_ids: List[Sha1Git], *, statement
+    ) -> Iterable[ReleaseRow]:
+        return map(
+            ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
+        )
+
+    @_prepared_select_statement(ReleaseRow, "WHERE token(id) > ? LIMIT 1")
+    def release_get_random(self, *, statement) -> Optional[ReleaseRow]:
+        return self._get_random_row(ReleaseRow, statement)
+
+    @_prepared_select_token_range_statement(ReleaseRow, "LIMIT ?")
+    def release_get_token_range(
+        self, start: int, end: int, limit: int, *, statement
+    ) -> Iterator[Tuple[int, ReleaseRow]]:
+        """Returns an iterable of (token, row)"""
+        return (
+            (row["tok"], ReleaseRow.from_dict(remove_keys(row, ("tok",))))
+            for row in self._execute_with_retries(statement, [start, end, limit])
+        )
+
+    ##########################
     # 'snapshot' table
     ##########################
 
@@ -784,6 +822,16 @@ class CqlRunner:
     @_prepared_select_statement(SnapshotRow, "WHERE token(id) > ? LIMIT 1")
     def snapshot_get_random(self, *, statement) -> Optional[SnapshotRow]:
         return self._get_random_row(SnapshotRow, statement)
+
+    @_prepared_select_token_range_statement(SnapshotRow, "LIMIT ?")
+    def snapshot_get_token_range(
+        self, start: int, end: int, limit: int, *, statement
+    ) -> Iterator[Tuple[int, SnapshotRow]]:
+        """Returns an iterable of (token, row)"""
+        return (
+            (row["tok"], SnapshotRow.from_dict(remove_keys(row, ("tok",))))
+            for row in self._execute_with_retries(statement, [start, end, limit])
+        )
 
     ##########################
     # 'snapshot_branch' table
@@ -921,20 +969,16 @@ class CqlRunner:
     def origin_get_by_url(self, url: str) -> Iterable[OriginRow]:
         return self.origin_get_by_sha1(hash_url(url))
 
-    @_prepared_statement(
-        f"""
-        SELECT token(sha1) AS tok, {", ".join(OriginRow.cols())}
-        FROM {{keyspace}}.{OriginRow.TABLE}
-        WHERE token(sha1) >= ? LIMIT ?
-        """
-    )
+    @_prepared_select_token_range_statement(OriginRow, "LIMIT ?")
     def origin_list(
         self, start_token: int, limit: int, *, statement
     ) -> Iterable[Tuple[int, OriginRow]]:
         """Returns an iterable of (token, origin)"""
         return (
             (row["tok"], OriginRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start_token, limit])
+            for row in self._execute_with_retries(
+                statement, [start_token, TOKEN_END, limit]
+            )
         )
 
     @_prepared_select_statement(OriginRow)
@@ -1179,42 +1223,6 @@ class CqlRunner:
             if d["snapshot"] is not None
         }
 
-    ##########################
-    # 'metadata_authority' table
-    ##########################
-
-    @_prepared_insert_statement(MetadataAuthorityRow)
-    def metadata_authority_add(self, authority: MetadataAuthorityRow, *, statement):
-        self._add_one(statement, authority)
-
-    @_prepared_select_statement(MetadataAuthorityRow, "WHERE type = ? AND url = ?")
-    def metadata_authority_get(
-        self, type, url, *, statement
-    ) -> Optional[MetadataAuthorityRow]:
-        rows = list(self._execute_with_retries(statement, [type, url]))
-        if rows:
-            return MetadataAuthorityRow.from_dict(rows[0])
-        else:
-            return None
-
-    ##########################
-    # 'metadata_fetcher' table
-    ##########################
-
-    @_prepared_insert_statement(MetadataFetcherRow)
-    def metadata_fetcher_add(self, fetcher, *, statement):
-        self._add_one(statement, fetcher)
-
-    @_prepared_select_statement(MetadataFetcherRow, "WHERE name = ? AND version = ?")
-    def metadata_fetcher_get(
-        self, name, version, *, statement
-    ) -> Optional[MetadataFetcherRow]:
-        rows = list(self._execute_with_retries(statement, [name, version]))
-        if rows:
-            return MetadataFetcherRow.from_dict(rows[0])
-        else:
-            return None
-
     #########################
     # 'raw_extrinsic_metadata_by_id' table
     #########################
@@ -1317,6 +1325,42 @@ class CqlRunner:
             (entry["authority_type"], entry["authority_url"])
             for entry in self._execute_with_retries(statement, [target])
         )
+
+    ##########################
+    # 'metadata_authority' table
+    ##########################
+
+    @_prepared_insert_statement(MetadataAuthorityRow)
+    def metadata_authority_add(self, authority: MetadataAuthorityRow, *, statement):
+        self._add_one(statement, authority)
+
+    @_prepared_select_statement(MetadataAuthorityRow, "WHERE type = ? AND url = ?")
+    def metadata_authority_get(
+        self, type, url, *, statement
+    ) -> Optional[MetadataAuthorityRow]:
+        rows = list(self._execute_with_retries(statement, [type, url]))
+        if rows:
+            return MetadataAuthorityRow.from_dict(rows[0])
+        else:
+            return None
+
+    ##########################
+    # 'metadata_fetcher' table
+    ##########################
+
+    @_prepared_insert_statement(MetadataFetcherRow)
+    def metadata_fetcher_add(self, fetcher, *, statement):
+        self._add_one(statement, fetcher)
+
+    @_prepared_select_statement(MetadataFetcherRow, "WHERE name = ? AND version = ?")
+    def metadata_fetcher_get(
+        self, name, version, *, statement
+    ) -> Optional[MetadataFetcherRow]:
+        rows = list(self._execute_with_retries(statement, [name, version]))
+        if rows:
+            return MetadataFetcherRow.from_dict(rows[0])
+        else:
+            return None
 
     ##########################
     # 'extid' table

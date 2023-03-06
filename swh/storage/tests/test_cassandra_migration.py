@@ -124,7 +124,7 @@ def test_add_content_column(
         attr.evolve(StorageData.content, data=None)
     ]
     with pytest.raises(StorageArgumentException):
-        swh_storage.content_find({"byte_xor": content_xor_hash})
+        swh_storage.content_find({"byte_xor": content_xor_hash})  # type: ignore
 
     # Then update the running code:
     new_hash_algos = HASH_ALGORITHMS + ["byte_xor"]
@@ -159,12 +159,12 @@ def test_add_content_column(
     ]
 
     # The new algo does not work, we did not backfill it yet:
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == []
+    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == []  # type: ignore
 
     # A normal storage would not overwrite, because the object already exists,
     # as it is not aware it is missing a field:
     swh_storage.content_add([new_content, new_content2])
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == []
+    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == []  # type: ignore
 
     # Backfill (in production this would be done with a replayer reading from
     # the journal):
@@ -174,7 +174,7 @@ def test_add_content_column(
     overwriting_swh_storage.content_add([new_content, new_content2])
 
     # Now, the object can be found:
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [
+    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [  # type: ignore
         attr.evolve(new_content, data=None)
     ]
 
@@ -272,7 +272,7 @@ def test_change_content_pk(
         attr.evolve(StorageData.content, data=None)
     ]
     with pytest.raises(StorageArgumentException):
-        swh_storage.content_find({"byte_xor": content_xor_hash})
+        swh_storage.content_find({"byte_xor": content_xor_hash})  # type: ignore
 
     # Then update the running code:
     new_hash_algos = HASH_ALGORITHMS + ["byte_xor"]
@@ -321,7 +321,7 @@ def test_change_content_pk(
     swh_storage._set_cql_runner()
 
     # Now, the object can be found with the new hash:
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [
+    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [  # type: ignore
         attr.evolve(new_content, data=None)
     ]
 
@@ -329,7 +329,7 @@ def test_change_content_pk(
     session.execute("DROP TABLE content")
 
     # Object is still available, because we don't use it anymore
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [
+    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [  # type: ignore
         attr.evolve(new_content, data=None)
     ]
 

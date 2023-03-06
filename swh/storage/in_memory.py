@@ -173,6 +173,18 @@ class InMemoryCqlRunner:
         self._extid = Table(ExtIDRow)
         self._stat_counters = defaultdict(int)
 
+    def _get_token_range(
+        self, table: Table[TRow], start: int, end: int, limit: int
+    ) -> Iterator[Tuple[int, TRow]]:
+        matches = [
+            (token, row)
+            for (token, partition) in table.data.items()
+            for (clustering_key, row) in partition.items()
+            if start <= token <= end
+        ]
+        matches.sort()
+        return iter(matches[0:limit])
+
     def increment_counter(self, object_type: str, nb: int):
         self._stat_counters[object_type] += nb
 
@@ -210,14 +222,7 @@ class InMemoryCqlRunner:
         end: int,
         limit: int,
     ) -> Iterable[Tuple[int, ContentRow]]:
-        matches = [
-            (token, row)
-            for (token, partition) in self._contents.data.items()
-            for (clustering_key, row) in partition.items()
-            if start <= token <= end
-        ]
-        matches.sort()
-        return matches[0:limit]
+        return self._get_token_range(self._contents, start, end, limit)
 
     def content_missing_from_all_hashes(
         self, contents_hashes: List[Dict[str, bytes]]
@@ -308,6 +313,14 @@ class InMemoryCqlRunner:
             if row:
                 yield row
 
+    def directory_get_token_range(
+        self,
+        start: int,
+        end: int,
+        limit: int,
+    ) -> Iterable[Tuple[int, DirectoryRow]]:
+        return self._get_token_range(self._directories, start, end, limit)
+
     ##########################
     # 'directory_entry' table
     ##########################
@@ -359,6 +372,14 @@ class InMemoryCqlRunner:
             if row:
                 yield row
 
+    def revision_get_token_range(
+        self,
+        start: int,
+        end: int,
+        limit: int,
+    ) -> Iterable[Tuple[int, RevisionRow]]:
+        return self._get_token_range(self._revisions, start, end, limit)
+
     def revision_get_random(self) -> Optional[RevisionRow]:
         return self._revisions.get_random()
 
@@ -396,6 +417,14 @@ class InMemoryCqlRunner:
             if row:
                 yield row
 
+    def release_get_token_range(
+        self,
+        start: int,
+        end: int,
+        limit: int,
+    ) -> Iterable[Tuple[int, ReleaseRow]]:
+        return self._get_token_range(self._releases, start, end, limit)
+
     def release_get_random(self) -> Optional[ReleaseRow]:
         return self._releases.get_random()
 
@@ -413,6 +442,14 @@ class InMemoryCqlRunner:
     def snapshot_add_one(self, snapshot: SnapshotRow) -> None:
         self._snapshots.insert(snapshot)
         self.increment_counter("snapshot", 1)
+
+    def snapshot_get_token_range(
+        self,
+        start: int,
+        end: int,
+        limit: int,
+    ) -> Iterable[Tuple[int, SnapshotRow]]:
+        return self._get_token_range(self._snapshots, start, end, limit)
 
     def snapshot_get_random(self) -> Optional[SnapshotRow]:
         return self._snapshots.get_random()
@@ -836,7 +873,7 @@ class InMemoryStorage(CassandraStorage):
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
-        self.objstorage = ObjStorage({"cls": "memory"})
+        self.objstorage = ObjStorage(self, {"cls": "memory"})
 
     def check_config(self, *, check_write: bool) -> bool:
         return True

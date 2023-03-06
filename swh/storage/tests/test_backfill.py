@@ -16,6 +16,7 @@ from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.backfill import (
     PARTITION_KEY,
+    RANGE_GENERATORS,
     JournalBackfiller,
     byte_ranges,
     compute_query,
@@ -202,7 +203,137 @@ def test_raw_extrinsic_metadata_target_ranges():
     assert bounds == sorted(bounds)
 
 
-RANGE_GENERATORS = {
+def _peek(iterable):
+    iterable = iter(iterable)
+    list_ = []
+    try:
+        list_.append(next(iterable))
+        list_.append(next(iterable))
+        list_.append(next(iterable))
+    except StopIteration:
+        pass
+    return list_
+
+
+def test_range_generators_skipped_content():
+    for start, end in [
+        (None, None),
+        ("0" * 40, "f" * 40),
+        ("0" * 40, "0" + "f" * 39),
+        ("1" + "0" * 39, "1" + "f" * 39),
+    ]:
+        assert _peek(RANGE_GENERATORS["skipped_content"](start, end)) == [(None, None)]
+
+
+@pytest.mark.parametrize(
+    "type_",
+    [
+        "content",
+        "directory",
+        "extid",
+        "revision",
+    ],
+)
+def test_range_generators__long_bytes(type_):
+    assert _peek(RANGE_GENERATORS[type_](None, None)) == [
+        (None, b"\x00\x00\x01"),
+        (b"\x00\x00\x01", b"\x00\x00\x02"),
+        (b"\x00\x00\x02", b"\x00\x00\x03"),
+    ]
+    assert _peek(RANGE_GENERATORS[type_]("0" * 40, "f" * 40)) == [
+        (None, b"\x00\x00\x01"),
+        (b"\x00\x00\x01", b"\x00\x00\x02"),
+        (b"\x00\x00\x02", b"\x00\x00\x03"),
+    ]
+    assert _peek(RANGE_GENERATORS[type_]("0" * 40, "0" + "f" * 39)) == [
+        (None, b"\x00\x00\x01"),
+        (b"\x00\x00\x01", b"\x00\x00\x02"),
+        (b"\x00\x00\x02", b"\x00\x00\x03"),
+    ]
+    assert _peek(RANGE_GENERATORS[type_]("1" + "0" * 39, "1" + "f" * 39)) == [
+        (b"\x10\x00\x00", b"\x10\x00\x01"),
+        (b"\x10\x00\x01", b"\x10\x00\x02"),
+        (b"\x10\x00\x02", b"\x10\x00\x03"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "type_",
+    [
+        "release",
+        "snapshot",
+    ],
+)
+def test_range_generators__short_bytes(type_):
+    assert _peek(RANGE_GENERATORS[type_](None, None)) == [
+        (None, b"\x00\x01"),
+        (b"\x00\x01", b"\x00\x02"),
+        (b"\x00\x02", b"\x00\x03"),
+    ]
+    assert _peek(RANGE_GENERATORS[type_]("0" * 40, "f" * 40)) == [
+        (None, b"\x00\x01"),
+        (b"\x00\x01", b"\x00\x02"),
+        (b"\x00\x02", b"\x00\x03"),
+    ]
+    assert _peek(RANGE_GENERATORS[type_]("0" * 40, "0" + "f" * 39)) == [
+        (None, b"\x00\x01"),
+        (b"\x00\x01", b"\x00\x02"),
+        (b"\x00\x02", b"\x00\x03"),
+    ]
+    assert _peek(RANGE_GENERATORS[type_]("1" + "0" * 39, "1" + "f" * 39)) == [
+        (b"\x10\x00", b"\x10\x01"),
+        (b"\x10\x01", b"\x10\x02"),
+        (b"\x10\x02", b"\x10\x03"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "type_",
+    [
+        "origin",
+        "origin_visit",
+        "origin_visit_status",
+    ],
+)
+def test_range_generators__int(type_):
+    assert _peek(RANGE_GENERATORS[type_](0, 100)) == [
+        (None, 1000),
+    ]
+    assert _peek(RANGE_GENERATORS[type_](0, 10000)) == [
+        (None, 1000),
+        (1000, 2000),
+        (2000, 3000),
+    ]
+    assert _peek(RANGE_GENERATORS[type_](100, 10000)) == [
+        (100, 1100),
+        (1100, 2100),
+        (2100, 3100),
+    ]
+
+
+def test_range_generators__remd():
+    type_ = "raw_extrinsic_metadata"
+
+    assert _peek(RANGE_GENERATORS[type_](None, None)) == [
+        ("", "swh:1:cnt:"),
+        ("swh:1:cnt:", "swh:1:cnt:01"),
+        ("swh:1:cnt:01", "swh:1:cnt:02"),
+    ]
+
+    assert _peek(RANGE_GENERATORS[type_]("swh:1:cnt:00", "swh:1:cnt:ff")) == [
+        ("swh:1:cnt:00", "swh:1:cnt:01"),
+        ("swh:1:cnt:01", "swh:1:cnt:02"),
+        ("swh:1:cnt:02", "swh:1:cnt:03"),
+    ]
+
+    assert _peek(RANGE_GENERATORS[type_]("swh:1:cnt:ff", None)) == [
+        ("swh:1:cnt:ff", "swh:1:cnt:" + "f" * 40),
+        ("swh:1:cnt:" + "f" * 40, "swh:1:dir:0010"),
+        ("swh:1:dir:0010", "swh:1:dir:0020"),
+    ]
+
+
+MOCK_RANGE_GENERATORS = {
     "content": lambda start, end: [(None, None)],
     "skipped_content": lambda start, end: [(None, None)],
     "directory": lambda start, end: [(None, None)],
@@ -219,7 +350,7 @@ RANGE_GENERATORS = {
 }
 
 
-@patch("swh.storage.backfill.RANGE_GENERATORS", RANGE_GENERATORS)
+@patch("swh.storage.backfill.RANGE_GENERATORS", MOCK_RANGE_GENERATORS)
 def test_backfiller(
     swh_storage_backend_config,
     kafka_prefix: str,

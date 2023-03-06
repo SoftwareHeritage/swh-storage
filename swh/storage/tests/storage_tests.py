@@ -22,15 +22,12 @@ from swh.core.api.classes import stream_results
 from swh.model import from_disk, hypothesis_strategies
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.model import (
-    Content,
-    Directory,
-    DirectoryEntry,
-    ExtID,
     Origin,
     OriginVisit,
     OriginVisitStatus,
     Person,
     RawExtrinsicMetadata,
+    Release,
     Revision,
     RevisionType,
     SkippedContent,
@@ -40,11 +37,18 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
+from swh.model.model import Content, Directory, DirectoryEntry, ExtID
+from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
-from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.exc import (
+    HashCollision,
+    StorageArgumentException,
+    UnknownMetadataAuthority,
+    UnknownMetadataFetcher,
+)
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.interface import (
     ListOrder,
@@ -181,7 +185,42 @@ class TestStorage:
             "content:add:bytes": cont.length,
         }
 
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
+
+        expected_cont = attr.evolve(cont, data=None)
+
+        contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(contents) == 1
+        for obj in contents:
+            assert insertion_start_time <= obj.ctime
+            assert obj.ctime <= insertion_end_time
+            assert obj == expected_cont
+
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["content"] == 1
+
+    def test_content_add__legacy(self, swh_storage, sample_data):
+        """content_add() with a single sha1 as param instead of a dict"""
+        cont = sample_data.content
+
+        insertion_start_time = now()
+        actual_result = swh_storage.content_add([cont])
+        insertion_end_time = now()
+
+        assert actual_result == {
+            "content:add": 1,
+            "content:add:bytes": cont.length,
+        }
+
+        with pytest.warns(DeprecationWarning):
+            assert swh_storage.content_get_data(cont.sha1) == cont.data
 
         expected_cont = attr.evolve(cont, data=None)
 
@@ -219,7 +258,7 @@ class TestStorage:
 
         # the fact that we retrieve the content object from the storage with
         # the correct 'data' field ensures it has been 'called'
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
         expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
         contents = [
@@ -239,19 +278,71 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 1
 
+    @pytest.mark.parametrize("algo", sorted(DEFAULT_ALGORITHMS))
+    def test_content_get_data_single_hash_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker, algo
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+        assert swh_storage.content_get_data({algo: cont.get_hash(algo)}) == cont.data
+
+        assert len(content_find.mock_calls) == 1
+
+    def test_content_get_data_two_hash_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+
+        combinations = list(itertools.combinations(sorted(DEFAULT_ALGORITHMS), 2))
+        for (algo1, algo2) in combinations:
+            assert (
+                swh_storage.content_get_data(
+                    {algo1: cont.get_hash(algo1), algo2: cont.get_hash(algo2)}
+                )
+                == cont.data
+            )
+        assert len(content_find.mock_calls) == len(combinations)
+
+    def test_content_get_data_full_dict(
+        self, swh_storage, swh_storage_backend, sample_data, mocker
+    ):
+        cont = sample_data.content
+
+        swh_storage.content_add([cont])
+
+        content_find = mocker.patch.object(
+            swh_storage_backend, "content_find", wraps=swh_storage_backend.content_find
+        )
+        assert swh_storage.content_get_data(cont.hashes()) == cont.data
+        assert len(content_find.mock_calls) == 0, (
+            "content_get_data() needlessly called content_find(), "
+            "as all hashes were provided as argument"
+        )
+
     def test_content_get_data_missing(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
 
         swh_storage.content_add([cont])
 
         # Query a single missing content
-        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont2.sha1})
         assert actual_content_data is None
 
         # Check content_get does not abort after finding a missing content
-        actual_content_data = swh_storage.content_get_data(cont.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont.sha1})
         assert actual_content_data == cont.data
-        actual_content_data = swh_storage.content_get_data(cont2.sha1)
+        actual_content_data = swh_storage.content_get_data({"sha1": cont2.sha1})
         assert actual_content_data is None
 
     def test_content_add_different_input(self, swh_storage, sample_data):
@@ -314,7 +405,7 @@ class TestStorage:
         cont = sample_data.content
         swh_storage.content_add([cont, cont])
 
-        assert swh_storage.content_get_data(cont.sha1) == cont.data
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
     def test_content_update(self, swh_storage, sample_data):
         cont1 = sample_data.content
@@ -406,7 +497,7 @@ class TestStorage:
 
         # The DB must be written to after the objstorage, so the DB should be
         # unchanged if the objstorage crashed
-        assert swh_storage.content_get_data(cont.sha1) is None
+        assert swh_storage.content_get_data({"sha1": cont.sha1}) is None
 
         # The journal too
         assert list(swh_storage.journal_writer.journal.objects) == []
@@ -854,6 +945,42 @@ class TestStorage:
         # test_directory_add_raw_manifest__different_entries__allow_overwrite
         return dir1.id
 
+    def test_directory_get_id_partition(self, swh_storage, sample_data):
+        directories = list(sample_data.directories) + [
+            Directory(
+                entries=(
+                    DirectoryEntry(
+                        name=f"entry{i}".encode(),
+                        type="file",
+                        target=b"\x00" * 20,
+                        perms=0,
+                    ),
+                )
+            )
+            for i in range(100)
+        ]
+        swh_storage.directory_add(directories)
+
+        expected_results = {dir_.id for dir_ in directories}
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(expected_results)) + 1)
+
+        actual_results = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.directory_get_id_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all directories are in the same partition
+            assert len(result) < len(expected_results)
+
+            actual_results.extend(result)
+
+        assert set(actual_results) == expected_results
+
     def test_directory_ls_recursive(self, swh_storage, sample_data):
         # create consistent dataset regarding the directories we want to list
         content, content2 = sample_data.contents[:2]
@@ -1269,6 +1396,45 @@ class TestStorage:
         # order 2
         actual_revisions2 = swh_storage.revision_get([revision2.id, revision.id])
         assert actual_revisions2 == [revision2, revision]
+
+    def test_revision_get_partition(self, swh_storage, sample_data):
+        revisions = list(sample_data.revisions) + [
+            Revision(
+                message=f"hello{i}".encode(),
+                author=None,
+                date=None,
+                committer=None,
+                committer_date=None,
+                parents=(),
+                type=RevisionType.GIT,
+                directory=b"\x00" * 20,
+                synthetic=True,
+            )
+            for i in range(100)
+        ]
+        swh_storage.revision_add(revisions)
+
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(revisions)) + 1)
+
+        actual_revisions = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.revision_get_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all revisions are in the same partition
+            assert len(result) < len(revisions)
+
+            actual_revisions.extend(result)
+
+        # TODO: use set equality once Revision.metadata is removed
+        actual_revisions.sort(key=lambda rev: rev.id)
+        revisions.sort(key=lambda rev: rev.id)
+        assert actual_revisions == revisions
 
     def test_revision_log(self, swh_storage, sample_data):
         revision1, revision2, revision3, revision4 = sample_data.revisions[:4]
@@ -1857,6 +2023,40 @@ class TestStorage:
         # order 2
         actual_releases2 = swh_storage.release_get([release2.id, release.id])
         assert actual_releases2 == [release2, release]
+
+    def test_release_get_partition(self, swh_storage, sample_data):
+        releases = list(sample_data.releases) + [
+            Release(
+                name=f"release{i}".encode(),
+                message=f"hello{i}".encode(),
+                author=None,
+                date=None,
+                target=b"\x00" * 20,
+                target_type=ModelObjectType.REVISION,
+                synthetic=True,
+            )
+            for i in range(100)
+        ]
+        swh_storage.release_add(releases)
+
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(releases)) + 1)
+
+        actual_releases = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.release_get_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all releases are in the same partition
+            assert len(result) < len(releases)
+
+            actual_releases.extend(result)
+
+        assert set(actual_releases) == set(releases)
 
     def test_release_get_random(self, swh_storage, sample_data):
         release, release2, release3 = sample_data.releases[:3]
@@ -4586,6 +4786,40 @@ class TestStorage:
         )
         assert visit_status.snapshot == snapshot.id
 
+    def test_snapshot_get_id_partition(self, swh_storage, sample_data):
+        snapshots = list(sample_data.snapshots) + [
+            Snapshot(
+                branches={
+                    f"branch{i}".encode(): SnapshotBranch(
+                        target=b"\x00" * 20,
+                        target_type=TargetType.REVISION,
+                    ),
+                },
+            )
+            for i in range(100)
+        ]
+        swh_storage.snapshot_add(snapshots)
+
+        expected_results = {snp.id for snp in snapshots}
+        # nb_partitions = smallest power of 2 such that at least one of
+        # the partitions is empty
+        nb_partitions = 1 << math.floor(math.log2(len(expected_results)) + 1)
+
+        actual_results = []
+
+        for i in range(nb_partitions):
+            result = list(
+                stream_results(swh_storage.snapshot_get_id_partition, i, nb_partitions)
+            )
+
+            # Technically not guaranteed, but it is statistically very unlikely
+            # all snapshots are in the same partition
+            assert len(result) < len(expected_results)
+
+            actual_results.extend(result)
+
+        assert set(actual_results) == expected_results
+
     def test_snapshot_get_random(self, swh_storage, sample_data):
         snapshot, empty_snapshot, complete_snapshot = sample_data.snapshots[:3]
         swh_storage.snapshot_add([snapshot, empty_snapshot, complete_snapshot])
@@ -5486,7 +5720,7 @@ class TestStorage:
         assert result.next_page_token is None
         assert result.results == [new_origin_metadata2]
 
-    def test_origin_metadata_add_missing_authority(self, swh_storage, sample_data):
+    def test_origin_metadata_missing_authority(self, swh_storage, sample_data):
         origin = sample_data.origin
         fetcher = sample_data.metadata_fetcher
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
@@ -5494,10 +5728,14 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([fetcher])
 
-        with pytest.raises(StorageArgumentException, match="authority"):
+        with pytest.raises(UnknownMetadataAuthority):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
-    def test_origin_metadata_add_missing_fetcher(self, swh_storage, sample_data):
+        assert swh_storage.raw_extrinsic_metadata_get(
+            Origin(origin.url).swhid(), origin_metadata.authority
+        ) == PagedResult(results=[], next_page_token=None)
+
+    def test_origin_metadata_missing_fetcher(self, swh_storage, sample_data):
         origin = sample_data.origin
         authority = sample_data.metadata_authority
         origin_metadata, origin_metadata2 = sample_data.origin_metadata[:2]
@@ -5505,7 +5743,7 @@ class TestStorage:
 
         swh_storage.metadata_authority_add([authority])
 
-        with pytest.raises(StorageArgumentException, match="fetcher"):
+        with pytest.raises(UnknownMetadataFetcher):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
 
@@ -5515,7 +5753,7 @@ class TestStorageGeneratedData:
 
         # retrieve contents
         for content in contents_with_data:
-            actual_content_data = swh_storage.content_get_data(content.sha1)
+            actual_content_data = swh_storage.content_get_data({"sha1": content.sha1})
             assert actual_content_data is not None
             assert actual_content_data == content.data
 
