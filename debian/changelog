@@ -1,3 +1,12 @@
+swh-storage (1.10.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.10.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2023-03-08 10:28:49 +0100)
+  * Upstream changes:     - v1.10.0     - * Add function to get full
+    directories in batch
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Mar 2023 09:47:27 +0000
+
 swh-storage (1.9.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.9.0     - (tagged by Antoine R. Dumont
