@@ -28,11 +28,12 @@ from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.exc import StorageArgumentException
 
 from .storage_data import StorageData
-from .test_cassandra import (  # noqa, needed for swh_storage fixture
-    cassandra_cluster,
-    keyspace,
-    swh_storage_backend_config,
-)
+
+
+@pytest.fixture
+def swh_storage_backend_config(swh_storage_cassandra_backend_config):
+    return swh_storage_cassandra_backend_config
+
 
 ##############################
 # Common structures
