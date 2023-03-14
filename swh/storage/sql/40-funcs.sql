@@ -825,21 +825,31 @@ declare
 begin
   select id into origin_id from origin where url=origin_url;
   return query
-  with closest_two_visits as ((
-    select ov, (date - visit_date) as interval, visit
+  -- first find the two closest dates (this does a one-row scan of the origin_visit
+  -- (origin, date) index twice, forward and backward around the given visit_date)
+  with closest_two_visit_dates as ((
+    select date, (date - visit_date) as interval -- date >= visit_date so interval >= 0
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date >= visit_date
-    order by ov.date asc, ov.visit desc
+    order by ov.date asc
     limit 1
   ) union (
-    select ov, (visit_date - date) as interval, visit
+    select date, (visit_date - date) as interval -- date < visit_date so interval > 0
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date < visit_date
-    order by ov.date desc, ov.visit desc
+    order by ov.date desc
     limit 1
-  )) select (ov).* from closest_two_visits order by interval, visit limit 1;
+  ))
+  -- then select the data of the visit at the closest date, with the highest visit id
+  -- (this uses the origin_visit (origin, date) index a third time to find the highest
+  -- visit id at the given date)
+  select * from origin_visit
+    where origin = origin_id
+      and date = (select date from closest_two_visit_dates order by interval limit 1)
+    order by visit desc
+    limit 1;
 end
 $$;
 

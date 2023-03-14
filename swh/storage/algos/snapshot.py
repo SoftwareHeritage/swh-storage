@@ -31,10 +31,8 @@ def snapshot_get_all_branches(
         storage (swh.storage.interface.StorageInterface): the storage instance
         snapshot_id (bytes): the snapshot's identifier
     Returns:
-        dict: a dict with two keys:
-            * **id**: identifier of the snapshot
-            * **branches**: a dict of branches contained in the snapshot
-              whose keys are the branches' names.
+        A snapshot objects populated with all known branches if the snapshot is
+        found or None.
     """
     ret = storage.snapshot_get_branches(snapshot_id)
 
