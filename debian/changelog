@@ -1,8 +1,14 @@
-swh-storage (1.10.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.11.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.11.0     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2023-03-14 14:53:04 +0100)
+  * Upstream changes:     - Release swh.storage v1.11.0     - Move
+    cassandra fixtures to the pytest plugin for reuse by other     -
+    modules     - Clean up some docstrings     - Rewrite the
+    visit_find_by_date query in PostgreSQL to use indexes     - more
+    effectively
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 08 Mar 2023 09:57:12 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 14 Mar 2023 14:12:51 +0000
 
 swh-storage (1.10.0-1~swh1) unstable-swh; urgency=medium
 

@@ -965,14 +965,8 @@ class StorageInterface(Protocol):
                 contains given prefix
 
         Returns:
-            dict: None if the snapshot does not exist;
-              a dict with three keys otherwise:
-                * **id**: identifier of the snapshot
-                * **branches**: a dict of branches contained in the snapshot
-                  whose keys are the branches' names.
-                * **next_branch**: the name of the first branch not returned
-                  or :const:`None` if the snapshot has less than
-                  `branches_count` branches after `branches_from` included.
+            a PartialBranches object listing a limited amount of branches
+            matching the given criteria or None if the snapshot does not exist.
         """
         ...
 
