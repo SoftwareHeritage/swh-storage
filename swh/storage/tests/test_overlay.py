@@ -5,26 +5,35 @@
 
 import pytest
 
+from swh.storage import get_storage
+from swh.storage.proxies.overlay import OverlayProxyStorage
 from swh.storage.tests.test_in_memory import (
     TestInMemoryStorageGeneratedData as _TestInMemoryStorageGeneratedData,
 )
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestInMemoryStorage
 
 
-@pytest.fixture(params=[1, 2])
-def swh_storage_backend_config(request):
+@pytest.fixture
+def swh_storage_backend_config():
     yield {
-        "cls": "overlay",
-        "storages": [
-            {
-                "cls": "memory",
-                "journal_writer": {
-                    "cls": "memory",
-                },
-            }
-            for _ in range(request.param)
-        ],
+        "cls": "memory",
+        "journal_writer": {
+            "cls": "memory",
+        },
     }
+
+
+@pytest.fixture(params=["one-layer", "two-layers"])
+def swh_storage(request, swh_storage_backend, swh_storage_backend_config):
+    if request.param == "one-layer":
+        return OverlayProxyStorage([swh_storage_backend])
+    else:
+        return OverlayProxyStorage(
+            [
+                swh_storage_backend,
+                get_storage(**swh_storage_backend_config),
+            ]
+        )
 
 
 class TestOverlayProxy(_TestInMemoryStorage):
@@ -53,6 +62,14 @@ class TestOverlayProxy(_TestInMemoryStorage):
         pass
 
     @pytest.mark.skip("Not supported by the overlay proxy")
+    def test_directory_get_id_partition(self):
+        pass
+
+    @pytest.mark.skip("Not supported by the overlay proxy")
+    def test_revision_get_partition(self):
+        pass
+
+    @pytest.mark.skip("Not supported by the overlay proxy")
     def test_revision_log(self):
         pass
 
@@ -72,12 +89,20 @@ class TestOverlayProxy(_TestInMemoryStorage):
     def test_revision_shortlog_with_limit(self):
         pass
 
+    @pytest.mark.skip("Not supported by the overlay proxy")
+    def test_release_get_partition(self):
+        pass
+
     @pytest.mark.skip("TODO: rewrite this test without hardcoded page_token")
     def test_origin_visit_get_with_statuses(self):
         pass
 
     @pytest.mark.skip("Not supported by the overlay proxy")
     def test_content_add_objstorage_first(self):
+        pass
+
+    @pytest.mark.skip("Not supported by the overlay proxy")
+    def test_snapshot_get_id_partition(self):
         pass
 
 

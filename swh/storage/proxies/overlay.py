@@ -75,7 +75,8 @@ class OverlayProxyStorage:
             UntestedCodeWarning,
         )
         self.storages: List[StorageInterface] = [
-            get_storage(**storage) for storage in storages
+            get_storage(**storage) if isinstance(storage, dict) else storage
+            for storage in storages
         ]
 
     def __getattr__(self, key):
