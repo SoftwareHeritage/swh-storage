@@ -316,10 +316,13 @@ class OverlayProxyStorage:
         return results
 
     def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
-        results: Dict[Sha1Git, List[Dict]] = {}
+        results: Dict[Sha1Git, List[Dict]] = {id_: [] for id_ in ids}
         for storage in self.storages:
             for (id_, objects) in storage.object_find_by_sha1_git(ids).items():
-                results.setdefault(id_, []).extend(objects)
+                # note: this is quadratic in the number of hash conflicts:
+                for object_ in objects:
+                    if object_ not in results[id_]:
+                        results[id_].append(object_)
 
         return results
 
