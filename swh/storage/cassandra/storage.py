@@ -312,7 +312,7 @@ class CassandraStorage:
                                 )
 
                     if collisions:
-                        collisions.append(content.hashes())
+                        collisions.append(dict(content.hashes()))
                         raise HashCollision(algo, content.get_hash(algo), collisions)
 
             (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
