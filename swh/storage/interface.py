@@ -1369,6 +1369,53 @@ class StorageInterface(Protocol):
         ...
 
     ##########################
+    # reverse index for object references
+    ##########################
+
+    @remote_api_endpoint("object/find_references")
+    def object_find_recent_references(
+        self, target_swhid: ExtendedSWHID, limit: int
+    ) -> List[ExtendedSWHID]:
+        """Return the SWHIDs of objects that are known to reference the object
+        ``target_swhid``.
+
+        Args:
+            target_swhid: the SWHID of the object targeted by the returned objects
+            limit: the maximum number of SWHIDs to return
+
+        Note:
+           The data returned by this function is by essence limited to objects that were
+        recently added to the archive, and is pruned regularly. For completeness, one
+        must also query swh.graph for backwards edges targeting the requested object.
+        """
+        ...
+
+    @remote_api_endpoint("object/references_add")
+    def object_references_add(
+        self, references: List[Tuple[ExtendedSWHID, ExtendedSWHID]]
+    ) -> Dict[str, int]:
+        """For each tuple ``(src, target)``, record that the ``src`` object references
+        the ``target`` object.
+
+        This function will only be called internally by a reference recording proxy,
+        through one of :func:`directory_add`, :func:`revision_add`, :func:`release_add`,
+        :func:`snapshot_add`, or :func:`origin_visit_status_add`. External users of
+        :mod:`swh.storage` should not need to use this function directly.
+
+        Note: these records are inserted in time-based partitions that can be pruned
+        when the objects are known in an up-to-date swh.graph instance.
+
+        Args:
+            references: a list of ``(src, target)`` SWHID tuples
+
+        Returns:
+            A summary dict with the following keys:
+
+              references:add: the number of object references added
+        """
+        ...
+
+    ##########################
     # misc.
     ##########################
 
