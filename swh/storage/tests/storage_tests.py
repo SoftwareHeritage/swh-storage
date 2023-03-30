@@ -113,6 +113,11 @@ def assert_contents_ok(
         assert actual_list == expected_list, k
 
 
+def filter_dict(d):
+    "Filter None value from a dict"
+    return {k: v for k, v in d.items() if v is not None}
+
+
 class LazyContent(Content):
     def with_data(self):
         return Content.from_dict({**self.to_dict(), "data": b"42\n"})
@@ -509,9 +514,11 @@ class TestStorage:
 
         contents_dict = [c.to_dict() for c in [cont, cont2]]
 
-        missing = list(swh_storage.skipped_content_missing(contents_dict))
+        missing = [
+            filter_dict(c) for c in swh_storage.skipped_content_missing(contents_dict)
+        ]
 
-        assert missing == [cont.hashes(), cont2.hashes()]
+        assert missing == [filter_dict(c.hashes()) for c in [cont, cont2]]
 
         actual_result = swh_storage.skipped_content_add([cont, cont, cont2])
 
@@ -551,8 +558,10 @@ class TestStorage:
         assert actual_result.pop("skipped_content:add") == 1
         assert actual_result == {}
 
-        missing = list(swh_storage.skipped_content_missing(contents_dict))
-        assert missing == [cont2.hashes()]
+        missing = [
+            filter_dict(c) for c in swh_storage.skipped_content_missing(contents_dict)
+        ]
+        assert missing == [filter_dict(cont2.hashes())]
 
     @pytest.mark.property_based
     @settings(
