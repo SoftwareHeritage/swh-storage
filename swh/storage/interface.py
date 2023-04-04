@@ -1424,7 +1424,7 @@ class StorageInterface(Protocol):
         Returns:
             A summary dict with the following keys:
 
-              references:add: the number of object references added
+              object_reference:add: the number of object references added
 
         """
         ...
