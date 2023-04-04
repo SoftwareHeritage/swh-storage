@@ -1933,6 +1933,20 @@ class CassandraStorage:
             )
         return result
 
+    #########################
+    # 'object_references' table
+    #########################
+
+    def object_find_recent_references(
+        self, target_swhid: ExtendedSWHID, limit: int
+    ) -> List[ExtendedSWHID]:
+        return []
+
+    def object_references_add(
+        self, references: List[Tuple[ExtendedSWHID, ExtendedSWHID]]
+    ) -> Dict[str, int]:
+        return {}
+
     ##########################
     # misc.
     ##########################
