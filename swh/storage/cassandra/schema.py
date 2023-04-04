@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021  The Software Heritage developers
+# Copyright (C) 2019-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -242,6 +242,14 @@ CREATE TABLE IF NOT EXISTS extid_by_target (
     target_token    bigint,
     PRIMARY KEY ((target_type, target), target_token)
 );""",
+    """
+CREATE TABLE IF NOT EXISTS object_references (
+    target_type     ascii,
+    target          blob,
+    source_type     ascii,
+    source          blob,
+    PRIMARY KEY ((target_type, target), source_type, source)
+);""",
 ]
 
 CONTENT_INDEX_TEMPLATE = """
@@ -278,6 +286,7 @@ TABLES = [
     "metadata_fetcher",
     "extid",
     "extid_by_target",
+    "object_references",
 ]
 
 HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]

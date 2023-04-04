@@ -1941,12 +1941,20 @@ class CassandraStorage:
     def object_find_recent_references(
         self, target_swhid: ExtendedSWHID, limit: int
     ) -> List[ExtendedSWHID]:
-        return []
+        rows = self._cql_runner.object_reference_get(
+            target=target_swhid.object_id,
+            target_type=target_swhid.object_type.value,
+            limit=limit,
+        )
+        return [converters.row_to_object_reference(row).source for row in rows]
 
     def object_references_add(
         self, references: List[ObjectReference]
     ) -> Dict[str, int]:
-        return {}
+        self._cql_runner.object_reference_add_concurrent(
+            [converters.object_reference_to_row(reference) for reference in references]
+        )
+        return {"object_reference:add": len(references)}
 
     ##########################
     # misc.

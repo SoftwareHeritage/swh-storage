@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022  The Software Heritage developers
+# Copyright (C) 2019-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -64,6 +64,7 @@ from .model import (
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
+    ObjectReferenceRow,
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
@@ -1522,6 +1523,30 @@ class CqlRunner:
         return (
             row["target_token"]
             for row in self._execute_with_retries(statement, [target_type, target])
+        )
+
+    ##########################
+    # 'object_references' table
+    ##########################
+
+    @_prepared_insert_statement(ObjectReferenceRow)
+    def object_reference_add_concurrent(
+        self, entries: List[ObjectReferenceRow], *, statement
+    ) -> None:
+        if len(entries) == 0:
+            # nothing to do
+            return
+        self._add_many(statement, entries)
+
+    @_prepared_select_statement(
+        ObjectReferenceRow, "WHERE target_type = ? AND target = ? LIMIT ?"
+    )
+    def object_reference_get(
+        self, target: Sha1Git, target_type: str, limit: int, *, statement
+    ) -> Iterable[ObjectReferenceRow]:
+        return map(
+            ObjectReferenceRow.from_dict,
+            self._execute_with_retries(statement, [target_type, target, limit]),
         )
 
     ##########################
