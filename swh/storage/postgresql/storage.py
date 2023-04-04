@@ -595,7 +595,11 @@ class Storage:
     ) -> Iterable[Dict[str, Any]]:
         contents = list(contents)
         for content in db.skipped_content_missing(contents, cur):
-            yield dict(zip(db.content_hash_keys, content))
+            yield {
+                algo: hash
+                for (algo, hash) in zip(db.content_hash_keys, content)
+                if hash
+            }
 
     ##########################
     # Directory

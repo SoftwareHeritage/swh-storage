@@ -10,7 +10,7 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import Content, MissingData, Sha1
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import CompositeObjId, ObjId
+from swh.objstorage.interface import CompositeObjId
 from swh.storage.interface import HashDict
 
 from .exc import StorageArgumentException
@@ -83,7 +83,7 @@ class ObjStorage:
             objstorage.
 
         """
-        content_pairs: List[Tuple[ObjId, bytes]] = []
+        content_pairs: List[Tuple[CompositeObjId, bytes]] = []
         for content in contents:
             try:
                 content = content.with_data()

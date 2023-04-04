@@ -15,7 +15,7 @@ import pytest
 
 from swh.journal.client import JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
-from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes, hash_to_hex
+from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
 from swh.model.model import Revision, RevisionType
 from swh.model.tests.swh_model_data import (
     COMMITTERS,
@@ -307,16 +307,16 @@ def _updated(d1, d2):
 def _gen_skipped_contents(n=10):
     # we do not use the hypothesis strategy here because this does not play well with
     # pytest fixtures, and it makes test execution very slow
-    algos = DEFAULT_ALGORITHMS | {"length"}
     now = datetime.datetime.now(tz=UTC)
     return [
         _updated(
-            MultiHash.from_data(data=f"foo{i}".encode(), hash_names=algos).digest(),
+            MultiHash.from_data(data=f"foo{i}".encode()).digest(),
             {
                 "status": "absent",
                 "reason": "why not",
                 "origin": f"https://somewhere/{i}",
                 "ctime": now,
+                "length": len(f"foo{i}"),
             },
         )
         for i in range(n)
