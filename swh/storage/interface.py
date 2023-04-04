@@ -72,6 +72,16 @@ class OriginVisitWithStatuses:
     statuses = attr.ib(type=List[OriginVisitStatus])
 
 
+@attr.s
+class ObjectReference:
+    """Record that the object with SWHID ``source`` references the object with SWHID
+    ``target``, meaning that the ``target`` needs to exist for the ``source`` object
+    to be consistent within the archive."""
+
+    source = attr.ib(type=ExtendedSWHID)
+    target = attr.ib(type=ExtendedSWHID)
+
+
 TResult = TypeVar("TResult")
 PagedResult = CorePagedResult[TResult, str]
 
@@ -1384,34 +1394,38 @@ class StorageInterface(Protocol):
             limit: the maximum number of SWHIDs to return
 
         Note:
-           The data returned by this function is by essence limited to objects that were
-        recently added to the archive, and is pruned regularly. For completeness, one
-        must also query swh.graph for backwards edges targeting the requested object.
+            The data returned by this function is by essence limited to objects that
+            were recently added to the archive, and is pruned regularly. For
+            completeness, one must also query swh.graph for backwards edges targeting
+            the requested object.
         """
         ...
 
     @remote_api_endpoint("object/references_add")
     def object_references_add(
-        self, references: List[Tuple[ExtendedSWHID, ExtendedSWHID]]
+        self, references: List[ObjectReference]
     ) -> Dict[str, int]:
-        """For each tuple ``(src, target)``, record that the ``src`` object references
-        the ``target`` object.
+        """For each object reference ``(source, target)``, record that the ``source``
+        object references the ``target`` object (meaning that the ``target`` needs to
+        exist for the ``source`` object to be consistent within the archive).
 
         This function will only be called internally by a reference recording proxy,
         through one of :func:`directory_add`, :func:`revision_add`, :func:`release_add`,
         :func:`snapshot_add`, or :func:`origin_visit_status_add`. External users of
         :mod:`swh.storage` should not need to use this function directly.
 
-        Note: these records are inserted in time-based partitions that can be pruned
-        when the objects are known in an up-to-date swh.graph instance.
+        Note:
+            these records are inserted in time-based partitions that can be pruned when
+            the objects are known in an up-to-date swh.graph instance.
 
         Args:
-            references: a list of ``(src, target)`` SWHID tuples
+            references: a list of ``(source, target)`` SWHID tuples
 
         Returns:
             A summary dict with the following keys:
 
               references:add: the number of object references added
+
         """
         ...
 

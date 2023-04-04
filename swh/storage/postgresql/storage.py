@@ -69,6 +69,7 @@ from swh.storage.interface import (
     VISIT_STATUSES,
     HashDict,
     ListOrder,
+    ObjectReference,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
@@ -1902,7 +1903,7 @@ class Storage:
         return []
 
     def object_references_add(
-        self, references: List[Tuple[ExtendedSWHID, ExtendedSWHID]]
+        self, references: List[ObjectReference]
     ) -> Dict[str, int]:
         return {}
 
