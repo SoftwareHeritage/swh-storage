@@ -158,7 +158,7 @@ class TestPgStorage:
         }
 
         if hasattr(swh_storage, "objstorage"):
-            assert content.sha1 in swh_storage.objstorage.objstorage
+            assert content.hashes() in swh_storage.objstorage.objstorage
 
         with db_transaction(swh_storage) as (_, cur):
             cur.execute(
@@ -194,7 +194,7 @@ class TestPgStorage:
         }
 
         if hasattr(swh_storage, "objstorage"):
-            assert content.sha1 not in swh_storage.objstorage.objstorage
+            assert content.hashes() not in swh_storage.objstorage.objstorage
         with db_transaction(swh_storage) as (_, cur):
             cur.execute(
                 "SELECT sha1, sha1_git, sha256, length, status"

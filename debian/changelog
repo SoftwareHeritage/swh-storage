@@ -1,8 +1,15 @@
-swh-storage (1.11.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.12.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.12.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2023-04-04 14:47:26 +0200)
+  * Upstream changes:     - v1.12.0     - * Remove any usage of ObjId in
+    objstorage's calls     - * Cap redis version dependency <4.5.0     -
+    * Explicitly convert BaseContent.hashes() as dict     - * Fix
+    test_replay for (future) evolution of the MultiHash class     - *
+    Make the storage compatible with future BaseContent.hashes() API
+    - * algos: Add directory_get_many_with_possibly_duplicated_entries
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 16 Mar 2023 15:34:34 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 04 Apr 2023 13:06:38 +0000
 
 swh-storage (1.11.0-1~swh1) unstable-swh; urgency=medium
 
