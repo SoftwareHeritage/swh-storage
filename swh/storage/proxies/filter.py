@@ -127,7 +127,9 @@ class FilteringProxyStorage:
                 storage
 
         """
-        missing_contents = [c.hashes() for c in contents if c.sha1_git is not None]
+        missing_contents = [
+            dict(c.hashes()) for c in contents if c.sha1_git is not None
+        ]
 
         ids = set()
         for c in self.storage.skipped_content_missing(missing_contents):
