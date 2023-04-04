@@ -1396,8 +1396,8 @@ class StorageInterface(Protocol):
         Note:
             The data returned by this function is by essence limited to objects that
             were recently added to the archive, and is pruned regularly. For
-            completeness, one must also query swh.graph for backwards edges targeting
-            the requested object.
+            completeness, one must also query :mod:`swh.graph` for backwards edges
+            targeting the requested object.
         """
         ...
 
@@ -1416,7 +1416,7 @@ class StorageInterface(Protocol):
 
         Note:
             these records are inserted in time-based partitions that can be pruned when
-            the objects are known in an up-to-date swh.graph instance.
+            the objects are known in an up-to-date :mod:`swh.graph` instance.
 
         Args:
             references: a list of ``(source, target)`` SWHID tuples
