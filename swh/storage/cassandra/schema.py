@@ -252,6 +252,7 @@ CREATE TABLE IF NOT EXISTS content_by_{main_algo} (
     PRIMARY KEY (({main_algo}), target_token)
 );
 
+-- Secondary table, used for looking up "skipped_content" from a single hash
 CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
     {main_algo}   blob,
     target_token  bigint, -- value of token(pk) on the "primary" table
