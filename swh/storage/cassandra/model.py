@@ -81,6 +81,7 @@ class ContentRow(BaseRow):
     blake2s256: bytes
     length: int
     ctime: datetime.datetime
+    """creation time, i.e. time of (first) injection into the storage"""
     status: str
 
 
@@ -95,6 +96,7 @@ class SkippedContentRow(BaseRow):
     blake2s256: Optional[bytes]
     length: Optional[int]
     ctime: Optional[datetime.datetime]
+    """creation time, i.e. time of (first) injection into the storage"""
     status: str
     reason: str
     origin: str
@@ -115,6 +117,7 @@ class DirectoryRow(BaseRow):
 
     id: bytes
     raw_manifest: Optional[bytes]
+    """NULL if the object can be rebuild from (sorted) entries"""
 
 
 @dataclasses.dataclass
@@ -125,9 +128,12 @@ class DirectoryEntryRow(BaseRow):
 
     directory_id: bytes
     name: bytes
+    """path name, relative to containing dir"""
     target: bytes
     perms: int
+    """unix-like permissions"""
     type: str
+    """target type"""
 
 
 @dataclasses.dataclass
@@ -140,13 +146,18 @@ class RevisionRow(BaseRow):
     committer_date: Optional[TimestampWithTimezone]
     type: str
     directory: bytes
+    """source code "root" directory"""
     message: bytes
     author: Person
     committer: Person
     synthetic: bool
+    """true iff revision has been created by Software Heritage"""
     metadata: str
+    """extra metadata as JSON(tarball checksums, etc...)"""
     extra_headers: dict
+    """extra commit information as (tuple(key, value), ...)"""
     raw_manifest: Optional[bytes]
+    """NULL if the object can be rebuild from other cells and revision_parent."""
 
 
 @dataclasses.dataclass
@@ -157,6 +168,7 @@ class RevisionParentRow(BaseRow):
 
     id: bytes
     parent_rank: int
+    """parent position in merge commits, 0-based"""
     parent_id: bytes
 
 
@@ -173,7 +185,9 @@ class ReleaseRow(BaseRow):
     message: bytes
     author: Person
     synthetic: bool
+    """true iff release has been created by Software Heritage"""
     raw_manifest: Optional[bytes]
+    """NULL if the object can be rebuild from other cells"""
 
 
 @dataclasses.dataclass
@@ -186,6 +200,11 @@ class SnapshotRow(BaseRow):
 
 @dataclasses.dataclass
 class SnapshotBranchRow(BaseRow):
+    """
+    For a given snapshot_id, branches are sorted by their name,
+    allowing easy pagination.
+    """
+
     TABLE = "snapshot_branch"
     PARTITION_KEY = ("snapshot_id",)
     CLUSTERING_KEY = ("name",)
@@ -235,6 +254,11 @@ class OriginRow(BaseRow):
     sha1: bytes
     url: str
     next_visit_id: int
+    """
+    We need integer visit ids for compatibility with the pgsql
+    storage, so we're using lightweight transactions with this trick:
+    https://stackoverflow.com/a/29391877/539465
+    """
 
 
 @dataclasses.dataclass
@@ -259,6 +283,34 @@ class MetadataFetcherRow(BaseRow):
 
 @dataclasses.dataclass
 class RawExtrinsicMetadataRow(BaseRow):
+    """
+    An explanation is in order for the primary key:
+
+    Intuitively, the primary key should only be 'id', because two metadata
+    entries are the same iff the id is the same; and 'id' is used for
+    deduplication.
+
+    However, we also want to query by
+    (target, authority_type, authority_url, discovery_date)
+    The naive solution to this would be an extra table, to use as index;
+    but it means 1. extra code to keep them in sync 2. overhead when writing
+    3. overhead + random reads (instead of linear) when reading.
+
+    Therefore, we use a single table for both, by adding the column
+    we want to query with before the id.
+    It solves both a) the query/order issues and b) the uniqueness issue because:
+
+    a) adding the id at the end of the primary key does not change the rows' order:
+       for two different rows, id1 != id2, so
+       (target1, ..., date1) < (target2, ..., date2)
+       <=> (target1, ..., date1, id1) < (target2, ..., date2, id2)
+
+    b) the id is a hash of all the columns, so:
+       rows are the same
+       <=> id1 == id2
+       <=> (target1, ..., date1, id1) == (target2, ..., date2, id2)
+    """
+
     TABLE = "raw_extrinsic_metadata"
     PARTITION_KEY = ("target",)
     CLUSTERING_KEY = (
@@ -273,15 +325,18 @@ class RawExtrinsicMetadataRow(BaseRow):
     type: str
     target: str
 
+    # metadata source:
     authority_type: str
     authority_url: str
     discovery_date: datetime.datetime
     fetcher_name: str
     fetcher_version: str
 
+    # metadata itself:
     format: str
     metadata: bytes
 
+    # context:
     origin: Optional[str]
     visit: Optional[int]
     snapshot: Optional[str]
@@ -335,3 +390,4 @@ class ExtIDByTargetRow(BaseRow):
     target_type: str
     target: bytes
     target_token: int
+    """value of token(pk) on the "primary" table"""
