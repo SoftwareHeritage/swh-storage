@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS skipped_content (
 );""",
     """
 CREATE TABLE IF NOT EXISTS revision (
-    id                              blob PRIMARY KEY,
+    id                              blob,
     date                            microtimestamp_with_timezone,
     committer_date                  microtimestamp_with_timezone,
     type                            ascii,
@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS revision (
     metadata                        text,
     extra_headers                   frozen<list <list<blob>> >,
     raw_manifest                    blob,
+    PRIMARY KEY ((id))
 );""",
     """
 CREATE TABLE IF NOT EXISTS revision_parent (
@@ -116,9 +117,8 @@ CREATE TABLE IF NOT EXISTS revision_parent (
     PRIMARY KEY ((id), parent_rank)
 );""",
     """
-CREATE TABLE IF NOT EXISTS release
-(
-    id                              blob PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS release (
+    id                              blob,
     target_type                     ascii,
     target                          blob,
     date                            microtimestamp_with_timezone,
@@ -127,11 +127,13 @@ CREATE TABLE IF NOT EXISTS release
     author                          person,
     synthetic                       boolean,
     raw_manifest                    blob,
+    PRIMARY KEY ((id))
 );""",
     """
 CREATE TABLE IF NOT EXISTS directory (
-    id              blob PRIMARY KEY,
-    raw_manifest                    blob
+    id              blob,
+    raw_manifest                    blob,
+    PRIMARY KEY ((id))
 );""",
     """
 CREATE TABLE IF NOT EXISTS directory_entry (
@@ -144,7 +146,8 @@ CREATE TABLE IF NOT EXISTS directory_entry (
 );""",
     """
 CREATE TABLE IF NOT EXISTS snapshot (
-    id              blob PRIMARY KEY,
+    id              blob,
+    PRIMARY KEY ((id))
 );""",
     """
 CREATE TABLE IF NOT EXISTS snapshot_branch (
@@ -177,9 +180,10 @@ WITH CLUSTERING ORDER BY (visit DESC, date DESC)
 ;""",  # 'WITH CLUSTERING ORDER BY' is optional with Cassandra 4, but ScyllaDB needs it
     """
 CREATE TABLE IF NOT EXISTS origin (
-    sha1            blob PRIMARY KEY,
+    sha1            blob,
     url             text,
     next_visit_id   int,
+    PRIMARY KEY ((sha1))
 );""",
     """
 CREATE TABLE IF NOT EXISTS metadata_authority (
