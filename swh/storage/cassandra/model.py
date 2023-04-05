@@ -372,7 +372,8 @@ class ObjectCountRow(BaseRow):
 @dataclasses.dataclass
 class ExtIDRow(BaseRow):
     TABLE = "extid"
-    PARTITION_KEY = ("target", "target_type", "extid_version", "extid", "extid_type")
+    PARTITION_KEY = ("extid_type", "extid")
+    CLUSTERING_KEY = ("extid_version", "target_type", "target")
 
     extid_type: str
     extid: bytes
