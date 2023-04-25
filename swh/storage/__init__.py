@@ -25,6 +25,7 @@ STORAGE_IMPLEMENTATIONS = {
     "retry": ".proxies.retry.RetryingProxyStorage",
     "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
     "validate": ".proxies.validate.ValidatingProxyStorage",
+    "record_references": ".proxies.record_references.RecordReferencesProxyStorage",
 }
 
 
