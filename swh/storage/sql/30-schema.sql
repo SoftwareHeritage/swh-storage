@@ -515,3 +515,19 @@ comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg re
 comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
 comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';
 comment on column extid.extid_version is 'Version of the extid type for the given original object';
+
+create table object_references
+(
+  insertion_date date not null default now(),
+  source_type object_type not null,
+  source sha1_git not null,
+  target_type object_type not null,
+  target sha1_git not null
+);
+
+comment on table object_references is 'Recent edges from the object (source_type, source) to the object (target_type, target) inserted in the archive';
+comment on column object_references.insertion_date is 'Date that the edge was inserted in the archive';
+comment on column object_references.source_type is 'Object type for the source of the edge';
+comment on column object_references.source is 'Object id for the source of the edge';
+comment on column object_references.target_type is 'Object type for the target of the edge';
+comment on column object_references.target is 'Object id for the target of the edge';

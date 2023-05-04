@@ -180,7 +180,7 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 187
+    current_version: int = 188
 
     def __init__(
         self,
@@ -1897,15 +1897,30 @@ class Storage:
     # 'object_references' table
     #########################
 
+    @db_transaction()
     def object_find_recent_references(
-        self, target_swhid: ExtendedSWHID, limit: int
+        self, target_swhid: ExtendedSWHID, limit: int, *, db: Db, cur=None
     ) -> List[ExtendedSWHID]:
-        return []
+        return [
+            converters.db_to_object_reference_source(row)
+            for row in db.object_references_get(
+                target_type=target_swhid.object_type.name.lower(),
+                target=target_swhid.object_id,
+                limit=limit,
+                cur=cur,
+            )
+        ]
 
+    @db_transaction()
     def object_references_add(
-        self, references: List[ObjectReference]
+        self, references: List[ObjectReference], *, db: Db, cur=None
     ) -> Dict[str, int]:
-        return {}
+        db.object_references_add(
+            (converters.object_reference_to_db(ref) for ref in references),
+            cur=cur,
+        )
+
+        return {"object_reference:add": len(references)}
 
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing"""

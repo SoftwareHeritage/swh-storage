@@ -8,6 +8,8 @@ import logging
 import random
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
+from psycopg2.extras import execute_values
+
 from swh.core.db import BaseDb
 from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
@@ -1669,3 +1671,30 @@ class Db(BaseDb):
             return row[0]
         else:
             return None
+
+    # 'object_references' table
+
+    _object_references_cols = ["target_type", "target", "source_type", "source"]
+
+    def object_references_get(
+        self, target_type: str, target: bytes, limit: int, cur=None
+    ):
+        cur = self._cursor(cur)
+        cur.execute(
+            """SELECT %s
+            FROM object_references
+            WHERE target_type = %%s and target=%%s
+            LIMIT %%s"""
+            % (", ".join(self._object_references_cols)),
+            (target_type, target, limit),
+        )
+        return [dict(zip(self._object_references_cols, row)) for row in cur.fetchall()]
+
+    def object_references_add(self, reference_rows, cur=None) -> None:
+        cur = self._cursor(cur)
+        execute_values(
+            cur,
+            """INSERT INTO object_references (source_type, source, target_type, target)
+            VALUES %s""",
+            reference_rows,
+        )
