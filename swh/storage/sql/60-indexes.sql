@@ -321,8 +321,3 @@ alter table object_counts_bucketed add primary key using index object_counts_buc
 -- used to query by (extid_type, extid) + to deduplicate the whole row
 create unique index concurrently on extid(extid_type, extid, extid_version, target_type, target);
 create index concurrently on extid(target_type, target);
-
--- object_references
-
-create unique index concurrently object_references_pkey on object_references(target_type, target, source_type, source, insertion_date);
-alter table object_references add primary key using index object_references_pkey;

@@ -1698,3 +1698,27 @@ class Db(BaseDb):
             VALUES %s""",
             reference_rows,
         )
+
+    def object_references_create_partition(
+        self, year: int, week: int, cur=None
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        # This date is guaranteed to be in week 1 by the ISO standard
+        in_week1 = datetime.date(year=year, month=1, day=4)
+        monday_of_week1 = in_week1 + datetime.timedelta(days=-in_week1.weekday())
+
+        monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
+        sunday = monday + datetime.timedelta(days=6)
+
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS object_references_%04dw%02d
+            PARTITION OF object_references
+            FOR VALUES FROM (%%s) TO (%%s)"""
+            % (year, week),
+            (monday.isoformat(), sunday.isoformat()),
+        )
+
+        return (monday, sunday)
