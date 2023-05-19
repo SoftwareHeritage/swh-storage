@@ -4750,6 +4750,39 @@ class TestStorage:
         assert partial_branches is not None
         assert partial_branches["branches"] == {}
 
+    def test_snapshot_get_branches_correct_branch_count(self, swh_storage, sample_data):
+
+        n = 20
+        branches = {}
+        for i in range(n):
+            branches[f"refs/heads/head{i:02d}".encode()] = SnapshotBranch(
+                target=sample_data.revision.id,
+                target_type=TargetType.REVISION,
+            )
+            branches[f"refs/tags/tag{i:02d}".encode()] = SnapshotBranch(
+                target=sample_data.release.id,
+                target_type=TargetType.RELEASE,
+            )
+        for i in range(n):
+            branches[f"refs/tags/tag{n+i:02d}".encode()] = SnapshotBranch(
+                target=sample_data.release.id,
+                target_type=TargetType.RELEASE,
+            )
+
+        snapshot = Snapshot(branches=branches)
+        swh_storage.snapshot_add([snapshot])
+
+        partial_branches = swh_storage.snapshot_get_branches(
+            snapshot.id, target_types=["release"], branches_count=n
+        )
+
+        assert len(partial_branches["branches"]) == n
+        assert all(
+            branch.target_type == TargetType.RELEASE
+            for branch in partial_branches["branches"].values()
+        )
+        assert partial_branches["next_branch"] == b"refs/tags/tag20"
+
     @settings(
         suppress_health_check=function_scoped_fixture_check,
     )

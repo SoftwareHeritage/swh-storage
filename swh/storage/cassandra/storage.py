@@ -1087,7 +1087,10 @@ class CassandraStorage:
 
             branches_from = new_branches[-1].name
 
-            new_branches_filtered = new_branches
+            if len(new_branches) > branches_count:
+                new_branches_filtered = new_branches[:-1]
+            else:
+                new_branches_filtered = new_branches
 
             # Filter by target_type
             if target_types:
@@ -1115,6 +1118,7 @@ class CassandraStorage:
                 break
 
         if len(branches) > branches_count:
+            branches = branches[: branches_count + 1]
             last_branch = branches.pop(-1).name
         else:
             last_branch = None
@@ -1122,10 +1126,12 @@ class CassandraStorage:
         return PartialBranches(
             id=snapshot_id,
             branches={
-                branch.name: None
-                if branch.target is None
-                else SnapshotBranch(
-                    target=branch.target, target_type=TargetType(branch.target_type)
+                branch.name: (
+                    None
+                    if branch.target is None
+                    else SnapshotBranch(
+                        target=branch.target, target_type=TargetType(branch.target_type)
+                    )
                 )
                 for branch in branches
             },
