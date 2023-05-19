@@ -936,7 +936,7 @@ class CqlRunner:
         branch_name_exclude_prefix: Optional[bytes] = None,
     ) -> Iterable[SnapshotBranchRow]:
         prefix = branch_name_exclude_prefix
-        if prefix is None:
+        if prefix is None or (from_ > prefix and not from_.startswith(prefix)):
             return self.snapshot_branch_get_from_name(snapshot_id, from_, limit)
         else:
             # get branches before the exclude prefix

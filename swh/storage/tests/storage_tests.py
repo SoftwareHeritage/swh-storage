@@ -4783,6 +4783,41 @@ class TestStorage:
         )
         assert partial_branches["next_branch"] == b"refs/tags/tag20"
 
+    def test_snapshot_get_branches_from_after_exclude_prefix(
+        self, swh_storage, sample_data
+    ):
+        snapshot = Snapshot(
+            branches={
+                b"refs/pulls/pull0": SnapshotBranch(
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
+                ),
+                b"refs/tags/tag00": SnapshotBranch(
+                    target=sample_data.release.id,
+                    target_type=TargetType.RELEASE,
+                ),
+                b"refs/tags/tag01": SnapshotBranch(
+                    target=sample_data.release.id,
+                    target_type=TargetType.RELEASE,
+                ),
+            }
+        )
+        swh_storage.snapshot_add([snapshot])
+
+        branches_from = b"refs/tags/tag01"
+        partial_branches = swh_storage.snapshot_get_branches(
+            snapshot.id,
+            branch_name_exclude_prefix=b"refs/pulls",
+            branches_from=branches_from,
+        )
+
+        assert len(partial_branches["branches"]) == 1
+        assert partial_branches["next_branch"] is None
+
+        assert partial_branches["branches"] == {
+            branches_from: snapshot.branches[branches_from]
+        }
+
     @settings(
         suppress_health_check=function_scoped_fixture_check,
     )
