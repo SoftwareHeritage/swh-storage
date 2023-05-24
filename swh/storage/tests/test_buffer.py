@@ -662,6 +662,8 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert 0 < len(releases) < threshold
     snapshots = sample_data.snapshots
     assert 0 < len(snapshots) < threshold
+    metadata = sample_data.content_metadata + sample_data.origin_metadata
+    assert 0 < len(metadata) < threshold
 
     storage = get_storage_with_buffer_config(
         min_batch_size={
@@ -670,8 +672,12 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
             "directory": threshold,
             "revision": threshold,
             "release": threshold,
+            "raw_extrinsic_metadata": threshold,
         }
     )
+
+    storage.metadata_authority_add(sample_data.authorities)
+    storage.metadata_fetcher_add(sample_data.fetchers)
 
     s = storage.content_add(contents)
     assert s == {}
@@ -685,6 +691,8 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert s == {}
     s = storage.snapshot_add(snapshots)
     assert s == {}
+    s = storage.raw_extrinsic_metadata_add(metadata)
+    assert s == {}
 
     assert len(storage._objects["content"]) == len(contents)
     assert len(storage._objects["skipped_content"]) == len(skipped_contents)
@@ -692,6 +700,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["revision"]) == len(revisions)
     assert len(storage._objects["release"]) == len(releases)
     assert len(storage._objects["snapshot"]) == len(snapshots)
+    assert len(storage._objects["raw_extrinsic_metadata"]) == len(metadata)
 
     # clear only content from the buffer
     s = storage.clear_buffers(["content"])  # type: ignore
@@ -705,6 +714,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["revision"]) == len(revisions)
     assert len(storage._objects["release"]) == len(releases)
     assert len(storage._objects["snapshot"]) == len(snapshots)
+    assert len(storage._objects["raw_extrinsic_metadata"]) == len(metadata)
 
     # clear current buffer from all object types
     s = storage.clear_buffers()  # type: ignore
@@ -716,6 +726,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["revision"]) == 0
     assert len(storage._objects["release"]) == 0
     assert len(storage._objects["snapshot"]) == 0
+    assert len(storage._objects["raw_extrinsic_metadata"]) == 0
 
 
 def test_buffer_proxy_with_default_args() -> None:
@@ -726,6 +737,9 @@ def test_buffer_proxy_with_default_args() -> None:
 
 def test_buffer_flush_stats(sample_data) -> None:
     storage = get_storage_with_buffer_config()
+
+    storage.metadata_authority_add(sample_data.authorities)
+    storage.metadata_fetcher_add(sample_data.fetchers)
 
     s = storage.content_add(sample_data.contents)
     assert s == {}
@@ -739,6 +753,10 @@ def test_buffer_flush_stats(sample_data) -> None:
     assert s == {}
     s = storage.snapshot_add(sample_data.snapshots)
     assert s == {}
+    s = storage.raw_extrinsic_metadata_add(
+        sample_data.content_metadata + sample_data.origin_metadata
+    )
+    assert s == {}
 
     # Flush all the things
     s = storage.flush()
@@ -749,22 +767,30 @@ def test_buffer_flush_stats(sample_data) -> None:
     assert s["revision:add"] > 0
     assert s["release:add"] > 0
     assert s["snapshot:add"] > 0
+    assert s["cnt_metadata:add"] > 0
+    assert s["ori_metadata:add"] > 0
 
 
 def test_buffer_operation_order(sample_data) -> None:
     storage = get_storage_with_buffer_config()
 
+    # not buffered (because they happen rarely)
+    storage.metadata_authority_add(sample_data.authorities)
+    storage.metadata_fetcher_add(sample_data.fetchers)
+
     # Wrap the inner storage in a mock to track all method calls.
     storage.storage = mocked_storage = Mock(wraps=storage.storage)
 
-    # Simulate a loader: add contents, directories, revisions, releases, then
-    # snapshots.
+    # Simulate a loader: add origin metadata, contents, directories, revisions,
+    # releases, snapshots, then content metadata.
+    storage.raw_extrinsic_metadata_add(sample_data.origin_metadata)
     storage.content_add(sample_data.contents)
     storage.skipped_content_add(sample_data.skipped_contents)
     storage.directory_add(sample_data.directories)
     storage.revision_add(sample_data.revisions)
     storage.release_add(sample_data.releases)
     storage.snapshot_add(sample_data.snapshots)
+    storage.raw_extrinsic_metadata_add(sample_data.content_metadata)
 
     # Check that nothing has been flushed yet
     assert mocked_storage.method_calls == []
@@ -775,6 +801,7 @@ def test_buffer_operation_order(sample_data) -> None:
     methods_called = [c[0] for c in mocked_storage.method_calls]
     prev = -1
     for method in [
+        "raw_extrinsic_metadata_add",
         "content_add",
         "skipped_content_add",
         "directory_add",
