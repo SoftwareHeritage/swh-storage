@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -39,7 +39,7 @@ from swh.model.model import (
 )
 from swh.model.model import Content, Directory, DirectoryEntry, ExtID
 from swh.model.model import ObjectType as ModelObjectType
-from swh.model.swhids import CoreSWHID, ObjectType
+from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
@@ -52,6 +52,7 @@ from swh.storage.exc import (
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.interface import (
     ListOrder,
+    ObjectReference,
     OriginVisitWithStatuses,
     PagedResult,
     StorageInterface,
@@ -4749,6 +4750,74 @@ class TestStorage:
         assert partial_branches is not None
         assert partial_branches["branches"] == {}
 
+    def test_snapshot_get_branches_correct_branch_count(self, swh_storage, sample_data):
+
+        n = 20
+        branches = {}
+        for i in range(n):
+            branches[f"refs/heads/head{i:02d}".encode()] = SnapshotBranch(
+                target=sample_data.revision.id,
+                target_type=TargetType.REVISION,
+            )
+            branches[f"refs/tags/tag{i:02d}".encode()] = SnapshotBranch(
+                target=sample_data.release.id,
+                target_type=TargetType.RELEASE,
+            )
+        for i in range(n):
+            branches[f"refs/tags/tag{n+i:02d}".encode()] = SnapshotBranch(
+                target=sample_data.release.id,
+                target_type=TargetType.RELEASE,
+            )
+
+        snapshot = Snapshot(branches=branches)
+        swh_storage.snapshot_add([snapshot])
+
+        partial_branches = swh_storage.snapshot_get_branches(
+            snapshot.id, target_types=["release"], branches_count=n
+        )
+
+        assert len(partial_branches["branches"]) == n
+        assert all(
+            branch.target_type == TargetType.RELEASE
+            for branch in partial_branches["branches"].values()
+        )
+        assert partial_branches["next_branch"] == b"refs/tags/tag20"
+
+    def test_snapshot_get_branches_from_after_exclude_prefix(
+        self, swh_storage, sample_data
+    ):
+        snapshot = Snapshot(
+            branches={
+                b"refs/pulls/pull0": SnapshotBranch(
+                    target=sample_data.revision.id,
+                    target_type=TargetType.REVISION,
+                ),
+                b"refs/tags/tag00": SnapshotBranch(
+                    target=sample_data.release.id,
+                    target_type=TargetType.RELEASE,
+                ),
+                b"refs/tags/tag01": SnapshotBranch(
+                    target=sample_data.release.id,
+                    target_type=TargetType.RELEASE,
+                ),
+            }
+        )
+        swh_storage.snapshot_add([snapshot])
+
+        branches_from = b"refs/tags/tag01"
+        partial_branches = swh_storage.snapshot_get_branches(
+            snapshot.id,
+            branch_name_exclude_prefix=b"refs/pulls",
+            branches_from=branches_from,
+        )
+
+        assert len(partial_branches["branches"]) == 1
+        assert partial_branches["next_branch"] is None
+
+        assert partial_branches["branches"] == {
+            branches_from: snapshot.branches[branches_from]
+        }
+
     @settings(
         suppress_health_check=function_scoped_fixture_check,
     )
@@ -5754,6 +5823,30 @@ class TestStorage:
 
         with pytest.raises(UnknownMetadataFetcher):
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
+
+    def test_object_references_add_find(self, swh_storage):
+        source = ExtendedSWHID.from_string(
+            "swh:1:snp:0000000000000000000000000000000000000000"
+        )
+        targets = [ExtendedSWHID.from_string(f"swh:1:rev:{i:040x}") for i in range(20)]
+
+        for target in targets:
+            refs = swh_storage.object_find_recent_references(
+                target_swhid=target, limit=10
+            )
+            assert refs == []
+
+        recorded = swh_storage.object_references_add(
+            [ObjectReference(source=source, target=target) for target in targets]
+        )
+
+        assert recorded["object_reference:add"] == len(targets)
+
+        for target in targets:
+            refs = swh_storage.object_find_recent_references(
+                target_swhid=target, limit=10
+            )
+            assert refs == [source]
 
 
 class TestStorageGeneratedData:

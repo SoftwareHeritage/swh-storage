@@ -10,6 +10,7 @@ from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.storage.postgresql.storage import Storage as StorageDatastore
+from swh.storage.pytest_plugin import create_object_references_partition
 from swh.storage.tests.test_postgresql import TestPgStorage  # noqa: F401
 from swh.storage.tests.test_postgresql import TestStorage  # noqa: F401
 from swh.storage.tests.test_postgresql import TestStorageRaceConditions  # noqa: F401
@@ -21,7 +22,8 @@ swh_storage_postgresql_proc = factories.postgresql_proc(
             modname="storage",
             flavor="read_replica",
             version=StorageDatastore.current_version,
-        )
+        ),
+        create_object_references_partition,
     ],
 )
 

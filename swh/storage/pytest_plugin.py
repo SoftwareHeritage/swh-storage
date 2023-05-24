@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import datetime
 from functools import partial
 import os
 import resource
@@ -16,6 +17,7 @@ from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.storage import get_storage
+from swh.storage.postgresql.db import Db as PostgreSQLDb
 from swh.storage.postgresql.storage import Storage as StorageDatastore
 from swh.storage.tests.storage_data import StorageData
 
@@ -227,13 +229,22 @@ def swh_storage_cassandra_backend_config(
     storage._cql_runner._cluster.shutdown()
 
 
+def create_object_references_partition(**kwargs):
+    db = PostgreSQLDb.connect(**kwargs)
+    with db.transaction() as cur:
+        db.object_references_create_partition(
+            *datetime.date.today().isocalendar()[0:2], cur=cur
+        )
+
+
 swh_storage_postgresql_proc = factories.postgresql_proc(
     load=[
         partial(
             initialize_database_for_module,
             modname="storage",
             version=StorageDatastore.current_version,
-        )
+        ),
+        create_object_references_partition,
     ],
 )
 
