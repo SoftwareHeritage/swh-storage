@@ -1,11 +1,13 @@
-# Copyright (C) 2018-2021  The Software Heritage developers
+# Copyright (C) 2018-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import dataclasses
 import datetime
 import itertools
-from typing import Any, Dict
+import re
+from typing import Any, Dict, Union
 
 import attr
 from cassandra.cluster import NoHostAvailable
@@ -13,11 +15,19 @@ import pytest
 
 from swh.core.api.classes import stream_results
 from swh.model import from_disk
-from swh.model.model import Directory, DirectoryEntry, Snapshot, SnapshotBranch
+from swh.model.model import (
+    Directory,
+    DirectoryEntry,
+    Person,
+    Snapshot,
+    SnapshotBranch,
+    TimestampWithTimezone,
+)
 from swh.storage import get_storage
 from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
-from swh.storage.cassandra.model import ContentRow, ExtIDRow
-from swh.storage.cassandra.schema import HASH_ALGORITHMS
+import swh.storage.cassandra.model
+from swh.storage.cassandra.model import BaseRow, ContentRow, ExtIDRow
+from swh.storage.cassandra.schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
 from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
@@ -30,6 +40,112 @@ from swh.storage.utils import now, remove_keys
 @pytest.fixture
 def swh_storage_backend_config(swh_storage_cassandra_backend_config):
     return swh_storage_cassandra_backend_config
+
+
+def _python_type_to_cql_type_re(ty: type) -> str:
+    if ty is bytes:
+        return "blob"
+    elif ty is str:
+        return "(ascii|text)"
+    elif ty is int:
+        return "(small||big)int"
+    elif ty is datetime.datetime:
+        return "timestamp"
+    elif ty is TimestampWithTimezone:
+        return "microtimestamp_with_timezone"
+    elif ty is Person:
+        return "person"
+    elif ty is bool:
+        return "boolean"
+    elif ty is dict:
+        return "frozen<list <list<blob>> >"
+    elif getattr(ty, "__origin__", None) is Union:
+        if len(ty.__args__) == 2 and type(None) in ty.__args__:  # type: ignore
+            (inner_type,) = [
+                arg
+                for arg in ty.__args__  # type: ignore
+                if arg is not type(None)  # noqa
+            ]
+            # This is Optional[inner_type]. CQL does not support NOT NULL,
+            # so the corresponding type is:
+            return _python_type_to_cql_type_re(inner_type)
+
+    assert False, f"Unsupported type: {ty}"
+
+
+def test_schema_matches_model():
+    """Checks tables defined in :mod:`swh.storage.cassandra.schema` match
+    the object model defined in :mod:`swh.storage.cassandra.model`.
+    """
+
+    models = {}  # {table_name: cls}
+    for obj_name in dir(swh.storage.cassandra.model):
+        cls = getattr(swh.storage.cassandra.model, obj_name)
+        if isinstance(cls, type) and issubclass(cls, BaseRow) and hasattr(cls, "TABLE"):
+            assert cls.TABLE not in models, f"Duplicate model for table {cls.TABLE}"
+            models[cls.TABLE] = cls
+
+    del models["object_count"]  # https://forge.softwareheritage.org/D6150
+
+    statements = {}  # {table_name: statement}
+    for statement in CREATE_TABLES_QUERIES:
+        statement = re.sub(" +", " ", statement.strip())  # normalize whitespace
+        if statement.startswith(
+            (
+                "CREATE TYPE ",
+                "CREATE OR REPLACE FUNCTION",
+                "CREATE OR REPLACE AGGREGATE",
+                "-- Secondary table",
+            )
+        ):
+            continue
+        prefix = "CREATE TABLE IF NOT EXISTS "
+        assert statement.startswith(prefix)
+        table_name = statement[len(prefix) :].split(" ", 1)[0]
+        assert (
+            table_name not in statements
+        ), f"Duplicate statement for table {table_name}"
+
+        statements[table_name] = statement
+
+    assert set(models) - set(statements) == set(), "Missing statements"
+    assert set(statements) - set(models) == set(), "Missing models"
+
+    mismatches = []
+    for table_name in list(models):
+        # Compute what we expect the statement to look like:
+        model = models[table_name]
+        expected_lines = [rf"CREATE TABLE IF NOT EXISTS {model.TABLE} \("]
+        for field in dataclasses.fields(model):
+            expected_lines.append(
+                f" {field.name} {_python_type_to_cql_type_re(field.type)},"
+            )
+
+        partition_key = ", ".join(model.PARTITION_KEY)
+        clustering_key = "".join(", " + col for col in model.CLUSTERING_KEY)
+        expected_lines.append(rf" PRIMARY KEY \(\({partition_key}\){clustering_key}\)")
+
+        if table_name == "origin_visit_status":
+            # we need to special-case this one
+            expected_lines.append(r"\)")
+            expected_lines.append(r"WITH CLUSTERING ORDER BY \(visit DESC, date DESC\)")
+            expected_lines.append(r";")
+        else:
+            expected_lines.append(r"\);")
+
+        statement = statements[table_name]
+        actual_lines = statement.split("\n")
+
+        mismatches.extend(
+            (table_name, expected_line, actual_line)
+            for (expected_line, actual_line) in zip(expected_lines, actual_lines)
+            if not re.match(expected_line, actual_line)
+        )
+
+    assert not mismatches, "\n" + "\n".join(
+        f"{table_name}:\t{actual_line!r} did not match {expected_line!r}"
+        for (table_name, expected_line, actual_line) in mismatches
+    )
 
 
 # tests are executed using imported classes (TestStorage and

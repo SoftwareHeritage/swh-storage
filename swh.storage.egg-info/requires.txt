@@ -5,7 +5,7 @@ flask
 iso8601
 mypy_extensions
 psycopg2
-redis<4.5.0
+redis
 tenacity!=8.2.0,>=6.2
 typing-extensions
 swh.core[db,http]>=2.20.0

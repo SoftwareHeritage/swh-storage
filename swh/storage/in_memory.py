@@ -35,6 +35,7 @@ from swh.storage.cassandra.model import (
     MetadataAuthorityRow,
     MetadataFetcherRow,
     ObjectCountRow,
+    ObjectReferenceRow,
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
@@ -171,6 +172,7 @@ class InMemoryCqlRunner:
         self._raw_extrinsic_metadata = Table(RawExtrinsicMetadataRow)
         self._raw_extrinsic_metadata_by_id = Table(RawExtrinsicMetadataByIdRow)
         self._extid = Table(ExtIDRow)
+        self._object_references = Table(ObjectReferenceRow)
         self._stat_counters = defaultdict(int)
 
     def _get_token_range(
@@ -860,6 +862,19 @@ class InMemoryCqlRunner:
         else:
             extids = self._extid_get_from_target(target_type, target)
         return extids
+
+    def object_reference_add_concurrent(
+        self, entries: List[ObjectReferenceRow]
+    ) -> None:
+        for entry in entries:
+            self._object_references.insert(entry)
+
+    def object_reference_get(
+        self, target: Sha1Git, target_type: str, limit: int
+    ) -> Iterable[ObjectReferenceRow]:
+        return itertools.islice(
+            self._object_references.get_from_partition_key((target_type, target)), limit
+        )
 
 
 class InMemoryStorage(CassandraStorage):

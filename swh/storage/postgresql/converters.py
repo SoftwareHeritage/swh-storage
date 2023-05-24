@@ -5,7 +5,7 @@
 
 import datetime
 import math
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import warnings
 
 from swh.core.utils import encode_with_unescape
@@ -24,8 +24,11 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
-from swh.model.swhids import CoreSWHID, ExtendedSWHID
+from swh.model.swhids import CoreSWHID
+from swh.model.swhids import ExtendedObjectType as SwhidExtendedObjectType
+from swh.model.swhids import ExtendedSWHID
 from swh.model.swhids import ObjectType as SwhidObjectType
+from swh.storage.interface import ObjectReference
 
 from ..utils import map_optional
 
@@ -377,4 +380,22 @@ def db_to_extid(row) -> ExtID:
             object_id=row["target"],
             object_type=SwhidObjectType[row["target_type"].upper()],
         ),
+    )
+
+
+def object_reference_to_db(
+    reference: ObjectReference,
+) -> Tuple[str, bytes, str, bytes]:
+    return (
+        reference.source.object_type.name.lower(),
+        reference.source.object_id,
+        reference.target.object_type.name.lower(),
+        reference.target.object_id,
+    )
+
+
+def db_to_object_reference_source(row) -> ExtendedSWHID:
+    return ExtendedSWHID(
+        object_id=row["source"],
+        object_type=SwhidExtendedObjectType[row["source_type"].upper()],
     )

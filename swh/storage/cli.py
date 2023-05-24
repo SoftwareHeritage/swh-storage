@@ -283,6 +283,50 @@ def replay(ctx, stop_after_objects, object_types):
         client.close()
 
 
+@storage.command
+@click.argument("start")
+@click.argument("end")
+@click.pass_context
+def create_object_reference_partitions(ctx: click.Context, start: str, end: str):
+    """Create object_reference partitions from START_DATE to END_DATE"""
+
+    import datetime
+
+    from swh.storage import get_storage
+    from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
+
+    storage = get_storage(**ctx.obj["config"]["storage"])
+
+    if not isinstance(storage, PostgreSQLStorage):
+        ctx.fail("Storage instance needs to be a direct PostgreSQL storage")
+
+    start_date = datetime.date.fromisoformat(start)
+    end_date = datetime.date.fromisoformat(end)
+
+    if start_date > end_date:
+        ctx.fail("Start date must be before end date.")
+
+    cur_date = start_date
+    end_year, end_week = end_date.isocalendar()[0:2]
+    while True:
+        year, week = cur_date.isocalendar()[0:2]
+        if (year, week) > (end_year, end_week):
+            break
+
+        with storage.db() as db:
+            with db.transaction() as cur:
+                monday, sunday = db.object_references_create_partition(
+                    year, week, cur=cur
+                )
+
+        click.echo(
+            "Created object references table for dates between %s and %s"
+            % (monday, sunday)
+        )
+
+        cur_date += datetime.timedelta(days=7)
+
+
 def ensure_check_config(storage_cfg: Dict, check_config: Optional[str], default: str):
     """Helper function to inject the setting of check_config option in the storage config
     dict according to the expected default value (default value depends on the command,

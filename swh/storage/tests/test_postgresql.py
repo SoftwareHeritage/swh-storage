@@ -6,6 +6,7 @@
 from contextlib import contextmanager
 import queue
 import threading
+from typing import Dict
 from unittest.mock import Mock
 
 import attr
@@ -27,6 +28,19 @@ def db_transaction(storage):
 @pytest.mark.db
 def test_pgstorage_flavor(swh_storage):
     assert swh_storage.get_flavor() == "default"
+
+
+def get_object_references_partition_bounds(swh_storage) -> Dict[str, str]:
+    """Generates a dict mapping the name of partitions of the `object_references` table to
+    their bounds in ``FOR VALUES FROM (start) TO (end)`` format"""
+    with db_transaction(swh_storage) as (_, cur):
+        cur.execute(
+            """select relname, pg_get_expr(relpartbound, oid)
+                   from pg_partition_tree('object_references') pt
+                     inner join pg_class on relid=pg_class.oid
+                   where isleaf=true"""
+        )
+        return {row[0]: row[1] for row in cur}
 
 
 class TestStorage(_TestStorage):
@@ -386,6 +400,18 @@ class TestPgStorage:
             [release.id, release2.id], ignore_displayname=True
         )
         assert releases == [release, release2]
+
+    def test_object_references_create_partition(self, swh_storage):
+        with db_transaction(swh_storage) as (db, cur):
+            db.object_references_create_partition(year=2020, week=6, cur=cur)
+
+        partitions = get_object_references_partition_bounds(swh_storage)
+
+        assert (
+            partitions["object_references_2020w06"]
+            == "FOR VALUES FROM ('2020-02-03') TO ('2020-02-09')"
+        )
+        assert "object_references_2020w07" not in partitions
 
     def test_clear_buffers(self, swh_storage):
         """Calling clear buffers on real storage does nothing"""

@@ -117,6 +117,7 @@ swh/storage/proxies/__init__.py
 swh/storage/proxies/buffer.py
 swh/storage/proxies/counter.py
 swh/storage/proxies/filter.py
+swh/storage/proxies/record_references.py
 swh/storage/proxies/retry.py
 swh/storage/proxies/tenacious.py
 swh/storage/proxies/validate.py
@@ -299,6 +300,7 @@ swh/storage/sql/upgrades/184.sql
 swh/storage/sql/upgrades/185.sql
 swh/storage/sql/upgrades/186.sql
 swh/storage/sql/upgrades/187.sql
+swh/storage/sql/upgrades/188.sql
 swh/storage/tests/__init__.py
 swh/storage/tests/conftest.py
 swh/storage/tests/storage_data.py
@@ -322,6 +324,7 @@ swh/storage/tests/test_postgresql_converters.py
 swh/storage/tests/test_postgresql_flavor_mirror.py
 swh/storage/tests/test_postgresql_flavor_readreplica.py
 swh/storage/tests/test_pytest_plugin.py
+swh/storage/tests/test_record_references.py
 swh/storage/tests/test_replay.py
 swh/storage/tests/test_retry.py
 swh/storage/tests/test_revision_bw_compat.py
