@@ -1,3 +1,13 @@
+swh-storage (1.13.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.13.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2023-05-24 14:04:51 +0200)
+  * Upstream changes:     - v1.13.0     - cassandra: minor tweaks in the
+    schema     - improve typing     - preparation work for TDN support
+    - small fixes     - drop constraint on redis version dependency
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 24 May 2023 12:27:35 +0000
+
 swh-storage (1.12.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.12.0     - (tagged by Valentin Lorentz
