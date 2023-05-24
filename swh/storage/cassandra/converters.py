@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020  The Software Heritage developers
+# Copyright (C) 2019-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,8 +12,6 @@ import attr
 
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import (
-    CoreSWHID,
-    ExtendedSWHID,
     MetadataAuthority,
     MetadataAuthorityType,
     MetadataFetcher,
@@ -26,9 +24,12 @@ from swh.model.model import (
     RevisionType,
     Sha1Git,
 )
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
+from swh.storage.interface import ObjectReference
 
 from ..utils import map_optional, remove_keys
 from .model import (
+    ObjectReferenceRow,
     OriginVisitRow,
     OriginVisitStatusRow,
     RawExtrinsicMetadataRow,
@@ -145,4 +146,24 @@ def row_to_raw_extrinsic_metadata(row: RawExtrinsicMetadataRow) -> RawExtrinsicM
         revision=map_optional(CoreSWHID.from_string, row.revision),
         path=row.path,
         directory=map_optional(CoreSWHID.from_string, row.directory),
+    )
+
+
+def object_reference_to_row(object_reference: ObjectReference) -> ObjectReferenceRow:
+    return ObjectReferenceRow(
+        source_type=object_reference.source.object_type.value,
+        source=object_reference.source.object_id,
+        target_type=object_reference.target.object_type.value,
+        target=object_reference.target.object_id,
+    )
+
+
+def row_to_object_reference(row: ObjectReferenceRow) -> ObjectReference:
+    return ObjectReference(
+        source=ExtendedSWHID(
+            object_type=ExtendedObjectType(row.source_type), object_id=row.source
+        ),
+        target=ExtendedSWHID(
+            object_type=ExtendedObjectType(row.target_type), object_id=row.target
+        ),
     )

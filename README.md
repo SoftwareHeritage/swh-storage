@@ -156,7 +156,7 @@ If the python package has been properly installed (e.g. in a virtual env), you
 should be able to use the command:
 
 ```
-(swh) :~/swh-storage$ swh storage rpc-serve storage.yml
+(swh) :~/swh-storage$ swh storage -C storage.yml rpc-serve
 ```
 
 This runs a local swh-storage api at 5002 port.

@@ -47,8 +47,8 @@ def monkeypatch_retry_sleep(monkeypatch):
     monkeypatch.setattr(obj_in_objstorage.retry, "sleep", lambda x: None)
 
 
-def invoke(*args, env=None, journal_config=None):
-    config = copy.deepcopy(CLI_CONFIG)
+def invoke(*args, env=None, journal_config=None, local_config=None):
+    config = local_config or copy.deepcopy(CLI_CONFIG)
     if journal_config:
         config["journal_client"] = journal_config.copy()
         config["journal_client"]["cls"] = "kafka"
@@ -137,3 +137,63 @@ def test_replay_type_list():
         "Make sure the list of accepted types in cli.py "
         "matches implementation in replay.py"
     )
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected_weeks", "unexpected_weeks"),
+    (
+        pytest.param(
+            "2020-02-03",
+            "2020-02-09",
+            [("2020w06", "2020-02-03", "2020-02-09")],
+            ["2020w05", "2020w07"],
+            id="single-week",
+        ),
+        pytest.param(
+            "2023-01-01",
+            "2023-01-01",
+            [("2022w52", "2022-12-26", "2023-01-01")],
+            ["2022w51", "2023w01"],
+            id="week-in-another-year",
+        ),
+        pytest.param(
+            "2023-01-01",
+            "2023-01-17",
+            [
+                ("2022w52", "2022-12-26", "2023-01-01"),
+                ("2023w01", "2023-01-02", "2023-01-08"),
+                ("2023w02", "2023-01-09", "2023-01-15"),
+                ("2023w03", "2023-01-16", "2023-01-22"),
+            ],
+            ["2022w51", "2023w04"],
+            id="multiple-weeks",
+        ),
+    ),
+)
+def test_create_object_reference_partitions_postgresql(
+    swh_storage_postgresql_backend_config, start, end, expected_weeks, unexpected_weeks
+):
+    storage_config = {"storage": swh_storage_postgresql_backend_config}
+    result = invoke(
+        "create-object-reference-partitions",
+        start,
+        end,
+        local_config=storage_config,
+    )
+
+    assert result.exit_code == 0, result.output
+
+    swh_storage = get_storage(**swh_storage_postgresql_backend_config)
+
+    from .test_postgresql import get_object_references_partition_bounds
+
+    partitions = get_object_references_partition_bounds(swh_storage)
+
+    for week, expected_start, expected_end in expected_weeks:
+        assert (
+            partitions[f"object_references_{week}"]
+            == f"FOR VALUES FROM ('{expected_start}') TO ('{expected_end}')"
+        )
+
+    for week in unexpected_weeks:
+        assert f"object_references_{week}" not in partitions

@@ -58,6 +58,7 @@ from swh.storage.interface import (
     VISIT_STATUSES,
     HashDict,
     ListOrder,
+    ObjectReference,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
@@ -1086,7 +1087,10 @@ class CassandraStorage:
 
             branches_from = new_branches[-1].name
 
-            new_branches_filtered = new_branches
+            if len(new_branches) > branches_count:
+                new_branches_filtered = new_branches[:-1]
+            else:
+                new_branches_filtered = new_branches
 
             # Filter by target_type
             if target_types:
@@ -1114,6 +1118,7 @@ class CassandraStorage:
                 break
 
         if len(branches) > branches_count:
+            branches = branches[: branches_count + 1]
             last_branch = branches.pop(-1).name
         else:
             last_branch = None
@@ -1121,10 +1126,12 @@ class CassandraStorage:
         return PartialBranches(
             id=snapshot_id,
             branches={
-                branch.name: None
-                if branch.target is None
-                else SnapshotBranch(
-                    target=branch.target, target_type=TargetType(branch.target_type)
+                branch.name: (
+                    None
+                    if branch.target is None
+                    else SnapshotBranch(
+                        target=branch.target, target_type=TargetType(branch.target_type)
+                    )
                 )
                 for branch in branches
             },
@@ -1932,6 +1939,28 @@ class CassandraStorage:
                 for extidrow in extidrows
             )
         return result
+
+    #########################
+    # 'object_references' table
+    #########################
+
+    def object_find_recent_references(
+        self, target_swhid: ExtendedSWHID, limit: int
+    ) -> List[ExtendedSWHID]:
+        rows = self._cql_runner.object_reference_get(
+            target=target_swhid.object_id,
+            target_type=target_swhid.object_type.value,
+            limit=limit,
+        )
+        return [converters.row_to_object_reference(row).source for row in rows]
+
+    def object_references_add(
+        self, references: List[ObjectReference]
+    ) -> Dict[str, int]:
+        self._cql_runner.object_reference_add_concurrent(
+            [converters.object_reference_to_row(reference) for reference in references]
+        )
+        return {"object_reference:add": len(references)}
 
     ##########################
     # misc.

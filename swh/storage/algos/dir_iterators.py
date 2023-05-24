@@ -1,4 +1,4 @@
-# Copyright (C) 2018  The Software Heritage developers
+# Copyright (C) 2018-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,23 +10,28 @@
 #   - the reference implementation in go:
 #     https://github.com/src-d/go-git/tree/master/utils/merkletrie
 
+from __future__ import annotations
 
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from swh.model.model import Directory
+from swh.storage.interface import StorageInterface
 
 # get the hash identifier for an empty directory
 _empty_dir_hash = Directory(entries=()).id
 
 
-def _get_dir(storage, dir_id):
+def _get_dir(
+    storage: StorageInterface, dir_id: Optional[bytes]
+) -> List[Dict[str, Any]]:
     """
     Return directory data from swh storage.
     """
-    return storage.directory_ls(dir_id) if dir_id else []
+    return list(storage.directory_ls(dir_id)) if dir_id else []
 
 
-class DirectoryIterator(object):
+class DirectoryIterator:
     """
     Helper class used to iterate on a directory tree in a depth-first search
     way with some additional features:
@@ -37,7 +42,9 @@ class DirectoryIterator(object):
       go deeper if two directories have the same hash)
     """
 
-    def __init__(self, storage, dir_id, base_path=b""):
+    def __init__(
+        self, storage: StorageInterface, dir_id: Optional[bytes], base_path: bytes = b""
+    ):
         """
         Args:
             storage (swh.storage.interface.StorageInterface): instance of
@@ -51,24 +58,24 @@ class DirectoryIterator(object):
         self.base_path = base_path
         self.restart()
 
-    def restart(self):
+    def restart(self) -> None:
         """
         Restart the iteration at the beginning.
         """
         # stack of frames representing currently visited directories:
         # the root directory is at the bottom while the current one
         # is at the top
-        self.frames = []
+        self.frames: List[List[Dict[str, Any]]] = []
         self._push_dir_frame(self.root_dir_id)
         self.has_started = False
 
-    def _push_dir_frame(self, dir_id):
+    def _push_dir_frame(self, dir_id: Optional[bytes]) -> None:
         """
         Visit a sub-directory by pushing a new frame to the stack.
         Each frame is itself a stack of directory entries.
 
         Args:
-            dir_id (bytes): identifier of a root directory
+            dir_id: identifier of a root directory
         """
         # get directory entries
         dir_data = _get_dir(self.storage, dir_id)
@@ -79,16 +86,16 @@ class DirectoryIterator(object):
         # push the directory frame to the main stack
         self.frames.append(dir_data)
 
-    def top(self):
+    def top(self) -> Optional[List[Dict[str, Any]]]:
         """
         Returns:
-            list: The top frame of the main directories stack
+            The top frame of the main directories stack
         """
         if not self.frames:
             return None
         return self.frames[-1]
 
-    def current(self):
+    def current(self) -> Optional[Dict[str, Any]]:
         """
         Returns:
             dict: The current visited directory entry, i.e. the
@@ -99,27 +106,29 @@ class DirectoryIterator(object):
             return None
         return top_frame[-1]
 
-    def current_hash(self):
+    def current_hash(self) -> bytes:
         """
         Returns:
-            bytes: The hash value of the currently visited directory
-            entry
+            The hash value of the currently visited directory entry
         """
-        return self.current()["target"]
+        current = self.current()
+        assert current is not None
+        return current["target"]
 
-    def current_perms(self):
+    def current_perms(self) -> int:
         """
         Returns:
-            int: The permissions value of the currently visited directory
-            entry
+            The permissions value of the currently visited directory entry
         """
-        return self.current()["perms"]
+        current = self.current()
+        assert current is not None
+        return current["perms"]
 
-    def current_path(self):
+    def current_path(self) -> Optional[bytes]:
         """
         Returns:
-            str: The absolute path from the root directory of
-            the currently visited directory entry
+            The absolute path from the root directory of the currently visited
+            directory entry
         """
         top_frame = self.top()
         if not top_frame:
@@ -129,24 +138,25 @@ class DirectoryIterator(object):
             path.append(frame[-1]["name"])
         return self.base_path + b"/".join(path)
 
-    def current_is_dir(self):
+    def current_is_dir(self) -> bool:
         """
         Returns:
-            bool: If the currently visited directory entry is
-            a directory
+            If the currently visited directory entry is a directory
         """
-        return self.current()["type"] == "dir"
+        current = self.current()
+        assert current is not None
+        return current["type"] == "dir"
 
-    def _advance(self, descend):
+    def _advance(self, descend: bool) -> Optional[Dict[str, Any]]:
         """
         Advance in the tree iteration.
 
         Args:
-            descend (bool): whether or not to push a new frame
-                if the currently visited element is a sub-directory
+            descend: whether or not to push a new frame if the currently
+            visited element is a sub-directory
 
         Returns:
-            dict: The description of the newly visited directory entry
+            The description of the newly visited directory entry
         """
         current = self.current()
         if not self.has_started or not current:
@@ -160,7 +170,7 @@ class DirectoryIterator(object):
 
         return self.current()
 
-    def next(self):
+    def next(self) -> Optional[Dict[str, Any]]:
         """
         Advance the tree iteration by dropping the current visited
         directory entry from the top frame. If the top frame ends up empty,
@@ -168,22 +178,22 @@ class DirectoryIterator(object):
         as the tree is climbed up towards its root.
 
         Returns:
-            dict: The description of the newly visited directory entry
+            The description of the newly visited directory entry
         """
         return self._advance(False)
 
-    def step(self):
+    def step(self) -> Optional[Dict[str, Any]]:
         """
         Advance the tree iteration like the next operation with the
         difference that if the current visited element is a sub-directory
         a new frame representing its content is pushed to the main stack.
 
         Returns:
-            dict: The description of the newly visited directory entry
+            The description of the newly visited directory entry
         """
         return self._advance(True)
 
-    def drop(self):
+    def drop(self) -> None:
         """
         Drop the current visited element from the top frame.
         If the frame ends up empty, the operation is recursively
@@ -197,32 +207,31 @@ class DirectoryIterator(object):
             self.frames.pop()
             self.drop()
 
-    def __next__(self):
+    def __next__(self) -> Dict[str, Any]:
         entry = self.step()
         if not entry:
             raise StopIteration
         entry["path"] = self.current_path()
         return entry
 
-    def __iter__(self):
+    def __iter__(self) -> DirectoryIterator:
         return DirectoryIterator(self.storage, self.root_dir_id, self.base_path)
 
 
-def dir_iterator(storage, dir_id):
+def dir_iterator(storage: StorageInterface, dir_id: bytes) -> DirectoryIterator:
     """
     Return an iterator for recursively visiting a directory and
     its sub-directories. The associated paths are visited in
     lexicographic depth-first search order.
 
     Args:
-        storage (swh.storage.Storage): an instance of a swh storage
-        dir_id (bytes): a directory identifier
+        storage: an instance of a swh storage
+        dir_id: a directory identifier
 
     Returns:
-        swh.storage.algos.dir_iterators.DirectoryIterator: an iterator
-            returning a dict at each iteration step describing a directory
-            entry. A 'path' field is added in that dict to store the
-            absolute path of the entry.
+        an iterator returning a dict at each iteration step describing
+        a directory entry. A ``path`` field is added in that dict to store
+        the absolute path of the entry.
     """
     return DirectoryIterator(storage, dir_id)
 
@@ -239,25 +248,27 @@ class Remaining(Enum):
     BothHaveFiles = 3
 
 
-class DoubleDirectoryIterator(object):
+class DoubleDirectoryIterator:
     """
     Helper class to traverse two directory trees at the same
     time and compare their contents to detect changes between them.
     """
 
-    def __init__(self, storage, dir_from, dir_to):
+    def __init__(
+        self, storage: StorageInterface, dir_from: Optional[bytes], dir_to: bytes
+    ):
         """
         Args:
             storage: instance of swh storage
-            dir_from (bytes): hash identifier of the from directory
-            dir_to (bytes): hash identifier of the to directory
+            dir_from: hash identifier of the from directory
+            dir_to: hash identifier of the to directory
         """
         self.storage = storage
         self.dir_from = dir_from
         self.dir_to = dir_to
         self.restart()
 
-    def restart(self):
+    def restart(self) -> None:
         """
         Restart the double iteration at the beginning.
         """
@@ -268,45 +279,45 @@ class DoubleDirectoryIterator(object):
         self.it_from.next()
         self.it_to.next()
 
-    def next_from(self):
+    def next_from(self) -> None:
         """
         Apply the next operation on the from iterator.
         """
         self.it_from.next()
 
-    def next_to(self):
+    def next_to(self) -> None:
         """
         Apply the next operation on the to iterator.
         """
         self.it_to.next()
 
-    def next_both(self):
+    def next_both(self) -> None:
         """
         Apply the next operation on both iterators.
         """
         self.next_from()
         self.next_to()
 
-    def step_from(self):
+    def step_from(self) -> None:
         """
         Apply the step operation on the from iterator.
         """
         self.it_from.step()
 
-    def step_to(self):
+    def step_to(self) -> None:
         """
         Apply the step operation on the from iterator.
         """
         self.it_to.step()
 
-    def step_both(self):
+    def step_both(self) -> None:
         """
         Apply the step operation on the both iterators.
         """
         self.step_from()
         self.step_to()
 
-    def remaining(self):
+    def remaining(self) -> Remaining:
         """
         Returns:
             Remaining: the current state of the double iteration
@@ -326,24 +337,24 @@ class DoubleDirectoryIterator(object):
         else:
             return Remaining.BothHaveFiles
 
-    def compare(self):
+    def compare(self) -> Dict[str, Any]:
         """
         Compare the current iterated directory entries in both iterators
         and return the comparison status.
 
         Returns:
-            dict: The status of the comparison with the following bool values:
-                * *same_hash*: indicates if the two entries have the same hash
-                * *same_perms*: indicates if the two entries have the same
+            The status of the comparison with the following bool values:
+                * ``same_hash``: indicates if the two entries have the same hash
+                * ``same_perms``: indicates if the two entries have the same
                   permissions
-                * *both_are_dirs*: indicates if the two entries are directories
-                * *both_are_files*: indicates if the two entries are regular
+                * ``both_are_dirs``: indicates if the two entries are directories
+                * ``both_are_files``: indicates if the two entries are regular
                   files
-                * *file_and_dir*: indicates if one of the entry is a directory
+                * ``file_and_dir``: indicates if one of the entry is a directory
                   and the other a regular file
-                * *from_is_empty_dir*: indicates if the from entry is the
+                * ``from_is_empty_dir``: indicates if the from entry is the
                   empty directory
-                * *from_is_empty_dir*: indicates if the to entry is the
+                * ``to_is_empty_dir``: indicates if the to entry is the
                   empty directory
         """
         from_current_hash = self.it_from.current_hash()

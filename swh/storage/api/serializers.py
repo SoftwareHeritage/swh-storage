@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022  The Software Heritage developers
+# Copyright (C) 2020-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -33,6 +33,10 @@ def _encode_origin_visit_with_statuses(
     }
 
 
+def _encode_object_reference(object_reference: interface.ObjectReference) -> List[str]:
+    return [str(object_reference.source), str(object_reference.target)]
+
+
 def _decode_origin_visit_with_statuses(
     ovws: Dict[str, Any],
 ) -> interface.OriginVisitWithStatuses:
@@ -54,6 +58,13 @@ def _decode_storage_enum(d):
     return getattr(interface, d.pop("__type__"))(d["value"])
 
 
+def _decode_object_reference(d):
+    return interface.ObjectReference(
+        source=swhids.ExtendedSWHID.from_string(d[0]),
+        target=swhids.ExtendedSWHID.from_string(d[1]),
+    )
+
+
 ENCODERS: List[Tuple[type, str, Callable]] = [
     (model.BaseModel, "model", _encode_model_object),
     (swhids.CoreSWHID, "core_swhid", str),
@@ -68,6 +79,11 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
         "origin_visit_with_statuses",
         _encode_origin_visit_with_statuses,
     ),
+    (
+        interface.ObjectReference,
+        "object_reference",
+        _encode_object_reference,
+    ),
 ]
 
 
@@ -81,4 +97,5 @@ DECODERS: Dict[str, Callable] = {
     "model_enum": _decode_model_enum,
     "storage_enum": _decode_storage_enum,
     "origin_visit_with_statuses": _decode_origin_visit_with_statuses,
+    "object_reference": _decode_object_reference,
 }
