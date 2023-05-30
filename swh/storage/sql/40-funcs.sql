@@ -143,7 +143,8 @@ create or replace function swh_content_add()
 as $$
 begin
     insert into content (sha1, sha1_git, sha256, blake2s256, length, status, ctime)
-        select distinct sha1, sha1_git, sha256, blake2s256, length, status, ctime from tmp_content;
+        select distinct sha1, sha1_git, sha256, blake2s256, length, status, ctime from tmp_content
+        order by sha1;
     return;
 end
 $$;
@@ -160,11 +161,12 @@ as $$
 begin
     insert into skipped_content (sha1, sha1_git, sha256, blake2s256, length, status, reason, origin)
         select distinct sha1, sha1_git, sha256, blake2s256, length, status, reason, origin
-	from tmp_skipped_content
-	where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in (
+        from tmp_skipped_content
+        where (coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')) in (
             select coalesce(sha1, ''), coalesce(sha1_git, ''), coalesce(sha256, '')
             from swh_skipped_content_missing()
-        );
+        )
+        order by sha1, sha1_git, sha256, blake2s256;
         -- TODO XXX use postgres 9.5 "UPSERT" support here, when available.
         -- Specifically, using "INSERT .. ON CONFLICT IGNORE" we can avoid
         -- the extra swh_skipped_content_missing() query here.
@@ -227,6 +229,7 @@ begin
     select 1
     from directory_entry_%1$s i
     where t.target = i.target and t.name = i.name and t.perms = i.perms)
+    order by target, name
    ', typ);
 
     execute format('
@@ -566,7 +569,8 @@ begin
         select 1
         from person p
         where t.fullname = p.fullname
-    );
+    )
+    order by fullname;
     return;
 end
 $$;
@@ -584,7 +588,8 @@ begin
     select              t.id, t.date, t.date_offset, t.date_neg_utc_offset, t.date_offset_bytes, t.committer_date, t.committer_date_offset, t.committer_date_neg_utc_offset, t.committer_date_offset_bytes, t.type, t.directory, t.message,   a.id,      c.id, t.metadata, t.synthetic, t.extra_headers, t.raw_manifest
     from tmp_revision t
     left join person a on a.fullname = t.author_fullname
-    left join person c on c.fullname = t.committer_fullname;
+    left join person c on c.fullname = t.committer_fullname
+    order by t.id;
     return;
 end
 $$;
@@ -622,7 +627,8 @@ begin
         select 1
         from person p
         where t.fullname = p.fullname
-    );
+    )
+    order by fullname;
     return;
 end
 $$;
@@ -640,7 +646,8 @@ begin
       select distinct  t.id, t.target, t.target_type, t.date, t.date_offset, t.date_neg_utc_offset, t.date_offset_bytes, t.name, t.comment,   a.id, t.synthetic, t.raw_manifest
         from tmp_release t
         left join person a on a.fullname = t.author_fullname
-        where not exists (select 1 from release where t.id = release.id);
+        where not exists (select 1 from release where t.id = release.id)
+        order by t.id;
     return;
 end
 $$;
