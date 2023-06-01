@@ -1,8 +1,11 @@
-swh-storage (1.13.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.14.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.14.0     - (tagged by Valentin Lorentz
+    <vlorentz@softwareheritage.org> on 2023-06-01 09:32:47 +0200)
+  * Upstream changes:     - v1.14.0     - * buffer proxy: Add
+    'raw_extrinsic_metadata' to the list of buffered objects
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 24 May 2023 12:37:45 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 01 Jun 2023 07:55:39 +0000
 
 swh-storage (1.13.0-1~swh1) unstable-swh; urgency=medium
 
