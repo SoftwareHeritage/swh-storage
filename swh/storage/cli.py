@@ -101,7 +101,7 @@ def serve(ctx, host, port, debug):
     app.run(host, port=int(port), debug=bool(debug))
 
 
-@storage.command()
+@storage.command(name="backfill")
 @click.argument("object_type")
 @click.option("--start-object", default=None)
 @click.option("--end-object", default=None)
@@ -154,7 +154,7 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
         ctx.exit(0)
 
 
-@storage.command()
+@storage.command(name="replay")
 @click.option(
     "--stop-after-objects",
     "-n",
@@ -283,7 +283,7 @@ def replay(ctx, stop_after_objects, object_types):
         client.close()
 
 
-@storage.command
+@storage.command(name="create-object-reference-partitions")
 @click.argument("start")
 @click.argument("end")
 @click.pass_context
