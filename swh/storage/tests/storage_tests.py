@@ -20,7 +20,7 @@ import pytest
 from swh.core.api import RemoteException
 from swh.core.api.classes import stream_results
 from swh.model import from_disk, hypothesis_strategies
-from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
+from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes
 from swh.model.model import (
     Origin,
     OriginVisit,
@@ -5825,28 +5825,47 @@ class TestStorage:
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
     def test_object_references_add_find(self, swh_storage):
-        source = ExtendedSWHID.from_string(
-            "swh:1:snp:0000000000000000000000000000000000000000"
-        )
-        targets = [ExtendedSWHID.from_string(f"swh:1:rev:{i:040x}") for i in range(20)]
+        for src_type, target_types in (
+            ("ori", ("snp",)),
+            ("snp", ("snp", "rel", "rev", "dir", "cnt")),
+            ("rel", ("rel", "rev", "dir", "cnt")),
+            ("rev", ("rev", "dir", "cnt")),
+            ("dir", ("dir", "cnt")),
+        ):
+            for target_type in target_types:
+                src_obj_id = (
+                    MultiHash(["sha1"])
+                    .from_data(f"{src_type}-{target_type}".encode())
+                    .hexdigest()["sha1"]
+                )
+                source = ExtendedSWHID.from_string(f"swh:1:{src_type}:{src_obj_id}")
+                targets = [
+                    ExtendedSWHID.from_string(
+                        f"swh:1:{target_type}:{src_obj_id[0:38]}{i:02x}"
+                    )
+                    for i in range(20)
+                ]
 
-        for target in targets:
-            refs = swh_storage.object_find_recent_references(
-                target_swhid=target, limit=10
-            )
-            assert refs == []
+                for target in targets:
+                    refs = swh_storage.object_find_recent_references(
+                        target_swhid=target, limit=10
+                    )
+                    assert refs == []
 
-        recorded = swh_storage.object_references_add(
-            [ObjectReference(source=source, target=target) for target in targets]
-        )
+                recorded = swh_storage.object_references_add(
+                    [
+                        ObjectReference(source=source, target=target)
+                        for target in targets
+                    ]
+                )
 
-        assert recorded["object_reference:add"] == len(targets)
+                assert recorded["object_reference:add"] == len(targets)
 
-        for target in targets:
-            refs = swh_storage.object_find_recent_references(
-                target_swhid=target, limit=10
-            )
-            assert refs == [source]
+                for target in targets:
+                    refs = swh_storage.object_find_recent_references(
+                        target_swhid=target, limit=10
+                    )
+                    assert refs == [source]
 
 
 class TestStorageGeneratedData:
