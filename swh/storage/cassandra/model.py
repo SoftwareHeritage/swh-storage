@@ -394,7 +394,7 @@ class ExtIDByTargetRow(BaseRow):
     """value of token(pk) on the "primary" table"""
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class ObjectReferenceRow(BaseRow):
     TABLE = "object_references"
     PARTITION_KEY = ("target_type", "target")
