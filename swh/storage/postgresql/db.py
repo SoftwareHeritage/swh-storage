@@ -1674,7 +1674,7 @@ class Db(BaseDb):
 
     # 'object_references' table
 
-    _object_references_cols = ["target_type", "target", "source_type", "source"]
+    _object_references_cols = ("source_type", "source", "target_type", "target")
 
     def object_references_get(
         self, target_type: str, target: bytes, limit: int, cur=None
@@ -1691,11 +1691,12 @@ class Db(BaseDb):
         return [dict(zip(self._object_references_cols, row)) for row in cur.fetchall()]
 
     def object_references_add(self, reference_rows, cur=None) -> None:
+        cols = ", ".join(self._object_references_cols)
         cur = self._cursor(cur)
         execute_values(
             cur,
-            """INSERT INTO object_references (source_type, source, target_type, target)
-            VALUES %s""",
+            f"""INSERT INTO object_references ({cols})
+            VALUES %s ON CONFLICT (insertion_date, {cols}) DO NOTHING""",
             reference_rows,
         )
 

@@ -5867,6 +5867,31 @@ class TestStorage:
                     )
                     assert refs == [source]
 
+    def test_object_references_add_duplicate(self, swh_storage):
+        """Ensure adding the same reference twice in the same call does not crash"""
+        source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{1:040x}")
+
+        assert swh_storage.object_references_add(
+            [
+                ObjectReference(source=source, target=target),
+                ObjectReference(source=source, target=target),
+            ]
+        ) == {"object_reference:add": 1}
+
+    def test_object_references_add_twice(self, swh_storage):
+        """Ensure adding the same reference twice does not crash"""
+        source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{1:040x}")
+
+        assert swh_storage.object_references_add(
+            [ObjectReference(source=source, target=target)]
+        ) == {"object_reference:add": 1}
+
+        assert swh_storage.object_references_add(
+            [ObjectReference(source=source, target=target)]
+        ) == {"object_reference:add": 1}
+
 
 class TestStorageGeneratedData:
     def test_generate_content_get_data(self, swh_storage, swh_contents):
