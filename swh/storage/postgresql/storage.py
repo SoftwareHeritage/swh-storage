@@ -1915,12 +1915,13 @@ class Storage:
     def object_references_add(
         self, references: List[ObjectReference], *, db: Db, cur=None
     ) -> Dict[str, int]:
+        to_add = list({converters.object_reference_to_db(ref) for ref in references})
         db.object_references_add(
-            (converters.object_reference_to_db(ref) for ref in references),
+            to_add,
             cur=cur,
         )
 
-        return {"object_reference:add": len(references)}
+        return {"object_reference:add": len(to_add)}
 
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing"""

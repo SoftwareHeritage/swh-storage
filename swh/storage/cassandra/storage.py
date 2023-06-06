@@ -1957,10 +1957,11 @@ class CassandraStorage:
     def object_references_add(
         self, references: List[ObjectReference]
     ) -> Dict[str, int]:
-        self._cql_runner.object_reference_add_concurrent(
-            [converters.object_reference_to_row(reference) for reference in references]
+        to_add = list(
+            {converters.object_reference_to_row(reference) for reference in references}
         )
-        return {"object_reference:add": len(references)}
+        self._cql_runner.object_reference_add_concurrent(to_add)
+        return {"object_reference:add": len(to_add)}
 
     ##########################
     # misc.
