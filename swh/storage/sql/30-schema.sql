@@ -519,9 +519,9 @@ comment on column extid.extid_version is 'Version of the extid type for the give
 create table object_references
 (
   insertion_date date not null default now(),
-  source_type object_type not null,
+  source_type extended_object_type not null,
   source sha1_git not null,
-  target_type object_type not null,
+  target_type extended_object_type not null,
   target sha1_git not null,
   primary key (target_type, target, source_type, source, insertion_date)
 ) partition by range (insertion_date);
