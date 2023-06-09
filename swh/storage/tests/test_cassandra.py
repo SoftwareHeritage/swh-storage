@@ -179,6 +179,22 @@ class TestCassandraStorage(_TestStorage):
         with pytest.raises(NoHostAvailable):
             storage.content_get_random()
 
+    def test_no_authentication(self, swh_storage_backend_config):
+        config_without_authentication = swh_storage_backend_config.copy()
+        config_without_authentication.pop("auth_provider")
+
+        with pytest.raises(NoHostAvailable):
+            get_storage(**config_without_authentication)
+
+    def test_no_authenticator_class(self, swh_storage_backend_config):
+        config_without_authentication = swh_storage_backend_config.copy()
+        authenticator_config = config_without_authentication.pop("auth_provider").copy()
+        authenticator_config.pop("cls")
+        config_without_authentication["auth_provider"] = authenticator_config
+
+        with pytest.raises(ValueError, match="cls property"):
+            get_storage(**config_without_authentication)
+
     def test_content_add_murmur3_collision(self, swh_storage, mocker, sample_data):
         """The Murmur3 token is used as link from index tables to the main
         table; and non-matching contents with colliding murmur3-hash

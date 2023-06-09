@@ -170,6 +170,7 @@ class CassandraStorage:
         allow_overwrite=False,
         consistency_level="ONE",
         directory_entries_insert_algo="one-by-one",
+        auth_provider: Optional[Dict] = None,
     ):
         """
         A backend of swh-storage backed by Cassandra
@@ -194,11 +195,20 @@ class CassandraStorage:
                 * one-by-one: naive, one INSERT per directory entry, serialized
                 * concurrent: one INSERT per directory entry, concurrent
                 * batch: using UNLOGGED BATCH to insert many entries in a few statements
+            auth_provider: An optional dict describing the authentication provider to use.
+                Must contain at least a ``cls`` entry and the parameters to pass to the
+                constructor. For example::
+
+                    auth_provider:
+                        cls: cassandra.auth.PlainTextAuthProvider
+                        username: myusername
+                        password: mypassword
         """
         self._hosts = hosts
         self._keyspace = keyspace
         self._port = port
         self._consistency_level = consistency_level
+        self._auth_provider = auth_provider
         self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(self, objstorage)
@@ -226,7 +236,11 @@ class CassandraStorage:
     def _set_cql_runner(self):
         """Used by tests when they need to reset the CqlRunner"""
         self._cql_runner: CqlRunner = CqlRunner(
-            self._hosts, self._keyspace, self._port, self._consistency_level
+            self._hosts,
+            self._keyspace,
+            self._port,
+            self._consistency_level,
+            self._auth_provider,
         )
 
     def check_config(self, *, check_write: bool) -> bool:
