@@ -1710,7 +1710,7 @@ class Db(BaseDb):
         monday_of_week1 = in_week1 + datetime.timedelta(days=-in_week1.weekday())
 
         monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
-        sunday = monday + datetime.timedelta(days=6)
+        next_monday = monday + datetime.timedelta(days=7)
 
         cur = self._cursor(cur)
         cur.execute(
@@ -1719,7 +1719,7 @@ class Db(BaseDb):
             PARTITION OF object_references
             FOR VALUES FROM (%%s) TO (%%s)"""
             % (year, week),
-            (monday.isoformat(), sunday.isoformat()),
+            (monday.isoformat(), next_monday.isoformat()),
         )
 
-        return (monday, sunday)
+        return (monday, next_monday)
