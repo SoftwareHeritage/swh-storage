@@ -409,7 +409,7 @@ class TestPgStorage:
 
         assert (
             partitions["object_references_2020w06"]
-            == "FOR VALUES FROM ('2020-02-03') TO ('2020-02-09')"
+            == "FOR VALUES FROM ('2020-02-03') TO ('2020-02-10')"
         )
         assert "object_references_2020w07" not in partitions
 
