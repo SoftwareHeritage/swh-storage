@@ -1,8 +1,11 @@
-swh-storage (1.14.4-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.15.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.15.0     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2023-06-19 19:56:22 +0200)
+  * Upstream changes:     - Release swh-storage v1.15.0     - cassandra
+    backend: support authenticated connection
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 12 Jun 2023 12:12:53 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 19 Jun 2023 18:16:14 +0000
 
 swh-storage (1.14.4-1~swh1) unstable-swh; urgency=medium
 
