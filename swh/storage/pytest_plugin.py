@@ -12,6 +12,8 @@ import socket
 import subprocess
 import time
 
+from cassandra.auth import PlainTextAuthProvider
+from cassandra.cluster import Cluster
 import pytest
 from pytest_postgresql import factories
 
@@ -52,6 +54,7 @@ key_cache_save_period: 0
 row_cache_save_period: 0
 trickle_fsync: false
 commitlog_sync_period_in_ms: 100000
+authenticator: PasswordAuthenticator
 """
 
 _SCYLLA_EXTRA_CONFIG_TEMPLATE = """
@@ -84,6 +87,15 @@ def _wait_for_peer(addr, port):
             sock.close()
             return True
     return False
+
+
+@pytest.fixture(scope="session")
+def cassandra_auth_provider_config():
+    return {
+        "cls": "cassandra.auth.PlainTextAuthProvider",
+        "username": "cassandra",
+        "password": "cassandra",
+    }
 
 
 @pytest.fixture(scope="session")
@@ -170,6 +182,24 @@ def swh_storage_cassandra_cluster(tmpdir_factory):
     listening = _wait_for_peer("127.0.0.1", native_transport_port)
 
     if listening:
+        # Wait for initialization
+        auth_provider = PlainTextAuthProvider(
+            username="cassandra", password="cassandra"
+        )
+        cluster = Cluster(
+            ["127.0.0.1"], port=native_transport_port, auth_provider=auth_provider
+        )
+
+        session = None
+        retry = 0
+        while (not session) and retry < 10:
+            try:
+                session = cluster.connect()
+            except Exception:
+                time.sleep(1)
+                retry += 1
+        cluster.shutdown()
+
         yield (["127.0.0.1"], native_transport_port)
 
     if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
@@ -189,20 +219,24 @@ def swh_storage_cassandra_cluster(tmpdir_factory):
 
 
 @pytest.fixture(scope="session")
-def swh_storage_cassandra_keyspace(swh_storage_cassandra_cluster):
+def swh_storage_cassandra_keyspace(
+    swh_storage_cassandra_cluster, cassandra_auth_provider_config
+):
     from swh.storage.cassandra import create_keyspace
 
     (hosts, port) = swh_storage_cassandra_cluster
     keyspace = "test" + os.urandom(10).hex()
 
-    create_keyspace(hosts, keyspace, port)
+    create_keyspace(hosts, keyspace, port, auth_provider=cassandra_auth_provider_config)
 
     return keyspace
 
 
 @pytest.fixture
 def swh_storage_cassandra_backend_config(
-    swh_storage_cassandra_cluster, swh_storage_cassandra_keyspace
+    swh_storage_cassandra_cluster,
+    swh_storage_cassandra_keyspace,
+    cassandra_auth_provider_config,
 ):
     from swh.storage.cassandra.schema import TABLES
 
@@ -217,6 +251,7 @@ def swh_storage_cassandra_backend_config(
         keyspace=keyspace,
         journal_writer={"cls": "memory"},
         objstorage={"cls": "memory"},
+        auth_provider=cassandra_auth_provider_config,
     )
 
     yield storage_config
