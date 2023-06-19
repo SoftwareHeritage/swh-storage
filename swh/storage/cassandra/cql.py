@@ -7,6 +7,7 @@ from collections import Counter
 import dataclasses
 import datetime
 import functools
+import importlib
 import itertools
 import logging
 import random
@@ -27,6 +28,7 @@ from typing import (
 )
 
 from cassandra import ConsistencyLevel, CoordinationFailure
+from cassandra.auth import AuthProvider
 from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
 from cassandra.concurrent import execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
@@ -96,6 +98,23 @@ BATCH_INSERT_MAX_SIZE = 1000
 logger = logging.getLogger(__name__)
 
 
+def _instantiate_auth_provider(configuration: Dict) -> AuthProvider:
+
+    local_config = dict(configuration)
+    cls = local_config.pop("cls", None)
+    if not cls:
+        raise ValueError(
+            "Configuration error: The cls property is mandatory "
+            " in the auth_provider configuration section"
+        )
+
+    (module_path, class_name) = cls.rsplit(".", 1)
+    module = importlib.import_module(module_path, package=__package__)
+    AuthProvider = getattr(module, class_name)
+
+    return AuthProvider(**local_config)
+
+
 def get_execution_profiles(
     consistency_level: str = "ONE",
 ) -> Dict[object, ExecutionProfile]:
@@ -120,9 +139,24 @@ def get_execution_profiles(
 
 
 def create_keyspace(
-    hosts: List[str], keyspace: str, port: int = 9042, *, durable_writes=True
+    hosts: List[str],
+    keyspace: str,
+    port: int = 9042,
+    *,
+    durable_writes=True,
+    auth_provider: Optional[Dict] = None,
 ):
-    cluster = Cluster(hosts, port=port, execution_profiles=get_execution_profiles())
+
+    auth_provider_inst: Optional[AuthProvider] = None
+    if auth_provider:
+        auth_provider_inst = _instantiate_auth_provider(auth_provider)
+
+    cluster = Cluster(
+        hosts,
+        port=port,
+        execution_profiles=get_execution_profiles(),
+        auth_provider=auth_provider_inst,
+    )
     session = cluster.connect()
     extra_params = ""
     if not durable_writes:
@@ -285,11 +319,22 @@ class CqlRunner:
     to Cassandra."""
 
     def __init__(
-        self, hosts: List[str], keyspace: str, port: int, consistency_level: str
+        self,
+        hosts: List[str],
+        keyspace: str,
+        port: int,
+        consistency_level: str,
+        auth_provider: Optional[Dict] = None,
     ):
+
+        auth_provider_impl: Optional[AuthProvider] = None
+        if auth_provider:
+            auth_provider_impl = _instantiate_auth_provider(auth_provider)
+
         self._cluster = Cluster(
             hosts,
             port=port,
+            auth_provider=auth_provider_impl,
             execution_profiles=get_execution_profiles(consistency_level),
         )
         self.keyspace = keyspace
