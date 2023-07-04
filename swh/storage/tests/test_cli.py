@@ -173,7 +173,16 @@ def test_replay_type_list():
 def test_create_object_reference_partitions_postgresql(
     swh_storage_postgresql_backend_config, start, end, expected_weeks, unexpected_weeks
 ):
-    storage_config = {"storage": swh_storage_postgresql_backend_config}
+    storage_config = {
+        "storage": {
+            "cls": "pipeline",
+            "steps": [
+                {"cls": "record_references"},
+                swh_storage_postgresql_backend_config,
+            ],
+        }
+    }
+
     result = invoke(
         "create-object-reference-partitions",
         start,

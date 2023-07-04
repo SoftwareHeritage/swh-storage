@@ -297,6 +297,12 @@ def create_object_reference_partitions(ctx: click.Context, start: str, end: str)
 
     storage = get_storage(**ctx.obj["config"]["storage"])
 
+    # This function uses the PostgreSQL swh.storage.db attribute directly, so we
+    # need unwrap all the layers of proxies (e.g. record_references, buffer,
+    # filter, etc.) to get access to the "concrete" underlying storage.
+    while hasattr(storage, "storage"):
+        storage = storage.storage
+
     if not isinstance(storage, PostgreSQLStorage):
         ctx.fail("Storage instance needs to be a direct PostgreSQL storage")
 
