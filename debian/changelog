@@ -1,8 +1,11 @@
-swh-storage (1.15.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.15.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.15.1     - (tagged by Nicolas Dandrimont
+    <nicolas@dandrimont.eu> on 2023-07-04 10:37:34 +0200)
+  * Upstream changes:     - Release swh.storage 1.15.1     - Allow the
+    cli to retrieve the main storage out of a pipeline when needed
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 19 Jun 2023 18:27:44 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 04 Jul 2023 08:58:13 +0000
 
 swh-storage (1.15.0-1~swh1) unstable-swh; urgency=medium
 
