@@ -178,6 +178,7 @@ def process_replay_objects(
         logger.debug("Inserting %s %s objects", len(objects), object_type)
         with statsd.timed(GRAPH_DURATION_METRIC, tags={"object_type": object_type}):
             _insert_objects(object_type, objects, storage)
+            storage.flush()
         statsd.increment(
             GRAPH_OPERATIONS_METRIC, len(objects), tags={"object_type": object_type}
         )
