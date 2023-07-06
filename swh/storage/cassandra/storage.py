@@ -164,7 +164,7 @@ class CassandraStorage:
         self,
         hosts,
         keyspace,
-        objstorage,
+        objstorage=None,
         port=9042,
         journal_writer=None,
         allow_overwrite=False,
@@ -178,7 +178,8 @@ class CassandraStorage:
         Args:
             hosts: Seed Cassandra nodes, to start connecting to the cluster
             keyspace: Name of the Cassandra database to use
-            objstorage: Passed as argument to :class:`ObjStorage`
+            objstorage: Passed as argument to :class:`ObjStorage`; if unset,
+               use a NoopObjStorage
             port: Cassandra port
             journal_writer: Passed as argument to :class:`JournalWriter`
             allow_overwrite: Whether ``*_add`` functions will check if an object
