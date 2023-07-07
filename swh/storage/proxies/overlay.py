@@ -129,6 +129,7 @@ class OverlayProxyStorage:
             "extid_get_from_target",
             "raw_extrinsic_metadata_get_by_ids",  # TODO: could be optimized
             "raw_extrinsic_metadata_get_authorities",
+            "object_find_recent_references",
         ):
             return self._getter_union(key)
         else:
