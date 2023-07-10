@@ -185,7 +185,7 @@ class Storage:
     def __init__(
         self,
         db,
-        objstorage,
+        objstorage=None,
         min_pool_conns=1,
         max_pool_conns=10,
         journal_writer=None,
@@ -201,7 +201,8 @@ class Storage:
 
         Args:
             db: either a libpq connection string, or a psycopg2 connection
-            objstorage: configuration for the backend :class:`ObjStorage`
+            objstorage: configuration for the backend :class:`ObjStorage`; if unset,
+               use a NoopObjStorage
             min_pool_conns: min number of connections in the psycopg2 pool
             max_pool_conns: max number of connections in the psycopg2 pool
             journal_writer: configuration for the :class:`JournalWriter`
