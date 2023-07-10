@@ -1,3 +1,14 @@
+swh-storage (1.15.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.15.2     - (tagged by Vincent SELLIER
+    <vincent.sellier@softwareheritage.org> on 2023-07-10 17:08:52 +0200)
+  * Upstream changes:     - v1.15.2 release     - Changelog:     -
+    replayer: Add missing flush before committing Kafka offsets     -
+    Fix mypy/click: add swh.core[testing] in requirements-test.txt     -
+    Make the objstorage argument optional
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 10 Jul 2023 15:33:27 +0000
+
 swh-storage (1.15.1-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.15.1     - (tagged by Nicolas Dandrimont
