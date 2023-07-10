@@ -89,7 +89,11 @@ def replayer_storage_and_client(
     yield storage, replayer
 
 
-def test_storage_replayer(replayer_storage_and_client, caplog):
+@pytest.mark.parametrize(
+    "buffered",
+    [pytest.param(True, id="buffered"), pytest.param(False, id="unbuffered")],
+)
+def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
     """Optimal replayer scenario.
 
     This:
@@ -111,9 +115,14 @@ def test_storage_replayer(replayer_storage_and_client, caplog):
 
     caplog.set_level(logging.ERROR, "swh.journal.replay")
 
+    if buffered:
+        proxied_dst = get_storage("buffer", storage={"cls": "memory"})
+        dst = proxied_dst.storage
+    else:
+        proxied_dst = dst = get_storage(cls="memory")
+
     # Fill the destination storage from Kafka
-    dst = get_storage(cls="memory")
-    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    worker_fn = functools.partial(process_replay_objects, storage=proxied_dst)
     nb_inserted = replayer.process(worker_fn)
     assert nb_sent == nb_inserted
 

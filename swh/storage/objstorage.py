@@ -22,13 +22,21 @@ class ObjStorage:
 
     """
 
-    def __init__(self, storage, objstorage_config: Dict):
+    def __init__(self, storage, objstorage_config: Optional[Dict]):
         self.storage = storage
+        self.warn_usage = False
+        if objstorage_config is None:
+            objstorage_config = {"cls": "noop"}
+            self.warn_usage = True
         self.objstorage = get_objstorage(**objstorage_config)
 
     def __getattr__(self, key):
-        if key == "objstorage":
+        if key in ("objstorage", "warn_usage", "storage"):
             raise AttributeError(key)
+        if self.warn_usage:
+            warnings.warn(
+                "Actually using a NoopObjstorage; this is most probably a configuration error.",
+            )
         return getattr(self.objstorage, key)
 
     def content_get(self, obj_id: Union[Sha1, HashDict]) -> Optional[bytes]:
@@ -41,6 +49,10 @@ class ObjStorage:
             associated content's data if any, None otherwise.
 
         """
+        if self.warn_usage:
+            warnings.warn(
+                "Actually using a NoopObjstorage; this is most probably a configuration error.",
+            )
         hashes: HashDict
         if isinstance(obj_id, bytes):
             warnings.warn(
@@ -83,6 +95,10 @@ class ObjStorage:
             objstorage.
 
         """
+        if self.warn_usage:
+            warnings.warn(
+                "Actually using a NoopObjstorage; this is most probably a configuration error.",
+            )
         content_pairs: List[Tuple[CompositeObjId, bytes]] = []
         for content in contents:
             try:
