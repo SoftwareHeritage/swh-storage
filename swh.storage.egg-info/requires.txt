@@ -20,6 +20,7 @@ swh.journal>=1.2
 hypothesis>=3.11.0
 pytest
 pytest-mock
+swh.core[testing]
 swh.model[testing]>=0.0.50
 pytz
 pytest-redis
