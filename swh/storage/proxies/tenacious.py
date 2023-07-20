@@ -11,6 +11,7 @@ from typing import Deque, Dict, Iterable, List, Optional
 
 from swh.model.model import BaseModel
 from swh.storage import get_storage
+from swh.storage.exc import HashCollision
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,11 @@ class TenaciousProxyStorage:
                             f"{func_name}: failed to insert an object, "
                             f"excluding {objs} (from a batch of {n_objs})"
                         )
-                        logger.exception(f"Exception was: {exc}")
+                        logger.error(
+                            "Exception was: %s",
+                            repr(exc),
+                            exc_info=not isinstance(exc, HashCollision),
+                        )
                         results.update({f"{object_type}:add:errors": 1})
                         self.rate_queue.add_error()
                         # reset the retries counter (needed in case the next
