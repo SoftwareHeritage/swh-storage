@@ -456,6 +456,11 @@ class InMemoryCqlRunner:
     def snapshot_get_random(self) -> Optional[SnapshotRow]:
         return self._snapshots.get_random()
 
+    def snapshot_branch_get_from_name(
+        self, snapshot_id: Sha1Git, from_: bytes, limit: int
+    ) -> Iterable[SnapshotBranchRow]:
+        return self.snapshot_branch_get(snapshot_id=snapshot_id, from_=from_, limit=1)
+
     ##########################
     # 'snapshot_branch' table
     ##########################
