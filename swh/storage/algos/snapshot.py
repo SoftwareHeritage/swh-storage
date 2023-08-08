@@ -182,31 +182,20 @@ def snapshot_resolve_branch_target(
         snapshot_id: snapshot identifier
         branch_obj: snapshot branch object to resolve
         max_length: maximum chain length before breaking
+
     Returns:
         The first branch that isn't an alias and the resolve chain
     """
-    resolve_chain: List[bytes] = []
-    while branch_obj and branch_obj.target_type == TargetType.ALIAS:
-        target_branch = branch_obj.target  # target branch name
-        resolve_chain.append(target_branch)
-        # query for the new branch
-        branches = storage.snapshot_get_branches(
-            snapshot_id, branches_from=target_branch, branches_count=1
+
+    if branch_obj is not None:
+        final_branch = storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot_id,
+            branch_name=branch_obj.target,
+            max_alias_chain_length=max_length,
         )
-        if (
-            not branches
-            # The target branch is missing
-            or branches["branches"].get(target_branch) is None
-            # Circular reference
-            or resolve_chain.count(target_branch) > 1
-            # Too many re-directs
-            or len(resolve_chain) >= max_length
-        ):
-            # chain broke without a target, this will still return the resolve_chain list
-            branch_obj = None
-            break
-        branch_obj = branches["branches"][target_branch]
-    return branch_obj, resolve_chain
+        if final_branch is not None:
+            return (final_branch.target, final_branch.aliases_followed)
+    return (None, [])
 
 
 def snapshot_resolve_alias(
@@ -216,6 +205,8 @@ def snapshot_resolve_alias(
     Transitively resolve snapshot branch alias to its real target, and return it;
     ie. follows every branch that is an alias, until a branch that isn't an alias
     is found.
+
+    *Warning* This function is deprecated; use storage.snapshot_branch_get_by_name instead
 
     Args:
         storage: Storage instance
@@ -227,17 +218,10 @@ def snapshot_resolve_alias(
         there is no such branch (ie. either because of a cycle alias, or a dangling
         branch).
     """
-    snapshot = storage.snapshot_get_branches(
-        snapshot_id, branches_from=alias_name, branches_count=1
-    )
-    if snapshot is None:
-        return None
 
-    if alias_name not in snapshot["branches"]:
-        return None
-
-    last_branch = snapshot["branches"][alias_name]
-    target_branch, _ = snapshot_resolve_branch_target(
-        storage, snapshot_id=snapshot_id, branch_obj=last_branch
+    final_branch = storage.snapshot_branch_get_by_name(
+        snapshot_id=snapshot_id, branch_name=alias_name
     )
-    return target_branch
+    if final_branch is not None:
+        return final_branch.target
+    return None
