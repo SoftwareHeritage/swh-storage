@@ -784,6 +784,23 @@ class Db(BaseDb):
 
         yield from cur
 
+    def snapshot_branch_get_by_name(
+        self,
+        cols_to_fetch,
+        snapshot_id,
+        branch_name,
+        cur=None,
+    ):
+        cur = self._cursor(cur)
+        query = f"""SELECT {", ".join(cols_to_fetch)}
+            FROM snapshot_branch sb
+            LEFT JOIN snapshot_branches sbs ON sb.object_id = sbs.branch_id
+            LEFT JOIN snapshot ss ON sbs.snapshot_id = ss.object_id
+            WHERE ss.id=%s AND sb.name=%s
+        """
+        cur.execute(query, (snapshot_id, branch_name))
+        return cur.fetchone()
+
     def snapshot_get_id_range(
         self, start, end, limit=None, cur=None
     ) -> Iterator[Tuple[Sha1Git]]:
