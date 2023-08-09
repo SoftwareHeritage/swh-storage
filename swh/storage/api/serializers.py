@@ -37,6 +37,17 @@ def _encode_object_reference(object_reference: interface.ObjectReference) -> Lis
     return [str(object_reference.source), str(object_reference.target)]
 
 
+def _encode_snapshot_branch_by_name_response(
+    branch_by_name_response: interface.SnapshotBranchByNameResponse,
+) -> Dict[str, Any]:
+    target = branch_by_name_response.target
+    return {
+        "branch_found": branch_by_name_response.branch_found,
+        "target": target.to_dict() if target else None,
+        "aliases_followed": branch_by_name_response.aliases_followed,
+    }
+
+
 def _decode_origin_visit_with_statuses(
     ovws: Dict[str, Any],
 ) -> interface.OriginVisitWithStatuses:
@@ -65,6 +76,15 @@ def _decode_object_reference(d):
     )
 
 
+def _decode_snapshot_branch_by_name_response(d):
+    target = model.SnapshotBranch.from_dict(d["target"]) if d["target"] else None
+    return interface.SnapshotBranchByNameResponse(
+        branch_found=d["branch_found"],
+        target=target,
+        aliases_followed=d["aliases_followed"],
+    )
+
+
 ENCODERS: List[Tuple[type, str, Callable]] = [
     (model.BaseModel, "model", _encode_model_object),
     (swhids.CoreSWHID, "core_swhid", str),
@@ -84,6 +104,11 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
         "object_reference",
         _encode_object_reference,
     ),
+    (
+        interface.SnapshotBranchByNameResponse,
+        "branch_by_name_response",
+        _encode_snapshot_branch_by_name_response,
+    ),
 ]
 
 
@@ -98,4 +123,5 @@ DECODERS: Dict[str, Callable] = {
     "storage_enum": _decode_storage_enum,
     "origin_visit_with_statuses": _decode_origin_visit_with_statuses,
     "object_reference": _decode_object_reference,
+    "branch_by_name_response": _decode_snapshot_branch_by_name_response,
 }

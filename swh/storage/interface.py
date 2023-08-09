@@ -55,6 +55,25 @@ class PartialBranches(TypedDict):
     the snapshot has less than the request number of branches."""
 
 
+@attr.s
+class SnapshotBranchByNameResponse:
+    """Object returned by snapshot_branch_get_by_name"""
+
+    branch_found = attr.ib(type=bool)
+    """
+    Branch with the name exists, with or without a target.
+    """
+    target = attr.ib(type=Optional[SnapshotBranch])
+    """
+    Branch target, will be None in case of a dangling branch.
+    """
+    aliases_followed = attr.ib(type=List[bytes])
+    """
+    List of alias names until (including) the target.
+    This will be of length one for all non alias branches.
+    """
+
+
 class HashDict(TypedDict, total=False):
     sha1: bytes
     sha1_git: bytes
@@ -986,6 +1005,30 @@ class StorageInterface(Protocol):
 
         Returns:
             a sha1_git
+        """
+        ...
+
+    @remote_api_endpoint("snapshot/branches/get_by_name")
+    def snapshot_branch_get_by_name(
+        self,
+        snapshot_id: Sha1Git,
+        branch_name: bytes,
+        follow_alias_chain: bool = True,
+        max_alias_chain_length: int = 100,
+    ) -> Optional[SnapshotBranchByNameResponse]:
+        """Get a snapshot branch by its name
+
+        Args:
+            snapshot_id: Snapshot identifier
+            branch_name: Branch name to look for
+            follow_alias_chain: If True, find the first non alias branch.
+                Return the first branch (alias or non alias) otherwise
+            max_alias_chain_length: Maximum number of alias chains to be
+                followed before treating the branch as dangling. This has
+                no significance when follow_alias_chain is False.
+
+        Returns:
+            A SnapshotBranchByNameResponse object
         """
         ...
 

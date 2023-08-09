@@ -210,6 +210,7 @@ storage:
   cls: cassandra
   hosts:
     - localhost
+  keyspace: swh
   objstorage:
     cls: pathslicing
     root: /home/storage/swh-storage/
