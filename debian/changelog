@@ -1,3 +1,9 @@
+swh-storage (1.15.3-1~swh2) unstable-swh; urgency=medium
+
+  * Improve fixture loading
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 09:39:48 +0200
+
 swh-storage (1.15.3-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.15.3     - (tagged by Jayesh Velayudhan
