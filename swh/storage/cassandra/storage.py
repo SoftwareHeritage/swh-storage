@@ -63,6 +63,7 @@ from swh.storage.interface import (
     PagedResult,
     PartialBranches,
     Sha1,
+    SnapshotBranchByNameResponse,
     TotalHashDict,
 )
 from swh.storage.objstorage import ObjStorage
@@ -1157,6 +1158,59 @@ class CassandraStorage:
         snapshot = self._cql_runner.snapshot_get_random()
         assert snapshot, "Could not find any snapshot"
         return snapshot.id
+
+    def snapshot_branch_get_by_name(
+        self,
+        snapshot_id: Sha1Git,
+        branch_name: bytes,
+        follow_alias_chain: bool = True,
+        max_alias_chain_length: int = 100,
+    ) -> Optional[SnapshotBranchByNameResponse]:
+        if self._cql_runner.snapshot_missing([snapshot_id]):
+            return None
+
+        resolve_chain: List[bytes] = []
+        while True:
+            branches = list(
+                self._cql_runner.snapshot_branch_get_from_name(
+                    snapshot_id=snapshot_id, from_=branch_name, limit=1
+                )
+            )
+            if len(branches) != 1 or branches[0].name != branch_name:
+                # target branch is None, there could be items in aliases_followed
+                target = None
+                break
+            branch = branches[0]
+            resolve_chain.append(branch_name)
+            if branch.target_type != TargetType.ALIAS.value or not follow_alias_chain:
+                # first non alias branch or the first branch when follow_alias_chain is False
+                target = (
+                    SnapshotBranch(
+                        target=branch.target,
+                        target_type=TargetType(branch.target_type),
+                    )
+                    if branch.target
+                    else None
+                )
+                break
+            elif (
+                # Circular reference
+                resolve_chain.count(branch_name) > 1
+                # Too many re-directs
+                or len(resolve_chain) >= max_alias_chain_length
+            ):
+                target = None
+                break
+            # Branch has a non-None target with type alias
+            assert branch.target is not None
+            branch_name = branch.target
+
+        return SnapshotBranchByNameResponse(
+            # resolve_chian has items, brach_found must be True
+            branch_found=bool(resolve_chain),
+            target=target,
+            aliases_followed=resolve_chain,
+        )
 
     ##########################
     # Origin

@@ -1,8 +1,62 @@
-swh-storage (1.15.2-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.15.4-1~swh6) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
+    test context
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 10 Jul 2023 15:51:04 +0000
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 15:38:40 +0200
+
+swh-storage (1.15.4-1~swh5) unstable-swh; urgency=medium
+
+  * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
+    test context (my bad) 4/4
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 15:30:15 +0200
+
+swh-storage (1.15.4-1~swh4) unstable-swh; urgency=medium
+
+  * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
+    test context 3/3
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 15:26:54 +0200
+
+swh-storage (1.15.4-1~swh3) unstable-swh; urgency=medium
+
+  * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
+    test context 2/2
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 14:55:42 +0200
+
+swh-storage (1.15.4-1~swh2) unstable-swh; urgency=medium
+
+  * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
+    test context
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 14:50:51 +0200
+
+swh-storage (1.15.4-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.15.4     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-08-10 10:35:17
+    +0200)
+  * Upstream changes:     - v1.15.4     - Adapt packaging to address
+    package inclusion warnings     - Fix pytest fixture definition
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 10 Aug 2023 08:58:48 +0000
+
+swh-storage (1.15.3-1~swh2) unstable-swh; urgency=medium
+
+  * Improve fixture loading
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 09:39:48 +0200
+
+swh-storage (1.15.3-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.15.3     - (tagged by Jayesh Velayudhan
+    <jayesh@softwareheritage.org> on 2023-08-09 09:59:04 +0200)
+  * Upstream changes:     - v1.15.3 release     - Changelog:     -
+    interface: Add a new method snapshot_branch_get_by_name
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 09 Aug 2023 08:22:31 +0000
 
 swh-storage (1.15.2-1~swh1) unstable-swh; urgency=medium
 
@@ -389,7 +443,7 @@ swh-storage (0.40.0-1~swh1) unstable-swh; urgency=medium
   * New upstream release 0.40.0     - (tagged by David Douard
     <david.douard@sdfa3.org> on 2021-11-16 10:11:25 +0100)
   * Upstream changes:     - v0.40.0     - Add support for a redis-based
-    reporting for invalid mirrorred objects     - Remove now useless
+    reporting for invalid mirrored objects     - Remove now useless
     fixers in storage/fixer.py     - Add a new --type option to 'swh
     strorage repay'     - Update extrinsic metadata specs
 

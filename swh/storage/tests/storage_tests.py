@@ -55,6 +55,7 @@ from swh.storage.interface import (
     ObjectReference,
     OriginVisitWithStatuses,
     PagedResult,
+    SnapshotBranchByNameResponse,
     StorageInterface,
 )
 from swh.storage.tests.conftest import function_scoped_fixture_check
@@ -4907,6 +4908,144 @@ class TestStorage:
             empty_snapshot.id,
             complete_snapshot.id,
         }
+
+    def test_snapshot_branch_get_by_name_missing_snapshot(self, swh_storage):
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=hash_to_bytes(
+                "0e7f84ede9a254f2cd55649ad5240783f557e65f"
+            ),  # non existing id
+            branch_name=b"master",
+        )
+        assert branch is None
+
+    def test_snapshot_branch_get_by_name_empty_snapshot(self, swh_storage, sample_data):
+        snapshot = sample_data.snapshots[1]  # empty snapshot
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"master"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=False, target=None, aliases_followed=[]
+        )
+
+    def test_snapshot_branch_get_by_name_missing_branch(self, swh_storage, sample_data):
+        snapshot = sample_data.snapshots[0]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"non-existing"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=False, target=None, aliases_followed=[]
+        )
+
+    @pytest.mark.parametrize("branch", [b"directory", b"content", b"revision"])
+    def test_snapshot_branch_get_by_name_direct_find(
+        self, swh_storage, sample_data, branch
+    ):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        response_branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=branch
+        )
+        assert response_branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=snapshot.branches[branch],
+            aliases_followed=[branch],
+        )
+
+    def test_snapshot_branch_get_by_name_dangling_branch(
+        self, swh_storage, sample_data
+    ):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"dangling"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True, target=None, aliases_followed=[b"dangling"]
+        )
+
+    def test_snapshot_branch_get_by_name_alias_chain(self, swh_storage, sample_data):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"alias"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=snapshot.branches[b"revision"],
+            aliases_followed=[b"alias", b"revision"],
+        )
+
+    def test_snapshot_branch_get_by_name_not_follow_alias_cahin(
+        self, swh_storage, sample_data
+    ):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"alias", follow_alias_chain=False
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=snapshot.branches[b"alias"],
+            aliases_followed=[b"alias"],
+        )
+
+    def test_snapshot_branch_get_by_name_alias_chain_cycles(self, swh_storage):
+        snapshot = Snapshot(
+            id=hash_to_bytes("428893e6a864344e8be8e7bda6cb34fb1735a00e"),
+            branches={
+                b"HEAD1": SnapshotBranch(
+                    target=b"HEAD2",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"HEAD2": SnapshotBranch(
+                    target=b"HEAD1",
+                    target_type=TargetType.ALIAS,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"HEAD1"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=None,
+            aliases_followed=[b"HEAD1", b"HEAD2", b"HEAD1"],
+        )
+
+    def test_snapshot_branch_get_by_name_alias_chain_too_long(self, swh_storage):
+        snapshot = Snapshot(
+            id=hash_to_bytes("873893e6a864344e8be8e7bda6cb34fb1735a00e"),
+            branches={
+                b"first": SnapshotBranch(
+                    target=b"second",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"second": SnapshotBranch(
+                    target=b"third",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"third": SnapshotBranch(
+                    target=b"forth",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"forth": SnapshotBranch(
+                    target=b"revision",
+                    target_type=TargetType.ALIAS,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"first", max_alias_chain_length=3
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=None,
+            aliases_followed=[b"first", b"second", b"third"],
+        )
 
     def test_snapshot_missing(self, swh_storage, sample_data):
         snapshot, missing_snapshot = sample_data.snapshots[:2]

@@ -73,6 +73,7 @@ from swh.storage.interface import (
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
+    SnapshotBranchByNameResponse,
 )
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import (
@@ -1212,6 +1213,74 @@ class Storage:
     @db_transaction()
     def snapshot_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
+
+    @db_transaction(statement_timeout=2000)
+    def snapshot_branch_get_by_name(
+        self,
+        snapshot_id: Sha1Git,
+        branch_name: bytes,
+        db: Db,
+        cur=None,
+        follow_alias_chain: bool = True,
+        max_alias_chain_length: int = 100,
+    ) -> Optional[SnapshotBranchByNameResponse]:
+
+        if list(self.snapshot_missing([snapshot_id])):
+            return None
+
+        if snapshot_id == EMPTY_SNAPSHOT_ID:
+            return SnapshotBranchByNameResponse(
+                branch_found=False,
+                target=None,
+                aliases_followed=[],
+            )
+
+        cols_to_fetch = ["target", "target_type"]
+        resolve_chain: List[bytes] = []
+        while True:
+            branch = db.snapshot_branch_get_by_name(
+                cols_to_fetch=cols_to_fetch,
+                snapshot_id=snapshot_id,
+                branch_name=branch_name,
+                cur=cur,
+            )
+            if branch is None:
+                # target branch is None, there could be items in aliases_followed
+                target = None
+                break
+            branch_d = dict(zip(cols_to_fetch, branch))
+            resolve_chain.append(branch_name)
+            if (
+                branch_d["target_type"] != TargetType.ALIAS.value
+                or not follow_alias_chain
+            ):
+                # first non alias branch or the first branch when follow_alias_chain is False
+                target = (
+                    SnapshotBranch(
+                        target=branch_d["target"],
+                        target_type=TargetType(branch_d["target_type"]),
+                    )
+                    if branch_d["target"]
+                    else None
+                )
+                break
+            elif (
+                # Circular reference
+                resolve_chain.count(branch_name) > 1
+                # Too many re-directs
+                or len(resolve_chain) >= max_alias_chain_length
+            ):
+                target = None
+                break
+            # Branch has a non-None target with type alias
+            branch_name = branch_d["target"]
+
+        return SnapshotBranchByNameResponse(
+            # resolve_chian has items, brach_found must be True
+            branch_found=bool(resolve_chain),
+            target=target,
+            aliases_followed=resolve_chain,
+        )
 
     ##########################
     # OriginVisit and OriginVisitStatus

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2023 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -53,10 +53,10 @@ if pytest_cov is not None and int(pytest_cov.__version__.split(".")[0]) < 4:
 
 
 @pytest.fixture
-def swh_storage_backend_config(swh_storage_backend_config):
-    """storage should test with its journal writer collaborator on"""
+def swh_storage_backend_config(swh_storage_postgresql_backend_config):
+    """Storage should test with its journal writer collaborator on"""
     yield {
-        **swh_storage_backend_config,
+        **swh_storage_postgresql_backend_config,
         "journal_writer": {
             "cls": "memory",
         },

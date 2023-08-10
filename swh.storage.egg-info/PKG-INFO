@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.storage
-Version: 1.15.2
+Version: 1.15.4
 Summary: Software Heritage storage manager
 Home-page: https://forge.softwareheritage.org/diffusion/DSTO/
 Author: Software Heritage developers
@@ -48,7 +48,7 @@ $ sudo apt install libpq-dev postgresql-11 cassandra
 
 #### Non Debian-like host
 
-The tests expects the path to `cassandra` to either be unspecified, it is then
+The tests expect the path to `cassandra` to either be unspecified, it is then
 looked up at `/usr/sbin/cassandra`, either specified through the environment
 variable `SWH_CASSANDRA_BIN`.
 
@@ -233,6 +233,7 @@ storage:
   cls: cassandra
   hosts:
     - localhost
+  keyspace: swh
   objstorage:
     cls: pathslicing
     root: /home/storage/swh-storage/

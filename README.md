@@ -25,7 +25,7 @@ $ sudo apt install libpq-dev postgresql-11 cassandra
 
 #### Non Debian-like host
 
-The tests expects the path to `cassandra` to either be unspecified, it is then
+The tests expect the path to `cassandra` to either be unspecified, it is then
 looked up at `/usr/sbin/cassandra`, either specified through the environment
 variable `SWH_CASSANDRA_BIN`.
 
@@ -210,6 +210,7 @@ storage:
   cls: cassandra
   hosts:
     - localhost
+  keyspace: swh
   objstorage:
     cls: pathslicing
     root: /home/storage/swh-storage/

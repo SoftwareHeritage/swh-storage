@@ -3,9 +3,9 @@
 # To activate more logs
 # export SWH_CASSANDRA_LOGS=1
 export PYBUILD_NAME=swh.storage
+export PYTEST_PLUGINS=swh.storage.pytest_plugin
 export PYBUILD_TEST_ARGS=-x -v -m "not db and not fs and not network" \
-	--hypothesis-profile=fast ./swh/storage/tests \
-	-p no:pytest_swh_storage
+	--hypothesis-profile=fast ./swh/storage/tests
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
