@@ -1,10 +1,1 @@
-include pytest.ini
-include tox.ini
-include Makefile
-include Makefile.local
-include README.md
-recursive-include . requirements*.txt
 include version.txt
-recursive-include sql *
-recursive-include swh/storage/sql *
-recursive-include swh py.typed
