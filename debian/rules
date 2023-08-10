@@ -4,7 +4,8 @@
 # export SWH_CASSANDRA_LOGS=1
 export PYBUILD_NAME=swh.storage
 export PYBUILD_TEST_ARGS=-x -v -m "not db and not fs and not network" \
-	--hypothesis-profile=fast ./swh/storage/tests
+	--hypothesis-profile=fast ./swh/storage/tests \
+	-p no:pytest_swh_storage
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
