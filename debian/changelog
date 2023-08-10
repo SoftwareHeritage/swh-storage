@@ -1,3 +1,9 @@
+swh-storage (1.15.4-1~swh6~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 10 Aug 2023 13:52:40 +0000
+
 swh-storage (1.15.4-1~swh6) unstable-swh; urgency=medium
 
   * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
