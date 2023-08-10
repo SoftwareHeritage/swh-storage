@@ -1,4 +1,11 @@
-swh-storage (1.15.4-1swh2) unstable-swh; urgency=medium
+swh-storage (1.15.4-1~swh3) unstable-swh; urgency=medium
+
+  * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
+    test context 2/2
+
+ -- Antoine R. Dumont (@ardumont) <ardumont@softwareheritage.org>  Thu, 10 Aug 2023 14:55:42 +0200
+
+swh-storage (1.15.4-1~swh2) unstable-swh; urgency=medium
 
   * Make swh.storage.pytest_plugin be loaded for fixture to be seen in
     test context
