@@ -393,6 +393,25 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("content/skipped/find")
+    def skipped_content_find(self, content: HashDict) -> List[SkippedContent]:
+        """Find skipped content for the given hashes
+
+        Args:
+            content: a dictionary representing one content hash, mapping
+                checksum algorithm names (see swh.model.hashutil.ALGORITHMS) to
+                checksum values
+
+        Raises:
+            ValueError: in case the key of the dictionary is not sha1, sha1_git
+                nor sha256.
+
+        Returns:
+            a list of SkippedContent objects matching the search criteria if the
+            skipped content exists. Empty list otherwise.
+        """
+        ...
+
     @remote_api_endpoint("content/skipped/missing")
     def skipped_content_missing(
         self, contents: List[Dict[str, Any]]

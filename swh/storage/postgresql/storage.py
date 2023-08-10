@@ -592,6 +592,29 @@ class Storage:
             "skipped_content:add": len(content),
         }
 
+    @db_transaction()
+    def skipped_content_find(
+        self, content: HashDict, *, db: Db, cur=None
+    ) -> List[SkippedContent]:
+        if not set(content).intersection(DEFAULT_ALGORITHMS):
+            raise StorageArgumentException(
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(DEFAULT_ALGORITHMS))}"
+            )
+
+        rows = db.skipped_content_find(
+            sha1=content.get("sha1"),
+            sha1_git=content.get("sha1_git"),
+            sha256=content.get("sha256"),
+            blake2s256=content.get("blake2s256"),
+            cur=cur,
+        )
+        skipped_contents = []
+        for row in rows:
+            row_d = dict(zip(db.skipped_content_find_cols, row))
+            skipped_contents.append(SkippedContent(**row_d))
+        return skipped_contents
+
     @db_transaction_generator()
     def skipped_content_missing(
         self, contents: List[Dict[str, Any]], *, db: Db, cur=None
