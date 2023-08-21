@@ -8,6 +8,7 @@ import logging
 import random
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
+from psycopg2 import sql
 from psycopg2.extras import execute_values
 
 from swh.core.db import BaseDb
@@ -24,6 +25,71 @@ logger = logging.getLogger(__name__)
 
 def jsonize(d):
     return _jsonize(dict(d) if d is not None else None)
+
+
+class QueryBuilder:
+    def __init__(self) -> None:
+        self.parts = sql.Composed([])
+        self.params: List[Any] = []
+
+    def add_query_part(self, query_part, params: List[Any] = []) -> None:
+        # add a query part along with its run time parameters
+        self.parts += query_part
+        self.params += params
+
+    def add_pagination_clause(
+        self,
+        pagination_key: List[str],
+        cursor: Optional[Any],
+        direction: Optional[ListOrder],
+        limit: Optional[int],
+        separator: str = "AND",
+    ) -> None:
+        """Create and add a pagination clause to the query
+
+        Args:
+            pagination_key: Pagination key to be used. Use list of strings
+               to support alias fields
+            cursor: Pagination cursor as a query parameter
+            direction: Sort order
+            limit: Limit as a query parameter
+            separator: Separator to be used as the prefix for the clause
+        """
+
+        # Can be used for queries that require pagination
+        if cursor:
+            operation = "<" if direction == ListOrder.DESC else ">"  # ASC by default
+            # pagination_key and the direction will be given as identifiers
+            # and cursor is a run time parameter
+            pagination_part = sql.SQL(
+                "{separator} {pagination_key} {operation} {cursor}"
+            ).format(
+                separator=sql.SQL(separator),
+                pagination_key=sql.Identifier(*pagination_key),
+                operation=sql.SQL(operation),
+                cursor=sql.Placeholder(),
+            )
+            self.add_query_part(pagination_part, params=[cursor])
+        # Always use order by and limit with pagination
+        if direction:
+            operation = "DESC" if direction == ListOrder.DESC else "ASC"
+            order_part = sql.SQL("ORDER BY {pagination_key} {operation}").format(
+                pagination_key=sql.Identifier(*pagination_key),
+                operation=sql.SQL(operation),
+            )
+            self.add_query_part(order_part)
+        if limit is not None:
+            limit_part = sql.SQL("LIMIT {limit}").format(limit=sql.Placeholder())
+            self.add_query_part(limit_part, params=[limit])
+
+    def get_query(self, db_cursor, separator: str = " ") -> str:
+        # To get the query as a string; can be used for debugging
+        return self.parts.join(separator).as_string(db_cursor)
+
+    def execute(self, db_cursor, separator: str = " ") -> None:
+        # Compose and execute
+        query = self.parts.join(separator)
+        db_cursor.execute(query, self.params)
 
 
 class Db(BaseDb):
@@ -1057,31 +1123,24 @@ class Db(BaseDb):
         limit: int,
         cur=None,
     ):
-        cur = self._cursor(cur)
-
         origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
-        query_parts = [
-            f"SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov ",
-            "INNER JOIN origin o ON o.id = ov.origin ",
-        ]
-        query_parts.append("WHERE ov.origin = (select id from origin where url = %s)")
-        query_params: List[Any] = [origin]
-
-        if visit_from > 0:
-            op_comparison = ">" if order == ListOrder.ASC else "<"
-            query_parts.append(f"and ov.visit {op_comparison} %s")
-            query_params.append(visit_from)
-
-        if order == ListOrder.ASC:
-            query_parts.append("ORDER BY ov.visit ASC")
-        elif order == ListOrder.DESC:
-            query_parts.append("ORDER BY ov.visit DESC")
-
-        query_parts.append("LIMIT %s")
-        query_params.append(limit)
-
-        query = "\n".join(query_parts)
-        cur.execute(query, tuple(query_params))
+        builder = QueryBuilder()
+        builder.add_query_part(
+            sql.SQL(
+                f"""SELECT { ', '.join(origin_visit_cols) } FROM origin_visit ov
+                INNER JOIN origin o ON o.id = ov.origin
+                WHERE ov.origin = (select id from origin where url = %s)"""
+            ),
+            params=[origin],  # dynamic params
+        )
+        builder.add_pagination_clause(
+            pagination_key=["ov", "visit"],
+            cursor=visit_from,
+            direction=order,
+            limit=limit,
+        )
+        cur = self._cursor(cur)
+        builder.execute(db_cursor=cur)
         yield from cur
 
     def origin_visit_status_get_all_in_range(
