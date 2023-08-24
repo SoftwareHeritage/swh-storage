@@ -289,6 +289,58 @@ class Db(BaseDb):
 
         yield from cur
 
+    skipped_content_find_cols = [
+        "sha1",
+        "sha1_git",
+        "sha256",
+        "blake2s256",
+        "length",
+        "status",
+        "reason",
+        "ctime",
+    ]
+
+    def skipped_content_find(
+        self,
+        sha1: Optional[bytes] = None,
+        sha1_git: Optional[bytes] = None,
+        sha256: Optional[bytes] = None,
+        blake2s256: Optional[bytes] = None,
+        cur=None,
+    ) -> List[Tuple[Any]]:
+        cur = self._cursor(cur)
+
+        checksum_dict = {
+            "sha1": sha1,
+            "sha1_git": sha1_git,
+            "sha256": sha256,
+            "blake2s256": blake2s256,
+        }
+
+        # XXX: The origin part is untested because of
+        # https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues/4693
+        query_parts = [
+            f"""
+            SELECT {','.join(self.skipped_content_find_cols)}, origin.url AS origin
+            FROM skipped_content
+            LEFT JOIN origin ON origin.id = skipped_content.origin
+            WHERE
+            """
+        ]
+        query_params = []
+        where_parts = []
+        # Adds only those keys which have values exist
+        for algorithm in checksum_dict:
+            if checksum_dict[algorithm] is not None:
+                where_parts.append(f"{algorithm} = %s")
+                query_params.append(checksum_dict[algorithm])
+
+        query_parts.append(" AND ".join(where_parts))
+        query = "\n".join(query_parts)
+        cur.execute(query, query_params)
+        skipped_contents = cur.fetchall()
+        return skipped_contents
+
     ##########################
     # 'directory*' tables
     ##########################

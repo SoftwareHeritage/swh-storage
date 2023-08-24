@@ -1,8 +1,12 @@
-swh-storage (1.15.4-1~swh6~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.16.0-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.16.0     - (tagged by Jérémy Bobbio (Lunar)
+    <lunar@softwareheritage.org> on 2023-08-24 15:50:18 +0200)
+  * Upstream changes:     - v1.16.0     - Add
+    `StorageInterface.skipped_content_find()` which can retrieve full
+    - SkippedContent objects from the storage.
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 10 Aug 2023 13:52:40 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Aug 2023 14:16:03 +0000
 
 swh-storage (1.15.4-1~swh6) unstable-swh; urgency=medium
 
