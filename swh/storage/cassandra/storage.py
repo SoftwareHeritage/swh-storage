@@ -578,6 +578,32 @@ class CassandraStorage:
         contents = [attr.evolve(c, ctime=now()) for c in content]
         return self._skipped_content_add(contents)
 
+    def skipped_content_find(self, content: HashDict) -> List[SkippedContent]:
+        if not set(content).intersection(HASH_ALGORITHMS):
+            raise StorageArgumentException(
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(HASH_ALGORITHMS))}"
+            )
+        # get first algo that was given
+        algo, hash_ = next(iter(cast(Dict[str, bytes], content).items()))
+        # because of collisions, we might get multiple tokens for different skipped contents
+        tokens = self._cql_runner.skipped_content_get_tokens_from_single_hash(
+            algo, hash_
+        )
+        # that means that now we need to filter out those that do not match the search criteria…
+        results = []
+        for token in tokens:
+            # and the token might actually also correspond to multiple,
+            # unrelated skipped content
+            for row in self._cql_runner.skipped_content_get_from_token(token):
+                row_d = row.to_dict()
+                if all(row_d[algo] == hash_ for algo, hash_ in content.items()):
+                    row_d["ctime"] = row_d["ctime"].replace(
+                        tzinfo=datetime.timezone.utc
+                    )
+                    results.append(SkippedContent(**row_d))
+        return results
+
     def skipped_content_missing(
         self, contents: List[Dict[str, Any]]
     ) -> Iterable[Dict[str, Any]]:
