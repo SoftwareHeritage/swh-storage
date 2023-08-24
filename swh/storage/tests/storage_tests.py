@@ -58,6 +58,7 @@ from swh.storage.interface import (
     SnapshotBranchByNameResponse,
     StorageInterface,
 )
+from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
 from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import (
     content_hex_hashes,
@@ -546,6 +547,125 @@ class TestStorage:
 
         missing = list(swh_storage.skipped_content_missing(contents_dict))
         assert missing == []
+
+    def test_skipped_content_find_with_results(self, swh_storage, sample_data):
+        # XXX: We cannot test the origin part on postgresql due to
+        # https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues/4693
+        if isinstance(swh_storage, PostgreSQLStorage):
+            skipped_content = attr.evolve(sample_data.skipped_content, origin=None)
+        else:
+            # We configure an existing origin to see if we properly retrieve the origin URL
+            origin = sample_data.origin
+            skipped_content = attr.evolve(
+                sample_data.skipped_content, origin=origin.url
+            )
+            swh_storage.origin_add([origin])
+        swh_storage.skipped_content_add([skipped_content])
+
+        # 1. with something to find
+        actually_present = swh_storage.skipped_content_find(
+            {"sha1": skipped_content.sha1}
+        )
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+        # 2. with something to find
+        actually_present = swh_storage.skipped_content_find(
+            {"sha1_git": skipped_content.sha1_git}
+        )
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+        # 3. with something to find
+        actually_present = swh_storage.skipped_content_find(
+            {"sha256": skipped_content.sha256}
+        )
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+        # 4. with something to find
+        actually_present = swh_storage.skipped_content_find(skipped_content.hashes())
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+    def test_skipped_content_find_with_no_results(self, swh_storage, sample_data):
+        missing_content = sample_data.skipped_content
+
+        # Please note that the database is left empty on purpose
+        results = swh_storage.content_find({"sha1": missing_content.sha1})
+        assert results == []
+        results = swh_storage.content_find(missing_content.hashes())
+        assert results == []
+
+    def test_skipped_content_find_with_duplicate_input(self, swh_storage, sample_data):
+        # use skipped_content2 as it does not reference an origin
+        skipped_content = sample_data.skipped_content2
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(skipped_content.sha1)
+        sha1_array[0] += 1
+        sha1git_array = bytearray(skipped_content.sha1_git)
+        sha1git_array[0] += 1
+        duplicated = attr.evolve(
+            skipped_content, sha1=bytes(sha1_array), sha1_git=bytes(sha1git_array)
+        )
+
+        # Inject the data
+        swh_storage.skipped_content_add([skipped_content, duplicated])
+
+        results = swh_storage.skipped_content_find(
+            {
+                "blake2s256": duplicated.blake2s256,
+                "sha256": duplicated.sha256,
+            }
+        )
+        assert set(results) == {skipped_content, duplicated}
+
+    def test_skipped_content_find_with_duplicate_but_precise_search(
+        self, swh_storage, sample_data
+    ):
+        # use skipped_content2 as it does not reference an origin
+        skipped_content = sample_data.skipped_content2
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(skipped_content.sha1)
+        sha1_array[0] += 1
+        sha1git_array = bytearray(skipped_content.sha1_git)
+        sha1git_array[0] += 1
+        duplicated = attr.evolve(
+            skipped_content, sha1=bytes(sha1_array), sha1_git=bytes(sha1git_array)
+        )
+
+        # Inject the data
+        swh_storage.skipped_content_add([skipped_content, duplicated])
+
+        # Search with collided hash should return both
+        results = swh_storage.skipped_content_find(
+            {
+                "sha256": duplicated.sha256,
+            }
+        )
+        assert len(results) == 2
+
+        # Search with more precision should return only one
+        results = swh_storage.skipped_content_find(
+            {
+                "sha256": duplicated.sha256,
+                "sha1_git": skipped_content.sha1_git,
+            }
+        )
+        assert results == [skipped_content]
+
+    def test_skipped_content_find_bad_input(self, swh_storage):
+        # 1. with no hash to lookup
+        with pytest.raises(StorageArgumentException):
+            swh_storage.skipped_content_find({})  # need at least one hash
+
+        # 2. with bad hash
+        with pytest.raises(StorageArgumentException):
+            swh_storage.skipped_content_find(
+                {"unknown-sha1": "something"}
+            )  # not the right key
 
     def test_skipped_content_missing_partial_hash(self, swh_storage, sample_data):
         cont = sample_data.skipped_content
