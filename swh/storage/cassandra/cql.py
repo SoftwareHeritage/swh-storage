@@ -336,6 +336,7 @@ class CqlRunner:
             port=port,
             auth_provider=auth_provider_impl,
             execution_profiles=get_execution_profiles(consistency_level),
+            connect_timeout=30,
         )
         self.keyspace = keyspace
         self._session = self._cluster.connect()
