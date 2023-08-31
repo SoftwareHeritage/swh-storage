@@ -957,6 +957,20 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["directory"] == 1
 
+    def test_directory_add_all(self, swh_storage, sample_data):
+        init_missing = list(
+            swh_storage.directory_missing([d.id for d in sample_data.directories])
+        )
+        assert [d.id for d in sample_data.directories] == init_missing
+
+        actual_result = swh_storage.directory_add(sample_data.directories)
+        assert actual_result == {"directory:add": 7}
+
+        for directory in sample_data.directories:
+            assert ("directory", directory) in list(
+                swh_storage.journal_writer.journal.objects
+            )
+
     def test_directory_add_with_raw_manifest(self, swh_storage, sample_data):
         content = sample_data.content
         directory = sample_data.directory
