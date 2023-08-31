@@ -42,7 +42,7 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
     assert snapshot == returned_snapshot
 
 
-@settings(suppress_health_check=function_scoped_fixture_check)
+@settings(suppress_health_check=function_scoped_fixture_check, deadline=None)
 @given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
 def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
     snapshot = Snapshot(
