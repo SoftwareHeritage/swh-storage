@@ -263,7 +263,11 @@ def swh_storage_cassandra_backend_config(
     storage = get_storage(**storage_config)
 
     for table in TABLES:
-        storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
+        table_rows = storage._cql_runner._session.execute(
+            f"SELECT * from {keyspace}.{table} LIMIT 1"
+        )
+        if table_rows.one() is not None:
+            storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
 
     storage._cql_runner._cluster.shutdown()
 
