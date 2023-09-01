@@ -156,6 +156,8 @@ def create_keyspace(
         port=port,
         execution_profiles=get_execution_profiles(),
         auth_provider=auth_provider_inst,
+        connect_timeout=30,
+        control_connection_timeout=30,
     )
     session = cluster.connect()
     extra_params = ""
@@ -337,6 +339,7 @@ class CqlRunner:
             auth_provider=auth_provider_impl,
             execution_profiles=get_execution_profiles(consistency_level),
             connect_timeout=30,
+            control_connection_timeout=30,
         )
         self.keyspace = keyspace
         self._session = self._cluster.connect()

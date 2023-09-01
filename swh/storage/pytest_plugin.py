@@ -187,7 +187,11 @@ def swh_storage_cassandra_cluster(tmpdir_factory):
             username="cassandra", password="cassandra"
         )
         cluster = Cluster(
-            ["127.0.0.1"], port=native_transport_port, auth_provider=auth_provider
+            ["127.0.0.1"],
+            port=native_transport_port,
+            auth_provider=auth_provider,
+            connect_timeout=30,
+            control_connection_timeout=30,
         )
 
         session = None
