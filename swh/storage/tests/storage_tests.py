@@ -59,13 +59,22 @@ from swh.storage.interface import (
     StorageInterface,
 )
 from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
-from swh.storage.tests.conftest import function_scoped_fixture_check
 from swh.storage.utils import (
     content_hex_hashes,
     now,
     remove_keys,
     round_to_milliseconds,
 )
+
+# list of hypothesis disabled health checks in some of the tests in TestStorage
+disabled_health_checks = []
+# we use getattr here to keep mypy happy regardless hypothesis version
+if hasattr(HealthCheck, "function_scoped_fixture"):
+    disabled_health_checks.append(HealthCheck.function_scoped_fixture)
+if hasattr(HealthCheck, "differing_executors"):
+    disabled_health_checks.append(HealthCheck.differing_executors)
+# TODO: would probably require better fixes than just disabling this later health
+#       check...
 
 
 def transform_entries(
@@ -688,7 +697,7 @@ class TestStorage:
     @pytest.mark.property_based
     @settings(
         deadline=None,  # this test is very slow
-        suppress_health_check=function_scoped_fixture_check,
+        suppress_health_check=disabled_health_checks,
     )
     @given(
         strategies.sets(
@@ -721,7 +730,7 @@ class TestStorage:
 
     @pytest.mark.property_based
     @settings(
-        suppress_health_check=function_scoped_fixture_check,
+        suppress_health_check=disabled_health_checks,
     )
     @given(
         strategies.sets(
@@ -991,7 +1000,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -1452,7 +1461,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -2041,7 +2050,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -4351,7 +4360,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -4940,7 +4949,7 @@ class TestStorage:
         }
 
     @settings(
-        suppress_health_check=function_scoped_fixture_check,
+        suppress_health_check=disabled_health_checks,
     )
     @given(hypothesis_strategies.snapshots(min_size=1))
     def test_snapshot_get_unknown_snapshot(self, swh_storage, unknown_snapshot):
@@ -6287,7 +6296,7 @@ class TestStorageGeneratedData:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(hypothesis_strategies.objects(split_content=True), max_size=2)
