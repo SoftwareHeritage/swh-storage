@@ -1,3 +1,13 @@
+swh-storage (1.17.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.17.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2023-09-06 10:36:01 +0200)
+  * Upstream changes:     - v1.17.0     - bump postgresql db version to
+    190     - improve postgresql directory add     - improve tenacious
+    proxy logging     - increase cassandra connection timeouts
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 06 Sep 2023 08:54:07 +0000
+
 swh-storage (1.16.0-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.16.0     - (tagged by Jérémy Bobbio (Lunar)
