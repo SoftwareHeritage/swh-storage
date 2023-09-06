@@ -1,3 +1,4 @@
+
 create or replace function hash_sha1(text)
        returns text
 as $$
@@ -224,18 +225,22 @@ begin
     select distinct t.target, t.name, t.perms
     from tmp_directory_entry_%1$s t
     where not exists (
-    select 1
-    from directory_entry_%1$s i
-    where t.target = i.target and t.name = i.name and t.perms = i.perms)
+      select 1
+      from directory_entry_%1$s i
+      where t.target = i.target and t.name = i.name and t.perms = i.perms
+	)
+	on conflict
+	do nothing
+	;
    ', typ);
 
     execute format('
     with new_entries as (
-	select t.dir_id, array_agg(i.id) as entries
-	from tmp_directory_entry_%1$s t
-	inner join directory_entry_%1$s i
-	using (target, name, perms)
-	group by t.dir_id
+      select t.dir_id, array_agg(i.id) as entries
+      from tmp_directory_entry_%1$s t
+      inner join directory_entry_%1$s i
+      using (target, name, perms)
+      group by t.dir_id
     )
     update tmp_directory as d
     set %1$s_entries = new_entries.entries
@@ -268,7 +273,8 @@ begin
     select id, dir_entries, file_entries, rev_entries, raw_manifest from tmp_directory t
     where not exists (
         select 1 from directory d
-	where d.id = t.id);
+        where d.id = t.id
+	);
 
     return;
 end

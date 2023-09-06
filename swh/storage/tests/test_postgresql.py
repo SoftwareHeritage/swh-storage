@@ -6,13 +6,15 @@
 from contextlib import contextmanager
 import queue
 import threading
+import time
 from typing import Dict
 from unittest.mock import Mock
 
 import attr
 import pytest
 
-from swh.model.model import Person
+from swh.model import from_disk
+from swh.model.model import Directory, Person
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
@@ -105,6 +107,61 @@ class TestStorageRaceConditions:
         assert r1[0] != r2[0]
         assert r1[1] == "data", "Got exception %r in Thread%s" % (r1[2], r1[0])
         assert r2[1] == "data", "Got exception %r in Thread%s" % (r2[2], r2[0])
+
+    def test_directory_add_race(self, swh_storage, sample_data):
+        # generate a bunch of similar/identical Directory objects to add
+        # concurrently
+        directories = []
+        entries = sample_data.directory7.to_dict()["entries"]
+        for cnt in sample_data.contents:
+            fentry = {
+                "name": b"the_file",
+                "type": "file",
+                "target": cnt.sha1_git,
+                "perms": from_disk.DentryPerms.content,
+            }
+            for entry in entries:
+                directories.append(
+                    Directory.from_dict({"entries": (entry,) + (fentry,)})
+                )
+            directories.append(Directory.from_dict({"entries": entries + (fentry,)}))
+            directories.append(Directory.from_dict({"entries": (fentry,)}))
+        directories *= 5
+
+        # used to gather each thread execution result as triplets (thread_id,
+        # result_type, payload), payload can be a normal result or an exception
+        results = queue.Queue()
+
+        def thread(dirs):
+            try:
+                with db_transaction(swh_storage) as (db, cur):
+                    ret = swh_storage.directory_add(directories=dirs, db=db, cur=cur)
+                    # give a chance for another thread to have some cpu
+                    time.sleep(0.1)
+                results.put((threading.get_ident(), "data", ret))
+            except Exception as e:
+                results.put((threading.get_ident(), "exc", e))
+
+        ts = [threading.Thread(target=thread, args=([d],)) for d in directories]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+
+        rs = [results.get(block=False) for _ in ts]
+
+        with pytest.raises(queue.Empty):
+            results.get(block=False)
+
+        for tid, rtype, payload in rs:
+            if rtype == "exc":
+                # there might be UniqueViolation errors, but only on the
+                # directory table, not the directory_entry_xxx ones
+                assert (
+                    payload.diag.constraint_name == "directory_pkey"
+                ), "Got exception %r in Thread%s" % (payload, tid)
+
+        for d in directories:
+            entries = tuple(swh_storage.directory_get_entries(d.id).results)
+            assert sorted(entries) == sorted(d.entries)
 
 
 @pytest.mark.db
