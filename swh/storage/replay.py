@@ -98,6 +98,12 @@ class ModelObjectDeserializer:
     If 'raise_on_error' is True, a 'StorageArgumentException' exception is
     raised.
 
+    If 'known_mismatched_hashes' is given, it must be a tuple of triplets
+    (object_type, object_id, expected_id) listing objects that store invalid
+    hash (object_id) instead of the computed expected_id, but should not be
+    discarded (i.e. they should be replicated by the replayer despite being
+    invalid).
+
     Typical usage::
 
       deserializer = ModelObjectDeserializer(validate=True, reporter=reporter_cb)
@@ -111,10 +117,12 @@ class ModelObjectDeserializer:
         validate: bool = True,
         raise_on_error: bool = False,
         reporter: Optional[Callable[[str, bytes], None]] = None,
+        known_mismatched_hashes: Optional[Tuple[Tuple[str, bytes, bytes]]] = None,
     ):
         self.validate = validate
         self.reporter = reporter
         self.raise_on_error = raise_on_error
+        self.known_mismatched_hashes = known_mismatched_hashes
 
     def convert(self, object_type: str, msg: bytes) -> Optional[BaseModel]:
         dict_repr = kafka_to_value(msg)
@@ -137,13 +145,22 @@ class ModelObjectDeserializer:
                 if obj.id != cid:
                     error_msg = (
                         f"Object has id {hash_to_hex(obj.id)}, "
-                        f"but it should be {hash_to_hex(cid)}: {obj}"
+                        f"but it should be {hash_to_hex(cid)}: {obj}."
                     )
-                    logger.error(error_msg)
-                    self.report_failure(msg, obj)
-                    if self.raise_on_error:
-                        raise StorageArgumentException(error_msg)
-                    return None
+                    if (
+                        self.known_mismatched_hashes is None
+                        or (object_type, obj.id, cid)
+                        not in self.known_mismatched_hashes
+                    ):
+                        logger.error(error_msg)
+                        self.report_failure(msg, obj)
+                        if self.raise_on_error:
+                            raise StorageArgumentException(error_msg)
+                        return None
+                    else:
+                        logger.warning(
+                            error_msg + " Known exception, replicating it anyway."
+                        )
         return obj
 
     def report_failure(
