@@ -1,8 +1,20 @@
-swh-storage (1.16.0-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.17.1-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.17.1     - (tagged by Antoine Lambert
+    <anlambert@softwareheritage.org> on 2023-09-11 13:29:54 +0200)
+  * Upstream changes:     - version 1.17.1
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 24 Aug 2023 14:36:02 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 11 Sep 2023 11:44:17 +0000
+
+swh-storage (1.17.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.17.0     - (tagged by David Douard
+    <david.douard@sdfa3.org> on 2023-09-06 10:36:01 +0200)
+  * Upstream changes:     - v1.17.0     - bump postgresql db version to
+    190     - improve postgresql directory add     - improve tenacious
+    proxy logging     - increase cassandra connection timeouts
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 06 Sep 2023 08:54:07 +0000
 
 swh-storage (1.16.0-1~swh1) unstable-swh; urgency=medium
 

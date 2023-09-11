@@ -187,7 +187,11 @@ def swh_storage_cassandra_cluster(tmpdir_factory):
             username="cassandra", password="cassandra"
         )
         cluster = Cluster(
-            ["127.0.0.1"], port=native_transport_port, auth_provider=auth_provider
+            ["127.0.0.1"],
+            port=native_transport_port,
+            auth_provider=auth_provider,
+            connect_timeout=30,
+            control_connection_timeout=30,
         )
 
         session = None
@@ -259,7 +263,11 @@ def swh_storage_cassandra_backend_config(
     storage = get_storage(**storage_config)
 
     for table in TABLES:
-        storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
+        table_rows = storage._cql_runner._session.execute(
+            f"SELECT * from {keyspace}.{table} LIMIT 1"
+        )
+        if table_rows.one() is not None:
+            storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
 
     storage._cql_runner._cluster.shutdown()
 
@@ -300,6 +308,7 @@ def swh_storage_postgresql_backend_config(swh_storage_postgresql):
         "db": swh_storage_postgresql.dsn,
         "objstorage": {"cls": "memory"},
         "check_config": {"check_write": True},
+        "max_pool_conns": 100,
     }
 
 

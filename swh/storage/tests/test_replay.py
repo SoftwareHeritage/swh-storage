@@ -542,6 +542,89 @@ def test_storage_replayer_with_validation_nok(
         )
 
 
+def test_storage_replayer_with_validation_nok_with_exceptions(
+    replayer_storage_and_client, caplog, redisdb
+):
+    """Replayer scenario with invalid objects, with exceptions
+
+    with validation and reporter set to a redis db.
+
+    - writes invalid objects to a source storage
+    - replayer consumes objects from the topic and replays them (invalid
+      objects being in the exception list)
+    - the destination storage is filled with all objects
+    - the redis db does not contain the invalid objects
+
+    """
+    src, replayer = replayer_storage_and_client
+
+    caplog.set_level(logging.WARNING, "swh.journal.replay")
+
+    # Fill Kafka using a source storage
+    nb_sent = 0
+    for object_type, objects in TEST_OBJECTS.items():
+        method = getattr(src, object_type + "_add")
+        method(objects)
+        nb_sent += len(objects)
+
+    # insert invalid objects
+    known_invalid = []
+    all_objs = {}
+    for object_type in ("revision", "directory", "release", "snapshot"):
+        all_objs[object_type] = TEST_OBJECTS[object_type][:]
+        method = getattr(src, object_type + "_add")
+        invalid_obj = attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)
+        method([invalid_obj])
+        nb_sent += 1
+        all_objs[object_type].append(invalid_obj)
+        known_invalid.append(
+            (object_type, b"\x00" * 20, TEST_OBJECTS[object_type][0].id)
+        )
+
+    replayer.value_deserializer = ModelObjectDeserializer(
+        validate=True,
+        reporter=redisdb.set,
+        known_mismatched_hashes=tuple(known_invalid),
+    ).convert
+    src.journal_writer.journal.flush()
+
+    # Fill the destination storage from Kafka
+    dst = get_storage(cls="memory")
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    nb_inserted = replayer.process(worker_fn)
+    assert nb_sent == nb_inserted
+
+    # check we do have invalid but replicates objects reported
+    invalid = 0
+    for record in caplog.records:
+        logtext = record.getMessage()
+        if WRONG_ID_REG.match(logtext):
+            assert logtext.endswith("Known exception, replicating it anyway.")
+            invalid += 1
+    assert invalid == 4, "Replayed invalid objects should be detected"
+    assert not set(redisdb.keys())
+
+    # check that all objects did reach the dst storage
+    # revisions
+    expected = [attr.evolve(rev, metadata=None) for rev in all_objs["revision"]]
+    result = dst.revision_get([obj.id for obj in all_objs["revision"]])
+    assert result == expected
+    # releases
+    expected = all_objs["release"]
+    result = dst.release_get([obj.id for obj in all_objs["release"]])
+    assert result == expected
+    # snapshot
+    # result from snapshot_get is paginated, so adapt the expected to be comparable
+    expected = [{"next_branch": None, **obj.to_dict()} for obj in all_objs["snapshot"]]
+    result = [dst.snapshot_get(obj.id) for obj in all_objs["snapshot"]]
+    assert result == expected
+    # directories
+    for directory in all_objs["directory"]:
+        assert set(dst.directory_get_entries(directory.id).results) == set(
+            directory.entries
+        )
+
+
 def test_storage_replayer_with_validation_nok_raises(
     replayer_storage_and_client, caplog, redisdb
 ):

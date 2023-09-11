@@ -166,38 +166,6 @@ def visits_and_snapshots_get_from_revision(
                     yield (visit, visit_status, snapshot)
 
 
-def snapshot_resolve_branch_target(
-    storage: StorageInterface,
-    snapshot_id: Sha1Git,
-    branch_obj: Optional[SnapshotBranch],
-    max_length: int = 100,
-) -> Tuple[Optional[SnapshotBranch], List[bytes]]:
-    """
-    Return the final target of a snapshot branch along with its
-    resolve chain. Return 'None' as the target in case the chain is
-    longer than the given max_length or has cycles
-
-    Args:
-        storage: Storage instance
-        snapshot_id: snapshot identifier
-        branch_obj: snapshot branch object to resolve
-        max_length: maximum chain length before breaking
-
-    Returns:
-        The first branch that isn't an alias and the resolve chain
-    """
-
-    if branch_obj is not None:
-        final_branch = storage.snapshot_branch_get_by_name(
-            snapshot_id=snapshot_id,
-            branch_name=branch_obj.target,
-            max_alias_chain_length=max_length,
-        )
-        if final_branch is not None:
-            return (final_branch.target, final_branch.aliases_followed)
-    return (None, [])
-
-
 def snapshot_resolve_alias(
     storage: StorageInterface, snapshot_id: Sha1Git, alias_name: bytes
 ) -> Optional[SnapshotBranch]:

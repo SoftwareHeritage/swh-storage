@@ -11,6 +11,7 @@ from typing import Deque, Dict, Iterable, List, Optional
 
 from swh.model.model import BaseModel
 from swh.storage import get_storage
+from swh.storage.exc import HashCollision
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +143,10 @@ class TenaciousProxyStorage:
             except Exception as exc:
                 if len(objs) > 1:
                     logger.info(
-                        f"{func_name}: failed to insert a batch of "
-                        f"{len(objs)} {object_type} objects, splitting"
+                        "%s: failed to insert a batch of %s %s objects, splitting",
+                        func_name,
+                        len(objs),
+                        object_type,
                     )
                     # reinsert objs split in 2 parts at the end of to_add
                     to_add.append(objs[(len(objs) // 2) :])
@@ -155,16 +158,24 @@ class TenaciousProxyStorage:
                     retries -= 1
                     if retries:
                         logger.info(
-                            f"{func_name}: failed to insert an {object_type}, retrying"
+                            "%s: failed to insert an %s, retrying",
+                            func_name,
+                            object_type,
                         )
                         # give it another chance
                         to_add.append(objs)
                     else:
                         logger.error(
-                            f"{func_name}: failed to insert an object, "
-                            f"excluding {objs} (from a batch of {n_objs})"
+                            "%s: failed to insert an object, excluding %s (from a batch of %s)",
+                            func_name,
+                            objs,
+                            n_objs,
                         )
-                        logger.exception(f"Exception was: {exc}")
+                        logger.error(
+                            "Exception was: %s",
+                            repr(exc),
+                            exc_info=not isinstance(exc, HashCollision),
+                        )
                         results.update({f"{object_type}:add:errors": 1})
                         self.rate_queue.add_error()
                         # reset the retries counter (needed in case the next
