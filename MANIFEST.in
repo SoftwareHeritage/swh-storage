@@ -1,1 +1,2 @@
 include version.txt
+recursive-include swh/storage/sql *
