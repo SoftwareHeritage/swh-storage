@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.storage
-Version: 1.17.0
+Version: 1.17.1
 Summary: Software Heritage storage manager
 Home-page: https://forge.softwareheritage.org/diffusion/DSTO/
 Author: Software Heritage developers
@@ -16,10 +16,40 @@ Classifier: Operating System :: OS Independent
 Classifier: Development Status :: 5 - Production/Stable
 Requires-Python: >=3.7
 Description-Content-Type: text/markdown
-Provides-Extra: testing
-Provides-Extra: journal
 License-File: LICENSE
 License-File: AUTHORS
+Requires-Dist: cassandra-driver!=3.21.0,>=3.19.0
+Requires-Dist: click
+Requires-Dist: deprecated
+Requires-Dist: flask
+Requires-Dist: iso8601
+Requires-Dist: mypy_extensions
+Requires-Dist: psycopg2
+Requires-Dist: redis
+Requires-Dist: tenacity!=8.2.0,>=6.2
+Requires-Dist: typing-extensions
+Requires-Dist: swh.core[db,http]>=2.20.0
+Requires-Dist: swh.counters>=v0.8.0
+Requires-Dist: swh.model>=6.3.0
+Requires-Dist: swh.objstorage>=2.2.0
+Provides-Extra: testing
+Requires-Dist: hypothesis>=3.11.0; extra == "testing"
+Requires-Dist: pytest; extra == "testing"
+Requires-Dist: pytest-mock; extra == "testing"
+Requires-Dist: swh.core[testing]; extra == "testing"
+Requires-Dist: swh.model[testing]>=0.0.50; extra == "testing"
+Requires-Dist: pytz; extra == "testing"
+Requires-Dist: pytest-redis; extra == "testing"
+Requires-Dist: pytest-xdist; extra == "testing"
+Requires-Dist: types-python-dateutil; extra == "testing"
+Requires-Dist: types-pytz; extra == "testing"
+Requires-Dist: types-pyyaml; extra == "testing"
+Requires-Dist: types-redis; extra == "testing"
+Requires-Dist: types-requests; extra == "testing"
+Requires-Dist: types-toml; extra == "testing"
+Requires-Dist: swh.journal>=1.2; extra == "testing"
+Provides-Extra: journal
+Requires-Dist: swh.journal>=1.2; extra == "journal"
 
 swh-storage
 ===========
