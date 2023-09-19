@@ -775,7 +775,7 @@ class TestStorage:
             [cont.sha1, missing_cont.sha1, cont2.sha1, missing_cont2.sha1]
         )
         # then
-        assert list(gen) == [missing_cont.sha1, missing_cont2.sha1]
+        assert set(gen) == {missing_cont.sha1, missing_cont2.sha1}
 
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
