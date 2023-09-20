@@ -106,7 +106,7 @@ to manually install openjdk-11-jre-headless from bullseye or unstable and
 set the appropriate environment variable:
 
 ```
-(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/bin/java
+(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 (swh) :~/swh-storage$ tox
 [...]
 ```
