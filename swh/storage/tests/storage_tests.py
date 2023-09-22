@@ -191,20 +191,24 @@ class TestStorage:
         assert swh_storage.check_config(check_write=False)
 
     def test_content_add(self, swh_storage, sample_data):
-        cont = sample_data.content
+        # first insert only one item
+        first_content = sample_data.content
 
         insertion_start_time = now()
-        actual_result = swh_storage.content_add([cont])
+        actual_result = swh_storage.content_add([first_content])
         insertion_end_time = now()
 
         assert actual_result == {
             "content:add": 1,
-            "content:add:bytes": cont.length,
+            "content:add:bytes": first_content.length,
         }
 
-        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
+        assert (
+            swh_storage.content_get_data({"sha1": first_content.sha1})
+            == first_content.data
+        )
 
-        expected_cont = attr.evolve(cont, data=None)
+        expected_cont = attr.evolve(first_content, data=None)
 
         contents = [
             obj
@@ -222,6 +226,30 @@ class TestStorage:
         ):
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 1
+
+        # then insert all the content (first one already exists)
+        contents = sample_data.contents
+
+        actual_result = swh_storage.content_add(contents)
+        assert actual_result == {
+            "content:add": len(contents) - 1,
+            "content:add:bytes": sum(len(c.data) for c in contents[1:]),
+        }
+
+        expected_contents = [attr.evolve(content, data=None) for content in contents]
+        assert (
+            swh_storage.content_get([content.sha1 for content in contents])
+            == expected_contents
+        )
+        journal_contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(journal_contents) == len(contents)
+        for obj, cont in zip(journal_contents, expected_contents):
+            obj = attr.evolve(obj, ctime=None)
+            assert obj == cont
 
     def test_content_add__legacy(self, swh_storage, sample_data):
         """content_add() with a single sha1 as param instead of a dict"""
@@ -444,22 +472,35 @@ class TestStorage:
         assert actual_contents == [expected_content]
 
     def test_content_add_metadata(self, swh_storage, sample_data):
-        cont = attr.evolve(sample_data.content, data=None, ctime=now())
+        # first insert only one item
+        first_content = attr.evolve(sample_data.content, data=None, ctime=now())
 
-        actual_result = swh_storage.content_add_metadata([cont])
+        actual_result = swh_storage.content_add_metadata([first_content])
         assert actual_result == {
             "content:add": 1,
         }
 
-        expected_cont = cont
-        assert swh_storage.content_get([cont.sha1]) == [expected_cont]
+        # then insert all the content (first one already exists)
         contents = [
+            attr.evolve(content, data=None, ctime=now())
+            for content in sample_data.contents
+        ]
+
+        actual_result = swh_storage.content_add_metadata(contents)
+        assert actual_result == {
+            "content:add": len(contents) - 1,
+        }
+
+        assert (
+            swh_storage.content_get([content.sha1 for content in contents]) == contents
+        )
+        journal_contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
             if obj_type == "content"
         ]
-        assert len(contents) == 1
-        for obj in contents:
+        assert len(journal_contents) == len(contents)
+        for obj, cont in zip(journal_contents, contents):
             obj = attr.evolve(obj, ctime=None)
             assert obj == cont
 
