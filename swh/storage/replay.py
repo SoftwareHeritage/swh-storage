@@ -226,6 +226,7 @@ def collision_aware_content_add(
         try:
             results.update(content_add_fn(contents))
         except HashCollision as e:
+            logger.debug("Hash collision detected: %s", e)
             colliding_content_hashes.append(
                 {
                     "algo": e.algo,
@@ -234,6 +235,8 @@ def collision_aware_content_add(
                 }
             )
             colliding_hashes = e.colliding_content_hashes()
+            logger.debug("Dropping colliding hashes: %s", colliding_hashes)
+
             # Drop the colliding contents from the transaction
             contents = [c for c in contents if c.hashes() not in colliding_hashes]
         else:
