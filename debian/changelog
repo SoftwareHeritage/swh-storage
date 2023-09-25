@@ -1,3 +1,13 @@
+swh-storage (1.18.3-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.18.3     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-09-25 15:55:36
+    +0200)
+  * Upstream changes:     - v1.18.3     - storage_tests: Fix other
+    assertions in postgresql tests
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 25 Sep 2023 14:09:41 +0000
+
 swh-storage (1.18.2-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.18.2     - (tagged by Antoine R. Dumont
