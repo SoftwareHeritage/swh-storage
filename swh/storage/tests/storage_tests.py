@@ -775,7 +775,7 @@ class TestStorage:
             [cont.sha1, missing_cont.sha1, cont2.sha1, missing_cont2.sha1]
         )
         # then
-        assert list(gen) == [missing_cont.sha1, missing_cont2.sha1]
+        assert set(gen) == {missing_cont.sha1, missing_cont2.sha1}
 
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
@@ -932,8 +932,8 @@ class TestStorage:
         assert directory.entries[0].target == content.sha1_git
         swh_storage.content_add([content])
 
-        init_missing = list(swh_storage.directory_missing([directory.id]))
-        assert [directory.id] == init_missing
+        init_missing = set(swh_storage.directory_missing([directory.id]))
+        assert init_missing == {directory.id}
 
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
@@ -958,10 +958,10 @@ class TestStorage:
             assert swh_storage.stat_counters()["directory"] == 1
 
     def test_directory_add_all(self, swh_storage, sample_data):
-        init_missing = list(
+        init_missing = set(
             swh_storage.directory_missing([d.id for d in sample_data.directories])
         )
-        assert [d.id for d in sample_data.directories] == init_missing
+        assert {d.id for d in sample_data.directories} == init_missing
 
         actual_result = swh_storage.directory_add(sample_data.directories)
         assert actual_result == {"directory:add": 7}
@@ -1142,8 +1142,8 @@ class TestStorage:
         dir1, dir2, dir3 = sample_data.directories[:3]
 
         dir_ids = [d.id for d in [dir1, dir2, dir3]]
-        init_missing = list(swh_storage.directory_missing(dir_ids))
-        assert init_missing == dir_ids
+        init_missing = set(swh_storage.directory_missing(dir_ids))
+        assert init_missing == set(dir_ids)
 
         actual_result = swh_storage.directory_add([dir1, dir2, dir3])
         assert actual_result == {"directory:add": 3}
@@ -1180,8 +1180,8 @@ class TestStorage:
         dir1, dir2, dir3, _, dir5 = sample_data.directories[:5]
 
         dir_ids = [d.id for d in [dir1, dir2, dir3, dir5]]
-        init_missing = list(swh_storage.directory_missing(dir_ids))
-        assert init_missing == dir_ids
+        init_missing = set(swh_storage.directory_missing(dir_ids))
+        assert init_missing == set(dir_ids)
 
         actual_result = swh_storage.directory_add([dir1, dir2, dir3, dir5])
         assert actual_result == {"directory:add": 4}
@@ -1257,8 +1257,8 @@ class TestStorage:
 
         # given
         dir_ids = [d.id for d in [dir1, dir2, dir3, dir4, dir5]]
-        init_missing = list(swh_storage.directory_missing(dir_ids))
-        assert init_missing == dir_ids
+        init_missing = set(swh_storage.directory_missing(dir_ids))
+        assert init_missing == set(dir_ids)
 
         actual_result = swh_storage.directory_add([dir3, dir4])
         assert actual_result == {"directory:add": 2}

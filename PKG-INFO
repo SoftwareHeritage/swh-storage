@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: swh.storage
-Version: 1.17.1
+Version: 1.18.3
 Summary: Software Heritage storage manager
 Home-page: https://forge.softwareheritage.org/diffusion/DSTO/
 Author: Software Heritage developers
@@ -159,7 +159,7 @@ to manually install openjdk-11-jre-headless from bullseye or unstable and
 set the appropriate environment variable:
 
 ```
-(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/bin/java
+(swh) :~/swh-storage$ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 (swh) :~/swh-storage$ tox
 [...]
 ```

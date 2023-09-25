@@ -1,8 +1,42 @@
-swh-storage (1.17.1-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.18.3-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.18.3     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-09-25 15:55:36
+    +0200)
+  * Upstream changes:     - v1.18.3     - storage_tests: Fix other
+    assertions in postgresql tests
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 11 Sep 2023 11:54:22 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 25 Sep 2023 14:09:41 +0000
+
+swh-storage (1.18.2-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.18.2     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-09-25 09:53:49
+    +0200)
+  * Upstream changes:     - v1.18.2     - storage_tests: Fix another
+    assertion output in postgresql tests     - Fix JAVA_HOME path in
+    README
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 25 Sep 2023 08:07:59 +0000
+
+swh-storage (1.18.1-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.18.1     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-09-20 09:28:58
+    +0200)
+  * Upstream changes:     - v1.18.1     - Fix test
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Wed, 20 Sep 2023 07:44:27 +0000
+
+swh-storage (1.18.0-1~swh1) unstable-swh; urgency=medium
+
+  * New upstream release 1.18.0     - (tagged by Antoine R. Dumont
+    (@ardumont) <ardumont@softwareheritage.org> on 2023-09-19 11:01:46
+    +0200)
+  * Upstream changes:     - v1.18.0     - Add storage-based discovery
+    algorithm
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Tue, 19 Sep 2023 09:17:11 +0000
 
 swh-storage (1.17.1-1~swh1) unstable-swh; urgency=medium
 
