@@ -372,9 +372,9 @@ class Storage:
 
         with self.db() as db:
             with db.transaction() as cur:
-                missing = list(
+                missing = set(
                     self.content_missing(
-                        map(Content.to_dict, contents),
+                        [c.to_dict() for c in contents],
                         key_hash="sha1_git",
                         db=db,
                         cur=cur,
@@ -408,11 +408,13 @@ class Storage:
     def content_add_metadata(
         self, content: List[Content], *, db: Db, cur=None
     ) -> Dict[str, int]:
-        missing = self.content_missing(
-            (c.to_dict() for c in content),
-            key_hash="sha1_git",
-            db=db,
-            cur=cur,
+        missing = set(
+            self.content_missing(
+                [c.to_dict() for c in content],
+                key_hash="sha1_git",
+                db=db,
+                cur=cur,
+            )
         )
         contents = [c for c in content if c.sha1_git in missing]
 
