@@ -524,13 +524,19 @@ class StorageInterface(Protocol):
         The number of results is not guaranteed to be lower than the ``limit``.
 
         Args:
-            directory_id: dentifier of the directory
+            directory_id: identifier of the directory
             page_token: opaque string used to get the next results of a search
             limit: Number of entries to return
 
         Returns:
             None if the directory does not exist; a page of DirectoryEntry
               objects otherwise.
+
+        See Also:
+            :py:func:`swh.storage.algos.directories.directory_get` will get all
+            entries for a given directory.
+            :py:func:`swh.storage.algos.directories.directory_get_many` will do
+            the same for a set of directories.
         """
         ...
 
@@ -1015,6 +1021,10 @@ class StorageInterface(Protocol):
         Returns:
             a PartialBranches object listing a limited amount of branches
             matching the given criteria or None if the snapshot does not exist.
+
+        See Also:
+            :py:func:`swh.storage.algos.snapshot.snapshot_get_all_branches` will get
+            all branches for a given snapshot.
         """
         ...
 
@@ -1140,6 +1150,9 @@ class StorageInterface(Protocol):
         Returns: Page of OriginVisit data model objects. if next_page_token is None,
             there is no longer data to retrieve.
 
+        See Also:
+            :py:func:`swh.storage.algos.origin.iter_origin_visits` will iterate
+            over all OriginVisits for a given origin.
         """
         ...
 
@@ -1232,6 +1245,9 @@ class StorageInterface(Protocol):
         Returns: Page of OriginVisitStatus data model objects. if next_page_token is
             None, there is no longer data to retrieve.
 
+        See Also:
+            :py:func:`swh.storage.algos.origin.iter_origin_visit_statuses` will iterate
+            over all OriginVisitStatus objects for a given origin and visit.
         """
         ...
 
