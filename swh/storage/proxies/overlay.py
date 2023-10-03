@@ -57,7 +57,7 @@ class OverlayProxyStorage:
     .. code-block: yaml
 
         storage:
-          cls: counter
+          cls: overlay
           storages:
           - cls: remote
             url: http://storage-rw.internal.staging.swh.network:5002/
@@ -142,8 +142,8 @@ class OverlayProxyStorage:
             raise NotImplementedError(key)
 
     def _getter_optional(self, method_name: str) -> Callable[[TKey], Optional[TValue]]:
-        """Generates a function which take an id and return, queries underlying
-        storages in order until one returns a non-None value"""
+        """Generates a function which take an id and return at most one object,
+        by querying underlying storages in order until one returns a non-None value"""
 
         @functools.wraps(getattr(self.storages[0], method_name))
         def newf(*args, **kwargs) -> Optional[TValue]:
