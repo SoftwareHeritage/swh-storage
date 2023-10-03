@@ -66,6 +66,10 @@ class OverlayProxyStorage:
           - cls: remote
             url: http://storage-ro1.internal.staging.swh.network:5002/
 
+    .. danger::
+
+       This proxy is not well-tested; therefore not suitable for production use.
+
     """
 
     def __init__(self, storages):
