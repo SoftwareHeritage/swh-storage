@@ -91,6 +91,7 @@ class OverlayProxyStorage:
             "content_get_data",
             "directory_get_entries",
             "directory_entry_get_by_path",
+            "snapshot_branch_get_by_name",
             "snapshot_get",
             "snapshot_get_branches",
             "snapshot_count_branches",
@@ -124,6 +125,7 @@ class OverlayProxyStorage:
             return self._getter_random(key)
         elif key in (
             "content_find",
+            "skipped_content_find",
             "origin_snapshot_get_all",
             "extid_get_from_extid",
             "extid_get_from_target",
