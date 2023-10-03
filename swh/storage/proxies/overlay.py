@@ -140,12 +140,10 @@ class OverlayProxyStorage:
         storages in order until one returns a non-None value"""
 
         @functools.wraps(getattr(self.storages[0], method_name))
-        def newf(id_: TKey, *args, **kwargs) -> Optional[TValue]:
-            method: Callable[[TKey], Optional[TValue]]
-
+        def newf(*args, **kwargs) -> Optional[TValue]:
             for storage in self.storages:
                 method = getattr(storage, method_name)
-                result = method(id_, *args, **kwargs)
+                result = method(*args, **kwargs)
                 if result is not None:
                     return result
 
