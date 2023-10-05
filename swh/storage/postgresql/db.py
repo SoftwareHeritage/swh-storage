@@ -1863,6 +1863,12 @@ class Db(BaseDb):
 
         return (monday, next_monday)
 
+    def object_references_drop_partition(self, year: int, week: int, cur=None) -> None:
+        """Delete the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        cur = self._cursor(cur)
+        cur.execute("DROP TABLE object_references_%04dw%02d" % (year, week))
+
     def object_references_list_partitions(
         self, cur=None
     ) -> List[ObjectReferencesPartition]:
