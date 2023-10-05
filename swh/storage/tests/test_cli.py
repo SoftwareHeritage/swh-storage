@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 import copy
+import datetime
 import logging
 import os
 import pathlib
@@ -310,15 +311,16 @@ def test_create_object_reference_partitions_postgresql(
 
     swh_storage = get_storage(**swh_storage_postgresql_backend_config)
 
-    from .test_postgresql import get_object_references_partition_bounds
+    with swh_storage.db() as db:
+        partitions = db.object_references_list_partitions()
 
-    partitions = get_object_references_partition_bounds(swh_storage)
+    for partition, (week, expected_start, expected_end) in zip(
+        partitions, expected_weeks
+    ):
+        assert partition.table_name == f"object_references_{week}"
+        assert partition.start == datetime.datetime.fromisoformat(expected_start)
+        assert partition.end == datetime.datetime.fromisoformat(expected_end)
 
-    for week, expected_start, expected_end in expected_weeks:
-        assert (
-            partitions[f"object_references_{week}"]
-            == f"FOR VALUES FROM ('{expected_start}') TO ('{expected_end}')"
-        )
-
+    table_names = {partition.table_name for partition in partitions}
     for week in unexpected_weeks:
-        assert f"object_references_{week}" not in partitions
+        assert f"object_references_{week}" not in table_names
