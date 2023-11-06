@@ -486,3 +486,69 @@ class TestPgStorage:
         swh_storage.current_version = -1
         assert swh_storage.check_config(check_write=True) is False
         assert swh_storage.check_config(check_write=False) is False
+
+    def test_object_delete(self, swh_storage, sample_data):
+        affected_tables = [
+            "origin",
+            "origin_visit",
+            "origin_visit_status",
+            "snapshot",
+            "snapshot_branch",
+            "snapshot_branches",
+            "release",
+            "revision",
+            "revision_history",
+            "directory",
+            # `directory_entry_*` are left out on purpose.
+            # We leave stale data there by design.
+            "skipped_content",
+            "content",
+        ]
+
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.skipped_content_add(sample_data.skipped_contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.git_revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swhids = (
+            [content.swhid().to_extended() for content in sample_data.contents]
+            + [
+                skipped_content.swhid().to_extended()
+                for skipped_content in sample_data.skipped_contents
+            ]
+            + [directory.swhid().to_extended() for directory in sample_data.directories]
+            + [revision.swhid().to_extended() for revision in sample_data.revisions]
+            + [release.swhid().to_extended() for release in sample_data.releases]
+            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
+            + [origin.swhid() for origin in sample_data.origins]
+        )
+
+        # Ensure we properly loaded our data
+        with db_transaction(swh_storage) as (_, cur):
+            for table in affected_tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                assert cur.fetchone()[0] >= 1, f"{table} is not populated"
+
+        result = swh_storage.object_delete(swhids)
+        assert result == {
+            "content:delete": 3,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 2,
+            "directory:delete": 7,
+            "release:delete": 3,
+            "revision:delete": 4,
+            "snapshot:delete": 3,
+            "origin:delete": 7,
+            "origin_visit:delete": 3,
+            "origin_visit_status:delete": 3,
+        }
+
+        # Ensure we properly removed our data
+        with db_transaction(swh_storage) as (_, cur):
+            for table in affected_tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                assert cur.fetchone()[0] == 0, f"{table} is not empty"
