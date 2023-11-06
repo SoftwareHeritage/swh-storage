@@ -1700,3 +1700,37 @@ class StorageInterface(Protocol):
         actual writes to the backend.
         """
         ...
+
+
+class ObjectDeletionInterface(Protocol):
+    def object_delete(self, swhids: List[ExtendedSWHID]):
+        """Delete objects from the storage
+
+        All skipped content objects matching the given SWHID will be removed,
+        including those who have the same SWHID due to hash collisions.
+
+        Origin objects are removed alongside their associated origin visit and
+        origin visit status objects.
+
+        Only objects from this facility will be removed. The same method
+        should be called on other storage, objstorage, or journal instances
+        where the specified objects need to be removed.
+
+        Args:
+            swhids: list of SWHID of the objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                content:delete: Number of content objects removed
+                content:delete:bytes: Sum of the removed contents’ data length
+                skipped_content:delete: Number of skipped content objects removed
+                directory:delete: Number of directory objects removed
+                revision:delete: Number of revision objects removed
+                release:delete: Number of release objects removed
+                snapshot:delete: Number of snapshot objects removed
+                origin:delete: Number of origin objects removed
+                origin_visit:delete: Number of origin visit objects removed
+                origin_visit_status:delete: Number of origin visit status objects removed
+        """
+        ...

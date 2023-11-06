@@ -1,8 +1,15 @@
-swh-storage (1.18.4-1~swh1~bpo10+1) buster-swh; urgency=medium
+swh-storage (1.18.5-1~swh1) unstable-swh; urgency=medium
 
-  * Rebuild for buster-swh
+  * New upstream release 1.18.5     - (tagged by Jérémy Bobbio (Lunar)
+    <lunar@softwareheritage.org> on 2023-11-06 17:51:57 +0100)
+  * Upstream changes:     - v1.18.5     - Add ObjectDeletionInterface
+    aimed at Storage classes:     - class
+    ObjectDeletionInterface(Protocol):     - def object_delete(     -
+    self, swhids: List[ExtendedSWHID]     - ) -> Dict[str, int]:     -
+    ...     - Implement ObjectDeletionInterface in PostgreSQL storage
+    - Implement ObjectDeletionInterface in Cassandra storage
 
- -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Thu, 28 Sep 2023 10:18:46 +0000
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 06 Nov 2023 17:08:00 +0000
 
 swh-storage (1.18.4-1~swh1) unstable-swh; urgency=medium
 
