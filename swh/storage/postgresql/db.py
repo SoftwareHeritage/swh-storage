@@ -1851,3 +1851,136 @@ class Db(BaseDb):
         )
 
         return (monday, next_monday)
+
+    #################
+    # object deletion
+    #################
+
+    def object_delete(
+        self, object_rows: List[Tuple[str, bytes]], cur=None
+    ) -> Dict[str, int]:
+        result = {}
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            CREATE TEMPORARY TABLE objects_to_remove (
+                type extended_object_type NOT NULL,
+                id BYTEA NOT NULL
+            ) ON COMMIT DROP
+            """
+        )
+        execute_values(
+            cur,
+            """INSERT INTO objects_to_remove (type, id)
+               VALUES %s""",
+            object_rows,
+        )
+        # We need to remove lines from `origin_visit_status`,
+        # `origin_visit` and `origin`.
+        cur.execute(
+            """CREATE TEMPORARY TABLE origins_to_remove
+                 ON COMMIT DROP
+                 AS
+                   SELECT origin.id FROM origin
+                    INNER JOIN objects_to_remove otr
+                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'"""
+        )
+        cur.execute(
+            """DELETE FROM origin_visit_status ovs
+                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin_visit_status:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM origin_visit ov
+                WHERE ov.origin IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin_visit:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM origin
+                WHERE origin.id IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin:delete"] = cur.rowcount
+        # We need to remove lines from both `snapshot_branches`
+        # and `snapshot_branch`.
+        cur.execute(
+            """CREATE TEMPORARY TABLE snapshots_to_remove
+                  ON COMMIT DROP
+                  AS
+                    SELECT object_id AS snapshot_id
+                      FROM snapshot s
+                     INNER JOIN objects_to_remove otr
+                        ON s.id = otr.id AND otr.type = 'snapshot'"""
+        )
+        cur.execute(
+            """CREATE TEMPORARY TABLE snapshot_branches_to_remove
+                 ON COMMIT DROP
+                 AS
+                    SELECT branch_id
+                      FROM snapshot_branches sb
+                     WHERE sb.snapshot_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot_branches
+                WHERE snapshot_branches.branch_id IN
+                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot_branch
+                WHERE snapshot_branch.object_id IN
+                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot
+                WHERE snapshot.object_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+        )
+        result["snapshot:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM release
+                WHERE release.id IN (SELECT id
+                                       FROM objects_to_remove
+                                      WHERE type = 'release')"""
+        )
+        result["release:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM revision_history
+                WHERE revision_history.id IN (SELECT id
+                                                FROM objects_to_remove
+                                               WHERE type = 'revision')"""
+        )
+        cur.execute(
+            """DELETE FROM revision
+                WHERE revision.id IN (SELECT id
+                                        FROM objects_to_remove
+                                       WHERE type = 'revision')"""
+        )
+        result["revision:delete"] = cur.rowcount
+        # We do not remove anything from `directory_entry_dir`,
+        # `directory_entry_file`, `directory_entry_rev`: these entries are
+        # shared across directories and we don't have (or don’t want to keep) an
+        # index to know which directory uses what entry.
+        cur.execute(
+            """DELETE FROM directory
+                WHERE directory.id IN (SELECT id
+                                         FROM objects_to_remove
+                                        WHERE type = 'directory')"""
+        )
+        result["directory:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM skipped_content
+                WHERE skipped_content.sha1_git IN (
+                    SELECT id
+                      FROM objects_to_remove
+                     WHERE type = 'content')"""
+        )
+        result["skipped_content:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM content
+                WHERE content.sha1_git IN (
+                    SELECT id
+                      FROM objects_to_remove
+                     WHERE type = 'content')"""
+        )
+        result["content:delete"] = cur.rowcount
+        # We are not an objstorage
+        result["content:delete:bytes"] = 0
+        return result

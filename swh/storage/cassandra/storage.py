@@ -2058,6 +2058,152 @@ class CassandraStorage:
         self._cql_runner.object_reference_add_concurrent(to_add)
         return {"object_reference:add": len(to_add)}
 
+    #########################
+    # Deletion
+    #########################
+
+    def _content_delete(self, object_ids: Set[Sha1Git]) -> Dict[str, int]:
+        # We have take care of both Content and SkippedContent and
+        # we don’t know where are each SWHID…
+        # Sadly, we have to read before write which is considered an
+        # anti-pattern for Cassandra. But we only have a SWHID, so a `sha1_git`.
+        # But we need to use the right primary keys to perform a deletion. We
+        # also cannot use `token()` in a WHERE clause of a DELETE… So we have to
+        # perform two SELECTs (in `_content_get_from_hashes()``) to get enough
+        # data to perform our DELETE.
+        content_hashes = []
+        for row in self._content_get_from_hashes("sha1_git", list(object_ids)):
+            content_hashes.append(
+                TotalHashDict(
+                    sha1=row.sha1,
+                    sha1_git=row.sha1_git,
+                    sha256=row.sha256,
+                    blake2s256=row.blake2s256,
+                )
+            )
+        for content_hash in content_hashes:
+            self._cql_runner.content_delete(content_hash)
+        object_ids -= {h["sha1_git"] for h in content_hashes}
+        skipped_content_hashes = []
+        for object_id in object_ids:
+            for token in self._cql_runner.skipped_content_get_tokens_from_single_hash(
+                "sha1_git", object_id
+            ):
+                for row in self._cql_runner.skipped_content_get_from_token(token):
+                    skipped_content_hashes.append(
+                        TotalHashDict(
+                            sha1=row.sha1,
+                            sha1_git=row.sha1_git,
+                            sha256=row.sha256,
+                            blake2s256=row.blake2s256,
+                        )
+                    )
+        for skipped_content_hash in skipped_content_hashes:
+            self._cql_runner.skipped_content_delete(skipped_content_hash)
+        return {
+            "content:delete": len(content_hashes),
+            "content:delete:bytes": 0,
+            "skipped_content:delete": len(skipped_content_hashes),
+        }
+
+    def _directory_delete(self, object_ids: Set[Sha1Git]) -> Dict[str, int]:
+        for object_id in object_ids:
+            self._cql_runner.directory_delete(object_id)
+            self._cql_runner.directory_entry_delete(object_id)
+        # Cassandra makes it so we can’t get the number of affected rows
+        return {"directory:delete": len(object_ids)}
+
+    def _revision_delete(self, object_ids: Set[Sha1Git]) -> Dict[str, int]:
+        for object_id in object_ids:
+            self._cql_runner.revision_delete(object_id)
+            self._cql_runner.revision_parent_delete(object_id)
+        # Cassandra makes it so we can’t get the number of affected rows
+        return {"revision:delete": len(object_ids)}
+
+    def _release_delete(self, object_ids: Set[Sha1Git]) -> Dict[str, int]:
+        for object_id in object_ids:
+            self._cql_runner.release_delete(object_id)
+        # Cassandra makes it so we can’t get the number of affected rows
+        return {"release:delete": len(object_ids)}
+
+    def _snapshot_delete(self, object_ids: Set[Sha1Git]) -> Dict[str, int]:
+        for object_id in object_ids:
+            self._cql_runner.snapshot_delete(object_id)
+            self._cql_runner.snapshot_branch_delete(object_id)
+        # Cassandra makes it so we can’t get the number of affected rows
+        return {"snapshot:delete": len(object_ids)}
+
+    def _origin_delete(self, object_ids: Set[Sha1Git]) -> Dict[str, int]:
+        origin_count = 0
+        origin_visit_count = 0
+        origin_visit_status_count = 0
+        for object_id in object_ids:
+            for origin_row in self._cql_runner.origin_get_by_sha1(object_id):
+                origin_count += 1
+                self._cql_runner.origin_delete(origin_row.sha1)
+                # XXX: We could avoid needless queries if we modify ObjectDeletionInterface
+                for origin_visit_row in self._cql_runner.origin_visit_iter_all(
+                    origin_row.url
+                ):
+                    origin_visit_count += 1
+                    origin_visit_status_count += len(
+                        list(
+                            self._cql_runner.origin_visit_status_get_range(
+                                origin_row.url,
+                                origin_visit_row.visit,
+                                None,
+                                99999999,
+                                ListOrder.ASC,
+                            )
+                        )
+                    )
+                self._cql_runner.origin_visit_delete(origin_row.url)
+                self._cql_runner.origin_visit_status_delete(origin_row.url)
+        return {
+            "origin:delete": origin_count,
+            "origin_visit:delete": origin_visit_count,
+            "origin_visit_status:delete": origin_visit_status_count,
+        }
+
+    def object_delete(self, swhids: List[ExtendedSWHID]) -> Dict[str, int]:
+        """Delete objects from the storage
+
+        All skipped content objects matching the given SWHID will be removed,
+        including those who have the same SWHID due to hash collisions.
+
+        Origin objects are removed alongside their associated origin visit and
+        origin visit status objects.
+
+        Args:
+            swhids: list of SWHID of the objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                content:delete: Number of content objects removed
+                content:delete:bytes: Sum of the removed contents’ data length
+                skipped_content:delete: Number of skipped content objects removed
+                directory:delete: Number of directory objects removed
+                revision:delete: Number of revision objects removed
+                release:delete: Number of release objects removed
+                snapshot:delete: Number of snapshot objects removed
+                origin:delete: Number of origin objects removed
+                origin_visit:delete: Number of origin visit objects removed
+                origin_visit_status:delete: Number of origin visit status objects removed
+        """
+        # groupby() splits consecutive groups, so we need to order the list first
+        def key(swhid: ExtendedSWHID) -> int:
+            return _DELETE_ORDERING[swhid.object_type]
+
+        result = {}
+        sorted_swhids = sorted(swhids, key=key)
+        for object_type, grouped_swhids in itertools.groupby(
+            sorted_swhids, key=operator.attrgetter("object_type")
+        ):
+            object_ids = {swhid.object_id for swhid in grouped_swhids}
+            result.update(_DELETE_METHODS[object_type](self, object_ids))
+        return result
+
     ##########################
     # misc.
     ##########################
@@ -2068,3 +2214,20 @@ class CassandraStorage:
 
     def flush(self, object_types: Sequence[str] = ()) -> Dict[str, int]:
         return {}
+
+
+_DELETE_METHODS: Dict[
+    ExtendedObjectType,
+    Callable[[CassandraStorage, Set[Sha1Git]], Dict[str, int]],
+] = {
+    ExtendedObjectType.CONTENT: CassandraStorage._content_delete,
+    ExtendedObjectType.DIRECTORY: CassandraStorage._directory_delete,
+    ExtendedObjectType.REVISION: CassandraStorage._revision_delete,
+    ExtendedObjectType.RELEASE: CassandraStorage._release_delete,
+    ExtendedObjectType.SNAPSHOT: CassandraStorage._snapshot_delete,
+    ExtendedObjectType.ORIGIN: CassandraStorage._origin_delete,
+}
+
+_DELETE_ORDERING: Dict[ExtendedObjectType, int] = {
+    object_type: order for order, object_type in enumerate(_DELETE_METHODS.keys())
+}
