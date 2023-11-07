@@ -86,6 +86,10 @@ class TestStorageApi(_TestStorage):
     def test_origin_count(self):
         pass
 
+    @pytest.mark.skip("in-memory backend has no timeout")
+    def test_querytimeout(self):
+        pass
+
     def test_exception(self, app_server, swh_storage, mocker):
         """Checks the client re-raises unknown exceptions as a :exc:`RemoteException`"""
         assert swh_storage.revision_get(["\x01" * 20]) == [None]

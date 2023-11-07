@@ -30,6 +30,12 @@ class StorageArgumentException(Exception):
     pass
 
 
+class QueryTimeout(StorageAPIError):
+    """Raised when a query to the backend (Cassandra or PostgreSQL) took too long."""
+
+    pass
+
+
 class UnknownMetadataAuthority(StorageArgumentException):
     """Raised when ``raw_extrinsic_metadata_add`` is called with a non-existing
     metadata authority as argument."""

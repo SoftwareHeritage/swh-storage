@@ -85,6 +85,10 @@ class TestTenaciousStorage(_TestStorage):
     def test_origin_count(self):
         pass
 
+    @pytest.mark.skip("in-memory backend has no timeout")
+    def test_querytimeout(self):
+        pass
+
 
 class TestTenaciousStorageGeneratedData(_TestStorageGeneratedData):
     @pytest.mark.skip("Not supported by Cassandra/InMemory")

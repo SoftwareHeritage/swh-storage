@@ -27,7 +27,7 @@ from typing import (
     cast,
 )
 
-from cassandra import ConsistencyLevel, CoordinationFailure
+from cassandra import ConsistencyLevel, CoordinationFailure, ReadTimeout, WriteTimeout
 from cassandra.auth import AuthProvider
 from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
 from cassandra.concurrent import execute_concurrent_with_args
@@ -51,6 +51,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
+from swh.storage.exc import QueryTimeout
 from swh.storage.interface import ListOrder, TotalHashDict
 
 from ..utils import remove_keys
@@ -386,19 +387,35 @@ class CqlRunner:
         stop=stop_after_attempt(MAX_RETRIES),
         retry=retry_if_exception_type(CoordinationFailure),
     )
-    def _execute_with_retries(self, statement, args: Optional[Sequence]) -> ResultSet:
+    def _execute_with_retries_inner(
+        self, statement, args: Optional[Sequence]
+    ) -> ResultSet:
         return self._session.execute(statement, args, timeout=1000.0)
+
+    def _execute_with_retries(self, statement, args: Optional[Sequence]) -> ResultSet:
+        try:
+            return self._execute_with_retries_inner(statement, args)
+        except (ReadTimeout, WriteTimeout) as e:
+            raise QueryTimeout(*e.args) from None
 
     @retry(
         wait=wait_random_exponential(multiplier=1, max=10),
         stop=stop_after_attempt(MAX_RETRIES),
         retry=retry_if_exception_type(CoordinationFailure),
     )
-    def _execute_many_with_retries(
+    def _execute_many_with_retries_inner(
         self, statement, args_list: Sequence[Tuple]
     ) -> Iterable[Dict[str, Any]]:
         for res in execute_concurrent_with_args(self._session, statement, args_list):
             yield from res.result_or_exc
+
+    def _execute_many_with_retries(
+        self, statement, args_list: Sequence[Tuple]
+    ) -> Iterable[Dict[str, Any]]:
+        try:
+            return self._execute_many_with_retries_inner(statement, args_list)
+        except (ReadTimeout, WriteTimeout) as e:
+            raise QueryTimeout(*e.args) from None
 
     def _add_one(self, statement, obj: BaseRow) -> None:
         self._execute_with_retries(statement, dataclasses.astuple(obj))

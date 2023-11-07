@@ -14,7 +14,9 @@ from typing import Any, ClassVar, Dict, Iterator, Optional
 from unittest.mock import MagicMock
 
 import attr
+import cassandra
 from hypothesis import HealthCheck, given, settings, strategies
+import psycopg2.errors
 import pytest
 
 from swh.core.api import RemoteException
@@ -45,6 +47,7 @@ from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import (
     HashCollision,
+    QueryTimeout,
     StorageArgumentException,
     UnknownMetadataAuthority,
     UnknownMetadataFetcher,
@@ -6214,6 +6217,34 @@ class TestStorage:
         assert swh_storage.object_references_add(
             [ObjectReference(source=source, target=target)]
         ) == {"object_reference:add": 1}
+
+    def test_querytimeout(self, swh_storage, sample_data, mocker):
+        origin_url = "https://example.org/"
+
+        mocker.patch(
+            "swh.storage.postgresql.db.Db.origin_visit_get_latest",
+            side_effect=psycopg2.errors.QueryCanceled(),
+        )
+        mocker.patch(
+            "swh.storage.postgresql.db.Db.revision_missing_from_list",
+            side_effect=psycopg2.errors.QueryCanceled(),
+        )
+        mocker.patch(
+            "swh.storage.cassandra.cql.CqlRunner._execute_with_retries_inner",
+            side_effect=cassandra.ReadTimeout("too slow!"),
+        )
+        mocker.patch(
+            "swh.storage.cassandra.cql.CqlRunner._execute_many_with_retries_inner",
+            side_effect=cassandra.ReadTimeout("too slow!"),
+        )
+
+        # db_transaction on postgres, _execute_with_retries on cassandra
+        with pytest.raises(QueryTimeout):
+            swh_storage.origin_visit_get_latest(origin_url, require_snapshot=True)
+
+        # db_transaction_generator on postgres, _execute_many_with_retries on cassandra
+        with pytest.raises(QueryTimeout):
+            list(swh_storage.revision_missing([b"\x00" * 20]))
 
 
 class TestStorageGeneratedData:
