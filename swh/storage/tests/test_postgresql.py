@@ -6,13 +6,15 @@
 from contextlib import contextmanager
 import queue
 import threading
+import time
 from typing import Dict
 from unittest.mock import Mock
 
 import attr
 import pytest
 
-from swh.model.model import Person
+from swh.model import from_disk
+from swh.model.model import Directory, Person
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
@@ -105,6 +107,61 @@ class TestStorageRaceConditions:
         assert r1[0] != r2[0]
         assert r1[1] == "data", "Got exception %r in Thread%s" % (r1[2], r1[0])
         assert r2[1] == "data", "Got exception %r in Thread%s" % (r2[2], r2[0])
+
+    def test_directory_add_race(self, swh_storage, sample_data):
+        # generate a bunch of similar/identical Directory objects to add
+        # concurrently
+        directories = []
+        entries = sample_data.directory7.to_dict()["entries"]
+        for cnt in sample_data.contents:
+            fentry = {
+                "name": b"the_file",
+                "type": "file",
+                "target": cnt.sha1_git,
+                "perms": from_disk.DentryPerms.content,
+            }
+            for entry in entries:
+                directories.append(
+                    Directory.from_dict({"entries": (entry,) + (fentry,)})
+                )
+            directories.append(Directory.from_dict({"entries": entries + (fentry,)}))
+            directories.append(Directory.from_dict({"entries": (fentry,)}))
+        directories *= 5
+
+        # used to gather each thread execution result as triplets (thread_id,
+        # result_type, payload), payload can be a normal result or an exception
+        results = queue.Queue()
+
+        def thread(dirs):
+            try:
+                with db_transaction(swh_storage) as (db, cur):
+                    ret = swh_storage.directory_add(directories=dirs, db=db, cur=cur)
+                    # give a chance for another thread to have some cpu
+                    time.sleep(0.1)
+                results.put((threading.get_ident(), "data", ret))
+            except Exception as e:
+                results.put((threading.get_ident(), "exc", e))
+
+        ts = [threading.Thread(target=thread, args=([d],)) for d in directories]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+
+        rs = [results.get(block=False) for _ in ts]
+
+        with pytest.raises(queue.Empty):
+            results.get(block=False)
+
+        for tid, rtype, payload in rs:
+            if rtype == "exc":
+                # there might be UniqueViolation errors, but only on the
+                # directory table, not the directory_entry_xxx ones
+                assert (
+                    payload.diag.constraint_name == "directory_pkey"
+                ), "Got exception %r in Thread%s" % (payload, tid)
+
+        for d in directories:
+            entries = tuple(swh_storage.directory_get_entries(d.id).results)
+            assert sorted(entries) == sorted(d.entries)
 
 
 @pytest.mark.db
@@ -409,7 +466,7 @@ class TestPgStorage:
 
         assert (
             partitions["object_references_2020w06"]
-            == "FOR VALUES FROM ('2020-02-03') TO ('2020-02-09')"
+            == "FOR VALUES FROM ('2020-02-03') TO ('2020-02-10')"
         )
         assert "object_references_2020w07" not in partitions
 
@@ -429,3 +486,69 @@ class TestPgStorage:
         swh_storage.current_version = -1
         assert swh_storage.check_config(check_write=True) is False
         assert swh_storage.check_config(check_write=False) is False
+
+    def test_object_delete(self, swh_storage, sample_data):
+        affected_tables = [
+            "origin",
+            "origin_visit",
+            "origin_visit_status",
+            "snapshot",
+            "snapshot_branch",
+            "snapshot_branches",
+            "release",
+            "revision",
+            "revision_history",
+            "directory",
+            # `directory_entry_*` are left out on purpose.
+            # We leave stale data there by design.
+            "skipped_content",
+            "content",
+        ]
+
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.skipped_content_add(sample_data.skipped_contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.git_revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swhids = (
+            [content.swhid().to_extended() for content in sample_data.contents]
+            + [
+                skipped_content.swhid().to_extended()
+                for skipped_content in sample_data.skipped_contents
+            ]
+            + [directory.swhid().to_extended() for directory in sample_data.directories]
+            + [revision.swhid().to_extended() for revision in sample_data.revisions]
+            + [release.swhid().to_extended() for release in sample_data.releases]
+            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
+            + [origin.swhid() for origin in sample_data.origins]
+        )
+
+        # Ensure we properly loaded our data
+        with db_transaction(swh_storage) as (_, cur):
+            for table in affected_tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                assert cur.fetchone()[0] >= 1, f"{table} is not populated"
+
+        result = swh_storage.object_delete(swhids)
+        assert result == {
+            "content:delete": 3,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 2,
+            "directory:delete": 7,
+            "release:delete": 3,
+            "revision:delete": 4,
+            "snapshot:delete": 3,
+            "origin:delete": 7,
+            "origin_visit:delete": 3,
+            "origin_visit_status:delete": 3,
+        }
+
+        # Ensure we properly removed our data
+        with db_transaction(swh_storage) as (_, cur):
+            for table in affected_tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                assert cur.fetchone()[0] == 0, f"{table} is not empty"

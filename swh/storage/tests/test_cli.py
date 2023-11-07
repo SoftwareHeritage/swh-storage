@@ -5,6 +5,7 @@
 
 import copy
 import logging
+import pathlib
 import re
 import tempfile
 from unittest.mock import patch
@@ -123,6 +124,92 @@ def test_replay(
     }
 
 
+def test_replay_with_exceptions(
+    swh_storage,
+    kafka_prefix: str,
+    kafka_consumer_group: str,
+    kafka_server: str,
+    tmp_path: pathlib.Path,
+):
+    kafka_prefix += ".swh.journal.objects"
+
+    producer = Producer(
+        {
+            "bootstrap.servers": kafka_server,
+            "client.id": "test-producer",
+            "acks": "all",
+        }
+    )
+
+    snapshot = Snapshot(
+        branches={
+            b"HEAD": SnapshotBranch(
+                target_type=TargetType.REVISION,
+                target=b"\x01" * 20,
+            )
+        },
+    )
+    snapshot_dict = snapshot.to_dict()
+    producer.produce(
+        topic=kafka_prefix + ".snapshot",
+        key=key_to_kafka(snapshot.id),
+        value=value_to_kafka(snapshot_dict),
+    )
+    # add 2 invalid snapshots
+    inv_id = b"\x00" * 20
+    inv_snapshot = {**snapshot_dict, "id": inv_id}
+    producer.produce(
+        topic=kafka_prefix + ".snapshot",
+        key=key_to_kafka(inv_id),
+        value=value_to_kafka(inv_snapshot),
+    )
+    inv_id2 = b"\x02" * 20
+    inv_snapshot2 = {**snapshot_dict, "id": inv_id2}
+    producer.produce(
+        topic=kafka_prefix + ".snapshot",
+        key=key_to_kafka(inv_id2),
+        value=value_to_kafka(inv_snapshot2),
+    )
+
+    producer.flush()
+
+    logger.debug("Flushed producer")
+
+    # make an exception for the the first invalid snp only
+    excfile = tmp_path / "swhids.txt"
+    excfile.write_text(
+        f"swh:1:snp:0000000000000000000000000000000000000000,{snapshot.id.hex()}\n\n"
+    )
+
+    result = invoke(
+        "replay",
+        "--stop-after-objects",
+        "3",
+        "--known-mismatched-hashes",
+        str(excfile.absolute()),
+        journal_config={
+            "brokers": [kafka_server],
+            "group_id": kafka_consumer_group,
+            "prefix": kafka_prefix,
+            "privileged": True,  # required to activate validation
+        },
+    )
+
+    expected = r"Done.\n"
+    assert result.exit_code == 0, result.output
+    assert re.fullmatch(expected, result.output, re.MULTILINE), result.output
+
+    assert swh_storage.snapshot_get(snapshot.id) == dict(
+        **snapshot_dict,
+        next_branch=None,
+    )
+    assert swh_storage.snapshot_get(inv_id) == dict(
+        **inv_snapshot,
+        next_branch=None,
+    )
+    assert swh_storage.snapshot_get(inv_id2) is None
+
+
 def test_replay_type_list():
     result = invoke(
         "replay",
@@ -145,14 +232,14 @@ def test_replay_type_list():
         pytest.param(
             "2020-02-03",
             "2020-02-09",
-            [("2020w06", "2020-02-03", "2020-02-09")],
+            [("2020w06", "2020-02-03", "2020-02-10")],
             ["2020w05", "2020w07"],
             id="single-week",
         ),
         pytest.param(
             "2023-01-01",
             "2023-01-01",
-            [("2022w52", "2022-12-26", "2023-01-01")],
+            [("2022w52", "2022-12-26", "2023-01-02")],
             ["2022w51", "2023w01"],
             id="week-in-another-year",
         ),
@@ -160,10 +247,10 @@ def test_replay_type_list():
             "2023-01-01",
             "2023-01-17",
             [
-                ("2022w52", "2022-12-26", "2023-01-01"),
-                ("2023w01", "2023-01-02", "2023-01-08"),
-                ("2023w02", "2023-01-09", "2023-01-15"),
-                ("2023w03", "2023-01-16", "2023-01-22"),
+                ("2022w52", "2022-12-26", "2023-01-02"),
+                ("2023w01", "2023-01-02", "2023-01-09"),
+                ("2023w02", "2023-01-09", "2023-01-16"),
+                ("2023w03", "2023-01-16", "2023-01-23"),
             ],
             ["2022w51", "2023w04"],
             id="multiple-weeks",
@@ -173,7 +260,16 @@ def test_replay_type_list():
 def test_create_object_reference_partitions_postgresql(
     swh_storage_postgresql_backend_config, start, end, expected_weeks, unexpected_weeks
 ):
-    storage_config = {"storage": swh_storage_postgresql_backend_config}
+    storage_config = {
+        "storage": {
+            "cls": "pipeline",
+            "steps": [
+                {"cls": "record_references"},
+                swh_storage_postgresql_backend_config,
+            ],
+        }
+    }
+
     result = invoke(
         "create-object-reference-partitions",
         start,

@@ -20,7 +20,7 @@ import pytest
 from swh.core.api import RemoteException
 from swh.core.api.classes import stream_results
 from swh.model import from_disk, hypothesis_strategies
-from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
+from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes
 from swh.model.model import (
     Origin,
     OriginVisit,
@@ -55,15 +55,26 @@ from swh.storage.interface import (
     ObjectReference,
     OriginVisitWithStatuses,
     PagedResult,
+    SnapshotBranchByNameResponse,
     StorageInterface,
 )
-from swh.storage.tests.conftest import function_scoped_fixture_check
+from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
 from swh.storage.utils import (
     content_hex_hashes,
     now,
     remove_keys,
     round_to_milliseconds,
 )
+
+# list of hypothesis disabled health checks in some of the tests in TestStorage
+disabled_health_checks = []
+# we use getattr here to keep mypy happy regardless hypothesis version
+if hasattr(HealthCheck, "function_scoped_fixture"):
+    disabled_health_checks.append(HealthCheck.function_scoped_fixture)
+if hasattr(HealthCheck, "differing_executors"):
+    disabled_health_checks.append(HealthCheck.differing_executors)
+# TODO: would probably require better fixes than just disabling this later health
+#       check...
 
 
 def transform_entries(
@@ -180,20 +191,24 @@ class TestStorage:
         assert swh_storage.check_config(check_write=False)
 
     def test_content_add(self, swh_storage, sample_data):
-        cont = sample_data.content
+        # first insert only one item
+        first_content = sample_data.content
 
         insertion_start_time = now()
-        actual_result = swh_storage.content_add([cont])
+        actual_result = swh_storage.content_add([first_content])
         insertion_end_time = now()
 
         assert actual_result == {
             "content:add": 1,
-            "content:add:bytes": cont.length,
+            "content:add:bytes": first_content.length,
         }
 
-        assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
+        assert (
+            swh_storage.content_get_data({"sha1": first_content.sha1})
+            == first_content.data
+        )
 
-        expected_cont = attr.evolve(cont, data=None)
+        expected_cont = attr.evolve(first_content, data=None)
 
         contents = [
             obj
@@ -211,6 +226,30 @@ class TestStorage:
         ):
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 1
+
+        # then insert all the content (first one already exists)
+        contents = sample_data.contents
+
+        actual_result = swh_storage.content_add(contents)
+        assert actual_result == {
+            "content:add": len(contents) - 1,
+            "content:add:bytes": sum(len(c.data) for c in contents[1:]),
+        }
+
+        expected_contents = [attr.evolve(content, data=None) for content in contents]
+        assert (
+            swh_storage.content_get([content.sha1 for content in contents])
+            == expected_contents
+        )
+        journal_contents = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "content"
+        ]
+        assert len(journal_contents) == len(contents)
+        for obj, cont in zip(journal_contents, expected_contents):
+            obj = attr.evolve(obj, ctime=None)
+            assert obj == cont
 
     def test_content_add__legacy(self, swh_storage, sample_data):
         """content_add() with a single sha1 as param instead of a dict"""
@@ -433,22 +472,35 @@ class TestStorage:
         assert actual_contents == [expected_content]
 
     def test_content_add_metadata(self, swh_storage, sample_data):
-        cont = attr.evolve(sample_data.content, data=None, ctime=now())
+        # first insert only one item
+        first_content = attr.evolve(sample_data.content, data=None, ctime=now())
 
-        actual_result = swh_storage.content_add_metadata([cont])
+        actual_result = swh_storage.content_add_metadata([first_content])
         assert actual_result == {
             "content:add": 1,
         }
 
-        expected_cont = cont
-        assert swh_storage.content_get([cont.sha1]) == [expected_cont]
+        # then insert all the content (first one already exists)
         contents = [
+            attr.evolve(content, data=None, ctime=now())
+            for content in sample_data.contents
+        ]
+
+        actual_result = swh_storage.content_add_metadata(contents)
+        assert actual_result == {
+            "content:add": len(contents) - 1,
+        }
+
+        assert (
+            swh_storage.content_get([content.sha1 for content in contents]) == contents
+        )
+        journal_contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
             if obj_type == "content"
         ]
-        assert len(contents) == 1
-        for obj in contents:
+        assert len(journal_contents) == len(contents)
+        for obj, cont in zip(journal_contents, contents):
             obj = attr.evolve(obj, ctime=None)
             assert obj == cont
 
@@ -546,6 +598,125 @@ class TestStorage:
         missing = list(swh_storage.skipped_content_missing(contents_dict))
         assert missing == []
 
+    def test_skipped_content_find_with_results(self, swh_storage, sample_data):
+        # XXX: We cannot test the origin part on postgresql due to
+        # https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues/4693
+        if isinstance(swh_storage, PostgreSQLStorage):
+            skipped_content = attr.evolve(sample_data.skipped_content, origin=None)
+        else:
+            # We configure an existing origin to see if we properly retrieve the origin URL
+            origin = sample_data.origin
+            skipped_content = attr.evolve(
+                sample_data.skipped_content, origin=origin.url
+            )
+            swh_storage.origin_add([origin])
+        swh_storage.skipped_content_add([skipped_content])
+
+        # 1. with something to find
+        actually_present = swh_storage.skipped_content_find(
+            {"sha1": skipped_content.sha1}
+        )
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+        # 2. with something to find
+        actually_present = swh_storage.skipped_content_find(
+            {"sha1_git": skipped_content.sha1_git}
+        )
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+        # 3. with something to find
+        actually_present = swh_storage.skipped_content_find(
+            {"sha256": skipped_content.sha256}
+        )
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+        # 4. with something to find
+        actually_present = swh_storage.skipped_content_find(skipped_content.hashes())
+        assert 1 == len(actually_present)
+        assert actually_present[0] == skipped_content
+
+    def test_skipped_content_find_with_no_results(self, swh_storage, sample_data):
+        missing_content = sample_data.skipped_content
+
+        # Please note that the database is left empty on purpose
+        results = swh_storage.content_find({"sha1": missing_content.sha1})
+        assert results == []
+        results = swh_storage.content_find(missing_content.hashes())
+        assert results == []
+
+    def test_skipped_content_find_with_duplicate_input(self, swh_storage, sample_data):
+        # use skipped_content2 as it does not reference an origin
+        skipped_content = sample_data.skipped_content2
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(skipped_content.sha1)
+        sha1_array[0] += 1
+        sha1git_array = bytearray(skipped_content.sha1_git)
+        sha1git_array[0] += 1
+        duplicated = attr.evolve(
+            skipped_content, sha1=bytes(sha1_array), sha1_git=bytes(sha1git_array)
+        )
+
+        # Inject the data
+        swh_storage.skipped_content_add([skipped_content, duplicated])
+
+        results = swh_storage.skipped_content_find(
+            {
+                "blake2s256": duplicated.blake2s256,
+                "sha256": duplicated.sha256,
+            }
+        )
+        assert set(results) == {skipped_content, duplicated}
+
+    def test_skipped_content_find_with_duplicate_but_precise_search(
+        self, swh_storage, sample_data
+    ):
+        # use skipped_content2 as it does not reference an origin
+        skipped_content = sample_data.skipped_content2
+
+        # Create fake data with colliding sha256 and blake2s256
+        sha1_array = bytearray(skipped_content.sha1)
+        sha1_array[0] += 1
+        sha1git_array = bytearray(skipped_content.sha1_git)
+        sha1git_array[0] += 1
+        duplicated = attr.evolve(
+            skipped_content, sha1=bytes(sha1_array), sha1_git=bytes(sha1git_array)
+        )
+
+        # Inject the data
+        swh_storage.skipped_content_add([skipped_content, duplicated])
+
+        # Search with collided hash should return both
+        results = swh_storage.skipped_content_find(
+            {
+                "sha256": duplicated.sha256,
+            }
+        )
+        assert len(results) == 2
+
+        # Search with more precision should return only one
+        results = swh_storage.skipped_content_find(
+            {
+                "sha256": duplicated.sha256,
+                "sha1_git": skipped_content.sha1_git,
+            }
+        )
+        assert results == [skipped_content]
+
+    def test_skipped_content_find_bad_input(self, swh_storage):
+        # 1. with no hash to lookup
+        with pytest.raises(StorageArgumentException):
+            swh_storage.skipped_content_find({})  # need at least one hash
+
+        # 2. with bad hash
+        with pytest.raises(StorageArgumentException):
+            swh_storage.skipped_content_find(
+                {"unknown-sha1": "something"}
+            )  # not the right key
+
     def test_skipped_content_missing_partial_hash(self, swh_storage, sample_data):
         cont = sample_data.skipped_content
         cont2 = attr.evolve(cont, sha1_git=None)
@@ -567,7 +738,7 @@ class TestStorage:
     @pytest.mark.property_based
     @settings(
         deadline=None,  # this test is very slow
-        suppress_health_check=function_scoped_fixture_check,
+        suppress_health_check=disabled_health_checks,
     )
     @given(
         strategies.sets(
@@ -600,7 +771,7 @@ class TestStorage:
 
     @pytest.mark.property_based
     @settings(
-        suppress_health_check=function_scoped_fixture_check,
+        suppress_health_check=disabled_health_checks,
     )
     @given(
         strategies.sets(
@@ -645,7 +816,7 @@ class TestStorage:
             [cont.sha1, missing_cont.sha1, cont2.sha1, missing_cont2.sha1]
         )
         # then
-        assert list(gen) == [missing_cont.sha1, missing_cont2.sha1]
+        assert set(gen) == {missing_cont.sha1, missing_cont2.sha1}
 
     def test_content_missing_per_sha1_git(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
@@ -802,8 +973,8 @@ class TestStorage:
         assert directory.entries[0].target == content.sha1_git
         swh_storage.content_add([content])
 
-        init_missing = list(swh_storage.directory_missing([directory.id]))
-        assert [directory.id] == init_missing
+        init_missing = set(swh_storage.directory_missing([directory.id]))
+        assert init_missing == {directory.id}
 
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
@@ -826,6 +997,20 @@ class TestStorage:
         ):
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["directory"] == 1
+
+    def test_directory_add_all(self, swh_storage, sample_data):
+        init_missing = set(
+            swh_storage.directory_missing([d.id for d in sample_data.directories])
+        )
+        assert {d.id for d in sample_data.directories} == init_missing
+
+        actual_result = swh_storage.directory_add(sample_data.directories)
+        assert actual_result == {"directory:add": 7}
+
+        for directory in sample_data.directories:
+            assert ("directory", directory) in list(
+                swh_storage.journal_writer.journal.objects
+            )
 
     def test_directory_add_with_raw_manifest(self, swh_storage, sample_data):
         content = sample_data.content
@@ -870,7 +1055,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -998,8 +1183,8 @@ class TestStorage:
         dir1, dir2, dir3 = sample_data.directories[:3]
 
         dir_ids = [d.id for d in [dir1, dir2, dir3]]
-        init_missing = list(swh_storage.directory_missing(dir_ids))
-        assert init_missing == dir_ids
+        init_missing = set(swh_storage.directory_missing(dir_ids))
+        assert init_missing == set(dir_ids)
 
         actual_result = swh_storage.directory_add([dir1, dir2, dir3])
         assert actual_result == {"directory:add": 3}
@@ -1036,8 +1221,8 @@ class TestStorage:
         dir1, dir2, dir3, _, dir5 = sample_data.directories[:5]
 
         dir_ids = [d.id for d in [dir1, dir2, dir3, dir5]]
-        init_missing = list(swh_storage.directory_missing(dir_ids))
-        assert init_missing == dir_ids
+        init_missing = set(swh_storage.directory_missing(dir_ids))
+        assert init_missing == set(dir_ids)
 
         actual_result = swh_storage.directory_add([dir1, dir2, dir3, dir5])
         assert actual_result == {"directory:add": 4}
@@ -1113,8 +1298,8 @@ class TestStorage:
 
         # given
         dir_ids = [d.id for d in [dir1, dir2, dir3, dir4, dir5]]
-        init_missing = list(swh_storage.directory_missing(dir_ids))
-        assert init_missing == dir_ids
+        init_missing = set(swh_storage.directory_missing(dir_ids))
+        assert init_missing == set(dir_ids)
 
         actual_result = swh_storage.directory_add([dir3, dir4])
         assert actual_result == {"directory:add": 2}
@@ -1331,7 +1516,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -1920,7 +2105,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -4230,7 +4415,7 @@ class TestStorage:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(
@@ -4819,7 +5004,7 @@ class TestStorage:
         }
 
     @settings(
-        suppress_health_check=function_scoped_fixture_check,
+        suppress_health_check=disabled_health_checks,
     )
     @given(hypothesis_strategies.snapshots(min_size=1))
     def test_snapshot_get_unknown_snapshot(self, swh_storage, unknown_snapshot):
@@ -4907,6 +5092,144 @@ class TestStorage:
             empty_snapshot.id,
             complete_snapshot.id,
         }
+
+    def test_snapshot_branch_get_by_name_missing_snapshot(self, swh_storage):
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=hash_to_bytes(
+                "0e7f84ede9a254f2cd55649ad5240783f557e65f"
+            ),  # non existing id
+            branch_name=b"master",
+        )
+        assert branch is None
+
+    def test_snapshot_branch_get_by_name_empty_snapshot(self, swh_storage, sample_data):
+        snapshot = sample_data.snapshots[1]  # empty snapshot
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"master"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=False, target=None, aliases_followed=[]
+        )
+
+    def test_snapshot_branch_get_by_name_missing_branch(self, swh_storage, sample_data):
+        snapshot = sample_data.snapshots[0]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"non-existing"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=False, target=None, aliases_followed=[]
+        )
+
+    @pytest.mark.parametrize("branch", [b"directory", b"content", b"revision"])
+    def test_snapshot_branch_get_by_name_direct_find(
+        self, swh_storage, sample_data, branch
+    ):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        response_branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=branch
+        )
+        assert response_branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=snapshot.branches[branch],
+            aliases_followed=[branch],
+        )
+
+    def test_snapshot_branch_get_by_name_dangling_branch(
+        self, swh_storage, sample_data
+    ):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"dangling"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True, target=None, aliases_followed=[b"dangling"]
+        )
+
+    def test_snapshot_branch_get_by_name_alias_chain(self, swh_storage, sample_data):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"alias"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=snapshot.branches[b"revision"],
+            aliases_followed=[b"alias", b"revision"],
+        )
+
+    def test_snapshot_branch_get_by_name_not_follow_alias_cahin(
+        self, swh_storage, sample_data
+    ):
+        snapshot = sample_data.snapshots[2]
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"alias", follow_alias_chain=False
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=snapshot.branches[b"alias"],
+            aliases_followed=[b"alias"],
+        )
+
+    def test_snapshot_branch_get_by_name_alias_chain_cycles(self, swh_storage):
+        snapshot = Snapshot(
+            id=hash_to_bytes("428893e6a864344e8be8e7bda6cb34fb1735a00e"),
+            branches={
+                b"HEAD1": SnapshotBranch(
+                    target=b"HEAD2",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"HEAD2": SnapshotBranch(
+                    target=b"HEAD1",
+                    target_type=TargetType.ALIAS,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"HEAD1"
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=None,
+            aliases_followed=[b"HEAD1", b"HEAD2", b"HEAD1"],
+        )
+
+    def test_snapshot_branch_get_by_name_alias_chain_too_long(self, swh_storage):
+        snapshot = Snapshot(
+            id=hash_to_bytes("873893e6a864344e8be8e7bda6cb34fb1735a00e"),
+            branches={
+                b"first": SnapshotBranch(
+                    target=b"second",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"second": SnapshotBranch(
+                    target=b"third",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"third": SnapshotBranch(
+                    target=b"forth",
+                    target_type=TargetType.ALIAS,
+                ),
+                b"forth": SnapshotBranch(
+                    target=b"revision",
+                    target_type=TargetType.ALIAS,
+                ),
+            },
+        )
+        swh_storage.snapshot_add([snapshot])
+        branch = swh_storage.snapshot_branch_get_by_name(
+            snapshot_id=snapshot.id, branch_name=b"first", max_alias_chain_length=3
+        )
+        assert branch == SnapshotBranchByNameResponse(
+            branch_found=True,
+            target=None,
+            aliases_followed=[b"first", b"second", b"third"],
+        )
 
     def test_snapshot_missing(self, swh_storage, sample_data):
         snapshot, missing_snapshot = sample_data.snapshots[:2]
@@ -5825,28 +6148,72 @@ class TestStorage:
             swh_storage.raw_extrinsic_metadata_add([origin_metadata, origin_metadata2])
 
     def test_object_references_add_find(self, swh_storage):
-        source = ExtendedSWHID.from_string(
-            "swh:1:snp:0000000000000000000000000000000000000000"
-        )
-        targets = [ExtendedSWHID.from_string(f"swh:1:rev:{i:040x}") for i in range(20)]
+        for src_type, target_types in (
+            ("ori", ("snp",)),
+            ("snp", ("snp", "rel", "rev", "dir", "cnt")),
+            ("rel", ("rel", "rev", "dir", "cnt")),
+            ("rev", ("rev", "dir", "cnt")),
+            ("dir", ("dir", "cnt")),
+        ):
+            for target_type in target_types:
+                src_obj_id = (
+                    MultiHash(["sha1"])
+                    .from_data(f"{src_type}-{target_type}".encode())
+                    .hexdigest()["sha1"]
+                )
+                source = ExtendedSWHID.from_string(f"swh:1:{src_type}:{src_obj_id}")
+                targets = [
+                    ExtendedSWHID.from_string(
+                        f"swh:1:{target_type}:{src_obj_id[0:38]}{i:02x}"
+                    )
+                    for i in range(20)
+                ]
 
-        for target in targets:
-            refs = swh_storage.object_find_recent_references(
-                target_swhid=target, limit=10
-            )
-            assert refs == []
+                for target in targets:
+                    refs = swh_storage.object_find_recent_references(
+                        target_swhid=target, limit=10
+                    )
+                    assert refs == []
 
-        recorded = swh_storage.object_references_add(
-            [ObjectReference(source=source, target=target) for target in targets]
-        )
+                recorded = swh_storage.object_references_add(
+                    [
+                        ObjectReference(source=source, target=target)
+                        for target in targets
+                    ]
+                )
 
-        assert recorded["object_reference:add"] == len(targets)
+                assert recorded["object_reference:add"] == len(targets)
 
-        for target in targets:
-            refs = swh_storage.object_find_recent_references(
-                target_swhid=target, limit=10
-            )
-            assert refs == [source]
+                for target in targets:
+                    refs = swh_storage.object_find_recent_references(
+                        target_swhid=target, limit=10
+                    )
+                    assert refs == [source]
+
+    def test_object_references_add_duplicate(self, swh_storage):
+        """Ensure adding the same reference twice in the same call does not crash"""
+        source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{1:040x}")
+
+        assert swh_storage.object_references_add(
+            [
+                ObjectReference(source=source, target=target),
+                ObjectReference(source=source, target=target),
+            ]
+        ) == {"object_reference:add": 1}
+
+    def test_object_references_add_twice(self, swh_storage):
+        """Ensure adding the same reference twice does not crash"""
+        source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{1:040x}")
+
+        assert swh_storage.object_references_add(
+            [ObjectReference(source=source, target=target)]
+        ) == {"object_reference:add": 1}
+
+        assert swh_storage.object_references_add(
+            [ObjectReference(source=source, target=target)]
+        ) == {"object_reference:add": 1}
 
 
 class TestStorageGeneratedData:
@@ -5984,7 +6351,7 @@ class TestStorageGeneratedData:
 
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
-        + function_scoped_fixture_check,
+        + disabled_health_checks,
     )
     @given(
         strategies.lists(hypothesis_strategies.objects(split_content=True), max_size=2)

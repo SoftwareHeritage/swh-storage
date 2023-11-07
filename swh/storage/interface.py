@@ -55,6 +55,25 @@ class PartialBranches(TypedDict):
     the snapshot has less than the request number of branches."""
 
 
+@attr.s
+class SnapshotBranchByNameResponse:
+    """Object returned by snapshot_branch_get_by_name"""
+
+    branch_found = attr.ib(type=bool)
+    """
+    Branch with the name exists, with or without a target.
+    """
+    target = attr.ib(type=Optional[SnapshotBranch])
+    """
+    Branch target, will be None in case of a dangling branch.
+    """
+    aliases_followed = attr.ib(type=List[bytes])
+    """
+    List of alias names until (including) the target.
+    This will be of length one for all non alias branches.
+    """
+
+
 class HashDict(TypedDict, total=False):
     sha1: bytes
     sha1_git: bytes
@@ -374,6 +393,25 @@ class StorageInterface(Protocol):
         """
         ...
 
+    @remote_api_endpoint("content/skipped/find")
+    def skipped_content_find(self, content: HashDict) -> List[SkippedContent]:
+        """Find skipped content for the given hashes
+
+        Args:
+            content: a dictionary representing one content hash, mapping
+                checksum algorithm names (see swh.model.hashutil.ALGORITHMS) to
+                checksum values
+
+        Raises:
+            ValueError: in case the key of the dictionary is not sha1, sha1_git
+                nor sha256.
+
+        Returns:
+            a list of SkippedContent objects matching the search criteria if the
+            skipped content exists. Empty list otherwise.
+        """
+        ...
+
     @remote_api_endpoint("content/skipped/missing")
     def skipped_content_missing(
         self, contents: List[Dict[str, Any]]
@@ -486,13 +524,19 @@ class StorageInterface(Protocol):
         The number of results is not guaranteed to be lower than the ``limit``.
 
         Args:
-            directory_id: dentifier of the directory
+            directory_id: identifier of the directory
             page_token: opaque string used to get the next results of a search
             limit: Number of entries to return
 
         Returns:
             None if the directory does not exist; a page of DirectoryEntry
               objects otherwise.
+
+        See Also:
+            :py:func:`swh.storage.algos.directories.directory_get` will get all
+            entries for a given directory.
+            :py:func:`swh.storage.algos.directories.directory_get_many` will do
+            the same for a set of directories.
         """
         ...
 
@@ -977,6 +1021,10 @@ class StorageInterface(Protocol):
         Returns:
             a PartialBranches object listing a limited amount of branches
             matching the given criteria or None if the snapshot does not exist.
+
+        See Also:
+            :py:func:`swh.storage.algos.snapshot.snapshot_get_all_branches` will get
+            all branches for a given snapshot.
         """
         ...
 
@@ -986,6 +1034,30 @@ class StorageInterface(Protocol):
 
         Returns:
             a sha1_git
+        """
+        ...
+
+    @remote_api_endpoint("snapshot/branches/get_by_name")
+    def snapshot_branch_get_by_name(
+        self,
+        snapshot_id: Sha1Git,
+        branch_name: bytes,
+        follow_alias_chain: bool = True,
+        max_alias_chain_length: int = 100,
+    ) -> Optional[SnapshotBranchByNameResponse]:
+        """Get a snapshot branch by its name
+
+        Args:
+            snapshot_id: Snapshot identifier
+            branch_name: Branch name to look for
+            follow_alias_chain: If True, find the first non alias branch.
+                Return the first branch (alias or non alias) otherwise
+            max_alias_chain_length: Maximum number of alias chains to be
+                followed before treating the branch as dangling. This has
+                no significance when follow_alias_chain is False.
+
+        Returns:
+            A SnapshotBranchByNameResponse object
         """
         ...
 
@@ -1078,6 +1150,9 @@ class StorageInterface(Protocol):
         Returns: Page of OriginVisit data model objects. if next_page_token is None,
             there is no longer data to retrieve.
 
+        See Also:
+            :py:func:`swh.storage.algos.origin.iter_origin_visits` will iterate
+            over all OriginVisits for a given origin.
         """
         ...
 
@@ -1170,6 +1245,9 @@ class StorageInterface(Protocol):
         Returns: Page of OriginVisitStatus data model objects. if next_page_token is
             None, there is no longer data to retrieve.
 
+        See Also:
+            :py:func:`swh.storage.algos.origin.iter_origin_visit_statuses` will iterate
+            over all OriginVisitStatus objects for a given origin and visit.
         """
         ...
 
@@ -1620,5 +1698,39 @@ class StorageInterface(Protocol):
         """For backend storages (pg, storage, in-memory), this is expected to be a noop
         operation. For proxy storages (especially buffer), this is expected to trigger
         actual writes to the backend.
+        """
+        ...
+
+
+class ObjectDeletionInterface(Protocol):
+    def object_delete(self, swhids: List[ExtendedSWHID]):
+        """Delete objects from the storage
+
+        All skipped content objects matching the given SWHID will be removed,
+        including those who have the same SWHID due to hash collisions.
+
+        Origin objects are removed alongside their associated origin visit and
+        origin visit status objects.
+
+        Only objects from this facility will be removed. The same method
+        should be called on other storage, objstorage, or journal instances
+        where the specified objects need to be removed.
+
+        Args:
+            swhids: list of SWHID of the objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                content:delete: Number of content objects removed
+                content:delete:bytes: Sum of the removed contents’ data length
+                skipped_content:delete: Number of skipped content objects removed
+                directory:delete: Number of directory objects removed
+                revision:delete: Number of revision objects removed
+                release:delete: Number of release objects removed
+                snapshot:delete: Number of snapshot objects removed
+                origin:delete: Number of origin objects removed
+                origin_visit:delete: Number of origin visit objects removed
+                origin_visit_status:delete: Number of origin visit status objects removed
         """
         ...

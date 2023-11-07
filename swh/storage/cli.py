@@ -7,7 +7,7 @@
 # control
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import click
 
@@ -101,7 +101,7 @@ def serve(ctx, host, port, debug):
     app.run(host, port=int(port), debug=bool(debug))
 
 
-@storage.command()
+@storage.command(name="backfill")
 @click.argument("object_type")
 @click.option("--start-object", default=None)
 @click.option("--end-object", default=None)
@@ -154,7 +154,7 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
         ctx.exit(0)
 
 
-@storage.command()
+@storage.command(name="replay")
 @click.option(
     "--stop-after-objects",
     "-n",
@@ -189,8 +189,19 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
     help="Object types to replay",
     multiple=True,
 )
+@click.option(
+    "--known-mismatched-hashes",
+    "-X",
+    "invalid_hashes_file",
+    default=None,
+    type=click.File("r"),
+    help=(
+        "File of SWHIDs of objects that are known to have invalid hashes "
+        "but still need to be replayed."
+    ),
+)
 @click.pass_context
-def replay(ctx, stop_after_objects, object_types):
+def replay(ctx, stop_after_objects, object_types, invalid_hashes_file):
     """Fill a Storage by reading a Journal.
 
     This is typically used for a mirror configuration, reading the Software
@@ -228,6 +239,7 @@ def replay(ctx, stop_after_objects, object_types):
     import functools
 
     from swh.journal.client import get_journal_client
+    from swh.model.swhids import CoreSWHID
     from swh.storage import get_storage
     from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
 
@@ -253,7 +265,26 @@ def replay(ctx, stop_after_objects, object_types):
             "'privileged' is False; we cannot validate anonymized objects."
         )
 
-    deserializer = ModelObjectDeserializer(reporter=reporter, validate=validate)
+    known_mismatched_hashes: Optional[Tuple[Tuple[str, bytes]]] = None
+    if validate and invalid_hashes_file:
+        inv_obj_ids = (
+            row.strip().split(",") for row in invalid_hashes_file if row.strip()
+        )
+        swhids = (
+            (CoreSWHID.from_string(swhid.strip()), bytes.fromhex(computed_id.strip()))
+            for swhid, computed_id in inv_obj_ids
+        )
+
+        known_mismatched_hashes = tuple(
+            (swhid.object_type.name.lower(), swhid.object_id, computed_id)
+            for swhid, computed_id in swhids
+        )
+
+    deserializer = ModelObjectDeserializer(
+        reporter=reporter,
+        validate=validate,
+        known_mismatched_hashes=known_mismatched_hashes,
+    )
 
     client_cfg["value_deserializer"] = deserializer.convert
     if object_types:
@@ -283,7 +314,7 @@ def replay(ctx, stop_after_objects, object_types):
         client.close()
 
 
-@storage.command
+@storage.command(name="create-object-reference-partitions")
 @click.argument("start")
 @click.argument("end")
 @click.pass_context
@@ -296,6 +327,12 @@ def create_object_reference_partitions(ctx: click.Context, start: str, end: str)
     from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
 
     storage = get_storage(**ctx.obj["config"]["storage"])
+
+    # This function uses the PostgreSQL swh.storage.db attribute directly, so we
+    # need unwrap all the layers of proxies (e.g. record_references, buffer,
+    # filter, etc.) to get access to the "concrete" underlying storage.
+    while hasattr(storage, "storage"):
+        storage = storage.storage
 
     if not isinstance(storage, PostgreSQLStorage):
         ctx.fail("Storage instance needs to be a direct PostgreSQL storage")

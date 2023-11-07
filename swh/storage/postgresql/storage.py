@@ -73,6 +73,7 @@ from swh.storage.interface import (
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
+    SnapshotBranchByNameResponse,
 )
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import (
@@ -180,12 +181,12 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 188
+    current_version: int = 190
 
     def __init__(
         self,
         db,
-        objstorage,
+        objstorage=None,
         min_pool_conns=1,
         max_pool_conns=10,
         journal_writer=None,
@@ -201,7 +202,8 @@ class Storage:
 
         Args:
             db: either a libpq connection string, or a psycopg2 connection
-            objstorage: configuration for the backend :class:`ObjStorage`
+            objstorage: configuration for the backend :class:`ObjStorage`; if unset,
+               use a NoopObjStorage
             min_pool_conns: min number of connections in the psycopg2 pool
             max_pool_conns: max number of connections in the psycopg2 pool
             journal_writer: configuration for the :class:`JournalWriter`
@@ -370,9 +372,9 @@ class Storage:
 
         with self.db() as db:
             with db.transaction() as cur:
-                missing = list(
+                missing = set(
                     self.content_missing(
-                        map(Content.to_dict, contents),
+                        [c.to_dict() for c in contents],
                         key_hash="sha1_git",
                         db=db,
                         cur=cur,
@@ -406,11 +408,13 @@ class Storage:
     def content_add_metadata(
         self, content: List[Content], *, db: Db, cur=None
     ) -> Dict[str, int]:
-        missing = self.content_missing(
-            (c.to_dict() for c in content),
-            key_hash="sha1_git",
-            db=db,
-            cur=cur,
+        missing = set(
+            self.content_missing(
+                [c.to_dict() for c in content],
+                key_hash="sha1_git",
+                db=db,
+                cur=cur,
+            )
         )
         contents = [c for c in content if c.sha1_git in missing]
 
@@ -589,6 +593,29 @@ class Storage:
         return {
             "skipped_content:add": len(content),
         }
+
+    @db_transaction()
+    def skipped_content_find(
+        self, content: HashDict, *, db: Db, cur=None
+    ) -> List[SkippedContent]:
+        if not set(content).intersection(DEFAULT_ALGORITHMS):
+            raise StorageArgumentException(
+                "content keys must contain at least one "
+                f"of: {', '.join(sorted(DEFAULT_ALGORITHMS))}"
+            )
+
+        rows = db.skipped_content_find(
+            sha1=content.get("sha1"),
+            sha1_git=content.get("sha1_git"),
+            sha256=content.get("sha256"),
+            blake2s256=content.get("blake2s256"),
+            cur=cur,
+        )
+        skipped_contents = []
+        for row in rows:
+            row_d = dict(zip(db.skipped_content_find_cols, row))
+            skipped_contents.append(SkippedContent(**row_d))
+        return skipped_contents
 
     @db_transaction_generator()
     def skipped_content_missing(
@@ -1211,6 +1238,74 @@ class Storage:
     @db_transaction()
     def snapshot_get_random(self, *, db: Db, cur=None) -> Sha1Git:
         return db.snapshot_get_random(cur)
+
+    @db_transaction(statement_timeout=2000)
+    def snapshot_branch_get_by_name(
+        self,
+        snapshot_id: Sha1Git,
+        branch_name: bytes,
+        db: Db,
+        cur=None,
+        follow_alias_chain: bool = True,
+        max_alias_chain_length: int = 100,
+    ) -> Optional[SnapshotBranchByNameResponse]:
+
+        if list(self.snapshot_missing([snapshot_id])):
+            return None
+
+        if snapshot_id == EMPTY_SNAPSHOT_ID:
+            return SnapshotBranchByNameResponse(
+                branch_found=False,
+                target=None,
+                aliases_followed=[],
+            )
+
+        cols_to_fetch = ["target", "target_type"]
+        resolve_chain: List[bytes] = []
+        while True:
+            branch = db.snapshot_branch_get_by_name(
+                cols_to_fetch=cols_to_fetch,
+                snapshot_id=snapshot_id,
+                branch_name=branch_name,
+                cur=cur,
+            )
+            if branch is None:
+                # target branch is None, there could be items in aliases_followed
+                target = None
+                break
+            branch_d = dict(zip(cols_to_fetch, branch))
+            resolve_chain.append(branch_name)
+            if (
+                branch_d["target_type"] != TargetType.ALIAS.value
+                or not follow_alias_chain
+            ):
+                # first non alias branch or the first branch when follow_alias_chain is False
+                target = (
+                    SnapshotBranch(
+                        target=branch_d["target"],
+                        target_type=TargetType(branch_d["target_type"]),
+                    )
+                    if branch_d["target"]
+                    else None
+                )
+                break
+            elif (
+                # Circular reference
+                resolve_chain.count(branch_name) > 1
+                # Too many re-directs
+                or len(resolve_chain) >= max_alias_chain_length
+            ):
+                target = None
+                break
+            # Branch has a non-None target with type alias
+            branch_name = branch_d["target"]
+
+        return SnapshotBranchByNameResponse(
+            # resolve_chian has items, brach_found must be True
+            branch_found=bool(resolve_chain),
+            target=target,
+            aliases_followed=resolve_chain,
+        )
 
     ##########################
     # OriginVisit and OriginVisitStatus
@@ -1915,12 +2010,13 @@ class Storage:
     def object_references_add(
         self, references: List[ObjectReference], *, db: Db, cur=None
     ) -> Dict[str, int]:
+        to_add = list({converters.object_reference_to_db(ref) for ref in references})
         db.object_references_add(
-            (converters.object_reference_to_db(ref) for ref in references),
+            to_add,
             cur=cur,
         )
 
-        return {"object_reference:add": len(references)}
+        return {"object_reference:add": len(to_add)}
 
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:
         """Do nothing"""
@@ -1942,3 +2038,41 @@ class Storage:
         if not fetcher_id:
             raise UnknownMetadataFetcher(str(fetcher))
         return fetcher_id
+
+    #########################
+    # ObjectDeletionInterface
+    #########################
+
+    @db_transaction()
+    def object_delete(
+        self, swhids: List[ExtendedSWHID], *, db: Db, cur=None
+    ) -> Dict[str, int]:
+        """Delete objects from the storage
+
+        All skipped content objects matching the given SWHID will be removed,
+        including those who have the same SWHID due to hash collisions.
+
+        Origin objects are removed alongside their associated origin visit and
+        origin visit status objects.
+
+        Args:
+            swhids: list of SWHID of the objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                content:delete: Number of content objects removed
+                content:delete:bytes: Sum of the removed contents’ data length
+                skipped_content:delete: Number of skipped content objects removed
+                directory:delete: Number of directory objects removed
+                revision:delete: Number of revision objects removed
+                release:delete: Number of release objects removed
+                snapshot:delete: Number of snapshot objects removed
+                origin:delete: Number of origin objects removed
+                origin_visit:delete: Number of origin visit objects removed
+                origin_visit_status:delete: Number of origin visit status objects removed
+        """
+        object_rows = [
+            (swhid.object_type.name.lower(), swhid.object_id) for swhid in swhids
+        ]
+        return db.object_delete(object_rows)

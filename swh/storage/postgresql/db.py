@@ -8,6 +8,7 @@ import logging
 import random
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
+from psycopg2 import sql
 from psycopg2.extras import execute_values
 
 from swh.core.db import BaseDb
@@ -24,6 +25,71 @@ logger = logging.getLogger(__name__)
 
 def jsonize(d):
     return _jsonize(dict(d) if d is not None else None)
+
+
+class QueryBuilder:
+    def __init__(self) -> None:
+        self.parts = sql.Composed([])
+        self.params: List[Any] = []
+
+    def add_query_part(self, query_part, params: List[Any] = []) -> None:
+        # add a query part along with its run time parameters
+        self.parts += query_part
+        self.params += params
+
+    def add_pagination_clause(
+        self,
+        pagination_key: List[str],
+        cursor: Optional[Any],
+        direction: Optional[ListOrder],
+        limit: Optional[int],
+        separator: str = "AND",
+    ) -> None:
+        """Create and add a pagination clause to the query
+
+        Args:
+            pagination_key: Pagination key to be used. Use list of strings
+               to support alias fields
+            cursor: Pagination cursor as a query parameter
+            direction: Sort order
+            limit: Limit as a query parameter
+            separator: Separator to be used as the prefix for the clause
+        """
+
+        # Can be used for queries that require pagination
+        if cursor:
+            operation = "<" if direction == ListOrder.DESC else ">"  # ASC by default
+            # pagination_key and the direction will be given as identifiers
+            # and cursor is a run time parameter
+            pagination_part = sql.SQL(
+                "{separator} {pagination_key} {operation} {cursor}"
+            ).format(
+                separator=sql.SQL(separator),
+                pagination_key=sql.Identifier(*pagination_key),
+                operation=sql.SQL(operation),
+                cursor=sql.Placeholder(),
+            )
+            self.add_query_part(pagination_part, params=[cursor])
+        # Always use order by and limit with pagination
+        if direction:
+            operation = "DESC" if direction == ListOrder.DESC else "ASC"
+            order_part = sql.SQL("ORDER BY {pagination_key} {operation}").format(
+                pagination_key=sql.Identifier(*pagination_key),
+                operation=sql.SQL(operation),
+            )
+            self.add_query_part(order_part)
+        if limit is not None:
+            limit_part = sql.SQL("LIMIT {limit}").format(limit=sql.Placeholder())
+            self.add_query_part(limit_part, params=[limit])
+
+    def get_query(self, db_cursor, separator: str = " ") -> str:
+        # To get the query as a string; can be used for debugging
+        return self.parts.join(separator).as_string(db_cursor)
+
+    def execute(self, db_cursor, separator: str = " ") -> None:
+        # Compose and execute
+        query = self.parts.join(separator)
+        db_cursor.execute(query, self.params)
 
 
 class Db(BaseDb):
@@ -288,6 +354,58 @@ class Db(BaseDb):
         )
 
         yield from cur
+
+    skipped_content_find_cols = [
+        "sha1",
+        "sha1_git",
+        "sha256",
+        "blake2s256",
+        "length",
+        "status",
+        "reason",
+        "ctime",
+    ]
+
+    def skipped_content_find(
+        self,
+        sha1: Optional[bytes] = None,
+        sha1_git: Optional[bytes] = None,
+        sha256: Optional[bytes] = None,
+        blake2s256: Optional[bytes] = None,
+        cur=None,
+    ) -> List[Tuple[Any]]:
+        cur = self._cursor(cur)
+
+        checksum_dict = {
+            "sha1": sha1,
+            "sha1_git": sha1_git,
+            "sha256": sha256,
+            "blake2s256": blake2s256,
+        }
+
+        # XXX: The origin part is untested because of
+        # https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues/4693
+        query_parts = [
+            f"""
+            SELECT {','.join(self.skipped_content_find_cols)}, origin.url AS origin
+            FROM skipped_content
+            LEFT JOIN origin ON origin.id = skipped_content.origin
+            WHERE
+            """
+        ]
+        query_params = []
+        where_parts = []
+        # Adds only those keys which have values exist
+        for algorithm in checksum_dict:
+            if checksum_dict[algorithm] is not None:
+                where_parts.append(f"{algorithm} = %s")
+                query_params.append(checksum_dict[algorithm])
+
+        query_parts.append(" AND ".join(where_parts))
+        query = "\n".join(query_parts)
+        cur.execute(query, query_params)
+        skipped_contents = cur.fetchall()
+        return skipped_contents
 
     ##########################
     # 'directory*' tables
@@ -784,6 +902,23 @@ class Db(BaseDb):
 
         yield from cur
 
+    def snapshot_branch_get_by_name(
+        self,
+        cols_to_fetch,
+        snapshot_id,
+        branch_name,
+        cur=None,
+    ):
+        cur = self._cursor(cur)
+        query = f"""SELECT {", ".join(cols_to_fetch)}
+            FROM snapshot_branch sb
+            LEFT JOIN snapshot_branches sbs ON sb.object_id = sbs.branch_id
+            LEFT JOIN snapshot ss ON sbs.snapshot_id = ss.object_id
+            WHERE ss.id=%s AND sb.name=%s
+        """
+        cur.execute(query, (snapshot_id, branch_name))
+        return cur.fetchone()
+
     def snapshot_get_id_range(
         self, start, end, limit=None, cur=None
     ) -> Iterator[Tuple[Sha1Git]]:
@@ -988,31 +1123,24 @@ class Db(BaseDb):
         limit: int,
         cur=None,
     ):
-        cur = self._cursor(cur)
-
         origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
-        query_parts = [
-            f"SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov ",
-            "INNER JOIN origin o ON o.id = ov.origin ",
-        ]
-        query_parts.append("WHERE ov.origin = (select id from origin where url = %s)")
-        query_params: List[Any] = [origin]
-
-        if visit_from > 0:
-            op_comparison = ">" if order == ListOrder.ASC else "<"
-            query_parts.append(f"and ov.visit {op_comparison} %s")
-            query_params.append(visit_from)
-
-        if order == ListOrder.ASC:
-            query_parts.append("ORDER BY ov.visit ASC")
-        elif order == ListOrder.DESC:
-            query_parts.append("ORDER BY ov.visit DESC")
-
-        query_parts.append("LIMIT %s")
-        query_params.append(limit)
-
-        query = "\n".join(query_parts)
-        cur.execute(query, tuple(query_params))
+        builder = QueryBuilder()
+        builder.add_query_part(
+            sql.SQL(
+                f"""SELECT { ', '.join(origin_visit_cols) } FROM origin_visit ov
+                INNER JOIN origin o ON o.id = ov.origin
+                WHERE ov.origin = (select id from origin where url = %s)"""
+            ),
+            params=[origin],  # dynamic params
+        )
+        builder.add_pagination_clause(
+            pagination_key=["ov", "visit"],
+            cursor=visit_from,
+            direction=order,
+            limit=limit,
+        )
+        cur = self._cursor(cur)
+        builder.execute(db_cursor=cur)
         yield from cur
 
     def origin_visit_status_get_all_in_range(
@@ -1674,7 +1802,7 @@ class Db(BaseDb):
 
     # 'object_references' table
 
-    _object_references_cols = ["target_type", "target", "source_type", "source"]
+    _object_references_cols = ("source_type", "source", "target_type", "target")
 
     def object_references_get(
         self, target_type: str, target: bytes, limit: int, cur=None
@@ -1691,11 +1819,12 @@ class Db(BaseDb):
         return [dict(zip(self._object_references_cols, row)) for row in cur.fetchall()]
 
     def object_references_add(self, reference_rows, cur=None) -> None:
+        cols = ", ".join(self._object_references_cols)
         cur = self._cursor(cur)
         execute_values(
             cur,
-            """INSERT INTO object_references (source_type, source, target_type, target)
-            VALUES %s""",
+            f"""INSERT INTO object_references ({cols})
+            VALUES %s ON CONFLICT (insertion_date, {cols}) DO NOTHING""",
             reference_rows,
         )
 
@@ -1709,7 +1838,7 @@ class Db(BaseDb):
         monday_of_week1 = in_week1 + datetime.timedelta(days=-in_week1.weekday())
 
         monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
-        sunday = monday + datetime.timedelta(days=6)
+        next_monday = monday + datetime.timedelta(days=7)
 
         cur = self._cursor(cur)
         cur.execute(
@@ -1718,7 +1847,140 @@ class Db(BaseDb):
             PARTITION OF object_references
             FOR VALUES FROM (%%s) TO (%%s)"""
             % (year, week),
-            (monday.isoformat(), sunday.isoformat()),
+            (monday.isoformat(), next_monday.isoformat()),
         )
 
-        return (monday, sunday)
+        return (monday, next_monday)
+
+    #################
+    # object deletion
+    #################
+
+    def object_delete(
+        self, object_rows: List[Tuple[str, bytes]], cur=None
+    ) -> Dict[str, int]:
+        result = {}
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            CREATE TEMPORARY TABLE objects_to_remove (
+                type extended_object_type NOT NULL,
+                id BYTEA NOT NULL
+            ) ON COMMIT DROP
+            """
+        )
+        execute_values(
+            cur,
+            """INSERT INTO objects_to_remove (type, id)
+               VALUES %s""",
+            object_rows,
+        )
+        # We need to remove lines from `origin_visit_status`,
+        # `origin_visit` and `origin`.
+        cur.execute(
+            """CREATE TEMPORARY TABLE origins_to_remove
+                 ON COMMIT DROP
+                 AS
+                   SELECT origin.id FROM origin
+                    INNER JOIN objects_to_remove otr
+                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'"""
+        )
+        cur.execute(
+            """DELETE FROM origin_visit_status ovs
+                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin_visit_status:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM origin_visit ov
+                WHERE ov.origin IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin_visit:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM origin
+                WHERE origin.id IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin:delete"] = cur.rowcount
+        # We need to remove lines from both `snapshot_branches`
+        # and `snapshot_branch`.
+        cur.execute(
+            """CREATE TEMPORARY TABLE snapshots_to_remove
+                  ON COMMIT DROP
+                  AS
+                    SELECT object_id AS snapshot_id
+                      FROM snapshot s
+                     INNER JOIN objects_to_remove otr
+                        ON s.id = otr.id AND otr.type = 'snapshot'"""
+        )
+        cur.execute(
+            """CREATE TEMPORARY TABLE snapshot_branches_to_remove
+                 ON COMMIT DROP
+                 AS
+                    SELECT branch_id
+                      FROM snapshot_branches sb
+                     WHERE sb.snapshot_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot_branches
+                WHERE snapshot_branches.branch_id IN
+                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot_branch
+                WHERE snapshot_branch.object_id IN
+                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot
+                WHERE snapshot.object_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+        )
+        result["snapshot:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM release
+                WHERE release.id IN (SELECT id
+                                       FROM objects_to_remove
+                                      WHERE type = 'release')"""
+        )
+        result["release:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM revision_history
+                WHERE revision_history.id IN (SELECT id
+                                                FROM objects_to_remove
+                                               WHERE type = 'revision')"""
+        )
+        cur.execute(
+            """DELETE FROM revision
+                WHERE revision.id IN (SELECT id
+                                        FROM objects_to_remove
+                                       WHERE type = 'revision')"""
+        )
+        result["revision:delete"] = cur.rowcount
+        # We do not remove anything from `directory_entry_dir`,
+        # `directory_entry_file`, `directory_entry_rev`: these entries are
+        # shared across directories and we don't have (or don’t want to keep) an
+        # index to know which directory uses what entry.
+        cur.execute(
+            """DELETE FROM directory
+                WHERE directory.id IN (SELECT id
+                                         FROM objects_to_remove
+                                        WHERE type = 'directory')"""
+        )
+        result["directory:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM skipped_content
+                WHERE skipped_content.sha1_git IN (
+                    SELECT id
+                      FROM objects_to_remove
+                     WHERE type = 'content')"""
+        )
+        result["skipped_content:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM content
+                WHERE content.sha1_git IN (
+                    SELECT id
+                      FROM objects_to_remove
+                     WHERE type = 'content')"""
+        )
+        result["content:delete"] = cur.rowcount
+        # We are not an objstorage
+        result["content:delete:bytes"] = 0
+        return result

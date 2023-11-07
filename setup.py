@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,7 @@
 from io import open
 from os import path
 
-from setuptools import find_packages, setup
+from setuptools import find_namespace_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -45,7 +45,7 @@ setup(
     author_email="swh-devel@inria.fr",
     url="https://forge.softwareheritage.org/diffusion/DSTO/",
     setup_requires=["setuptools-scm"],
-    packages=find_packages(),
+    packages=find_namespace_packages(include=["swh", "swh.*"]),
     use_scm_version=True,
     scripts=[
         "bin/swh-storage-add-dir",

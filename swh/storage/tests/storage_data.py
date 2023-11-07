@@ -212,6 +212,32 @@ class StorageData:
         ),
     )
 
+    directory7 = Directory(
+        id=hash_to_bytes("a720da7e7ba5af69498f884f91ca7f4ed16997be"),
+        entries=tuple(
+            [
+                DirectoryEntry(
+                    name=b"subdir1",
+                    type="dir",
+                    target=directory5.id,
+                    perms=from_disk.DentryPerms.directory,
+                ),
+                DirectoryEntry(
+                    name=b"subdir2",
+                    type="dir",
+                    target=directory5.id,
+                    perms=from_disk.DentryPerms.directory,
+                ),
+                DirectoryEntry(
+                    name=b"subdir3",
+                    type="dir",
+                    target=directory4.id,
+                    perms=from_disk.DentryPerms.directory,
+                ),
+            ],
+        ),
+    )
+
     directories: Tuple[Directory, ...] = (
         directory2,
         directory,
@@ -219,6 +245,7 @@ class StorageData:
         directory4,
         directory5,
         directory6,
+        directory7,
     )
 
     revision = Revision(
