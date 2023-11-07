@@ -234,7 +234,6 @@ begin
 	on conflict
 	do nothing
 	;
->>>>>>> swh/storage/sql/40-funcs.sql
    ', typ);
 
     execute format('
