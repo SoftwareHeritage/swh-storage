@@ -174,6 +174,7 @@ def create_keyspace(
     )
     session.execute('USE "%s"' % keyspace)
     for query in CREATE_TABLES_QUERIES:
+        logger.debug("Running:\n%s", query)
         session.execute(query)
 
 

@@ -65,6 +65,32 @@ def storage(ctx, config_file, check_config):
     ctx.obj["check_config"] = check_config
 
 
+@storage.command(name="create-keyspace")
+@click.pass_context
+def create_keyspace(ctx):
+    """Creates a Cassandra keyspace with table definitions suitable for use
+    by swh-storage's Cassandra backend"""
+    from swh.storage.cassandra import create_keyspace
+
+    config = ctx.obj["config"]["storage"]
+
+    for key in ("cls", "hosts", "keyspace", "auth_provider"):
+        if key not in config:
+            ctx.fail(f"Missing {key} key in config file.")
+
+    if config["cls"] != "cassandra":
+        ctx.fail(f"cls must be 'cassandra', not '{config['cls']}'")
+
+    create_keyspace(
+        hosts=config["hosts"],
+        port=config.get("port", 9042),
+        keyspace=config["keyspace"],
+        auth_provider=config["auth_provider"],
+    )
+
+    print("Done.")
+
+
 @storage.command(name="rpc-serve")
 @click.option(
     "--host",
