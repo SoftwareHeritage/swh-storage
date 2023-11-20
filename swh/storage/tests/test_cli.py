@@ -4,7 +4,9 @@
 # See top-level LICENSE file for more information
 
 import copy
+import datetime
 import logging
+import os
 import pathlib
 import re
 import tempfile
@@ -16,7 +18,7 @@ import pytest
 import yaml
 
 from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.model.model import Snapshot, SnapshotBranch, TargetType
+from swh.model.model import Origin, Snapshot, SnapshotBranch, TargetType
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
 from swh.storage.replay import OBJECT_CONVERTERS
@@ -48,7 +50,7 @@ def monkeypatch_retry_sleep(monkeypatch):
     monkeypatch.setattr(obj_in_objstorage.retry, "sleep", lambda x: None)
 
 
-def invoke(*args, env=None, journal_config=None, local_config=None):
+def invoke(*args, env=None, input=None, journal_config=None, local_config=None):
     config = local_config or copy.deepcopy(CLI_CONFIG)
     if journal_config:
         config["journal_client"] = journal_config.copy()
@@ -64,8 +66,37 @@ def invoke(*args, env=None, journal_config=None, local_config=None):
             args,
             obj={"log_level": logging.DEBUG},
             env=env,
+            input=input,
         )
         return ret
+
+
+def test_create_keyspace(
+    swh_storage_cassandra_cluster,
+    cassandra_auth_provider_config,
+):
+    (hosts, port) = swh_storage_cassandra_cluster
+    keyspace = "test" + os.urandom(10).hex()
+
+    storage_config = dict(
+        cls="cassandra",
+        hosts=hosts,
+        port=port,
+        keyspace=keyspace,
+        journal_writer={"cls": "memory"},
+        objstorage={"cls": "memory"},
+        auth_provider=cassandra_auth_provider_config,
+    )
+
+    result = invoke("create-keyspace", local_config={"storage": storage_config})
+    assert result.exit_code == 0, result.output
+    assert result.output == "Done.\n"
+
+    # Check we can write and read to it
+    storage = get_storage(**storage_config)
+    origin = Origin(url="http://example.org")
+    storage.origin_add([origin])
+    assert storage.origin_get([origin.url]) == [origin]
 
 
 def test_replay(
@@ -281,15 +312,164 @@ def test_create_object_reference_partitions_postgresql(
 
     swh_storage = get_storage(**swh_storage_postgresql_backend_config)
 
-    from .test_postgresql import get_object_references_partition_bounds
+    with swh_storage.db() as db:
+        partitions = db.object_references_list_partitions()
 
-    partitions = get_object_references_partition_bounds(swh_storage)
+    for partition, (week, expected_start, expected_end) in zip(
+        partitions, expected_weeks
+    ):
+        assert partition.table_name == f"object_references_{week}"
+        assert partition.start == datetime.datetime.fromisoformat(expected_start)
+        assert partition.end == datetime.datetime.fromisoformat(expected_end)
 
-    for week, expected_start, expected_end in expected_weeks:
-        assert (
-            partitions[f"object_references_{week}"]
-            == f"FOR VALUES FROM ('{expected_start}') TO ('{expected_end}')"
-        )
-
+    table_names = {partition.table_name for partition in partitions}
     for week in unexpected_weeks:
-        assert f"object_references_{week}" not in partitions
+        assert f"object_references_{week}" not in table_names
+
+
+@pytest.fixture
+def swh_storage_with_partitions(swh_storage_postgresql_backend_config):
+    # Setup partitions from 2022-12-26 00:00 to 2023-01-15 23:59
+    swh_storage = get_storage(**swh_storage_postgresql_backend_config)
+    with swh_storage.db() as db:
+        with db.transaction() as cur:
+            db.object_references_create_partition(2022, 52, cur)
+            for week in range(1, 3):
+                db.object_references_create_partition(2023, week, cur)
+    return swh_storage
+
+
+@pytest.mark.parametrize(
+    ("before", "listed_in_output", "remaining"),
+    (
+        pytest.param(
+            "2022-12-25",
+            [],
+            ["2022w52", "2023w01", "2023w02"],
+            id="older-than-first-week",
+        ),
+        pytest.param(
+            "2023-01-01",
+            [],
+            ["2022w52", "2023w01", "2023w02"],
+            id="sunday-of-first-week",
+        ),
+        pytest.param(
+            "2023-01-02",
+            ["2022 week 52"],
+            ["2023w01", "2023w02"],
+            id="middle-of-second-week",
+        ),
+        pytest.param(
+            "2023-01-12",
+            ["2022 week 52", "2023 week 01"],
+            ["2023w02"],
+            id="middle-of-third-week",
+        ),
+    ),
+)
+def test_remove_old_object_reference_partitions_postgresql(
+    swh_storage_postgresql_backend_config,
+    swh_storage_with_partitions,
+    before,
+    listed_in_output,
+    remaining,
+):
+    from datetime import datetime
+
+    storage_config = {
+        "storage": {
+            "cls": "pipeline",
+            "steps": [
+                {"cls": "record_references"},
+                swh_storage_postgresql_backend_config,
+            ],
+        }
+    }
+
+    result = invoke(
+        "remove-old-object-reference-partitions",
+        before,
+        input="y\n",
+        local_config=storage_config,
+    )
+
+    assert result.exit_code == 0, result.output
+
+    assert all(s in result.output for s in listed_in_output)
+
+    with swh_storage_with_partitions.db() as db:
+        partitions = db.object_references_list_partitions()
+
+    table_names = {partition.table_name for partition in partitions}
+
+    # We get a partition created for the current week when the schema is initialized
+    table_names.discard(f"object_references_{datetime.now().strftime('%Yw%W')}")
+    assert {f"object_references_{week}" for week in remaining} == table_names
+
+
+def test_remove_old_object_reference_partitions_postgresql_refuses_to_remove_all(
+    swh_storage_postgresql_backend_config, swh_storage_with_partitions
+):
+    from datetime import datetime, timedelta
+
+    storage_config = {
+        "storage": {
+            "cls": "pipeline",
+            "steps": [
+                {"cls": "record_references"},
+                swh_storage_postgresql_backend_config,
+            ],
+        }
+    }
+
+    result = invoke(
+        "remove-old-object-reference-partitions",
+        # A partition for this week is created with the schema,
+        # so we just ask to delete
+        (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d"),
+        local_config=storage_config,
+    )
+
+    assert result.exit_code != 0
+    assert "Trying to remove all existing partitions" in result.output
+
+    with swh_storage_with_partitions.db() as db:
+        partitions = db.object_references_list_partitions()
+
+    # The three partition created in the fixture + the one created when the
+    # schema was initialized.
+    assert len(partitions) == 4
+
+
+def test_remove_old_object_reference_partitions_postgresql_using_force_argument(
+    swh_storage_postgresql_backend_config, swh_storage_with_partitions
+):
+    storage_config = {
+        "storage": {
+            "cls": "pipeline",
+            "steps": [
+                {"cls": "record_references"},
+                swh_storage_postgresql_backend_config,
+            ],
+        }
+    }
+
+    result = invoke(
+        "remove-old-object-reference-partitions",
+        "--force",
+        "2023-01-31",
+        local_config=storage_config,
+    )
+
+    assert result.exit_code == 0, result.output
+
+    with swh_storage_with_partitions.db() as db:
+        partitions = db.object_references_list_partitions()
+
+    table_names = {partition.table_name for partition in partitions}
+
+    assert not any(
+        f"object_references_{week}" in table_names
+        for week in ("2023w01", "2023w02", "2023w03")
+    )
