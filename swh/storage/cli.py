@@ -65,6 +65,32 @@ def storage(ctx, config_file, check_config):
     ctx.obj["check_config"] = check_config
 
 
+@storage.command(name="create-keyspace")
+@click.pass_context
+def create_keyspace(ctx):
+    """Creates a Cassandra keyspace with table definitions suitable for use
+    by swh-storage's Cassandra backend"""
+    from swh.storage.cassandra import create_keyspace
+
+    config = ctx.obj["config"]["storage"]
+
+    for key in ("cls", "hosts", "keyspace", "auth_provider"):
+        if key not in config:
+            ctx.fail(f"Missing {key} key in config file.")
+
+    if config["cls"] != "cassandra":
+        ctx.fail(f"cls must be 'cassandra', not '{config['cls']}'")
+
+    create_keyspace(
+        hosts=config["hosts"],
+        port=config.get("port", 9042),
+        keyspace=config["keyspace"],
+        auth_provider=config["auth_provider"],
+    )
+
+    print("Done.")
+
+
 @storage.command(name="rpc-serve")
 @click.option(
     "--host",
@@ -362,6 +388,70 @@ def create_object_reference_partitions(ctx: click.Context, start: str, end: str)
         )
 
         cur_date += datetime.timedelta(days=7)
+
+
+@storage.command(name="remove-old-object-reference-partitions")
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="do not ask for confirmation before removing tables",
+)
+@click.argument("before")
+@click.pass_context
+def remove_old_object_reference_partitions(
+    ctx: click.Context, force: bool, before: str
+):
+    """Remove object_reference partitions for values older than BEFORE"""
+    import datetime
+
+    from swh.storage import get_storage
+    from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
+
+    storage = get_storage(**ctx.obj["config"]["storage"])
+
+    # This function uses the PostgreSQL swh.storage.db attribute directly, so we
+    # need unwrap all the layers of proxies (e.g. record_references, buffer,
+    # filter, etc.) to get access to the "concrete" underlying storage.
+    while hasattr(storage, "storage"):
+        storage = storage.storage
+
+    if not isinstance(storage, PostgreSQLStorage):
+        ctx.fail("Storage instance needs to be a direct PostgreSQL storage")
+
+    before_date = datetime.datetime.fromisoformat(before)
+
+    with storage.db() as db:
+        existing_partitions = db.object_references_list_partitions()
+        to_remove = []
+        for partition in existing_partitions:
+            # If it ends after the specified date, we should keep this partition
+            # and the ones after.
+            if partition.end > before_date:
+                break
+            to_remove.append((partition.year, partition.week))
+
+        if len(to_remove) == 0:
+            click.echo("Nothing needs to be removed.")
+            ctx.exit(0)
+
+        if len(existing_partitions) == len(to_remove):
+            ctx.fail(
+                "Trying to remove all existing partitions. This can’t be right, sorry."
+            )
+
+        if not force:
+            click.echo(
+                "We will remove the following partitions before "
+                f"{before_date.strftime('%Y-%m-%d')}:"
+            )
+            for year, week in to_remove:
+                click.echo(f"- {year:04d} week {week:02d}")
+            click.confirm("Do you want to proceed?", default=False, abort=True)
+
+        with db.transaction() as cur:
+            for year, week in to_remove:
+                db.object_references_drop_partition(year, week, cur)
 
 
 def ensure_check_config(storage_cfg: Dict, check_config: Optional[str], default: str):
