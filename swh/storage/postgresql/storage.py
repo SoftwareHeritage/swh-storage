@@ -8,6 +8,7 @@ from collections import defaultdict
 import contextlib
 from contextlib import contextmanager
 import datetime
+import functools
 import itertools
 import logging
 import operator
@@ -32,7 +33,8 @@ import psycopg2.errors
 import psycopg2.pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.core.db.common import db_transaction, db_transaction_generator
+from swh.core.db.common import db_transaction as _db_transaction
+from swh.core.db.common import db_transaction_generator as _db_transaction_generator
 from swh.core.db.db_utils import swh_db_flavor, swh_db_version
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.model.model import (
@@ -60,6 +62,7 @@ from swh.model.model import (
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import (
     HashCollision,
+    QueryTimeout,
     StorageArgumentException,
     StorageDBError,
     UnknownMetadataAuthority,
@@ -125,6 +128,38 @@ def convert_validation_exceptions():
         raise
     except VALIDATION_EXCEPTIONS as e:
         raise StorageArgumentException(str(e))
+
+
+def db_transaction_generator(*args, **kwargs):
+    def decorator(meth):
+        meth = _db_transaction_generator(*args, **kwargs)(meth)
+
+        @functools.wraps(meth)
+        def _meth(self, *args, **kwargs):
+            try:
+                yield from meth(self, *args, **kwargs)
+            except psycopg2.errors.QueryCanceled:
+                raise QueryTimeout()
+
+        return _meth
+
+    return decorator
+
+
+def db_transaction(*args, **kwargs):
+    def decorator(meth):
+        meth = _db_transaction(*args, **kwargs)(meth)
+
+        @functools.wraps(meth)
+        def _meth(self, *args, **kwargs):
+            try:
+                return meth(self, *args, **kwargs)
+            except psycopg2.errors.QueryCanceled:
+                raise QueryTimeout()
+
+        return _meth
+
+    return decorator
 
 
 TRow = TypeVar("TRow", bound=Tuple)

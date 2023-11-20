@@ -3,9 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from dataclasses import dataclass
 import datetime
 import logging
 import random
+import re
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from psycopg2 import sql
@@ -90,6 +92,15 @@ class QueryBuilder:
         # Compose and execute
         query = self.parts.join(separator)
         db_cursor.execute(query, self.params)
+
+
+@dataclass
+class ObjectReferencesPartition:
+    table_name: str
+    year: int
+    week: int
+    start: datetime.datetime
+    end: datetime.datetime
 
 
 class Db(BaseDb):
@@ -1851,6 +1862,44 @@ class Db(BaseDb):
         )
 
         return (monday, next_monday)
+
+    def object_references_drop_partition(self, year: int, week: int, cur=None) -> None:
+        """Delete the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        cur = self._cursor(cur)
+        cur.execute("DROP TABLE object_references_%04dw%02d" % (year, week))
+
+    def object_references_list_partitions(
+        self, cur=None
+    ) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
+        cur = self._cursor(cur)
+        cur.execute(
+            """SELECT relname, pg_get_expr(relpartbound, oid)
+                 FROM pg_partition_tree('object_references') pt
+                      INNER JOIN pg_class ON relid = pg_class.oid
+                WHERE isleaf = true
+                ORDER BY relname"""
+        )
+        name_re = re.compile(r"^object_references_([0-9]+)w([0-9]+)$")
+        bounds_re = re.compile(r"^FOR VALUES FROM \('([0-9-]+)'\) TO \('([0-9-]+)'\)$")
+        partitions = []
+        for row in cur:
+            name_m = name_re.match(row[0])
+            assert name_m is not None
+            bounds_m = bounds_re.match(row[1])
+            assert bounds_m is not None
+            partitions.append(
+                ObjectReferencesPartition(
+                    table_name=row[0],
+                    year=int(name_m[1]),
+                    week=int(name_m[2]),
+                    start=datetime.datetime.fromisoformat(bounds_m[1]),
+                    end=datetime.datetime.fromisoformat(bounds_m[2]),
+                )
+            )
+        return partitions
 
     #################
     # object deletion
