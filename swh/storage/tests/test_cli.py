@@ -15,10 +15,10 @@ from unittest.mock import patch
 from click.testing import CliRunner
 from confluent_kafka import Producer
 import pytest
-import yaml
-
 from swh.journal.serializers import key_to_kafka, value_to_kafka
 from swh.model.model import Origin, Snapshot, SnapshotBranch, TargetType
+import yaml
+
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
 from swh.storage.replay import OBJECT_CONVERTERS
@@ -40,14 +40,6 @@ def swh_storage():
     with patch("swh.storage.get_storage") as get_storage_mock:
         get_storage_mock.return_value = storage
         yield storage
-
-
-@pytest.fixture
-def monkeypatch_retry_sleep(monkeypatch):
-    from swh.journal.replay import copy_object, obj_in_objstorage
-
-    monkeypatch.setattr(copy_object.retry, "sleep", lambda x: None)
-    monkeypatch.setattr(obj_in_objstorage.retry, "sleep", lambda x: None)
 
 
 def invoke(*args, env=None, input=None, journal_config=None, local_config=None):

@@ -37,6 +37,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
 )
+
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
 from swh.storage.utils import remove_keys
@@ -177,7 +178,7 @@ class ModelObjectDeserializer:
                 else:
                     oid = f"{object_type}:uuid:{uuid4()}"
             elif hasattr(obj, "swhid"):
-                swhid = obj.swhid()  # type: ignore[attr-defined]
+                swhid = obj.swhid()
                 oid = str(swhid)
             elif isinstance(obj, HashableObject):
                 uid = obj.compute_hash()
@@ -191,7 +192,7 @@ class ModelObjectDeserializer:
 def process_replay_objects(
     all_objects: Dict[str, List[BaseModel]], *, storage: StorageInterface
 ) -> None:
-    for (object_type, objects) in all_objects.items():
+    for object_type, objects in all_objects.items():
         logger.debug("Inserting %s %s objects", len(objects), object_type)
         with statsd.timed(GRAPH_DURATION_METRIC, tags={"object_type": object_type}):
             _insert_objects(object_type, objects, storage)

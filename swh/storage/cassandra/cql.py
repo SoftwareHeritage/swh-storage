@@ -34,13 +34,6 @@ from cassandra.concurrent import execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
 from mypy_extensions import NamedArg
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
-)
-
 from swh.core.utils import grouper
 from swh.model.model import (
     Content,
@@ -51,6 +44,13 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
+
 from swh.storage.exc import QueryTimeout
 from swh.storage.interface import ListOrder, TotalHashDict
 
@@ -100,7 +100,6 @@ logger = logging.getLogger(__name__)
 
 
 def _instantiate_auth_provider(configuration: Dict) -> AuthProvider:
-
     local_config = dict(configuration)
     cls = local_config.pop("cls", None)
     if not cls:
@@ -147,7 +146,6 @@ def create_keyspace(
     durable_writes=True,
     auth_provider: Optional[Dict] = None,
 ):
-
     auth_provider_inst: Optional[AuthProvider] = None
     if auth_provider:
         auth_provider_inst = _instantiate_auth_provider(auth_provider)
@@ -347,7 +345,6 @@ class CqlRunner:
         consistency_level: str,
         auth_provider: Optional[Dict] = None,
     ):
-
         auth_provider_impl: Optional[AuthProvider] = None
         if auth_provider:
             auth_provider_impl = _instantiate_auth_provider(auth_provider)
@@ -441,7 +438,7 @@ class CqlRunner:
             # the row with the smallest token
             rows = self._execute_with_retries(statement, [TOKEN_BEGIN])
         if rows:
-            return row_class.from_dict(rows.one())  # type: ignore
+            return row_class.from_dict(rows.one())
         else:
             return None
 
@@ -596,7 +593,7 @@ class CqlRunner:
         table = content_index_table_name(algo, skipped_content=False)
         query = f"SELECT target_token FROM {self.keyspace}.{table} WHERE {algo} = %s"
         return (
-            row["target_token"]  # type: ignore
+            row["target_token"]
             for row in self._execute_many_with_retries(
                 query, [(hash_,) for hash_ in hashes]
             )
@@ -1327,7 +1324,6 @@ class CqlRunner:
         *,
         statement,
     ) -> Iterable[OriginVisitStatusRow]:
-
         args = (origin_url, visit_from, visit_to)
 
         return map(
