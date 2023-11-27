@@ -138,8 +138,8 @@ def db_transaction_generator(*args, **kwargs):
         def _meth(self, *args, **kwargs):
             try:
                 yield from meth(self, *args, **kwargs)
-            except psycopg2.errors.QueryCanceled:
-                raise QueryTimeout()
+            except psycopg2.errors.QueryCanceled as e:
+                raise QueryTimeout(*e.args)
 
         return _meth
 
@@ -154,8 +154,8 @@ def db_transaction(*args, **kwargs):
         def _meth(self, *args, **kwargs):
             try:
                 return meth(self, *args, **kwargs)
-            except psycopg2.errors.QueryCanceled:
-                raise QueryTimeout()
+            except psycopg2.errors.QueryCanceled as e:
+                raise QueryTimeout(*e.args)
 
         return _meth
 
@@ -323,7 +323,6 @@ class Storage:
 
     @db_transaction()
     def check_config(self, *, check_write: bool, db: Db, cur=None) -> bool:
-
         if not self.objstorage.check_config(check_write=check_write):
             return False
 
@@ -1217,7 +1216,6 @@ class Storage:
         db: Db,
         cur=None,
     ) -> Optional[PartialBranches]:
-
         if snapshot_id == EMPTY_SNAPSHOT_ID:
             return PartialBranches(
                 id=snapshot_id,
@@ -1284,7 +1282,6 @@ class Storage:
         follow_alias_chain: bool = True,
         max_alias_chain_length: int = 100,
     ) -> Optional[SnapshotBranchByNameResponse]:
-
         if list(self.snapshot_missing([snapshot_id])):
             return None
 
@@ -1527,7 +1524,6 @@ class Storage:
         next_page_token = visits_page.next_page_token
 
         if visits:
-
             visit_from = min(visits[0].visit, visits[-1].visit)
             visit_to = max(visits[0].visit, visits[-1].visit)
 
