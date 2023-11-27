@@ -6221,29 +6221,30 @@ class TestStorage:
     def test_querytimeout(self, swh_storage, sample_data, mocker):
         origin_url = "https://example.org/"
 
+        message = "too slow!"
         mocker.patch(
             "swh.storage.postgresql.db.Db.origin_visit_get_latest",
-            side_effect=psycopg2.errors.QueryCanceled(),
+            side_effect=psycopg2.errors.QueryCanceled(message),
         )
         mocker.patch(
             "swh.storage.postgresql.db.Db.revision_missing_from_list",
-            side_effect=psycopg2.errors.QueryCanceled(),
+            side_effect=psycopg2.errors.QueryCanceled(message),
         )
         mocker.patch(
             "swh.storage.cassandra.cql.CqlRunner._execute_with_retries_inner",
-            side_effect=cassandra.ReadTimeout("too slow!"),
+            side_effect=cassandra.ReadTimeout(message),
         )
         mocker.patch(
             "swh.storage.cassandra.cql.CqlRunner._execute_many_with_retries_inner",
-            side_effect=cassandra.ReadTimeout("too slow!"),
+            side_effect=cassandra.ReadTimeout(message),
         )
 
         # db_transaction on postgres, _execute_with_retries on cassandra
-        with pytest.raises(QueryTimeout):
+        with pytest.raises(QueryTimeout, match=message):
             swh_storage.origin_visit_get_latest(origin_url, require_snapshot=True)
 
         # db_transaction_generator on postgres, _execute_many_with_retries on cassandra
-        with pytest.raises(QueryTimeout):
+        with pytest.raises(QueryTimeout, match=message):
             list(swh_storage.revision_missing([b"\x00" * 20]))
 
 
