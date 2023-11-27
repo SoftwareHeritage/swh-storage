@@ -1,3 +1,9 @@
+swh-storage (1.18.7-1~swh1~bpo10+1) buster-swh; urgency=medium
+
+  * Rebuild for buster-swh
+
+ -- Software Heritage autobuilder (on jenkins-debian1) <jenkins@jenkins-debian1.internal.softwareheritage.org>  Mon, 27 Nov 2023 11:31:05 +0000
+
 swh-storage (1.18.7-1~swh1) unstable-swh; urgency=medium
 
   * New upstream release 1.18.7     - (tagged by Valentin Lorentz
