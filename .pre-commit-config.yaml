@@ -31,6 +31,9 @@ repos:
         name: Check source code spelling
         args: [-L iff, -L gae, -L sur, -L ore]
         stages: [commit]
+      - id: codespell
+        name: Check commit message spelling
+        stages: [commit-msg]
 
   - repo: local
     hooks:
