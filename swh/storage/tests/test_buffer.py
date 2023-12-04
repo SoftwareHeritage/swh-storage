@@ -717,7 +717,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["raw_extrinsic_metadata"]) == len(metadata)
 
     # clear current buffer from all object types
-    s = storage.clear_buffers()  # type: ignore
+    s = storage.clear_buffers()
     assert s is None
 
     assert len(storage._objects["content"]) == 0

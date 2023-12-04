@@ -55,7 +55,7 @@ class BaseRow:
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
-        return cls(**d)  # type: ignore
+        return cls(**d)
 
     @classmethod
     def cols(cls) -> List[str]:
@@ -243,7 +243,7 @@ class OriginVisitStatusRow(BaseRow):
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
-        return cls(**d)  # type: ignore
+        return cls(**d)
 
 
 @dataclasses.dataclass
