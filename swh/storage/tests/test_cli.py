@@ -63,6 +63,7 @@ def invoke(*args, env=None, input=None, journal_config=None, local_config=None):
         return ret
 
 
+@pytest.mark.cassandra
 def test_create_keyspace(
     swh_storage_cassandra_cluster,
     cassandra_auth_provider_config,

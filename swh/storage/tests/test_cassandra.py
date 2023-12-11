@@ -73,6 +73,7 @@ def _python_type_to_cql_type_re(ty: type) -> str:
     assert False, f"Unsupported type: {ty}"
 
 
+@pytest.mark.cassandra
 def test_schema_matches_model():
     """Checks tables defined in :mod:`swh.storage.cassandra.schema` match
     the object model defined in :mod:`swh.storage.cassandra.model`.
@@ -702,6 +703,7 @@ class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
         pass
 
 
+@pytest.mark.cassandra
 @pytest.mark.parametrize(
     "allow_overwrite,object_type",
     itertools.product(

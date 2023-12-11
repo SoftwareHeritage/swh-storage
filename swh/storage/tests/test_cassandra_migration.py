@@ -103,6 +103,7 @@ class CqlRunnerWithXor(CqlRunner):
     )
 
 
+@pytest.mark.cassandra
 def test_add_content_column(
     swh_storage: CassandraStorage, swh_storage_backend_config, mocker  # noqa
 ) -> None:
@@ -236,6 +237,7 @@ class CqlRunnerWithXorPK(CqlRunner):
     )
 
 
+@pytest.mark.cassandra
 def test_change_content_pk(
     swh_storage: CassandraStorage, swh_storage_backend_config, mocker  # noqa
 ) -> None:
