@@ -42,7 +42,6 @@ class TestDiffRevisions(unittest.TestCase):
         mock_get_dir,
         mock_get_rev,
     ):
-
         rev_from_bytes = hash_to_bytes(rev_from)
         rev_to_bytes = hash_to_bytes(rev_to)
 

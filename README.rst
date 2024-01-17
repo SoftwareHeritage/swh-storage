@@ -4,27 +4,31 @@ Software Heritage - Storage
 Abstraction layer over the archive, allowing to access all stored source code
 artifacts as well as their metadata.
 
-## Quick start
+Quick start
+-----------
 
-### Dependencies
+Dependencies
+^^^^^^^^^^^^
 
 Python tests for this module include tests that cannot be run without a local
 Postgresql database, so you need the Postgresql server executable on your
 machine (no need to have a running Postgresql server). They also expect a
 cassandra server.
 
-#### Debian-like host
+Debian-like host
+""""""""""""""""
 
 .. code-block:: shell
 
    $ sudo apt install libpq-dev postgresql-11 cassandra
 
 
-#### Non Debian-like host
+Non Debian-like host
+""""""""""""""""""""
 
-The tests expect the path to `cassandra` to either be unspecified, it is then
-looked up at `/usr/sbin/cassandra`, either specified through the environment
-variable `SWH_CASSANDRA_BIN`.
+The tests expect the path to ``cassandra`` to either be unspecified, it is then
+looked up at ``/usr/sbin/cassandra``, either specified through the environment
+variable ``SWH_CASSANDRA_BIN``.
 
 Optionally, you can avoid running the cassandra tests.
 
@@ -33,10 +37,11 @@ Optionally, you can avoid running the cassandra tests.
    (swh) :~/swh-storage$ tox -- -m 'not cassandra'
 
 
-### Installation
+Installation
+^^^^^^^^^^^^
 
 It is strongly recommended to use a virtualenv. In the following, we
-consider you work in a virtualenv named `swh`. See the
+consider you work in a virtualenv named ``swh``. See the
 `developer setup guide <https://docs.softwareheritage.org/devel/developer-setup.html#developer-setup>`_
 for a more details on how to setup a working environment.
 
@@ -77,7 +82,8 @@ Then you can check it's properly installed:
      rpc-serve  Software Heritage Storage RPC server.
 
 
-## Tests
+Tests
+-----
 
 The best way of running Python tests for this module is to use
 `tox <https://tox.readthedocs.io>`_.
@@ -87,7 +93,8 @@ The best way of running Python tests for this module is to use
    (swh) :~$ pip install tox
 
 
-### tox
+tox
+^^^
 
 From the sources directory, simply use tox:
 
@@ -102,7 +109,7 @@ From the sources directory, simply use tox:
      congratulations :)
 
 
-Note: it is possible to set the `JAVA_HOME` environment variable to specify the
+Note: it is possible to set the ``JAVA_HOME`` environment variable to specify the
 version of the JVM to be used by Cassandra. For example, at the time of writing
 this, Cassandra is meant to be run with Java 11. On Debian bookworm, one needs
 to manually install openjdk-11-jre-headless from bullseye or unstable and
@@ -115,14 +122,16 @@ set the appropriate environment variable:
    [...]
 
 
-## Development
+Development
+-----------
 
 The storage server can be locally started. It requires a configuration file and
 a running Postgresql database.
 
-### Sample configuration
+Sample configuration
+^^^^^^^^^^^^^^^^^^^^
 
-A typical configuration `storage.yml` file is:
+A typical configuration ``storage.yml`` file is:
 
 .. code-block:: yaml
 
@@ -138,24 +147,25 @@ A typical configuration `storage.yml` file is:
 which means, this uses:
 
 - a local storage instance whose db connection is to
-  `softwareheritage-dev` local instance,
+  ``softwareheritage-dev`` local instance,
 
 - the objstorage uses a local objstorage instance whose:
 
-  - `root` path is /tmp/swh-storage,
+  - ``root`` path is /tmp/swh-storage,
 
-  - slicing scheme is `0:2/2:4/4:6`. This means that the identifier of
+  - slicing scheme is ``0:2/2:4/4:6``. This means that the identifier of
     the content (sha1) which will be stored on disk at first level
     with the first 2 hex characters, the second level with the next 2
     hex characters and the third level with the next 2 hex
     characters. And finally the complete hash file holding the raw
-    content. For example: 00062f8bd330715c4f819373653d97b3cd34394c
-    will be stored at 00/06/2f/00062f8bd330715c4f819373653d97b3cd34394c
+    content. For example: ``00062f8bd330715c4f819373653d97b3cd34394c``
+    will be stored at ``00/06/2f/00062f8bd330715c4f819373653d97b3cd34394c``
 
-Note that the `root` path should exist on disk before starting the server.
+Note that the ``root`` path should exist on disk before starting the server.
 
 
-### Starting the storage server
+Starting the storage server
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If the python package has been properly installed (e.g. in a virtual env), you
 should be able to use the command:
@@ -181,7 +191,8 @@ This runs a local swh-storage api at 5002 port.
    and API</a> for more information</p>
 
 
-### And then what?
+And then what?
+^^^^^^^^^^^^^^
 
 In your upper layer
 (`loader-git <https://forge.softwareheritage.org/source/swh-loader-git>`_,
@@ -209,7 +220,8 @@ You could directly define a postgresql storage with the following snippet:
        slicing: 0:2/2:4/4:6
 
 
-## Cassandra
+Cassandra
+---------
 
 As an alternative to PostgreSQL, swh-storage can use Cassandra as a database
 backend. It can be used like this:

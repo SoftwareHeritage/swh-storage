@@ -15,10 +15,10 @@ from unittest.mock import patch
 from click.testing import CliRunner
 from confluent_kafka import Producer
 import pytest
-from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.model.model import Origin, Snapshot, SnapshotBranch, TargetType
 import yaml
 
+from swh.journal.serializers import key_to_kafka, value_to_kafka
+from swh.model.model import Origin, Snapshot, SnapshotBranch, TargetType
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
 from swh.storage.replay import OBJECT_CONVERTERS
@@ -63,6 +63,7 @@ def invoke(*args, env=None, input=None, journal_config=None, local_config=None):
         return ret
 
 
+@pytest.mark.cassandra
 def test_create_keyspace(
     swh_storage_cassandra_cluster,
     cassandra_auth_provider_config,

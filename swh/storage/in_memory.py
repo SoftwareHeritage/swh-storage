@@ -191,7 +191,7 @@ class InMemoryCqlRunner:
         self._stat_counters[object_type] += nb
 
     def stat_counters(self) -> Iterable[ObjectCountRow]:
-        for (object_type, count) in self._stat_counters.items():
+        for object_type, count in self._stat_counters.items():
             yield ObjectCountRow(partition_key=0, object_type=object_type, count=count)
 
     ##########################

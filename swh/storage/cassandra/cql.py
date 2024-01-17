@@ -34,6 +34,13 @@ from cassandra.concurrent import execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
 from mypy_extensions import NamedArg
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
+
 from swh.core.utils import grouper
 from swh.model.model import (
     Content,
@@ -44,13 +51,6 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
-)
-
 from swh.storage.exc import QueryTimeout
 from swh.storage.interface import ListOrder, TotalHashDict
 

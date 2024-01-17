@@ -37,7 +37,7 @@ if pytest_cov is not None and int(pytest_cov.__version__.split(".")[0]) < 4:
     # report, but this is not an issue because the only code that runs only in
     # child processes is the RPC server.
     registry = multiprocessing.util._afterfork_registry  # type: ignore[attr-defined]
-    for (key, value) in registry.items():
+    for key, value in registry.items():
         if value is pytest_cov.embed.multiprocessing_start:
             del registry[key]
             break

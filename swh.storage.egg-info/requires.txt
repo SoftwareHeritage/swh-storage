@@ -10,7 +10,7 @@ tenacity!=8.2.0,>=6.2
 typing-extensions
 swh.core[db,http]>=2.20.0
 swh.counters>=v0.8.0
-swh.model>=6.3.0
+swh.model>=6.11.0
 swh.objstorage>=2.2.0
 
 [journal]

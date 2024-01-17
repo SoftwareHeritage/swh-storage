@@ -37,7 +37,6 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
 )
-
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.interface import StorageInterface
 from swh.storage.utils import remove_keys

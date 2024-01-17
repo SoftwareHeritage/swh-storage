@@ -62,7 +62,7 @@ def test_npm_package_from_source_url():
         ),
     ]
 
-    for (package_name, source_url) in package_urls:
+    for package_name, source_url in package_urls:
         assert npm_package_from_source_url(source_url) == package_name
 
 
