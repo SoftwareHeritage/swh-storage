@@ -150,7 +150,7 @@ class TestStorage:
     class twice.
     """
 
-    maxDiff = None  # type: ClassVar[Optional[int]]
+    maxDiff: ClassVar[Optional[int]] = None
 
     def test_types(self, swh_storage_backend_config):
         """Checks all methods of StorageInterface are implemented by this
@@ -353,7 +353,7 @@ class TestStorage:
         )
 
         combinations = list(itertools.combinations(sorted(DEFAULT_ALGORITHMS), 2))
-        for (algo1, algo2) in combinations:
+        for algo1, algo2 in combinations:
             assert (
                 swh_storage.content_get_data(
                     {algo1: cont.get_hash(algo1), algo2: cont.get_hash(algo2)}
@@ -1773,7 +1773,6 @@ class TestStorage:
         assert swh_storage.revision_get([revision.id]) == [revision]
 
     def test_extid_add_git(self, swh_storage, sample_data):
-
         gitids = [
             revision.id
             for revision in sample_data.revisions
@@ -1866,7 +1865,6 @@ class TestStorage:
         assert extid_objs == extids_in_journal
 
     def test_extid_add_twice(self, swh_storage, sample_data):
-
         gitids = [
             revision.id
             for revision in sample_data.revisions
@@ -1894,7 +1892,6 @@ class TestStorage:
         assert swh_storage.extid_get_from_target(ObjectType.REVISION, gitids) == extids
 
     def test_extid_add_extid_multicity(self, swh_storage, sample_data):
-
         ids = [
             revision.id
             for revision in sample_data.revisions
@@ -1938,7 +1935,6 @@ class TestStorage:
         }
 
     def test_extid_add_target_multicity(self, swh_storage, sample_data):
-
         ids = [
             revision.id
             for revision in sample_data.revisions
@@ -4939,7 +4935,6 @@ class TestStorage:
         assert partial_branches["branches"] == {}
 
     def test_snapshot_get_branches_correct_branch_count(self, swh_storage, sample_data):
-
         n = 20
         branches = {}
         for i in range(n):
@@ -6039,7 +6034,12 @@ class TestStorage:
             after=origin_metadata.discovery_date - timedelta(seconds=1),
         )
         assert result.next_page_token is None
-        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == [
+        assert list(
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
+        ) == [
             origin_metadata,
             origin_metadata2,
         ]
@@ -6395,7 +6395,7 @@ class TestStorageGeneratedData:
         ) + [obj for obj in objects if not hasattr(obj, "id")]
         random.shuffle(objects)
 
-        for (obj_type, obj) in objects:
+        for obj_type, obj in objects:
             if obj.object_type == "origin_visit":
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(

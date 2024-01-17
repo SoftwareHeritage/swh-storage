@@ -368,7 +368,7 @@ def _check_revision_in_origin(storage, origin, revision_id):
                 continue
             seen_snapshots.add(status.snapshot)
             snapshot = snapshot_get_all_branches(storage, status.snapshot)
-            for (branch_name, branch) in snapshot.branches.items():
+            for branch_name, branch in snapshot.branches.items():
                 if branch is None:
                     continue
 
@@ -638,7 +638,7 @@ def handle_deposit_row(
         metadata={},
     )
 
-    for (date, format, metadata) in metadata_entries:
+    for date, format, metadata in metadata_entries:
         load_metadata(
             storage,
             row["id"],
@@ -1087,7 +1087,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                 ("name", "filename"),  # eg. from old Debian loader
                 ("size", "length"),  # eg. from old PyPI loader
             ]
-            for (old_name, new_name) in rename_keys:
+            for old_name, new_name in rename_keys:
                 if old_name in original_artifact:
                     assert new_name not in original_artifact
                     original_artifact[new_name] = original_artifact.pop(old_name)

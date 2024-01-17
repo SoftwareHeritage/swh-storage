@@ -830,7 +830,7 @@ class CassandraStorage:
             revobject = converters.revision_to_db(revision)
             if revobject:
                 # Add parents first
-                for (rank, parent) in enumerate(revision.parents):
+                for rank, parent in enumerate(revision.parents):
                     self._cql_runner.revision_parent_add_one(
                         RevisionParentRow(
                             id=revobject.id, parent_rank=rank, parent_id=parent
@@ -1030,7 +1030,7 @@ class CassandraStorage:
             self.journal_writer.snapshot_add([snapshot])
 
             # Add branches
-            for (branch_name, branch) in snapshot.branches.items():
+            for branch_name, branch in snapshot.branches.items():
                 if branch is None:
                     target_type: Optional[str] = None
                     target: Optional[bytes] = None
@@ -1275,7 +1275,7 @@ class CassandraStorage:
 
         origins = []
         # Take one more origin so we can reuse it as the next page token if any
-        for (tok, row) in self._cql_runner.origin_list(start_token, limit + 1):
+        for tok, row in self._cql_runner.origin_list(start_token, limit + 1):
             origins.append(Origin(url=row.url))
             # keep reference of the last id for pagination purposes
             last_id = tok
@@ -1690,7 +1690,7 @@ class CassandraStorage:
             ("directory", self._cql_runner.directory_missing),
         ]
 
-        for (object_type, query_fn) in queries:
+        for object_type, query_fn in queries:
             found_ids = missing_ids - set(query_fn(list(missing_ids)))
             for sha1_git in found_ids:
                 results[sha1_git].append(
@@ -2191,6 +2191,7 @@ class CassandraStorage:
                 origin_visit:delete: Number of origin visit objects removed
                 origin_visit_status:delete: Number of origin visit status objects removed
         """
+
         # groupby() splits consecutive groups, so we need to order the list first
         def key(swhid: ExtendedSWHID) -> int:
             return _DELETE_ORDERING[swhid.object_type]

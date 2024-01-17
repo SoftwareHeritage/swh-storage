@@ -18,7 +18,6 @@ from swh.storage import get_storage
 
 
 def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consumer):
-
     writer_config = {
         "cls": "kafka",
         "brokers": [kafka_server],
@@ -92,7 +91,6 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
 def test_storage_direct_writer_anonymized(
     kafka_prefix: str, kafka_server, consumer: Consumer
 ):
-
     writer_config = {
         "cls": "kafka",
         "brokers": [kafka_server],

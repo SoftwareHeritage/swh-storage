@@ -53,9 +53,7 @@ async def test_filter_known_objects(monkeypatch):
     assert archive.contents[0].sha1_git == KNOWN_CONTENT_HASH
     assert archive.directories[0].id == KNOWN_DIRECTORY_HASH
     assert archive.directories[1].id == KNOWN_DIRECTORY_HASH_2
-    (contents, skipped_contents, directories) = await discovery.filter_known_objects(
-        archive
-    )
+    (contents, skipped_contents, directories) = discovery.filter_known_objects(archive)
     assert len(contents) == 0
     assert len(skipped_contents) == 0
     assert len(directories) == 2

@@ -120,6 +120,7 @@ def test_get_storage_pipeline_legacy_args():
 
 # get_storage's check_config argument tests
 
+
 # the "remote" and "pipeline" cases are tested in dedicated test functions below
 @pytest.mark.parametrize(
     "cls,real_class,kwargs",
