@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,6 +12,7 @@ import itertools
 import logging
 import random
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -40,6 +41,9 @@ from tenacity import (
     stop_after_attempt,
     wait_random_exponential,
 )
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 from swh.core.utils import grouper
 from swh.model.model import (
@@ -414,13 +418,13 @@ class CqlRunner:
         except (ReadTimeout, WriteTimeout) as e:
             raise QueryTimeout(*e.args) from None
 
-    def _add_one(self, statement, obj: BaseRow) -> None:
+    def _add_one(self, statement, obj: "DataclassInstance") -> None:
         self._execute_with_retries(statement, dataclasses.astuple(obj))
 
     def _add_many(self, statement, objs: Sequence[BaseRow]) -> None:
         tables = {obj.TABLE for obj in objs}
         assert len(tables) == 1, f"Cannot insert to multiple tables: {tables}"
-        rows = list(map(dataclasses.astuple, objs))
+        rows = [dataclasses.astuple(cast("DataclassInstance", obj)) for obj in objs]
         for _ in self._execute_many_with_retries(statement, rows):
             # Need to consume the generator to actually run the INSERTs
             pass
@@ -533,7 +537,7 @@ class CqlRunner:
         self, ids: List[bytes], *, statement
     ) -> Iterator[Tuple[bytes, bytes, bytes, bytes]]:
         for row in self._execute_with_retries(statement, [ids]):
-            yield tuple(row[algo] for algo in HASH_ALGORITHMS)  # type: ignore
+            yield tuple(row[algo] for algo in HASH_ALGORITHMS)
 
     @_prepared_select_statement(
         ContentRow, f"WHERE token({', '.join(ContentRow.PARTITION_KEY)}) = ?"

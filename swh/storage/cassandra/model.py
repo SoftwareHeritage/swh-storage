@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2023  The Software Heritage developers
+# Copyright (C) 2020-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -21,7 +21,21 @@ that can be mapped to UDTs (Person and TimestampWithTimezone).
 
 import dataclasses
 import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    cast,
+)
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 from swh.model.model import Person, TimestampWithTimezone
 
@@ -59,10 +73,12 @@ class BaseRow:
 
     @classmethod
     def cols(cls) -> List[str]:
-        return [field.name for field in dataclasses.fields(cls)]
+        return [
+            field.name for field in dataclasses.fields(cast("DataclassInstance", cls))
+        ]
 
     def to_dict(self) -> Dict[str, Any]:
-        return dataclasses.asdict(self)
+        return dataclasses.asdict(cast("DataclassInstance", self))
 
 
 @dataclasses.dataclass
