@@ -1537,12 +1537,16 @@ class TestStorage:
                 revision,
                 synthetic=False,
                 metadata=None,
-                author=None
-                if revision.author is None
-                else Person.from_fullname(revision.author.fullname),
-                committer=None
-                if revision.committer is None
-                else Person.from_fullname(revision.committer.fullname),
+                author=(
+                    None
+                    if revision.author is None
+                    else Person.from_fullname(revision.author.fullname)
+                ),
+                committer=(
+                    None
+                    if revision.committer is None
+                    else Person.from_fullname(revision.committer.fullname)
+                ),
                 type=RevisionType.GIT,
             )
             for revision in revisions
@@ -2122,9 +2126,11 @@ class TestStorage:
                 release,
                 synthetic=False,
                 metadata=None,
-                author=Person.from_fullname(release.author.fullname)
-                if release.author
-                else None,
+                author=(
+                    Person.from_fullname(release.author.fullname)
+                    if release.author
+                    else None
+                ),
             )
             for release in releases
         ]
@@ -3615,7 +3621,7 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_find_by_date(self, swh_storage, sample_data):
+    def _setup_origin_visit_tests_data(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
@@ -3658,17 +3664,48 @@ class TestStorage:
         )
         swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3])
 
+        return origin, ov1, ov2, ov3
+
+    def test_origin_visit_find_by_date(self, swh_storage, sample_data):
+        origin, _, origin_visit2, origin_visit3 = self._setup_origin_visit_tests_data(
+            swh_storage, sample_data
+        )
+
         # Simple case
         actual_visit = swh_storage.origin_visit_find_by_date(
             origin.url, sample_data.date_visit3
         )
-        assert actual_visit == ov2
+        assert actual_visit == origin_visit2
 
         # There are two visits at the same date, the latest must be returned
         actual_visit = swh_storage.origin_visit_find_by_date(
             origin.url, sample_data.date_visit2
         )
-        assert actual_visit == ov3
+        assert actual_visit == origin_visit3
+
+    def test_origin_visit_find_by_date_and_type(self, swh_storage, sample_data):
+        (
+            origin,
+            origin_visit1,
+            origin_visit2,
+            origin_visit3,
+        ) = self._setup_origin_visit_tests_data(swh_storage, sample_data)
+
+        # each visit has a different type
+        for origin_visit in (origin_visit1, origin_visit2, origin_visit3):
+            actual_visit = swh_storage.origin_visit_find_by_date(
+                origin.url, sample_data.date_visit3, type=origin_visit.type
+            )
+
+            assert actual_visit == origin_visit
+
+        # visit 1 and visit 3 have same date but different types
+        for origin_visit in (origin_visit1, origin_visit3):
+            actual_visit = swh_storage.origin_visit_find_by_date(
+                origin.url, sample_data.date_visit2, type=origin_visit.type
+            )
+
+            assert actual_visit == origin_visit
 
     def test_origin_visit_find_by_date_latest_visit(self, swh_storage, sample_data):
         first_visit_date = sample_data.date_visit2

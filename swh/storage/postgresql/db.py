@@ -1225,10 +1225,11 @@ class Db(BaseDb):
             return None
         return r[0]
 
-    def origin_visit_find_by_date(self, origin, visit_date, cur=None):
+    def origin_visit_find_by_date(self, origin, visit_date, type=None, cur=None):
         cur = self._cursor(cur)
         cur.execute(
-            "SELECT * FROM swh_visit_find_by_date(%s, %s)", (origin, visit_date)
+            "SELECT * FROM swh_visit_find_by_date(%s, %s, %s)",
+            (origin, visit_date, type),
         )
         rows = cur.fetchall()
         if rows:

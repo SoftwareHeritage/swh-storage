@@ -216,7 +216,7 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 190
+    current_version: int = 191
 
     def __init__(
         self,
@@ -1550,9 +1550,15 @@ class Storage:
 
     @db_transaction(statement_timeout=2000)
     def origin_visit_find_by_date(
-        self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
+        self,
+        origin: str,
+        visit_date: datetime.datetime,
+        type: Optional[str] = None,
+        *,
+        db: Db,
+        cur=None,
     ) -> Optional[OriginVisit]:
-        row_d = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        row_d = db.origin_visit_find_by_date(origin, visit_date, type=type, cur=cur)
         if not row_d:
             return None
         return OriginVisit(

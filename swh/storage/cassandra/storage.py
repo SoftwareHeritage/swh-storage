@@ -1580,12 +1580,16 @@ class CassandraStorage:
         return PagedResult(results=visit_statuses, next_page_token=next_page_token)
 
     def origin_visit_find_by_date(
-        self, origin: str, visit_date: datetime.datetime
+        self, origin: str, visit_date: datetime.datetime, type: Optional[str] = None
     ) -> Optional[OriginVisit]:
         # Iterator over all the visits of the origin
         # This should be ok for now, as there aren't too many visits
         # per origin.
-        rows = list(self._cql_runner.origin_visit_iter_all(origin))
+        rows = [
+            visit
+            for visit in self._cql_runner.origin_visit_iter_all(origin)
+            if type is None or visit.type == type
+        ]
 
         def key(visit):
             dt = visit.date.replace(tzinfo=datetime.timezone.utc) - visit_date
