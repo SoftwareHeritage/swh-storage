@@ -389,13 +389,33 @@ class ObjectCountRow(BaseRow):
 class ExtIDRow(BaseRow):
     TABLE = "extid"
     PARTITION_KEY = ("extid_type", "extid")
-    CLUSTERING_KEY = ("extid_version", "target_type", "target")
+    CLUSTERING_KEY = (
+        "extid_version",
+        "target_type",
+        "target",
+        "has_payload",
+        "payload_type",
+        "payload",
+    )
 
     extid_type: str
     extid: bytes
     extid_version: int
     target_type: str
     target: bytes
+    has_payload: bool
+    """
+    if :const:`False`, then ``payload_type`` and ``payload`` must be empty strings
+    in the database, and will be interpreted as :const:`None` when read.
+    """
+    payload_type: str
+    """
+    must be the empty string if ``has_payload`` is :const:`False`
+    """
+    payload: bytes
+    """
+    must be the empty string if ``has_payload`` is :const:`False`
+    """
 
 
 @dataclasses.dataclass

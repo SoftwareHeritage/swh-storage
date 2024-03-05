@@ -1939,6 +1939,10 @@ class CassandraStorage:
     ##########################
 
     def extid_add(self, ids: List[ExtID]) -> Dict[str, int]:
+        for extid in ids:
+            assert (extid.payload_type is None) == (
+                extid.payload is None
+            ), "payload must be None iff payload_type is None"
         if not self._allow_overwrite:
             extids = [
                 extid
@@ -1948,6 +1952,10 @@ class CassandraStorage:
                     extid_version=extid.extid_version,
                     extid=extid.extid,
                     target=extid.target,
+                    has_payload=extid.payload is not None,
+                    # Convert None to empty string, as NULL is not allowed in the DB
+                    payload_type=extid.payload_type or "",
+                    payload=extid.payload or b"",
                 )
             ]
         else:
@@ -1961,12 +1969,19 @@ class CassandraStorage:
             target = extid.target.object_id
             extid_version = extid.extid_version
             extid_type = extid.extid_type
+            payload_type = extid.payload_type
+            payload = extid.payload
+
             extidrow = ExtIDRow(
                 extid_type=extid_type,
                 extid_version=extid_version,
                 extid=extid.extid,
                 target_type=target_type,
                 target=target,
+                has_payload=payload is not None,
+                # Convert None to empty string, as NULL is not allowed in the DB
+                payload_type=payload_type or "",
+                payload=payload or b"",
             )
             (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
             indexrow = ExtIDByTargetRow(
@@ -1999,6 +2014,10 @@ class CassandraStorage:
                         object_type=extidrow.target_type,
                         object_id=extidrow.target,
                     ),
+                    payload_type=extidrow.payload_type
+                    if extidrow.has_payload
+                    else None,
+                    payload=extidrow.payload if extidrow.has_payload else None,
                 )
                 for extidrow in extidrows
             )
@@ -2034,6 +2053,10 @@ class CassandraStorage:
                         object_type=SwhidObjectType(extidrow.target_type),
                         object_id=extidrow.target,
                     ),
+                    payload_type=extidrow.payload_type
+                    if extidrow.has_payload
+                    else None,
+                    payload=extidrow.payload if extidrow.has_payload else None,
                 )
                 for extidrow in extidrows
             )
