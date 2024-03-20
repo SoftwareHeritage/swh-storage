@@ -353,6 +353,10 @@ class RawExtrinsicMetadataRow(BaseRow):
     metadata: bytes
 
     # context:
+
+    # The following keys are kept optional but extra effort is made to avoid setting
+    # those None values to null in cassandra. Otherwise, that would end up churning on
+    # cleaning up (all the time)
     origin: Optional[str]
     visit: Optional[int]
     snapshot: Optional[str]

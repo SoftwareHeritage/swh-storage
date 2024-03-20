@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -27,7 +27,7 @@ from swh.model.model import (
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage.interface import ObjectReference
 
-from ..utils import map_optional, remove_keys
+from ..utils import remove_keys
 from .model import (
     ObjectReferenceRow,
     OriginVisitRow,
@@ -139,13 +139,13 @@ def row_to_raw_extrinsic_metadata(row: RawExtrinsicMetadataRow) -> RawExtrinsicM
         discovery_date=discovery_date,
         format=row.format,
         metadata=row.metadata,
-        origin=row.origin,
-        visit=row.visit,
-        snapshot=map_optional(CoreSWHID.from_string, row.snapshot),
-        release=map_optional(CoreSWHID.from_string, row.release),
-        revision=map_optional(CoreSWHID.from_string, row.revision),
-        path=row.path,
-        directory=map_optional(CoreSWHID.from_string, row.directory),
+        origin=row.origin or None,  # to account for "" conversion to None
+        visit=row.visit if row.visit and row.visit != 0 else None,
+        snapshot=CoreSWHID.from_string(row.snapshot) if row.snapshot else None,
+        release=CoreSWHID.from_string(row.release) if row.release else None,
+        revision=CoreSWHID.from_string(row.revision) if row.revision else None,
+        path=row.path or None,  # to account for b"" conversion to None
+        directory=CoreSWHID.from_string(row.directory) if row.directory else None,
     )
 
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -197,6 +197,11 @@ CREATE TABLE IF NOT EXISTS metadata_fetcher (
     version         ascii,
     PRIMARY KEY ((name), version)
 );""",
+    # Cassandra handles null values for row properties as removals (tombstones), which
+    # are never cleaned up as the values were never set. To avoid this issue, we instead
+    # store a known invalid value of the proper type as a placeholder for null
+    # properties: for strings and bytes: the empty value; for visit ids (integers): 0.
+    # See comments for visit, snapshot, release, revision, path and directory fields
     """
 CREATE TABLE IF NOT EXISTS raw_extrinsic_metadata (
     id              blob,

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -67,7 +67,7 @@ from swh.storage.interface import (
     TotalHashDict,
 )
 from swh.storage.objstorage import ObjStorage
-from swh.storage.utils import map_optional, now
+from swh.storage.utils import now
 from swh.storage.writer import JournalWriter
 
 from . import converters
@@ -1737,6 +1737,7 @@ class CassandraStorage:
     def raw_extrinsic_metadata_add(
         self, metadata: List[RawExtrinsicMetadata]
     ) -> Dict[str, int]:
+        """Add extrinsic metadata on objects (contents, directories, ...)."""
         self.journal_writer.raw_extrinsic_metadata_add(metadata)
         counter = Counter[ExtendedObjectType]()
         for metadata_entry in metadata:
@@ -1761,14 +1762,30 @@ class CassandraStorage:
                     fetcher_version=metadata_entry.fetcher.version,
                     format=metadata_entry.format,
                     metadata=metadata_entry.metadata,
-                    origin=metadata_entry.origin,
-                    visit=metadata_entry.visit,
-                    snapshot=map_optional(str, metadata_entry.snapshot),
-                    release=map_optional(str, metadata_entry.release),
-                    revision=map_optional(str, metadata_entry.revision),
-                    path=metadata_entry.path,
-                    directory=map_optional(str, metadata_entry.directory),
+                    # Cassandra handles null values for row properties as removals
+                    # (tombstones), which are never cleaned up as the values were never
+                    # set. To avoid this issue, we instead store a known invalid value
+                    # of the proper type as a placeholder for null properties: for
+                    # strings and bytes: the empty value; for visit ids (integers): 0.
+                    # The inverse conversion is performed when reading the data back
+                    # from Cassandra.
+                    origin=metadata_entry.origin or "",
+                    visit=metadata_entry.visit or 0,
+                    snapshot=str(metadata_entry.snapshot)
+                    if metadata_entry.snapshot
+                    else "",
+                    release=str(metadata_entry.release)
+                    if metadata_entry.release
+                    else "",
+                    revision=str(metadata_entry.revision)
+                    if metadata_entry.revision
+                    else "",
+                    path=metadata_entry.path or b"",
+                    directory=str(metadata_entry.directory)
+                    if metadata_entry.directory
+                    else "",
                 )
+
             except TypeError as e:
                 raise StorageArgumentException(*e.args)
 
