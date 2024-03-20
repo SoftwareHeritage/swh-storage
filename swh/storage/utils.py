@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020  The Software Heritage developers
+# Copyright (C) 2019-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -19,10 +19,18 @@ T2 = TypeVar("T2")
 
 
 def map_optional(f: Callable[[T1], T2], x: Optional[T1]) -> Optional[T2]:
-    if x is None:
-        return None
-    else:
-        return f(x)
+    """Execute function f on x if x is not None and return the result. Return None
+    otherwise.
+
+    Args:
+        f: Function to be called on non-None value
+        x: The value to apply f onto (or None)
+
+    Returns:
+        f(x) if x is not None else None.
+
+    """
+    return f(x) if x is not None else None
 
 
 def _is_power_of_two(n: int) -> bool:
