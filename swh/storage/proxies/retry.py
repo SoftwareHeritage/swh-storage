@@ -11,7 +11,7 @@ from tenacity.wait import wait_base
 
 from swh.core.api import TransientRemoteException
 from swh.storage import get_storage
-from swh.storage.exc import StorageArgumentException
+from swh.storage.exc import NonRetryableException
 from swh.storage.interface import StorageInterface
 
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ def should_retry_adding(retry_state: RetryCallState) -> bool:
 
     if attempt.failed:
         error = attempt.exception()
-        if isinstance(error, StorageArgumentException):
-            # Exception is due to an invalid argument
+        if isinstance(error, NonRetryableException):
+            # Don't issue retries for persistent exceptions
             return False
         elif isinstance(error, (KeyboardInterrupt, SystemExit)):
             return False
