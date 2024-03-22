@@ -24,7 +24,14 @@ class StorageAPIError(Exception):
         return "An unexpected error occurred in the api backend: %s" % (args,)
 
 
-class StorageArgumentException(Exception):
+class NonRetryableException(Exception):
+    """Persistent storage exceptions for which clients should not issue automatic
+    retries"""
+
+    pass
+
+
+class StorageArgumentException(NonRetryableException):
     """Argument passed to a Storage endpoint is invalid."""
 
     pass

@@ -10,6 +10,7 @@ from swh.model.model import Content
 
 from ..exc import (
     HashCollision,
+    NonRetryableException,
     QueryTimeout,
     StorageAPIError,
     StorageArgumentException,
@@ -26,6 +27,7 @@ class RemoteStorage(RPCClient):
     api_exception = StorageAPIError
     backend_class = StorageInterface
     reraise_exceptions = [
+        NonRetryableException,
         QueryTimeout,
         StorageArgumentException,
         UnknownMetadataAuthority,
