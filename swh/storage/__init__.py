@@ -26,6 +26,7 @@ STORAGE_IMPLEMENTATIONS = {
     "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
     "validate": ".proxies.validate.ValidatingProxyStorage",
     "record_references": ".proxies.record_references.RecordReferencesProxyStorage",
+    "masking": ".proxies.masking.MaskingProxyStorage",
 }
 
 
