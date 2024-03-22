@@ -318,14 +318,6 @@ alter table object_counts_bucketed add primary key using index object_counts_buc
 
 -- extid
 
--- the payload can be null if and only if the payload_type is null
-alter table extid
-  add constraint extid_payload_check
-  check ((payload_type is null) = (payload is null))
-  not valid;
-
 -- used to query by (extid_type, extid) + to deduplicate the whole row
-create unique index concurrently on extid(extid_type, extid, extid_version, target_type, target) where payload_type is null and payload is null;
-create unique index concurrently on extid(extid_type, extid, extid_version, target_type, target, payload_type, payload) where payload_type is not null and payload is not null;
-
+create unique index concurrently on extid(extid_type, extid, extid_version, target_type, target);
 create index concurrently on extid(target_type, target);

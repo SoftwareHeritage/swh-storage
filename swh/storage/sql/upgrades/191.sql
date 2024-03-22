@@ -1,5 +1,5 @@
 -- SWH DB schema upgrade
--- from_version: 190
+-- from_version: 1901
 -- to_version: 191
 -- description: Add type parameter to swh_visit_find_by_date function
 

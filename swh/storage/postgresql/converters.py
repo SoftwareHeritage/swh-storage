@@ -377,8 +377,6 @@ def db_to_extid(row) -> ExtID:
             object_id=row["target"],
             object_type=SwhidObjectType[row["target_type"].upper()],
         ),
-        payload_type=row["payload_type"],
-        payload=row["payload"],
     )
 
 

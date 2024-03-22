@@ -784,9 +784,6 @@ class InMemoryCqlRunner:
         extid: bytes,
         extid_version: int,
         target: ExtendedSWHID,
-        has_payload: bool,
-        payload_type: str,
-        payload: Sha1Git,
     ) -> Optional[ExtIDRow]:
         primary_key = self._extid.primary_key_from_dict(
             dict(
@@ -795,9 +792,6 @@ class InMemoryCqlRunner:
                 extid_version=extid_version,
                 target_type=target.object_type.value,
                 target=target.object_id,
-                has_payload=has_payload,
-                payload_type=payload_type,
-                payload=payload,
             )
         )
         return self._extid.get_from_primary_key(primary_key)
