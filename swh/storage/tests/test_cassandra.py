@@ -414,6 +414,9 @@ class TestCassandraStorage(_TestStorage):
                     extid_version=extid.extid_version,
                     target_type=extid.target.object_type.value,
                     target=extid.target.object_id,
+                    has_payload=extid.payload_type is not None,
+                    payload_type=extid.payload_type or "",
+                    payload=extid.payload or b"",
                 )
                 for extid in sample_data.extids
             ]
@@ -428,7 +431,13 @@ class TestCassandraStorage(_TestStorage):
             extids = swh_storage.extid_get_from_target(
                 target_type=extid.target.object_type, ids=[extid.target.object_id]
             )
-            assert extids == [extid]
+            assert extids == [
+                expected_extid
+                for expected_extid in sample_data.extids
+                if expected_extid.target == extid.target
+                and expected_extid.extid_type == extid.extid_type
+                and expected_extid.extid == extid.extid
+            ]
 
     def _directory_with_entries(self, sample_data, nb_entries):
         """Returns a dir with ``nb_entries``, all pointing to

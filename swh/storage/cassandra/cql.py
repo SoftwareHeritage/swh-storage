@@ -1543,7 +1543,8 @@ class CqlRunner:
     @_prepared_select_statement(
         ExtIDRow,
         "WHERE extid_type=? AND extid=? AND extid_version=? "
-        "AND target_type=? AND target=?",
+        "AND target_type=? AND target=? "
+        "AND has_payload=? AND payload_type=? AND payload=?",
     )
     def extid_get_from_pk(
         self,
@@ -1551,6 +1552,9 @@ class CqlRunner:
         extid: bytes,
         extid_version: int,
         target: CoreSWHID,
+        has_payload: bool,
+        payload_type: str,
+        payload: bytes,
         *,
         statement,
     ) -> Optional[ExtIDRow]:
@@ -1563,6 +1567,9 @@ class CqlRunner:
                     extid_version,
                     target.object_type.value,
                     target.object_id,
+                    has_payload,
+                    payload_type,
+                    payload,
                 ],
             ),
         )

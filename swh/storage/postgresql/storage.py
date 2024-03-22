@@ -216,7 +216,7 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 191
+    current_version: int = 192
 
     def __init__(
         self,
@@ -998,6 +998,8 @@ class Storage:
                 "extid_version": getattr(extid, "extid_version", 0),
                 "target": extid.target.object_id,
                 "target_type": extid.target.object_type.name.lower(),  # arghh
+                "payload_type": extid.payload_type,
+                "payload": extid.payload,
             }
             for extid in ids
         ]

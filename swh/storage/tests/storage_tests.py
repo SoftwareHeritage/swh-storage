@@ -2059,6 +2059,41 @@ class TestStorage:
                 ObjectType.REVISION, [ids[0]], extid_type="git"
             )
 
+    def test_extid_payload(self, swh_storage, sample_data):
+        target = sample_data.directory2.swhid()
+        extids = [
+            ExtID(
+                extid=b"abc123",
+                extid_type="test",
+                target=target,
+                payload_type="test_payload",
+                payload=sample_data.content.sha1_git,
+            ),
+        ]
+
+        assert swh_storage.extid_get_from_extid("test", [b"abc123"]) == []
+        assert (
+            swh_storage.extid_get_from_target(target.object_type, [target.object_id])
+            == []
+        )
+
+        summary = swh_storage.extid_add(extids)
+        assert summary == {"extid:add": 1}
+
+        assert swh_storage.extid_get_from_extid("test", [b"abc123"]) == extids
+        assert (
+            swh_storage.extid_get_from_target(target.object_type, [target.object_id])
+            == extids
+        )
+
+        # check ExtIDs have been added to the journal
+        extids_in_journal = [
+            obj
+            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            if obj_type == "extid"
+        ]
+        assert extids == extids_in_journal
+
     def test_release_add(self, swh_storage, sample_data):
         release, release2 = sample_data.releases[:2]
 

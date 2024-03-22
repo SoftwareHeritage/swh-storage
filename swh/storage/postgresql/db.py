@@ -683,7 +683,15 @@ class Db(BaseDb):
     # 'extid' table
     ##########################
 
-    extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
+    extid_cols = [
+        "extid",
+        "extid_version",
+        "extid_type",
+        "target",
+        "target_type",
+        "payload_type",
+        "payload",
+    ]
 
     def extid_get_from_extid_list(
         self, extid_type: str, ids: List[bytes], version: Optional[int] = None, cur=None

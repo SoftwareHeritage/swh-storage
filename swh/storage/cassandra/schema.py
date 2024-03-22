@@ -238,8 +238,11 @@ CREATE TABLE IF NOT EXISTS extid (
     extid_version   smallint,
     target_type     ascii,
     target          blob,
-    PRIMARY KEY ((extid_type, extid), extid_version, target_type, target)
-);""",
+    has_payload     boolean,
+    payload_type    ascii,  -- must be the empty string if has_payload=false
+    payload         blob,  -- must be the empty if has_payload=false
+    PRIMARY KEY ((extid_type, extid), extid_version, target_type, target, has_payload, payload_type, payload)
+);""",  # noqa
     """
 CREATE TABLE IF NOT EXISTS extid_by_target (
     target_type     ascii,
