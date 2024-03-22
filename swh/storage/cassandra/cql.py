@@ -1595,7 +1595,7 @@ class CqlRunner:
     # reasonably small. We can change the schema later if this becomes an issue
     @_prepared_select_statement(
         ExtIDRow,
-        "WHERE token(extid_type, extid) = ? AND extid_version = ? ALLOW FILTERING",
+        "WHERE token(extid_type, extid) = ? AND extid_version = ?",
     )
     def extid_get_from_token_and_extid_version(
         self, token: int, extid_version: int, *, statement
