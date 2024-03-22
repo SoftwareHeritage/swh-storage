@@ -42,7 +42,6 @@ from swh.model.model import (
 from swh.model.model import Content, Directory, DirectoryEntry, ExtID
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
-from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import (
@@ -152,13 +151,12 @@ class TestStorage:
 
     maxDiff: ClassVar[Optional[int]] = None
 
-    def test_types(self, swh_storage_backend_config):
+    def test_types(self, swh_storage):
         """Checks all methods of StorageInterface are implemented by this
         backend, and that they have the same signature."""
         # Create an instance of the protocol (which cannot be instantiated
         # directly, so this creates a subclass, then instantiates it)
         interface = type("_", (StorageInterface,), {})()
-        storage = get_storage(**swh_storage_backend_config)
 
         assert "content_add" in dir(interface)
 
@@ -169,7 +167,7 @@ class TestStorage:
                 continue
             interface_meth = getattr(interface, meth_name)
             try:
-                concrete_meth = getattr(storage, meth_name)
+                concrete_meth = getattr(swh_storage, meth_name)
             except AttributeError:
                 if not getattr(interface_meth, "deprecated_endpoint", False):
                     # The backend is missing a (non-deprecated) endpoint
@@ -187,7 +185,7 @@ class TestStorage:
         # But there's no harm in double-checking.
         # And we could replace the assertions above by this one, but unlike
         # the assertions above, it doesn't explain what is missing.
-        assert isinstance(storage, StorageInterface)
+        assert isinstance(swh_storage, StorageInterface)
 
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
