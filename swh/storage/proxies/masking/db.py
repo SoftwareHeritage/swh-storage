@@ -1,11 +1,12 @@
 # Copyright (C) 2024 The Software Heritage developers
+
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import datetime
 import enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 import attr
@@ -79,7 +80,7 @@ class MaskingRequestHistory:
 
 @attr.s
 class MaskedObject:
-    request = attr.ib(type=UUID)
+    request_slug = attr.ib(type=str)
     swhid = attr.ib(type=ExtendedSWHID)
     state = attr.ib(type=MaskedState)
 
@@ -141,6 +142,53 @@ class MaskingAdmin(MaskingDb):
         id, slug, date, reason = res
         return MaskingRequest(id=id, date=date, slug=slug, reason=reason)
 
+    def find_request_by_id(self, id: UUID) -> Optional[MaskingRequest]:
+        """Find a masking request using its id
+
+        Returns: :const:`None` if a request with the given request doesn't exist
+        """
+        cur = self.cursor()
+        cur.execute(
+            """
+            SELECT id, slug, date, reason
+            FROM masking_request
+            WHERE id = %s
+            """,
+            (id,),
+        )
+
+        res = cur.fetchone()
+        if not res:
+            return None
+        id, slug, date, reason = res
+        return MaskingRequest(id=id, date=date, slug=slug, reason=reason)
+
+    def get_requests(
+        self, include_cleared_requests: bool = False
+    ) -> List[Tuple[MaskingRequest, int]]:
+        """Get known requests
+
+        Args:
+            include_cleared_requests: also include requests with no associated
+            masking states
+        """
+        cur = self.cursor()
+
+        query = """SELECT id, slug, date, reason, COUNT(object_id) AS mask_count
+                     FROM masking_request
+                     LEFT JOIN masked_object ON (request = id)
+                    GROUP BY id"""
+        if not include_cleared_requests:
+            query += " HAVING COUNT(object_id) > 0"
+        query += " ORDER BY date DESC"
+        cur.execute(query)
+        result = []
+        for id, slug, date, reason, mask_count in cur:
+            result.append(
+                (MaskingRequest(id=id, slug=slug, date=date, reason=reason), mask_count)
+            )
+        return result
+
     def set_object_state(
         self, request_id: UUID, new_state: MaskedState, swhids: List[ExtendedSWHID]
     ):
@@ -176,6 +224,83 @@ class MaskingAdmin(MaskingDb):
             ),
         )
 
+    def get_states_for_request(
+        self, request_id: UUID
+    ) -> Dict[ExtendedSWHID, MaskedState]:
+        """Get the state of objects associated with the given request.
+
+        Raises :exc:`RequestNotFound` if the request is not found.
+        """
+
+        cur = self.cursor()
+
+        cur.execute("SELECT 1 FROM masking_request WHERE id = %s", (request_id,))
+        if cur.fetchone() is None:
+            raise RequestNotFound(request_id)
+
+        result = {}
+        cur.execute(
+            """SELECT object_id, object_type, state
+                 FROM masked_object
+                WHERE request = %s""",
+            (request_id,),
+        )
+        for object_id, object_type, state in cur:
+            swhid = ExtendedSWHID(
+                object_id=object_id,
+                object_type=ExtendedObjectType[object_type.upper()],
+            )
+            result[swhid] = MaskedState[state.upper()]
+        return result
+
+    def find_masks(self, swhids: List[ExtendedSWHID]) -> List[MaskedObject]:
+        """Lookup the masking state and associated requests for the given SWHIDs."""
+
+        cur = self.cursor()
+        result = []
+        for (
+            object_id,
+            object_type,
+            request_slug,
+            state,
+        ) in psycopg2.extras.execute_values(
+            cur,
+            """SELECT object_id, object_type, slug, state
+                 FROM masked_object
+                INNER JOIN (VALUES %s) v(object_id, object_type)
+                USING (object_id, object_type)
+                 LEFT JOIN masking_request ON (masking_request.id = request)
+                ORDER BY object_type, object_id, masking_request.date DESC
+            """,
+            ((swhid.object_id, swhid.object_type.name.lower()) for swhid in swhids),
+            template="(%s, %s::extended_object_type)",
+            fetch=True,
+        ):
+            swhid = ExtendedSWHID(
+                object_id=object_id, object_type=ExtendedObjectType[object_type.upper()]
+            )
+            result.append(
+                MaskedObject(
+                    request_slug=request_slug,
+                    swhid=swhid,
+                    state=MaskedState[state.upper()],
+                )
+            )
+        return result
+
+    def delete_masks(self, request_id: UUID) -> None:
+        """Remove all masking states for the given request.
+
+        Raises: :exc:`RequestNotFound` if the request is not found.
+        """
+
+        cur = self.cursor()
+        cur.execute("SELECT 1 FROM masking_request WHERE id = %s", (request_id,))
+        if cur.fetchone() is None:
+            raise RequestNotFound(request_id)
+
+        cur.execute("DELETE FROM masked_object WHERE request = %s", (request_id,))
+
     def record_history(self, request_id: UUID, message: str) -> MaskingRequestHistory:
         """Add an entry to the history of the given request.
 
@@ -197,6 +322,31 @@ class MaskingAdmin(MaskingDb):
         assert res is not None, "PostgreSQL returned an inconsistent result"
 
         return MaskingRequestHistory(request=request_id, date=res[0], message=message)
+
+    def get_history(self, request_id: UUID) -> List[MaskingRequestHistory]:
+        """Get the history of a given request.
+
+        Raises: :exc:`RequestNotFound` if the request if not found.
+        """
+        cur = self.cursor()
+
+        cur.execute("SELECT 1 FROM masking_request WHERE id = %s", (request_id,))
+        if cur.fetchone() is None:
+            raise RequestNotFound(request_id)
+
+        cur.execute(
+            """SELECT date, message
+                    FROM masking_request_history
+                WHERE request = %s
+                ORDER BY date DESC""",
+            (request_id,),
+        )
+        records = []
+        for date, message in cur:
+            records.append(
+                MaskingRequestHistory(request=request_id, date=date, message=message)
+            )
+        return records
 
 
 class MaskingQuery(MaskingDb):

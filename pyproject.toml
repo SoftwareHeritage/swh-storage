@@ -28,6 +28,7 @@ journal = {file = ["requirements-swh-journal.txt"]}
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
+"swh.storage.proxies.masking" = "swh.storage.proxies.masking.cli"
 
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage"

@@ -30,11 +30,6 @@ def test_create_find_request(masking_admin: MaskingAdmin):
     assert masking_admin.find_request("foo") == created
 
 
-def test_find_request_not_found(masking_admin):
-    slug = "notfound"
-    assert masking_admin.find_request(slug=slug) is None
-
-
 def test_create_request_conflict(masking_admin: MaskingAdmin):
     masking_admin.create_request(slug="foo", reason="bar")
 
@@ -42,6 +37,118 @@ def test_create_request_conflict(masking_admin: MaskingAdmin):
         masking_admin.create_request(slug="foo", reason="quux")
 
     assert exc_info.value.args == ("foo",)
+
+
+def test_find_request_not_found(masking_admin):
+    slug = "notfound"
+    assert masking_admin.find_request(slug=slug) is None
+
+
+def test_find_request_by_id(masking_admin: MaskingAdmin):
+    created = masking_admin.create_request(slug="foo", reason="bar")
+
+    assert masking_admin.find_request_by_id(created.id) == created
+
+
+NON_EXISTING_UUID: uuid.UUID = uuid.UUID("da785a27-acab-4a35-b82a-a5ae3714407c")
+
+
+def test_find_request_by_id_not_found(masking_admin: MaskingAdmin):
+    assert masking_admin.find_request_by_id(NON_EXISTING_UUID) is None
+
+
+@pytest.fixture
+def populated_masking_admin(masking_admin):
+    pending_request1 = masking_admin.create_request(slug="pending1", reason="one")
+    masking_admin.set_object_state(
+        request_id=pending_request1.id,
+        new_state=MaskedState.DECISION_PENDING,
+        swhids=[StorageData.content.swhid().to_extended()],
+    )
+    pending_request2 = masking_admin.create_request(slug="pending2", reason="two")
+    masking_admin.set_object_state(
+        request_id=pending_request2.id,
+        new_state=MaskedState.VISIBLE,
+        swhids=[StorageData.content.swhid().to_extended()],
+    )
+    masking_admin.set_object_state(
+        request_id=pending_request2.id,
+        new_state=MaskedState.DECISION_PENDING,
+        swhids=[StorageData.content2.swhid().to_extended()],
+    )
+    masking_admin.create_request(slug="cleared", reason="handled")
+    # We add no masks to this last one
+    return masking_admin
+
+
+def test_get_requests_excluding_cleared_requests(populated_masking_admin):
+    assert [
+        (request.slug, count)
+        for request, count in populated_masking_admin.get_requests(
+            include_cleared_requests=False
+        )
+    ] == [("pending2", 2), ("pending1", 1)]
+
+
+def test_get_requests_including_cleared_requests(populated_masking_admin):
+    assert [
+        (request.slug, count)
+        for request, count in populated_masking_admin.get_requests(
+            include_cleared_requests=True
+        )
+    ] == [("cleared", 0), ("pending2", 2), ("pending1", 1)]
+
+
+def test_get_states_for_request(populated_masking_admin):
+    request = populated_masking_admin.find_request("pending2")
+    states = populated_masking_admin.get_states_for_request(request.id)
+    assert states == {
+        StorageData.content.swhid().to_extended(): MaskedState.VISIBLE,
+        StorageData.content2.swhid().to_extended(): MaskedState.DECISION_PENDING,
+    }
+
+
+def test_get_states_for_request_not_found(masking_admin: MaskingAdmin):
+    with pytest.raises(RequestNotFound) as exc_info:
+        masking_admin.get_states_for_request(NON_EXISTING_UUID)
+    assert exc_info.value.args == (NON_EXISTING_UUID,)
+
+
+def test_find_masks(populated_masking_admin: MaskingAdmin):
+    swhids = [
+        StorageData.content.swhid().to_extended(),
+        StorageData.content2.swhid().to_extended(),
+        # This one does not exist in the masking db
+        StorageData.directory.swhid().to_extended(),
+    ]
+    masks = populated_masking_admin.find_masks(swhids)
+    # The order in the output should be grouped by SWHID
+    assert [(mask.swhid, mask.state, mask.request_slug) for mask in masks] == [
+        (
+            StorageData.content2.swhid().to_extended(),
+            MaskedState.DECISION_PENDING,
+            "pending2",
+        ),
+        (StorageData.content.swhid().to_extended(), MaskedState.VISIBLE, "pending2"),
+        (
+            StorageData.content.swhid().to_extended(),
+            MaskedState.DECISION_PENDING,
+            "pending1",
+        ),
+    ]
+
+
+def test_delete_masks(populated_masking_admin):
+    request = populated_masking_admin.find_request("pending2")
+    populated_masking_admin.delete_masks(request.id)
+
+    assert populated_masking_admin.get_states_for_request(request.id) == {}
+
+
+def test_delete_masks_not_found(masking_admin: MaskingAdmin):
+    with pytest.raises(RequestNotFound) as exc_info:
+        masking_admin.delete_masks(NON_EXISTING_UUID)
+    assert exc_info.value.args == (NON_EXISTING_UUID,)
 
 
 def test_record_history(masking_admin: MaskingAdmin):
@@ -55,12 +162,26 @@ def test_record_history(masking_admin: MaskingAdmin):
 
 
 def test_record_history_not_found(masking_admin: MaskingAdmin):
-    request_id = uuid.uuid4()
-
     with pytest.raises(RequestNotFound) as exc_info:
-        masking_admin.record_history(request_id, "kaboom")
+        masking_admin.record_history(NON_EXISTING_UUID, "kaboom")
+    assert exc_info.value.args == (NON_EXISTING_UUID,)
 
-    assert exc_info.value.args == (request_id,)
+
+def test_get_history(masking_admin: MaskingAdmin):
+    request = masking_admin.create_request(slug="foo", reason="bar")
+    masking_admin.record_history(request.id, "one")
+    masking_admin.record_history(request.id, "two")
+    masking_admin.record_history(request.id, "three")
+
+    history = masking_admin.get_history(request.id)
+    assert all(record.request == request.id for record in history)
+    assert ["three", "two", "one"] == [record.message for record in history]
+
+
+def test_get_history_not_found(masking_admin: MaskingAdmin):
+    with pytest.raises(RequestNotFound) as exc_info:
+        masking_admin.get_history(NON_EXISTING_UUID)
+    assert exc_info.value.args == (NON_EXISTING_UUID,)
 
 
 def test_swhid_lifecycle(masking_admin: MaskingAdmin, masking_query: MaskingQuery):
