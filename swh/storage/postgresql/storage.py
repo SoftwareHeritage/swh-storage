@@ -1801,20 +1801,6 @@ class Storage:
     # misc.
     ##########################
 
-    @db_transaction(statement_timeout=2000)
-    def object_find_by_sha1_git(
-        self, ids: List[Sha1Git], *, db: Db, cur=None
-    ) -> Dict[Sha1Git, List[Dict]]:
-        ret: Dict[Sha1Git, List[Dict]] = {id: [] for id in ids}
-
-        for retval in db.object_find_by_sha1_git(ids, cur=cur):
-            if retval[1]:
-                ret[retval[0]].append(
-                    dict(zip(db.object_find_by_sha1_git_cols, retval))
-                )
-
-        return ret
-
     @db_transaction(statement_timeout=500)
     def stat_counters(self, *, db: Db, cur=None):
         return {k: v for (k, v) in db.stat_counters()}

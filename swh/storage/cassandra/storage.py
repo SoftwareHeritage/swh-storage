@@ -1681,36 +1681,6 @@ class CassandraStorage:
     # misc.
     ##########################
 
-    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
-        results: Dict[Sha1Git, List[Dict]] = {id_: [] for id_ in ids}
-        missing_ids = set(ids)
-
-        # Mind the order, revision is the most likely one for a given ID,
-        # so we check revisions first.
-        queries: List[Tuple[str, Callable[[List[Sha1Git]], Iterable[Sha1Git]]]] = [
-            ("revision", self._cql_runner.revision_missing),
-            ("release", self._cql_runner.release_missing),
-            ("content", self.content_missing_per_sha1_git),
-            ("directory", self._cql_runner.directory_missing),
-        ]
-
-        for object_type, query_fn in queries:
-            found_ids = missing_ids - set(query_fn(list(missing_ids)))
-            for sha1_git in found_ids:
-                results[sha1_git].append(
-                    {
-                        "sha1_git": sha1_git,
-                        "type": object_type,
-                    }
-                )
-                missing_ids.remove(sha1_git)
-
-            if not missing_ids:
-                # We found everything, skipping the next queries.
-                break
-
-        return results
-
     def stat_counters(self):
         rows = self._cql_runner.stat_counters()
         keys = (

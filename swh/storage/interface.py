@@ -1512,23 +1512,6 @@ class StorageInterface(Protocol):
     # misc.
     ##########################
 
-    @remote_api_endpoint("object/find_by_sha1_git")
-    def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
-        """Return the objects found with the given ids.
-
-        Args:
-            ids: a generator of sha1_gits
-
-        Returns:
-            A dict from id to the list of objects found for that id. Each object
-            found is itself a dict with keys:
-
-            - sha1_git: the input id
-            - type: the type of object found
-
-        """
-        ...
-
     def stat_counters(self):
         """compute statistics about the number of tuples in various tables
 

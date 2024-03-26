@@ -1535,51 +1535,6 @@ class Db(BaseDb):
     # misc.
     ##########################
 
-    object_find_by_sha1_git_cols = ["sha1_git", "type"]
-
-    def object_find_by_sha1_git(self, ids, cur=None):
-        cur = self._cursor(cur)
-
-        yield from execute_values_generator(
-            cur,
-            """
-            WITH t (sha1_git) AS (VALUES %s),
-            known_objects as ((
-                select
-                  id as sha1_git,
-                  'release'::object_type as type,
-                  object_id
-                from release r
-                where exists (select 1 from t where t.sha1_git = r.id)
-            ) union all (
-                select
-                  id as sha1_git,
-                  'revision'::object_type as type,
-                  object_id
-                from revision r
-                where exists (select 1 from t where t.sha1_git = r.id)
-            ) union all (
-                select
-                  id as sha1_git,
-                  'directory'::object_type as type,
-                  object_id
-                from directory d
-                where exists (select 1 from t where t.sha1_git = d.id)
-            ) union all (
-                select
-                  sha1_git as sha1_git,
-                  'content'::object_type as type,
-                  object_id
-                from content c
-                where exists (select 1 from t where t.sha1_git = c.sha1_git)
-            ))
-            select t.sha1_git as sha1_git, k.type
-            from t
-            left join known_objects k on t.sha1_git = k.sha1_git
-            """,
-            ((id,) for id in ids),
-        )
-
     def stat_counters(self, cur=None):
         cur = self._cursor(cur)
         cur.execute("SELECT * FROM swh_stat_counters()")
