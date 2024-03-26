@@ -210,11 +210,14 @@ class MaskingProxyStorage:
             if masked:
                 raise MaskedObjectException(masked)
 
-    @functools.lru_cache(128)
     def __getattr__(self, key):
-        if key == "storage":
-            raise AttributeError(key)
-        elif key == "journal_writer":
+        method = self._get_method(key)
+        # Don't go through the lookup in the next calls to self.key
+        setattr(self, key, method)
+        return method
+
+    def _get_method(self, key):
+        if key == "journal_writer":
             # Useful for tests
             return self.storage.journal_writer
         elif key.endswith("_add") or key in ("content_update", "content_add_metadata"):
