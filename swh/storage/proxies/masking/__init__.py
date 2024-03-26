@@ -22,11 +22,12 @@ from typing import (
 import psycopg2.pool
 
 from swh.core.api.classes import PagedResult
+from swh.model.hashutil import MultiHash
 from swh.model.model import Origin
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
 from swh.storage.exc import MaskedObjectException
-from swh.storage.interface import Content, HashDict, Sha1, StorageInterface
+from swh.storage.interface import HashDict, Sha1, StorageInterface
 from swh.storage.proxies.masking.db import MaskedStatus
 
 from .db import MaskingQuery
@@ -299,8 +300,17 @@ class MaskingProxyStorage:
             )
 
         else:
-            swhid = Content.from_data(ret).swhid().to_extended()
-            self.raise_if_masked([swhid])
+            # Hash the content again
+            self.raise_if_masked(
+                [
+                    ExtendedSWHID(
+                        object_type=ExtendedObjectType.CONTENT,
+                        object_id=MultiHash.from_data(ret, ["sha1_git"]).digest()[
+                            "sha1_git"
+                        ],
+                    )
+                ]
+            )
 
         return ret
 
