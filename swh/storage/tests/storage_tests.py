@@ -5921,17 +5921,22 @@ class TestStorage:
             ]
         )
 
-        assert swh_storage.raw_extrinsic_metadata_get_authorities(content1.swhid()) in (
+        assert swh_storage.raw_extrinsic_metadata_get_authorities(
+            content1.swhid().to_extended()
+        ) in (
             [authority, authority2],
             [authority2, authority],
         )
 
-        assert swh_storage.raw_extrinsic_metadata_get_authorities(content2.swhid()) == [
-            authority
-        ]
+        assert swh_storage.raw_extrinsic_metadata_get_authorities(
+            content2.swhid().to_extended()
+        ) == [authority]
 
         assert (
-            swh_storage.raw_extrinsic_metadata_get_authorities(content3.swhid()) == []
+            swh_storage.raw_extrinsic_metadata_get_authorities(
+                content3.swhid().to_extended()
+            )
+            == []
         )
 
     def test_origin_metadata_add(self, swh_storage, sample_data):
