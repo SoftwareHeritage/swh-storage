@@ -75,7 +75,10 @@ Archive copies
 Specifications
 --------------
 
-* :ref:`extrinsic-metadata-specification`
+.. toctree::
+
+   extrinsic-metadata-specification
+   object-masking
 
 
 Reference Documentation

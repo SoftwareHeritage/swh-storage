@@ -1,0 +1,58 @@
+.. _swh-storage-masking:
+
+Object Masking
+==============
+
+For legal and policy reasons, some objects stored in the archive should not be publicly
+available. This restriction is implemented by the :mod:`masking storage proxy
+<swh.storage.proxies.masking>`.
+
+Data model
+----------
+
+This proxy has its own database of:
+
+* masking requests, identified by a private "slug" and a public opaque UUID,
+* for each request, a list of human-readable free-form history messages
+* for each request, the list of affected "extended SWHIDs" (ie. :ref:`SWHIDs
+  <persistent-identifiers>` with extra types ``ori`` for origins and ``emd`` for
+  Raw Extrinsic Metadata),
+  which each has a :class:`state <swh.storage.proxies.masking.db.MaskedState>`
+  among ``VISIBLE``, ``PENDING_DECISION``, or ``RESTRICTED``
+
+Requests are initially created with an empty set of SWHIDs, and SWHIDs are then
+upserted with their evolving states.
+Typically, all SWHIDs affected by a request will be added with state ``PENDING_DECISION``
+shortly after a request is created, then each moved to either ``VISIBLE`` or
+``RESTRICTED`` as the request is being processed.
+
+Implementation
+--------------
+
+When any method of the masking proxy is called, the proxy will first forward the
+call to its backend. For each object returned by the backend, the proxy then checks
+whether that object should be masked. In particular, this means that masking a SWHID
+does not hide whether the object is missing from the archive.
+
+Objects are masked, if and only iff
+
+* They intrinsically have a SWHID, and that SWHID has a non-``VISIBLE`` status in the
+  masking database
+* The object is an origin, origin visit, or origin visit status, whose origin URL
+  is masked (via the extended SWHID ``swh:1:ori:`` followed by the sha1 hash of the URL)
+* The object is a Raw Extrinsic Metadata whose git-like SHA1 preceded by ``swh:1:emd:``
+  is an extended SWHID with non-``VISIBLE`` status
+
+Methods returning a random object from the database re-try the backend call up
+to 5 times when the backend call returns a masked object, and fall back to returning
+:const:`None`.
+
+Objects referencing a masked object are not masked themselves, and still contain the
+SWHID of masked objects.
+
+If the masking proxy decides any objects that would be returned is masked, it fails
+the whole method call, and returns a :exc:`swh.storage.exc.MaskedObjectException`.
+This exception has a ``masked`` attribute, which is a dictionary mapping extended SWHIDs
+to the masking status and masking request id of each masked object.
+This allows clients to either display the exception to their user, or filter-out masked
+SWHIDs from the list of objects before calling the method again.
