@@ -114,11 +114,12 @@ def test_content_get_data(swh_storage, set_object_visibility):
         set_object_visibility,
     )
 
-    assert_masked_objects_raise(
-        lambda: swh_storage.content_get_data(StorageData.content.sha1),
-        [StorageData.content.swhid().to_extended()],
-        set_object_visibility,
-    )
+    with pytest.deprecated_call():
+        assert_masked_objects_raise(
+            lambda: swh_storage.content_get_data(StorageData.content.sha1),
+            [StorageData.content.swhid().to_extended()],
+            set_object_visibility,
+        )
 
 
 def test_content_get(swh_storage, set_object_visibility):
