@@ -326,7 +326,7 @@ class MaskingProxyStorage:
                 )
             ]
         elif method_name == "raw_extrinsic_metadata_get_authorities":
-            return [parsed_args["target"].to_extended()]
+            return [parsed_args["target"]]
         elif method_name == "directory_get_raw_manifest":
             return [
                 ExtendedSWHID(
