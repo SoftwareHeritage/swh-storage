@@ -922,3 +922,17 @@ def test_raw_extrinsic_metadata(swh_storage, set_object_visibility):
             [masked_swhid],
             set_object_visibility,
         )
+
+    # Authority information is only masked if the target is masked
+    found_authorities = assert_masked_objects_raise(
+        lambda: swh_storage.raw_extrinsic_metadata_get_authorities(origin.swhid()),
+        [origin.swhid()],
+        set_object_visibility,
+    )
+
+    set_object_visibility([origin_metadata[0].swhid()], MaskedState.DECISION_PENDING)
+
+    assert (
+        swh_storage.raw_extrinsic_metadata_get_authorities(origin.swhid())
+        == found_authorities
+    )
