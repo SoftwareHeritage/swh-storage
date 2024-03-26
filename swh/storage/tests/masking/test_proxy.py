@@ -3,21 +3,32 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import math
+import datetime
 from typing import Iterable
 
 import attr
 import pytest
 
 from swh.core.api.classes import stream_results
+from swh.model.model import (
+    Release,
+    Revision,
+    RevisionType,
+    Snapshot,
+    SnapshotBranch,
+    TargetType,
+)
 from swh.model.model import Directory, DirectoryEntry, ExtID
 from swh.model.model import ObjectType as ModelObjectType
-from swh.model.model import Release, Revision, RevisionType, TargetType
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import MaskedObjectException
 from swh.storage.proxies.masking import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskedState
 from swh.storage.tests.storage_data import StorageData
+
+
+def now() -> datetime.datetime:
+    return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
 @pytest.fixture
@@ -259,9 +270,7 @@ def test_directory_get_id_partition(swh_storage, set_object_visibility):
     ]
     swh_storage.directory_add(directories)
 
-    # nb_partitions = smallest power of 2 such that at least one of
-    # the partitions is empty
-    nb_partitions = 1 << math.floor(math.log2(100))
+    nb_partitions = 4
 
     for partition in range(nb_partitions):
         if directories[0].id in stream_results(
@@ -382,9 +391,7 @@ def test_revision_get_partition(swh_storage, set_object_visibility):
     ]
     swh_storage.revision_add(revisions)
 
-    # nb_partitions = smallest power of 2 such that at least one of
-    # the partitions is empty
-    nb_partitions = 1 << math.floor(math.log2(100))
+    nb_partitions = 4
 
     for partition in range(nb_partitions):
         if revisions[0] in stream_results(
@@ -494,9 +501,7 @@ def test_release_get_partition(swh_storage, set_object_visibility):
     ]
     swh_storage.release_add(releases)
 
-    # nb_partitions = smallest power of 2 such that at least one of
-    # the partitions is empty
-    nb_partitions = 1 << math.floor(math.log2(100))
+    nb_partitions = 4
 
     for partition in range(nb_partitions):
         if releases[0] in stream_results(
@@ -548,5 +553,172 @@ def test_snapshot_get(swh_storage, set_object_visibility):
     assert_masked_objects_raise(
         lambda: swh_storage.snapshot_get(StorageData.snapshot.id),
         [StorageData.snapshot.swhid().to_extended()],
+        set_object_visibility,
+    )
+
+
+def test_snapshot_count_branches(swh_storage, set_object_visibility):
+    swh_storage.snapshot_add([StorageData.snapshot, StorageData.complete_snapshot])
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.snapshot_count_branches(StorageData.complete_snapshot.id),
+        [StorageData.complete_snapshot.swhid().to_extended()],
+        set_object_visibility,
+    )
+
+
+def test_snapshot_get_branches(swh_storage, set_object_visibility):
+    set_object_visibility(
+        [StorageData.snapshot.swhid().to_extended()], MaskedState.DECISION_PENDING
+    )
+
+    swh_storage.snapshot_add([StorageData.snapshot, StorageData.complete_snapshot])
+
+    get_branches_result = {
+        "id": StorageData.complete_snapshot.id,
+        "branches": StorageData.complete_snapshot.branches,
+        "next_branch": None,
+    }
+
+    assert (
+        swh_storage.snapshot_get_branches(StorageData.complete_snapshot.id)
+        == get_branches_result
+    )
+    # Check that masking branch targets doesn't affect snapshot visibility
+    for branch in StorageData.complete_snapshot.branches.values():
+        if not branch or branch.target_type == TargetType.ALIAS:
+            continue
+
+        set_object_visibility(
+            [branch.swhid().to_extended()], MaskedState.DECISION_PENDING
+        )
+        assert (
+            swh_storage.snapshot_get_branches(StorageData.complete_snapshot.id)
+            == get_branches_result
+        )
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.snapshot_get_branches(StorageData.snapshot.id),
+        [StorageData.snapshot.swhid().to_extended()],
+        set_object_visibility,
+    )
+
+
+def test_snapshot_branch_get_by_name(swh_storage, set_object_visibility):
+    set_object_visibility(
+        [StorageData.snapshot.swhid().to_extended()], MaskedState.DECISION_PENDING
+    )
+
+    swh_storage.snapshot_add([StorageData.snapshot, StorageData.complete_snapshot])
+
+    assert swh_storage.snapshot_branch_get_by_name(
+        StorageData.complete_snapshot.id, branch_name=b"content"
+    ).branch_found
+
+    # Check that masking branch targets doesn't affect snapshot visibility
+    for name, branch in StorageData.complete_snapshot.branches.items():
+        if branch and branch.target_type != TargetType.ALIAS:
+            set_object_visibility(
+                [branch.swhid().to_extended()], MaskedState.DECISION_PENDING
+            )
+
+        found = swh_storage.snapshot_branch_get_by_name(
+            StorageData.complete_snapshot.id, branch_name=name, follow_alias_chain=False
+        )
+
+        assert found.branch_found
+        assert found.target == branch
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.snapshot_branch_get_by_name(
+            StorageData.snapshot.id, b"HEAD"
+        ),
+        [StorageData.snapshot.swhid().to_extended()],
+        set_object_visibility,
+    )
+
+
+def test_snapshot_get_id_partition(swh_storage, set_object_visibility):
+    snapshots = [
+        Snapshot(
+            branches={
+                f"branch{i}".encode(): SnapshotBranch(
+                    target=b"\x00" * 20,
+                    target_type=TargetType.REVISION,
+                ),
+            },
+        )
+        for i in range(100)
+    ]
+    swh_storage.snapshot_add(snapshots)
+
+    nb_partitions = 4
+
+    for partition in range(nb_partitions):
+        if snapshots[0].id in stream_results(
+            swh_storage.snapshot_get_id_partition, partition, nb_partitions
+        ):
+            break
+    else:
+        assert False, "No partition with snapshots[0] found?"
+
+    assert_masked_objects_raise(
+        lambda: list(
+            stream_results(
+                swh_storage.snapshot_get_id_partition, partition, nb_partitions
+            )
+        ),
+        [snapshots[0].swhid().to_extended()],
+        set_object_visibility,
+    )
+
+
+def test_origin_get(swh_storage, set_object_visibility):
+    set_object_visibility([StorageData.origin.swhid()], MaskedState.DECISION_PENDING)
+    swh_storage.origin_add([StorageData.origin, StorageData.origin2])
+
+    assert [StorageData.origin2] == swh_storage.origin_get([StorageData.origin2.url])
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.origin_get([StorageData.origin.url]),
+        [StorageData.origin.swhid()],
+        set_object_visibility,
+    )
+
+
+def test_origin_get_by_sha1(swh_storage, set_object_visibility):
+    set_object_visibility([StorageData.origin.swhid()], MaskedState.DECISION_PENDING)
+    swh_storage.origin_add([StorageData.origin, StorageData.origin2])
+
+    assert [{"url": StorageData.origin2.url}] == swh_storage.origin_get_by_sha1(
+        [StorageData.origin2.id]
+    )
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.origin_get_by_sha1([StorageData.origin.id]),
+        [StorageData.origin.swhid()],
+        set_object_visibility,
+    )
+
+
+def test_origin_list(swh_storage, set_object_visibility):
+    swh_storage.origin_add(StorageData.origins)
+
+    res = list(stream_results(swh_storage.origin_list))
+    assert len(res) == len(StorageData.origins)
+
+    assert_masked_objects_raise(
+        lambda: list(stream_results(swh_storage.origin_list)),
+        [StorageData.origin.swhid()],
+        set_object_visibility,
+    )
+
+
+def test_origin_search(swh_storage, set_object_visibility):
+    swh_storage.origin_add(StorageData.origins)
+
+    assert_masked_objects_raise(
+        lambda: list(stream_results(swh_storage.origin_search, StorageData.origin.url)),
+        [StorageData.origin.swhid()],
         set_object_visibility,
     )
