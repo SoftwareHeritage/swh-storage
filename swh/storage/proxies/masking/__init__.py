@@ -153,12 +153,6 @@ class MaskingProxyStorage:
                     object_type=ExtendedObjectType.REVISION, object_id=result[0]
                 )
             ]
-        elif method_name == "origin_snapshot_get_all":
-            # Returns snapshot ids
-            assert isinstance(result, bytes), f"{method_name} returned unexpected type"
-            return [
-                ExtendedSWHID(object_type=ExtendedObjectType.SNAPSHOT, object_id=result)
-            ]
 
         elif method_name == "origin_get_by_sha1":
             # Returns origin dicts, because why not
@@ -257,6 +251,7 @@ class MaskingProxyStorage:
             "snapshot_branch_get_by_name",
             "snapshot_count_branches",
             "snapshot_get_branches",
+            "origin_snapshot_get_all",
         ):
             return self._getter_filtering_arguments(key)
         elif key in (
@@ -275,7 +270,6 @@ class MaskingProxyStorage:
             "revision_log",
             "revision_shortlog",
             "extid_get_from_target",
-            "origin_snapshot_get_all",
             "raw_extrinsic_metadata_get_by_ids",
         ):
             return self._getter_list_optional(key)
@@ -341,6 +335,8 @@ class MaskingProxyStorage:
                 )
                 for object_id in parsed_args["directory_ids"]
             ]
+        elif method_name == "origin_snapshot_get_all":
+            return [Origin(url=parsed_args["origin_url"]).swhid()]
         else:
             raise ValueError(f"Cannot get swhid for arguments of method {method_name}")
 
