@@ -31,10 +31,10 @@ Implementation
 
 When any method of the masking proxy is called, the proxy will first forward the
 call to its backend. For each object returned by the backend, the proxy then checks
-whether that object should be masked. In particular, this means that masking a SWHID
-does not hide whether the object is missing from the archive.
+whether that object should be masked. In particular, this means that if an object
+is absent from the archive, then masking its SWHID has no effect.
 
-Objects are masked, if and only iff
+Objects are masked, if and only if:
 
 * They intrinsically have a SWHID, and that SWHID has a non-``VISIBLE`` status in the
   masking database
@@ -42,6 +42,8 @@ Objects are masked, if and only iff
   is masked (via the extended SWHID ``swh:1:ori:`` followed by the sha1 hash of the URL)
 * The object is a Raw Extrinsic Metadata whose git-like SHA1 preceded by ``swh:1:emd:``
   is an extended SWHID with non-``VISIBLE`` status
+* The object is an ExtID or Raw Extrinsic Metadata, and its ``target`` is a masked object,
+  even if the target object is missing from the archive
 
 Methods returning a random object from the database re-try the backend call up
 to 5 times when the backend call returns a masked object, and fall back to returning
