@@ -11,6 +11,8 @@ import pytest
 
 from swh.core.api.classes import stream_results
 from swh.model.model import (
+    OriginVisit,
+    OriginVisitStatus,
     Release,
     Revision,
     RevisionType,
@@ -720,5 +722,74 @@ def test_origin_search(swh_storage, set_object_visibility):
     assert_masked_objects_raise(
         lambda: list(stream_results(swh_storage.origin_search, StorageData.origin.url)),
         [StorageData.origin.swhid()],
+        set_object_visibility,
+    )
+
+
+def test_origin_snapshot_get_all(swh_storage, set_object_visibility):
+    origin = StorageData.origins[0]
+    swh_storage.origin_add([origin])
+
+    visit2_date = now()
+    visit1_date = visit2_date - datetime.timedelta(seconds=3600)
+    visit_type = "git"
+
+    # set first visit to a null snapshot
+    visit1 = swh_storage.origin_visit_add(
+        [
+            OriginVisit(
+                origin=origin.url,
+                date=visit1_date,
+                type=visit_type,
+            )
+        ]
+    )[0]
+    swh_storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=visit1.visit,
+                date=visit1_date,
+                status="created",
+                snapshot=None,
+            )
+        ]
+    )
+
+    # set second visit to a non-null snapshot
+    visit2 = swh_storage.origin_visit_add(
+        [
+            OriginVisit(
+                origin=origin.url,
+                date=visit2_date,
+                type=visit_type,
+            )
+        ]
+    )[0]
+    swh_storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=visit2.visit,
+                date=visit2.date,
+                status="created",
+                snapshot=None,
+            ),
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=visit2.visit,
+                date=visit2.date + datetime.timedelta(seconds=60),
+                status="full",
+                snapshot=StorageData.snapshot.id,
+            ),
+        ]
+    )
+
+    set_object_visibility([StorageData.snapshot.swhid()], MaskedState.DECISION_PENDING)
+    assert swh_storage.origin_snapshot_get_all(origin.url) == [StorageData.snapshot.id]
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.origin_snapshot_get_all(origin.url),
+        [origin.swhid()],
         set_object_visibility,
     )
