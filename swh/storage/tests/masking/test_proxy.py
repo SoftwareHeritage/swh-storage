@@ -92,6 +92,8 @@ def assert_masked_objects_raise(func, objects, set_object_visibility):
     set_object_visibility(list(objects), MaskedState.VISIBLE)
     assert func() == expected_result
 
+    return expected_result
+
 
 def test_content_get_data(swh_storage, set_object_visibility):
     # Ensure that object masking doesn't prevent insertion
@@ -108,6 +110,12 @@ def test_content_get_data(swh_storage, set_object_visibility):
 
     assert_masked_objects_raise(
         lambda: swh_storage.content_get_data(StorageData.content.hashes()),
+        [StorageData.content.swhid().to_extended()],
+        set_object_visibility,
+    )
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.content_get_data(StorageData.content.sha1),
         [StorageData.content.swhid().to_extended()],
         set_object_visibility,
     )
@@ -185,6 +193,50 @@ def test_directory_ls(swh_storage, set_object_visibility):
     assert (
         list(swh_storage.directory_ls(StorageData.directory2.id, recursive=False))
         == dir2_ls
+    )
+
+
+def test_directory_get_entries(swh_storage, set_object_visibility):
+    set_object_visibility(
+        [StorageData.directory.swhid().to_extended()], MaskedState.DECISION_PENDING
+    )
+
+    swh_storage.directory_add([StorageData.directory, StorageData.directory2])
+
+    dir2_entries = list(
+        stream_results(swh_storage.directory_get_entries, StorageData.directory2.id)
+    )
+    assert dir2_entries
+
+    assert_masked_objects_raise(
+        lambda: list(
+            stream_results(swh_storage.directory_get_entries, StorageData.directory.id)
+        ),
+        [StorageData.directory.swhid().to_extended()],
+        set_object_visibility,
+    )
+
+    # Check that a masked entry doesn't affect the visibility of the directory itself
+
+    assert StorageData.directory2.entries[0].type == "file"
+    set_object_visibility(
+        [
+            ExtendedSWHID(
+                object_id=StorageData.directory2.entries[0].target,
+                object_type=ExtendedObjectType.CONTENT,
+            )
+        ],
+        MaskedState.DECISION_PENDING,
+    )
+
+    assert (
+        list(
+            stream_results(
+                swh_storage.directory_get_entries,
+                StorageData.directory2.id,
+            )
+        )
+        == dir2_entries
     )
 
 
@@ -726,7 +778,9 @@ def test_origin_search(swh_storage, set_object_visibility):
     )
 
 
-def test_origin_snapshot_get_all(swh_storage, set_object_visibility):
+def add_a_couple_visits(swh_storage):
+    """Adds a couple of visits of one origin to swh_storage,
+    returning the origin and the latest visit added."""
     origin = StorageData.origins[0]
     swh_storage.origin_add([origin])
 
@@ -785,6 +839,12 @@ def test_origin_snapshot_get_all(swh_storage, set_object_visibility):
         ]
     )
 
+    return origin, visit2
+
+
+def test_origin_snapshot_get_all(swh_storage, set_object_visibility):
+    origin, _ = add_a_couple_visits(swh_storage)
+
     set_object_visibility([StorageData.snapshot.swhid()], MaskedState.DECISION_PENDING)
     assert swh_storage.origin_snapshot_get_all(origin.url) == [StorageData.snapshot.id]
 
@@ -793,3 +853,72 @@ def test_origin_snapshot_get_all(swh_storage, set_object_visibility):
         [origin.swhid()],
         set_object_visibility,
     )
+
+
+def test_origin_visit_behavior(swh_storage, set_object_visibility):
+    origin, last_visit = add_a_couple_visits(swh_storage)
+
+    for method in (
+        "origin_visit_get",
+        "origin_visit_get_latest",
+        "origin_visit_get_with_statuses",
+    ):
+        assert_masked_objects_raise(
+            lambda method=method: getattr(swh_storage, method)(origin.url),
+            [origin.swhid()],
+            set_object_visibility,
+        )
+
+    assert_masked_objects_raise(
+        lambda: swh_storage.origin_visit_find_by_date(origin.url, last_visit.date),
+        [origin.swhid()],
+        set_object_visibility,
+    )
+
+    for method in (
+        "origin_visit_get_by",
+        "origin_visit_status_get",
+        "origin_visit_status_get_latest",
+    ):
+        assert_masked_objects_raise(
+            lambda method=method: getattr(swh_storage, method)(
+                origin.url, last_visit.visit
+            ),
+            [origin.swhid()],
+            set_object_visibility,
+        )
+
+
+def test_raw_extrinsic_metadata(swh_storage, set_object_visibility):
+    origin = StorageData.origin
+    origin_metadata = StorageData.origin_metadata
+
+    authority1 = origin_metadata[0].authority
+    authority2 = origin_metadata[-1].authority
+    assert authority1 != authority2
+
+    swh_storage.origin_add([origin])
+
+    swh_storage.metadata_fetcher_add([m.fetcher for m in origin_metadata])
+    swh_storage.metadata_authority_add([m.authority for m in origin_metadata])
+
+    swh_storage.raw_extrinsic_metadata_add(origin_metadata)
+
+    # The last metadata should not be masked
+    assert swh_storage.raw_extrinsic_metadata_get(origin.swhid(), authority2).results
+
+    # Masking both the origin and the metadata's swhid should mask the REMD object
+    for masked_swhid in [origin.swhid(), origin_metadata[0].swhid()]:
+        assert_masked_objects_raise(
+            lambda: swh_storage.raw_extrinsic_metadata_get(origin.swhid(), authority1),
+            [masked_swhid],
+            set_object_visibility,
+        )
+
+        assert_masked_objects_raise(
+            lambda: swh_storage.raw_extrinsic_metadata_get_by_ids(
+                [origin_metadata[0].id]
+            ),
+            [masked_swhid],
+            set_object_visibility,
+        )
