@@ -216,7 +216,7 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 192
+    current_version: int = 193
 
     def __init__(
         self,

@@ -324,4 +324,4 @@ alter table object_counts_bucketed add primary key using index object_counts_buc
 create unique index concurrently on extid(extid_type, extid, extid_version, target_type, target);
 create index concurrently on extid(target_type, target);
 
-\endif  -- :dbflavor_not_only_masking
+\endif
