@@ -1,5 +1,6 @@
 select swh_get_dbflavor() != 'only_masking' as dbflavor_not_only_masking \gset
 
+-- This skips this whole file if the dbflavor is `only_masking`
 \if :dbflavor_not_only_masking
 
 ---
@@ -537,4 +538,5 @@ comment on column object_references.source is 'Object id for the source of the e
 comment on column object_references.target_type is 'Object type for the target of the edge';
 comment on column object_references.target is 'Object id for the target of the edge';
 
+-- :dbflavor_not_only_masking
 \endif

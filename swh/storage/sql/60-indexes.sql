@@ -6,7 +6,9 @@ select swh_get_dbflavor() = 'mirror' as dbflavor_mirror \gset
 select swh_get_dbflavor() = 'default' as dbflavor_default \gset
 select swh_get_dbflavor() != 'only_masking' as dbflavor_not_only_masking \gset
 
+-- This skips this whole file if the dbflavor is `only_masking`
 \if :dbflavor_not_only_masking
+
 -- content
 
 create unique index concurrently content_pkey on content(sha1);

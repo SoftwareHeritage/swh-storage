@@ -1,3 +1,8 @@
+select swh_get_dbflavor() = 'only_masking' as dbflavor_only_masking \gset
+
+-- This skips this whole file unless the dbflavor is `only_masking`
+\if :dbflavor_only_masking
+
 create type masked_state as enum ('visible', 'decision_pending', 'restricted');
 comment on type masked_state is 'The degree to which an object is masked';
 
@@ -46,3 +51,6 @@ comment on column masked_object.state is 'The degree to which the object is mask
 
 create index if not exists masked_object_request_idx on masked_object using btree(request, object_type, object_id);
 comment on index masked_object_request_idx is 'Allow listing all the objects associated by request, ordered by SWHID';
+
+-- :dbflavor_only_masking
+\endif

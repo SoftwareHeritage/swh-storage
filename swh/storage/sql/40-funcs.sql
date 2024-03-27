@@ -1,5 +1,6 @@
 select swh_get_dbflavor() != 'only_masking' as dbflavor_not_only_masking \gset
 
+-- This skips this whole file if the dbflavor is `only_masking`
 \if :dbflavor_not_only_masking
 
 create or replace function hash_sha1(text)
