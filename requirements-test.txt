@@ -1,5 +1,5 @@
 hypothesis >= 3.11.0
-pytest
+pytest >= 8.1
 
 pytest-mock
 # pytz is in fact a dep of swh.model[testing] and should not be necessary, but
